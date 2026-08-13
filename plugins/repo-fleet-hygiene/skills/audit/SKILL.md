@@ -112,7 +112,10 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
    the canonical checkout's expected common dir. A mismatch is `HIGH` evidence of an administrative
    linkage problem but **manual review only**. Missing/prunable registrations never trigger pruning.
-   If either inventory command fails or emits malformed/partial output, discard it, emit `UNKNOWN`,
+   Linked registrations with reliable admin and an empty `git status --porcelain` at the work-tree
+   root emit `MEDIUM` `reclaimable-worktree` — working-tree cleanliness only, not proof the
+   checkout is still wanted; stash list is out of scope. A failed status probe emits `UNKNOWN`
+   `worktree-disposability-unverifiable`. If either inventory command fails or emits malformed/partial output, discard it, emit `UNKNOWN`,
    stop local branch/worktree classification, and do not count that repository as successfully
    audited; an empty/failed inventory never means no branches are attached.
 5. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
@@ -173,10 +176,11 @@ do not turn "no verified finding" into "fleet is clean".
 | Finding | Handoff (not executed here) |
 |---|---|
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
-| `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
+| `merged-worktree`, `prunable-worktree`, `missing-worktree`, `reclaimable-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
 | `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the CONTAINING repository, so no cleanup handoff is safe until the path is resolved |
 | `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven — the probe itself failed — so infer nothing about the path in either direction |
+| `worktree-disposability-unverifiable` | Manual inspection of the registered path; reclaimability was not checked because `git status --porcelain` failed |
 | `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |

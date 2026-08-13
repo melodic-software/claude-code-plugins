@@ -149,6 +149,12 @@ git_probe_allowed() {
     branch)
       [[ $# -eq 4 && "$4" == "--show-current" ]]
       ;;
+    status)
+      [[ $# -eq 4 && "$4" == "--porcelain" ]]
+      ;;
+    log)
+      [[ $# -eq 6 && "$4" == "-1" && "$5" == "--format=%ct" && "$6" == "HEAD" ]]
+      ;;
     for-each-ref)
       [[ $# -eq 6 && "$4" == "--format=%(refname:short)%09%(objectname)%00" && "$5" == "--" ]] || return 1
       [[ "$6" == "refs/heads/" ]] && return 0
@@ -887,7 +893,7 @@ analyze_repo() {
   local override_source="git-native" expected_actual="" expected_default="" expected_reason=""
   local canonical_actual="" canonical_reason="" github_repo="" default_branch="" current_branch=""
   local expected_common="" actual_common="" branch tip pr_match pr_any
-  local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
+  local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status wt_status_output
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false pr_row_count=0
@@ -1141,6 +1147,23 @@ analyze_repo() {
         "expected common dir $expected_common; actual $actual_common" \
         "Manual administrative-directory decision; never auto-repair/remove" \
         "Inspect both repositories; consider git worktree repair only after choosing the authority"
+    elif [[ "$is_main" == "false" && "${WT_LOCKED[$wt_index]}" != "true" ]]; then
+      # Reclaimability is working-tree evidence only: an empty porcelain status means no uncommitted
+      # changes at audit time, not that nobody still needs the checkout. Stash list is deliberately
+      # out of scope — it would widen the read surface and still would not prove wantedness.
+      if wt_status_output="$(run_git_probe -C "$wt_path" status --porcelain 2>/dev/null)"; then
+        if [[ -z "$wt_status_output" ]]; then
+          emit_finding MEDIUM reclaimable-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
+            "git status --porcelain is empty at the registered worktree root" \
+            "Candidate worktree dry-run handoff; emptiness is working-tree evidence only, not proof nobody still needs the checkout" \
+            "Run /source-control:worktree cleanup --dry-run in $canonical"
+        fi
+      else
+        emit_finding UNKNOWN worktree-disposability-unverifiable "$wt_path${wt_branch:+ ($wt_branch)}" \
+          "git status --porcelain failed at the registered worktree root" \
+          "Do not infer whether this worktree is reclaimable" \
+          "Inspect the registered path and Git metadata, then rerun"
+      fi
     fi
   done
 

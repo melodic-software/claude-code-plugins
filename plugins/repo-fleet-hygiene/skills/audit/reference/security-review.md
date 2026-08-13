@@ -67,6 +67,8 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 - Repository/config/worktree-derived report values containing newlines or control/ANSI bytes are
   rendered as a single `%q`-encoded field, so they cannot forge report labels or terminal controls.
 - A worktree-looking directory cannot become a finding without Git porcelain membership.
+- `git status --porcelain` at a registered work-tree root is read-only local metadata; it never
+  transmits content and cannot mutate. A failed status probe cannot be mistaken for a clean tree.
 - A high-confidence finding still cannot mutate because the script has no apply mode.
 
 ## Deferred verification

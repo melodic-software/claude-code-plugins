@@ -101,7 +101,9 @@ successfully audited.
 "Can I delete this repository safely?" is deletion triage — an inventory of dirty files, stashes,
 and unpushed branches — and belongs to `/repo-hygiene:clean` (its scan/stash/git tiers), which owns
 per-repository disposability analysis. This audit is a read-only cross-repository evidence REPORT;
-it names candidates and hands off, and deliberately does not judge whether a checkout is disposable.
+it names candidates and hands off. It can report `reclaimable-worktree` when a linked worktree's
+`git status --porcelain` is empty, but that is working-tree evidence only — not proof a checkout is
+still wanted, and not repository deletion triage.
 
 ## Requirements
 
