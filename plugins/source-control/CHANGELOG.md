@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.21]
+
+### Fixed
+
+- **babysit-prs bulk `--include-human` refuses human-deferred threads (#671).**
+  Bulk resolution skips threads whose most recent human reply parks the finding
+  (`defer`/`deferred`, `VALID (defer)`, `pending ruling`, `held pending`,
+  `needs-human`). Truncated comment pages fail closed; pinned `--thread-id` may
+  still proceed.
+
 ## [0.53.20]
 
 ### Documentation

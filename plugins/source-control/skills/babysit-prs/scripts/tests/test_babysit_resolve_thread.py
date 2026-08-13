@@ -217,6 +217,31 @@ class ProjectThreadHumanDeferral(unittest.TestCase):
         projected = rt.project_thread(record)
         self.assertFalse(projected["humanDeferred"])
 
+    def test_bare_defer_keyword_flags_thread(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [
+                _comment("codex[bot]", "Bot", "Please fix this."),
+                _comment(
+                    "kyle-sexton",
+                    "User",
+                    "Let's defer this to #123 until the ruling lands.",
+                ),
+            ],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record)
+        self.assertTrue(projected["humanDeferred"])
+
+    def test_truncated_comment_page_fails_closed_as_deferred(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [_comment("codex[bot]", "Bot", "Please fix this.")],
+            "comments_truncated": True,
+        }
+        projected = rt.project_thread(record)
+        self.assertTrue(projected["humanDeferred"])
+
 
 class ProjectThreadExtraBotLogins(unittest.TestCase):
     """#637 site 1: `project_thread`'s `botOnly` computation (L117-120)."""

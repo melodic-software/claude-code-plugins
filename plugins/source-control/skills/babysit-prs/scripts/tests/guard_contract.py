@@ -804,11 +804,13 @@ def _thread(
     outdated: bool,
     severity_flagged: bool | None = None,
     finding_count: object = _OMITTED,
+    human_deferred: bool = False,
 ) -> dict[str, object]:
     thread: dict[str, object] = {
         "isResolved": resolved,
         "botOnly": bot_only,
         "isOutdated": outdated,
+        "humanDeferred": human_deferred,
     }
     if severity_flagged is not None:
         # Omitted by default so the rows that never reach the severity guard

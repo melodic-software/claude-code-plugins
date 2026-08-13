@@ -127,7 +127,7 @@ Deterministic guards encoded here:
   default (safe and worker modes never touch human threads), and the caller
   must opt in explicitly. Bulk resolution (no pinned `--thread-id`) additionally
   refuses a thread whose most recent human reply carries explicit defer language
-  (`VALID (defer)`, "deferred", "pending ruling", "held pending", "needs-human")
+  (`VALID (defer)`, "defer"/"deferred", "pending ruling", "held pending", "needs-human")
   so a careless bulk sweep cannot close a thread a human deliberately parked (#671).
   A pinned `--thread-id` call is an explicit per-thread vet and may still proceed.
   The caller still owns the judgment that each finding is genuinely addressed
@@ -258,7 +258,7 @@ HUMAN_DEFERRAL_RE = re.compile(
     r"(?:"
     r"VALID\s*\(\s*defer\s*\)"
     r"|VALID\s*[—\-]\s*defer"
-    r"|\bdeferred?\b"
+    r"|\bdefer(?:red)?\b"
     r"|\bpending\s+ruling\b"
     r"|\bheld\s+pending\b"
     r"|\bneeds-human\b"
@@ -481,14 +481,16 @@ def project_thread(
             if (body := _reply_body(c)) is not None
         ],
         "humanDeferred": (
-            not truncated
-            and (human_reply := _most_recent_human_reply_body(
-                comments,
-                extra_bot_logins=extra_bot_logins,
-                self_logins=self_logins,
-            ))
-            is not None
-            and _has_human_deferral_marker(human_reply)
+            truncated
+            or (
+                (human_reply := _most_recent_human_reply_body(
+                    comments,
+                    extra_bot_logins=extra_bot_logins,
+                    self_logins=self_logins,
+                ))
+                is not None
+                and _has_human_deferral_marker(human_reply)
+            )
         ),
     }
 
@@ -577,7 +579,7 @@ def classify(
     if (
         include_human
         and not pinned_thread
-        and thread.get("humanDeferred")
+        and thread.get("humanDeferred", True)
     ):
         # Bulk `--include-human` must not sweep a thread a human deliberately
         # parked pending a ruling (#671). A pinned `--thread-id` call is an
