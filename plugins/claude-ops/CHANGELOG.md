@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.11]
+
+### Fixed
+
+- **`morning-brief` Queues section no longer hardcodes melodic-software queue labels
+  on live runs (#610).** Default labels remain the melodic-software taxonomy, but
+  live queries now filter to labels that exist in the target repo (like the
+  telemetry-issue path, degrading to "no queue labels found" when none match).
+  Pass `--queue-labels` to pin a custom comma-separated set and `--decision-label`
+  to pin the parked-decision label.
+
 ## [0.31.10]
 
 ### Fixed

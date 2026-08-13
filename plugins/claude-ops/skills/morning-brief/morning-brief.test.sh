@@ -224,6 +224,16 @@ cat >"$TMP/telemetry-no-lanes.json" <<'EOF'
 ]
 EOF
 
+# A repo whose label taxonomy does not include the melodic-software defaults.
+cat >"$TMP/repo-labels-alternate.json" <<'EOF'
+["bug", "enhancement", "status: blocked"]
+EOF
+
+# A repo that carries only a subset of the defaults (ready + needs-human).
+cat >"$TMP/repo-labels-partial.json" <<'EOF'
+["status: ready", "needs-human", "documentation"]
+EOF
+
 # --- Full render --------------------------------------------------------------
 OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
@@ -305,6 +315,48 @@ OUT2="$(bash "$BRIEF" --now "$NOW" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/no-telemetry.json" 2>&1)"
 assert_contains "missing telemetry degrades gracefully" "$OUT2" "no telemetry issue found"
+
+# --- Graceful: queue labels absent in consuming repo -------------------------
+OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
+  --repo-labels-json "$TMP/repo-labels-alternate.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/empty.json" \
+  --telemetry-json "$TMP/empty.json" \
+  --merged-json "$TMP/merged-clean.json" 2>&1)"
+assert_contains "no matching queue labels degrades gracefully" "$OUT_NO_QL" "no queue labels found in this repo"
+assert_contains "degradation names the defaults" "$OUT_NO_QL" "pass --queue-labels to customize"
+QUEUE_ONLY="$(printf '%s\n' "$OUT_NO_QL" | awk '/^== Queues/,/^== /{if (!/^== / || /^== Queues/) print}')"
+assert_not_contains "absent defaults are not rendered as 0 count rows" "$QUEUE_ONLY" $'priority: needs-triage          0'
+assert_not_contains "absent defaults are not rendered as ? count rows" "$QUEUE_ONLY" $'priority: needs-triage          ?'
+
+OUT_PARTIAL_QL="$(bash "$BRIEF" --now "$NOW" \
+  --repo-labels-json "$TMP/repo-labels-partial.json" \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/empty.json" \
+  --telemetry-json "$TMP/empty.json" \
+  --merged-json "$TMP/merged-clean.json" 2>&1)"
+assert_contains "partial taxonomy shows only labels that exist" "$OUT_PARTIAL_QL" "status: ready"
+assert_contains "partial taxonomy keeps another existing label" "$OUT_PARTIAL_QL" "needs-human"
+assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "priority: needs-triage"
+
+OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
+  --queue-labels "bug, enhancement" \
+  --repo-labels-json "$TMP/repo-labels-alternate.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/empty.json" \
+  --telemetry-json "$TMP/empty.json" \
+  --merged-json "$TMP/merged-clean.json" 2>&1)"
+assert_contains "pinned queue labels are honored" "$OUT_CUSTOM_QL" "bug"
+assert_contains "pinned queue labels include the second entry" "$OUT_CUSTOM_QL" "enhancement"
+
+OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
+  --repo-labels-json "$TMP/repo-labels-alternate.json" \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/empty.json" \
+  --telemetry-json "$TMP/empty.json" \
+  --merged-json "$TMP/merged-clean.json" 2>&1)"
+assert_contains "missing decision label degrades gracefully" "$OUT_NO_DEC" "decision label not found in this repo"
 
 # --- Graceful: empty queues / no parked decisions ----------------------------
 OUT3="$(bash "$BRIEF" --now "$NOW" \

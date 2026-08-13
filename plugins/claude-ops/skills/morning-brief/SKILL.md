@@ -1,6 +1,6 @@
 ---
 description: "Prints the operator's read-only morning view for the current GitHub repo in one pass — open counts per queue label (needs-triage / ready / needs-decision / needs-human), the gh-native merge-ready PR list, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness (last-cycle age + flags). Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Read-only and gh-based — never mutates issues, PRs, labels, or comments."
-argument-hint: "[--repo owner/name] [--telemetry-issue N] [--stale-hours N] — read-only; omit to view the current repo"
+argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] — read-only; omit to view the current repo"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -43,9 +43,9 @@ re-query the sections by hand.
 
 | Section | Source | Notes |
 |---|---|---|
-| Queues | `gh issue list --label <queue>` counts | Labels: `priority: needs-triage`, `status: ready`, `status: needs-decision`, `needs-human` |
+| Queues | `gh issue list --label <queue>` counts | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
 | Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty) |
-| Parked decisions | open `status: needs-decision` issues | Surfaces each one's RECOMMENDED line — the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers |
+| Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line — the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count; window is `--stranded-days`, default 3 |
 
@@ -59,6 +59,13 @@ failure mode.
 The telemetry issue is auto-discovered by title; pass `--telemetry-issue N` to pin it.
 When no such issue exists (e.g. a consuming repo without loop-lane telemetry), that
 section reports "no telemetry issue found" and the rest of the brief still renders.
+
+Queue labels default to the melodic-software taxonomy and are filtered to labels
+that actually exist in the target repo on live runs, so a consuming repo with a
+different scheme does not show misleading `0`/`?` rows. Pass `--queue-labels` to
+pin a custom comma-separated set; pass `--decision-label` to pin the parked-decision
+label. When none of the configured queue labels exist, the Queues section reports
+"no queue labels found" and the rest of the brief still renders.
 
 ## Cross-references
 
