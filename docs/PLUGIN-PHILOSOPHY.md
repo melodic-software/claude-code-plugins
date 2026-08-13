@@ -451,7 +451,10 @@ Classify absence deliberately:
 Anything with a runtime prerequisite (for example `jq` on `PATH`) degrades gracefully — never a hard
 crash. Absence is surfaced to both the agent and the user; a candidate channel for durable
 visibility is the hook-telemetry convention's OTel surface. No black boxes: a silently skipped
-feature is a defect.
+feature is a defect. The broader false-green class — healthy-while-dead and green-with-hidden-
+findings on health, status, advisory, and gate surfaces — is owned by the
+[liveness-assertion convention](conventions/liveness-assertion/README.md); this section's
+prerequisite-absence rules are one slice of that contract, specialized here for runtime absence.
 
 Hooks follow the event's official control contract. Use a blocking result only when the event can still
 be blocked and the hook is enforcing a policy. Advisory hooks surface a visible non-blocking diagnostic.
@@ -486,6 +489,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
+| Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 
