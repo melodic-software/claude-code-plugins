@@ -217,7 +217,10 @@ NEEDS_LIVE_TELEMETRY=0
 # Parked-decisions can short-circuit on a fixture label inventory when the
 # decision label is absent — no gh issue list needed for that probe.
 if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
-  NEEDS_LIVE_DECISIONS=0
+  _probe_decision_label="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
+  if _probe_repo_labels="$(fetch_repo_label_names)"; then
+    label_exists_in_repo "$_probe_decision_label" "$_probe_repo_labels" || NEEDS_LIVE_DECISIONS=0
+  fi
 fi
 ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY))
 if ((ANY_LIVE)) && ! have gh; then
