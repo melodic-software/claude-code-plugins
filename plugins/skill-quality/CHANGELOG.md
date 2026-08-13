@@ -3,6 +3,13 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.9]
+
+### Changed
+
+- **Docs:** qualify actionable `/plugin configure` examples in README and setup SKILL
+  (`skill-quality@melodic-software`; generated blocks use `@<marketplace>`) per Test E (#1360).
+
 ## [0.15.8]
 
 ### Changed
