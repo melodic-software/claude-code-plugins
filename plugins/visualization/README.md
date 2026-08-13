@@ -63,7 +63,7 @@ rendered diagram. These facts and their sources are documented in the catalog.
   and treated as `auto`. There is no native enum type for `userConfig`, so the
   allowed values are validated in-skill.
 
-Configure with `/plugin configure visualization` (or `--config medium=<value>` on a
+Configure with `/plugin configure visualization@<marketplace>` (or `--config medium=<value>` on a
 fresh install). No persistent state; no external prerequisites; no network calls of
 its own.
 
@@ -71,7 +71,7 @@ its own.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install visualization@melodic-software
+/plugin install visualization@<marketplace>
 ```
 
 ## Possible future change
@@ -99,7 +99,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure visualization`.
+   plugin. To change them later: `/plugin configure visualization@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

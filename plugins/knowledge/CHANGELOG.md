@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.11.2]
+
+### Changed
+
+- **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
+  (`<plugin>@<marketplace>`; generated option blocks use `@<marketplace>`) per
+  [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
+  Test E (#1360). Targetless references to the flow stay unqualified.
+
 ## [0.11.1]
 
 ### Fixed

@@ -194,11 +194,11 @@ others.
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
-Set them interactively with `/plugin configure guardrails`, or headless on the
+Set them interactively with `/plugin configure guardrails@<marketplace>`, or headless on the
 install command:
 
 ```shell
-claude plugin install guardrails@melodic-software --config hardcoded_path_check_enabled=false
+claude plugin install guardrails@<marketplace> --config hardcoded_path_check_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the
@@ -300,7 +300,7 @@ as before.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install guardrails@melodic-software
+/plugin install guardrails@<marketplace>
 ```
 
 Then verify the runtime prerequisites and live guard surface with
@@ -342,7 +342,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure guardrails`.
+   plugin. To change them later: `/plugin configure guardrails@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

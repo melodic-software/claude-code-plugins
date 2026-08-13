@@ -71,7 +71,7 @@ formatting still runs.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install go-format@melodic-software
+/plugin install go-format@<marketplace>
 ```
 
 Then verify prerequisites with `/go-format:setup check`.
@@ -85,11 +85,11 @@ surface to read. One `userConfig` option tunes the hook itself:
 |--------|---------|--------|
 | `go_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure go-format`, or headless on the
+Set it interactively with `/plugin configure go-format@<marketplace>`, or headless on the
 install command:
 
 ```shell
-claude plugin install go-format@melodic-software --config go_format_enabled=false
+claude plugin install go-format@<marketplace> --config go_format_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the
@@ -113,7 +113,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure go-format`.
+   plugin. To change them later: `/plugin configure go-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.23.2]
+
+### Changed
+
+- **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
+  (`<plugin>@<marketplace>`; generated option blocks use `@<marketplace>`) per
+  [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
+  Test E (#1360). Targetless references to the flow stay unqualified.
+
 ## [0.23.1]
 
 ### Fixed

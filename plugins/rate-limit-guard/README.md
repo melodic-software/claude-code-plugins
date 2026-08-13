@@ -43,7 +43,7 @@ resume on their own after the reset. Four parts:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install rate-limit-guard@melodic-software
+/plugin install rate-limit-guard@<marketplace>
 ```
 
 The StopFailure hook is active immediately. The statusline tee needs two operator steps, both
@@ -89,7 +89,7 @@ One `userConfig` option:
 |---|---|
 | `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook **and** the statusline tee's snapshot write (default `true`). |
 
-Set it with `/plugin configure rate-limit-guard`, or headless on a fresh install via
+Set it with `/plugin configure rate-limit-guard@<marketplace>`, or headless on a fresh install via
 `claude plugin install rate-limit-guard@<marketplace> --config rate_limit_guard_enabled=false`.
 
 **Where the switch is read from.** The StopFailure hook receives it the ordinary way, as
@@ -131,7 +131,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure rate-limit-guard`.
+   plugin. To change them later: `/plugin configure rate-limit-guard@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

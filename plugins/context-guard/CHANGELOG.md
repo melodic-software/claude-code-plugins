@@ -5,6 +5,15 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.11]
+
+### Changed
+
+- **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
+  (`<plugin>@<marketplace>`; generated option blocks use `@<marketplace>`) per
+  [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
+  Test E (#1360). Targetless references to the flow stay unqualified.
+
 ## [0.7.10]
 
 ### Fixed

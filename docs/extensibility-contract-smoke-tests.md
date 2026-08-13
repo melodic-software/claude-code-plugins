@@ -161,3 +161,28 @@ claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti \
   data dir is `<name>-inline`, distinct from an installed plugin's.
 - **`claude plugin validate` requires `title` (a string) on every `userConfig` entry** — a
   manifest with `type`/`description`/`default` but no `title` fails validation.
+
+## Test E — `/plugin configure` bare name vs marketplace-qualified id
+
+**Question.** When the same plugin `name` is installed from more than one marketplace — e.g.
+`dometrain@<marketplace>` and `dometrain@dometrain` coexist — does `/plugin configure
+<bare-name>` unambiguously target one install, or must the command carry the marketplace suffix?
+
+**Evidence (Claude Code 2.1.207, corroborated by Tests C and D above).**
+
+- **Plugin identity is always `<name>@<marketplace>`.** `pluginConfigs` keys, the headless-install
+  advisory (Test C), and `--plugin-dir` inline sessions (Test D) all use the qualified id — never the
+  bare name alone.
+- **The CLI's own advisory prints the suffixed form.** Test C observed:
+  `run /plugin configure smoketest@<marketplace> in Claude Code` — not `smoketest` alone.
+- **`claude plugin` has no `configure` subcommand** (verified against `claude plugin --help` on
+  2.1.207); `/plugin configure` is an interactive slash command only. There is no headless probe of
+  bare-vs-qualified resolution, and upstream docs do not document either spelling.
+
+**Fleet decision.** Actionable guidance — anywhere a reader is told to *run* the command with a
+specific plugin target — uses the marketplace-qualified form `/plugin configure
+<plugin>@<marketplace>` (in this marketplace's shipped docs, `@<marketplace>` unless the prose
+already names a different catalog). Targetless references to the flow ("reconfigure via `/plugin
+configure`", "what `/plugin configure` shows") stay unqualified: they name the surface, not an
+install identity. Under a same-name, two-marketplace install, the bare form is therefore not a
+documented command — it cannot name which `pluginConfigs` entry or install the reader means.

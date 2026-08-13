@@ -28,7 +28,7 @@ substituted into the server's `.mcp.json` `Authorization` header as a Bearer tok
 Headless install with the key seeded on first install:
 
 ```shell
-claude plugin install dometrain@melodic-software --config dometrain_api_key=<your-key>
+claude plugin install dometrain@<marketplace> --config dometrain_api_key=<your-key>
 ```
 
 **Security note:** passing the key as a CLI argument records it in shell history
@@ -51,11 +51,11 @@ authentication" here silently reuses the existing stored key). To change or clea
 `dometrain_api_key` later, run:
 
 ```text
-/plugin configure dometrain
+/plugin configure dometrain@<marketplace>
 ```
 
 This reopens the same configuration screen shown at first enable, letting you overwrite or blank
-the key at any time. (`claude plugin install dometrain@melodic-software --config
+the key at any time. (`claude plugin install dometrain@<marketplace> --config
 dometrain_api_key=...` only seeds the value on a fresh install — re-running it against an
 already-installed plugin does not update the stored value; use `/plugin configure` instead, or
 uninstall and reinstall for a headless rotation — same shell-history/process-table exposure
@@ -106,7 +106,7 @@ variable you have to export yourself.
 
 **Do not enable both plugins simultaneously.** Both share the identical plugin name
 (`"dometrain"`) in their respective `plugin.json` manifests. Install identity is
-marketplace-scoped (`dometrain@melodic-software` and `dometrain@dometrain` are distinct,
+marketplace-scoped (`dometrain@<marketplace>` and `dometrain@dometrain` are distinct,
 coexistable install identities), but skill and MCP-tool namespacing is driven by `plugin.json`
 `name` alone — and Claude Code's documented behavior for two enabled plugins sharing an
 identical name is genuinely undocumented. Pick one.
@@ -163,7 +163,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure dometrain`.
+   plugin. To change them later: `/plugin configure dometrain@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

@@ -240,7 +240,7 @@ overrides it.
 Code owns (`pluginConfigs`) — this skill never hand-edits it. It documents and walks the two
 sanctioned paths:
 
-- **Interactive:** `/plugin configure source-control` (or the `/plugin` dialog → source-control →
+- **Interactive:** `/plugin configure source-control@<marketplace>` (or the `/plugin` dialog → source-control →
   configure), any time — Claude Code prompts per key using the manifest's types and defaults.
 - **Headless / CI:** `--config` only applies on a fresh install (ignored once installed), so
   reconfiguring headless means `claude plugin uninstall source-control -s <scope>` then

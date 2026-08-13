@@ -42,7 +42,7 @@ your `PATH`.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install actionlint@melodic-software
+/plugin install actionlint@<marketplace>
 ```
 
 Then verify prerequisites with `/actionlint:setup check`.
@@ -67,11 +67,11 @@ repository when present. Two `userConfig` options tune the hook itself:
   setting this shell's `read -t` will not accept — or `0` — falls back to the
   default.
 
-Configure interactively with `/plugin configure actionlint` or headless at
+Configure interactively with `/plugin configure actionlint@<marketplace>` or headless at
 install time:
 
 ```shell
-claude plugin install actionlint@melodic-software --config actionlint_enabled=false
+claude plugin install actionlint@<marketplace> --config actionlint_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings), so a value set
@@ -97,7 +97,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure actionlint`.
+   plugin. To change them later: `/plugin configure actionlint@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

@@ -48,7 +48,7 @@ run log. No telemetry, no other network calls, no `Invoke-Expression` on externa
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install machine-health@melodic-software
+/plugin install machine-health@<marketplace>
 ```
 
 ## Migrating from an in-repo copy
@@ -99,7 +99,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure machine-health`.
+   plugin. To change them later: `/plugin configure machine-health@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

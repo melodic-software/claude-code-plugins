@@ -193,7 +193,7 @@ Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install source-control@melodic-software
+/plugin install source-control@<marketplace>
 ```
 
 ## Configuration
@@ -320,7 +320,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure source-control`.
+   plugin. To change them later: `/plugin configure source-control@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

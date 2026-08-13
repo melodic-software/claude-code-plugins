@@ -77,7 +77,7 @@ Otherwise the emitted report is the deliverable — copy it into your tracker.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bug-report@melodic-software
+/plugin install bug-report@<marketplace>
 ```
 
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -97,7 +97,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure bug-report`.
+   plugin. To change them later: `/plugin configure bug-report@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

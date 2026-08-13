@@ -43,7 +43,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    inspect the consumer's artifact conventions and recommend one portable location. Never
    recommend a machine-absolute team path.
 5. If a recommended value differs from the effective one, direct the user to Claude Code's plugin
-   configuration prompt for `education` (interactive `/plugin configure education` any time;
+   configuration prompt for `education` (interactive `/plugin configure education@<marketplace>` any time;
    headless, `--config` applies only on a fresh install — uninstall then reinstall to
    reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
 6. Tell the user to rerun `check` after reconfiguration — in a fresh session, since the rendered

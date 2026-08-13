@@ -60,7 +60,7 @@ linting still run.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install biome-format@melodic-software
+/plugin install biome-format@<marketplace>
 ```
 
 Then verify prerequisites with `/biome-format:setup check`.
@@ -76,11 +76,11 @@ One `userConfig` option tunes the hook itself:
 |--------|---------|--------|
 | `biome_format_enabled` | `true` | Toggle for the biome-format hook; set to `false` for a clean no-op |
 
-Set it interactively with `/plugin configure biome-format`, or headless on the
+Set it interactively with `/plugin configure biome-format@<marketplace>`, or headless on the
 install command:
 
 ```shell
-claude plugin install biome-format@melodic-software --config biome_format_enabled=false
+claude plugin install biome-format@<marketplace> --config biome_format_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the
@@ -104,7 +104,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure biome-format`.
+   plugin. To change them later: `/plugin configure biome-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

@@ -73,7 +73,7 @@ before they're taught. See the skill body for the full pedagogy.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install education@melodic-software
+/plugin install education@<marketplace>
 ```
 
 ## Configuration
@@ -88,7 +88,7 @@ defaults that preserve zero-config behavior:
 | `report_library_dir` | directory | *(unset)* | Where `quiz-me` stores reports. Unset uses the plugin's own `${CLAUDE_PLUGIN_DATA}`; set it to a corpus checkout to redirect the library root there. Reports never land in the repo you are working in. |
 
 Configure them through the `/plugin` dialog, or headless at install time with
-`claude plugin install education@melodic-software --config quiz_policy=always`. A literal
+`claude plugin install education@<marketplace> --config quiz_policy=always`. A literal
 non-home `report_library_dir` may be rejected by the hardcoded-path guardrails until
 the #798 path-indirection work lands.
 
@@ -113,7 +113,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure education`.
+   plugin. To change them later: `/plugin configure education@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

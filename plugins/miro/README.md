@@ -39,7 +39,7 @@ server receives `miro_api_token` as its `MIRO_API_TOKEN` environment variable, n
 OAuth flow). To change or clear the token at any time, run:
 
 ```text
-/plugin configure miro
+/plugin configure miro@<marketplace>
 ```
 
 That reopens the same configuration screen shown at first enable, letting you overwrite or blank
@@ -100,7 +100,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure miro`.
+   plugin. To change them later: `/plugin configure miro@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

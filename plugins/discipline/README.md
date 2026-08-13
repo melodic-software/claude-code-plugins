@@ -359,7 +359,7 @@ of truth:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install discipline@melodic-software
+/plugin install discipline@<marketplace>
 ```
 
 ## Configuration
@@ -382,7 +382,7 @@ list of corrector names, empty by default (tiers run exactly as declared) — an
 | `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default — subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
 
 Set them through Claude Code's native plugin-config flow
-(`/plugin configure discipline`); they are personal scalars, not repository
+(`/plugin configure discipline@<marketplace>`); they are personal scalars, not repository
 configuration. `/discipline:setup check` reports the effective configuration
 read-only (it never writes config — reconfiguration stays the native flow).
 Batch membership and order otherwise live in each corrector's own colocated
@@ -409,7 +409,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure discipline`.
+   plugin. To change them later: `/plugin configure discipline@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

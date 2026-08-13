@@ -68,7 +68,7 @@ tool that needs it — so long-running workflows can route heavy work away from 
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install context-guard@melodic-software
+/plugin install context-guard@<marketplace>
 ```
 
 The tee needs two operator steps, both one-time:
@@ -141,7 +141,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure context-guard`.
+   plugin. To change them later: `/plugin configure context-guard@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

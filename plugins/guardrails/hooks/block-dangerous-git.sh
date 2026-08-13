@@ -32,7 +32,7 @@
 #
 # Per-repo/per-user allow-list: the guardrails `block_dangerous_git_allow`
 # userConfig option is a comma-separated list of the form tokens above (e.g.
-# "push-force,reset-hard"). Set it with `/plugin configure guardrails` or
+# "push-force,reset-hard"). Set it with `/plugin configure guardrails@<marketplace>` or
 # headless via `claude plugin install --config`; the hook reads it from the
 # CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW process mirror. Kill switch:
 # the `block_dangerous_git_enabled` userConfig option set to false.

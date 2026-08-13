@@ -123,7 +123,7 @@ constraints on the record:
 - **REMAP the stored spans as Phase 5 applies edits — a span recorded pre-edit does not survive
   the edit.** `<old>` and `<new>` are different lengths in the general case, so applying an
   accepted occurrence shifts every LATER occurrence on that same line by
-  `len(<new>) - len(<old>)`. On `/plugin configure <old>; use <old>.timeout` the accepted Form 13
+  `len(<new>) - len(<old>)`. On `/plugin configure <old>@<marketplace>; use <old>.timeout` the accepted Form 13
   match moves the skipped Form 12 match's columns, the Phase 6 rescan reports different
   `(start, end)`, the stored span fails to subtract, and the user is prompted for the deliberate
   skip again — the same non-terminating loop, now defeated by the bookkeeping meant to close it.

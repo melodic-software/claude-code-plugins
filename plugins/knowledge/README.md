@@ -75,12 +75,12 @@ needs video without the rest of the knowledge stack.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install knowledge@melodic-software
+/plugin install knowledge@<marketplace>
 ```
 
 Migrating from the standalone `book-distill` plugin? Nothing to do — the
-marketplace's `renames` map migrates `book-distill@melodic-software` to
-`knowledge@melodic-software` automatically on your next session; the skill is now
+marketplace's `renames` map migrates `book-distill@<marketplace>` to
+`knowledge@<marketplace>` automatically on your next session; the skill is now
 invoked as `/knowledge:book-distill`.
 
 One exception: an **in-progress multi-session distillation** stores its resume
@@ -131,7 +131,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure knowledge`.
+   plugin. To change them later: `/plugin configure knowledge@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

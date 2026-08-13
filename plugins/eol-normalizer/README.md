@@ -51,7 +51,7 @@ still runs.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install eol-normalizer@melodic-software
+/plugin install eol-normalizer@<marketplace>
 ```
 
 Then verify prerequisites with `/eol-normalizer:setup check`.
@@ -67,11 +67,11 @@ behavior:
 |--------|------|---------|--------|
 | `eol_normalizer_enabled` | boolean | `true` | Toggle the eol-normalizer hook. Set to `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure eol-normalizer`, or headless on
+Set it interactively with `/plugin configure eol-normalizer@<marketplace>`, or headless on
 the install command:
 
 ```shell
-claude plugin install eol-normalizer@melodic-software --config eol_normalizer_enabled=false
+claude plugin install eol-normalizer@<marketplace> --config eol_normalizer_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the
@@ -95,7 +95,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure eol-normalizer`.
+   plugin. To change them later: `/plugin configure eol-normalizer@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

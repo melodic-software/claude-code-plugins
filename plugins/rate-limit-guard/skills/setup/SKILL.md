@@ -13,7 +13,7 @@ conformingly write:
 - **A system tool** (`jq`) — `check` probes it; installing it is the operator's.
 - **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
   `pluginConfigs` setup must never write. Reconfiguration routes through Claude Code's native flow:
-  `/plugin configure rate-limit-guard` interactively, any time. Headless, `claude plugin install
+  `/plugin configure rate-limit-guard@<marketplace>` interactively, any time. Headless, `claude plugin install
   ... --config rate_limit_guard_enabled=false` seeds the value on a *fresh install only* and is
   ignored once installed, so a headless reconfigure is `claude plugin uninstall rate-limit-guard -s
   <scope>` then `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config
