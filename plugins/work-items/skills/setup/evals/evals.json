@@ -173,6 +173,32 @@
         "Does not create labels ad hoc",
         "Writes no file"
       ]
+    },
+    {
+      "id": 14,
+      "name": "check-missing-capability-tier-label-fails",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, gh label list returns no capability-tier: labels, and the schedule is present with zero rows.)",
+      "expected_output": "Probe 8 reports FAIL for the missing capability-tier: frontier label — triage cannot stamp frontier-tier quota guard and the work-loop reader fails closed to general tier until the label exists. Remediation is /work-items:setup apply on repos without label-as-code, or the repo's declared label-as-code owner. Never gh label create ad hoc when label-as-code owns writes. Nothing is written.",
+      "files": [],
+      "expectations": [
+        "Reports the capability-tier label probe as FAIL when capability-tier: frontier is absent",
+        "Names /work-items:setup apply or the label-as-code owner as remediation",
+        "Does not create labels ad hoc",
+        "Writes no file"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "apply-backfills-legacy-frontier-body-stamps",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github, capability-tier: frontier exists in the label set, and backfill-capability-tier-labels.sh check reports two open issues whose bodies carry legacy frontier-tier stamps but lack the label. An interactive user is present.)",
+      "expected_output": "After the capability-tier axis pass confirms the label exists, setup runs the legacy backfill pass: it reports the two candidates from backfill-capability-tier-labels.sh check, offers to apply capability-tier: frontier to each, and on acceptance runs backfill-capability-tier-labels.sh apply so both items receive the label. It does not rely on triage to re-stamp already-triaged items.",
+      "files": [],
+      "expectations": [
+        "Runs backfill-capability-tier-labels.sh check after the capability-tier axis is provisioned",
+        "Offers to apply the label to each legacy body-stamped candidate",
+        "Uses backfill-capability-tier-labels.sh apply rather than re-triaging the items",
+        "Reports how many items received the label"
+      ]
     }
   ]
 }

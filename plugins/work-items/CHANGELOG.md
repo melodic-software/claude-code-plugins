@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.21]
+
+### Fixed
+
+- **`/work-items:setup` provisions and backfills `capability-tier: frontier` (#1716 review).**
+  `check` probe 8 FAILs when the canonical member is absent; `apply` step 4 provisions it (same
+  mechanics as the work-class axis); step 5 backfills open items carrying legacy triage-briefing
+  body stamps via `scripts/backfill-capability-tier-labels.sh` — load-bearing because triage refuses
+  to re-triage already-triaged output. Legacy pattern detection lives in
+  `scripts/lib/legacy-frontier-tier-signal.sh`.
+
+## [0.35.20]
+
+### Fixed
+
+- **`work-loop` frontier-tier signal is the `capability-tier: frontier` label (#1716).** The
+  adaptive-cap quota guard no longer reads a triage-briefing body claim. Missing label fails
+  closed to the general tier; body prose is context only. Carve-out instance removed from
+  `item-content-trust.md`; taxonomy, `capability-tier-labels.md`, tracker-seam, triage stamp,
+  and manifest/README descriptions updated. Label provisioning for this repo requires
+  `melodic-software/github-iac` — the reader lands fail-closed until the label exists.
+
 ## [0.35.19]
 
 ### Fixed
