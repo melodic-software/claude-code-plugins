@@ -442,8 +442,15 @@ class GuardLaunchMonitorTests(unittest.TestCase):
 
     def _wait_for_file(self, path: Path, timeout: float = 5.0) -> None:
         deadline = time.perf_counter() + timeout
-        while time.perf_counter() < deadline and not path.exists():
+        while time.perf_counter() < deadline:
+            if path.exists():
+                try:
+                    if path.read_text(encoding="utf-8").strip():
+                        return
+                except OSError:
+                    pass
             time.sleep(0.05)
+        self.fail(f"timed out waiting for telemetry at {path}")
 
     def test_clean_scan_emits_ok_telemetry_when_sink_wired(self) -> None:
         import os
