@@ -11,8 +11,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   on one repository could both surface and mutate the same row — duplicate interview questions,
   conflicting label flips — because the lane had no claim protocol while `/work-items:work` already
   used the seam assignee + lease (`exit 7` → skip). The skill now claims each row before mutation,
-  releases the lease before flipping to autonomous-eligible, and documents session-start reclaim
-  and binding-presence routing consistent with `work`. Single-session runs need no new argument.
+  flips to autonomous-eligible while the claim is still held, then clears assignee via the adapter
+  (no nonexistent seam release verb; live lease persists until TTL/reclaim), and documents
+  session-start reclaim and binding-presence routing consistent with `work`. Single-session runs
+  need no new argument.
 
 ## [0.35.15]
 

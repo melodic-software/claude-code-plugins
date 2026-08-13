@@ -91,10 +91,11 @@ Exit `7` → another attended session won: **skip that row** and advance to the 
 NOT retry the same item in this pass). Claim identity is the authenticated session user, never the
 bot.
 
-**Binding.** `claim` is a seam coordination verb — if `.work-item-tracker.json` does not resolve,
-surface the same actionable choice as `/work-items:work` before the first `claim`: **(1) setup was
-never run** → run `/work-items:setup`; **(2) deliberate gh-native mode** → proceed for
-provider-mechanic reads only, accepting that concurrent attended sessions have no race-safe row
+**Binding.** `claim` and session-start `reclaim` are seam coordination verbs — if
+`.work-item-tracker.json` does not resolve, surface the same actionable choice as
+`/work-items:work` before the first coordination verb (session-start reclaim, then row `claim`):
+**(1) setup was never run** → run `/work-items:setup`; **(2) deliberate gh-native mode** → proceed
+for provider-mechanic reads only, accepting that concurrent attended sessions have no race-safe row
 lock and collisions are the operator's responsibility.
 
 **Session-start reclaim (once per invocation, when bound).** Before the first row claim, run the
@@ -102,12 +103,23 @@ same idempotent stale-lease sweep `/work-items:work` Step 0 uses: enumerate assi
 each `number` to a fully-qualified id, `"$TRACKER" reclaim "<id>"` on each. Exit `6`
 (capability-unsupported) skips the sweep for providers that declare `reclaim: false`.
 
-**Release when the row disposition is complete.** Attend-queue holds a coordination lock, not an
-execution assignment. Once the row's answer is written, ratification recorded, or triage disposition
-applied (including a decline that leaves the item human-gated), **release before flipping to the
-autonomous-eligible role**: supersede this session's live lease (add `superseded_at` to the lease
-JSON in the lease comment) and remove `@me` from assignees so the worker loop's frontier does not
-see an assigned item. A row skipped on exit `7` needs no release.
+**Clear assignee after disposition (flip while claimed).** Attend-queue holds a coordination lock,
+not an execution assignment. The seam ships no early-release verb — only `claim`, `renew-lease`, and
+session-start `reclaim` (which never touches a live lease; do not hand-roll lease-comment JSON).
+Once the row's answer is written, ratification recorded, or triage disposition applied:
+
+- **When the human blocker is removed:** perform the single-edit role-label flip **while this
+  session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
+  edit (`--remove-assignee "@me"` for GitHub — see the adapter README "Edit labels / assignees").
+  Clearing assignee before the flip reopens the concurrent-session race this lane closes: a released
+  row still reads as `[escalated]`/`[ratify]` in another attended session's view until the label
+  lands. The live lease comment persists until TTL expiry; a later session-start `reclaim` clears an
+  expired inactive lease. A brief frontier delay while assignee still blocks selection after the
+  flip is acceptable; a pre-flip clear is not.
+- **When disposition leaves the item human-gated** (decline, parked intake): clear `@me` via the
+  same adapter assignee edit once disposition comments are written — still while holding the claim
+  through those writes.
+- A row skipped on exit `7` needs no assignee clear.
 
 **Long operator waits.** When an interview spans longer than the binding's lease TTL, renew the
 held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `claim` output carries
@@ -299,8 +311,9 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   `session_name`, any future account field) are user/AI-influenced — parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
-For this attended lane, "stop claiming new work" means: finish the row in hand (including releasing
-its row claim when disposition is complete), then stop pulling further rows and report the pause
+For this attended lane, "stop claiming new work" means: finish the row in hand (including the
+flip-while-claimed and assignee clear when disposition is complete), then stop pulling further rows
+and report the pause
 to the operator — who may explicitly choose to continue (the operator's presence is the "explicit
 user request" the hard-stop rule anticipates).
 
@@ -315,10 +328,11 @@ user request" the hard-stop rule anticipates).
 - **Judgment lane only.** Resolving an escalation never turns into executing the item here; the
   worker loop picks it up through the frontier. Executing from this lane would bypass the seam
   claim and the topology's single-authority rule.
-- **Claim before mutate, release before flip.** Two attended sessions on one repository must not
-  both work the same row — the seam `claim` arbitrates that race (exit `7` → skip). Holding the
-  lease through a flip to autonomous-eligible would block the frontier; release the row claim
-  before the single-edit label flip.
+- **Claim before mutate, flip while claimed.** Two attended sessions on one repository must not
+  both work the same row — the seam `claim` arbitrates that race (exit `7` → skip). The single-edit
+  role-label flip that removes the human blocker must land while the claim is still held; only then
+  clear `@me` via the adapter assignee edit. Clearing assignee before the flip leaves a window where
+  another attended session can claim a row that still reads as escalated or ratify in its view.
 - **Do not re-triage routed items.** The `[intake]` source is `/work-items:triage`'s attention
   view by composition; items already carrying a routing outcome are out of scope by construction,
   and naming one explicitly gets triage's "already triaged" stop.
