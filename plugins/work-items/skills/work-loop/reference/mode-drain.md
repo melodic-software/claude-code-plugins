@@ -24,16 +24,22 @@ snapshot held as untriaged intake that step 2 promoted mid-cycle. That item stil
 open, and it is worked once the admission gate passes it and a cap slot is free.
 
 Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
-closed, PR'd, escalated), and stop cleanly.
+closed, PR'd, escalated), apply the post-snapshot intake report below, and stop cleanly.
 
 ## Drain-terminal state
 
 When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight,
-report and stop cleanly rather than idling forever. The final report **names the intake that
-arrived after the snapshot and was left unworked** — that report is what keeps "reported, never
-chased" true once there is no next cycle to sweep it. Compute that list once, after the exit is
-already decided, by repeating step 1's **open-items** reading — lane-infrastructure exclusion and
-all, per `SKILL.md` — and diffing it against the retained ids. Not a `list-frontier --autonomous`
-reading: step 2's sweep hardening routes bot-authored advisory intake to the human-gated role, which
-is precisely what that filter excludes, so the frontier reading would report nothing in the case
-this sentence exists for. **The read is reporting-only and can never change the verdict it follows.**
+report and stop cleanly rather than idling forever. Apply the post-snapshot intake report below
+before stopping.
+
+## Post-snapshot intake report (every drain exit)
+
+On **every** drain stop — ordinary drain completion and drain-terminal alike — the final report
+**names the intake that arrived after the snapshot and was left unworked** — that report is what
+keeps "reported, never chased" true once there is no next cycle to sweep it. Compute that list once,
+after the exit verdict is already decided, by repeating step 1's **open-items** reading —
+lane-infrastructure exclusion and all, per `SKILL.md` — and diffing it against the retained ids. Not
+a `list-frontier --autonomous` reading: step 2's sweep hardening routes bot-authored advisory intake
+to the human-gated role, which is precisely what that filter excludes, so the frontier reading would
+report nothing in the case this sentence exists for. **The read is reporting-only and can never
+change the verdict it follows.**

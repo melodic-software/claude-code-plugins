@@ -16,6 +16,17 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   session-start reclaim and binding-presence routing consistent with `work`. Single-session runs
   need no new argument.
 
+### Fixed
+
+- **`work-loop`: invocation grammar before telemetry (#1291 review).** Parse, validate, default,
+  and reject invocation tokens before durable-state adoption or cycle work; document resolution
+  order and fail-closed rejection of merge-lane tokens.
+- **`work-loop`: ordering uses List items `createdAt` (#1291 review).** Execute step sorts admitted
+  items on the adapter projection before filling cap slots, with a defined missing-timestamp
+  fallback.
+- **`work-loop`: post-snapshot intake on every drain exit (#1291 review).** Both ordinary drain
+  completion and drain-terminal stops apply the reporting-only open-items diff.
+
 ## [0.35.15]
 
 ### Changed

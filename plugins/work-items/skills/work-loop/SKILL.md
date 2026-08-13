@@ -1,6 +1,6 @@
 ---
 description: "Run the work-item backlog as a self-paced autonomous drain loop: each cycle sweeps raw intake through mechanical triage, admits items through the work-class gate (fail-closed), executes admitted items via /work-items:work under an adaptive item cap, and evaluates the drain exit condition. Worker lane of the loop-lane three-session topology — authors PRs, NEVER merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Launch via /loop (self-paced). Sibling skills: /work-items:attend-queue (attended escalation lane), /work-items:work (single-item pick + execute), /work-items:triage (raw intake), /work-items:track (backlog CRUD)."
-argument-hint: "(no arguments — cycle behavior comes from the launch prompt's standing rules and persisted config)"
+argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -60,6 +60,66 @@ and cycle-budget behavior are owned by the convention (§4); on a budget or expi
 restart-request into the telemetry state block and stop the loop cleanly. A headless launch never
 blocks on an interview (headless-config floor): take explicit or persisted config, else tier
 defaults, and log the assumption.
+
+## Invocation argument surface
+
+Grammar (bash-style tokenization of `$ARGUMENTS`):
+
+`[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`
+
+**Parse, validate, default, and reject before telemetry lookup, durable-state adoption, or any cycle
+work.** A launch-prompt `Scope:` line or other standing prose is not binding — only tokens on the
+skill invocation line are.
+
+**Resolution order** (first supplied value wins per key; report effective values and their source
+at lane start):
+
+1. **Invocation arguments** — the flags and optional `<owner/repo>` below.
+2. **`userConfig`** — `${user_config.lane_instance}` when `--instance` is absent.
+3. **Defaults** — `stop_mode=standing`, `ordering=oldest-first`, `shard=null`, `scope=null`;
+   instance from `userConfig` or sanitized hostname per
+   [reference/telemetry-upsert.md](reference/telemetry-upsert.md).
+
+On `/loop` relaunch, a prior cycle's telemetry durable-state block may supply persisted
+`stop_mode`, `ordering`, `shard`, `scope`, and `lane_instance` when the new invocation omits
+them — invocation tokens still override persisted values when both are present.
+
+**`<owner/repo>`** (optional). When present, validate against the checkout's `origin` remote
+(`git remote get-url origin` → normalize to `owner/repo`). Mismatch is a hard stop with a clear
+message — never guess a repository. When absent, the bound tracker repository is the checkout.
+
+**`--drain`**. Sets `stop_mode=drain`. At exit evaluation load
+[reference/mode-drain.md](reference/mode-drain.md); when absent, `stop_mode=standing` and load
+[reference/mode-standing.md](reference/mode-standing.md).
+
+**`--shard <i>/<n>`**. Partition retained snapshot ids: keep only items whose issue number
+satisfies `number % n == i`. Validate `0 <= i < n` and `n >= 1`; reject malformed shards
+fail-closed. Persist `{"index":i,"count":n}` in durable state, or `null` when unset.
+
+**`--ordering oldest-first|newest-first`**. Controls execute-step cap-slot fill order among
+admitted items this cycle. Default `oldest-first`. Persist in durable state.
+
+**`--instance <id>`**. Overrides `${user_config.lane_instance}` for this invocation. Validate
+`^[a-z0-9][a-z0-9-]{0,31}$` and length ≤ 32 before building the telemetry marker — same gate as
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md). Reject invalid ids fail-closed.
+
+**`--scope <label>`**. Exact label filter on snapshot ids before admission and exit evaluation
+(e.g. `area:api`). Persist the label string or `null`.
+
+**Fail-closed rejections** — stop with an explicit message naming the owning surface; never
+silently ignore:
+
+- **Babysit tier keywords** (`safe`, `worker`, `autopilot`) and **merge dimension flags**
+  (`--merge …`) belong to `/source-control:babysit-loop`, not this worker lane.
+- **Adaptive cap knobs** (`--item-cap`, `--cap`, `--wave-cap`, or any `work_loop_item_cap_*`
+  override token) — cap bounds come from `userConfig` only.
+- **Unknown flags** and duplicate conflicting tokens.
+
+Headless launches take explicit invocation tokens or persisted durable state; never block on an
+interview for these knobs (headless-config floor).
+
+Persist resolved `stop_mode`, `ordering`, `shard`, `scope`, and `lane_instance` in the durable
+state block every cycle so `/loop` relaunch can read them back from telemetry.
 
 ## Telemetry and durable loop state
 
@@ -214,8 +274,14 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
 4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
-   the adaptive item cap, filling slots in resolved `--ordering` order when more than one item was
-   admitted. Each invocation uses that skill's **autonomous invocation** path: it
+   the adaptive item cap. When more than one item was admitted, sort the admitted set on
+   `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
+   frontier omits `createdAt`) before filling cap slots — `oldest-first` ascending,
+   `newest-first` descending. Pass an explicit `--limit` covering every admitted number on that
+   projection; page per the adapter "List items" note if the set exceeds the max page size. When
+   `createdAt` is missing or unreadable for a number, that item sorts after any item with a valid
+   timestamp (stable tie on issue number). Each invocation uses that skill's **autonomous
+   invocation** path: it
    names the admitted item id and states that this loop's admission gate (and any required
    ratification marker) passed, so `/work-items:work` proceeds without its interactive confirmation prompt.
    Selection, claim (assignee + lease), staleness pre-check, dispatch
