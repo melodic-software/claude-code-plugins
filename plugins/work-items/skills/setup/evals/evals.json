@@ -173,6 +173,7 @@
         "Does not create labels ad hoc",
         "Writes no file"
       ]
+    },
     {
       "id": 14,
       "name": "check-missing-capability-tier-label-fails",

@@ -18,13 +18,6 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`work-loop`: clamp persisted `item_cap` on durable-state re-read (#1668 F3).** After
-  re-reading the telemetry state block, clamp `item_cap` to the resolved `[floor, ceiling]`,
-  report any correction, and persist the clamped value — a race or stale session can otherwise
-  leave an out-of-bounds cap trusted as source of truth.
-- **`work-loop`: drain exit eval matches retained-snapshot-ids-only (#1668 F2).** Eval
-  `work-loop-exit-drain-terminal-and-pacing` no longer asserts a two-part exit with
-  `list-frontier --autonomous` emptiness; it matches `reference/mode-drain.md`.
 - **`work-loop` frontier-tier signal is the `capability-tier: frontier` label (#1716).** The
   adaptive-cap quota guard no longer reads a triage-briefing body claim. Missing label fails
   closed to the general tier; body prose is context only. Carve-out instance removed from
@@ -32,10 +25,22 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   and manifest/README descriptions updated. Label provisioning for this repo requires
   `melodic-software/github-iac` — the reader lands fail-closed until the label exists.
 
+## [0.35.19]
+
+### Fixed
+
+- **`work-loop`: clamp persisted `item_cap` on durable-state re-read (#1668 F3).** After
+  re-reading the telemetry state block, clamp `item_cap` to the resolved `[floor, ceiling]`,
+  report any correction, and persist the clamped value — a race or stale session can otherwise
+  leave an out-of-bounds cap trusted as source of truth.
+- **`work-loop`: drain exit eval matches retained-snapshot-ids-only (#1668 F2).** Eval
+  `work-loop-exit-drain-terminal-and-pacing` no longer asserts a two-part exit with
+  `list-frontier --autonomous` emptiness; it matches `reference/mode-drain.md`.
+
 ### Added
 
 - **`work-loop`: compound-shell telemetry upsert Gotcha (#1668 F1).**
-  `reference/telemetry-upsert.md` documents the isolated-shell fallback when the auto-mode
+  `reference/telemetry-upsert.md` documents the isolated-calls fallback when the auto-mode
   classifier blocks the compound upsert, with gate order preserved.
 
 ## [0.35.18]
