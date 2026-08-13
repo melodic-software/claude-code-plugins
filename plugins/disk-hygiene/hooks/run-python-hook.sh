@@ -15,6 +15,16 @@
 #   * destructive_guard.py — exit 0 silently (existing PreToolUse fail-open).
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
+MIN_PYTHON_MAJOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1/p' "$ENGINE")"
+MIN_PYTHON_MINOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\2/p' "$ENGINE")"
+if [[ -z "$MIN_PYTHON_MAJOR" || -z "$MIN_PYTHON_MINOR" ]]; then
+  MIN_PYTHON_MAJOR=3
+  MIN_PYTHON_MINOR=11
+fi
+PYTHON_VERSION_PROBE="import sys; raise SystemExit(0 if sys.version_info >= ($MIN_PYTHON_MAJOR, $MIN_PYTHON_MINOR) else 1)"
+
 SCRIPT="${1:-}"
 shift || true
 
@@ -49,7 +59,7 @@ resolve_python3() {
     if _is_store_alias_stub "$resolved"; then
       continue
     fi
-    if "$resolved" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    if "$resolved" -c "$PYTHON_VERSION_PROBE" 2>/dev/null; then
       printf '%s' "$resolved"
       return 0
     fi

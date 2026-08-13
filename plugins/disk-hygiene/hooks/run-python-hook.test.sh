@@ -4,6 +4,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCHER="$SCRIPT_DIR/run-python-hook.sh"
+ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
+FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$ENGINE")"
+if [[ -z "$FLOOR" ]]; then
+  echo "FAIL: could not parse MIN_PYTHON from $ENGINE" >&2
+  exit 1
+fi
+PYTHON_VERSION_PROBE="import sys; floor = tuple(int(part) for part in '$FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"
 
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
@@ -79,7 +86,7 @@ assert_eq "guard mode exits 0 when python is unavailable" "0" "$GUARD_RC"
 
 # --- happy path execs the target script when python is available ---
 if command -v python3 >/dev/null 2>&1 &&
-  python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  python3 -c "$PYTHON_VERSION_PROBE" 2>/dev/null; then
   HELPER="$(mktemp --suffix=.py)"
   printf 'import sys\nprint("launcher-ok")\n' >"$HELPER"
   HELPER_OUT="$(bash "$LAUNCHER" "$HELPER" 2>/dev/null || true)"
