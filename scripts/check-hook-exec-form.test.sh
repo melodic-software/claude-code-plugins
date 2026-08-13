@@ -620,11 +620,11 @@ else
 fi
 rm -rf "$f"
 
-# --- the shape #2568 / PR #2572 lands must pass -----------------------------
-# Interpreter-led shell form in a single-quoted YAML scalar, with a comment
-# block and sibling keys inside the hooks block. This is the fix that clears
-# the one violation this gate reports against main; if the gate flagged it, the
-# gate would be blocking its own unblocking.
+# --- the interpreter-led shell form from #2568 must pass --------------------
+# Shell form in a single-quoted YAML scalar, with a comment block and sibling
+# keys inside the hooks block. This is the shape that removed the last
+# violation from this repository; a gate that flagged its own remedy would
+# leave the defect no correct way out.
 f="$(new_fixture)"
 skill_md "$f" disk-hygiene skills/clean/SKILL.md '---
 description: "x"
