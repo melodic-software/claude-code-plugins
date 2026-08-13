@@ -141,16 +141,16 @@ value in the report.
 value into this skill's content before the model sees the rendered skill, but **only when the key is
 explicitly set** in some `pluginConfigs` scope; declaring the option in `plugin.json` alone does not
 make its value readable here. Crucially, the manifest's `"default": "ask"` is **not** substituted for
-an unset key (verified 2026-07-23 against CC 2.1.218: an unset key renders the literal placeholder,
-while a sibling `${CLAUDE_PLUGIN_ROOT}` substitutes in the same render). So for the common
-default-config user — no `pluginConfigs` set anywhere — this line renders as the **literal
-placeholder text** `${user_config.install_new}`, unchanged.
+an unset key (verified 2026-07-23 against CC 2.1.218: an unset key leaves the placeholder token
+unchanged — the same shape as `${user_config.…}` — while a sibling `${CLAUDE_PLUGIN_ROOT}` substitutes
+in the same render). So for the common default-config user — no `pluginConfigs` set anywhere — the
+**Configured value** line above still shows that literal placeholder token, not `ask`.
 
-Read that literal placeholder as the **expected unset state → use the default `ask`**, and do NOT
+Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT
 report it as an invalid value. Only a rendered value that is a real word other than
 `ask`/`all`/`none` (i.e. the key *was* set, to something unsupported) is the invalid-value case worth
-flagging. Sync's Step 4 branches on this line's rendered value — or on the `ask` default when the
-render is the literal placeholder — not on the option's name or description above.
+flagging. Sync's Step 4 branches on the **Configured value** line's rendered value — or on the `ask`
+default when that render is still the placeholder token — not on the option's name or description above.
 
 ## Cross-references
 

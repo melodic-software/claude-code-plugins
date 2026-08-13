@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.10]
+
+### Fixed
+
+- **`plugins` SKILL.md: `install_new` userConfig prose no longer embeds a live placeholder in its own
+  unset-state explanation (#2522).** Explanatory sentences now describe the placeholder token by
+  shape (`${user_config.…}`) or by reference to the **Configured value** line; only that line keeps
+  the live `${user_config.install_new}` substitution site Step 4 branches on.
+
 ## [0.31.9]
 
 ### Fixed
