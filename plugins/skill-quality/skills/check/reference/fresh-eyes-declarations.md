@@ -144,10 +144,10 @@ The two verdict families are asymmetric, and the whole posture follows from that
 
 So where the structure pass reaches a configuration it cannot resolve, it **withholds the hard
 verdicts** for directives on that line. It also withholds the stale WARN, and refuses to let such a
-directive satisfy a nearby judgment step — the same lack of confidence cuts both ways, so a literal
-exemption inside an indented example cannot silence the warning that step deserves. The judgment
-detector itself continues to run on unambiguous lines. Today this fires on the indented-code case
-above and on any line that carries a backtick run or a backslash-escaped `<`.
+directive satisfy a nearby judgment step — the same lack of confidence cuts both ways. On an
+indented-code line, `fe_icode` feeds that directive-side suppression only; the judgment detector
+still runs on the line's own prose. On a line with a backtick run or a backslash-escaped `<`, the
+scanner declines the line's own Form 1 and judgment detectors via an explicit skip.
 
 Where an unmodeled construct instead causes content to be **skipped** — an unclosed fence
 swallowing lines — no verdict forms at all. That is already the safe direction, and it is worth
