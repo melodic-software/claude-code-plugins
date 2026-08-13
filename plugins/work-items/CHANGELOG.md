@@ -5,16 +5,14 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ## [0.35.17]
 
-### Fixed
+### Added
 
-- **`attend-queue`: row-level seam claim for concurrent attended sessions (#1290).** Two terminals
-  on one repository could both surface and mutate the same row — duplicate interview questions,
-  conflicting label flips — because the lane had no claim protocol while `/work-items:work` already
-  used the seam assignee + lease (`exit 7` → skip). The skill now claims each row before mutation,
-  flips to autonomous-eligible while the claim is still held, then clears assignee via the adapter
-  (no nonexistent seam release verb; live lease persists until TTL/reclaim), and documents
-  session-start reclaim and binding-presence routing consistent with `work`. Single-session runs
-  need no new argument.
+- **`work-loop` invocation argument surface (#1291).** Optional `<owner/repo>` (checkout
+  validation), `--drain`, `--shard <i>/<n>`, `--ordering oldest-first|newest-first`,
+  `--instance <id>`, and `--scope <label>` — documented in `argument-hint`, enforced by the skill
+  (not prose-only). Merge/tier/cap tokens are rejected with a clear message. Stop-mode semantics
+  move to `reference/mode-standing.md` and `reference/mode-drain.md`; invocation details to
+  `reference/invocation-argv.md` for progressive disclosure.
 
 ### Fixed
 
@@ -26,6 +24,21 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   fallback.
 - **`work-loop`: post-snapshot intake on every drain exit (#1291 review).** Both ordinary drain
   completion and drain-terminal stops apply the reporting-only open-items diff.
+- **`work-loop`: `--instance` resolution in telemetry upsert (#1291 review).** `telemetry-upsert.md`
+  names `--instance` as the first-checked lane-instance source.
+
+## [0.35.16]
+
+### Fixed
+
+- **`attend-queue`: row-level seam claim for concurrent attended sessions (#1290).** Two terminals
+  on one repository could both surface and mutate the same row — duplicate interview questions,
+  conflicting label flips — because the lane had no claim protocol while `/work-items:work` already
+  used the seam assignee + lease (`exit 7` → skip). The skill now claims each row before mutation,
+  flips to autonomous-eligible while the claim is still held, then clears assignee via the adapter
+  (no nonexistent seam release verb; live lease persists until TTL/reclaim), and documents
+  session-start reclaim and binding-presence routing consistent with `work`. Single-session runs
+  need no new argument.
 
 ## [0.35.15]
 
