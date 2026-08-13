@@ -3,7 +3,7 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.9]
+## [0.15.8]
 
 ### Changed
 
@@ -12,7 +12,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360). Targetless references to the flow stay unqualified.
 
-## [0.15.8]
+## [0.15.7]
 
 ### Added
 
