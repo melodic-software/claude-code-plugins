@@ -18,6 +18,8 @@
 #   morning-brief.sh                          live view of the current repo
 #   morning-brief.sh --repo owner/name        target a specific repo
 #   morning-brief.sh --telemetry-issue N      pin the lane-telemetry issue
+#   morning-brief.sh --queue-labels A,B,C     pin the queue-label set (comma-separated)
+#   morning-brief.sh --decision-label L       pin the parked-decision label
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        age window for stranded review findings (default 3)
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
@@ -26,6 +28,7 @@
 # Fixture flags (skip the network; used by the test suite and for reuse):
 #   --now ISO                 fixed clock for deterministic staleness
 #   --counts-json FILE        label->count object, e.g. {"status: ready":4}
+#   --repo-labels-json FILE   array of label names (or {name} objects) for existence checks
 #   --pr-json FILE            array as emitted by `gh pr list --json ...`
 #   --decisions-json FILE     array of {number,title,url,body,comments:[{body}]}
 #   --telemetry-json FILE     array of {body} (the telemetry issue's comments)
@@ -37,17 +40,22 @@
 
 set -uo pipefail
 
-# --- Queue labels (verified against `gh label list`) --------------------------
-QUEUE_LABELS=(
+# --- Queue labels (melodic-software defaults; overridable / filtered live) ------
+DEFAULT_QUEUE_LABELS=(
   "priority: needs-triage"
   "status: ready"
   "status: needs-decision"
   "needs-human"
 )
-DECISION_LABEL="status: needs-decision"
+DEFAULT_DECISION_LABEL="status: needs-decision"
+QUEUE_LABELS=()
+DECISION_LABEL=""
+QUEUE_LABELS_ARG=""
+DECISION_LABEL_ARG=""
 
 REPO=""
 TELEMETRY_ISSUE=""
+REPO_LABELS_JSON=""
 STALE_HOURS="6"
 REC_MAXLEN="240"
 NOW_ISO=""
@@ -108,6 +116,22 @@ while (($# > 0)); do
   --telemetry-issue)
     require_value "$1" "${2:-}"
     TELEMETRY_ISSUE="$2"
+    shift 2
+    ;;
+  --queue-labels)
+    require_value "$1" "${2:-}"
+    QUEUE_LABELS_ARG="$2"
+    shift 2
+    ;;
+  --decision-label)
+    require_value "$1" "${2:-}"
+    DECISION_LABEL_ARG="$2"
+    shift 2
+    ;;
+  --repo-labels-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    REPO_LABELS_JSON="$2"
     shift 2
     ;;
   --stale-hours)
@@ -182,8 +206,23 @@ have jq || {
 
 # gh is only needed for live sources; a fully fixtured run (tests) must not
 # require it. Demand it only when at least one section will hit the network.
-ANY_LIVE=0
-[[ -z "$COUNTS_JSON" || -z "$PR_JSON" || -z "$DECISIONS_JSON" || -z "$TELEMETRY_JSON" ]] && ANY_LIVE=1
+NEEDS_LIVE_COUNTS=0
+NEEDS_LIVE_PRS=0
+NEEDS_LIVE_DECISIONS=0
+NEEDS_LIVE_TELEMETRY=0
+[[ -z "$COUNTS_JSON" ]] && NEEDS_LIVE_COUNTS=1
+[[ -z "$PR_JSON" ]] && NEEDS_LIVE_PRS=1
+[[ -z "$DECISIONS_JSON" ]] && NEEDS_LIVE_DECISIONS=1
+[[ -z "$TELEMETRY_JSON" ]] && NEEDS_LIVE_TELEMETRY=1
+# Parked-decisions can short-circuit on a fixture label inventory when the
+# decision label is absent — no gh issue list needed for that probe.
+if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
+  _probe_decision_label="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
+  if _probe_repo_labels="$(fetch_repo_label_names)"; then
+    label_exists_in_repo "$_probe_decision_label" "$_probe_repo_labels" || NEEDS_LIVE_DECISIONS=0
+  fi
+fi
+ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
@@ -271,17 +310,91 @@ fmt_age() {
   fi
 }
 
+# --- Queue label resolution ---------------------------------------------------
+# Defaults match melodic-software's taxonomy. Live runs filter to labels that
+# actually exist in the target repo so a consuming repo with a different scheme
+# does not render misleading 0/? rows. Pass --queue-labels / --decision-label to
+# pin a custom set (same spirit as --telemetry-issue).
+resolve_queue_labels() {
+  QUEUE_LABELS=()
+  if [[ -n "$QUEUE_LABELS_ARG" ]]; then
+    local part
+    IFS=',' read -ra _parts <<<"$QUEUE_LABELS_ARG"
+    for part in "${_parts[@]}"; do
+      part="${part#"${part%%[![:space:]]*}"}"
+      part="${part%"${part##*[![:space:]]}"}"
+      [[ -n "$part" ]] && QUEUE_LABELS+=("$part")
+    done
+  else
+    QUEUE_LABELS=("${DEFAULT_QUEUE_LABELS[@]}")
+  fi
+}
+
+resolve_decision_label() {
+  if [[ -n "$DECISION_LABEL_ARG" ]]; then
+    DECISION_LABEL="$DECISION_LABEL_ARG"
+  else
+    DECISION_LABEL="$DEFAULT_DECISION_LABEL"
+  fi
+}
+
+fetch_repo_label_names() {
+  local raw=""
+  if [[ -n "$REPO_LABELS_JSON" ]]; then
+    jq -e 'type == "array"' "$REPO_LABELS_JSON" >/dev/null 2>&1 || return 1
+    raw="$(jq -r '.[] | if type == "string" then . else .name end' "$REPO_LABELS_JSON" 2>/dev/null)" || return 1
+  elif [[ -n "$REPO" ]]; then
+    raw="$(gh label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' 2>/dev/null | tr -d '\r')" || return 1
+  else
+    return 1
+  fi
+  jq -R -s '
+    split("\n")
+    | map(select(length > 0))
+    | unique
+  ' <<<"$raw"
+}
+
+label_exists_in_repo() {
+  local label="$1" names="$2"
+  jq -e --arg l "$label" 'index($l) != null' <<<"$names" >/dev/null 2>&1
+}
+
+resolve_queue_labels
+resolve_decision_label
+
 # =============================================================================
 # Section 1 — queue label counts
 # =============================================================================
 print_queues() {
   echo "== Queues (open issues per label) =="
-  local counts=""
+  local counts="" repo_labels="" labels_to_show=() label n labels_available=0
   if [[ -n "$COUNTS_JSON" ]]; then
     counts="$(cat "$COUNTS_JSON")"
   fi
-  local label n
-  for label in "${QUEUE_LABELS[@]}"; do
+  if [[ -n "$REPO_LABELS_JSON" || ( -z "$counts" && -n "$REPO" ) ]]; then
+    if repo_labels="$(fetch_repo_label_names)"; then
+      labels_available=1
+    fi
+  fi
+  if ((labels_available)); then
+    for label in "${QUEUE_LABELS[@]}"; do
+      label_exists_in_repo "$label" "$repo_labels" && labels_to_show+=("$label")
+    done
+    if ((${#labels_to_show[@]} == 0)); then
+      echo "  no queue labels found in this repo (nothing to report)"
+      if [[ -z "$QUEUE_LABELS_ARG" ]]; then
+        echo "  defaults: ${DEFAULT_QUEUE_LABELS[*]} — pass --queue-labels to customize"
+      else
+        echo "  pinned: ${QUEUE_LABELS[*]}"
+      fi
+      echo
+      return
+    fi
+  else
+    labels_to_show=("${QUEUE_LABELS[@]}")
+  fi
+  for label in "${labels_to_show[@]}"; do
     if [[ -n "$counts" ]]; then
       n="$(jq -r --arg l "$label" '.[$l] // 0' <<<"$counts" 2>/dev/null)"
     else
@@ -332,7 +445,17 @@ print_merge_ready() {
 # =============================================================================
 print_decisions() {
   echo "== Parked decisions (${DECISION_LABEL}) with RECOMMENDED lines =="
-  local decisions
+  local decisions repo_labels="" labels_available=0
+  if [[ -z "$DECISIONS_JSON" && ( -n "$REPO" || -n "$REPO_LABELS_JSON" ) ]]; then
+    if repo_labels="$(fetch_repo_label_names)"; then
+      labels_available=1
+    fi
+    if ((labels_available)) && ! label_exists_in_repo "$DECISION_LABEL" "$repo_labels"; then
+      echo "  (decision label not found in this repo — pass --decision-label to customize)"
+      echo
+      return
+    fi
+  fi
   if [[ -n "$DECISIONS_JSON" ]]; then
     decisions="$(cat "$DECISIONS_JSON")"
   else
