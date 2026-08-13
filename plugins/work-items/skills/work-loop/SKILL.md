@@ -203,8 +203,15 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    `/.claude/lane-escalations/` to `$(git rev-parse --git-common-dir)/info/exclude`. That file is
    per-clone and untracked, so this repairs an existing consumer that upgraded without adding a
    tracked rule, changes nothing the repo tracks, and no-ops where the rule is already present.
-1. **Re-anchor.** Re-read the durable loop state block; classify guard mode against the floor
-   above; take the cycle-start snapshot of the frontier and open items, **retaining every captured
+1. **Re-anchor.** Re-read the durable loop state block. **Clamp `item_cap` to the resolved
+   `[floor, ceiling]`** — `${user_config.work_loop_item_cap_floor}` (default 1) through
+   `${user_config.work_loop_item_cap_ceiling}` (default 3); a surviving literal
+   `${user_config.…}` placeholder means the key is unset, so apply the manifest default. A
+   persisted value outside that range — from a creation race, a stale session, or a misconfigured
+   override — is not trusted: clamp it, **report the correction** in the cycle report (e.g.
+   `item_cap 5 → 3 (clamped to ceiling)`), and **persist the clamped value** in the state block
+   this cycle's telemetry upsert writes. Classify guard mode against the floor above; take the
+   cycle-start snapshot of the frontier and open items, **retaining every captured
    id** — the exit condition tests their union and never re-reads the seam. Test the union, not the
    open ids alone: the two are one derivation apart on paper, but nothing here says the snapshot is
    one read, and an item created between two reads would otherwise be captured yet never tested.
