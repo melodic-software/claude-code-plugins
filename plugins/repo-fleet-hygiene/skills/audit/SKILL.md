@@ -100,7 +100,8 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    the common merge flow — GitHub auto-deletes the head branch, a later fetch prunes the ref — that
    branch is gated out and reported as `merge-evidence-privacy-gated`. The aggregate handoff
    distinguishes never-pushed locals (push, then rerun) from auto-deleted merged heads (verify with
-   `gh pr list --state merged --head <branch>` per named branch — re-fetch cannot restore pruned
+   `gh pr list --repo github.com/<owner>/<repo> --state merged --head <branch> --json headRefOid`
+   per named branch and confirm the returned `headRefOid` equals the local tip — re-fetch cannot restore pruned
    refs); no cleanup handoff until merge state is confirmed. Identical branch names in another
    repository are unrelated. `HIGH` requires the PR `headRefOid` to equal the current local
    tip. Tip drift is `MEDIUM` manual review. Git ancestry without GitHub evidence is `LOW` and never

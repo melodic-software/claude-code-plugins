@@ -1401,7 +1401,7 @@ analyze_repo() {
     emit_finding UNKNOWN merge-evidence-privacy-gated "$canonical" \
       "exact merged-PR lookup skipped for ${#PRIVACY_GATED_BRANCHES[@]} branch(es) absent from the local remote-tracking inventory: ${PRIVACY_GATED_BRANCHES[*]}" \
       "Merged state unverified; absent remote-tracking refs include never-pushed locals and merged heads whose remote ref was auto-deleted and pruned (re-fetch cannot restore them)" \
-      "Never-pushed locals: push to publish the branch name, then rerun. Auto-deleted merged heads: verify each named branch with gh pr list --repo github.com/$github_repo --state merged --head <branch> (merged PRs stay queryable after head deletion); no cleanup handoff until merge state is confirmed"
+      "Never-pushed locals: push to publish the branch name, then rerun. Auto-deleted merged heads: verify each named branch with gh pr list --repo github.com/$github_repo --state merged --head <branch> --json headRefOid and confirm headRefOid equals the local tip (merged PRs stay queryable after head deletion); no cleanup handoff until merge state is confirmed"
   fi
 
   # A clean section previously ended after its header fields with no marker -- indistinguishable

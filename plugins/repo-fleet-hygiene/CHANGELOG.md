@@ -13,7 +13,8 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   locally) re-fetch cannot restore a ref that no longer exists upstream, and the skill boundary
   forbids suggesting `git fetch` inline. The handoff now distinguishes never-pushed locals (push,
   then rerun) from auto-deleted merged heads (verify merge state with
-  `gh pr list --state merged --head <branch>` per named branch; merged PRs stay queryable after head
+  `gh pr list --repo github.com/<owner>/<repo> --state merged --head <branch> --json headRefOid`
+  per named branch and confirm `headRefOid` equals the local tip; merged PRs stay queryable after head
   deletion). Matching prose updates in `SKILL.md`, `confidence-model.md`, and eval expectations.
 
 ## [0.12.0]
