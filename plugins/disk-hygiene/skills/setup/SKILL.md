@@ -25,9 +25,11 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
 note that re-enabling restores the FAIL semantics. One exception: every step-1 and step-2 failure stays
-FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, both guard surfaces
-launch through the literal name `python3`, and a guard that never runs can neither read nor
-enforce the configured `false` — so the fail-open is most dangerous in exactly this
+FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, every guard surface
+depends on a Python 3 interpreter resolving (the wired hooks through
+`hooks/run-python-hook.sh`, the skill-scoped belt through the literal name `python3`), and a
+guard that never runs can neither read nor enforce the configured `false` — so the fail-open
+is most dangerous in exactly this
 configuration. That covers every non-`ok` alias-probe verdict (`store-alias-stub`,
 `indeterminate`, `not-found`), a nominally `ok` resolution whose version probe then fails to
 launch at all — a corrupt or zero-length binary outside `WindowsApps`, a broken shim, a
