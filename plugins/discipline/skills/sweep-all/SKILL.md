@@ -1,5 +1,5 @@
 ---
-description: "Compose this plugin's discipline correctors into ONE batched pass — requires conversation-inheriting fork subagents (`subagent_type: fork`); when fork mode is unavailable the skill stops after preflight rather than auditing blind. At conversation start it instead reports a cheap posture digest (which disciplines are in scope) with no audit. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every standing discipline at once. Membership is each corrector's own tier metadata; for a single discipline, invoke that corrector directly."
+description: "Compose this plugin's discipline correctors into ONE batched pass — requires conversation-inheriting fork subagents (`subagent_type: fork`); when fork mode is unavailable the skill emits `SWEEP-ALL: DEGRADED (fork-unavailable)` and runs the posture digest only (no audits, no corrections, no inline sequential fallback). At conversation start it instead reports a cheap posture digest (which disciplines are in scope) with no audit. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every standing discipline at once. Membership is each corrector's own tier metadata; for a single discipline, invoke that corrector directly."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -31,7 +31,8 @@ hand-maintained list.
    the fan-out can inherit this conversation (mandatory — see Preflight), then
    fan out an audit-only subagent per in-scope corrector and apply their
    corrections once, on the main thread, in a fixed order (below). A failed
-   preflight degrades to mode 1.
+   preflight degrades to mode 1 with the exact degrade token as the report's
+   first line (see Preflight).
 
 ## Resolving membership (never named inline)
 
@@ -84,10 +85,19 @@ say nothing about what the server-side rollout does to the parameter, so no
 branch is conclusive in either direction. It explains what stage 2 finds; it
 never replaces stage 2 and never aborts on its own.
 
+**Stage 1b — explicit fork-off short-circuit (zero dispatch).** When
+`CLAUDE_CODE_FORK_SUBAGENT` is explicitly `0`, fork-spawning is documented as
+disabled "overriding any server-side rollout"
+(<https://code.claude.com/docs/en/env-vars>). Do not dispatch the canary or any
+member — take the degrade path immediately (below). When the variable is unset
+or explicitly `1`, fork mode may still be off at runtime (staged rollout,
+harness version, or dispatch error); stage 2 is the authoritative test.
+
 **Stage 2 — an inheritance-proof canary. The decider, and it costs one fork.**
 Dispatch ONE fork alone, ahead of the first wave, that answers the proof
 question and **nothing else** — no corrector, no audit, no ledger. Gate the
-whole fan-out on it.
+whole fan-out on it. Skip this stage only when stage 1b already short-circuited
+on `CLAUDE_CODE_FORK_SUBAGENT=0`; unset and `1` always run it.
 
 It is deliberately not folded into a member's real audit, which would look free
 and is not: a fork inherits everything the session holds when it spawns, so a
@@ -139,7 +149,8 @@ costs the user the audit they asked for.
 this context knows. Absent, ambiguous, or unverifiable proof counts as NOT
 inherited — a plausible-looking answer is not a pass, because fabrication is the
 exposure being defended against. Canary verified → fan the members out. Canary
-unproven → degrade; never re-dispatch the batch blind.
+unproven → degrade path (exact token, posture digest only); never re-dispatch
+the batch blind.
 
 A member that returns unproven LATER, mid-fan-out, is a different case: the
 canary already established that inheritance works here, and earlier waves'
@@ -149,15 +160,41 @@ those, and report the unproven members as open** — do not throw away proven
 audits by collapsing the whole pass to the digest. Reserve the digest for a
 failed canary, when nothing has been proven at all.
 
-**A failed canary degrades; it does not stop empty-handed.** Run the
-session-start posture digest (mode 1) — no fan-out, no cost — and report that
-the inheriting audit fan-out could not run, which signal established that, and
-that every corrector remains available for direct invocation, one at a time,
-each running the shared loop in THIS context with no fork at all. That is the
-same position `setup` reports as the full-batch prerequisite; this runbook is
-where it executes. The batch does **not** sequence the correctors itself as a
-substitute — that recreates the salience dilution the declared delta below
-exists to prevent, and yields audits weaker than the ones it declined to run.
+**Degrade path — fail closed, loud, posture digest only.** Any preflight
+failure — stage 1b short-circuit on `CLAUDE_CODE_FORK_SUBAGENT=0`, an
+unproven canary, a fork dispatch error (`Agent type 'fork' not found` or
+equivalent), or any other signal that conversation-inheriting forks cannot run
+here — takes this path. Never re-dispatch the batch blind and never substitute
+a sequential inline audit+correct pass on the main thread: that recreates the
+salience dilution the declared delta below exists to prevent, yields audits
+weaker than the ones declined to run, and is indistinguishable from silence in
+an unattended context.
+
+The report's **first line** is the exact token — no prefix, no markdown
+wrapper, no variant spelling:
+
+```text
+SWEEP-ALL: DEGRADED (fork-unavailable)
+```
+
+Then state plainly that **no audits ran and no corrections were applied** —
+zero member dispatches, zero ledger collection, zero corrective writes to the
+working tree. Then run the session-start posture digest (mode 1): derive
+posture from the listing and tier metadata only, no corrector bodies load, no
+audit runs.
+
+**Next actions** — after the digest, name what the user can do instead:
+
+- Invoke any single corrector directly for its full audit+correct loop in this
+  context (the shared method's normal per-corrector path, one discipline at a
+  time).
+- Re-run this skill after fork mode is available (`CLAUDE_CODE_FORK_SUBAGENT=1`
+  or a harness build where fork dispatch succeeds).
+- At conversation start with nothing to audit yet, mode 1 alone is sufficient —
+  no full batch was needed.
+
+That is the same position `setup` reports as the full-batch prerequisite; this
+runbook is where it executes.
 
 **What is gated, and what is not documented.** `CLAUDE_CODE_FORK_SUBAGENT` set
 to `1` enables fork-spawning and `0` disables it "overriding any server-side

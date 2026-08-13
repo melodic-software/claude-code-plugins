@@ -77,12 +77,25 @@
       "id": 7,
       "name": "preflight-canary-unproven-degrades-to-digest",
       "prompt": "sweep all disciplines — full batch over everything we've done in this long session. (Assume the preflight canary comes back reporting no inherited conversation and cannot produce the proof value.)",
-      "expected_output": "Before fanning out, the skill runs the preflight: the zero-dispatch paired schema check as a diagnostic only, then one proof-only canary dispatched alone — carrying no corrector and returning no ledger, so nothing it returns can anchor a later fork's audit. Given a canary that cannot produce the proof, the skill fails closed: it treats the subagent as non-inheriting rather than accepting a plausible-looking answer, dispatches no members, and does not re-dispatch the batch blind. It degrades to the session-start posture digest, reporting that the inheriting fan-out could not run, which signal established that, and that each corrector remains available for direct invocation. It does not sequence the correctors itself as a substitute batch.",
+      "expected_output": "Before fanning out, the skill runs the preflight: the zero-dispatch paired schema check as a diagnostic only, then one proof-only canary dispatched alone — carrying no corrector and returning no ledger, so nothing it returns can anchor a later fork's audit. Given a canary that cannot produce the proof, the skill fails closed: it treats the subagent as non-inheriting rather than accepting a plausible-looking answer, dispatches no members, and does not re-dispatch the batch blind. The report's first line is the exact token SWEEP-ALL: DEGRADED (fork-unavailable). It states that no audits ran and no corrections were applied (zero writes), then degrades to the session-start posture digest. It names next actions — invoke correctors directly one at a time, or re-run after fork mode is available. It does not sequence the correctors itself as a substitute batch.",
       "files": [],
       "expectations": [
         "Runs the preflight before the fan-out and treats the zero-dispatch schema check as diagnostic, never as the gate",
         "Dispatches one proof-only canary alone, carrying no audit, and gates the whole fan-out on a main-thread verification of its proof",
-        "Fails closed on the unprovable canary — dispatches no members and acts on no ledger — and degrades to the posture digest with the reason reported"
+        "Fails closed on the unprovable canary — dispatches no members, applies no corrections, and emits SWEEP-ALL: DEGRADED (fork-unavailable) as the report's first line before the posture digest",
+        "Does not substitute a sequential inline audit+correct pass on the main thread"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "fork-subagent-zero-short-circuit",
+      "prompt": "sweep all disciplines — full batch. (Assume CLAUDE_CODE_FORK_SUBAGENT is explicitly 0.)",
+      "expected_output": "The skill short-circuits on CLAUDE_CODE_FORK_SUBAGENT=0 before dispatching the inheritance-proof canary or any member fork. The report's first line is the exact token SWEEP-ALL: DEGRADED (fork-unavailable). It states that no audits ran and no corrections were applied, then runs the posture digest only and names next actions. It does not dispatch forks or substitute a sequential inline batch.",
+      "files": [],
+      "expectations": [
+        "Short-circuits on explicit CLAUDE_CODE_FORK_SUBAGENT=0 without dispatching the canary or member forks",
+        "Emits SWEEP-ALL: DEGRADED (fork-unavailable) as the report's first line and states zero audits and zero corrective writes",
+        "Runs the posture digest only and does not sequence correctors inline as a substitute batch"
       ]
     },
     {
