@@ -67,7 +67,7 @@ resolve_python3() {
 
   if command -v py >/dev/null 2>&1; then
     resolved="$(py -3 -c 'import sys; print(sys.executable)' 2>/dev/null)" || return 1
-    if [[ -n "$resolved" ]] && "$resolved" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    if [[ -n "$resolved" ]] && "$resolved" -c "$PYTHON_VERSION_PROBE" 2>/dev/null; then
       printf '%s' "$resolved"
       return 0
     fi
