@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Behavioral tests for the python3 App-Execution-Alias stub probe.
 
-The probe exists so ``/disk-hygiene:setup check`` can FAIL cleanly when the first
-rung of the guard launcher's interpreter ladder (``python3``) resolves to the
-zero-length WindowsApps alias stub — a fail-open vector wherever the remaining
-rungs (``python``, ``py -3``) are absent too, because a guard that never runs emits
-neither exit 2 nor a ``deny`` decision and so cannot block a destructive tool call.
-The stub
+The probe exists so ``/disk-hygiene:setup check`` can classify the first rung of
+the guard launcher's interpreter ladder (``python3``) WITHOUT executing it — a bare
+``python3 --version`` against the zero-length WindowsApps alias stub pops the
+Microsoft Store or hangs. The verdict here is diagnostic input, never the setup
+verdict: the fail-open is an exhausted ladder (``python`` and ``py -3`` absent too),
+because a guard that never runs emits neither exit 2 nor a ``deny`` decision and so
+cannot block a destructive tool call. The stub
 signal (WindowsApps path component + zero length) is fabricated here so the
 detection is exercised cross-platform, without needing a real Windows box or
 executing anything.

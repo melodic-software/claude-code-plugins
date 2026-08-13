@@ -126,12 +126,14 @@ def classify(path: Path | None) -> dict[str, object]:
             True,
             reparse_point,
             f"{_NAME} resolves to a zero-length WindowsApps App Execution Alias stub "
-            f"({path}). It opens the Microsoft Store instead of running an interpreter, "
-            "so the destructive-action guard's launcher must fall through to `python` or "
-            "`py -3` — and where those are absent too, the guard never executes and cannot "
-            "block. Disable the `python3` App execution "
-            "alias (Settings > Apps > Advanced app settings > App execution aliases) "
-            "or install real Python and ensure it precedes WindowsApps on PATH.",
+            f"({path}). It opens the Microsoft Store instead of running an interpreter, so the "
+            "guard's launcher skips this rung and falls through to `python`, then `py -3`. "
+            "This verdict describes the FIRST RUNG only — it is not the setup verdict: the "
+            "guard fails open only where the whole ladder is exhausted. Where a later rung "
+            "resolves a supported interpreter the install is healthy, and the residual is that "
+            "a bare `python3` typed by hand still opens the Store. To clear that: disable the "
+            "`python3` App execution alias (Settings > Apps > Advanced app settings > App "
+            "execution aliases) or install real Python ahead of WindowsApps on PATH.",
         )
 
     return _report(

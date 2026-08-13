@@ -106,10 +106,13 @@ at preview. Backups remain the recovery boundary for user data.
   and Claude Code treats the non-blocking result as approval — the destructive Bash/PowerShell
   command proceeds ungated (the same fail-open shape as the 0.6.3 launch-failure fix, via a
   different vector). The Stop detector emits a `systemMessage` in that case so the blind spot is
-  visible. `/disk-hygiene:setup check` detects this explicitly and FAILs: disable the `python3` App
-  execution alias (Settings > Apps > Advanced app settings > App execution aliases) or install real
-  Python and ensure it precedes WindowsApps on `PATH`. A bare `command -v python3` / `where python3`
-  success is not proof the interpreter is real — the stub answers to the name too.
+  visible. `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it
+  is exhausted or the interpreter it selects is below the floor. A stubbed `python3` alongside a
+  working `python` or `py -3` is a **WARN**, not a FAIL — every guard launches there, and the
+  residual is only that a bare `python3` typed by hand still opens the Store. To clear it: disable
+  the `python3` App execution alias (Settings > Apps > Advanced app settings > App execution
+  aliases) or install real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` /
+  `where python3` success is not proof the interpreter is real — the stub answers to the name too.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and

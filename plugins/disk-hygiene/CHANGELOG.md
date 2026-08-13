@@ -38,11 +38,24 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **Docs that described this hook's form are corrected.** `README.md`, `skills/setup/SKILL.md`,
   `skills/clean/reference/safety-model.md`, `hooks/run-python-hook.sh`'s header, and the
   `python3_alias_probe.py` docstring and operator message all stated that the belt launches as the
-  literal `python3`, several of them as the rationale for a check. Every `/disk-hygiene:setup
-  check` verdict is unchanged — a stubbed `python3` remains a FAIL, since the aliases ship as a
-  pair and `py` exists only where real Python is installed, so that host usually exhausts the
-  whole ladder — but the reason is re-grounded on the launcher rather than on a hook form that no
-  longer exists.
+  literal `python3`, several of them as the rationale for a check. The reason is now grounded on
+  the launcher rather than on a hook form that no longer exists.
+
+### Changed
+
+- **`/disk-hygiene:setup check` verdicts the interpreter LADDER, not `python3` alone.** Direct
+  fallout of the conversion above: while the belt named `python3` in exec form, a stubbed first
+  rung genuinely was a guard-launch failure, so step 2 mapped `store-alias-stub` straight to FAIL.
+  Now that every surface routes through `hooks/run-python-hook.sh`, that mapping reports a healthy
+  install as broken — a host with real Python installed without "Add to PATH" but with the `py`
+  launcher has a stubbed `python3`, a working `py -3`, and a guard that launches on every call, yet
+  would have been told to reinstall Python. Step 2 now treats the alias probe as **diagnostic
+  input**, resolves the ladder in the launcher's own order (skipping stubs), and checks the
+  selected interpreter against the parsed `MIN_PYTHON`. FAIL is unchanged in substance where it
+  matters — an **exhausted** ladder or a below-floor interpreter, both still FAIL under a disabled
+  toggle — and a stubbed `python3` beside a working `python`/`py -3` becomes a **WARN** naming the
+  real residual: a bare `python3` typed by hand still opens the Microsoft Store. The probe's own
+  return values are unchanged; only the mapping to a verdict and the message wording moved.
 
 ## [0.17.8]
 
