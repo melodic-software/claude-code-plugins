@@ -32,11 +32,12 @@ plugin names). This skill compares the *local, already-installed* state (`instal
 per-scope `enabledPlugins`) against the *local* marketplace catalog — a different axis (install/scope
 completeness, not settings-vs-upstream drift).
 
-**Never silently fixes drift it finds.** `sync` mutates only via the documented CLI actions below;
-`sync` can also write a committed `.claude/settings.json` when Step 5 issues `enable -s project`
-(see [context/scope-semantics.md](context/scope-semantics.md)); `converge` is the action that
-consolidates cross-scope divergence and can touch committed settings after an explicit per-plugin
-confirm.
+**Never silently fixes drift it finds.** `sync` mutates only via the documented CLI actions below,
+and never writes a committed `.claude/settings.json`: its Step 5 enables automatically only at
+`user` and `local` scope, and reports a `project`-scope gap rather than filling it, because `sync`
+has no autonomous-session abort behind which a confirm would mean anything. `converge` is the one
+action that can touch committed settings, and only after an explicit per-plugin confirm. See
+[context/scope-semantics.md](context/scope-semantics.md) for which CLI calls write that file.
 
 ## Action Router
 
@@ -104,9 +105,21 @@ Installed: <N> new catalog plugin(s) — <id>@<marketplace> (only when N > 0; pe
 Divergences: <N> project-scope install(s) behind user scope → run `/claude-ops:plugins converge`
   (N = actionable only — versionsMatch:false; same-version multi-scope installs are not counted
   or listed here)
-Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, CLI failures,
-  unknown/orphaned plugins> (omit section entirely when empty)
+Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
+  enable gaps, CLI failures, unknown/orphaned plugins> (omit section entirely when empty)
 ```
+
+A project-scope enable gap is a row `sync` deliberately does not fix — Step 5 enables automatically
+only where the write is not team-shared state. Give each one its runnable command rather than a
+count, so acting on it is a copy, not a reconstruction:
+
+```text
+- project-scope enable gap: (cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)
+  — writes that repo's committed .claude/settings.json; review the diff before committing
+```
+
+Only ids that Step 5 did not enable at `user`/`local` scope in this run appear here — for the rest
+the command would fail rather than run, and Step 5 explains why.
 
 When running inside a project (`CLAUDE_PROJECT_DIR` set and `fleet-state.sh`'s `installed[]` entries
 carry `currentProject: true`), lead the Divergences line with *this* project's actionable count and

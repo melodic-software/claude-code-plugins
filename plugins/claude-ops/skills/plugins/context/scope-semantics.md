@@ -89,9 +89,10 @@ Two consequences:
   `enabledPlugins` entry still dirties the tracked file, with a diff that changes no behavior: an
   empty map plus a key reorder. Expect it; it is not evidence an entry was removed.
   [converge.md](converge.md) Step 5 classifies it.
-- **`sync`** — Step 5 issues `enable <id> -s <that scope>`, so a `project`-scope completeness gap
-  makes the default, non-destructive action write a team-shared tracked file. `sync` surfaces no
-  settings diff today; [sync.md](sync.md) Step 5 flags the exposure.
+- **`sync`** — this is why [sync.md](sync.md) Step 5 enables automatically only at `user` and `local`
+  scope and reports a `project`-scope gap instead of filling it. `sync` has no autonomous-session
+  abort, so it has no safe moment to write a committed file; after that restriction, no `sync` path
+  writes one.
 
 ## Project scope: the CLI keys on the cwd, `fleet-state.sh` matches on the checkout root
 
