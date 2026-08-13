@@ -228,6 +228,16 @@ printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
 CLEAN_STDERR="$(git clean -fdx "${PRESERVE_ARGS[@]}" 2>&1 >/dev/null)"
 CLEAN_RC=$?
 UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || true)"
+CLEAN_NON_LOCKED_FAILURE=0
+if [[ "$CLEAN_RC" -ne 0 ]]; then
+  while IFS= read -r clean_line || [[ -n "$clean_line" ]]; do
+    [[ -z "$clean_line" ]] && continue
+    if [[ "$clean_line" != *'failed to remove'* ]]; then
+      CLEAN_NON_LOCKED_FAILURE=1
+      break
+    fi
+  done <<< "$CLEAN_STDERR"
+fi
 
 # Restore guard runs after clean unconditionally (data-loss guard): recover any
 # tracked file clean deleted via reparse-point traversal, even on the failure path
@@ -235,15 +245,14 @@ UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || tru
 RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 
 # Gate the AppliedClean success line on the real outcome. A non-zero exit whose
-# sole cause is locked/in-use files (UNREMOVABLE>0) is NOT a failure: clean ran and
-# removed everything it could, and that is reported honestly as Unremovable — do
-# not regress that into a hard error. Only a non-zero exit with NO 'failed to
-# remove' warnings is a genuine clean failure; emit a distinct failure line and a
-# non-zero exit instead of a success line that misrepresents the outcome.
-# Known limitation: a non-zero exit mixing locked-file warnings AND an unrelated
-# error still falls through to the success path (UNREMOVABLE>0 wins) — the locked-
-# file heuristic predates this gate; a stricter classifier is deferred.
-if [[ "$CLEAN_RC" -ne 0 && "${UNREMOVABLE:-0}" -eq 0 ]]; then
+# sole cause is locked/in-use files (every non-empty stderr line is a 'failed to
+# remove' warning) is NOT a failure: clean ran and removed everything it could,
+# and that is reported honestly as Unremovable — do not regress that into a hard
+# error. A non-zero exit with no stderr, or with any stderr line that is not a
+# tolerated locked-file warning, is a genuine clean failure; emit a distinct
+# failure line and a non-zero exit instead of a success line that misrepresents
+# the outcome.
+if [[ "$CLEAN_RC" -ne 0 && "${CLEAN_NON_LOCKED_FAILURE:-0}" -ne 0 ]]; then
   printf 'FAILED: git clean -fdx exited %s (non-locked-file cause) — untracked removal incomplete; reset --hard already applied.\n' "$CLEAN_RC" >&2
   [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
   printf 'AppliedClean: failed\n'

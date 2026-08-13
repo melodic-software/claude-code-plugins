@@ -278,6 +278,40 @@ assert_contains "clean failure reports a positive RestoredTracked count" "$out" 
 assert_contains "clean failure path emits the RESTORED>0 warning (parity with success path)" "$out" "WARNING: restored 1 tracked file(s) deleted via reparse-point traversal"
 assert_file_exists "restore guard recovered the tracked file on the failure path" "$R5/tracked.txt"
 
+# --- 13. mixed locked-file warning + unrelated clean error exits 7 (#602) ---
+R6="$TEST_TMPDIR/repo-mixed-clean-fail"
+git init "$R6" >/dev/null 2>&1
+git -C "$R6" config user.email "t@example.com"
+git -C "$R6" config user.name "Test"
+echo tracked >"$R6/tracked.txt"
+git -C "$R6" add -A
+git -C "$R6" commit -m "init" >/dev/null
+git -C "$R6" branch -M main
+git -C "$R6" checkout -b feat/mixed-clean-fail >/dev/null 2>&1
+git -C "$R6" branch -u main >/dev/null 2>&1
+echo untracked >"$R6/scratch.txt"
+
+MIXED_SHIM="$TEST_TMPDIR/git-mixed-clean-shim"
+mkdir -p "$MIXED_SHIM"
+cat >"$MIXED_SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
+  echo "warning: failed to remove obj/locked.bin: Device or resource busy" >&2
+  echo "fatal: permission denied removing scratch.txt" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$MIXED_SHIM/git"
+
+rc=0
+out="$(PATH="$MIXED_SHIM:$PATH" bash -c "cd '$R6' && bash '$RESET' --apply" 2>&1)" || rc=$?
+assert_exit "mixed clean failure exits 7" 7 "$rc"
+assert_contains "mixed clean failure reports failure" "$out" "FAILED: git clean -fdx"
+assert_contains "mixed clean failure emits AppliedClean: failed" "$out" "AppliedClean: failed"
+assert_not_contains "mixed clean failure emits no clean success line" "$out" "AppliedClean: git clean"
+assert_file_exists "mixed clean failure leaves untracked intact" "$R6/scratch.txt"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
