@@ -419,11 +419,15 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a nested hooks: key at depth is still walked --------------
-# `hooks:` is matched at any indentation, so a nested declaration cannot hide.
+# --- frontmatter: only a TOP-LEVEL hooks key is a declaration ---------------
+# Claude Code reads `hooks` as a top-level frontmatter key. A `hooks:` mapping
+# nested under some other key is data, not a hook registration, and must not be
+# walked as one -- every markdown file reaches the walk now, so a nested match
+# would be a false positive rather than extra coverage.
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: "x"
+metadata:
   hooks:
     PreToolUse:
       - hooks:
@@ -432,10 +436,31 @@ description: "x"
             args: ["x"]
 ---
 body'
-if run_check "$f" >/dev/null 2>&1; then
-  fail "an indented frontmatter hooks: block should still be walked"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a hooks: mapping nested under another key is not a declaration"
 else
-  ok "frontmatter hooks: is matched at any indentation"
+  fail "a nested hooks: mapping must not be walked as a declaration, got: $out"
+fi
+rm -rf "$f"
+
+# --- frontmatter: a sequence at the key's own indentation stays in block ----
+# YAML permits a block sequence to sit at the mapping key's indentation, so a
+# zero-indent `- ` under a zero-indent `hooks:` must not close the block.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:
+  PreToolUse:
+- matcher: "Bash"
+  hooks:
+  - type: command
+    command: bash
+    args: ["x"]
+---
+body'
+if run_check "$f" >/dev/null 2>&1; then
+  fail "a zero-indent sequence under hooks: should stay inside the block"
+else
+  ok "a sequence at the hooks key's own indentation stays inside the block"
 fi
 rm -rf "$f"
 
@@ -462,7 +487,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "flow-style hooks block should fail closed, got success: $out"
 else
-  if echo "$out" | grep -q 'non-block-style YAML in a frontmatter hooks declaration'; then
+  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*flow-style YAML mapping'; then
     ok "flow-style frontmatter hooks block fails closed with a visible reason"
   else
     fail "expected the flow-style message, got: $out"
@@ -470,10 +495,16 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: quoted spellings of the hooks key are still declarations --
-# YAML permits `"hooks":` and `'hooks':`; both open the same block, so neither
-# may slip past the prefilter or the walk.
-for spelling in '"hooks":' "'hooks':" 'hooks :'; do
+# --- frontmatter: every YAML spelling of the hooks key is a declaration -----
+# Bare, double-quoted, single-quoted, space-before-colon, and escape-encoded
+# spellings all decode to the same key and all open the same block. The escaped
+# forms are why the walk decodes rather than pattern-matching the token, and why
+# no spelling prefilter narrows the file set any more: a spelling the filter
+# does not know is a file the gate never reads.
+# BS keeps the literal backslash of the escape spellings unambiguous in source.
+# shellcheck disable=SC1003  # a lone backslash IS the intended value here
+BS='\'
+for spelling in '"hooks":' "'hooks':" 'hooks :' "\"${BS}u0068ooks\":" "\"${BS}x68ooks\":" '"hooks" :'; do
   f="$(new_fixture)"
   skill_md "$f" alpha skills/x/SKILL.md "---
 description: \"x\"
@@ -508,11 +539,132 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an inline hooks: value should fail closed, got success: $out"
 else
-  if echo "$out" | grep -q 'non-block-style YAML in a frontmatter hooks declaration'; then
+  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*on the key line'; then
     ok "an inline hooks: value fails closed instead of being skipped"
   else
-    fail "expected the non-block-style message, got: $out"
+    fail "expected the on-the-key-line message, got: $out"
   fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: a YAML alias inside the block fails closed ----------------
+# `hooks:` followed by an indented `*shared` expands to an anchored mapping this
+# walk cannot see. Before, that line matched neither a sequence nor a mapping
+# key and was skipped, so an anchored exec-form hook cleared the gate.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+shared: &shared
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: bash
+          args: ["x"]
+hooks:
+  *shared
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an alias inside a hooks block should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*anchor or alias'; then
+    ok "a YAML alias inside a hooks block fails closed"
+  else
+    fail "expected the anchor/alias message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: an anchor on a value inside the block fails closed --------
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:
+  PreToolUse: &pre
+    - hooks:
+        - type: command
+          command: bash
+          args: ["x"]
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an anchored value inside a hooks block should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*anchor or alias'; then
+    ok "an anchored value inside a hooks block fails closed"
+  else
+    fail "expected the anchor/alias message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: a merge key inside the block fails closed -----------------
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+base: &base
+  type: command
+  command: bash
+  args: ["x"]
+hooks:
+  PreToolUse:
+    - hooks:
+        - <<: *base
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a merge key inside a hooks block should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*anchor or alias'; then
+    ok "a merge key inside a hooks block fails closed"
+  else
+    fail "expected the anchor/alias message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: a block scalar inside the block fails closed --------------
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: |
+            bash
+          args: ["x"]
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a block scalar inside a hooks block should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*cannot classify'; then
+    ok "a block scalar inside a hooks block fails closed"
+  else
+    fail "expected the unclassifiable-line message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter outside a hooks block is never judged ----------------------
+# Every markdown file under plugins/ now reaches the walk, so shapes it cannot
+# model must stay inert unless they are inside a hooks block -- otherwise the
+# fail-closed rule would red-line ordinary skills.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+description: |
+  A folded description that mentions hooks: and a list
+  - like this
+  and an alias-looking *token
+anchors: &a
+  x: 1
+merged:
+  <<: *a
+allowed-tools:
+  - Bash(echo:*)
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "anchors, aliases, and block scalars outside a hooks block are inert"
+else
+  fail "non-hooks frontmatter must never be judged, got: $out"
 fi
 rm -rf "$f"
 

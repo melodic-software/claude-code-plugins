@@ -190,18 +190,46 @@ scan_manifest_path() {
 
 # --- YAML frontmatter hooks blocks ------------------------------------------
 
-# Minimal, purpose-built block-style YAML walk over a skill/agent frontmatter
-# `hooks:` block. It tracks list items by indentation and reports every hook
-# object carrying both `command` and `args`; the bareness rule stays in bash so
-# one implementation governs both surfaces. Flow-style mappings (`{...}`) are
-# NOT parsed — they fail the gate loudly rather than being walked wrongly, which
-# is the fail-closed direction for a detector whose whole job is catching a
-# silent no-op.
+# Purpose-built block-style YAML walk over a skill/agent frontmatter `hooks:`
+# block. It tracks list items by indentation and reports every hook object
+# carrying both `command` and `args`; the bareness rule stays in bash so one
+# implementation governs both surfaces.
+#
+# Two design commitments, both learned from review findings on this gate:
+#
+#  1. NO SPELLING PREFILTER. Every *.md under plugins/ is handed to the walk,
+#     which decides. Trying to grep for the key first meant enumerating its
+#     spellings, and YAML has unboundedly many: `hooks:`, `"hooks":`,
+#     `'hooks':`, `hooks :`, and escaped forms such as `"hooks":` that
+#     decode to the same key. A file the prefilter drops is a file the gate
+#     never looks at, so the prefilter is simply gone. Double-quoted keys and
+#     scalars are escape-DECODED here (\uXXXX, \xXX, \\, \", …) before
+#     comparison, the same move the sibling userconfig-argv gate makes for
+#     \u-escaped JSON.
+#
+#  2. FAIL CLOSED ON ANYTHING IT CANNOT WALK. Inside a hooks block, a line that
+#     is not blank, a comment, a list item, or a `key:` mapping — a YAML alias
+#     (`*shared`), an anchor (`&base`), a merge key (`<<: *base`), a flow
+#     mapping (`{...}`), a block scalar's continuation — is REPORTED, never
+#     skipped. Each of those expands to structure this walk does not model, and
+#     a detector whose whole job is catching a silent no-op must not have one of
+#     its own. Outside a hooks block nothing is judged, so unrelated frontmatter
+#     shapes cannot produce a false positive.
+#
+# The `hooks` key is recognised only as a TOP-LEVEL frontmatter key (indent 0),
+# which is the only position Claude Code reads one from; that also keeps an
+# indented `hooks:` inside some other key's value from being mistaken for a
+# declaration now that every markdown file is walked.
 FRONTMATTER_AWK=$(
   cat <<'AWK'
 function trim(s) {
   sub(/^[[:space:]]+/, "", s)
   sub(/[[:space:]]+$/, "", s)
+  return s
+}
+
+function trim_left(s) {
+  sub(/^[[:space:]]+/, "", s)
   return s
 }
 
@@ -211,29 +239,133 @@ function indent_of(s,   n) {
   return n
 }
 
-# YAML scalar on the right of `key:`: single/double quoted (with backslash
-# escapes inside double quotes) or plain with an optional trailing comment.
-function parse_value(v,   q, i, c, out) {
+function hexval(h,   i, c, v, d) {
+  v = 0
+  if (length(h) == 0) return -1
+  for (i = 1; i <= length(h); i++) {
+    c = tolower(substr(h, i, 1))
+    d = index("0123456789abcdef", c) - 1
+    if (d < 0) return -1
+    v = v * 16 + d
+  }
+  return v
+}
+
+# YAML double-quoted escapes. Non-ASCII code points collapse to "?" -- they can
+# never spell part of `hooks`, and the value side only needs the path-separator
+# test, which no escape above 127 can satisfy.
+function decode_double(s,   i, c, out, h, v) {
+  out = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c != "\\") {
+      out = out c
+      continue
+    }
+    i++
+    c = substr(s, i, 1)
+    if (c == "u") {
+      h = substr(s, i + 1, 4)
+      i += 4
+      v = hexval(h)
+      out = out ((v >= 1 && v < 128) ? sprintf("%c", v) : "?")
+      continue
+    }
+    if (c == "x") {
+      h = substr(s, i + 1, 2)
+      i += 2
+      v = hexval(h)
+      out = out ((v >= 1 && v < 128) ? sprintf("%c", v) : "?")
+      continue
+    }
+    if (c == "n") { out = out "\n"; continue }
+    if (c == "t") { out = out "\t"; continue }
+    out = out c
+  }
+  return out
+}
+
+# A YAML scalar: double-quoted (escape-decoded), single-quoted ('' -> '), or
+# plain with an optional trailing comment.
+function parse_scalar(v,   q, i, c, raw) {
   v = trim(v)
   if (v == "") return ""
   q = substr(v, 1, 1)
-  if (q == "\"" || q == "'") {
-    out = ""
+  if (q == "\"") {
+    raw = ""
     for (i = 2; i <= length(v); i++) {
       c = substr(v, i, 1)
-      if (c == "\\" && q == "\"") {
+      if (c == "\\") {
+        raw = raw c substr(v, i + 1, 1)
         i++
-        out = out substr(v, i, 1)
         continue
       }
-      if (c == q) break
-      out = out c
+      if (c == "\"") break
+      raw = raw c
     }
-    return out
+    return decode_double(raw)
+  }
+  if (q == "'") {
+    raw = ""
+    for (i = 2; i <= length(v); i++) {
+      c = substr(v, i, 1)
+      if (c == "'") {
+        if (substr(v, i + 1, 1) == "'") {
+          raw = raw "'"
+          i++
+          continue
+        }
+        break
+      }
+      raw = raw c
+    }
+    return raw
   }
   i = index(v, " #")
   if (i > 0) v = substr(v, 1, i - 1)
   return trim(v)
+}
+
+# split_kv(s) -> 1 when s is a `key: value` mapping line, setting G_key (decoded)
+# and G_val (the raw remainder, untrimmed of quotes).
+function split_kv(s,   q, i, c, k, rest, n) {
+  s = trim_left(s)
+  if (s == "") return 0
+  q = substr(s, 1, 1)
+  if (q == "\"" || q == "'") {
+    k = ""
+    for (i = 2; i <= length(s); i++) {
+      c = substr(s, i, 1)
+      if (q == "\"" && c == "\\") {
+        k = k c substr(s, i + 1, 1)
+        i++
+        continue
+      }
+      if (c == q) break
+      k = k c
+    }
+    if (i > length(s)) return 0
+    rest = trim_left(substr(s, i + 1))
+    if (substr(rest, 1, 1) != ":") return 0
+    G_key = (q == "\"") ? decode_double(k) : k
+    G_val = trim(substr(rest, 2))
+    return 1
+  }
+  n = index(s, ":")
+  if (n == 0) return 0
+  k = trim(substr(s, 1, n - 1))
+  if (k == "") return 0
+  G_key = k
+  G_val = trim(substr(s, n + 1))
+  return 1
+}
+
+function emit_v(ln, val) { printf("V\t%s\t%d\t%s\n", curfile, ln, val) }
+
+function emit_x(ln, reason) {
+  printf("X\t%s\t%d\t%s\n", curfile, ln, reason)
+  top = 0
+  state = 2
 }
 
 function push(k, ln) {
@@ -247,7 +379,7 @@ function push(k, ln) {
 
 function pop() {
   if (top == 0) return
-  if (hascmd[top] && hasargs[top]) printf("V\t%d\t%s\n", cmdline[top], cmdval[top])
+  if (hascmd[top] && hasargs[top]) emit_v(cmdline[top], cmdval[top])
   top--
 }
 
@@ -259,145 +391,140 @@ function flush_all() {
   while (top > 0) pop()
 }
 
-function record_kv(s,   c, key, val) {
+function record_kv(   ) {
   if (top == 0) return
-  c = index(s, ":")
-  if (c == 0) return
-  key = trim(substr(s, 1, c - 1))
-  gsub(/^["']/, "", key)
-  gsub(/["']$/, "", key)
-  val = substr(s, c + 1)
-  if (key == "command") {
+  if (G_key == "command") {
     hascmd[top] = 1
-    cmdval[top] = parse_value(val)
-    cmdline[top] = NR
-  } else if (key == "args") {
+    cmdval[top] = parse_scalar(G_val)
+    cmdline[top] = FNR
+  } else if (G_key == "args") {
     hasargs[top] = 1
   }
 }
 
-# YAML permits the key to be written bare, double-quoted, or single-quoted, and
-# permits whitespace before the colon. All spellings declare the same block, so
-# all of them must open one here -- matching only the bare token would let
-# `"hooks":` carry an exec-form violation straight past the gate.
-function is_hooks_key(s) {
-  return (s ~ /^[[:space:]]*["']?hooks["']?[[:space:]]*:[[:space:]]*(#.*)?$/)
-}
-
-# The same key carrying its whole declaration on the key line.
-function is_hooks_key_inline(s) {
-  return (s ~ /^[[:space:]]*["']?hooks["']?[[:space:]]*:[[:space:]]*[^[:space:]#]/)
-}
-
-function handle(line,   ind, rest, kidx) {
+function handle(line,   ind, rest, kidx, isdash) {
   if (line ~ /^[[:space:]]*$/) return
   if (line ~ /^[[:space:]]*#/) return
   ind = indent_of(line)
+  isdash = (line ~ /^[[:space:]]*-([[:space:]]|$)/)
 
   if (!inhooks) {
-    if (is_hooks_key(line)) {
-      inhooks = 1
-      hooks_indent = ind
-    } else if (is_hooks_key_inline(line)) {
-      # `hooks:` with an inline value -- flow style, an anchor, or an alias.
-      # Not walkable by this parser, so fail closed rather than skip it.
-      flow = 1
-      if (flowline == 0) flowline = NR
+    # Only a top-level frontmatter key declares hooks.
+    if (ind != 0) return
+    if (!split_kv(line)) return
+    if (G_key != "hooks") return
+    if (G_val != "") {
+      emit_x(FNR, "the hooks key carries its whole declaration on the key line (flow mapping, anchor, or alias); this gate walks block style only")
+      return
     }
+    inhooks = 1
     return
   }
 
-  if (ind <= hooks_indent) {
+  # A sequence may sit at the key's own indentation, so only a non-dash line at
+  # or left of it closes the block.
+  if (ind == 0 && !isdash) {
     flush_all()
     inhooks = 0
-    hooks_indent = -1
-    if (is_hooks_key(line)) {
-      inhooks = 1
-      hooks_indent = ind
-    }
+    handle(line)
     return
   }
 
   # A `{` that is not the opening of a ${...} placeholder means flow style.
   if (line ~ /(^|[^$])[{]/) {
-    flow = 1
-    if (flowline == 0) flowline = NR
+    emit_x(FNR, "flow-style YAML mapping in a hooks block; this gate walks block style only")
     return
   }
 
-  if (line ~ /^[[:space:]]*-/) {
+  if (isdash) {
     rest = substr(line, ind + 2)
     close_deeper(ind)
+    if (trim(rest) ~ /^[&*]/) {
+      emit_x(FNR, "YAML anchor or alias in a hooks block; this gate cannot expand one")
+      return
+    }
     if (rest ~ /^[[:space:]]*$/) {
       kidx = -1
     } else {
       kidx = ind + 1 + indent_of(rest)
     }
-    push(kidx, NR)
-    if (kidx >= 0) record_kv(trim(rest))
+    push(kidx, FNR)
+    # A list item that is not a mapping is a plain scalar -- `args:` as a block
+    # sequence is exactly this, and it is walkable: a scalar can never be a hook
+    # object, so the pushed frame simply pops with no keys recorded.
+    if (kidx >= 0 && split_kv(rest)) {
+      if (G_val ~ /^[&*]/) {
+        emit_x(FNR, "YAML anchor or alias in a hooks block; this gate cannot expand one")
+        return
+      }
+      record_kv()
+    }
     return
   }
 
-  if (line ~ /^[[:space:]]*[^-[:space:]#][^:]*:/) {
+  if (trim(line) ~ /^[&*]/) {
+    emit_x(FNR, "YAML anchor or alias in a hooks block; this gate cannot expand one")
+    return
+  }
+
+  if (split_kv(line)) {
     close_deeper(ind)
+    if (G_val ~ /^[&*]/) {
+      emit_x(FNR, "YAML anchor or alias in a hooks block; this gate cannot expand one")
+      return
+    }
     if (top > 0 && kindent[top] == -1) kindent[top] = ind
-    if (top > 0 && kindent[top] == ind) record_kv(trim(line))
+    if (top > 0 && kindent[top] == ind) record_kv()
     return
   }
+
+  emit_x(FNR, "a line in a hooks block this gate cannot classify (alias, block scalar, or other non-block-style YAML)")
 }
 
-BEGIN {
-  state = 0
+FNR == 1 {
+  flush_all()
+  curfile = FILENAME
   inhooks = 0
-  hooks_indent = -1
   top = 0
-  flow = 0
-  flowline = 0
+  line = $0
+  sub(/\r$/, "", line)
+  state = (line == "---") ? 1 : 2
+  next
 }
+
+state != 1 { next }
 
 {
   line = $0
   sub(/\r$/, "", line)
-
-  if (state == 0) {
-    if (NR == 1 && line == "---") {
-      state = 1
-      next
-    }
-    exit
-  }
-
   if (line == "---" || line == "...") {
     flush_all()
     state = 2
-    exit
+    next
   }
-
   handle(line)
 }
 
-END {
-  if (state == 1) flush_all()
-  if (flow) printf("F\t%d\t\n", flowline)
-}
+END { flush_all() }
 AWK
 )
 
-# scan_frontmatter <markdown file> — fail closed for the same reason scan_json
-# does: an awk pass that did not complete has cleared nothing.
+# scan_frontmatter — one awk pass over every markdown file under plugins/. Fail
+# closed for the same reason scan_json does: a pass that did not complete has
+# cleared nothing. `find -exec … +` batches the argument list, and awk resets
+# its own state per file, so the batching is invisible to the result.
 scan_frontmatter() {
-  local file="$1" out kind line cmd
-  [[ -f "$file" ]] || return 0
-  if ! out="$(awk "$FRONTMATTER_AWK" "$file")"; then
-    echo "UNREADABLE FRONTMATTER: ${file}: the frontmatter walk did not complete — this gate cannot clear it" >&2
+  local out kind file line detail
+  if ! out="$(find plugins -type f -name '*.md' -exec awk "$FRONTMATTER_AWK" {} +)"; then
+    echo "UNREADABLE FRONTMATTER: the frontmatter walk over plugins/ did not complete — this gate cannot clear it" >&2
     errors=$((errors + 1))
     return 0
   fi
-  while IFS=$'\t' read -r kind line cmd; do
+  while IFS=$'\t' read -r kind file line detail; do
     case "$kind" in
-    V) consider "$file" "$line" "$cmd" ;;
-    F)
-      echo "EXEC-FORM HOOK: ${file}:${line}: non-block-style YAML in a frontmatter hooks declaration (flow mapping, anchor, or alias) is not parseable by this gate — rewrite it in block style" >&2
+    V) consider "$file" "$line" "$detail" ;;
+    X)
+      echo "UNWALKABLE HOOKS BLOCK: ${file}:${line}: ${detail}" >&2
       errors=$((errors + 1))
       ;;
     *) ;;
@@ -434,16 +561,11 @@ for plugin in plugins/*/; do
   esac
 done
 
-# Skill and agent frontmatter. The grep only narrows the candidate set; the awk
-# pass is what decides, and it looks at frontmatter only, so a `hooks:` line in
-# a prose body or a fenced example is never read as a declaration. The prefilter
-# must admit every YAML spelling of the key the awk pass accepts (bare, double-
-# quoted, single-quoted, whitespace before the colon) — a candidate the grep
-# drops is a file the gate never looks at.
-while IFS= read -r md; do
-  [[ -n "$md" ]] || continue
-  scan_frontmatter "$md"
-done < <(grep -rlE "^[[:space:]]*[\"']?hooks[\"']?[[:space:]]*:" --include='*.md' plugins/ 2>/dev/null | tr -d '\r' | sort || true)
+# Skill and agent frontmatter. Every markdown file under plugins/ is walked (no
+# spelling prefilter — see the walk's doc-block), and the walk reads frontmatter
+# only, so a `hooks:` line in a prose body or a fenced example is never read as
+# a declaration.
+scan_frontmatter
 
 if ((errors > 0)); then
   cat >&2 <<'REMEDY'
