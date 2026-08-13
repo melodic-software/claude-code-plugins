@@ -23,6 +23,22 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   asserted `.command == "bash"`, encoding the defect as the contract; it now asserts the
   portability property (launcher named in `command`, no `args`, `shell: bash`, every
   placeholder quoted).
+- **Security records now assess the shell-form launch instead of asserting the old exec form.**
+  The README trust-surface record and `skills/clean/reference/safety-model.md` still bounded the
+  plugin-level hook by "exec form (no shell)" — a safety claim the same change disproved, so the
+  plugin's own security assessment reasoned from a false premise. Both now state what shell form
+  does and does not guarantee: the command string is a fixed literal in the plugin's own
+  `hooks.json` with no model-, repo-, or session-supplied interpolation, whose only substituted
+  values are Claude Code's own double-quoted `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`
+  placeholders — verified byte-identical to the exec-form argv for roots containing spaces and
+  backslashes — while noting that those placeholders are substituted textually before bash parses
+  the result, so the quoting bounds whitespace and backslashes rather than every shell
+  metacharacter. The invariant is now maintained by `hooks/run-python-hook.test.sh` and the
+  form-agnostic `test_hygiene.py` hook helpers rather than being structural (repo-wide gate: #2569).
+  `skills/clean/SKILL.md` split its single launch bullet per surface — the wired gate resolves
+  Python through `run-python-hook.sh`, while the skill-scoped belt is the one still exec-form on a
+  bare `python3` (#2568) — and `safety-model.md` dropped a stale claim that the `Stop` detector
+  shares the guard's `python3` lookup and leaves that vector unreported, which #1504 already closed.
 
 ## [0.17.7]
 

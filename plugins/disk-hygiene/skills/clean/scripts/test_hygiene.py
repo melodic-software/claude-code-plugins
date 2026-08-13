@@ -4279,8 +4279,10 @@ class GuardTests(unittest.TestCase):
     def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
         """Lock the guard's launch interpreter and prove it resolves.
 
-        The PreToolUse hook runs in exec form, so `command` is resolved on PATH
-        with no shell. Bare `python` is absent on stock macOS and many Linux
+        The skill-scoped PreToolUse hook runs in exec form, so `command` is
+        resolved on PATH with no shell (the two wired hooks in ``hooks/hooks.json``
+        are shell form and resolve Python through ``run-python-hook.sh`` instead;
+        converting this surface is tracked in #2568). Bare `python` is absent on stock macOS and many Linux
         distros (and a legacy 2.x would crash the guard), which fails the launch
         open — the guard never intercepts. The static half locks the config at
         `python3`. The runtime half is the "interpreter actually resolves" probe:
