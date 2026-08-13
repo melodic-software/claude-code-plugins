@@ -8,6 +8,8 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-hook-exec-form.sh"
+READER="$SELF_DIR/check-hook-exec-form-frontmatter.py"
+REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 
 PASS=0
 FAIL=0
@@ -23,9 +25,13 @@ ok() {
 new_fixture() {
   local dir
   dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins"
+  mkdir -p "$dir/scripts" "$dir/plugins" "$dir/.github"
   cp "$SCRIPT" "$dir/scripts/check-hook-exec-form.sh"
-  chmod +x "$dir/scripts/check-hook-exec-form.sh"
+  cp "$READER" "$dir/scripts/check-hook-exec-form-frontmatter.py"
+  chmod +x "$dir/scripts/check-hook-exec-form.sh" "$dir/scripts/check-hook-exec-form-frontmatter.py"
+  # The gate reads the pyyaml pin from here for its uv fallback; copy the real
+  # file so a fixture run resolves the same version CI installs.
+  cp "$REQUIREMENTS" "$dir/.github/requirements-ci.txt"
   printf '%s' "$dir"
 }
 
@@ -476,7 +482,7 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: flow-style mapping fails closed ---------------------------
+# --- frontmatter: flow style is the same document, and is walked ------------
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -485,26 +491,49 @@ hooks:
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "flow-style hooks block should fail closed, got success: $out"
+  fail "a flow-style hooks block should be walked and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*flow-style YAML mapping'; then
-    ok "flow-style frontmatter hooks block fails closed with a visible reason"
+  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:4: .*"bash"'; then
+    ok "flow-style YAML in a hooks block is walked, not refused"
   else
-    fail "expected the flow-style message, got: $out"
+    fail "expected a flag at line 4 for bash, got: $out"
   fi
 fi
 rm -rf "$f"
 
+# --- frontmatter: braces inside an ordinary scalar are not structure --------
+# A block-sequence `args` entry may legitimately be a JSON-ish string. Reading
+# YAML as text made that look like a flow mapping and red-lined a valid file;
+# a real parser cannot make that mistake.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: "${CLAUDE_PLUGIN_ROOT}/bin/guard"
+          args:
+            - --policy
+            - '"'"'{"mode":"safe","roots":["{a}","{b}"]}'"'"'
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "braces inside an args scalar are not read as a flow mapping"
+else
+  fail "a JSON-ish args scalar must not be judged as structure, got: $out"
+fi
+rm -rf "$f"
+
 # --- frontmatter: every YAML spelling of the hooks key is a declaration -----
-# Bare, double-quoted, single-quoted, space-before-colon, and escape-encoded
-# spellings all decode to the same key and all open the same block. The escaped
-# forms are why the walk decodes rather than pattern-matching the token, and why
-# no spelling prefilter narrows the file set any more: a spelling the filter
-# does not know is a file the gate never reads.
+# Bare, double-quoted, single-quoted, space-before-colon, and the three escape
+# encodings all denote the same key. Each of these was a live bypass of the
+# hand-rolled walk this gate used to carry, and each is why the reader hands the
+# document to a real parser instead of matching the token as text: the scanner
+# has already decoded the key by the time the gate sees it.
 # BS keeps the literal backslash of the escape spellings unambiguous in source.
 # shellcheck disable=SC1003  # a lone backslash IS the intended value here
 BS='\'
-for spelling in '"hooks":' "'hooks':" 'hooks :' "\"${BS}u0068ooks\":" "\"${BS}x68ooks\":" '"hooks" :'; do
+for spelling in '"hooks":' "'hooks':" 'hooks :' "\"${BS}u0068ooks\":" "\"${BS}U00000068ooks\":" "\"${BS}x68ooks\":" '"hooks" :'; do
   f="$(new_fixture)"
   skill_md "$f" alpha skills/x/SKILL.md "---
 description: \"x\"
@@ -528,29 +557,105 @@ body"
   rm -rf "$f"
 done
 
-# --- frontmatter: `hooks:` carrying an inline value fails closed ------------
-# A whole declaration on the key line (flow mapping, anchor, alias) is not
-# walkable by this parser, so it must fail rather than be skipped as "no block".
+# --- frontmatter: a whole declaration on the key line is walked -------------
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 "hooks": {PreToolUse: [{hooks: [{type: command, command: bash, args: ["x"]}]}]}
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "an inline hooks: value should fail closed, got success: $out"
+  fail "an inline hooks declaration should be walked and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*on the key line'; then
-    ok "an inline hooks: value fails closed instead of being skipped"
+  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:2: .*"bash"'; then
+    ok "a whole hooks declaration on the key line is walked"
   else
-    fail "expected the on-the-key-line message, got: $out"
+    fail "expected a flag at line 2 for bash, got: $out"
   fi
 fi
 rm -rf "$f"
 
-# --- frontmatter: a YAML alias inside the block fails closed ----------------
-# `hooks:` followed by an indented `*shared` expands to an anchored mapping this
-# walk cannot see. Before, that line matched neither a sequence nor a mapping
-# key and was skipped, so an anchored exec-form hook cleared the gate.
+# --- frontmatter: unparsable YAML fails closed ------------------------------
+# The one thing a real parser still cannot clear. A file the gate cannot read
+# is a file it must not pass.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:
+  PreToolUse:
+   - a
+  "unterminated
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "unparsable frontmatter should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*does not parse'; then
+    ok "unparsable YAML frontmatter fails closed"
+  else
+    fail "expected the does-not-parse message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: a trailing comment on the hooks key is not a value --------
+# `hooks:  # why` opens a block like any other; treating the comment as an
+# inline declaration would be a false positive on ordinary YAML.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:  # the skill-scoped belt
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: bash
+          args: ["x"]
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a commented hooks: key should still open the block, got success: $out"
+else
+  if echo "$out" | grep -q 'SKILL.md:6: .*"bash"'; then
+    ok "a trailing comment on the hooks key is not read as an inline value"
+  else
+    fail "expected the block to be walked and flagged at line 6, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- the shape #2568 / PR #2572 lands must pass -----------------------------
+# Interpreter-led shell form in a single-quoted YAML scalar, with a comment
+# block and sibling keys inside the hooks block. This is the fix that clears
+# the one violation this gate reports against main; if the gate flagged it, the
+# gate would be blocking its own unblocking.
+f="$(new_fixture)"
+skill_md "$f" disk-hygiene skills/clean/SKILL.md '---
+description: "x"
+hooks:
+  PreToolUse:
+    - matcher: "Bash|PowerShell"
+      hooks:
+        # Shell form, matching hooks/hooks.json (#2568). Exec form resolves
+        # `command` on PATH with no shell, and the bare `python3` this used to
+        # name is the zero-length WindowsApps App Execution Alias stub.
+        - type: command
+          command: '"'"'"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'"'"'
+          shell: bash
+          timeout: 60
+metadata:
+  workflow-stage: anytime
+---
+
+# Body
+'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "the interpreter-led shell form #2572 lands passes"
+else
+  fail "the #2572 shape must pass — this gate would otherwise block its own unblocking, got: $out"
+fi
+rm -rf "$f"
+
+# --- frontmatter: a YAML alias under the key is resolved, not skipped -------
+# `hooks:` whose value is `*shared` expands to the anchored mapping. The old
+# text walk matched neither a sequence nor a mapping key on that line and
+# skipped it, so an anchored exec-form hook cleared the gate.
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 shared: &shared
@@ -559,22 +664,21 @@ shared: &shared
         - type: command
           command: bash
           args: ["x"]
-hooks:
-  *shared
+hooks: *shared
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "an alias inside a hooks block should fail closed, got success: $out"
+  fail "an aliased hooks value should be resolved and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*anchor or alias'; then
-    ok "a YAML alias inside a hooks block fails closed"
+  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:6: .*"bash"'; then
+    ok "a YAML alias under the hooks key is resolved to its anchor"
   else
-    fail "expected the anchor/alias message, got: $out"
+    fail "expected a flag at the anchor's command line, got: $out"
   fi
 fi
 rm -rf "$f"
 
-# --- frontmatter: an anchor on a value inside the block fails closed --------
+# --- frontmatter: an anchor on a value inside the block is walked -----------
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -586,17 +690,19 @@ hooks:
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "an anchored value inside a hooks block should fail closed, got success: $out"
+  fail "an anchored value inside a hooks block should be walked, got success: $out"
 else
-  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*anchor or alias'; then
-    ok "an anchored value inside a hooks block fails closed"
+  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:6: .*"bash"'; then
+    ok "an anchored value inside a hooks block is walked"
   else
-    fail "expected the anchor/alias message, got: $out"
+    fail "expected a flag at line 6 for bash, got: $out"
   fi
 fi
 rm -rf "$f"
 
-# --- frontmatter: a merge key inside the block fails closed -----------------
+# --- frontmatter: a merge key is expanded ----------------------------------
+# `<<: *base` makes the merged mapping's keys the hook object's keys, so the
+# exec-form pair arrives through the merge and must still be seen.
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
@@ -610,17 +716,37 @@ hooks:
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "a merge key inside a hooks block should fail closed, got success: $out"
+  fail "a merge key should be expanded and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*anchor or alias'; then
-    ok "a merge key inside a hooks block fails closed"
+  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*"bash"'; then
+    ok "a merge key inside a hooks block is expanded"
   else
-    fail "expected the anchor/alias message, got: $out"
+    fail "expected a bash flag through the merge key, got: $out"
   fi
 fi
 rm -rf "$f"
 
-# --- frontmatter: a block scalar inside the block fails closed --------------
+# --- frontmatter: an explicit key wins over a merged one --------------------
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+base: &base
+  command: bash
+  args: ["x"]
+hooks:
+  PreToolUse:
+    - hooks:
+        - <<: *base
+          command: "${CLAUDE_PLUGIN_ROOT}/bin/guard"
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "an explicit key overrides the merged one, as YAML defines"
+else
+  fail "the explicit rooted command must win over the merged bare one, got: $out"
+fi
+rm -rf "$f"
+
+# --- frontmatter: a block scalar command is read as its content -------------
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -633,20 +759,20 @@ hooks:
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then
-  fail "a block scalar inside a hooks block should fail closed, got success: $out"
+  fail "a block-scalar command should be read and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'UNWALKABLE HOOKS BLOCK: .*cannot classify'; then
-    ok "a block scalar inside a hooks block fails closed"
+  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*"bash"'; then
+    ok "a block-scalar command is read as its content"
   else
-    fail "expected the unclassifiable-line message, got: $out"
+    fail "expected a bash flag from the block scalar, got: $out"
   fi
 fi
 rm -rf "$f"
 
-# --- frontmatter outside a hooks block is never judged ----------------------
-# Every markdown file under plugins/ now reaches the walk, so shapes it cannot
-# model must stay inert unless they are inside a hooks block -- otherwise the
-# fail-closed rule would red-line ordinary skills.
+# --- frontmatter outside the hooks key is never judged ----------------------
+# Every markdown file under plugins/ reaches the reader, so shapes elsewhere in
+# the frontmatter must stay inert -- otherwise the gate would red-line ordinary
+# skills for YAML that has nothing to do with hooks.
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: |
