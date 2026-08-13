@@ -232,7 +232,8 @@ reconciles the two, and every rule below is fail-closed:
   autonomously — it lands on the merge-ready report. The two keys are never unified: they answer
   different questions (who is attested to have written this code vs. does this author ship
   third-party dependency payloads).
-- **Consumed by the rung partition's trust test and nowhere else.** The value is never forwarded as
+- **Consumed by the rung partition's trust test, the drain issue-author provenance test, and
+  nowhere else.** The value is never forwarded as
   `--self-logins`, `--extra-bot-logins`, discovery scope, or any write or resolution authority, and
   a trust match never establishes C2 — it only removes the categorical C5 bar. The PR still needs a
   close-linked item with a recorded classification, and still faces the C4 diff veto, the rung

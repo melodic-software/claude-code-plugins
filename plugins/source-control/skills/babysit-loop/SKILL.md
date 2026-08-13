@@ -160,9 +160,9 @@ closed or PR'd): the merge lane finishes merging the tail. Lane-infrastructure i
 the drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract,
 this lane's and any sibling's) are excluded from the 0-open-issues evaluation, exactly as the
 work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the
-loop: every remaining open item human-gated or escalated and no PR in flight — report and stop
-cleanly rather than idling forever. The exit is evaluated against the cycle-start snapshot; new
-intake arriving mid-cycle is reported, never chased.
+loop: every remaining open item human-gated, escalated, or `C5` on the issue-author provenance
+test (`work-classes.md`) and no PR in flight — report and stop cleanly rather than idling forever.
+Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot; mid-cycle intake is reported, never chased.
 
 ## Cycle shape
 
@@ -175,7 +175,7 @@ intake arriving mid-cycle is reported, never chased.
    context is compaction-lossy — the comment is the source of truth for the counters); classify
    guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs,
    last-activity timestamps, and the provenance fields the rung partition consumes
-   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and — in drain mode — open issues.
+   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and — in drain mode — open issues with the same author-association / login / bot-type fields the issue-author test consumes.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -495,4 +495,5 @@ budget hit is a terminal manual-restart state, per the convention.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain — the worker lane
   may still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal
   state) ends the loop.
+- **Drain issue-author provenance.** Apply the `work-classes.md` issue-author `C5` test to every non-excluded open issue in the drain snapshot; failures are human-gated for the terminal exit.
 - **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a `Lane telemetry: <lane>` issue, and never count one against the drain exit.
