@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -68,19 +67,27 @@ def _build_envelope(
 
 
 def _dispatch_sink(sink_path: str, envelope: str) -> None:
-    def _run() -> None:
-        try:
-            subprocess.run(
-                [sink_path],
-                input=envelope.encode("utf-8"),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            pass
+    """Launch the sink in an independent process; never wait for it to finish.
 
-    threading.Thread(target=_run, daemon=True).start()
+    A daemon thread is insufficient: these hooks are short-lived Python commands
+    that call ``os._exit`` or return immediately, which terminates daemon threads
+    before ``subprocess.run`` completes. Mirror ``hook::emit_telemetry``'s
+    background subshell instead.
+    """
+    try:
+        proc = subprocess.Popen(
+            [sink_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        if proc.stdin is None:
+            return
+        proc.stdin.write(envelope.encode("utf-8"))
+        proc.stdin.close()
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def emit(
