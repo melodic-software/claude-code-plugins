@@ -3,6 +3,19 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Changed
+
+- **Declared deviation for the single-layer gap (#723).** Tidy lane resolution
+  intentionally omits the config-cascade contract's user-global and `*.local.*`
+  overlay rungs: lane scope, verification commands, and watch-for patterns are
+  repo-specific, the bundled lane is already the portable cross-repo baseline,
+  and personal variation is limited to lane names the team does not track (an
+  uncommitted team-path lane file never added to the index). Documented in the
+  `tidy` and `setup` skills, plugin README, and the config-cascade Implementers
+  row — closes the open conformance gap without adding overlay resolution.
+
 ## [0.10.0]
 
 ### Fixed

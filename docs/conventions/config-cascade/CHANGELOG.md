@@ -14,6 +14,12 @@ so no version bump. The former clunky three-noun label is replaced by "cascade" 
 CSS-cascade term for precedence-ordered resolution with override + ratified inversion). All live
 references updated; historical topic docs and CHANGELOGs retain the former name as frozen record.
 
+## Implementers table — 2026-08-12
+
+- **`code-tidying` row (#723).** Recorded the declared deviation: no user-global or `*.local.*`
+  overlay; team layer over bundled default, with personal variation limited to lane names the team
+  does not track (uncommitted team-path lane file never added to the index). No contract rule change
+
 ## 1.1 — 2026-07-20
 
 Additive relaxation (minor bump): ratified a named exception class. Default precedence is unchanged for
