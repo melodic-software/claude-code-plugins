@@ -70,25 +70,43 @@ Dispatch rules:
    context the writers deliberately lack.
 5. **For rounds:** name what made the strongest write of a round work, then carry that as the
    standard into the next round's dispatch. The bar escalates; rounds are not independent repeats.
-6. **Set the model on each agent call — do not let the fleet inherit the session's.** The
-   `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model
-   unset runs the whole fleet on whatever the session runs on. Writer directive (Sofía sessions,
-   2026-08-12), as recorded in the consuming workspace's `research/plugin-gaps.md`: *"creative
-   fan-out fleets run on Opus (`opts.model: 'opus'` per agent call), reserving the expensive model
-   for the judge stage at most."* The cost finding behind it is from the same session: agents that
-   inherited the session model — Fable — spent ~383k subagent tokens at top-tier pricing for a batch
-   the writer rejected wholesale, while the re-run on Opus with voiceprint-first judging produced
-   the only candidates he accepted. Fable is what the directive excludes; Opus is what it names.
+6. **Set the model explicitly on every agent call — never let the fleet inherit the session's.** The
+   `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model unset
+   runs the whole fleet on whatever the session happens to run on — a tier picked for the
+   orchestrator's work, not the writers'. Unset is not a default; it is the bug. A global
+   `CLAUDE_CODE_SUBAGENT_MODEL` override outranks every per-call `model` argument and agent
+   frontmatter when set to anything but `inherit` — keep it unset for fleet dispatches, and stop to
+   ask if the consumer's settings export a tier above the fleet default before spawning.
 
-   **A cheaper tier is not covered by this directive, and 1.4.1 read it as one.** That release
-   recorded the rule as Sonnet and attributed the string `opts.model: 'sonnet'` to the writer; the
-   workspace log it cites says `'opus'`, and no session record has him authorizing a Sonnet fleet.
-   Sonnet has never been run against his bar. Trading the tier down for cost is a decision he has
-   not made — ask before making it for him.
+   **The fleet default is the tier whose writing has cleared the writer's bar** — not a fixed model
+   name, which goes stale at the next release. Today that tier is Opus: the directive recorded in the
+   consuming workspace's `research/plugin-gaps.md` (2026-08-12) is *"creative fan-out fleets run on
+   Opus (`opts.model: 'opus'` per agent call), reserving the expensive model for the judge stage at
+   most."* Across the only two runs on record the accepted-candidate rate tracked the tier: a fleet
+   that inherited the session's premium tier spent ~383k subagent tokens on a batch he rejected
+   wholesale, while the Opus re-run with voiceprint-first judging produced his only accepted
+   candidates. When a new tier appears, it becomes eligible by clearing that same bar, not by being
+   newer.
 
-   Model tier is not what makes the fleet diverge — rule 2 above names isolation as that mechanism —
-   but across the only two runs on record the accepted-candidate rate did track the tier. Any
-   creative fan-out this plugin adds later inherits the directive.
+   **Never run a fleet on a tier priced above the fleet default.** Premium tiers cost a multiple per
+   token in both directions, and a fan-out multiplies that by the agent count. A tier above the
+   default belongs at a judge or verifier stage at most, where one call reads many writes.
+
+   **Reach for effort before reaching for a cheaper tier.** Official guidance: *"Tuning effort is
+   often a better lever than switching models."* Effort scales the tokens one agent spends; tier
+   scales the price of every token AND changes which model wrote the lines. Across a fleet both
+   multiply, but only one of them changes the writing. Lever availability differs by surface: a bare
+   agent spawn takes a model and has no effort parameter, so a fan-out that needs the effort lever
+   belongs in a workflow, whose per-agent call takes both.
+
+   **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs —
+   rhyme-field enumeration, word-pool merge, syllable counting, dedup — are reading-heavy and
+   low-reasoning, and a cheaper tier is correct there. Object-writing is neither. Dropping the
+   writing fleet's own tier to save cost is the writer's call, not the plugin's: ask, and never
+   record the answer as his without a source that says so.
+
+   Model tier is not what makes the fleet diverge — rule 2 above names isolation as that mechanism.
+   Any creative fan-out this plugin adds later inherits this rule.
 
 **Never transcribe a write into lines.** The whole page is ore. Pat's discipline is to pull one
 image out of it — moving a dive wholesale into a section is the failure this action exists to
