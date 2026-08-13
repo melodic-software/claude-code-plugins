@@ -92,12 +92,12 @@ filter_legacy_candidates() {
     body="$(jq -r '.body // ""' <<<"$item")"
     labels_json="$(jq -c '.labels // []' <<<"$item")"
     number="$(jq -r '.number' <<<"$item")"
-    item_has_capability_tier_label "$labels_json"
-    if (( $? == 0 )); then
+    # shellcheck disable=SC2310  # jq probe; false means "no label", not a fault
+    if item_has_capability_tier_label "$labels_json"; then
       continue
     fi
-    wit_body_has_legacy_frontier_tier_signal "$body"
-    if (( $? == 0 )); then
+    # shellcheck disable=SC2310  # regex probe; false means "no legacy stamp", not a fault
+    if wit_body_has_legacy_frontier_tier_signal "$body"; then
       printf '%s\n' "$number"
     fi
   done
@@ -117,8 +117,8 @@ case "$MODE" in
     filter_legacy_candidates "$items"
     ;;
   apply)
-    label_exists_in_repo
-    if (( $? != 0 )); then
+    # shellcheck disable=SC2310  # gh probe; false means "label missing", handled below
+    if ! label_exists_in_repo; then
       echo "ERROR: $CAPABILITY_TIER_LABEL is not provisioned in the repository label set" >&2
       echo "Run /work-items:setup apply to provision the label axis first, or route to the label-as-code owner." >&2
       exit 1
