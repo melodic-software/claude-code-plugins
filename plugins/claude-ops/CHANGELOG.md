@@ -3,6 +3,28 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0]
+
+### Added
+
+- **`hook-failure-audit` (Stop): surface hook launch/exec failures Claude Code records
+  only as `hook_non_blocking_error` transcript attachments and shows to nobody (#2577).**
+  A hook that fails to launch is a non-blocking error — the guarded tool call proceeds
+  as if approved, silently. The #1416 incident class proved an in-plugin detector is no
+  shelter: disk-hygiene's own Stop monitor shared its guard's registration form and died
+  the same launch death on all 23 of its runs (163 unsurfaced failures total on the
+  incident host, 22 of them AFTER the fix was on disk, in a session still running the
+  stale pre-fix config). This detector is decoupled: it lives here, launches through
+  this plugin's always-shell-form registrations, tails a bounded transcript window, and
+  matches structurally (`.type == "attachment"` and
+  `.attachment.type == "hook_non_blocking_error"` — never substring, so a
+  `hook_success` quoting an error text or a message quoting a failure record cannot
+  fire it). Warns via `systemMessage` once per session per distinct failing hook
+  (re-warns when a NEW hook starts failing; marker loss degrades toward re-warning,
+  never silence), names the stale-session restart remedy, and emits the standard
+  telemetry envelope with privacy-safe subjects (hook names only). Kill switch:
+  `hook_failure_audit_enabled`.
+
 ## [0.31.14]
 
 ### Changed

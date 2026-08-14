@@ -30,19 +30,31 @@ Claude Code's native OTEL cannot see.
 
 ## The audit hooks
 
-Seven advisory `*-audit` telemetry emitters (across eight hook scripts —
+Eight advisory `*-audit` hooks (across nine hook scripts —
 `skill-usage-audit` has two producers, see below) emit the marketplace
 [hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md) — one
 JSON event per run carrying that hook's own `duration_ms`, outcome, and a
 privacy-safe subject. Each is independently toggleable via its own `userConfig`
 boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
 The six pure emitters are a no-op until a consumer wires a sink (below);
-`skill-usage-audit` is the exception — both its producers also write the shared
+`skill-usage-audit` is one exception — both its producers also write the shared
 `skill-usage.jsonl` second store unconditionally (disable the whole feature with
 `skill_usage_audit_enabled=false`; pick the store's home with `skill_usage_scope`
 and `skill_usage_dir`). In the default repo scope the store dir is kept out of
 `git status` via an idempotent machine-local `.git/info/exclude` entry
 (`skill_usage_git_exclude=false` opts out for teams that commit the telemetry).
+`hook-failure-audit` is the other exception — its user-facing `systemMessage`
+warning fires regardless of sink wiring (only its envelope needs a sink),
+because its whole subject is failures nothing else surfaces: a hook that fails
+to launch is a non-blocking error, the guarded tool call proceeds as if
+approved, and the only durable trace is a transcript attachment no human reads
+(#2577). It runs once per `Stop`, tails a bounded window of the session
+transcript for `hook_non_blocking_error` attachments (structural match on the
+attachment type — never substring), and warns once per session per distinct
+failing hook, re-warning when a new hook starts failing. It lives in this
+plugin, not in the plugin it might report on, deliberately: an in-plugin
+detector shares its plugin's registration form and dies with it, which is
+exactly how disk-hygiene's guard monitor missed the #1416 incident class.
 
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
@@ -60,6 +72,7 @@ tell the paths apart; both share the same telemetry `hook` id and second store.
 | `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store |
 | `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store |
 | `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject |
+| `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` |
 
 None captures a command body, absolute path, error message, or argument body —
 only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
@@ -81,6 +94,7 @@ mirror.
 | `pre-compact-audit` | `pre_compact_audit_enabled` |
 | `skill-usage-audit` (both paths) | `skill_usage_audit_enabled` |
 | `tool-failure-audit` | `tool_failure_audit_enabled` |
+| `hook-failure-audit` | `hook_failure_audit_enabled` |
 
 `instructions-loaded-audit` drops deterministic, high-volume `session_start`
 loads by default; set `instructions_loaded_audit_log_session_start=true` to opt
