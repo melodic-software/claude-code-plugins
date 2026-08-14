@@ -2516,6 +2516,63 @@ else
   fail "CHECK_SKILL_REQUIRE_EVALS=1 should fail without evals (rc=$rc): $out"
 fi
 
+# 46. Non-git plugin-cache tree: static gates still run (issue #2619).
+#     Marketplace installs are plain dirs with no .git. Point
+#     CHECK_SKILL_SKILLS_ROOT at a cache-shaped skills root from a cwd that is
+#     not inside any git repository — must not exit 2 with "not in a git repo".
+CACHE_TMP="$(mktemp -d)"
+# Nested trap: remove cache fixture after the outer TMP trap still fires.
+trap 'rm -rf "$TMP" "$CACHE_TMP"' EXIT
+CACHE_SKILLS="$CACHE_TMP/marketplace/disk-hygiene/0.17.9/skills"
+mkdir -p "$CACHE_SKILLS/clean"
+cat >"$CACHE_SKILLS/clean/SKILL.md" <<'EOF'
+---
+description: "Clean disk. Use when: 'disk full' or 'clean cache'."
+---
+
+## Purpose
+
+Fixture skill shaped like a marketplace cache install (no .git).
+
+## Gotchas
+
+None known.
+EOF
+# Isolate from ambient git: empty GIT_DIR would still walk parents; run from
+# the non-git cache tree itself with GIT_DIR unset.
+out="$(
+  cd "$CACHE_TMP" &&
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      CHECK_SKILL_SKILLS_ROOT="$CACHE_SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      bash "$SUT" clean 2>&1
+)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'PASS' <<<"$out" &&
+  ! grep -q 'Error: not in a git repo' <<<"$out" &&
+  grep -q 'trigger-keyword preservation (check 3) skipped' <<<"$out" &&
+  grep -q 'committed-artifact scan (check 13) skipped' <<<"$out"; then
+  pass "non-git plugin-cache tree: check-skill runs and skips git-backed checks"
+else
+  fail "non-git plugin-cache tree should PASS with git checks skipped (rc=$rc): $out"
+fi
+
+# 46b. Outside a git repo with no skills root is still an environment error —
+#      degrade only when a root is resolvable, never silently invent one.
+out="$(
+  cd "$CACHE_TMP" &&
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+      CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      bash "$SUT" clean 2>&1
+)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'no skills root set' <<<"$out"; then
+  pass "outside git with no skills root still exits 2 naming the missing root"
+else
+  fail "outside git with no skills root should exit 2 (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

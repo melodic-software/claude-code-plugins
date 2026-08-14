@@ -60,11 +60,15 @@
 #
 # No args: resolves ONE root via the same convention ladder as check-skill.sh
 #   (CHECK_SKILL_SKILLS_ROOT, then ${CLAUDE_PROJECT_DIR}/.claude/skills, then
-#   <git-root>/.claude/skills) — the shape a single consumer project has. A
-#   resolved root that does not exist is reported as "no skills root found".
+#   <git-root>/.claude/skills when cwd is inside a git repo) — the shape a
+#   single consumer project has. Outside a git repo with no override, that is
+#   an environment error (exit 2) naming the missing root, not a silent skip.
+#   A resolved root that does not exist is reported as "no skills root found".
 # One or more args: EVERY explicit root must exist — a missing one is an
 #   environment error (exit 2), never a silent skip, because skipping it
 #   would omit a whole plugin subtree and report a falsely low aggregate.
+#   Explicit roots do not require a git repository (plugin-cache installs are
+#   plain directory trees).
 # One or more args: each is scanned as an independent skills root and every
 #   skill under every root is pooled into ONE shared aggregate. This is how a
 #   consumer who installs multiple plugins actually experiences the listing
@@ -121,10 +125,14 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
+# Git is optional. Explicit skill-root args (and CHECK_SKILL_SKILLS_ROOT /
+# CLAUDE_PROJECT_DIR) work against plain directory trees such as marketplace
+# plugin-cache installs. The git toplevel is only the last-resort default root
+# when no args and no override are supplied.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-if [[ -z "$REPO_ROOT" || ! -d "$REPO_ROOT" ]]; then
-  printf 'Error: not in a git repo\n' >&2
-  exit 2
+HAVE_GIT=0
+if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
+  HAVE_GIT=1
 fi
 
 # `skill-frontmatter.sh` is deliberately NOT sourced any more. Its helpers are
@@ -208,11 +216,21 @@ else
     SINGLE_ROOT="$CHECK_SKILL_SKILLS_ROOT"
   elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     SINGLE_ROOT="$CLAUDE_PROJECT_DIR/.claude/skills"
-  else
+  elif [[ "$HAVE_GIT" == 1 ]]; then
     SINGLE_ROOT="$REPO_ROOT/.claude/skills"
+  else
+    printf 'Error: not in a git repo and no skills root set — set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), pass an explicit skills root, or run from inside a git repository\n' >&2
+    exit 2
   fi
   if [[ "$SINGLE_ROOT" != /* && ! "$SINGLE_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
-    SINGLE_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}/$SINGLE_ROOT"
+    if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+      SINGLE_ROOT="$CLAUDE_PROJECT_DIR/$SINGLE_ROOT"
+    elif [[ "$HAVE_GIT" == 1 ]]; then
+      SINGLE_ROOT="$REPO_ROOT/$SINGLE_ROOT"
+    else
+      printf 'Error: relative skills root %s needs CLAUDE_PROJECT_DIR or a git repository to anchor against\n' "$SINGLE_ROOT" >&2
+      exit 2
+    fi
   fi
   ROOTS=("$SINGLE_ROOT")
 fi

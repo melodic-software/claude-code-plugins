@@ -3,6 +3,17 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.10]
+
+### Fixed
+
+- **Static gates run against non-git plugin-cache installs (#2619).** `check-skill.sh` and
+  `check-listing-budget.sh` no longer exit 2 with `Error: not in a git repo` when cwd is outside
+  a git repository. Marketplace cache trees are plain directories; with
+  `CHECK_SKILL_SKILLS_ROOT` (or `CLAUDE_PROJECT_DIR`, or an explicit listing-budget root) the
+  non-git checks still run. Git-backed checks (3/8/9/13) skip with a note. Exit 2 remains only
+  when no skills root can be resolved at all.
+
 ## [0.15.9]
 
 ### Changed
