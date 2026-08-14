@@ -15,8 +15,11 @@ under the state base: catalog/checks.local.jsonc. Merge semantics:
 
 Entries are never deleted by an overlay -- set "enabled": false or
 "deprecated": true instead. Callers validate each merged entry with
-Assert-CatalogEntry afterwards, so a malformed overlay entry is skipped with
-a warning rather than blocking the run.
+Assert-CatalogEntry afterwards; a malformed overlay entry is not dispatched,
+but the orchestrator synthesizes an UNKNOWN CheckResult so the skip appears
+in the report rather than only in the run log. Overlay entries with a missing
+or blank id cannot be keyed into the merge map; they are appended unchanged so
+New-InvalidCatalogEntryResult can still surface them.
 #>
 
 function Merge-CatalogOverlay {
@@ -43,10 +46,15 @@ function Merge-CatalogOverlay {
         $overlayChecks = @($Overlay.checks)
     }
 
+    # Id-less overlay rows are retained (not dropped) so the orchestrator's
+    # Assert-CatalogEntry loop can emit UNKNOWN findings for them.
+    $idLessOverlayEntries = [System.Collections.Generic.List[object]]::new()
     foreach ($patch in $overlayChecks) {
-        if ($null -eq $patch -or -not $patch.PSObject.Properties['id'] -or
+        if ($null -eq $patch) { continue }
+        if (-not $patch.PSObject.Properties['id'] -or
             [string]::IsNullOrWhiteSpace([string]$patch.id)) {
-            Write-Warning 'Merge-CatalogOverlay: overlay entry without id skipped.'
+            Write-Warning 'Merge-CatalogOverlay: overlay entry without id retained for validation reporting.'
+            $idLessOverlayEntries.Add($patch)
             continue
         }
         $id = [string]$patch.id
@@ -65,5 +73,5 @@ function Merge-CatalogOverlay {
         }
     }
 
-    return @($merged.Values)
+    return @($merged.Values) + @($idLessOverlayEntries)
 }

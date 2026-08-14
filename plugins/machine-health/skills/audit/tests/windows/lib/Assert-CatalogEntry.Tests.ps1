@@ -156,16 +156,18 @@ Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'in
 }
 
 Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
-    # The category enum lives in four places: checks.schema.json,
-    # check-result.schema.json, Assert-CatalogEntry, and Assert-CheckResult.
-    # A value present in a schema but missing from a validator silently
-    # disables every check declaring it (the orchestrator skips entries
-    # Assert-CatalogEntry rejects), and a value present in one validator but
-    # not the other admits an overlay entry whose emitted result is then
-    # rejected - so all four copies are compared exactly, in both directions:
-    # the validators' literal $validCategories sets are extracted from the
-    # AST and matched against the schema enums, and each schema value is also
-    # accepted behaviorally.
+    # The category enum lives in five places: checks.schema.json,
+    # check-result.schema.json, Assert-CatalogEntry, Assert-CheckResult, and
+    # New-InvalidCatalogEntryResult. A value present in a schema but missing
+    # from a validator rejects every check declaring it (Assert-CatalogEntry
+    # fails; the orchestrator then synthesizes UNKNOWN rather than
+    # dispatching), and a value present in one validator but not the other
+    # admits an overlay entry whose emitted result is then rejected - so all
+    # five copies are compared exactly, in both directions: the validators'
+    # literal $validCategories sets are extracted from the AST and matched
+    # against the schema enums, and each schema value is also accepted
+    # behaviorally. The synthetic-result helper is included so an entry that
+    # fails on another field does not silently reclassify as reliability.
     BeforeAll {
         . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
         . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')
@@ -210,6 +212,11 @@ Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
 
     It 'Assert-CheckResult accepts exactly the schema-declared set (both directions)' {
         $validatorSet = Get-ValidatorCategorySet (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
+        ($validatorSet | Sort-Object) | Should -Be ($script:ResultCategories | Sort-Object)
+    }
+
+    It 'New-InvalidCatalogEntryResult accepts exactly the schema-declared set (both directions)' {
+        $validatorSet = Get-ValidatorCategorySet (Join-Path $script:LibRoot 'New-InvalidCatalogEntryResult.ps1')
         ($validatorSet | Sort-Object) | Should -Be ($script:ResultCategories | Sort-Object)
     }
 
