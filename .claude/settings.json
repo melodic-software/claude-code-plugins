@@ -1,16 +1,85 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh"
+  },
+  "worktree": {
+    "baseRef": "head"
+  },
+  "enabledPlugins": {
+    "actionlint@melodic-software": true,
+    "adhd@melodic-software": true,
+    "ai-briefing@melodic-software": true,
+    "architecture@melodic-software": true,
+    "autonomy@melodic-software": true,
+    "bash-format@melodic-software": true,
+    "biome-format@melodic-software": true,
+    "bug-report@melodic-software": true,
+    "claude-config@melodic-software": true,
+    "claude-memory@melodic-software": true,
+    "claude-ops@melodic-software": true,
+    "code-tidying@melodic-software": true,
+    "codebase-health@melodic-software": true,
+    "computer-use@melodic-software": true,
+    "context-guard@melodic-software": true,
+    "context7@melodic-software": true,
+    "debugging@melodic-software": true,
+    "desktop-notification@melodic-software": true,
+    "discipline@melodic-software": true,
+    "discovery@melodic-software": true,
+    "disk-hygiene@melodic-software": true,
+    "docs-hygiene@melodic-software": true,
+    "domain-driven-design@melodic-software": true,
+    "dometrain@melodic-software": true,
+    "education@melodic-software": true,
+    "eol-normalizer@melodic-software": true,
+    "evals@melodic-software": true,
+    "event-storming@melodic-software": true,
+    "firecrawl@melodic-software": true,
+    "github@melodic-software": true,
+    "go-format@melodic-software": true,
+    "guardrails@melodic-software": true,
+    "implementation@melodic-software": true,
+    "kindle-dedrm@melodic-software": true,
+    "knowledge@melodic-software": true,
+    "machine-health@melodic-software": true,
+    "markdown-format@melodic-software": true,
+    "mcp-tools@melodic-software": true,
+    "miro@melodic-software": true,
+    "mutation-testing@melodic-software": true,
+    "naming@melodic-software": true,
+    "planning@melodic-software": true,
+    "playbooks@melodic-software": true,
+    "playwright@melodic-software": true,
+    "plugin-quality@melodic-software": true,
+    "powershell-format@melodic-software": true,
+    "prototype@melodic-software": true,
+    "rate-limit-guard@melodic-software": true,
+    "repo-fleet-hygiene@melodic-software": true,
+    "repo-hygiene@melodic-software": true,
+    "review@melodic-software": true,
+    "ruff-format@melodic-software": true,
+    "session-flow@melodic-software": true,
+    "skill-quality@melodic-software": true,
+    "songwriting@melodic-software": true,
+    "source-control@melodic-software": true,
+    "tdd@melodic-software": true,
+    "testing@melodic-software": true,
+    "toolchain@melodic-software": true,
+    "typos-format@melodic-software": true,
+    "verification@melodic-software": true,
+    "visualization@melodic-software": true,
+    "wizard@melodic-software": true,
+    "work-items@melodic-software": true,
+    "x@melodic-software": true
   },
   "extraKnownMarketplaces": {
     "melodic-software": {
       "source": {
-        "source": "directory",
-        "path": "./"
-      }
+        "source": "github",
+        "repo": "melodic-software/claude-code-plugins"
+      },
+      "autoUpdate": true
     }
-  },
-  "worktree": {
-    "baseRef": "head"
   }
 }
