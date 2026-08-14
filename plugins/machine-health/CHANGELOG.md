@@ -16,8 +16,12 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   registered. Each rejected entry now synthesizes a schema-valid `UNKNOWN` CheckResult
   (`ran_successfully: false`, error = the assertion message) via
   `New-InvalidCatalogEntryResult` and feeds the normal reporting path. Id stays the
-  entry's kebab-valid `id` when present, else a collision-free synthetic id; category stays
-  the declared value when legal, else `reliability`.
+  entry's kebab-valid `id` when present, else a collision-checked
+  `invalid-catalog-entry-<index>` fallback (against catalog / already-emitted result
+  ids); category stays the declared value when legal, else `reliability`. Id-less
+  overlay rows in `checks.local.jsonc` are retained through `Merge-CatalogOverlay` so
+  they reach the same reporting path. The category vocabulary parity guard covers this
+  helper as a fifth copy alongside the two schemas and two validators.
 
 ## [0.10.1]
 

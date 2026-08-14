@@ -261,6 +261,16 @@ if (Test-Path -LiteralPath $overlayPath) {
 
 $validatedChecks = [System.Collections.Generic.List[object]]::new()
 $invalidCatalogResults = [System.Collections.Generic.List[object]]::new()
+# Seed occupied ids so synthetic fallbacks never collide with a real catalog id
+# (e.g. invalid DiskSpace at index 2 vs a custom check named invalid-catalog-entry-2).
+$occupiedResultIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($seedEntry in @($catalog.checks)) {
+    if ($null -eq $seedEntry -or -not $seedEntry.PSObject.Properties['id']) { continue }
+    $seedId = [string]$seedEntry.id
+    if ($seedId -cmatch '^[a-z][a-z0-9-]*[a-z0-9]$') {
+        [void]$occupiedResultIds.Add($seedId)
+    }
+}
 $entryIndex = 0
 foreach ($entry in @($catalog.checks)) {
     try {
@@ -268,10 +278,13 @@ foreach ($entry in @($catalog.checks)) {
         $validatedChecks.Add($entry)
     } catch {
         Write-MachineHealthLog "catalog_entry_invalid skip $($_.Exception.Message)"
-        $invalidCatalogResults.Add((New-InvalidCatalogEntryResult `
-                    -Entry $entry `
-                    -Index $entryIndex `
-                    -ErrorMessage $_.Exception.Message))
+        $invalidResult = New-InvalidCatalogEntryResult `
+            -Entry $entry `
+            -Index $entryIndex `
+            -ErrorMessage $_.Exception.Message `
+            -OccupiedIds @($occupiedResultIds)
+        $invalidCatalogResults.Add($invalidResult)
+        [void]$occupiedResultIds.Add([string]$invalidResult.id)
     }
     $entryIndex++
 }

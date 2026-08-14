@@ -47,27 +47,49 @@ Describe 'New-InvalidCatalogEntryResult' -Tag 'lib' {
             { Assert-CheckResult $result } | Should -Not -Throw
         }
 
-        It 'falls back to catalog-entry-N when id is missing' {
+        It 'falls back to invalid-catalog-entry-N when id is missing' {
             $entry = [pscustomobject]@{ category = 'storage' }
             $result = New-InvalidCatalogEntryResult -Entry $entry -Index 7 `
                 -ErrorMessage 'CatalogEntry is missing required field id'
-            $result.id | Should -Be 'catalog-entry-7'
+            $result.id | Should -Be 'invalid-catalog-entry-7'
             { Assert-CheckResult $result } | Should -Not -Throw
         }
 
-        It 'falls back to catalog-entry-N when id is not kebab-case' {
+        It 'falls back to invalid-catalog-entry-N when id is not kebab-case' {
             $entry = New-NearlyValidEntry -Overrides @{ id = 'DiskSpace' }
             $result = New-InvalidCatalogEntryResult -Entry $entry -Index 2 `
                 -ErrorMessage "CatalogEntry.id 'DiskSpace' is not valid kebab-case"
-            $result.id | Should -Be 'catalog-entry-2'
+            $result.id | Should -Be 'invalid-catalog-entry-2'
             { Assert-CheckResult $result } | Should -Not -Throw
         }
 
         It 'handles a null entry' {
             $result = New-InvalidCatalogEntryResult -Entry $null -Index 0 `
                 -ErrorMessage 'CatalogEntry is null.'
-            $result.id | Should -Be 'catalog-entry-0'
+            $result.id | Should -Be 'invalid-catalog-entry-0'
             $result.category | Should -Be 'reliability'
+            { Assert-CheckResult $result } | Should -Not -Throw
+        }
+
+        It 'avoids colliding with an occupied fallback id' {
+            $entry = New-NearlyValidEntry -Overrides @{ id = 'DiskSpace' }
+            $result = New-InvalidCatalogEntryResult -Entry $entry -Index 2 `
+                -ErrorMessage "CatalogEntry.id 'DiskSpace' is not valid kebab-case" `
+                -OccupiedIds @('invalid-catalog-entry-2', 'other-check')
+            $result.id | Should -Be 'invalid-catalog-entry-2-2'
+            { Assert-CheckResult $result } | Should -Not -Throw
+        }
+
+        It 'keeps escalating the suffix until the fallback is free' {
+            $entry = [pscustomobject]@{ category = 'storage' }
+            $result = New-InvalidCatalogEntryResult -Entry $entry -Index 2 `
+                -ErrorMessage 'missing id' `
+                -OccupiedIds @(
+                    'invalid-catalog-entry-2',
+                    'invalid-catalog-entry-2-2',
+                    'invalid-catalog-entry-2-3'
+                )
+            $result.id | Should -Be 'invalid-catalog-entry-2-4'
             { Assert-CheckResult $result } | Should -Not -Throw
         }
     }
@@ -132,31 +154,52 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
         }
         $invalidCategory = New-NearlyValidEntry -Overrides @{ category = 'platform' }
         $invalidId = New-NearlyValidEntry -Overrides @{ id = 'NotKebab' }
+        # A valid custom check whose id matches the old collision-prone fallback
+        # namespace — synthetic ids must still be unique against it.
+        $occupyingFallback = New-NearlyValidEntry -Overrides @{
+            id       = 'invalid-catalog-entry-2'
+            category = 'storage'
+            script   = 'scripts/windows/checks/Test-DiskHealth.ps1'
+        }
+
+        $catalogEntries = @($valid, $invalidCategory, $invalidId, $occupyingFallback)
+        $occupiedResultIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($seedEntry in $catalogEntries) {
+            $seedId = [string]$seedEntry.id
+            if ($seedId -cmatch '^[a-z][a-z0-9-]*[a-z0-9]$') {
+                [void]$occupiedResultIds.Add($seedId)
+            }
+        }
 
         $validatedChecks = [System.Collections.Generic.List[object]]::new()
         $invalidCatalogResults = [System.Collections.Generic.List[object]]::new()
         $entryIndex = 0
-        foreach ($entry in @($valid, $invalidCategory, $invalidId)) {
+        foreach ($entry in $catalogEntries) {
             try {
                 [void](Assert-CatalogEntry $entry -Because 'unit-test-catalog')
                 $validatedChecks.Add($entry)
             } catch {
-                $invalidCatalogResults.Add((New-InvalidCatalogEntryResult `
-                            -Entry $entry `
-                            -Index $entryIndex `
-                            -ErrorMessage $_.Exception.Message))
+                $invalidResult = New-InvalidCatalogEntryResult `
+                    -Entry $entry `
+                    -Index $entryIndex `
+                    -ErrorMessage $_.Exception.Message `
+                    -OccupiedIds @($occupiedResultIds)
+                $invalidCatalogResults.Add($invalidResult)
+                [void]$occupiedResultIds.Add([string]$invalidResult.id)
             }
             $entryIndex++
         }
 
-        @($validatedChecks).Count | Should -Be 1
+        @($validatedChecks).Count | Should -Be 2
         $validatedChecks[0].id | Should -Be 'disk-space'
+        $validatedChecks[1].id | Should -Be 'invalid-catalog-entry-2'
 
         @($invalidCatalogResults).Count | Should -Be 2
         $invalidCatalogResults[0].id | Should -Be 'chezmoi-drift'
         $invalidCatalogResults[0].severity | Should -Be 'UNKNOWN'
         $invalidCatalogResults[0].category | Should -Be 'reliability'
-        $invalidCatalogResults[1].id | Should -Be 'catalog-entry-2'
+        # Index 2 would have been invalid-catalog-entry-2, but that id is taken.
+        $invalidCatalogResults[1].id | Should -Be 'invalid-catalog-entry-2-2'
         $invalidCatalogResults[1].severity | Should -Be 'UNKNOWN'
 
         foreach ($r in $invalidCatalogResults) {

@@ -115,13 +115,30 @@ Describe 'Merge-CatalogOverlay' {
     }
 
     Context 'malformed overlay entries' {
-        It 'skips an overlay entry without an id' {
+        It 'retains an overlay entry without an id for validation reporting' {
             $overlay = [pscustomobject]@{
-                checks = @([pscustomobject]@{ enabled = $false })
+                checks = @([pscustomobject]@{ enabled = $false; category = 'storage' })
             }
             $out = Merge-CatalogOverlay -BaseChecks @((New-BaseEntry)) -Overlay $overlay -WarningAction SilentlyContinue
-            @($out).Count | Should -Be 1
+            @($out).Count | Should -Be 2
+            $out[0].id | Should -Be 'disk-space'
             $out[0].enabled | Should -BeTrue
+            $idLess = @($out | Where-Object { -not $_.PSObject.Properties['id'] })
+            @($idLess).Count | Should -Be 1
+            $idLess[0].category | Should -Be 'storage'
+        }
+
+        It 'retains an overlay entry with a blank id' {
+            $overlay = [pscustomobject]@{
+                checks = @([pscustomobject]@{ id = '   '; category = 'network' })
+            }
+            $out = Merge-CatalogOverlay -BaseChecks @((New-BaseEntry)) -Overlay $overlay -WarningAction SilentlyContinue
+            @($out).Count | Should -Be 2
+            $blank = @($out | Where-Object {
+                    $_.PSObject.Properties['id'] -and [string]::IsNullOrWhiteSpace([string]$_.id)
+                })
+            @($blank).Count | Should -Be 1
+            $blank[0].category | Should -Be 'network'
         }
     }
 }
