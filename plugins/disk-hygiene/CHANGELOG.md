@@ -3,6 +3,15 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.10]
+
+### Fixed
+
+- **Document the real clean-skill argument surface (#2589).** The Arguments
+  section omitted `--max-depth` and `--confirmed-large-scan` (and related
+  flags the engine accepts), which undercut the bounded-first large-target
+  workflow the skill body requires.
+
 ## [0.17.9]
 
 ### Fixed
