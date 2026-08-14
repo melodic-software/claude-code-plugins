@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Changed
+
+- **Worktree disposability ownership moves to `source-control:worktree` (#2605).** Linked unlocked
+  worktrees with reliable admin emit one `MEDIUM` `worktree-status-handoff` per repository naming
+  those paths and routing to `/source-control:worktree status` (stranded / unknown / safe). The
+  collector no longer emits `reclaimable-worktree` or `worktree-disposability-unverifiable` from
+  `git status --porcelain`. When `source-control` is absent, name the listed targets and the missing
+  collaborator — do not substitute a weaker verdict. Retires the weaker fleet-local reclaimable axis
+  relative to #2601's ignored-files hardening of that same finding.
+
 ## [0.13.2]
 
 ### Fixed

@@ -152,15 +152,15 @@
     },
     {
       "id": 13,
-      "name": "reclaimable-worktree-is-working-tree-evidence-not-wantedness",
-      "prompt": "The audit reports a MEDIUM reclaimable-worktree finding for a linked worktree whose git status --porcelain is empty. Does that mean nobody is using it and I can delete it?",
-      "expected_output": "No. reclaimable-worktree means only that the working tree has no uncommitted changes at audit time; it is not evidence that the checkout is still wanted. The handoff is a dry-run through /source-control:worktree cleanup, and the human decides.",
+      "name": "worktree-disposability-owned-by-source-control-status",
+      "prompt": "The audit reports a MEDIUM worktree-status-handoff naming linked worktrees. One of them has an empty git status --porcelain. Can I delete it?",
+      "expected_output": "No. worktree-status-handoff is not a reclaimability verdict — disposability is owned by /source-control:worktree status (stranded / unknown / safe). Porcelain emptiness is not a substitute. Run status first; stranded and unknown are treated as stranded; cleanup --dry-run only after Work is safe. If source-control is absent, name the targets and the missing collaborator without inventing a weaker verdict.",
       "files": [],
       "expectations": [
-        "Declines to equate an empty porcelain status with nobody still needing the checkout",
-        "Names reclaimable-worktree as working-tree evidence only",
-        "Does not infer disuse from directory naming, age, or activity",
-        "Routes the decision to the worktree cleanup dry-run and the human"
+        "Declines to treat porcelain emptiness as permission to delete",
+        "Names source-control:worktree status as the stranded-work owner",
+        "Treats stranded and unknown as unsafe for cleanup",
+        "When source-control is absent, names targets and the missing collaborator with no substitute verdict"
       ]
     }
   ]
