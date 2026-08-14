@@ -161,8 +161,14 @@ assert_present 'the un-run case is stated' \
   'reference/parent-contract.md' 'could not run'
 assert_present 'pre-flight probes gate invocability before routing' \
   'reference/parent-contract.md' 'Pre-flight'
+assert_present 'dispatch artifact probe is scoped to the dispatched route' \
+  'reference/parent-contract.md' 'Inline explore'
+assert_present 'explore does not halt legitimate inline on an unavailable dispatch gate' \
+  'skills/explore/SKILL.md' 'does not owe that script'
 assert_present 'inline is not an escape hatch for an un-runnable gate' \
   'skills/research/SKILL.md' 'Not an escape-hatch reason'
+assert_present 'research keeps coverage fail-closed on the inline path' \
+  'skills/research/SKILL.md' 'before an \*\*inline\*\* research run'
 assert_present 'criterion 11 fails closed when the script cannot run' \
   'skills/research/SKILL.md' 'could not run at all is the same FAIL'
 assert_present 'a non-bash coverage twin is shipped' \

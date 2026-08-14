@@ -234,6 +234,52 @@ empty="$WORK/empty.md"
 : >"$empty"
 run 2 "empty file fails closed" "$empty"
 
+# A ledger that exists but cannot be decoded as UTF-8 is ungradeable (exit 2), not
+# incomplete (exit 1). The Python twin must catch UnicodeDecodeError rather than
+# letting an uncaught exception become exit 1.
+bad_utf8="$WORK/bad-utf8.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | '
+  # shellcheck disable=SC2059
+  printf '\xff'
+  printf ' alpha | criterion | [x] |\n'
+} >"$bad_utf8"
+# Bash/awk may still grade bytes; the .py twin must exit 2. Run the twin alone.
+for sut in "${SUTS[@]}"; do
+  runner="${sut%%:*}"
+  path="${sut#*:}"
+  [[ "$runner" == "python3" ]] || continue
+  out="$("$runner" "$path" "$bad_utf8" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -eq 2 ]]; then
+    pass "non-UTF-8 ledger fails closed as ungradeable [$runner]"
+  else
+    fail "non-UTF-8 ledger should exit 2 [$runner] — got $rc: $out"
+  fi
+done
+
+# Permission denied after is_file() is likewise ungradeable for the Python twin.
+unreadable="$WORK/unreadable.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | alpha | criterion | [x] |\n'
+} >"$unreadable"
+chmod 000 "$unreadable"
+for sut in "${SUTS[@]}"; do
+  runner="${sut%%:*}"
+  path="${sut#*:}"
+  [[ "$runner" == "python3" ]] || continue
+  out="$("$runner" "$path" "$unreadable" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -eq 2 ]]; then
+    pass "unreadable ledger fails closed as ungradeable [$runner]"
+  else
+    fail "unreadable ledger should exit 2 [$runner] — got $rc: $out"
+  fi
+done
+chmod 644 "$unreadable" 2>/dev/null || true
+
 # --- usage ------------------------------------------------------------------
 
 run 0 "--help exits 0" --help

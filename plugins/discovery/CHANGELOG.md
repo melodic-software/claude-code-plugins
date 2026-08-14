@@ -5,13 +5,18 @@
 ### Fixed
 
 - **Acceptance gates fail closed when they cannot run (#2616).** A denied or
-  uninvocable gate is a FAIL on both the dispatch and inline routes — not a
-  reason to take the inline escape hatch, and not a licence to mark criterion 11
-  PASS by reading the coverage ledger. `reference/parent-contract.md` now
-  requires a `--help` pre-flight before committing to a route, prefers shebang
-  path invocation over `bash <script>`, and documents the coverage checker's
-  Python twin (`scripts/check-coverage-complete.py`) for sessions where the Bash
-  tool is blocked but `python3` is reachable. The stale claim that
+  uninvocable research gate is a FAIL — not a reason to take the inline escape
+  hatch to dodge a post-dispatch check, and not a licence to mark criterion 11
+  PASS by reading the coverage ledger. `reference/parent-contract.md` requires a
+  `--help` pre-flight for scripts the **chosen** route owes: the dispatch artifact
+  checker before dispatching (explore or research), and the coverage checker for
+  research on both the dispatch and inline paths. A legitimate inline
+  `/discovery:explore` does not owe a script verdict and is not halted by an
+  unavailable artifact checker. Prefers shebang path invocation over
+  `bash <script>`, and documents the coverage checker's Python twin
+  (`scripts/check-coverage-complete.py`) for sessions where the Bash tool is
+  blocked but `python3` is reachable; that twin maps UTF-8 / I/O read failures to
+  exit 2 (ungradeable), matching the shell gate. The stale claim that
   `${CLAUDE_PLUGIN_ROOT}` never substitutes in `allowed-tools` is corrected
   against the skills page (fetched 2026-08-14); turn-scoped grants still cannot
   cover the post-dispatch gate, so the plugin still ships none.

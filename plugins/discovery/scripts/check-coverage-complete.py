@@ -7,10 +7,10 @@ sibling PreToolUse belt) but python3 is reachable from an open lane.
 
 Exit 0 = every row's Done box is marked (status=complete)
 Exit 1 = at least one row is unmarked (status=incomplete)
-Exit 2 = the ledger cannot be graded — missing, empty, no table, no rows, no
-         Done column, a short row, or a Done cell that is neither marked nor
-         unmarked — plus usage errors. FAIL CLOSED: a ledger this gate cannot
-         read is never reported as complete.
+Exit 2 = the ledger cannot be graded — missing, empty, unreadable (I/O or
+         non-UTF-8), no table, no rows, no Done column, a short row, or a Done
+         cell that is neither marked nor unmarked — plus usage errors. FAIL
+         CLOSED: a ledger this gate cannot read is never reported as complete.
 
 Usage:
   python3 check-coverage-complete.py <ledger-path>
@@ -35,10 +35,10 @@ sibling PreToolUse belt) but python3 is reachable from an open lane.
 
 Exit 0 = every row's Done box is marked (status=complete)
 Exit 1 = at least one row is unmarked (status=incomplete)
-Exit 2 = the ledger cannot be graded — missing, empty, no table, no rows, no
-         Done column, a short row, or a Done cell that is neither marked nor
-         unmarked — plus usage errors. FAIL CLOSED: a ledger this gate cannot
-         read is never reported as complete.
+Exit 2 = the ledger cannot be graded — missing, empty, unreadable (I/O or
+         non-UTF-8), no table, no rows, no Done column, a short row, or a Done
+         cell that is neither marked nor unmarked — plus usage errors. FAIL
+         CLOSED: a ledger this gate cannot read is never reported as complete.
 
 Usage:
   python3 check-coverage-complete.py <ledger-path>
@@ -80,7 +80,13 @@ def grade(ledger_path: Path) -> int:
     if not ledger_path.is_file():
         print(f"error: ledger not found: {ledger_path}", file=sys.stderr)
         return 2
-    text = ledger_path.read_text(encoding="utf-8")
+    try:
+        text = ledger_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # Exit 2 matches the shell gate: unreadable / non-UTF-8 is ungradeable,
+        # not "incomplete" (exit 1 is reserved for a parsed ledger with unmarked rows).
+        print(f"error: ledger unreadable: {ledger_path}: {exc}", file=sys.stderr)
+        return 2
     if text == "":
         print(f"error: ledger is empty: {ledger_path}", file=sys.stderr)
         return 2

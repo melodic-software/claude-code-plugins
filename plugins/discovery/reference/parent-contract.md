@@ -163,23 +163,29 @@ claim, not a fact — say so rather than repeating it.
 
 Both `SKILL.md` files carry the gate's steps. What follows is the same for both families whenever
 the gate has to *run* — including an inline research run that still owes criterion 11's script
-verdict.
+verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
+`--help` probe.
 
-### Pre-flight — before committing to a route
+### Pre-flight — before a route that owes a gate
 
-Probe that the gate scripts this session will need are invocable **before** dispatching and
-**before** spending a full inline run. Each script's `--help` is side-effect-free and exits 0:
+Probe only the scripts the **chosen** route will need. Each script's `--help` is side-effect-free
+and exits 0:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help
-"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only; .py twin below
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # dispatched explore or research
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
 ```
 
-A probe that is denied, declined, or errors out is the same FAIL as a non-zero gate exit. **Do not
-take the inline escape hatch to work around it.** The three escape-hatch reasons (tight iteration,
-cost, already-a-subagent) are preferences; an un-runnable gate is a precondition failure, and inline
-does not remedy it — an inline research run still owes the coverage script's exit status, and reading
-the ledger instead is the silent self-grade the gate exists to prevent.
+- **Dispatched route (explore or research):** probe `check-dispatch-artifact.sh` before dispatching.
+  Research also probes the coverage checker. A denied, declined, or errored probe is the same FAIL
+  as a non-zero gate exit — **halt**. Do not take the inline escape hatch to dodge an un-runnable
+  post-dispatch gate.
+- **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage
+  checker before spending the run; a denied probe **halts**. Reading the ledger instead is the
+  silent self-grade the gate exists to prevent.
+- **Inline explore:** no script verdict to self-grade. The three escape-hatch reasons (tight
+  iteration, cost, already-a-subagent) remain valid; do **not** halt an otherwise-legitimate inline
+  explore because the dispatch artifact checker is unavailable.
 
 ### How to invoke — prefer the script path, not `bash <script>`
 

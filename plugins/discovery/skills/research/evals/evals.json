@@ -131,7 +131,7 @@
         "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4 or 7 — the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
         "Open questions come back as text in the payload for the parent to surface, rather than being resolved silently or surfaced with AskUserQuestion, which is unavailable to a non-fork subagent",
         "Choosing the inline escape hatch instead is acceptable ONLY when the run names the condition that justifies it — tight turn-by-turn iteration, cost on a trivially small lookup, or an invoking context that is itself a subagent — and running inline relaxes no discipline",
-        "An un-runnable acceptance gate is NOT an escape-hatch reason: the run probes --help on the gate scripts before committing to a route, and a denied or errored probe HALTS rather than taking inline and self-grading the coverage ledger"
+        "An un-runnable research gate is NOT an escape-hatch reason: before dispatching, probe --help on the artifact and coverage checkers; before an inline research run, probe the coverage checker (criterion 11). A denied or errored probe HALTS rather than taking inline to dodge the gate or self-grading the coverage ledger"
       ]
     },
     {
