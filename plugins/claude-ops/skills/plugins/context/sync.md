@@ -99,7 +99,7 @@ Each line is `<id>\t<scope>`, so the `-s` flag comes off the same line as the id
 
 ```bash
 while IFS=$'\t' read -r id scope; do
-  [ -n "$id" ] || continue
+  [[ -n "$id" ]] || continue
   claude plugin update "$id" -s "$scope"
 done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids current-project)
 ```
@@ -138,7 +138,7 @@ Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over it
 
 ```bash
 while IFS= read -r id; do
-  [ -n "$id" ] || continue
+  [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
 done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids installed-user)
 ```

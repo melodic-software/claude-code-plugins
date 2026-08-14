@@ -140,7 +140,7 @@ feeds `claude plugin` needs no `jq` of its own at all:
 
 ```bash
 while IFS= read -r id; do
-  [ -n "$id" ] || continue
+  [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
 done < <(…/scripts/fleet-state.sh --ids installed-user)
 ```
