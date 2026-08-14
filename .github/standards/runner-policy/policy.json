@@ -788,6 +788,54 @@
         "pull-requests": "write",
         "id-token": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "args",
+        "issue-title",
+        "issue-labels",
+        "issue-type",
+        "auto-close"
+      ],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "label"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "security-events": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {
