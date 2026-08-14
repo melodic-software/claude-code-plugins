@@ -93,11 +93,12 @@ SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
       | select(.type? == "hook_non_blocking_error")
       | {hookName: (.hookName // "unknown"),
          command: ((.command // "") | .[0:120]),
+         exitCode: (.exitCode // null),
          stderr: ((.stderr // "") | .[0:160])}
     ]
     | group_by(.hookName + "	" + .command)
     | map({hookName: .[0].hookName, command: .[0].command,
-           count: length, stderr: .[-1].stderr})' 2>/dev/null)
+           count: length, exitCode: last.exitCode, stderr: last.stderr})' 2>/dev/null)
 [[ -n "$SUMMARY" && "$SUMMARY" != "[]" ]] || exit 0
 
 # Once per session per hook name. Markers live under ${CLAUDE_PLUGIN_DATA}
@@ -125,10 +126,14 @@ NEW=$(jq -cn --argjson summary "$SUMMARY" --arg warned "$WARNED" '
 [[ -n "$NEW" && "$NEW" != "[]" ]] || exit 0
 
 TOTAL=$(jq -rn --argjson new "$NEW" '[$new[].count] | add')
-DETAIL=$(jq -rn --argjson new "$NEW" \
-  '[$new[] | "\(.hookName) [\(.command)] (\(.count)x; last stderr: \(.stderr))"] | join("; ")')
+DETAIL=$(jq -rn --argjson new "$NEW" '
+  [$new[] |
+    (if .stderr == "" then "(no stderr output)" else .stderr end) as $err |
+    (if .exitCode == null then "?" else (.exitCode|tostring) end) as $ec |
+    "\(.hookName) [\(.command)] (\(.count)x; exit \($ec); last stderr: \($err))"
+  ] | join("; ")')
 
-MSG="claude-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}. A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open). If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
+MSG="claude-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}. A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open). Includes exitCode and an empty-stderr placeholder so silent Stop failures remain attributable (hookName + command). Confirm hook_failure_audit_enabled stays true via /plugin configure claude-ops@<marketplace> (default true). If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
 
 hook::emit_system_message "$MSG"
 
