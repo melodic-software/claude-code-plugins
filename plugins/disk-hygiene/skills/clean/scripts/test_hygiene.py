@@ -1032,6 +1032,80 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("immediate basename", payload["error"])
 
+    def test_linux_volume_root_os_owned_includes_conventional_roots(self) -> None:
+        owned = hygiene.volume_root_os_owned_names("linux")
+        for name in (
+            "bin",
+            "boot",
+            "home",
+            "media",
+            "mnt",
+            "opt",
+            "root",
+            "srv",
+            "tmp",
+            "usr",
+            "var",
+        ):
+            self.assertIn(name.casefold(), owned)
+
+    def test_root_children_skips_linux_os_owned_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "tmp").mkdir()
+            (target / "home").mkdir()
+            (target / "opt").mkdir()
+            (target / "srv").mkdir()
+            (target / "root").mkdir()
+            patches = [
+                mock.patch.object(hygiene, "is_volume_root", return_value=True),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+                mock.patch.object(hygiene, "os_key", return_value="linux"),
+                mock.patch.object(
+                    hygiene, "mount_state", return_value=(False, None)
+                ),
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+            ]
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                patches,
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(5, code)
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({"builds"}, admitted)
+            skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+            for name in ("tmp", "home", "opt", "srv", "root"):
+                self.assertEqual("os-owned", skipped[name])
+
+    def test_root_child_selection_is_exact_on_case_sensitive_hosts(self) -> None:
+        admitted = [
+            {"name": "Cache", "path": "/Cache"},
+            {"name": "cache", "path": "/cache"},
+            {"name": "builds", "path": "/builds"},
+        ]
+        resolved = hygiene.normalize_root_child_selection(
+            ["Cache"], admitted, case_sensitive=True
+        )
+        self.assertEqual(["Cache"], resolved)
+        with self.assertRaises(hygiene.HygieneError):
+            hygiene.normalize_root_child_selection(
+                ["CACHE"], admitted, case_sensitive=True
+            )
+        folded = hygiene.normalize_root_child_selection(
+            ["CACHE"], [{"name": "Cache", "path": "/Cache"}], case_sensitive=False
+        )
+        self.assertEqual(["Cache"], folded)
+
     def test_root_children_flag_requires_os_managed_volume_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

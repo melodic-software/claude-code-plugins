@@ -17,6 +17,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   Documented in `skills/clean/SKILL.md` Arguments, the confirmation gate, the scan template, and
   `reference/safety-model.md`. The skill-scoped guard accepts the new scan flags.
 
+### Fixed
+
+- **Linux OS-provisioned root directories are excluded from root-children admission (#2588).** The
+  Linux allowlist now matches the Windows/macOS posture for conventional OS roots (`home`, `root`,
+  `tmp`, `opt`, `srv`, `media`, `mnt`, and the existing `bin`/`boot`/… set), so `/tmp` and `/home`
+  are not reported as admitted audit targets.
+- **Root-child selection preserves exact basenames on case-sensitive hosts (#2588).** On Linux,
+  `--root-child Cache` resolves only to `Cache`, not a case-folded sibling such as `cache`, and the
+  scan filter keeps that exact name. Windows and macOS remain case-insensitive.
+
 ## [0.17.11]
 
 ### Fixed

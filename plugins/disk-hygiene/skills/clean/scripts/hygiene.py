@@ -979,15 +979,22 @@ def volume_root_os_owned_names(
             "boot",
             "dev",
             "etc",
+            "home",
             "lib",
             "lib64",
+            "lost+found",
+            "media",
+            "mnt",
+            "opt",
             "proc",
+            "root",
             "run",
             "sbin",
+            "srv",
             "sys",
+            "tmp",
             "usr",
             "var",
-            "lost+found",
         )
     }
 
@@ -1081,8 +1088,23 @@ def enumerate_root_children(
     return admitted, skipped
 
 
+def root_child_names_case_sensitive(platform_key: str | None = None) -> bool:
+    """Whether root-child selection must preserve exact basenames.
+
+    Linux volume roots are case-sensitive; collapsing `/Cache` and `/cache` into
+    one casefolded key would let `--root-child Cache` inventory the wrong sibling
+    (or both). Windows and macOS volume roots are case-insensitive, so casefold
+    matching remains the operator-friendly path there.
+    """
+    current = platform_key or os_key()
+    return current == "linux"
+
+
 def normalize_root_child_selection(
-    selected: list[str], admitted: list[dict[str, str]]
+    selected: list[str],
+    admitted: list[dict[str, str]],
+    *,
+    case_sensitive: bool | None = None,
 ) -> list[str]:
     """Map a human selection onto admitted basenames; reject anything else."""
     if not selected:
@@ -1090,7 +1112,15 @@ def normalize_root_child_selection(
             "--root-children requires an explicit --root-child selection; "
             "a general clean-everything request is not selection"
         )
-    by_fold = {item["name"].casefold(): item["name"] for item in admitted}
+    sensitive = (
+        root_child_names_case_sensitive()
+        if case_sensitive is None
+        else case_sensitive
+    )
+    if sensitive:
+        by_name = {item["name"]: item["name"] for item in admitted}
+    else:
+        by_name = {item["name"].casefold(): item["name"] for item in admitted}
     resolved: list[str] = []
     seen: set[str] = set()
     for raw in selected:
@@ -1098,16 +1128,17 @@ def normalize_root_child_selection(
             raise HygieneError(
                 f"--root-child must be an immediate basename, not a path: {raw!r}"
             )
-        key = raw.casefold()
-        if key not in by_fold:
+        key = raw if sensitive else raw.casefold()
+        if key not in by_name:
             raise HygieneError(
                 f"--root-child {raw!r} is not an admitted immediate child directory "
                 "of the OS-managed volume root"
             )
-        canonical = by_fold[key]
-        if canonical.casefold() in seen:
+        canonical = by_name[key]
+        seen_key = canonical if sensitive else canonical.casefold()
+        if seen_key in seen:
             continue
-        seen.add(canonical.casefold())
+        seen.add(seen_key)
         resolved.append(canonical)
     return resolved
 
@@ -1127,11 +1158,13 @@ def scan_tree(
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
         errors.append({"path": ".", "error": mount_error})
-    allowed_root_children = (
-        {name.casefold() for name in root_children}
-        if root_children is not None
-        else None
-    )
+    root_children_sensitive = root_child_names_case_sensitive()
+    if root_children is None:
+        allowed_root_children: set[str] | None = None
+    elif root_children_sensitive:
+        allowed_root_children = set(root_children)
+    else:
+        allowed_root_children = {name.casefold() for name in root_children}
 
     def visit(directory: Path, depth: int = 1) -> int:
         total = 0
@@ -1148,11 +1181,14 @@ def scan_tree(
             # Root-children mode never walks the volume root as a whole: only
             # explicitly selected immediate directories are entered, and the
             # root's own files / excluded siblings are never inventoried.
+            child_key = (
+                child.name if root_children_sensitive else child.name.casefold()
+            )
             if (
                 allowed_root_children is not None
                 and depth == 1
                 and directory == target
-                and child.name.casefold() not in allowed_root_children
+                and child_key not in allowed_root_children
             ):
                 continue
             relative = path.relative_to(target).as_posix()
@@ -1879,11 +1915,25 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
     globs = snapshot_protection_globs(snapshot)
-    selected_root_children = {
-        name.casefold()
-        for name in snapshot.get("root_children_selected", [])
-        if isinstance(name, str)
-    }
+    if root_child_names_case_sensitive(snapshot.get("platform")):
+        selected_root_children = {
+            name
+            for name in snapshot.get("root_children_selected", [])
+            if isinstance(name, str)
+        }
+
+        def root_child_key(name: str) -> str:
+            return name
+    else:
+        selected_root_children = {
+            name.casefold()
+            for name in snapshot.get("root_children_selected", [])
+            if isinstance(name, str)
+        }
+
+        def root_child_key(name: str) -> str:
+            return name.casefold()
+
     results = []
     blocked = False
     for candidate in candidates:
@@ -1897,7 +1947,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             blockers.append("truncated-not-inventoried")
         if snapshot.get("root_children_mode"):
             parts = PurePosixPath(relative).parts
-            if not parts or parts[0].casefold() not in selected_root_children:
+            if not parts or root_child_key(parts[0]) not in selected_root_children:
                 blockers.append("outside-root-children-selection")
         expected_paths = subtree_names(relative, entries)
         if "truncated-not-inventoried" in blockers:
