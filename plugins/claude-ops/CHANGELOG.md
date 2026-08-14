@@ -3,6 +3,42 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1]
+
+### Added
+
+- **`plugins`:** `fleet-state.sh --ids <selector>` emits the id list each `sync` step loops — one
+  record per line, tab-separated, first field always the fully-qualified `<name>@<marketplace>`,
+  CR-free by construction — so no caller hand-writes `jq -r … | while read` over the JSON.
+  Selectors: `installed-user`, `current-project`, `missing-user-install`, `missing-enabled`.
+  `current-project` carries the record's `scope` as a second field, because one plugin can hold both
+  a project- and a local-scope record for the same repo and the id alone cannot pick the right `-s`
+  flag. Refuses an unknown or absent selector (validated at parse time, so it reports as a usage
+  error even when the marketplace is also unresolvable) and `--all` (no single block to project),
+  rather than emitting a silently-empty list. A per-marketplace failure block goes to stderr in this
+  mode, never stdout, since a `< <(…)` consumer cannot see the exit status and would read the error
+  JSON as an id (#2578).
+
+### Fixed
+
+- **`plugins` sync steps taught an unguarded `jq` loop.** Steps 2-5 said "take `fleet-state.sh`'s
+  `installed[]` / `missing_*`" and loop, without supplying the extraction, so every reader wrote
+  their own `jq -r`. On Windows the native `jq` writes stdout in text mode and `$(…)` strips only
+  the trailing CRLF, so every id but the last reached `claude plugin update` as
+  `<name>@<marketplace>\r` and failed with `Plugin "<name>" not found` — text identical to the
+  bare-name gotcha, so it misread as that. Observed live: 64/65 updates failed. Steps 2-5 now cite
+  `--ids` (#2578).
+
+### Changed
+
+- **`plugins` gotchas: corrected the CRLF mechanism.** The CR section claimed a single-line capture
+  retains the `\r`, which predicts the wrong symptom (all ids failing). Verified on jq 1.8.2 / MSYS
+  bash 5.3.9: `$(…)` strips the trailing `\r\n` as a unit, so a single-line capture is clean and
+  only multi-line output keeps a CR on every line **but the last** — the all-but-last signature that
+  identifies the cause on sight. Also records that `mapfile -t` has no last-element reprieve, and
+  that jq→jq relays are self-cleaning because jq's stdin is text-mode too, which narrows the hazard
+  to jq output reaching a non-jq consumer (#2578).
+
 ## [0.32.0]
 
 ### Added

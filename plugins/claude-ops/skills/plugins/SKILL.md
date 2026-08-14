@@ -75,7 +75,14 @@ files directly, and never write them:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name> | --all]
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name>] --ids <selector>
 ```
+
+The second form emits the plain id list a mutating step loops, instead of the JSON report — one
+tab-separated record per line, first field always the fully-qualified `<name>@<marketplace>`. Use it
+whenever a step needs ids; never hand-write a `jq` extraction over the JSON, which reintroduces a
+trailing `\r` on Windows and silently corrupts every id but the last (see
+[context/gotchas.md](context/gotchas.md)).
 
 Read [context/scope-semantics.md](context/scope-semantics.md) before interpreting its output — in
 particular, `divergences[].versionsMatch` separates a benign same-version multi-scope install
