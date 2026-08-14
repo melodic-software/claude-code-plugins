@@ -31,7 +31,8 @@ metadata:
 # Disk hygiene
 
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
-filename pattern is a discovery hint, never proof that an entry is junk. Read
+filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
+primary objective; reclaimed bytes are secondary.** Read
 [the safety model](reference/safety-model.md) before the optional execution lane.
 
 ## Arguments and boundaries
@@ -212,7 +213,8 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 
 ## 3. Classify and report
 
-Confidence is report priority, not permission:
+Safe tidiness leads; reclaimed space follows. Confidence is report priority, not permission — and
+byte size is never a ranking key:
 
 | Tier | Minimum evidence | Default outcome |
 |---|---|---|
@@ -220,9 +222,25 @@ Confidence is report priority, not permission:
 | Medium | Likely disposable, but one ownership/provenance fact is indirect | Review, then optionally offer its own approval |
 | Low | Name/age-only, conflicting signals, resumable or user-content possibility | Keep unless the human separately reviews and approves exact paths |
 
-Report every finding with path, logical bytes, tier, evidence, owner/native-GC result, why it is not
-work product, and disposition. Separately list protected, locked, needs-elevation, unverified, and
-coverage-gap entries. Empty directories are not inherently junk.
+Report every finding with these fields, in this order — size last:
+
+1. **Provenance** — where it came from, resolved from evidence (a manifest, a config's own
+   contents, an owning repository's source, a documented naming contract), never guessed from the
+   name alone.
+2. **What it is** — intent / role of the entry (`reason` in engine plans).
+3. **Why removable** — why it is not work product, plus owner / native-GC result.
+4. **Risk** — what could go wrong if it is removed (and why that risk is acceptable at this tier).
+5. Path, tier, evidence, disposition.
+6. Logical / reclaimable bytes as a **secondary** signal only.
+
+Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
+
+**Empty directories are first-class findings.** They are not inherently junk, but zero-byte residue
+must stay visible and rankable: never drop an empty directory from investigation or from the report
+because it reclaims nothing. Prefer ranking by tier, location sensitivity (for example volume-root
+or home-root orphans), and provenance strength over byte totals. The snapshot's
+`empty_directory_count` and each preview candidate's `empty_directory` flag exist so empty dirs do
+not disappear under byte-centric roll-ups.
 
 An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty.
 Exclude every qualified entry from any reclaimable-bytes total and state the qualified bytes
@@ -233,7 +251,8 @@ so `logical_size` is `null` rather than `0` — except on the target's own recor
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the
 snapshot's `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing
 `logical_size` yourself — folding qualified or unknown sizes into a total claims space that
-deleting the path would never return.
+deleting the path would never return. Never treat a low or zero reclaimable-byte figure as a reason
+to skip a finding that otherwise clears the evidence bar.
 
 ## 4. Build one exact-tier plan
 
@@ -247,9 +266,11 @@ Only when `--execute` was requested, write `<run-dir>/plan-<tier>.json`; never m
     {
       "path": "relative/exact.tmp",
       "tier": "high",
+      "provenance": "documented atomic-write staging name; owner process absent",
       "reason": "failed atomic-write staging file",
       "evidence": ["documented name shape", "owner process absent"],
       "why_not_work_product": "generated staging bytes with no durable consumer",
+      "risk": "low — regenerable staging residue; no live consumer",
       "owner": "unmanaged"
     }
   ]
@@ -275,10 +296,11 @@ handles from current state rather than trusting snapshot annotations. It also pr
 directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
 blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
-When status is `ready-for-explicit-approval`, show a table naming every path, the single tier, logical
-bytes, and the preview's approval token, then pass the [confirmation gate](#confirmation-gate) — the
-approval must name **exactly that tier and list**. Process another tier only with a new plan, preview,
-and question.
+When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
+it is, why removable, risk, empty-directory flag when set, the single tier, and only then logical /
+reclaimable bytes, plus the preview's approval token — then pass the
+[confirmation gate](#confirmation-gate) — the approval must name **exactly that tier and list**.
+Process another tier only with a new plan, preview, and question.
 
 ## 6. Apply only the confirmed preview
 
@@ -354,9 +376,11 @@ approved list. Engine invocations from PowerShell stay hard-denied. The plugin-l
 argument, so the unset-default hook-drop that once made it inert on a default install is gone.
 `Bash|PowerShell` PreToolUse hooks fire for the PowerShell tool. See `reference/safety-model.md`.
 
-Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
+Summarize tidiness outcomes first: paths removed, empty directories cleared
+(`empty_directories_removed` / `paths_removed`), remaining coverage gaps, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
-`delete-failed`. Do not claim the observed free-space delta is exact: concurrent disk activity,
+`delete-failed`. Report reclaimable bytes removed and observed free-space delta **after** those
+tidiness figures. Do not claim the observed free-space delta is exact: concurrent disk activity,
 sparse files, hard links, compression, and delayed allocation affect it.
 
 ## Gotchas

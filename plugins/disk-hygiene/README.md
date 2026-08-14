@@ -3,7 +3,8 @@
 `/disk-hygiene:clean` audits an arbitrary directory tree for abandoned temporary files, stale locks,
 failed atomic-write remnants, empty leftovers, and similar disk residue. It is a context-aware audit,
 not a static delete list: bundled patterns are discovery hints only, and every finding needs evidence
-that it is not work product.
+that it is not work product. Safe tidiness is the primary objective; reclaimable bytes are a
+secondary signal, so zero-byte and empty-directory residue stay visible in reports.
 
 The default lane is read-only. Cleanup is available only through a fresh, exact-path preview followed
 by explicit approval of one confidence tier. The engine then rechecks every candidate before removing
@@ -15,6 +16,10 @@ unvalidated tree.
 - The side-effecting skill is manual-only (`disable-model-invocation: true`). Automated, scheduled,
   remote, or otherwise unattended sessions audit and stop.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
+  separate approval naming every path. Per-entry reports lead with provenance, what the entry is,
+  why it is removable, and risk; logical byte counts are secondary and do not drop empty
+  directories from the ranking.
+- Filesystem roots, mount targets, OS-managed roots on every Windows volume, user shell-folder roots,
   separate approval naming every path and its logical byte count.
 - Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
   via `--root-children` with an explicit child selection), user shell-folder roots,
@@ -33,9 +38,9 @@ unvalidated tree.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
   directory non-empty and therefore skipped. After captured children are removed, a directory is
   reopened with `O_NOFOLLOW`, checked empty through its descriptor, and matched by device, inode, and
-  type immediately before descriptor-relative `rmdir`. The report separates removed, locked, changed,
-  protected, needs-elevation, and unverified outcomes and records logical bytes plus observed
-  free-space delta.
+  type immediately before descriptor-relative `rmdir`. The report leads with tidiness outcomes
+  (paths removed, empty directories cleared, skips) and records logical / reclaimable bytes plus
+  observed free-space delta as secondary figures.
 
 The execution lane is Linux-only. It reads the current mount namespace from `/proc/self/mountinfo`,
 re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors,

@@ -3,6 +3,27 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Fixed
+
+- **Empty-directory counting is linear in inventory size (#2590).** Snapshot finalization
+  precomputes parent paths once instead of scanning the full inventory per directory, so the
+  tidiness metric stays tractable near the 250,000-entry limit.
+- **Scan-error directories are not counted as empty (#2590).** When `os.scandir` fails, the
+  directory is recorded as not-walked (unknown) and excluded from `empty_directory_count`, so a
+  coverage gap is not reported as empty residue.
+
+### Changed
+
+- **Reporting is tidiness-first; reclaimable bytes are secondary (#2590).** Skill guidance,
+  scan/preview/apply report fields, and the approval table now lead with provenance, what an
+  entry is, why it is removable, and risk. Empty directories stay first-class and rankable via
+  snapshot `empty_directory_count`, preview `empty_directory` / `empty_directories`, and apply
+  `paths_removed` / `empty_directories_removed`. Byte totals remain available but no longer
+  frame the run. Plan candidates require `provenance` and `risk` alongside the existing
+  evidence fields.
+
 ## [0.18.0]
 
 ### Added
