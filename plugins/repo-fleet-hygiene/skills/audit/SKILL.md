@@ -162,6 +162,10 @@ do not turn "no verified finding" into "fleet is clean".
   per-entry, not per-run: the entry becomes an `UNKNOWN` `stale-config-entry` finding and the rest of
   the fleet is still audited (deleting repositories right after an audit must not abort every
   subsequent run until the config is edited).
+- A path discovered under `--root` that is unreadable or not a Git working tree (despite a `.git`
+  marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
+  rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
+  hard-fails.
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.

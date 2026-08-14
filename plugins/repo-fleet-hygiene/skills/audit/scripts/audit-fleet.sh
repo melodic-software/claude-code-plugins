@@ -526,14 +526,20 @@ RETARGETED_TO=()
 # printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
 STALE_CONFIG_PATHS=()
 STALE_CONFIG_REASONS=()
+# Discovery-sourced paths that looked like repositories (had a .git marker) but failed validation.
+# Same per-entry degradation as config: one husk under a --root must not abort the fleet.
+DISCOVERY_SKIP_PATHS=()
+DISCOVERY_SKIP_REASONS=()
+DISCOVERY_NONREPO_COUNT=0
+DISCOVERY_UNREADABLE_COUNT=0
 # reject_target <origin> <message>: apply the rejection policy for a target that failed a
-# prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
-# other origin stops the run. "default" is the implicit no-argument target — the same hard failure,
-# plus the scope remedies, because the operator did not choose this path and the bare rejection
-# gives them nothing to act on.
+# prerequisite. "config" and "discovery" return 1 so the caller records a per-entry skip and
+# continues; every other origin stops the run. "default" is the implicit no-argument target — the
+# same hard failure, plus the scope remedies, because the operator did not choose this path and the
+# bare rejection gives them nothing to act on.
 reject_target() {
   local origin="$1" message="$2"
-  [[ "$origin" == "config" ]] && return 1
+  [[ "$origin" == "config" || "$origin" == "discovery" ]] && return 1
   printf 'Error: ' >&2
   display_value "$message" >&2
   printf '\n' >&2
@@ -591,28 +597,62 @@ main_worktree() {
   printf '%s\n' "$record"
 }
 
+# record_rejected_target <origin> <candidate> <config_reason> <discovery_reason>: after reject_target
+# returned (config/discovery), append the matching per-entry skip record. CLI/default never reach
+# here — reject_target exits for those origins.
+record_rejected_target() {
+  local origin="$1" candidate="$2" config_reason="$3" discovery_reason="$4"
+  if [[ "$origin" == "config" ]]; then
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("$config_reason")
+  elif [[ "$origin" == "discovery" ]]; then
+    DISCOVERY_SKIP_PATHS+=("$candidate")
+    DISCOVERY_SKIP_REASONS+=("$discovery_reason")
+    if [[ "$discovery_reason" == *"not readable"* ]]; then
+      DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
+    else
+      DISCOVERY_NONREPO_COUNT=$((DISCOVERY_NONREPO_COUNT + 1))
+    fi
+  fi
+}
+
+# discovery_skip_reason <candidate> <fallback>: prefer an unreadable classification when the path
+# cannot be entered; otherwise the caller-supplied non-repository reason.
+discovery_skip_reason() {
+  local candidate="$1" fallback="$2"
+  if [[ ! -r "$candidate" || ! -x "$candidate" ]]; then
+    printf '%s\n' "discovered path is not readable"
+  else
+    printf '%s\n' "$fallback"
+  fi
+}
+
 # add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
 # run); origin "default" hard-fails with the scope remedies; origin "config" records a
 # stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
-# config). Invalid config SYNTAX still hard-fails upstream.
+# config); origin "discovery" records a discovery-skip and continues (a husk under --root must not
+# abort every subsequent repository). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
   local candidate="$1" origin="${2:-cli}" top common common_key existing main_top main_resolved rt_known rt_existing
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
-    STALE_CONFIG_PATHS+=("$candidate")
-    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a directory")
+    record_rejected_target "$origin" "$candidate" \
+      "configured fleet.repo path is not a directory" \
+      "$(discovery_skip_reason "$candidate" "discovered path is not a directory")"
     return 0
   fi
   top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
     reject_target "$origin" "not a Git working tree: $candidate"
-    STALE_CONFIG_PATHS+=("$candidate")
-    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a Git working tree")
+    record_rejected_target "$origin" "$candidate" \
+      "configured fleet.repo path is not a Git working tree" \
+      "$(discovery_skip_reason "$candidate" "discovered path is not a Git working tree")"
     return 0
   }
   common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" || {
     reject_target "$origin" "cannot resolve Git common directory: $candidate"
-    STALE_CONFIG_PATHS+=("$candidate")
-    STALE_CONFIG_REASONS+=("cannot resolve the Git common directory for the configured path")
+    record_rejected_target "$origin" "$candidate" \
+      "cannot resolve the Git common directory for the configured path" \
+      "$(discovery_skip_reason "$candidate" "cannot resolve the Git common directory for the discovered path")"
     return 0
   }
   # Siblings sharing one common directory are one repository, and the dedup below keeps whichever
@@ -679,8 +719,21 @@ done
 discover_repositories() {
   local dir="$1" depth="$2" child name
   [[ -d "$dir" && ! -L "$dir" ]] || return 0
+  # Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN).
+  # Count and move on; never abort the walk. A .git marker that is somehow still visible is recorded
+  # as a discovery skip so the header's unreadable count is not the only signal.
+  if [[ ! -r "$dir" || ! -x "$dir" ]]; then
+    if [[ -e "$dir/.git" ]]; then
+      reject_target discovery "not a Git working tree: $dir"
+      record_rejected_target discovery "$dir" "" "discovered path is not readable"
+    else
+      DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
+    fi
+    return 0
+  fi
   if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
-    add_target "$dir"
+    # Discovery origin: a .git marker that is not a usable working tree degrades per-entry.
+    add_target "$dir" discovery
     return 0
   fi
   [[ "$depth" -lt "$MAX_DEPTH" ]] || return 0
@@ -721,10 +774,10 @@ for root in "${ROOT_ARGS[@]:-}"; do
   ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
 
-# An all-stale config (every entry deleted since the last run) must still produce a report whose
-# stale-config-entry findings tell the user what to remediate -- hard-fail only when there is
-# neither a target to audit nor a stale entry to report.
-if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 ]]; then
+# An all-stale config (every entry deleted since the last run) or a --root that found only husks
+# must still produce a report whose per-entry skip findings tell the user what happened -- hard-fail
+# only when there is neither a target to audit nor a skip entry to report.
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 ]]; then
   fail "no Git working trees found in the requested scope"
 fi
 
@@ -1489,6 +1542,13 @@ for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   display_value "${ROOT_LABELS[$root_index]}"
   printf ': %s repositories\n' "${ROOT_COUNTS[$root_index]}"
 done
+# Discovery walks directories that are mostly not repositories; when a .git marker fails validation
+# (or a directory is unreadable), the path is skipped rather than aborting. Report the counts so
+# silence is not mistaken for a complete walk.
+if [[ ${#ROOT_LABELS[@]} -gt 0 ]]; then
+  printf 'Discovery skips: %s non-repository, %s unreadable\n' \
+    "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT"
+fi
 
 # Config-sourced entries that failed per-entry validation during argument processing (the header
 # had not printed yet); each is a visible finding, never a silent skip.
@@ -1498,6 +1558,15 @@ for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++));
     "${STALE_CONFIG_REASONS[$stale_index]} (source: $CONFIG_FILE)" \
     "Entry skipped; the rest of the fleet was audited" \
     "Remove or correct the entry via /repo-fleet-hygiene:setup apply, or restore the path, then rerun"
+done
+
+# Discovery-sourced husks/unreadable paths with a .git marker; same visibility rule as stale config.
+for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); do
+  printf '\n'
+  emit_finding UNKNOWN discovery-skip "${DISCOVERY_SKIP_PATHS[$skip_index]}" \
+    "${DISCOVERY_SKIP_REASONS[$skip_index]}" \
+    "Path skipped; the rest of the fleet was audited" \
+    "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun"
 done
 
 for target in "${TARGETS[@]}"; do
