@@ -1,0 +1,70 @@
+{
+  "skill_name": "map-corpus",
+  "evals": [
+    {
+      "id": 1,
+      "name": "full-pipeline-topic-plus-seeds",
+      "prompt": "Run /knowledge:map-corpus \"agent plugins spec\" https://agent-plugins.org --max-resources 20",
+      "expected_output": "Resolves the library_dir work root, snapshots llms.txt and the sitemap into discovery/, runs parse_discovery.py per snapshot, authors link-map.json classifying every discovered URL with rung provenance, passes check_linkmap.py, presents the map and bounds for user approval, then per in-corpus resource snapshots the original, runs extract_nodes.py, authors inventory.json with per-node verdicts and byte-verified evidence, passes check_inventory.py, and emits queue.json plus mapper-handoff.md.",
+      "expectations": [
+        "Every discovered URL appears in link-map.json with a classification and rung provenance before any bulk fetch",
+        "User approval of the link map precedes resource ingestion",
+        "manifest.json is produced by extract_nodes.py, never authored by the agent",
+        "Every inventory row's evidence token passes check_inventory.py byte verification",
+        "Ends at queue.json + mapper-handoff.md; digesting is left to /knowledge:docpage-digest"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "single-page-routes-to-docpage-digest",
+      "prompt": "Use /knowledge:map-corpus to ingest this one documentation page: https://platform.claude.com/docs/en/build-with-claude/effort",
+      "expected_output": "Declines to run the corpus pipeline over a single page and routes to /knowledge:docpage-digest, which owns one-page ingestion.",
+      "expectations": [
+        "Does not run discovery over a single-page request",
+        "Names /knowledge:docpage-digest as the correct skill"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-discovery-artifacts-stops-loudly",
+      "prompt": "Run /knowledge:map-corpus \"internal wiki\" https://wiki.internal.example where the site serves neither llms.txt nor any sitemap.",
+      "expected_output": "Stops loudly at discovery: reports that neither rung 1 (llms.txt) nor rung 2 (sitemap) resolved, names the deferred rung-3 decision (Q19, user-reserved firecrawl seam vs reimplementation), and asks the user rather than crawling in-page links.",
+      "expectations": [
+        "Does not extract in-page links as a fallback",
+        "Names the Q19 deferral and its user-reserved arbiter",
+        "Does not silently classify the corpus as empty"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bounds-breach-stops-and-asks",
+      "prompt": "During a /knowledge:map-corpus run with --max-resources 10, classification yields 14 in-corpus URLs.",
+      "expected_output": "check_linkmap.py fails with a named BOUNDS BREACH; the skill either narrows the in-corpus set or asks the user to raise the bound — it never quietly raises the bound or proceeds past the failure.",
+      "expectations": [
+        "The breach surfaces as a gate failure, not a silent adjustment",
+        "The user decides between narrowing the map and raising the bound"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "gate-failure-is-never-clean",
+      "prompt": "During Phase 4 of a /knowledge:map-corpus run, check_inventory.py exits non-zero because one row's evidence quote does not byte-match the snapshot.",
+      "expected_output": "Treats the run as failed for that resource, fixes the inventory row (relocating the quote by byte-search within the node span), re-runs the gate to PASS, and never edits the immutable snapshot or reports coverage while a gate is failing.",
+      "expectations": [
+        "The snapshot is never modified to satisfy the gate",
+        "Coverage is not claimed while any gate fails",
+        "The corrected inventory re-passes check_inventory.py before the run continues"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "does-not-touch-docpage-digest",
+      "prompt": "While assembling the queue in /knowledge:map-corpus, the agent considers adding a --site mode to docpage-digest so it can crawl.",
+      "expected_output": "Refuses: composes the unrenamed, unmodified /knowledge:docpage-digest via N per-URL runs; no file under plugins/knowledge/skills/docpage-digest/ is edited and no existing work slice is touched.",
+      "expectations": [
+        "No edit to any docpage-digest file",
+        "Queue hand-off is N single-page runs, one URL each"
+      ]
+    }
+  ]
+}
