@@ -488,6 +488,11 @@ ps::classify_git_command() {
   # `.exe` only on its msys/cygwin branch.
   local reduced="${PS_BLANKED//\\//}"
   reduced=$(printf '%s' "$reduced" | sed -E 's/[Gg][Ii][Tt]\.[Ee][Xx][Ee]/git/g')
+  # PowerShell `$var=cmd` / `$var+=cmd` begins a new pipeline on the RHS without
+  # requiring whitespace. Bash expands `$var` and leaves `=cmd` as a non-git
+  # word, so strip the assignment prefix so the RHS command word is visible
+  # (Claude review on #2592: `$x=git reset --hard`).
+  reduced=$(printf '%s' "$reduced" | sed -E 's/\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*(\+=|-=|\*=|\/=|%=|=)[[:space:]]*/ /g')
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
   PS_SAFE_COMMAND="$reduced"
