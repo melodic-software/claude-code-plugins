@@ -32,11 +32,13 @@
 # `hook_success` attachment whose stdout QUOTES an error, and a message record
 # quoting a failure record as a plain string (#2577).
 #
-# Warns once per session PER DISTINCT failing hook name: the first Stop after a
-# hook starts failing warns, later turns stay silent unless a NEW hook name
-# starts failing. Marker bookkeeping degrades toward RE-WARNING, never toward
-# silence — when no marker home is available the warning repeats rather than
-# disappears, the same doctrine as `guard_launch_monitor.py`.
+# Warns once per session PER DISTINCT failing hook REGISTRATION, identified by
+# (hookName, command) — hookName alone is just event:matcher, which several
+# plugins share: the first Stop after a registration starts failing warns,
+# later turns stay silent unless a NEW registration starts failing. Marker
+# bookkeeping degrades toward RE-WARNING, never toward silence — when no marker
+# home is available the warning repeats rather than disappears, the same
+# doctrine as `guard_launch_monitor.py`.
 #
 # Overlap with disk-hygiene's `guard_launch_monitor.py` is deliberate and
 # accepted: that monitor keeps its guard-specific semantics; this one covers
@@ -79,16 +81,23 @@ read_window() {
 
 # grep is a cheap pre-filter only; the structural jq selection decides.
 # `fromjson?` skips unparsable lines instead of aborting the stream.
+# Identity is the REGISTRATION, not the matcher name: several plugins register
+# on the same event+matcher (multiple PreToolUse:Bash guards exist in this very
+# marketplace), and the attachment's command string is what tells them apart —
+# grouping by hookName alone would let registration B's first failure hide
+# behind registration A's earlier warning.
 SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
   jq -cRs '[
       split("\n")[] | fromjson?
       | select(.type? == "attachment") | .attachment
       | select(.type? == "hook_non_blocking_error")
       | {hookName: (.hookName // "unknown"),
+         command: ((.command // "") | .[0:120]),
          stderr: ((.stderr // "") | .[0:160])}
     ]
-    | group_by(.hookName)
-    | map({hookName: .[0].hookName, count: length, stderr: .[-1].stderr})' 2>/dev/null)
+    | group_by(.hookName + "	" + .command)
+    | map({hookName: .[0].hookName, command: .[0].command,
+           count: length, stderr: .[-1].stderr})' 2>/dev/null)
 [[ -n "$SUMMARY" && "$SUMMARY" != "[]" ]] || exit 0
 
 # Once per session per hook name. Markers live under ${CLAUDE_PLUGIN_DATA}
@@ -106,14 +115,18 @@ if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
   fi
 fi
 
+# Marker lines are "<hookName>\t<command>" fingerprints. `rtrimstr("\r")` on
+# read and `tr -d '\r'` on write: some Windows jq builds emit CRLF, and a
+# fingerprint that grows a carriage return on one side of the comparison would
+# quietly re-warn (or worse, wrongly suppress) forever after.
 NEW=$(jq -cn --argjson summary "$SUMMARY" --arg warned "$WARNED" '
-  ($warned | split("\n") | map(select(length > 0))) as $seen
-  | [$summary[] | select(.hookName as $h | $seen | index($h) | not)]')
+  ($warned | split("\n") | map(rtrimstr("\r")) | map(select(length > 0))) as $seen
+  | [$summary[] | select((.hookName + "	" + .command) as $k | $seen | index($k) | not)]')
 [[ -n "$NEW" && "$NEW" != "[]" ]] || exit 0
 
 TOTAL=$(jq -rn --argjson new "$NEW" '[$new[].count] | add')
 DETAIL=$(jq -rn --argjson new "$NEW" \
-  '[$new[] | "\(.hookName) (\(.count)x; last stderr: \(.stderr))"] | join("; ")')
+  '[$new[] | "\(.hookName) [\(.command)] (\(.count)x; last stderr: \(.stderr))"] | join("; ")')
 
 MSG="claude-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}. A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open). If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
 
@@ -122,11 +135,14 @@ hook::emit_system_message "$MSG"
 # Record what was warned about before telemetry: the warning is the contract,
 # the envelope is best-effort.
 if [[ -n "$MARKER" ]]; then
-  jq -rn --argjson new "$NEW" '$new[].hookName' >>"$MARKER" 2>/dev/null || true
+  jq -rn --argjson new "$NEW" '$new[] | .hookName + "	" + .command' 2>/dev/null |
+    tr -d '\r' >>"$MARKER" || true
 fi
 
+# Telemetry subjects stay hookName-only (privacy-safe); the command detail is
+# user-facing message content, not envelope data.
 DATA=$(jq -cn --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
-  '{subjects: [$new[].hookName], total: $total}')
+  '{subjects: ([$new[].hookName] | unique), total: $total}')
 hook::emit_telemetry "hook-failure-audit" "Stop" "error" \
   "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 

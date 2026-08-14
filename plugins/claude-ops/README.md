@@ -51,7 +51,9 @@ approved, and the only durable trace is a transcript attachment no human reads
 (#2577). It runs once per `Stop`, tails a bounded window of the session
 transcript for `hook_non_blocking_error` attachments (structural match on the
 attachment type — never substring), and warns once per session per distinct
-failing hook, re-warning when a new hook starts failing. It lives in this
+failing hook registration (`hookName` plus registered command — several plugins
+share an event+matcher), re-warning when a new registration starts failing. It
+lives in this
 plugin, not in the plugin it might report on, deliberately: an in-plugin
 detector shares its plugin's registration form and dies with it, which is
 exactly how disk-hygiene's guard monitor missed the #1416 incident class.

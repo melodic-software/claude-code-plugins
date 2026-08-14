@@ -20,10 +20,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `.attachment.type == "hook_non_blocking_error"` — never substring, so a
   `hook_success` quoting an error text or a message quoting a failure record cannot
   fire it). Warns via `systemMessage` once per session per distinct failing hook
-  (re-warns when a NEW hook starts failing; marker loss degrades toward re-warning,
-  never silence), names the stale-session restart remedy, and emits the standard
-  telemetry envelope with privacy-safe subjects (hook names only). Kill switch:
-  `hook_failure_audit_enabled`.
+  registration — identity is `(hookName, command)`, since several plugins register on
+  the same event+matcher (re-warns when a NEW registration starts failing; marker loss
+  degrades toward re-warning, never silence), names the stale-session restart remedy,
+  and emits the standard telemetry envelope with privacy-safe subjects (hook names
+  only). Kill switch: `hook_failure_audit_enabled`.
 
 ## [0.31.14]
 

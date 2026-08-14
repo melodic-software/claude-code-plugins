@@ -40,10 +40,14 @@ make_transcript() { # <path> — base fixture: 1 real failure + both false-posit
   } >"$t"
 }
 
+# Execute the script DIRECTLY, the way the hooks.json registration invokes it
+# (no `bash` prefix) — so a non-executable committed mode fails here the same
+# way it would fail in production (exit 126) instead of being masked by an
+# explicit interpreter.
 run_hook() { # <transcript> <data_dir> [extra env pairs...]
   local transcript="$1" data_dir="$2"
   shift 2
-  env CLAUDE_PLUGIN_DATA="$data_dir" "$@" bash "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$transcript\",\"hook_event_name\":\"Stop\"}" 2>&1
+  env CLAUDE_PLUGIN_DATA="$data_dir" "$@" "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$transcript\",\"hook_event_name\":\"Stop\"}" 2>&1
 }
 
 # --- Red-first core: a real launch-failure record is surfaced ---------------
@@ -73,6 +77,17 @@ failure_record "SessionStart" "node missing-lifecycle-hook.mjs" >>"$T1"
 OUT3=$(run_hook "$T1" "$DATA1")
 assert_contains "new failing hook warned" "$OUT3" "SessionStart"
 assert_absent "already-warned hook muted" "$OUT3" "PreToolUse:Bash"
+
+# --- Distinct registrations sharing a hookName are distinct failures --------
+# Multiple plugins register on the same event+matcher (e.g. several
+# PreToolUse:Bash guards); the attachment's command is what tells them apart.
+# A second registration failing later in the session must re-warn even though
+# the first already wrote this hookName to the marker.
+failure_record "PreToolUse:Bash" "other-plugin-guard.sh --different-registration" >>"$T1"
+OUT3B=$(run_hook "$T1" "$DATA1")
+assert_contains "same hookName, new registration -> re-warns" "$OUT3B" "other-plugin-guard.sh"
+OUT3C=$(run_hook "$T1" "$DATA1")
+assert_silent "both registrations warned -> silent" "$OUT3C"
 
 # --- No CLAUDE_PLUGIN_DATA: degrade toward re-warning, never silence --------
 T2="$TEST_TMPDIR/t2.jsonl"
