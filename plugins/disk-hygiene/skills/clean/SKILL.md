@@ -37,22 +37,31 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
-`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, and one target
-directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
-`--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths` on the other
-subcommands) are supplied by this skill's command templates, not typed by the user.
+`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
+`--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
+engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
+`--report`, `--confirm-tier`, `--approval-token`, `--paths` on the other subcommands) are supplied
+by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform — the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
 unification, not a restatement: the flag previously read as engine-lane-only, which left the
 manual lane's gate ambiguous — consumer sessions read it both ways.) `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
-With no target, ask once. Reject an
-OS-managed root, a non-root mount target, a protected shell-folder root or descendant, a missing
-directory, a symlink, or a Windows reparse point. A whole-volume root that is not OS-managed (a
-Windows Dev Drive) is no longer rejected outright — it is a valid target, but as a known-large root
-it is gated like a home target (see step 1): the scan returns `large-target-confirmation-required`
-unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
+`--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
+it never walks that root recursively. Without `--root-child` names the engine returns
+`root-children-selection-required` listing admitted immediate directories (OS-owned, hidden,
+system, reparse, mount, protected-shell-folder, and non-directory entries are withheld). With one
+or more explicit `--root-child <name>` flags — after the human clears the confirmation gate's
+root-children row — it audits only those admitted children into one snapshot. A general "clean
+everything" is not selection. With no target, ask once. Reject an
+OS-managed root (unless `--root-children`), a non-root mount target, a protected shell-folder root
+or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
+is not OS-managed (a Windows Dev Drive) is no longer rejected outright — it is a valid target, but
+as a known-large root it is gated like a home target (see step 1): the scan returns
+`large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
+`--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
+target; scan those without the flag.
 
 - Use `/repo-hygiene:clean` for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off to
@@ -91,9 +100,10 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
 ## Confirmation gate
 
 Every question this skill asks passes this gate — the no-target prompt above, the large-scan
-confirmation in §1, the removal approval in §5, and the unsupported-platform handoff in §6. One
-surface rule and one floor cover all four. What a valid answer must *name* is per question, because
-a target prompt has no tier or path list to name and cannot be held to a bar built for one.
+confirmation in §1, the root-children selection for an OS-managed volume root, the removal approval
+in §5, and the unsupported-platform handoff in §6. One surface rule and one floor cover all five.
+What a valid answer must *name* is per question, because a target prompt has no tier or path list to
+name and cannot be held to a bar built for one.
 
 **Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
 fabricated. It is not always usable, in two distinct ways — a bare-name `permissions.deny` rule or a
@@ -115,6 +125,7 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed — never "everything" or the volume root itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
@@ -126,7 +137,8 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
-  [--max-depth <N>] [--confirmed-large-scan]
+  [--max-depth <N>] [--confirmed-large-scan] \
+  [--root-children [--root-child <name>]...]
 ```
 
 The guard validates `--data-root` against the plugin data directory it derives from
@@ -140,11 +152,16 @@ For a large root (a home directory, anything whose recursive walk could exceed t
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
 immediate children, then fan out deeper scans per subtree that the evidence justifies. The engine
 backs this with a deterministic gate: a scan whose target resolves to the user home directory or a
-non-OS volume root (a Windows Dev Drive — an OS-managed root is denied outright and never reaches
-this gate) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
+non-OS volume root (a Windows Dev Drive — an OS-managed root still cannot be walked as a whole, and
+reaches the engine only via `--root-children`) and carries neither `--max-depth` nor
+`--confirmed-large-scan` returns
 `large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
 unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
 is the preferred bounded response.
+When the target is an OS-managed volume root, first run with `--root-children` alone, present the
+`admitted_children` list through the [confirmation gate](#confirmation-gate)'s root-children row,
+then re-run with the same flag plus each chosen `--root-child <name>` — one run directory, one
+snapshot, one report covers every selected subtree. Never invent the selection.
 Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — pass the
 [confirmation gate](#confirmation-gate)'s scan-scope row first, the same standing before an
 expensive step that the apply lane demands before a destructive one; a general "clean my home

@@ -22,11 +22,13 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 ## Non-overridable checks
 
 - target containment; an OS-managed root (per `system_roots()` — the OS drive holding an existing
-  Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied,
-  while a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume metadata
-  every volume has and no OS-install marker) is a valid target rather than blanket-denied — but as a
-  known-large root it is routed through the large-target scan gate below (bound or confirm), and
-  deletion stays gated by the preview and per-tier approval;
+  Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
+  a recursive walk target, while `--root-children` may address that same root only as a listing of
+  immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
+  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied
+  — but as a known-large root it is routed through the large-target scan gate below (bound or
+  confirm), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount

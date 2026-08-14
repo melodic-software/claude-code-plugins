@@ -881,17 +881,46 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             or not _argument(tokens[6])
         ):
             return None
-        # --confirmed-large-scan is the sole valueless scan flag; strip at most
-        # one so the remainder is the pure flag/value-pair grammar every other
-        # optional follows.
+        # --confirmed-large-scan and --root-children are the valueless scan
+        # flags; strip at most one of each so the remainder is the pure
+        # flag/value-pair grammar every other optional follows. --root-child
+        # is repeatable (one basename per occurrence) and is stripped next.
         optionals = list(tokens[7:])
         confirmed = optionals.count("--confirmed-large-scan")
         if confirmed > 1:
             return None
         if confirmed:
             optionals.remove("--confirmed-large-scan")
-        if len(optionals) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
-            optionals,
+        root_children = optionals.count("--root-children")
+        if root_children > 1:
+            return None
+        if root_children:
+            optionals.remove("--root-children")
+        root_child_names: list[str] = []
+        remaining: list[str] = []
+        index = 0
+        while index < len(optionals):
+            if optionals[index] == "--root-child":
+                if index + 1 >= len(optionals) or not _argument(optionals[index + 1]):
+                    return None
+                name = optionals[index + 1]
+                # Immediate basename only — no separators, no . / ..
+                if (
+                    "/" in name
+                    or "\\" in name
+                    or name in {".", ".."}
+                    or not name
+                ):
+                    return None
+                root_child_names.append(name)
+                index += 2
+                continue
+            remaining.append(optionals[index])
+            index += 1
+        if root_child_names and not root_children:
+            return None
+        if len(remaining) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
+            remaining,
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
             authority,
         ):

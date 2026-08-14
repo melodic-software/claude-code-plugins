@@ -878,6 +878,340 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("OS-managed roots", payload["error"])
             self.assertFalse((data_root / "snapshot.json").exists())
 
+    def _os_managed_volume_root_patches(self, target: Path | None = None) -> list[object]:
+        def is_target(path: Path) -> bool:
+            if target is None:
+                return True
+            try:
+                return Path(path).resolve() == target.resolve()
+            except OSError:
+                return False
+
+        def mount_state(path: Path, *args: object, **kwargs: object) -> tuple[bool, None]:
+            return (is_target(path), None)
+
+        return [
+            mock.patch.object(
+                hygiene, "is_volume_root", side_effect=lambda path: is_target(path)
+            ),
+            mock.patch.object(
+                hygiene,
+                "is_os_managed_target",
+                side_effect=lambda path, roots=None, markers=None: is_target(path),
+            ),
+            mock.patch.object(hygiene, "mount_state", side_effect=mount_state),
+            mock.patch.object(hygiene, "system_roots", return_value=[]),
+            mock.patch.object(
+                hygiene,
+                "volume_root_os_owned_names",
+                return_value={
+                    name.casefold()
+                    for name in (
+                        "Windows",
+                        "Program Files",
+                        "Program Files (x86)",
+                        "ProgramData",
+                        "Recovery",
+                        "$Recycle.Bin",
+                        "System Volume Information",
+                        "Users",
+                        "PerfLogs",
+                    )
+                },
+            ),
+        ]
+
+    def test_root_children_without_selection_lists_admitted_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "tmp").mkdir()
+            (target / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / ".hidden").mkdir()
+            (target / "Windows").mkdir()
+            (target / "$SysReset").mkdir()
+            (target / "Documents").mkdir()
+            link = target / "junction-like"
+            link.symlink_to(target / "builds", target_is_directory=True)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(5, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({"builds", "tmp"}, admitted)
+            skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+            self.assertEqual("not-a-directory", skipped["orphan.tmp"])
+            self.assertEqual("hidden", skipped[".hidden"])
+            self.assertEqual("os-owned", skipped["Windows"])
+            self.assertEqual("os-owned", skipped["$SysReset"])
+            self.assertEqual("baseline-protected-name", skipped["Documents"])
+            self.assertEqual(
+                "symlink-junction-or-reparse-point", skipped["junction-like"]
+            )
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_children_scans_only_selected_admitted_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "builds" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "tmp").mkdir()
+            (target / "tmp" / "keep.tmp").write_text("right", encoding="utf-8")
+            (target / "ccxp").mkdir()
+            (target / "ccxp" / "skip.tmp").write_text("nope", encoding="utf-8")
+            (target / "Windows").mkdir()
+            (target / "Windows" / "system.tmp").write_text("os", encoding="utf-8")
+            (target / "root-only.tmp").write_text("never", encoding="utf-8")
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "builds",
+                    "--root-child",
+                    "tmp",
+                ],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue(payload["root_children_mode"])
+            self.assertEqual(["builds", "tmp"], payload["root_children_selected"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            paths = {entry["path"] for entry in snapshot["entries"]}
+            self.assertIn("builds", paths)
+            self.assertIn("builds/orphan.tmp", paths)
+            self.assertIn("tmp", paths)
+            self.assertIn("tmp/keep.tmp", paths)
+            self.assertNotIn("ccxp", paths)
+            self.assertNotIn("ccxp/skip.tmp", paths)
+            self.assertNotIn("Windows", paths)
+            self.assertNotIn("Windows/system.tmp", paths)
+            self.assertNotIn("root-only.tmp", paths)
+            self.assertTrue(snapshot["root_children_mode"])
+            self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
+
+    def test_root_children_rejects_unadmitted_or_path_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "Windows").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children", "--root-child", "Windows"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("not an admitted immediate child", payload["error"])
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children", "--root-child", "builds/nested"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("immediate basename", payload["error"])
+
+    def test_linux_volume_root_os_owned_includes_conventional_roots(self) -> None:
+        owned = hygiene.volume_root_os_owned_names("linux")
+        for name in (
+            "bin",
+            "boot",
+            "home",
+            "media",
+            "mnt",
+            "opt",
+            "root",
+            "srv",
+            "tmp",
+            "usr",
+            "var",
+        ):
+            self.assertIn(name.casefold(), owned)
+
+    def test_root_children_skips_linux_os_owned_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "tmp").mkdir()
+            (target / "home").mkdir()
+            (target / "opt").mkdir()
+            (target / "srv").mkdir()
+            (target / "root").mkdir()
+            patches = [
+                mock.patch.object(hygiene, "is_volume_root", return_value=True),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+                mock.patch.object(hygiene, "os_key", return_value="linux"),
+                mock.patch.object(
+                    hygiene, "mount_state", return_value=(False, None)
+                ),
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+            ]
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                patches,
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(5, code)
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({"builds"}, admitted)
+            skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+            for name in ("tmp", "home", "opt", "srv", "root"):
+                self.assertEqual("os-owned", skipped[name])
+
+    def test_root_child_selection_is_exact_on_case_sensitive_hosts(self) -> None:
+        admitted = [
+            {"name": "Cache", "path": "/Cache"},
+            {"name": "cache", "path": "/cache"},
+            {"name": "builds", "path": "/builds"},
+        ]
+        resolved = hygiene.normalize_root_child_selection(
+            ["Cache"], admitted, case_sensitive=True
+        )
+        self.assertEqual(["Cache"], resolved)
+        with self.assertRaises(hygiene.HygieneError):
+            hygiene.normalize_root_child_selection(
+                ["CACHE"], admitted, case_sensitive=True
+            )
+        folded = hygiene.normalize_root_child_selection(
+            ["CACHE"], [{"name": "Cache", "path": "/Cache"}], case_sensitive=False
+        )
+        self.assertEqual(["Cache"], folded)
+
+    def test_root_children_flag_requires_os_managed_volume_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "ordinary"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("volume-root target", payload["error"])
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("only valid for an OS-managed volume root", payload["error"])
+
+    def test_root_child_requires_root_children_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "ordinary"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+                extra_args=["--root-child", "builds"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("--root-child requires --root-children", payload["error"])
+
+    def test_preview_allows_root_children_os_managed_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "os-root"
+            child = root / "builds"
+            child.mkdir(parents=True)
+            (child / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(),
+                hygiene.load_policy(None),
+                root_children=["builds"],
+            )
+            snapshot["root_children_skipped"] = []
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("builds/orphan.tmp")],
+            }
+            target = root.resolve()
+
+            def is_target(path: Path) -> bool:
+                try:
+                    return Path(path).resolve() == target
+                except OSError:
+                    return False
+
+            with (
+                mock.patch.object(
+                    hygiene, "is_volume_root", side_effect=is_target
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "is_os_managed_target",
+                    side_effect=lambda path, roots=None, markers=None: is_target(path),
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "mount_state",
+                    side_effect=lambda path, *a, **k: (is_target(path), None),
+                ),
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertEqual("high", result["tier"])
+            self.assertEqual(
+                ["builds/orphan.tmp"],
+                [item["path"] for item in result["candidates"]],
+            )
+
     def test_scan_rejects_non_root_mount_point(self) -> None:
         # A mount point that is not a volume root (a nested or bind mount as the
         # target) stays hard-blocked — the real cross-boundary danger, unchanged.
@@ -4492,6 +4826,36 @@ class GuardTests(unittest.TestCase):
         denied = (
             f"{base} --confirmed-large-scan --confirmed-large-scan",
             f"{base} --confirmed-large-scan v",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_guard_scan_accepts_root_children_selection_flags(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --root-children",
+            f"{base} --root-children --root-child builds",
+            f"{base} --root-children --root-child builds --root-child tmp",
+            f"{base} --root-children --root-child builds --max-depth 1",
+            f"{base} --confirmed-large-scan --root-children --root-child builds",
+        )
+        denied = (
+            f"{base} --root-child builds",
+            f"{base} --root-children --root-children",
+            f"{base} --root-children --root-child builds/nested",
+            f"{base} --root-children --root-child ..",
+            f"{base} --root-children --root-child",
         )
         for command in allowed:
             self.assertEqual(

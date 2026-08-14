@@ -16,7 +16,8 @@ unvalidated tree.
   remote, or otherwise unattended sessions audit and stop.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
   separate approval naming every path and its logical byte count.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume, user shell-folder roots,
+- Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
+  via `--root-children` with an explicit child selection), user shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
   predicates cannot be disabled by policy.
