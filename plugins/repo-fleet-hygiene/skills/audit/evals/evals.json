@@ -53,10 +53,11 @@
       "id": 5,
       "name": "github-transfer-versus-404",
       "prompt": "Repo one remote says github.com/old/repo and GitHub resolves it successfully to new/repo. Repo two's lookup returns HTTP 404. Classify both.",
-      "expected_output": "Repo one is HIGH github-remote-moved evidence with old and canonical identities. Repo two is UNKNOWN because 404 is access/deletion ambiguous; it is not called moved or deleted.",
+      "expected_output": "Repo one is HIGH github-remote-moved evidence with old and canonical identities, and branch/worktree analysis still runs against the resolved identity. Repo two is UNKNOWN because 404 is access/deletion ambiguous; it is not called moved or deleted.",
       "files": [],
       "expectations": [
         "Classifies successful different full_name resolution as HIGH moved/renamed evidence",
+        "Continues branch and worktree analysis against the resolved identity rather than silent-skipping",
         "Classifies HTTP 404 as UNKNOWN",
         "Does not infer moved or deleted from 404"
       ]

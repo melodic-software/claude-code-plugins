@@ -14,6 +14,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
   "$TMP/wt-status-fail" \
+  "$TMP/wt-old" \
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
   "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
@@ -59,6 +60,7 @@ rev-parse)
     canonical-a) printf '%s\n' "$TEST_ROOT/canonical-a" ;;
     repo-b) printf '%s\n' "$TEST_ROOT/repo-b" ;;
     old-repo) printf '%s\n' "$TEST_ROOT/old-repo" ;;
+    wt-old) printf '%s\n' "$TEST_ROOT/wt-old" ;;
     bad-discovered) printf '%s\n' "$TEST_ROOT/bad-discovered" ;;
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail" ;;
@@ -116,6 +118,7 @@ rev-parse)
     wt-mismatch) printf '%s\n' "$TEST_ROOT/other-repository/.git" ;;
     repo-b) printf '%s\n' "$TEST_ROOT/repo-b/.git" ;;
     old-repo) printf '%s\n' "$TEST_ROOT/old-repo/.git" ;;
+    wt-old) printf '%s\n' "$TEST_ROOT/old-repo/.git" ;;
     bad-discovered) printf '%s\n' "$TEST_ROOT/bad-discovered/.git" ;;
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical/.git" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail/.git" ;;
@@ -191,7 +194,10 @@ worktree)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
     ;;
   old-repo)
+    # Moved-identity fixture (#2600): local branch/worktree inventory must still be classified
+    # against the resolved GitHub identity (new/repo), not skipped after github-remote-moved.
     printf 'worktree %s\0HEAD old-main\0branch refs/heads/main\0\0' "$TEST_ROOT/old-repo"
+    printf 'worktree %s\0HEAD moved-merged-tip\0branch refs/heads/feature/moved-merged\0\0' "$TEST_ROOT/wt-old"
     ;;
   wt-fail) exit 7 ;;
   ref-fail)
@@ -264,6 +270,9 @@ for-each-ref)
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
       ;;
+    # Moved-identity checkout (#2600): remote still advertises the feature head, so the privacy
+    # gate must not block the exact-OID merge match against the resolved identity.
+    old-repo) printf 'origin/main\told-main\0\norigin/feature/moved-merged\tmoved-merged-tip\0\norigin/feature/moved-local\tmoved-local-tip\0\n' ;;
     rref-fail) exit 9 ;;
     aaa-linked | bbb-linked | zzz-canonical) printf 'origin/main\tcanon-main\0\n' ;;
     sub-wt) printf 'origin/main\tsub-main\0\n' ;;
@@ -281,7 +290,7 @@ for-each-ref)
   repo-b)
     printf 'main\tmain-b\0\nfeature/shared\tsha-b\0\n'
     ;;
-  old-repo) printf 'main\told-main\0\n' ;;
+  old-repo) printf 'main\told-main\0\nfeature/moved-merged\tmoved-merged-tip\0\nfeature/moved-local\tmoved-local-tip\0\n' ;;
   wt-fail) printf 'main\twt-main\0\nfeature/fail\tfail-tip\0\n' ;;
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
   rref-fail) printf 'main\trr-main\0\nfeature/gated\trr-tip\0\n' ;;
@@ -304,13 +313,14 @@ status)
   wt-a) printf '' ;;
   wt-mismatch) printf ' M file.txt\n' ;;
   wt-status-fail) exit 7 ;;
+  wt-old) printf '' ;;
   *) printf '' ;;
   esac
   ;;
 log)
   [[ "${1:-}" == "-1" && "${2:-}" == "--format=%ct" && "${3:-}" == "HEAD" ]] || exit 96
   case "$base" in
-  wt-a) printf '1700000000\n' ;;
+  wt-a | wt-old) printf '1700000000\n' ;;
   *) printf '1\n' ;;
   esac
   ;;
@@ -370,7 +380,13 @@ pr)
     printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
     printf '43\tstale/gone\tother-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/repo-a/pull/43\n'
     ;;
-  github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo | github.com/acme/repo-c) ;;
+  github.com/acme/repo-b | github.com/acme/root-repo | github.com/acme/repo-c) ;;
+  # Resolved identity for the moved-remote fixture: merge evidence must be queried here, not under
+  # the stale configured remote (old/repo). Exact-OID rows prove branch/worktree analysis continued.
+  github.com/new/repo)
+    printf '7\tfeature/moved-merged\tmoved-merged-tip\t2026-07-04T00:00:00Z\thttps://github.com/new/repo/pull/7\n'
+    printf '8\tfeature/moved-local\tmoved-local-tip\t2026-07-05T00:00:00Z\thttps://github.com/new/repo/pull/8\n'
+    ;;
   # A FULL merged-PR window: gh returns at most --limit rows, so 200 rows means older merged PRs
   # were silently dropped. Every row is a branch this repository does not have locally, so the
   # truncation disclosure is the only thing this fixture can produce.
@@ -501,6 +517,15 @@ assert_kind_targets "reclaimable names wt-a and not dirty or status-fail sibling
 assert_kind_targets "reclaimable does not include status-fail sibling" \
   reclaimable-worktree "wt-a" "wt-status-fail"
 assert_contains "moved repository detected" "Target: origin (old/repo -> new/repo)"
+assert_contains "moved-remote finding states analysis continues" \
+  "branch and worktree analysis continues against that resolved identity"
+# #2600: github-remote-moved must not silent-skip local classification. The resolved identity
+# (new/repo) supplies merge evidence for both an attached worktree branch and an unattached local.
+assert_kind_targets "moved-remote still emits merged-worktree on resolved identity" \
+  merged-worktree "old-repo :: feature/moved-merged" "new-clone"
+assert_kind_targets "moved-remote still emits merged-local-branch on resolved identity" \
+  merged-local-branch "old-repo :: feature/moved-local" "new-clone"
+assert_contains "moved-remote worktree disposability still classified" "Target: $TMP/wt-old"
 assert_contains "non-GitHub canonical override fails closed" "canonical override has a missing, ambiguous, credential-only, or non-github.com remote"
 assert_contains "worktree inventory failure is unknown" "Finding: worktree-inventory-unavailable"
 assert_contains "branch inventory failure is unknown" "Finding: branch-inventory-unavailable"
