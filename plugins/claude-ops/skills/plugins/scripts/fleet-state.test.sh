@@ -941,6 +941,142 @@ CASE_NUM=$((CASE_NUM + 1))
 argjson_code_count=$(grep -v '^[[:space:]]*#' "$SCRIPT" | grep -c -- '--argjson' || true)
 assert_eq "static guard: --argjson remains only on fixed-size booleans (au/ci/autoUpdate), not catalog-sized payloads" "7" "$argjson_code_count"
 
+# ============================================================================
+# --ids: the id-projection mode `sync` Steps 2-5 loop, so no caller hand-writes
+# `jq -r ... | while read` (#2578).
+#
+# Fixture shared by the cases below: two plugins installed at user scope plus a
+# third catalog entry installed nowhere, so installed-user yields TWO ids (the
+# minimum that can exhibit the all-but-last CR signature) and
+# missing-user-install yields one.
+# ============================================================================
+seed_ids_case() {
+  local case_dir="$1"
+  write "$case_dir/installed_plugins.json" '{
+    "version": 1,
+    "plugins": {
+      "alpha@market1": [{"scope": "user", "installPath": "x", "version": "0.1.0"}],
+      "beta@market1": [{"scope": "user", "installPath": "y", "version": "0.2.0"}]
+    }
+  }'
+  write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}, {"name": "gamma"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+}
+
+# Like run_state but keeps stderr OFF stdout: these cases assert on exact bytes.
+run_ids() {
+  local case_dir="$1"
+  shift
+  env \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    "$@" \
+    bash "$SCRIPT" "${ARGS[@]}" 2>/dev/null
+}
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplace market1 --ids installed-user)
+out=$(run_ids "$case_dir")
+rc=$?
+assert_exit "--ids installed-user: exit 0" 0 "$rc"
+assert_eq "--ids installed-user: one fully-qualified id per line" \
+  "alpha@market1
+beta@market1" "$out"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplace market1 --ids missing-user-install)
+out=$(run_ids "$case_dir")
+assert_eq "--ids missing-user-install: catalog entry installed nowhere" "gamma@market1" "$out"
+
+# ============================================================================
+# REGRESSION (#2578): --ids output must carry no CR even when jq writes stdout
+# in Windows text mode.
+#
+# Host-independent by construction: a PATH stub named `jq` normalizes every
+# emitted line to exactly ONE trailing CR, so the case exercises the same bytes
+# on a Linux runner (where real jq emits bare LF and the stub ADDS the CR) as on
+# Windows (where the native binary already emits CRLF and the stub is a no-op).
+# Without that normalization the case would be vacuous on Linux — green for the
+# wrong reason, which is the failure mode #2571 was landed to stop repeating.
+#
+# `command jq` resolves through PATH, so fleet-state.sh's own
+# `jq() { command jq "$@" | tr -d '\r'; }` wrapper calls the stub exactly as it
+# would call a native Windows jq. This case therefore goes red BOTH if --ids is
+# removed and if that wrapper is ever deleted.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+mkdir -p "$case_dir/crlf-bin"
+REAL_JQ="$(command -v jq)"
+{
+  printf '#!/usr/bin/env bash\n'
+  # s/\r*$/\r/ collapses "already CRLF" and "bare LF" to the same one-CR form.
+  printf '"%s" "$@" | sed '"'"'s/\\r*$/\\r/'"'"'\n' "$REAL_JQ"
+} >"$case_dir/crlf-bin/jq"
+chmod +x "$case_dir/crlf-bin/jq"
+
+# Guard the guard: prove the stub actually CRLF-terminates, so a stub that
+# silently stopped working cannot make the assertion below vacuously pass.
+stub_probe=$(printf '{"a":"one"}' | PATH="$case_dir/crlf-bin:$PATH" jq -r '.a' | od -An -c | tr -s ' ')
+assert_contains "--ids CR regression: stub jq really emits CRLF" "$stub_probe" 'o n e \r \n'
+
+ARGS=(--marketplace market1 --ids installed-user)
+out=$(PATH="$case_dir/crlf-bin:$PATH" run_ids "$case_dir")
+rc=$?
+assert_exit "--ids CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
+# The empty branch is not redundant: with no output at all "contains no CR" is
+# vacuously true, so a regression that stopped emitting ids entirely would pass
+# a bare CR check. Verified against the pre-fix script — it emitted nothing and
+# the CR assertion passed for the wrong reason until this branch was added.
+case "$out" in
+"") fail "--ids CR regression: no CR survives into the emitted ids" \
+  "output was EMPTY — a CR assertion over no output proves nothing" ;;
+*$'\r'*) fail "--ids CR regression: no CR survives into the emitted ids" \
+  "output carried a CR: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
+*) pass "--ids CR regression: no CR survives into the emitted ids" ;;
+esac
+assert_eq "--ids CR regression: ids are byte-exact under a CRLF-emitting jq" \
+  "alpha@market1
+beta@market1" "$out"
+
+# ============================================================================
+# --ids rejections: refused loudly, never a silently-empty list.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplace market1 --ids no-such-selector)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--ids unknown selector: exit 2" 2 "$rc"
+assert_contains "--ids unknown selector: names the bad selector" "$out" "no-such-selector"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplace market1 --ids)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--ids with no selector: exit 2, does not spin" 2 "$rc"
+assert_contains "--ids with no selector: says a selector is required" "$out" "requires a selector"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--all --ids installed-user)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--ids with --all: exit 2" 2 "$rc"
+assert_contains "--ids with --all: refuses rather than inventing a shape" "$out" "cannot be combined"
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

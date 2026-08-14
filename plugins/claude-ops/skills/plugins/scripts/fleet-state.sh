@@ -11,6 +11,7 @@
 #
 # Usage:
 #   fleet-state.sh [--marketplace <name> | --all]
+#   fleet-state.sh [--marketplace <name>] --ids <selector>
 #
 # With neither flag, resolves the default marketplace dynamically: the one
 # this plugin (CLAUDE_PLUGIN_ROOT) was itself installed from. `--all` sweeps
@@ -28,13 +29,27 @@
 #   any directory. Both exclude ids explicitly opted out (false) in any scope.
 #   --all: {marketplaces: {"<name>": <single-marketplace shape>, ...}}
 #
+# Output (stdout) with --ids <selector>: NOT JSON — one fully-qualified
+#   `<name>@<marketplace>` id per line, in the order the block carries them,
+#   and nothing else. Selectors, each naming the `sync` step that consumes it:
+#     installed-user        installed[] at user scope           (Step 3 update)
+#     current-project       installed[] with currentProject      (Step 2 update)
+#     missing-user-install  missing_from_user_install[]         (Step 4 install)
+#     missing-enabled       missing_from_enabled[]              (Step 5 enable)
+#   Zero matches is success with empty output (exit 0), not an error. Reject:
+#   `--ids` with `--all` (no single block to project), or an unknown selector.
+#   This mode exists so a caller never hand-writes `jq -r ... | while read` —
+#   on Windows that reintroduces a CR and corrupts every id but the last. See
+#   the emit_ids comment and context/gotchas.md.
+#
 # Exit codes:
 #   0  ran to completion (individual marketplace failures are reported in the
 #      JSON body, not the exit code, so an --all sweep with partial failures
 #      still exits 0)
 #   1  a single-marketplace run's marketplace could not be resolved/read
-#   2  fatal: jq missing, or an internal CC state file is present but does not
-#      match its expected shape (fail loud on schema drift — never guess)
+#   2  fatal: jq missing, an internal CC state file is present but does not
+#      match its expected shape (fail loud on schema drift — never guess), a
+#      bad/absent --ids selector, or --ids combined with --all
 #
 # Env overrides (testing only; production uses the real paths):
 #   FLEET_STATE_INSTALLED_JSON     — path to installed_plugins.json
@@ -537,12 +552,77 @@ emit_marketplace() {
     }'
 }
 
+# --- Id projection (--ids) ---------------------------------------------------
+
+# Project one marketplace block down to the plain id list a `sync` step loops.
+# Exists so no CALLER has to write its own `jq -r ... | while read`: on Windows
+# a hand-written jq reintroduces the CR this script's own wrapper strips (the
+# native binary writes stdout in text mode), and because `$(...)` strips only
+# the TRAILING CRLF, every id but the last arrives as `<name>@<marketplace>\r`.
+# Passed to `claude plugin update` that id fails with `Plugin "<name>" not
+# found` — the marketplace suffix is silently corrupted, and the error is
+# byte-identical to the bare-name failure, so it misdirects diagnosis. Output
+# here goes through the same wrapper as every other call, so it is CR-free by
+# construction; see context/gotchas.md.
+emit_ids() {
+  local block="$1" selector="$2" filter
+  case "$selector" in
+  installed-user) filter='.installed[]? | select(.scope == "user") | .id' ;;
+  current-project) filter='.installed[]? | select(.currentProject == true) | .id' ;;
+  missing-user-install) filter='.missing_from_user_install[]?' ;;
+  missing-enabled) filter='.missing_from_enabled[]?' ;;
+  *)
+    echo "ERROR: unknown --ids selector: $selector" >&2
+    echo "  expected one of: installed-user, current-project," >&2
+    echo "                   missing-user-install, missing-enabled" >&2
+    return 2
+    ;;
+  esac
+  # `[]?` rather than `[]`: a block legitimately missing a key (an empty
+  # `installed`, say) yields no ids instead of erroring.
+  jq -r "$filter" <<<"$block"
+}
+
+# Emit one marketplace: the JSON block by default, or its projected id list when
+# --ids is in play. Keeps the two single-marketplace call sites (default and
+# --marketplace) identical instead of branching on IDS_SELECTOR at each.
+emit_one() {
+  local block rc
+  block=$(emit_marketplace "$1")
+  rc=$?
+  # A per-marketplace failure block ({marketplace: {name, error}}) is written to
+  # STDOUT by emit_marketplace and is part of the documented output contract, so
+  # it is passed through verbatim in BOTH modes and never projected: running the
+  # id filter over it would yield nothing and silently downgrade a reported
+  # failure to "no ids matched".
+  if [[ "$rc" -ne 0 ]]; then
+    [[ -n "$block" ]] && printf '%s\n' "$block"
+    return "$rc"
+  fi
+  if [[ -n "$IDS_SELECTOR" ]]; then
+    emit_ids "$block" "$IDS_SELECTOR" || return $?
+  else
+    printf '%s\n' "$block"
+  fi
+}
+
 # --- Arg parsing -------------------------------------------------------------
 
 MODE="default"
 TARGET=""
+IDS_SELECTOR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
+  --ids)
+    IDS_SELECTOR="${2:-}"
+    # Same guard-before-`shift 2` reasoning as --marketplace below: with no
+    # following arg, `shift 2` fails (no set -e) and the loop spins forever.
+    if [[ -z "$IDS_SELECTOR" ]]; then
+      echo "ERROR: --ids requires a selector" >&2
+      exit 2
+    fi
+    shift 2
+    ;;
   --marketplace)
     MODE="single"
     TARGET="${2:-}"
@@ -566,6 +646,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --ids projects ONE marketplace block; --all's {marketplaces: {...}} envelope
+# has no single block to project. Refused rather than invented, so a caller
+# never gets a silently-empty list from a combination this does not implement.
+if [[ -n "$IDS_SELECTOR" && "$MODE" == "all" ]]; then
+  echo "ERROR: --ids cannot be combined with --all" >&2
+  echo "  Run --ids once per marketplace with --marketplace <name>." >&2
+  exit 2
+fi
+
 case "$MODE" in
 default)
   plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
@@ -582,10 +671,10 @@ default)
     echo "--marketplace <name> explicitly." >&2
     exit 1
   fi
-  emit_marketplace "$TARGET" || exit 1
+  emit_one "$TARGET" || exit $?
   ;;
 single)
-  emit_marketplace "$TARGET" || exit 1
+  emit_one "$TARGET" || exit $?
   ;;
 all)
   names=$(jq -r 'keys[]' "$MARKETPLACES_JSON")

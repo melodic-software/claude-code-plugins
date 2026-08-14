@@ -101,22 +101,52 @@ crash the script."
 
 ## Captured values on Windows carry `\r` — strip it before embedding in any command or JSON
 
-Discovered empirically while implementing `fleet-state.sh` (Windows/MSYS `jq`): even single-line
-compact JSON output ends `\r\n`, not just `\n`. But this is **not a `jq`-only hazard** — *any* value
-captured on Windows/MSYS (a native `python` `print(...)`, a PowerShell interop line, `git config`
-output, a CRLF-terminated file read) can arrive with a trailing `\r`. `$(...)` command substitution
-strips only the trailing `\n`, so the `\r` survives at the end of the captured value and corrupts it
-once it is either:
+Discovered empirically while implementing `fleet-state.sh`: the native-Windows `jq` binary opens
+stdout in **text mode**, so every `\n` it writes becomes `\r\n`. This is **not a `jq`-only
+hazard** — *any* value produced on Windows/MSYS (a native `python` `print(...)`, a PowerShell
+interop line, `git config` output, a CRLF-terminated file read) can arrive with a trailing `\r`.
+
+**Which capture is actually corrupted depends on how you read it** (verified on jq 1.8.2 / MSYS
+bash 5.3.9 — get this wrong and you will chase the wrong suspect):
+
+- `x=$(… )` **single-line** output — *clean*. Command substitution strips the trailing `\r\n` as a
+  unit, not just the `\n`. A one-value capture is safe, and that is a bash-side property, so it
+  holds whatever produced the value.
+- `x=$(… )` **multi-line** output — *every line but the last carries `\r`*, because only the final
+  terminator is stripped. **This all-but-last pattern is the diagnostic signature**: if the last
+  item in a batch is the only one that worked, stop looking for a logic bug and check for `\r`.
+- `mapfile -t` / `readarray -t` — *every element carries `\r`*, including the last: `-t` removes the
+  newline but not the CR, so there is no last-element reprieve here.
+- `jq` output read back **by `jq`** (as raw input or as JSON) — *self-cleaning*. jq's stdin is
+  text-mode too, so a CR it emitted is stripped again on the way back in. A jq→jq relay is
+  therefore not a hazard; the danger is only jq's line output reaching a **non-jq** consumer.
+
+`IFS=$'\n'` does **not** rescue any of these — `\r` is not the separator, it rides inside the token.
+
+A surviving `\r` corrupts the value once it is either:
 
 - re-embedded in another `jq --argjson` argument (`jq: invalid JSON text passed to --argjson`), or
 - **embedded in a constructed `claude plugin` id.** A `<name>@<marketplace>\r` id is passed with the
   full id present, yet the CLI reports `Plugin "<name>" not found` — the marketplace suffix is
   silently corrupted. The symptom is byte-identical to the bare-name gotcha above and actively
-  misdirects diagnosis (the full id *was* passed). Observed live: extracting ids via
-  `python -c "print(...)"` on Windows gave every id but the last a trailing `\r`, and 57/58
-  `claude plugin update` calls failed this way.
+  misdirects diagnosis (the full id *was* passed). Observed live twice, both with the all-but-last
+  signature: extracting ids via `python -c "print(...)"` on Windows failed 57/58 `claude plugin
+  update` calls, and a hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON failed
+  64/65 (#2578).
 
-Route every `jq` call through the `jq() { command jq "$@" | tr -d '\r'; }`-style wrapper
-`fleet-state.sh` already uses, **and** strip `\r` (`tr -d '\r'`, or `${var%$'\r'}`) from every value
-captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
-Don't rediscover this the hard way in a second script.
+**Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the id list for each
+`sync` step directly — one fully-qualified id per line, CR-free by construction — so the loop that
+feeds `claude plugin` needs no `jq` of its own at all:
+
+```bash
+while IFS= read -r id; do
+  [ -n "$id" ] || continue
+  claude plugin update "$id" -s user
+done < <(…/scripts/fleet-state.sh --ids installed-user)
+```
+
+For anything `--ids` does not cover: route every `jq` call through the
+`jq() { command jq "$@" | tr -d '\r'; }`-style wrapper `fleet-state.sh` already uses, **and** strip
+`\r` (`tr -d '\r'`, or `${var%$'\r'}`) from every value captured from any other source before
+embedding it in a `claude plugin` command or a JSON argument. Don't rediscover this the hard way in
+a second script.

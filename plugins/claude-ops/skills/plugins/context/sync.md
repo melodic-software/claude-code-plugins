@@ -93,6 +93,10 @@ claude plugin update <id> -s project   # for a currentProject:true entry with sc
 claude plugin update <id> -s local     # for a currentProject:true entry with scope "local"
 ```
 
+`fleet-state.sh --ids current-project` emits exactly those ids, one per line — use it rather than a
+hand-written `jq` over `installed[]` (see Step 3 for why the hand-written form breaks on Windows).
+The per-entry `scope` still comes from the JSON, since it decides which `-s` flag each id takes.
+
 Do **not** pre-filter on `divergences[]`. `divergences[]` only contains ids with *more than one*
 scope record — a project/local install with no other scope pinning the same id (the common single-
 pin case) never appears there at all, and neither does a multi-scope install where every scope
@@ -107,26 +111,37 @@ output (it has no per-plugin catalog version to compare against), so the only co
 
 ## Step 3 — User-scope update sweep
 
-For every catalog plugin id currently installed at `user` scope (from `fleet-state.sh`'s
-`installed[]`, `scope == "user"`), run:
+For every catalog plugin id currently installed at `user` scope, run:
 
 ```bash
 claude plugin update <id> -s user
 ```
 
-`<id>` here is always the fully-qualified `<name>@<marketplace>` form `fleet-state.sh` already
-emits — a bare name fails with "Plugin not found" even when unambiguous (see
-[gotchas.md](gotchas.md)).
-
 One call per plugin — `claude plugin update` takes a single `<plugin>` argument, there is no bulk
 "update everything" flag. Loop it; a single plugin's update failure is reported inline (under
 "Action needed") and does not abort the sweep for the rest.
+
+Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over its JSON:
+
+```bash
+while IFS= read -r id; do
+  [ -n "$id" ] || continue
+  claude plugin update "$id" -s user
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids installed-user)
+```
+
+`--ids` emits the fully-qualified `<name>@<marketplace>` form, one per line, CR-free — a bare name
+fails with "Plugin not found" even when unambiguous, and on Windows a hand-written
+`jq -r ... | while read` silently appends a `\r` to every id but the last, which fails with the
+*same* "Plugin not found" text and so misreads as the bare-name problem. Both are
+[gotchas.md](gotchas.md); `--ids` is why neither can happen here.
 
 ## Step 4 — Install new catalog plugins (per `install_new` policy)
 
 Catalog-dependent: skipped (deferred) for a marketplace whose Step 1 refresh failed — see Step 1.
 
-Take `fleet-state.sh`'s `missing_from_user_install` — catalog ids not installed at `user` scope
+Take `fleet-state.sh`'s `missing_from_user_install` (`--ids missing-user-install` emits the id list
+directly — see Step 3) — catalog ids not installed at `user` scope
 (already excludes anything explicitly opted out with `enabledPlugins: false` in any scope — never
 re-offer a deliberate decline). This is deliberately user-scope, not the all-scope `missing_from_install`:
 a plugin installed only at `project`/`local` scope is absent from `missing_from_install` yet still not
@@ -153,7 +168,8 @@ AND disable (`enabledPlugins: false`), or switch the policy to `ask`/`none`.
 Catalog-dependent (`defaultEnabled` comes from catalog metadata): skipped (deferred) for a
 marketplace whose Step 1 refresh failed — see Step 1.
 
-Take `fleet-state.sh`'s `missing_from_enabled` — ids installed somewhere but never mentioned (true
+Take `fleet-state.sh`'s `missing_from_enabled` (`--ids missing-enabled` emits the id list directly —
+see Step 3) — ids installed somewhere but never mentioned (true
 or false) in any scope's `enabledPlugins`, already excluding ids the marketplace ships with
 `defaultEnabled: false`. That field is a publisher's deliberate opt-in-required default (it takes
 precedence over the plugin's own `plugin.json` field — see
