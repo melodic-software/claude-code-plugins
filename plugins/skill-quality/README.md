@@ -101,8 +101,10 @@ stands alone.
 
 ## Requirements
 
-- A git repository — several checks read `git show HEAD:` / `git ls-files`; outside a repo the script
-  exits 2.
+- A skills root — via `CHECK_SKILL_SKILLS_ROOT`, `CLAUDE_PROJECT_DIR`, or a git repository
+  (last-resort default `.claude/skills`). Git-backed checks (trigger preservation, vendor
+  identity, stale metadata, committed artifacts) skip with a note outside a repo so
+  marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
   twenty-one still gate.
 
