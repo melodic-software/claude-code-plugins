@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.12.0]
+
+### Added
+
+- **New skill `map-corpus`** (`/knowledge:map-corpus`): map a multi-resource documentation corpus
+  into a verified slice before any digesting — bounded discovery (llms.txt + sitemap, rungs 1–2
+  only; in-page extraction deferred), a user-approved link map classifying every discovered URL
+  with rung provenance, deterministic per-resource node manifests emitted by a script over
+  immutable snapshots, and a per-node relevance inventory whose evidence tokens a script gate
+  byte-verifies. Hands an approved queue to N runs of the unrenamed `docpage-digest` and its
+  handoff to `/planning:interview`. Coverage denominators (URL set, node set) are
+  script-produced, never agent-produced; all three bundled gates fail loudly on unparsable
+  input and report exactly what they exercised. Requires `python3` (3.9+), declared at point of
+  use.
+
 ## [0.11.2]
 
 ### Changed
