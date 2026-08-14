@@ -26,11 +26,13 @@ mean to commit.
 CI's `hygiene` lane fails with `exec-bit=failure` when a tracked file whose
 first two bytes are `#!` — any shebang file, not just `.sh` — sits in the git
 index at mode `100644`. Fix each file the lane's error annotation names, then
-commit the mode change:
+commit with the **plain form** — no pathspec after `git commit`:
 
 ```shell
 chmod +x -- <path>
 git update-index --chmod=+x -- <path>
+git commit          # NOT `git commit -- <path>`; see below
+git ls-tree HEAD -- <path>   # confirm 100755 was recorded
 ```
 
 The defect is invisible on Windows, where it is usually introduced: an NTFS
@@ -39,12 +41,18 @@ clone gets `core.filemode=false`, so git ignores worktree permission bits —
 `100644`, and `git status` / `git diff` show nothing wrong afterward. The bad
 mode first surfaces as the red CI lane; locally it is visible only via
 `git ls-files --stage -- <path>`. `git update-index --chmod=+x` writes the
-index entry directly and works regardless of `core.filemode`; the `chmod`
-keeps the worktree in agreement so a later `git add` cannot revert the entry
-where filemode is honored. Committing through the source-control plugin's
-commit skill applies this fix automatically
-(`plugins/source-control/skills/commit/scripts/exec-bit-check.sh`, reasoning
-in [its reference](plugins/source-control/skills/commit/reference/exec-bit.md))
+index entry directly and works regardless of `core.filemode` — but the
+pathspec commit form (`git commit -- <path>`, git's `--only` mode) rebuilds
+the named entries from the working tree, where the `chmod` is invisible under
+`core.filemode=false`, and silently records `100644` again; only the plain
+index commit preserves the fix. "Stage explicit paths" above is not in
+tension: it constrains `git add`, which keeps a corrected entry — only the
+pathspec *commit* form discards it. Committing through the source-control
+plugin's commit skill handles all of this automatically
+(`plugins/source-control/skills/commit/scripts/exec-bit-check.sh`; reasoning
+in [its reference](plugins/source-control/skills/commit/reference/exec-bit.md),
+the pathspec interaction in
+[pathspec-commits.md](plugins/source-control/skills/commit/reference/pathspec-commits.md))
 — the trap bites commits made without it.
 
 ## Pull requests
