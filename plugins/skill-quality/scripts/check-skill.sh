@@ -122,10 +122,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Git is optional. Marketplace plugin-cache installs are plain directories; with
+# CHECK_SKILL_SKILLS_ROOT or CLAUDE_PROJECT_DIR the non-git checks still run.
+# Git-backed checks (3/8/9/13) skip with a note when there is no repository.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-if [[ -z "$REPO_ROOT" || ! -d "$REPO_ROOT" ]]; then
-  printf 'Error: not in a git repo\n' >&2
-  exit 2
+HAVE_GIT=0
+if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
+  HAVE_GIT=1
 fi
 
 # shellcheck source=./skill-frontmatter.sh
@@ -134,7 +137,7 @@ source "$SCRIPT_DIR/skill-frontmatter.sh"
 # Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
 # HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
 BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
-if [[ "$BASE_REF" != "HEAD" ]] &&
+if [[ "$HAVE_GIT" == 1 && "$BASE_REF" != "HEAD" ]] &&
   ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
   printf 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit\n' "$BASE_REF" >&2
   exit 2
@@ -148,15 +151,25 @@ if [[ -n "${CHECK_SKILL_SKILLS_ROOT:-}" ]]; then
   SKILLS_ROOT="$CHECK_SKILL_SKILLS_ROOT"
 elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   SKILLS_ROOT="$CLAUDE_PROJECT_DIR/.claude/skills"
-else
+elif [[ "$HAVE_GIT" == 1 ]]; then
   SKILLS_ROOT="$REPO_ROOT/.claude/skills"
+else
+  printf 'Error: not in a git repo and no skills root set — set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository\n' >&2
+  exit 2
 fi
 
 # Anchor a relative skills root to the project root. The setup action persists a
 # project-relative path; if the skill is invoked from a subdirectory a relative
 # root would otherwise resolve against the cwd and miss the skills.
 if [[ "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
-  SKILLS_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}/$SKILLS_ROOT"
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    SKILLS_ROOT="$CLAUDE_PROJECT_DIR/$SKILLS_ROOT"
+  elif [[ "$HAVE_GIT" == 1 ]]; then
+    SKILLS_ROOT="$REPO_ROOT/$SKILLS_ROOT"
+  else
+    printf 'Error: relative skills root %s needs CLAUDE_PROJECT_DIR or a git repository to anchor against\n' "$SKILLS_ROOT" >&2
+    exit 2
+  fi
 fi
 
 SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
@@ -168,8 +181,11 @@ SKILL_MD="$SKILL_DIR/SKILL.md"
 # string-stripping REPO_ROOT — on Git Bash `git rev-parse` and `pwd` can differ
 # in drive-letter case / slash form, which would silently break the strip.
 # Empty when the skill dir is outside the repo (git-backed checks then no-op).
-SKILL_REL="$(git -C "$SKILL_DIR" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
-SKILL_REL="${SKILL_REL%/}"
+SKILL_REL=""
+if [[ "$HAVE_GIT" == 1 ]]; then
+  SKILL_REL="$(git -C "$SKILL_DIR" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
+  SKILL_REL="${SKILL_REL%/}"
+fi
 
 # Tunables (listing description cap; SKILL.md line caps; vendor sync age).
 DESC_CHAR_CAP=1536
@@ -318,7 +334,9 @@ fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------
 
-if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+if [[ "$HAVE_GIT" != 1 ]]; then
+  note "trigger-keyword preservation (check 3) skipped — not in a git repository"
+elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
   BASE_TRIG="$(fm_listing_triggers "$BASE_FM_3")"
   CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
@@ -625,9 +643,13 @@ fi
 
 # --- Check 13: no committed cache/build artifacts ----------------------------
 
-CACHE_HITS="$(git -C "$REPO_ROOT" ls-files "$SKILL_REL" 2>/dev/null | grep -E '__pycache__|\.pyc$|/node_modules/' || true)"
-if [[ -n "$CACHE_HITS" ]]; then
-  err "committed cache/build artifact(s) under the skill dir: $(printf '%s' "$CACHE_HITS" | head -3 | tr '\n' ' ')"
+if [[ "$HAVE_GIT" != 1 ]]; then
+  note "committed-artifact scan (check 13) skipped — not in a git repository"
+else
+  CACHE_HITS="$(git -C "$REPO_ROOT" ls-files "$SKILL_REL" 2>/dev/null | grep -E '__pycache__|\.pyc$|/node_modules/' || true)"
+  if [[ -n "$CACHE_HITS" ]]; then
+    err "committed cache/build artifact(s) under the skill dir: $(printf '%s' "$CACHE_HITS" | head -3 | tr '\n' ' ')"
+  fi
 fi
 
 # --- Check 14: evals/evals.json presence -------------------------------------
