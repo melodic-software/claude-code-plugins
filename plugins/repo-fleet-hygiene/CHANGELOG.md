@@ -3,6 +3,17 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1]
+
+### Fixed
+
+- **Discovery husks under `--root` no longer abort the fleet (#2598).** A path discovered beneath a
+  `--root` that is unreadable or not a Git working tree (despite a `.git` marker) now degrades
+  per-entry like a stale config entry: the audit continues, the header reports
+  `Discovery skips: N non-repository, M unreadable`, and each `.git` husk becomes an `UNKNOWN`
+  `discovery-skip` finding. An explicitly supplied `--repo` that is not a working tree still
+  hard-fails. SKILL.md graceful degradation and the confidence-model tier table updated to match.
+
 ## [0.14.0]
 
 ### Changed

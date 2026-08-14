@@ -4,7 +4,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/audit-fleet.sh"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'chmod -R u+rwx "$TMP" >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
 
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
@@ -19,7 +19,9 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
   "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
   "$TMP/canonical-a/.claude/worktrees/nested" "$TMP/canonical-a/husk" \
-  "$TMP/prefix-fail"
+  "$TMP/prefix-fail" \
+  "$TMP/mix-root/mix-good/.git" "$TMP/mix-root/mix-husk/.git" "$TMP/mix-root/plain-dir" \
+  "$TMP/mix-root/unreadable-dir"
 # Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
 # worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
 # a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
@@ -30,6 +32,18 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
 # both reach the retarget path, which must refuse to adopt an administrative directory as canonical.
 : >"$TMP/wt-admin/sub-wt/.git"
 : >"$TMP/wt-admin/sep-wt/.git"
+# mix-husk carries a .git directory so discovery treats it as a candidate, but the mock makes
+# --show-toplevel fail — the per-entry discovery-skip path under --root (#2598).
+# unreadable-dir has no usable contents; discovery must count it and continue, never abort.
+# Mode bits alone do not deny root (or some ACL hosts): Bash -r/-x still succeed, so probe the
+# fixture the same way discovery will and only assert a non-zero unreadable count when effective.
+chmod a-rwx "$TMP/mix-root/unreadable-dir"
+EXPECT_MIX_UNREADABLE=0
+if [[ ! -r "$TMP/mix-root/unreadable-dir" || ! -x "$TMP/mix-root/unreadable-dir" ]]; then
+  EXPECT_MIX_UNREADABLE=1
+else
+  printf 'SKIP: unreadable-dir fixture ineffective after chmod a-rwx (root/ACL/filesystem); asserting 0 unreadable. Exercised on unprivileged POSIX hosts.\n' >&2
+fi
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -69,6 +83,7 @@ rev-parse)
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a" ;;
     new-clone) printf '%s\n' "$TEST_ROOT/new-clone" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
+    mix-good) printf '%s\n' "$TEST_ROOT/mix-root/mix-good" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo" ;;
@@ -127,6 +142,7 @@ rev-parse)
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a/.git" ;;
     new-clone) printf '%s\n' "$TEST_ROOT/new-clone/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
+    mix-good) printf '%s\n' "$TEST_ROOT/mix-root/mix-good/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
@@ -157,6 +173,7 @@ remote)
     dup-a) printf '%s\n' 'https://github.com/acme/repo-b.git' ;;
     new-clone) printf '%s\n' 'https://github.com/new/repo.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
+    mix-good) printf '%s\n' 'https://github.com/acme/mix-good.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
     lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
@@ -215,6 +232,9 @@ worktree)
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
+  mix-good)
+    printf 'worktree %s\0HEAD mix-main\0branch refs/heads/main\0\0' "$TEST_ROOT/mix-root/mix-good"
+    ;;
   canonical-c)
     printf 'worktree %s\0HEAD main-c\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-c"
     ;;
@@ -252,7 +272,7 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | mix-good | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
   sub-wt | sep-wt) printf '%s\n' main ;;
   esac
@@ -297,6 +317,7 @@ for-each-ref)
   dup-a) printf 'main\tdup-main\0\n' ;;
   new-clone) printf 'main\tnc-main\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
+  mix-good) printf 'main\tmix-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
   gone-repo) printf 'main\tgone-main\0\n' ;;
   lost-repo) printf 'main\tlost-main\0\n' ;;
@@ -345,6 +366,7 @@ api)
   repos/acme/repo-a) printf 'acme/repo-a\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
+  repos/acme/mix-good) printf 'acme/mix-good\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
@@ -370,7 +392,7 @@ pr)
     printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
     printf '43\tstale/gone\tother-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/repo-a/pull/43\n'
     ;;
-  github.com/acme/repo-b | github.com/acme/root-repo | github.com/acme/repo-c) ;;
+  github.com/acme/repo-b | github.com/acme/root-repo | github.com/acme/mix-good | github.com/acme/repo-c) ;;
   # Resolved identity for the moved-remote fixture: merge evidence must be queried here, not under
   # the stale configured remote (old/repo). Exact-OID rows prove branch/worktree analysis continued.
   github.com/new/repo)
@@ -588,6 +610,7 @@ else
 fi
 assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
 assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
+assert_contains "discovery skip counts reported in the header" "Discovery skips: 0 non-repository, 0 unreadable"
 
 # Empty remote-ref inventory (repo-b: refs/remotes scan returns nothing with exit 0) must reach
 # and survive the exact-fallback gate loop -- on bash <= 4.3 an unguarded empty-array expansion
@@ -808,6 +831,35 @@ elif grep -Fq "repository directory not found" "$ladder_out"; then
   printf 'PASS: CLI-supplied missing repo hard-fails\n'
 else
   printf 'FAIL: CLI-supplied missing repo hard-fails (wrong error)\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Discovery under --root must degrade per-entry for a .git husk (and count unreadable dirs), never
+# abort the fleet the way an explicit --repo typo does (#2598).
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --root "$TMP/mix-root" >"$ladder_out" 2>&1
+mix_status=$?
+if [[ "$mix_status" -ne 0 ]]; then
+  printf 'FAIL: --root with a non-repository husk aborted the audit (exit %s)\n' "$mix_status" >&2
+  failures=$((failures + 1))
+elif grep -Fq "Repo: $TMP/mix-root/mix-good" "$ladder_out" &&
+  grep -Fq "Finding: discovery-skip" "$ladder_out" &&
+  grep -A3 -F "Finding: discovery-skip" "$ladder_out" | grep -Fq "$TMP/mix-root/mix-husk" &&
+  grep -Fq "Discovery skips: 1 non-repository, ${EXPECT_MIX_UNREADABLE} unreadable" "$ladder_out" &&
+  ! grep -Fq "Error: not a Git working tree" "$ladder_out"; then
+  printf 'PASS: discovery husk degrades per-entry and audits siblings under --root\n'
+else
+  printf 'FAIL: discovery husk degrades per-entry and audits siblings under --root\n' >&2
+  failures=$((failures + 1))
+fi
+# The same husk named explicitly via --repo remains a hard failure — operator typo, not discovery.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/mix-root/mix-husk" >"$ladder_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a discovery husk did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq "discovery-skip" "$ladder_out"; then
+  printf 'PASS: explicit --repo on a discovery husk still hard-fails\n'
+else
+  printf 'FAIL: explicit --repo on a discovery husk still hard-fails (wrong output)\n' >&2
   failures=$((failures + 1))
 fi
 

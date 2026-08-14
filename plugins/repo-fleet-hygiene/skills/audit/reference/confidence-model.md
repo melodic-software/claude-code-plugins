@@ -53,6 +53,7 @@ failure rather than a discovery.
 | `git-common-dir-unavailable` | The canonical checkout's own `--git-common-dir` could not be resolved | `UNKNOWN` | Stop that repository; registration comparison is impossible |
 | `local-ancestry-unavailable` | `git merge-base --is-ancestor` failed with an error status | `UNKNOWN` | Do not infer local ancestry |
 | `stale-config-entry` | A config-sourced `fleet.root`/`fleet.repo` path is missing or not a Git working tree | `UNKNOWN` | Entry skipped, rest of the fleet still audited; correct or remove the entry |
+| `discovery-skip` | A path discovered under `--root` is unreadable or not a Git working tree despite a `.git` marker | `UNKNOWN` | Path skipped, rest of the fleet still audited; inspect unexpected `.git` markers |
 
 ## What the tiers depend on
 
