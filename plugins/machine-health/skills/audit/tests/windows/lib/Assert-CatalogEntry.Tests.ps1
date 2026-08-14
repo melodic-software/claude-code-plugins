@@ -160,7 +160,12 @@ Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
     # check-result.schema.json, Assert-CatalogEntry, and Assert-CheckResult.
     # A value present in a schema but missing from a validator silently
     # disables every check declaring it (the orchestrator skips entries
-    # Assert-CatalogEntry rejects), so the four copies are pinned together.
+    # Assert-CatalogEntry rejects), and a value present in one validator but
+    # not the other admits an overlay entry whose emitted result is then
+    # rejected - so all four copies are compared exactly, in both directions:
+    # the validators' literal $validCategories sets are extracted from the
+    # AST and matched against the schema enums, and each schema value is also
+    # accepted behaviorally.
     BeforeAll {
         . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
         . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')
@@ -171,10 +176,41 @@ Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
             ConvertFrom-Json
         $script:CatalogCategories = @($checksSchema.'$defs'.CheckEntry.properties.category.enum)
         $script:ResultCategories = @($resultSchema.properties.category.enum)
+
+        function Get-ValidatorCategorySet {
+            param([Parameter(Mandatory)] [string] $Path)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+                $Path, [ref]$null, [ref]$null)
+            $assignments = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $node.Left.Extent.Text -eq '$validCategories'
+                    }, $true))
+            if ($assignments.Count -ne 1) {
+                throw "Expected exactly one `$validCategories assignment in $Path, found $($assignments.Count)."
+            }
+            $right = $assignments[0].Right
+            $expr = if ($right -is [System.Management.Automation.Language.PipelineAst]) {
+                $right.GetPureExpression()
+            } else {
+                $right.Expression
+            }
+            @($expr.SafeGetValue())
+        }
     }
 
     It 'the two schemas declare the same category set' {
         $script:CatalogCategories | Should -Be $script:ResultCategories
+    }
+
+    It 'Assert-CatalogEntry accepts exactly the schema-declared set (both directions)' {
+        $validatorSet = Get-ValidatorCategorySet (Join-Path $script:LibRoot 'Assert-CatalogEntry.ps1')
+        ($validatorSet | Sort-Object) | Should -Be ($script:CatalogCategories | Sort-Object)
+    }
+
+    It 'Assert-CheckResult accepts exactly the schema-declared set (both directions)' {
+        $validatorSet = Get-ValidatorCategorySet (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
+        ($validatorSet | Sort-Object) | Should -Be ($script:ResultCategories | Sort-Object)
     }
 
     It 'Assert-CatalogEntry accepts every schema-declared category' {
