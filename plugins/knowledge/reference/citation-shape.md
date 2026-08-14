@@ -5,9 +5,12 @@ refers to fetched external content. The rule it serves: **tracked outputs cite, 
 the verbatim snapshot stays in the untracked work slice; only the citation crosses into anything
 committed.
 
-Any `knowledge` skill emitting tracked citations conforms to this shape. Skill-internal hashes
-(node span hashes, slug hashes) remain owned by their skill's own format docs; this document
-owns only the citation that leaves the slice.
+Any `knowledge` skill adopting the cite-never-copy rule conforms to this shape for the
+citations it emits into tracked outputs. One shipped emitter predates this contract and does
+not yet conform: `youtube-digest`'s staged `research/sources.md` records URLs without retrieval
+dates or hashes — a known, not-yet-migrated exception; migrating it is a separate decision, not
+implied by this document. Skill-internal hashes (node span hashes, slug hashes) remain owned by
+their skill's own format docs; this document owns only the citation that leaves the slice.
 
 ## Shape
 
@@ -41,11 +44,25 @@ checkable against its slice without re-fetching.
 
 ## Sub-resource anchors (optional extension)
 
-A citation MAY narrow to a region of the resource by appending the emitting skill's
-deterministic node id (e.g. map-corpus `n0007-05b0396b`, whose trailing 8 hex are the first 8 of
-the node's span hash). The anchor never replaces the three required facts; a reader with only
-the base citation can still verify the whole resource. Node-id semantics stay owned by the
-emitting skill's manifest format doc.
+A citation MAY narrow to a region of the resource with the emitting skill's deterministic node
+id (e.g. map-corpus `n0007-05b0396b`, whose trailing 8 hex are the first 8 of the node's span
+hash). Serialization is fixed so independent emitters converge:
+
+- **Inline form** — a fourth comma-separated element inside the parentheses, keyword `node`:
+
+  > `<URL>` (retrieved `<YYYY-MM-DD>`, `sha256:<hex64>`, node `<node-id>`)
+
+- **Structured form** — an optional `node` field beside the three required fields:
+
+  ```json
+  { "url": "…", "retrieved": "…", "sha256": "…", "node": "n0007-05b0396b" }
+  ```
+
+Never a URL fragment — `<URL>#<node-id>` would corrupt the `url` field's identity (fragments
+are dropped by the canonical-URL rule) and suggest the anchor resolves in a browser, which it
+does not. The anchor never replaces the three required facts; a reader with only the base
+citation can still verify the whole resource. Node-id semantics stay owned by the emitting
+skill's manifest format doc.
 
 ## Drift
 
