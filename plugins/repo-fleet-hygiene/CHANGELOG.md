@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2]
+
+### Fixed
+
+- **Moved-identity checkouts keep branch and worktree analysis (#2600).** Emitting
+  `github-remote-moved` no longer reads as a silent stop: evidence states that classification
+  continues against the resolved `full_name`, and the collector regression fixture requires both
+  `merged-worktree` and `merged-local-branch` exact-OID findings from that resolved identity.
+
 ## [0.13.1]
 
 ### Fixed

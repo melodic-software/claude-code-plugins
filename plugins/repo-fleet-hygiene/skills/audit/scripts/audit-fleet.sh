@@ -958,11 +958,15 @@ analyze_repo() {
     expected_default="$GH_ID_DEFAULT"
     expected_reason="$GH_ID_REASON"
     if [[ "$GH_ID_STATUS" == "OK" ]]; then
+      # Resolved identity is the PR/query authority even when the configured remote is stale.
+      # Do not return after github-remote-moved: local branch/worktree facts do not depend on the
+      # remote URL matching full_name, and a silent stop here would look identical to a clean repo.
       github_repo="$expected_actual"
       if [[ "$(lower "$expected_actual")" != "$(lower "$discovered_slug")" ]]; then
         emit_finding HIGH github-remote-moved "$discovered_remote ($discovered_slug -> $expected_actual)" \
-          "GitHub REST resolved the configured remote identity to canonical full_name $expected_actual" \
-          "Human-reviewed remote update" "Review git remote set-url for $discovered_remote in $discovered"
+          "GitHub REST resolved the configured remote identity to canonical full_name $expected_actual; branch and worktree analysis continues against that resolved identity" \
+          "Human-reviewed remote update; local classification is not deferred" \
+          "Review git remote set-url for $discovered_remote in $discovered"
       fi
     elif [[ "$expected_reason" == *"HTTP 404"* || "$expected_reason" == *"HTTP 403"* ]] && is_acked "$discovered_key"; then
       # Acked demotion applies ONLY to the foreseeable-inaccessible statuses;

@@ -87,9 +87,11 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    resolve to the same GitHub repository, stops that repository's local audit before evidence combines.
 2. **GitHub identity:** read the selected fetch remote with `git remote get-url`; accept only
    `github.com/owner/repo`; query `GET /repos/{owner}/{repo}`. If returned `full_name` differs, report
-   `HIGH` transfer/rename evidence. A 404/403/network error is `UNKNOWN`, never "deleted" or "moved".
-   A 404/403 on an identity listed in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still
-   reported, never suppressed; acks never touch non-404/403 failures or successful-response evidence.
+   `HIGH` transfer/rename evidence and **continue** branch/worktree analysis against that resolved
+   identity — a moved remote is not a reason to skip local classification or merge evidence. A
+   404/403/network error is `UNKNOWN`, never "deleted" or "moved". A 404/403 on an identity listed
+   in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still reported, never suppressed; acks
+   never touch non-404/403 failures or successful-response evidence.
 3. **Merged branch:** one batched `gh pr list --repo <this-repo> --state merged --limit 200` query
    per repository, matched locally by branch name — not a per-branch query. Two consequences a
    reader must not assume away. A repository with more merged PRs than the window loses the older
