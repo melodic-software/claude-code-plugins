@@ -206,7 +206,7 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
             { Assert-CheckResult $r } | Should -Not -Throw
         }
 
-        # Severity counts must include the synthetic UNKNOWNs — the defect was
+        # Severity counts must include the synthetic UNKNOWN findings — the defect was
         # that a skipped entry contributed nothing here.
         $severityCounts = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
         foreach ($r in $invalidCatalogResults) { $severityCounts[$r.severity]++ }
