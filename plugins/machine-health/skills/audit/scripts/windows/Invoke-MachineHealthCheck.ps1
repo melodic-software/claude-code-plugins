@@ -58,6 +58,7 @@ $libRoot = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libRoot 'Read-HistoryJsonl.ps1')
 . (Join-Path $libRoot 'ConvertFrom-Jsonc.ps1')
 . (Join-Path $libRoot 'Assert-CatalogEntry.ps1')
+. (Join-Path $libRoot 'New-InvalidCatalogEntryResult.ps1')
 . (Join-Path $libRoot 'Get-ApprovalState.ps1')
 . (Join-Path $libRoot 'Invoke-AllowlistedWeb.ps1')
 . (Join-Path $libRoot 'Get-ElevationMatrix.ps1')
@@ -225,8 +226,9 @@ if ($userLoaded -and -not $Force.IsPresent) {
 }
 
 # Load catalog: JSONC parse (comment-aware) + per-entry schema validation.
-# Invalid entries are skipped with a warning so a single typo does not block
-# the orchestrator from running the rest of the catalog.
+# Invalid entries are skipped for dispatch so a single typo does not block the
+# rest of the catalog, but each skip is synthesized as an UNKNOWN CheckResult
+# so the report / latest.json / severity_counts surface it (not only the run log).
 $catalogPath = Join-Path $skillRoot 'catalog\checks.jsonc'
 $catalog = $null
 try {
@@ -258,13 +260,20 @@ if (Test-Path -LiteralPath $overlayPath) {
 }
 
 $validatedChecks = [System.Collections.Generic.List[object]]::new()
+$invalidCatalogResults = [System.Collections.Generic.List[object]]::new()
+$entryIndex = 0
 foreach ($entry in @($catalog.checks)) {
     try {
         [void](Assert-CatalogEntry $entry -Because $catalogPath)
         $validatedChecks.Add($entry)
     } catch {
         Write-MachineHealthLog "catalog_entry_invalid skip $($_.Exception.Message)"
+        $invalidCatalogResults.Add((New-InvalidCatalogEntryResult `
+                    -Entry $entry `
+                    -Index $entryIndex `
+                    -ErrorMessage $_.Exception.Message))
     }
+    $entryIndex++
 }
 
 $windowsChecks = @($validatedChecks | Where-Object {
@@ -377,6 +386,11 @@ $batteryReportPath = Join-Path $logsDir "battery-report-$runStamp.html"
 $ranCheckIds = [System.Collections.Generic.List[string]]::new()
 
 $checkResults = [System.Collections.Generic.List[object]]::new()
+# Surface Assert-CatalogEntry failures through the normal reporting path first
+# so a registered-but-invalid check cannot silently vanish from the report.
+foreach ($invalidResult in $invalidCatalogResults) {
+    $checkResults.Add($invalidResult)
+}
 foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
     if (-not (Test-Path -LiteralPath $scriptPath)) {

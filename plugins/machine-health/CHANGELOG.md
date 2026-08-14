@@ -3,6 +3,22 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Fixed
+
+- **Invalid catalog entries now surface as UNKNOWN findings, not silent run-log skips
+  (#2575).** When `Assert-CatalogEntry` rejected an entry, the orchestrator continued
+  (correct for availability) but only wrote `catalog_entry_invalid skip …` to the run
+  log — so `latest.json`, severity counts, the rendered report, and the run delta showed
+  nothing. A registered check with a typo (the field case: `chezmoi-drift` declaring a
+  category outside the enum) was indistinguishable from a check that was never
+  registered. Each rejected entry now synthesizes a schema-valid `UNKNOWN` CheckResult
+  (`ran_successfully: false`, error = the assertion message) via
+  `New-InvalidCatalogEntryResult` and feeds the normal reporting path. Id stays the
+  entry's kebab-valid `id` when present, else a collision-free synthetic id; category stays
+  the declared value when legal, else `reliability`.
+
 ## [0.10.1]
 
 ### Fixed

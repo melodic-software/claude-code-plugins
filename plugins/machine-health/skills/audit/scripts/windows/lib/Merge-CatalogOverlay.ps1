@@ -15,8 +15,9 @@ under the state base: catalog/checks.local.jsonc. Merge semantics:
 
 Entries are never deleted by an overlay -- set "enabled": false or
 "deprecated": true instead. Callers validate each merged entry with
-Assert-CatalogEntry afterwards, so a malformed overlay entry is skipped with
-a warning rather than blocking the run.
+Assert-CatalogEntry afterwards; a malformed overlay entry is not dispatched,
+but the orchestrator synthesizes an UNKNOWN CheckResult so the skip appears
+in the report rather than only in the run log.
 #>
 
 function Merge-CatalogOverlay {
