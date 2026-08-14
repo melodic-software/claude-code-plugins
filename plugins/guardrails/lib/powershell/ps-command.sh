@@ -256,10 +256,23 @@ ps::call_target_is_interpolating_string() {
 # possibly-git. Over-inclusive by construction — it only gates the fail-closed
 # branch, so a false positive costs at most an over-block on a command that also
 # carries an unparsable construct.
+#
+# The literal `git` probe is COMMAND-POSITION, not a substring scan (#2592). A
+# predecessor of any non-alnum (the earlier shape) fired on hyphenated identifiers
+# (`block-dangerous-git`, `NO-GIT`) and on an intermediate path directory
+# (`…\Git\bin\bash.exe`), engaging the fail-closed sink for PowerShell that never
+# invokes git. Command-position predecessors are statement/pipeline boundaries,
+# path separators, and quotes (so `& 'git'` / `C:\…\git.exe` still count); the
+# trailing boundary excludes a further `/` or `\` so `git` must be the final path
+# component, not a directory name. `.git` stays inert because `.` is not a
+# command-position predecessor.
 ps::might_invoke_git() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] && return 0
+  # Predecessor class includes `:` so a drive-relative `& 'C:git.exe'` still
+  # counts (Codex #2592 review) and `=` so `$x=git …` (no space) still counts
+  # (Claude #2592 review), while `.git` stays inert (`.` is not listed).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   # Call / dot-source of a COMPUTED target — `& $x …`, `& (…)`, `& "$x" …`,
   # `. $x …` — which could resolve to git. A CONSTANT target (`& 'git' …`,
@@ -285,7 +298,8 @@ ps::might_invoke_git() {
 ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] || return 1
+  # Same command-position git probe as ps::might_invoke_git (#2592).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit|push|reset|rebase|checkout|merge|cherry-pick|revert|stash|am|tag|notes|worktree)([^[:alnum:]_.-]|$) ]] &&
     return 1
   return 0
@@ -474,6 +488,11 @@ ps::classify_git_command() {
   # `.exe` only on its msys/cygwin branch.
   local reduced="${PS_BLANKED//\\//}"
   reduced=$(printf '%s' "$reduced" | sed -E 's/[Gg][Ii][Tt]\.[Ee][Xx][Ee]/git/g')
+  # PowerShell `$var=cmd` / `$var+=cmd` begins a new pipeline on the RHS without
+  # requiring whitespace. Bash expands `$var` and leaves `=cmd` as a non-git
+  # word, so strip the assignment prefix so the RHS command word is visible
+  # (Claude review on #2592: `$x=git reset --hard`).
+  reduced=$(printf '%s' "$reduced" | sed -E 's/\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*(\+=|-=|\*=|\/=|%=|=)[[:space:]]*/ /g')
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
   PS_SAFE_COMMAND="$reduced"

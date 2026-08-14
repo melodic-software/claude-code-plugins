@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.23]
+
+### Fixed
+
+- **Assignment without spaces (`$x=git …`) still counts as git (Claude review on #2592).** The command-position predecessor class now includes `=` so `$x=git reset --hard` (including inside `{}`/`()`) remains blocked, and the Bash hand-off strips a PowerShell `$var=` / `$var+=` prefix so the RHS command word is visible to the tokenizer.
+
+- **Drive-relative `C:git.exe` still counts as git (Codex review on #2592).** The command-position predecessor class now includes `:` so `& 'C:git.exe' --% reset --hard` remains blocked.
+
+- **PowerShell git probe matches `git` in command position only (#2592).**
+  `ps::might_invoke_git` (and the twin probe in `ps::git_command_is_readonly`) no
+  longer treats any `git` substring as an invocation. Hyphenated identifiers
+  (`block-dangerous-git`, `NO-GIT`), `.git` directory names, and an intermediate
+  path directory named `Git` no longer engage the fail-closed sink when paired
+  with ordinary `{}`/`()` PowerShell grouping. Real `git` / `git.exe` command
+  words — including path-qualified and quoted forms — still do.
+
 ## [0.28.22]
 
 ### Changed

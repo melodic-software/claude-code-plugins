@@ -782,6 +782,42 @@ run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
 run_pwsh "PS: non-git unparsable command (allowed — not git-shaped)" \
   'Remove-Item $(Get-Foo)' 0
 
+# --- #2592: git probe is command-position, not a substring -----------------------
+# A PowerShell scriptblock (`{}`) is ordinary idiomatic PowerShell. The sink used
+# to engage on ANY `git` substring — including `.git` directory names and
+# hyphenated identifiers like `block-dangerous-git` / `NO-GIT` — then fail closed
+# on the braces. Command-position matching leaves those alone while still
+# catching a real git invocation paired with the same braces.
+# shellcheck disable=SC2016
+run_pwsh "PS: .git directory name in scriptblock (allowed — #2592, no git command)" \
+  "Get-ChildItem -LiteralPath \$p -Recurse -Force -Directory | Where-Object { \$_.Name -in @('node_modules','obj','bin','.git') } | ForEach-Object { \$_.FullName }" 0
+run_pwsh "PS: hyphenated -git identifier in scriptblock (allowed — #2592)" \
+  "foreach (\$x in @('alpha-block-dangerous-git')) { Write-Host \$x }" 0
+run_pwsh "PS: NO-GIT label in scriptblock (allowed — #2592)" \
+  "foreach (\$x in @('NO-GIT')) { Write-Host \$x }" 0
+# Quoted argument text naming git/PowerShell must not engage the sink either —
+# the title string is data, not a command word (#2592 comment).
+run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
+  "gh issue create --title 'guardrails: block-dangerous-git.sh blocks PowerShell commands'" 0
+# Intermediate path directory named Git is not a git invocation.
+run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" \
+  "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
+# Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
+run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
+  "& 'C:git.exe' --% reset --hard" 2
+# Assignment RHS is a new pipeline without requiring whitespace — `$x=git …`
+# must still count as command-position git (Claude review on #2592).
+run_pwsh "PS: assignment without spaces \$x=git reset --hard (blocked)" "\$x=git reset --hard" 2
+
+# Positive controls: the same scriptblock shape WITH a real git command still
+# fails closed / blocks, so the narrowing did not open a bypass.
+run_pwsh "PS: git reset --hard inside scriptblock (still fail-closed, #2592)" \
+  "1..1 | ForEach-Object { git reset --hard }" 2
+run_pwsh "PS: git clean -fd still blocked after command-position fix" \
+  "git clean -fd" 2
+run_pwsh "PS: git checkout . still blocked after command-position fix" \
+  "git checkout ." 2
+
 # Launcher-spelling parity (review round 4): the .exe-suffixed spellings of the
 # covered launchers and the `start` alias of Start-Process are the same
 # see-through surface — a spelling gap, not a new launcher class.
