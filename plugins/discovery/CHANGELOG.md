@@ -21,7 +21,6 @@
   against the skills page (fetched 2026-08-14); turn-scoped grants still cannot
   cover the post-dispatch gate, so the plugin still ships none.
 
-
 ## [0.15.3]
 
 ### Fixed
