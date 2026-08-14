@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1]
+
+### Fixed
+
+- **`merged-pr-tip-drift` evidence no longer claims commits "may never have been pushed" (#2603).**
+  Absence from the last-fetched remote-tracking ref does not prove the tip was never on GitHub —
+  post-merge head deletion plus prune is the common case, and the tip object may still exist on the
+  remote. The non-matching push-state clause now states that the tip differs from the merged PR
+  `headRefOid` and that commits may still be on the remote.
+
 ## [0.13.0]
 
 ### Added
