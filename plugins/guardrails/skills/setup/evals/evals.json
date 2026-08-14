@@ -1,0 +1,53 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-default-and-read-only",
+      "prompt": "/guardrails:setup",
+      "expected_output": "Routes to check (the default action): probes Bash 5.0+, jq presence, each guard's effective toggle, the cli-flag-verify scan surface, the block-dangerous-git allowlist, and hook registration. Reports a PASS/FAIL/INFO table with one remediation line per FAIL. Edits nothing — every tunable is native userConfig.",
+      "files": [],
+      "expectations": [
+        "Routes to the check action when no argument is given",
+        "Reports PASS/FAIL/INFO for Bash, jq, and per-guard toggles rather than inventing configuration",
+        "Does not write settings, pluginConfigs, or any consumer-project file during check"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-points-only-never-writes",
+      "prompt": "/guardrails:setup apply",
+      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq or old Bash, and /plugin configure guardrails (or the documented headless uninstall/reinstall --config sequence) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
+      "files": [],
+      "expectations": [
+        "Runs check before offering remediations",
+        "Points at /plugin configure or the documented headless reconfigure sequence for toggle changes",
+        "Never installs system packages and never writes user settings or pluginConfigs"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "disabled-guards-downgrade-prereq-failures",
+      "prompt": "/guardrails:setup check\n\nEvery guard toggle is disabled on this machine and jq is missing.",
+      "expected_output": "When every guard's toggle is disabled, the missing-jq prerequisite downgrades from FAIL to INFO — a deliberately disabled plugin is not broken. Reports the probes informationally and notes that re-enabling restores the FAIL semantics.",
+      "files": [],
+      "expectations": [
+        "Treats missing jq as INFO rather than FAIL when every guard toggle is disabled",
+        "Notes that re-enabling a guard restores the FAIL semantics for prerequisites",
+        "Does not claim the plugin is broken solely because jq is absent while all guards are off"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "install-commit-msg-is-opt-in-only",
+      "prompt": "/guardrails:setup apply",
+      "expected_output": "Bare apply does not install the commit-msg hook. The DEPTH-layer commit-msg convention hook installs only when the explicit `apply install-commit-msg` argument is given; it writes only the operator's personal .git/hooks/ lane and never a committed team hooksPath.",
+      "files": [],
+      "expectations": [
+        "Does not install a commit-msg hook from bare apply",
+        "States that install-commit-msg is the opt-in argument that installs the personal hook",
+        "Does not configure core.hooksPath or write a tracked team hooks directory from this skill"
+      ]
+    }
+  ]
+}

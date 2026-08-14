@@ -136,10 +136,40 @@ has_drive_root_tmp() {
   return 1
 }
 
+# Replace `>` that sit inside single- or double-quoted spans so a prose mention
+# such as `git commit -m "echo x > /tmp/x"` is not treated as a redirect, while
+# a real redirect whose *target* is quoted (`echo x > "/tmp/x"`) still matches.
+mask_quoted_redirect_ops() {
+  local s="$1" out="" i=0 c quote=""
+  local -i len=${#s}
+  while ((i < len)); do
+    c="${s:i:1}"
+    if [[ -n "$quote" ]]; then
+      if [[ "$c" == "$quote" ]]; then
+        quote=""
+        out+="$c"
+      elif [[ "$c" == '>' ]]; then
+        out+='#'
+      else
+        out+="$c"
+      fi
+    else
+      if [[ "$c" == "'" || "$c" == '"' ]]; then
+        quote="$c"
+      fi
+      out+="$c"
+    fi
+    i=$((i + 1))
+  done
+  printf '%s' "$out"
+}
+
 # Write-shaped signal: a redirect whose target word is a drive-root tmp path.
 # Covers `> /tmp/x`, `>/tmp/x`, `>>/tmp/x`, `2>/tmp/err`, `&>/tmp/x`.
+# Redirect operators inside quotes are ignored (see mask_quoted_redirect_ops).
 has_redirect_to_drive_root_tmp() {
-  local s="$1"
+  local s
+  s=$(mask_quoted_redirect_ops "$1")
   # Optional fd digits and optional & (&>), then > or >>, optional space/quotes,
   # then a drive-root tmp path. Angle brackets in the right-boundary class are
   # literal characters (not GNU \< \> word-boundaries) — keep them unescaped so
@@ -151,32 +181,131 @@ has_redirect_to_drive_root_tmp() {
   return 1
 }
 
-# Write-shaped signal: a known producer / destination utility alongside a
-# drive-root tmp path. Echo/printf alone are NOT enough (they write stdout, and
-# a prose mention of /tmp must stay allowed).
-has_write_utility_with_drive_root_tmp() {
-  local s="$1"
-  has_drive_root_tmp "$s" || return 1
+# Split a (already lowercased, slash-normalized) command on unquoted shell
+# control operators so `mkdir ./out && cat /tmp/x` is inspected per segment.
+# Emits NUL-terminated segments on stdout.
+split_shell_segments() {
+  local s="$1" out="" i=0 c quote="" nex
+  local -i len=${#s}
+  while ((i < len)); do
+    c="${s:i:1}"
+    if [[ -n "$quote" ]]; then
+      if [[ "$c" == "$quote" ]]; then
+        quote=""
+      fi
+      out+="$c"
+      i=$((i + 1))
+      continue
+    fi
+    if [[ "$c" == "'" || "$c" == '"' ]]; then
+      quote="$c"
+      out+="$c"
+      i=$((i + 1))
+      continue
+    fi
+    # Control operators: ; | & and digraphs && ||
+    if [[ "$c" == ';' || "$c" == '|' || "$c" == '&' ]]; then
+      printf '%s\0' "$out"
+      out=""
+      nex="${s:i+1:1}"
+      if [[ ( "$c" == '&' || "$c" == '|' ) && "$nex" == "$c" ]]; then
+        i=$((i + 2))
+      else
+        i=$((i + 1))
+      fi
+      continue
+    fi
+    out+="$c"
+    i=$((i + 1))
+  done
+  printf '%s\0' "$out"
+}
 
-  # POSIX creators / copy destinations / tee
-  if [[ "$s" =~ (^|[[:space:];|&])(tee|mktemp|mkdir|touch|install|cp|mv|dd|install\.exe|tee\.exe)([[:space:]]|$) ]]; then
-    return 0
+# Last non-option token of a utility segment — the usual destination for cp/mv
+# and Copy-Item/Move-Item. Flags of the form -x / --long are skipped; a flag
+# that consumes a path (-t / --target-directory / -destination) treats the next
+# token as the destination immediately.
+segment_destination_operand() {
+  local subject="$1" tok dest="" expect_dest=0
+  local -a tokens=()
+  # Intentional word-split of the static matcher subject into tokens.
+  # shellcheck disable=SC2206
+  tokens=( $subject )
+  for tok in "${tokens[@]}"; do
+    tok="${tok#\'}"
+    tok="${tok%\'}"
+    tok="${tok#\"}"
+    tok="${tok%\"}"
+    if ((expect_dest)); then
+      dest="$tok"
+      expect_dest=0
+      continue
+    fi
+    case "$tok" in
+    -t | --target-directory | --target-directory=* | -destination | -destination:* | -dest | -dest:*)
+      if [[ "$tok" == *=* || "$tok" == *:* ]]; then
+        dest="${tok#*=}"
+        dest="${dest#*:}"
+      else
+        expect_dest=1
+      fi
+      ;;
+    -*)
+      continue
+      ;;
+    tee | mktemp | mkdir | touch | install | cp | mv | dd | install.exe | tee.exe | \
+    set-content | add-content | out-file | tee-object | new-item | export-clixml | \
+    export-csv | copy-item | move-item | copy | move | cpi | mi | ac | ni)
+      # command word — skip
+      ;;
+    *)
+      dest="$tok"
+      ;;
+    esac
+  done
+  printf '%s' "$dest"
+}
+
+# True when a segment's destination-shaped operand is a drive-root tmp path.
+# Creators (mkdir/touch/…) treat any drive-root path argument as a write;
+# copy/move utilities bind only the destination operand.
+segment_writes_drive_root_tmp() {
+  local subject="$1" dest
+  # Creators / content writers: any drive-root tmp path in the segment is a write.
+  if [[ "$subject" =~ (^|[[:space:]])(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|$) ]] ||
+    [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
+    [[ "$subject" =~ (^|[[:space:]])(ac|ni)([[:space:]]|$) ]]; then
+    has_drive_root_tmp "$subject" && return 0
+    return 1
   fi
-  # PowerShell file-write cmdlets (and common aliases ac / ni). `sc` is NOT
-  # matched alone — on PS 7 it is sc.exe; block-hook-bypass already models the
-  # 5.1 Set-Content form separately. Out-File / Set-Content / Add-Content /
-  # Tee-Object / New-Item are unambiguous writers.
-  if [[ "$s" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]]; then
-    return 0
-  fi
-  if [[ "$s" =~ (^|[[:space:];|&])(ac|ni)([[:space:]]|$) ]]; then
-    return 0
+  # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
+  if [[ "$subject" =~ (^|[[:space:]])(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|$) ]]; then
+    dest=$(segment_destination_operand "$subject")
+    [[ -n "$dest" ]] || return 1
+    has_drive_root_tmp "$dest" && return 0
+    return 1
   fi
   # Inline python write opening a drive-root tmp path
-  if [[ "$s" =~ (open|write_text|write_bytes|makedirs)\( ]] &&
-    [[ "$s" =~ (\/tmp|\/[a-z]\/tmp|[a-z]:\/tmp) ]]; then
+  if [[ "$subject" =~ (open|write_text|write_bytes|makedirs)\( ]] &&
+    [[ "$subject" =~ (\/tmp|\/[a-z]\/tmp|[a-z]:\/tmp) ]]; then
     return 0
   fi
+  return 1
+}
+
+# Write-shaped signal: a known producer / destination utility whose write
+# target is a drive-root tmp path. Echo/printf alone are NOT enough (they write
+# stdout, and a prose mention of /tmp must stay allowed). Compound commands are
+# inspected per segment so `mkdir ./out && cat /tmp/src` stays allowed.
+has_write_utility_with_drive_root_tmp() {
+  local s="$1" piece
+  has_drive_root_tmp "$s" || return 1
+  while IFS= read -r -d '' piece; do
+    [[ -n "${piece//[[:space:]]/}" ]] || continue
+    if segment_writes_drive_root_tmp "$piece"; then
+      return 0
+    fi
+  done < <(split_shell_segments "$s")
   return 1
 }
 

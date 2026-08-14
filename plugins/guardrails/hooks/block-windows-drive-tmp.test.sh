@@ -84,14 +84,21 @@ run_win_pwsh "PS: New-Item /c/tmp/x (blocked)" 'New-Item -Path /c/tmp/x -ItemTyp
 run_win_pwsh "PS: Add-Content C:/tmp/x (blocked)" 'Add-Content -Path C:/tmp/x -Value hi' 2
 
 # --- Legitimate platform temp / POSIX variants (allowed) ---------------------
+# Literal $TEMP / $env:TEMP in fixture strings must not expand in this test process.
+# shellcheck disable=SC2016
 run_win "redirect >\$TEMP/x (allowed)" 'echo x > $TEMP/x' 0
+# shellcheck disable=SC2016
 run_win "redirect >\$TMP/x (allowed)" 'echo x > $TMP/x' 0
+# shellcheck disable=SC2016
 run_win "redirect >\$TMPDIR/x (allowed)" 'echo x > $TMPDIR/x' 0
 run_win "redirect >%TEMP%/x literal (allowed)" 'echo x > %TEMP%/x' 0
 run_win "redirect >/var/tmp/x (allowed)" 'echo x > /var/tmp/x' 0
 run_win "mkdir /var/tmp/x (allowed)" 'mkdir -p /var/tmp/x' 0
+# shellcheck disable=SC2016
 run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0
+# shellcheck disable=SC2016
 run_win_pwsh "PS: Set-Content \$env:TEMP (allowed)" 'Set-Content -Path $env:TEMP\x -Value hi' 0
+# shellcheck disable=SC2016
 run_win_pwsh "PS: Out-File \$env:TMP (allowed)" 'Out-File -FilePath $env:TMP\x -InputObject hi' 0
 
 # --- Non-write mentions (allowed) --------------------------------------------
@@ -101,6 +108,17 @@ run_win "cat /tmp/x (read, allowed)" 'cat /tmp/x' 0
 run_win "relative ./tmp (allowed)" 'echo x > ./tmp/x' 0
 run_win "path component foo/tmp (allowed)" 'echo x > foo/tmp/x' 0
 run_win "unrelated command (allowed)" 'git status' 0
+# Redirect operator inside a quoted message must not fail closed (#2594 review).
+run_win "quoted prose redirect (allowed)" 'git commit -m "Example: echo x > /tmp/x"' 0
+run_win "single-quoted prose redirect (allowed)" "printf '%s' 'echo > /tmp/x'" 0
+# Source-only /tmp with a writer elsewhere must stay allowed.
+run_win "cp from /tmp (allowed)" 'cp /tmp/source ./dest' 0
+run_win "compound mkdir then cat /tmp (allowed)" 'mkdir ./out && cat /tmp/source' 0
+
+# --- PowerShell copy/move destinations (blocked) -----------------------------
+run_win_pwsh "PS: Copy-Item to C:\\tmp (blocked)" 'Copy-Item .\a C:\tmp\a' 2
+run_win_pwsh "PS: Move-Item to C:\\tmp (blocked)" 'Move-Item .\a C:\tmp\a' 2
+run_win_pwsh "PS: copy alias to /tmp (blocked)" 'copy .\a /tmp/a' 2
 
 # --- Kill switch -------------------------------------------------------------
 run_win "kill switch disables guard" 'echo x > /tmp/x' 0 \
