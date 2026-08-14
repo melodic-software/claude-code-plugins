@@ -178,12 +178,17 @@ is the documented path for cloud sessions (see
   [resolves against the repository's checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths)
   — cloud sessions install from the clone at session start; local collaborators are prompted
   once they trust the folder.
-- `enabledPlugins` turns on a deliberately lean default set, curated to mirror this repo's own
-  gates rather than everything the marketplace ships (every enabled plugin adds per-turn context
-  cost): the six format/lint-on-edit hooks (`markdown-format`, `bash-format`, `biome-format`,
-  `typos-format`, `actionlint`, `eol-normalizer`), plus `guardrails`, `source-control`, and
-  `skill-quality`. The session-start hook provisions every tool those hooks shell out to.
-- Everything else stays on demand: `/plugin install <name>@melodic-software` in any session.
+- `enabledPlugins` turns on the whole catalog, so this repo dogfoods everything it publishes and a
+  regression in any plugin surfaces here first. The trade is context: every enabled plugin adds
+  per-turn cost, so a *consumer* repo should enable only the plugins it needs rather than copying
+  this set wholesale. The session-start hook provisions every tool the format/lint-on-edit hooks
+  (`markdown-format`, `bash-format`, `biome-format`, `typos-format`, `actionlint`,
+  `eol-normalizer`) shell out to.
+- Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
+  without disturbing the rest. Two entries carry required `userConfig` credentials that are unset
+  here — `miro` (`miro_api_token`) and `dometrain` (`dometrain_api_key`) — so their bundled MCP
+  servers exit at startup until configured; set them with `/plugin configure`, or flip those two
+  to `false` if a session shouldn't try.
 
 ### GitHub MCP tools vs the gh CLI
 

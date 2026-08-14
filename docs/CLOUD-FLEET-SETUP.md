@@ -36,7 +36,7 @@ Go plus the module `toolchain` mechanism covers this); **PowerShell** (`pwsh` â€
 
 | Repo | Stack / pins | `.claude/` today | Cloud needs beyond the shared env |
 |---|---|---|---|
-| claude-code-plugins | Node (`.node-version`), npm, ruff, lint pins | Full bootstrap hook exists but is **not registered** (see [findings](#findings)); marketplace declared (`directory` source) | Re-register the SessionStart hook (and decide `enabledPlugins`) |
+| claude-code-plugins | Node (`.node-version`), npm, ruff, lint pins | Full bootstrap hook exists but is **not registered** (see [findings](#findings)); marketplace declared (`directory` source); full catalog enabled | Re-register the SessionStart hook |
 | medley | .NET 10.0.302 (repo-local `.dotnet` supported), Node 24.18.0, Python 3.14, npm, Playwright visual CI | Rich guard/telemetry hooks, 54 plugins, 13 `.mcp.json` servers â€” **no dependency bootstrap hook** | Add bootstrap hook: .NET into `.dotnet`, `npm ci`, `uv sync`; Playwright browsers on demand |
 | github-iac | .NET 10.0.302, Pulumi (C#), Node 24.18.0, npm | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (.NET, `npm ci`); `pulumi` CLI only if sessions should run previews |
 | ci-workflows | .NET 10.0.400, pwsh + Pester + PSScriptAnalyzer, Go fixtures | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (.NET 10.0.400); pwsh comes from the shared env |
