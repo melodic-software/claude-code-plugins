@@ -98,6 +98,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/hook-failure-audit.sh",
+            "timeout": 10,
+            "statusMessage": "Checking for unsurfaced hook failures..."
+          }
+        ]
+      }
     ]
   }
 }
