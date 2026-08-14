@@ -197,5 +197,5 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
 - **Two-level nesting is a hard bound.** `<epic>/<slug>/` — deeper is a major topic-docs contract
   change adopted fleet-wide, not a local choice.
 - **Tracked outputs cite, never copy.** URL + retrieval date + content hash only; the verbatim
-  snapshot lives in the untracked slice. That citation shape still needs an owner doc before a
-  second skill emits it (Brief captured assumption).
+  snapshot lives in the untracked slice. The citation shape is owned by
+  [`reference/citation-shape.md`](../../reference/citation-shape.md) at the plugin root.
