@@ -805,6 +805,9 @@ run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bas
 # Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
 run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
   "& 'C:git.exe' --% reset --hard" 2
+# Assignment RHS is a new pipeline without requiring whitespace — `$x=git …`
+# must still count as command-position git (Claude review on #2592).
+run_pwsh "PS: assignment without spaces \$x=git reset --hard (blocked)" "\$x=git reset --hard" 2
 
 # Positive controls: the same scriptblock shape WITH a real git command still
 # fails closed / blocks, so the narrowing did not open a bypass.

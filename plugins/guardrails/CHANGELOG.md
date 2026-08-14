@@ -7,6 +7,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
+- **Assignment without spaces (`$x=git …`) still counts as git (Claude review on #2592).** The command-position predecessor class now includes `=` so `$x=git reset --hard` remains blocked.
+
 - **Drive-relative `C:git.exe` still counts as git (Codex review on #2592).** The command-position predecessor class now includes `:` so `& 'C:git.exe' --% reset --hard` remains blocked.
 
 - **PowerShell git probe matches `git` in command position only (#2592).**

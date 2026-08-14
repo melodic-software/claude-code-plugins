@@ -270,8 +270,9 @@ ps::might_invoke_git() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
   # Predecessor class includes `:` so a drive-relative `& 'C:git.exe'` still
-  # counts (Codex #2592 review) while `.git` stays inert (`.` is not listed).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
+  # counts (Codex #2592 review) and `=` so `$x=git …` (no space) still counts
+  # (Claude #2592 review), while `.git` stays inert (`.` is not listed).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   # Call / dot-source of a COMPUTED target — `& $x …`, `& (…)`, `& "$x" …`,
   # `. $x …` — which could resolve to git. A CONSTANT target (`& 'git' …`,
@@ -298,7 +299,7 @@ ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
   # Same command-position git probe as ps::might_invoke_git (#2592).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit|push|reset|rebase|checkout|merge|cherry-pick|revert|stash|am|tag|notes|worktree)([^[:alnum:]_.-]|$) ]] &&
     return 1
   return 0
