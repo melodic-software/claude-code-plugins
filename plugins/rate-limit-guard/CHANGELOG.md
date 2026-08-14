@@ -10,7 +10,12 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 - **bench:** commit the benchmark harness that produced #2521's render-path measurements
   (`bench/bench-idle.sh`, `bench/bench-load.sh`, `bench/trace-probe.sh`, `bench/lib-bench.sh`),
   adapted to run from a clean checkout against the repo's own tee, with `bench/README.md`
-  recording the baseline numbers, platform, and spawn-floor method (#2582).
+  recording the baseline numbers, platform, and spawn-floor method, and `bench/bench.test.sh`
+  smoke-testing the harness in CI — behaviour and output shape only, never timing (#2582).
+  Review hardening over the scratch originals: fork-free timer reads (`printf -v`, no command
+  substitution), a loud bash >= 5.0 refusal instead of an `EPOCHREALTIME` unbound-variable
+  abort, render failures abort a lane instead of being timed, and the load lane's
+  pad-to-one-second arithmetic no longer sleeps 0.1 s when a render took 0 ms.
 
 ## [0.7.3]
 

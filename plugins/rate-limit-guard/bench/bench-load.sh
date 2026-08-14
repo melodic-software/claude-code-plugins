@@ -12,29 +12,43 @@ SESSIONS="${1:-10}"
 SECS="${2:-60}"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
+FAIL_MARKER="$OUT/render-failed"
 
-FLOOR_BEFORE="$(spawn_floor 11)"
+FLOOR_BEFORE="$(spawn_floor)"
 
 session_worker() {
-  local id="$1" deadline="$2" log="$3" t0 t1
+  local id="$1" deadline="$2" log="$3" t0 t1 now spent
   local payload="${BENCH_PAYLOAD/bench-0000/bench-$id}"
-  while (($(now_ms) < deadline)); do
-    t0="$(now_ms)"
-    printf '%s' "$payload" | bash "$STATUSLINE_ENTRY" >/dev/null 2>&1
-    t1="$(now_ms)"
+  while
+    now_ms now
+    ((now < deadline))
+  do
+    now_ms t0
+    if ! render_once "$payload"; then
+      : >"$FAIL_MARKER"
+      return 1
+    fi
+    now_ms t1
     printf '%s\n' "$((t1 - t0))" >>"$log"
-    local spent=$((t1 - t0))
-    ((spent < 1000)) && sleep "0.$(printf '%03d' $((1000 - spent)))"
+    spent=$((t1 - t0))
+    ((spent < 1000)) && sleep "$(pace_sleep_arg "$spent")"
   done
 }
 
-DEADLINE=$(($(now_ms) + SECS * 1000))
+START=0
+now_ms START
+DEADLINE=$((START + SECS * 1000))
 for ((s = 0; s < SESSIONS; s++)); do
   session_worker "$s" "$DEADLINE" "$OUT/s$s.txt" &
 done
 wait
 
-FLOOR_AFTER="$(spawn_floor 11)"
+if [[ -e "$FAIL_MARKER" ]]; then
+  echo "bench-load: a render failed (STATUSLINE_ENTRY=$STATUSLINE_ENTRY); discarding run" >&2
+  exit 1
+fi
+
+FLOOR_AFTER="$(spawn_floor)"
 
 TOTAL=0
 SUM=0

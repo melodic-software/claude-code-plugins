@@ -7,15 +7,20 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/lib-bench.sh"
 
 N="${1:-11}"
-FLOOR_BEFORE="$(spawn_floor 11)"
+FLOOR_BEFORE="$(spawn_floor)"
 declare -a T=()
+t0=0
+t1=0
 for ((i = 0; i < N; i++)); do
-  t0="$(now_ms)"
-  printf '%s' "$BENCH_PAYLOAD" | bash "$STATUSLINE_ENTRY" >/dev/null 2>&1
-  t1="$(now_ms)"
+  now_ms t0
+  if ! render_once "$BENCH_PAYLOAD"; then
+    echo "bench-idle: render failed (STATUSLINE_ENTRY=$STATUSLINE_ENTRY); discarding run" >&2
+    exit 1
+  fi
+  now_ms t1
   T+=("$((t1 - t0))")
 done
-FLOOR_AFTER="$(spawn_floor 11)"
+FLOOR_AFTER="$(spawn_floor)"
 MED="$(printf '%s\n' "${T[@]}" | median)"
 SUM=0
 for x in "${T[@]}"; do SUM=$((SUM + x)); done
