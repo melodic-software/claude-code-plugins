@@ -67,8 +67,9 @@ pristine:
   allowlist; all probed reachable from a cloud session on 2026-08-13, so the documented list may
   be conservative). If the verification session shows the .NET step failing with `403` /
   `x-deny-reason: host_not_allowed`, switch to **Custom**, check **Also include default list of
-  common package managers**, and add: `aka.ms`, `builds.dotnet.microsoft.com`,
-  `download.visualstudio.microsoft.com`.
+  common package managers**, and add: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
+  `download.visualstudio.microsoft.com` (`dot.net` is already on the default list the checkbox
+  retains; it is listed here so the recovery path stands even without the checkbox).
 - **Environment variables**: none. There is no secrets store — anything here is readable by every
   session in the environment. `gh`/git auth comes from the GitHub proxy automatically.
 - **Setup script**: paste the script below.
@@ -84,6 +85,11 @@ export DEBIAN_FRONTEND=noninteractive
 # Track A: apt tools — gh CLI + PowerShell (packages.microsoft.com is allowlisted)
 (
   apt-get update -y || true
+  # gh comes from Ubuntu's own archives: the official cloud-environments worked
+  # example is exactly `apt update && apt install -y gh`, and cli.github.com
+  # (the newer upstream apt repo) is NOT on the default allowlist, so this is
+  # the only Trusted-compatible route. A silent miss here is caught by the
+  # verification checklist's `gh --version` step.
   apt-get install -y gh || true
   . /etc/os-release
   curl -fsSL "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" \
@@ -181,7 +187,8 @@ if [ -f .node-version ]; then
     if [ -s "$NVM_DIR/nvm.sh" ]; then
       set +u
       . "$NVM_DIR/nvm.sh"
-      nvm install "$pin" >/dev/null && nvm alias default "$pin" >/dev/null
+      nvm install "$pin" >/dev/null && nvm alias default "$pin" >/dev/null ||
+        warn "Node $pin install failed; continuing on $(node --version 2>/dev/null || echo 'no node')"
       set -u
     else warn "nvm not found; Node $pin unavailable"; fi
   fi
@@ -203,12 +210,17 @@ if [ -f global.json ]; then
   sdk="$(jq -r '.sdk.version // empty' global.json 2>/dev/null)"
   if [ -n "$sdk" ]; then
     if [ ! -x .dotnet/dotnet ] || ! .dotnet/dotnet --list-sdks 2>/dev/null | grep -q "^$sdk "; then
-      curl -fsSL https://dot.net/v1/dotnet-install.sh |
-        bash -s -- --version "$sdk" --install-dir .dotnet || warn "dotnet $sdk install failed"
+      # Download-then-run: a curl failure piped into bash exits 0 and would mask the miss
+      if ! curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh ||
+        ! bash /tmp/dotnet-install.sh --version "$sdk" --install-dir .dotnet; then
+        warn "dotnet $sdk install failed"
+      fi
     fi
-    env_line "export DOTNET_ROOT=\"$PWD/.dotnet\""
-    # shellcheck disable=SC2016
-    env_line "export PATH=\"$PWD/.dotnet:\$PATH\""
+    if [ -x .dotnet/dotnet ]; then
+      env_line "export DOTNET_ROOT=\"$PWD/.dotnet\""
+      # shellcheck disable=SC2016
+      env_line "export PATH=\"$PWD/.dotnet:\$PATH\""
+    fi
   fi
 fi
 
