@@ -137,18 +137,18 @@ assert_present 'the parent contract ships a literal envelope template' \
   'reference/parent-contract.md' 'Memory root:'
 
 # ---------------------------------------------------------------------------
-# 6. No inert permission grant (#2267 B-F11)
+# 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
 #
-# Per <https://code.claude.com/docs/en/skills>: "Claude Code substitutes
-# ${CLAUDE_SKILL_DIR} and ${CLAUDE_PROJECT_DIR} in two places: the skill's
-# markdown content, and Bash rules in the allowed-tools frontmatter."
-# ${CLAUDE_PLUGIN_ROOT} is not on that list, so a rule written with it stays a
-# literal string and never matches. This plugin's gate scripts live at the
-# PLUGIN root, which ${CLAUDE_SKILL_DIR} — "the skill's subdirectory within the
-# plugin, not the plugin root" — cannot name. So the plugin ships no grant and
-# states the un-run case instead.
+# Per <https://code.claude.com/docs/en/skills> (fetched 2026-08-14): in a plugin
+# skill, Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} in markdown and in Bash
+# rules in allowed-tools. That removes the old "token cannot name these
+# scripts" leg, but a turn-scoped grant still clears before the post-dispatch
+# gate runs, and an interpreter-led Bash(bash …) rule is this repo's
+# permission-rule-hygiene anti-pattern 1. So the plugin still ships no grant
+# and states the un-run case — including that inline is not an escape hatch
+# for it, and that criterion 11 may not be hand-graded.
 # ---------------------------------------------------------------------------
-assert_absent 'no Bash permission rule is written with the non-substituting ${CLAUDE_PLUGIN_ROOT}' \
+assert_absent 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT}' \
   'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}'
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null)"
 if [[ -z "$frontmatter_grants" ]]; then
@@ -159,6 +159,16 @@ else
 fi
 assert_present 'the un-run case is stated' \
   'reference/parent-contract.md' 'could not run'
+assert_present 'pre-flight probes gate invocability before routing' \
+  'reference/parent-contract.md' 'Pre-flight'
+assert_present 'inline is not an escape hatch for an un-runnable gate' \
+  'skills/research/SKILL.md' 'Not an escape-hatch reason'
+assert_present 'criterion 11 fails closed when the script cannot run' \
+  'skills/research/SKILL.md' 'could not run at all is the same FAIL'
+assert_present 'a non-bash coverage twin is shipped' \
+  'scripts/check-coverage-complete.py' 'Python twin'
+assert_present 'parent contract names the Python twin' \
+  'reference/parent-contract.md' 'check-coverage-complete.py'
 
 # ---------------------------------------------------------------------------
 # 7. maxTurns parity (#2267 B-F6)

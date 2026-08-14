@@ -1,5 +1,22 @@
 # Changelog — discovery plugin
 
+## [0.15.4]
+
+### Fixed
+
+- **Acceptance gates fail closed when they cannot run (#2616).** A denied or
+  uninvocable gate is a FAIL on both the dispatch and inline routes — not a
+  reason to take the inline escape hatch, and not a licence to mark criterion 11
+  PASS by reading the coverage ledger. `reference/parent-contract.md` now
+  requires a `--help` pre-flight before committing to a route, prefers shebang
+  path invocation over `bash <script>`, and documents the coverage checker's
+  Python twin (`scripts/check-coverage-complete.py`) for sessions where the Bash
+  tool is blocked but `python3` is reachable. The stale claim that
+  `${CLAUDE_PLUGIN_ROOT}` never substitutes in `allowed-tools` is corrected
+  against the skills page (fetched 2026-08-14); turn-scoped grants still cannot
+  cover the post-dispatch gate, so the plugin still ships none.
+
+
 ## [0.15.3]
 
 ### Fixed

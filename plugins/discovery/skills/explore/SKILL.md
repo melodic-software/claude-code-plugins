@@ -27,6 +27,8 @@ These values orient this session only. The project root is an absolute machine p
 - **Cost** — a dispatched run pays the full six dimensions every time; a single-file question does not need an envelope.
 - **The invoking context is already a subagent** — dispatch-by-default is scoped to the main-conversation boundary. Hoisting, not nesting: the outer dispatch already supplied the fresh context, so a second hop only spends the inner agent's own window.
 
+**Not an escape-hatch reason:** the acceptance gate cannot run in this session. Probe `--help` before committing to either route; a denied or errored probe **halts** — it does not license inline work without the gate. Invocation forms: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+
 **One named alternative:** the **built-in Explore subagent**, for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md` — pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
 
 **Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
@@ -47,7 +49,7 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 2. **The artifact set is actually on disk, and this run put it there:**
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
      --index-name EXPLORE.md \
      --newer-than <that slice>/.explore-dispatch --expect-index <the payload's artifact: value>
    ```
