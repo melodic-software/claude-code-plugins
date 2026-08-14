@@ -620,11 +620,6 @@ emit_one() {
   local block rc
   block=$(emit_marketplace "$1")
   rc=$?
-  # A per-marketplace failure block ({marketplace: {name, error}}) is written to
-  # STDOUT by emit_marketplace and is part of the documented output contract, so
-  # it is passed through verbatim in BOTH modes and never projected: running the
-  # id filter over it would yield nothing and silently downgrade a reported
-  # failure to "no ids matched".
   # A per-marketplace failure block ({marketplace: {name, error}}) goes to
   # STDOUT in report mode (documented output contract) but to STDERR under
   # --ids. The documented consumer is `while read … done < <(… --ids …)`, and a
