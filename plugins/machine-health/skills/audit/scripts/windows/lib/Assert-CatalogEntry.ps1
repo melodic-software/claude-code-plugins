@@ -48,7 +48,7 @@ function Assert-CatalogEntry {
     }
 
     $validCategories = @(
-        'drivers', 'network', 'power', 'reliability',
+        'config', 'drivers', 'network', 'power', 'reliability',
         'security', 'services', 'storage', 'updates'
     )
     if ($Entry.category -notin $validCategories) {

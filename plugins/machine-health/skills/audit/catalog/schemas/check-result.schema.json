@@ -29,7 +29,7 @@
     },
     "category": {
       "type": "string",
-      "enum": ["drivers", "network", "power", "reliability", "security", "services", "storage", "updates"],
+      "enum": ["config", "drivers", "network", "power", "reliability", "security", "services", "storage", "updates"],
       "description": "High-level grouping used for report layout and severity_counts aggregation."
     },
     "os": {

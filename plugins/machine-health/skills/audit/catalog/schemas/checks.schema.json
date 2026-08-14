@@ -37,7 +37,7 @@
         },
         "category": {
           "type": "string",
-          "enum": ["drivers", "network", "power", "reliability", "security", "services", "storage", "updates"]
+          "enum": ["config", "drivers", "network", "power", "reliability", "security", "services", "storage", "updates"]
         },
         "os": {
           "type": "array",
