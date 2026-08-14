@@ -29,17 +29,29 @@
 #   any directory. Both exclude ids explicitly opted out (false) in any scope.
 #   --all: {marketplaces: {"<name>": <single-marketplace shape>, ...}}
 #
-# Output (stdout) with --ids <selector>: NOT JSON — one fully-qualified
-#   `<name>@<marketplace>` id per line, in the order the block carries them,
-#   and nothing else. Selectors, each naming the `sync` step that consumes it:
+# Output (stdout) with --ids <selector>: NOT JSON — one record per line, in the
+#   order the block carries them, and nothing else. Fields are TAB-separated and
+#   the first field is always the fully-qualified `<name>@<marketplace>` id, so
+#   `while IFS=$'\t' read -r id …` reads every selector. Selectors, each naming
+#   the `sync` step that consumes it:
 #     installed-user        installed[] at user scope           (Step 3 update)
-#     current-project       installed[] with currentProject      (Step 2 update)
+#                             fields: id
+#     current-project       installed[] with currentProject     (Step 2 update)
+#                             fields: id, scope — scope is carried because one
+#                             plugin can hold both a project- and a local-scope
+#                             record for the same repo, so the id alone would
+#                             appear twice and pick the wrong `-s` flag
 #     missing-user-install  missing_from_user_install[]         (Step 4 install)
+#                             fields: id
 #     missing-enabled       missing_from_enabled[]              (Step 5 enable)
+#                             fields: id
 #   Zero matches is success with empty output (exit 0), not an error. Reject:
 #   `--ids` with `--all` (no single block to project), or an unknown selector.
-#   This mode exists so a caller never hand-writes `jq -r ... | while read` —
-#   on Windows that reintroduces a CR and corrupts every id but the last. See
+#   A per-marketplace failure block goes to STDERR in this mode (never stdout),
+#   so stdout carries records or nothing — a `< <(… --ids …)` consumer cannot
+#   see the process's exit status and would otherwise read the error JSON as an
+#   id. This mode exists so a caller never hand-writes `jq -r ... | while read`
+#   — on Windows that reintroduces a CR and corrupts every id but the last. See
 #   the emit_ids comment and context/gotchas.md.
 #
 # Exit codes:
@@ -554,6 +566,31 @@ emit_marketplace() {
 
 # --- Id projection (--ids) ---------------------------------------------------
 
+# Map an --ids selector to its jq filter, or fail. Single source of truth for
+# BOTH the parse-time validation and the projection itself, so the accepted set
+# can never drift between "what --ids rejects" and "what --ids can emit".
+#
+# `current-project` carries a SECOND tab-separated field, the record's scope,
+# because Step 2 picks `-s project` vs `-s local` per record. It cannot be
+# derived from the id afterwards: one plugin can hold BOTH a project- and a
+# local-scope record for the same repo (the multi-scope case divergences[]
+# exists to track), so an id-only projection would emit that id twice with
+# nothing to tell the two lines apart.
+ids_selector_filter() {
+  case "$1" in
+  installed-user) printf '%s' '.installed[]? | select(.scope == "user") | .id' ;;
+  current-project) printf '%s' '.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)"' ;;
+  missing-user-install) printf '%s' '.missing_from_user_install[]?' ;;
+  missing-enabled) printf '%s' '.missing_from_enabled[]?' ;;
+  *)
+    echo "ERROR: unknown --ids selector: $1" >&2
+    echo "  expected one of: installed-user, current-project," >&2
+    echo "                   missing-user-install, missing-enabled" >&2
+    return 1
+    ;;
+  esac
+}
+
 # Project one marketplace block down to the plain id list a `sync` step loops.
 # Exists so no CALLER has to write its own `jq -r ... | while read`: on Windows
 # a hand-written jq reintroduces the CR this script's own wrapper strips (the
@@ -564,20 +601,13 @@ emit_marketplace() {
 # byte-identical to the bare-name failure, so it misdirects diagnosis. Output
 # here goes through the same wrapper as every other call, so it is CR-free by
 # construction; see context/gotchas.md.
+# Reject a bad selector at PARSE time (ids_selector_filter below), not here:
+# emit_ids only runs after a marketplace resolves, so a late check would do the
+# whole resolution first and then report exit 1 (marketplace unresolvable) for
+# what is really exit 2 (bad selector) — the wrong code and the wrong cause.
 emit_ids() {
   local block="$1" selector="$2" filter
-  case "$selector" in
-  installed-user) filter='.installed[]? | select(.scope == "user") | .id' ;;
-  current-project) filter='.installed[]? | select(.currentProject == true) | .id' ;;
-  missing-user-install) filter='.missing_from_user_install[]?' ;;
-  missing-enabled) filter='.missing_from_enabled[]?' ;;
-  *)
-    echo "ERROR: unknown --ids selector: $selector" >&2
-    echo "  expected one of: installed-user, current-project," >&2
-    echo "                   missing-user-install, missing-enabled" >&2
-    return 2
-    ;;
-  esac
+  filter=$(ids_selector_filter "$selector") || return 2
   # `[]?` rather than `[]`: a block legitimately missing a key (an empty
   # `installed`, say) yields no ids instead of erroring.
   jq -r "$filter" <<<"$block"
@@ -595,8 +625,24 @@ emit_one() {
   # it is passed through verbatim in BOTH modes and never projected: running the
   # id filter over it would yield nothing and silently downgrade a reported
   # failure to "no ids matched".
+  # A per-marketplace failure block ({marketplace: {name, error}}) goes to
+  # STDOUT in report mode (documented output contract) but to STDERR under
+  # --ids. The documented consumer is `while read … done < <(… --ids …)`, and a
+  # process substitution does NOT propagate its command's exit status, so a JSON
+  # object left on stdout would be read as an id and handed to `claude plugin
+  # update` verbatim. Under --ids stdout carries records or nothing at all.
+  #
+  # Empty-guarded because a failure can come from a branch that returned before
+  # printing; on the success path emit_marketplace always ends in the composed
+  # object, so there is no empty case to guard there.
   if [[ "$rc" -ne 0 ]]; then
-    [[ -n "$block" ]] && printf '%s\n' "$block"
+    if [[ -n "$block" ]]; then
+      if [[ -n "$IDS_SELECTOR" ]]; then
+        printf '%s\n' "$block" >&2
+      else
+        printf '%s\n' "$block"
+      fi
+    fi
     return "$rc"
   fi
   if [[ -n "$IDS_SELECTOR" ]]; then
@@ -653,6 +699,13 @@ if [[ -n "$IDS_SELECTOR" && "$MODE" == "all" ]]; then
   echo "ERROR: --ids cannot be combined with --all" >&2
   echo "  Run --ids once per marketplace with --marketplace <name>." >&2
   exit 2
+fi
+
+# Validate the selector before any marketplace resolution: a typo is a usage
+# error (exit 2) and must report as one, not be masked by whatever the
+# resolution attempt would have returned first.
+if [[ -n "$IDS_SELECTOR" ]]; then
+  ids_selector_filter "$IDS_SELECTOR" >/dev/null || exit 2
 fi
 
 case "$MODE" in

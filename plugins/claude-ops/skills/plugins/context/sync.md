@@ -93,9 +93,22 @@ claude plugin update <id> -s project   # for a currentProject:true entry with sc
 claude plugin update <id> -s local     # for a currentProject:true entry with scope "local"
 ```
 
-`fleet-state.sh --ids current-project` emits exactly those ids, one per line — use it rather than a
+`fleet-state.sh --ids current-project` emits exactly those records — use it rather than a
 hand-written `jq` over `installed[]` (see Step 3 for why the hand-written form breaks on Windows).
-The per-entry `scope` still comes from the JSON, since it decides which `-s` flag each id takes.
+Each line is `<id>\t<scope>`, so the `-s` flag comes off the same line as the id it belongs to:
+
+```bash
+while IFS=$'\t' read -r id scope; do
+  [ -n "$id" ] || continue
+  claude plugin update "$id" -s "$scope"
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids current-project)
+```
+
+The scope rides on the record for a reason: one plugin can hold **both** a `project`- and a
+`local`-scope record for the same repo (the multi-scope case `divergences[]` tracks), and both are
+`currentProject: true`. An id-only list would show that id twice with nothing to distinguish the
+lines — `sort -u`, or pairing against a separately-extracted scope list, would silently drop one of
+the two updates. Do not re-derive scope from the id afterwards.
 
 Do **not** pre-filter on `divergences[]`. `divergences[]` only contains ids with *more than one*
 scope record — a project/local install with no other scope pinning the same id (the common single-

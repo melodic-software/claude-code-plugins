@@ -1018,6 +1018,10 @@ mkdir -p "$case_dir/crlf-bin"
 REAL_JQ="$(command -v jq)"
 {
   printf '#!/usr/bin/env bash\n'
+  # pipefail so the stub reports JQ's status, not sed's. Without it every
+  # invocation exits 0 and a future failure-path case added under this stub
+  # would pass vacuously.
+  printf 'set -o pipefail\n'
   # s/\r*$/\r/ collapses "already CRLF" and "bare LF" to the same one-CR form.
   printf '"%s" "$@" | sed '"'"'s/\\r*$/\\r/'"'"'\n' "$REAL_JQ"
 } >"$case_dir/crlf-bin/jq"
@@ -1047,6 +1051,87 @@ assert_eq "--ids CR regression: ids are byte-exact under a CRLF-emitting jq" \
   "alpha@market1
 beta@market1" "$out"
 
+# current-project carries the scope as a second tab-separated field. The fixture
+# is the case that makes it necessary: ONE plugin holding both a project- and a
+# local-scope record for the current repo, both currentProject:true. An id-only
+# projection emits that id twice with nothing to tell the lines apart, and Step
+# 2 picks the wrong `-s` flag (or drops an update to `sort -u`).
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+proj_root="$case_dir/sample-repo"
+mkdir -p "$proj_root"
+native_proj="$(cygpath -w "$proj_root" 2>/dev/null || echo "$proj_root")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_proj" '{
+    version: 1,
+    plugins: {
+      "alpha@market1": [
+        {scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"},
+        {scope: "local", projectPath: $p, installPath: "y", version: "0.1.0"}
+      ]
+    }
+  }'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+ARGS=(--marketplace market1 --ids current-project)
+out=$(run_ids "$case_dir" CLAUDE_PROJECT_DIR="$proj_root")
+rc=$?
+assert_exit "--ids current-project: exit 0" 0 "$rc"
+assert_eq "--ids current-project: dual-scope install keeps each scope on its own record" \
+  "alpha@market1	project
+alpha@market1	local" "$out"
+# Consume it exactly as sync.md Step 2 documents, and prove the pairing survives.
+pairs=""
+while IFS=$'\t' read -r pid pscope; do
+  [[ -n "$pid" ]] || continue
+  pairs+="${pid}:${pscope} "
+done <<<"$out"
+assert_eq "--ids current-project: Step 2's IFS=tab read recovers both id/scope pairs" \
+  "alpha@market1:project alpha@market1:local " "$pairs"
+
+# --ids also works on the zero-arg default path, not just with --marketplace:
+# both route through emit_one, and this pins that they stay wired together.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+fake_plugin_root="$case_dir/fake-plugin-root"
+mkdir -p "$fake_plugin_root"
+native_root="$(cygpath -w "$fake_plugin_root" 2>/dev/null || echo "$fake_plugin_root")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg root "$native_root" \
+    '{version: 1, plugins: {"this-plugin@market1": [{scope: "user", installPath: $root, version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"this-plugin@market1": true}}'
+ARGS=(--ids installed-user)
+out=$(run_ids "$case_dir" CLAUDE_PLUGIN_ROOT="$fake_plugin_root")
+rc=$?
+assert_exit "--ids on the default (zero-arg) path: exit 0" 0 "$rc"
+assert_eq "--ids on the default (zero-arg) path: emits the resolved marketplace's ids" \
+  "this-plugin@market1" "$out"
+
+# A per-marketplace failure must NOT put its JSON error block on the --ids
+# stdout stream. `done < <(… --ids …)` cannot see the process's exit status, so
+# an error object left on stdout is read as an id and passed straight to
+# `claude plugin update`. Report mode still gets the block on stdout.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{not valid json'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1 --ids installed-user)
+out=$(run_ids "$case_dir")
+rc=$?
+assert_exit "--ids on a broken catalog: nonzero exit" 1 "$rc"
+assert_eq "--ids on a broken catalog: stdout carries no error JSON, only records" "" "$out"
+# Same fixture in report mode still writes the error block to stdout.
+ARGS=(--marketplace market1)
+out_report=$(run_ids "$case_dir")
+assert_contains "report mode on a broken catalog: error block stays on stdout" \
+  "$out_report" '"error"'
+
 # ============================================================================
 # --ids rejections: refused loudly, never a silently-empty list.
 # ============================================================================
@@ -1058,6 +1143,20 @@ out=$(run_state "$case_dir")
 rc=$?
 assert_exit "--ids unknown selector: exit 2" 2 "$rc"
 assert_contains "--ids unknown selector: names the bad selector" "$out" "no-such-selector"
+
+# A bad selector is a USAGE error, so it must report as exit 2 even when the
+# marketplace would itself fail to resolve (exit 1). Guards the ordering: with
+# the selector checked lazily inside emit_ids, resolution runs first and its
+# exit 1 masks the real cause.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplace no-such-marketplace --ids no-such-selector)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--ids bad selector outranks an unresolvable marketplace: exit 2" 2 "$rc"
+assert_contains "--ids bad selector outranks an unresolvable marketplace: reports the selector" \
+  "$out" "no-such-selector"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

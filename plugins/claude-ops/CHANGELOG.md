@@ -7,11 +7,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Added
 
-- **`plugins`:** `fleet-state.sh --ids <selector>` emits the plain id list each `sync` step loops —
-  one fully-qualified `<name>@<marketplace>` per line, CR-free by construction — so no caller
-  hand-writes `jq -r … | while read` over the JSON. Selectors: `installed-user`, `current-project`,
-  `missing-user-install`, `missing-enabled`. Refuses an unknown/absent selector, and `--all`
-  (no single block to project), rather than emitting a silently-empty list (#2578).
+- **`plugins`:** `fleet-state.sh --ids <selector>` emits the id list each `sync` step loops — one
+  record per line, tab-separated, first field always the fully-qualified `<name>@<marketplace>`,
+  CR-free by construction — so no caller hand-writes `jq -r … | while read` over the JSON.
+  Selectors: `installed-user`, `current-project`, `missing-user-install`, `missing-enabled`.
+  `current-project` carries the record's `scope` as a second field, because one plugin can hold both
+  a project- and a local-scope record for the same repo and the id alone cannot pick the right `-s`
+  flag. Refuses an unknown or absent selector (validated at parse time, so it reports as a usage
+  error even when the marketplace is also unresolvable) and `--all` (no single block to project),
+  rather than emitting a silently-empty list. A per-marketplace failure block goes to stderr in this
+  mode, never stdout, since a `< <(…)` consumer cannot see the exit status and would read the error
+  JSON as an id (#2578).
 
 ### Fixed
 
