@@ -8,7 +8,7 @@ Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the s
 2. Load `references/shared/*.md` for semantics, schema, and discovery guidance.
 3. Read this file; note `scripts/macos/NOT_IMPLEMENTED.md` is also present.
 4. Produce a single-check report:
-   - `id: "os-support"`, `category: "platform"`, `severity: "UNKNOWN"`.
+   - `id: "os-support"`, `category: "reliability"`, `severity: "UNKNOWN"`.
    - `summary: "macOS support is scaffolded but not yet implemented."`
    - `commands`: one-liner pointing at this file for porting guidance.
 5. Exit cleanly. No process spawned against Windows scripts. No install attempts. No network calls.
