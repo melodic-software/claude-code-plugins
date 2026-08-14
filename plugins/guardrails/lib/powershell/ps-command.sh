@@ -256,10 +256,20 @@ ps::call_target_is_interpolating_string() {
 # possibly-git. Over-inclusive by construction — it only gates the fail-closed
 # branch, so a false positive costs at most an over-block on a command that also
 # carries an unparsable construct.
+#
+# The literal `git` probe is COMMAND-POSITION, not a substring scan (#2592). A
+# predecessor of any non-alnum (the earlier shape) fired on hyphenated identifiers
+# (`block-dangerous-git`, `NO-GIT`) and on an intermediate path directory
+# (`…\Git\bin\bash.exe`), engaging the fail-closed sink for PowerShell that never
+# invokes git. Command-position predecessors are statement/pipeline boundaries,
+# path separators, and quotes (so `& 'git'` / `C:\…\git.exe` still count); the
+# trailing boundary excludes a further `/` or `\` so `git` must be the final path
+# component, not a directory name. `.git` stays inert because `.` is not a
+# command-position predecessor.
 ps::might_invoke_git() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   # Call / dot-source of a COMPUTED target — `& $x …`, `& (…)`, `& "$x" …`,
   # `. $x …` — which could resolve to git. A CONSTANT target (`& 'git' …`,
@@ -285,7 +295,8 @@ ps::might_invoke_git() {
 ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] || return 1
+  # Same command-position git probe as ps::might_invoke_git (#2592).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit|push|reset|rebase|checkout|merge|cherry-pick|revert|stash|am|tag|notes|worktree)([^[:alnum:]_.-]|$) ]] &&
     return 1
   return 0

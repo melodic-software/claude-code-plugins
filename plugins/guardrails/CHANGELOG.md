@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.23]
+
+### Fixed
+
+- **PowerShell git probe matches `git` in command position only (#2592).**
+  `ps::might_invoke_git` (and the twin probe in `ps::git_command_is_readonly`) no
+  longer treats any `git` substring as an invocation. Hyphenated identifiers
+  (`block-dangerous-git`, `NO-GIT`), `.git` directory names, and an intermediate
+  path directory named `Git` no longer engage the fail-closed sink when paired
+  with ordinary `{}`/`()` PowerShell grouping. Real `git` / `git.exe` command
+  words — including path-qualified and quoted forms — still do.
+
 ## [0.28.22]
 
 ### Changed
