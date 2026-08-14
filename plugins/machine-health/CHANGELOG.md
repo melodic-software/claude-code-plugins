@@ -3,6 +3,15 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Fixed
+
+- **NOT_IMPLEMENTED scaffold docs use a legal check category (#2576).** Linux/macOS
+  `NOT_IMPLEMENTED.md` instructed `category: "platform"`, which is outside the
+  check-result schema enum and would be rejected by `Assert-CheckResult`. Both
+  docs now use `reliability`.
+
 ## [0.10.0]
 
 ### Added
