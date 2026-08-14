@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.11]
+
+### Fixed
+
+- **PowerShell stream merges (`2>&1`, `*>&1`) are no longer flagged as file-overwriting
+  redirection (#2615).** `_POWERSHELL_OUTPUT_REDIRECT` matched the `>` inside `2>&1` because
+  its lookaround only excluded adjacent `<`, `>`, and `=`. In PowerShell `>&` is only ever a
+  stream merge and never designates a file, so ordinary diagnostic commands that capture
+  combined output were prompting as mutations — approval-fatigue noise that blunts real
+  deletion prompts, especially once the belt stays armed for the rest of the session (#2591).
+  The detector now also excludes a following `&`; `2>out.txt` and `'data' > file` still
+  prompt.
+
 ## [0.17.10]
 
 ### Fixed

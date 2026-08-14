@@ -4574,6 +4574,7 @@ class GuardTests(unittest.TestCase):
             "Out-File C:/tmp/file.txt -Force",
             "New-Item C:/tmp/file.txt -ItemType File -Force",
             "'data' > C:/tmp/file.txt",
+            "Get-ChildItem C:/tmp 2>out.txt",
         ):
             result = self.run_guard_powershell(command)
             assert result is not None, command
@@ -4582,6 +4583,17 @@ class GuardTests(unittest.TestCase):
                 result["hookSpecificOutput"]["permissionDecision"],
                 command,
             )
+
+    def test_powershell_stream_merges_are_not_file_redirects(self) -> None:
+        """#2615: `2>&1` / `*>&1` merge streams; they must not prompt as file redirects."""
+        for command in (
+            "bash plugins/disk-hygiene/skills/clean/scripts/hygiene.test.sh 2>&1 | Select-Object -Last 8",
+            "git status --short 2>&1",
+            "Get-ChildItem C:/tmp 1>&2",
+            "Get-ChildItem C:/tmp *>&1",
+            "Get-ChildItem C:/tmp 2>&1 | Select-Object -First 1",
+        ):
+            self.assertIsNone(self.run_guard_powershell(command), command)
 
     def test_powershell_bare_name_mentions_defer_but_engine_identity_denies(self) -> None:
         """F6 (#1112): mentions defer via the invocation classifier; a command
