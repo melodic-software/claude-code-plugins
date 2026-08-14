@@ -968,7 +968,9 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
-_POWERSHELL_OUTPUT_REDIRECT = re.compile(r"(?<![<>])>(?![=>])")
+# Exclude stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
+# streams and never designates a file. File redirects like `2>out.txt` still match.
+_POWERSHELL_OUTPUT_REDIRECT = re.compile(r"(?<![<>])>(?![=>&])")
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path
 # (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
