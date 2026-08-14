@@ -58,7 +58,7 @@ function Assert-CheckResult {
     }
 
     $validCategories = @(
-        'drivers', 'network', 'power', 'reliability',
+        'config', 'drivers', 'network', 'power', 'reliability',
         'security', 'services', 'storage', 'updates'
     )
     $category = & $getField 'category'

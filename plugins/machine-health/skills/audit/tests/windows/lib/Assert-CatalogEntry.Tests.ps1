@@ -60,6 +60,11 @@ Describe 'Assert-CatalogEntry' -Tag 'lib' {
             $entry = New-ValidEntry -Overrides @{ cadence = 'monthly' }
             Assert-CatalogEntry $entry | Should -BeTrue
         }
+
+        It 'accepts the config category (declared-configuration drift checks)' {
+            $entry = New-ValidEntry -Overrides @{ category = 'config' }
+            Assert-CatalogEntry $entry | Should -BeTrue
+        }
     }
 
     Context 'invalid entries' {
@@ -146,6 +151,45 @@ Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'in
         foreach ($entry in $script:Catalog.checks) {
             $expectedPath = Join-Path $script:SkillRoot $entry.script
             Test-Path -LiteralPath $expectedPath | Should -BeTrue -Because "$($entry.id) -> $expectedPath"
+        }
+    }
+}
+
+Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
+    # The category enum lives in four places: checks.schema.json,
+    # check-result.schema.json, Assert-CatalogEntry, and Assert-CheckResult.
+    # A value present in a schema but missing from a validator silently
+    # disables every check declaring it (the orchestrator skips entries
+    # Assert-CatalogEntry rejects), so the four copies are pinned together.
+    BeforeAll {
+        . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
+        . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')
+        $schemasRoot = Join-Path $script:SkillRoot 'catalog\schemas'
+        $checksSchema = Get-Content -LiteralPath (Join-Path $schemasRoot 'checks.schema.json') -Raw |
+            ConvertFrom-Json
+        $resultSchema = Get-Content -LiteralPath (Join-Path $schemasRoot 'check-result.schema.json') -Raw |
+            ConvertFrom-Json
+        $script:CatalogCategories = @($checksSchema.'$defs'.CheckEntry.properties.category.enum)
+        $script:ResultCategories = @($resultSchema.properties.category.enum)
+    }
+
+    It 'the two schemas declare the same category set' {
+        $script:CatalogCategories | Should -Be $script:ResultCategories
+    }
+
+    It 'Assert-CatalogEntry accepts every schema-declared category' {
+        $script:CatalogCategories.Count | Should -BeGreaterThan 0
+        foreach ($cat in $script:CatalogCategories) {
+            $entry = New-ValidEntry -Overrides @{ category = $cat }
+            Assert-CatalogEntry $entry -Because "schema category '$cat'" | Should -BeTrue
+        }
+    }
+
+    It 'Assert-CheckResult accepts every schema-declared category' {
+        foreach ($cat in $script:ResultCategories) {
+            $result = New-HealthResult -Id 'parity-probe' -Category $cat -Os 'windows' `
+                -Severity 'OK' -Summary 'category parity probe'
+            Assert-CheckResult $result -Because "schema category '$cat'" | Should -BeTrue
         }
     }
 }

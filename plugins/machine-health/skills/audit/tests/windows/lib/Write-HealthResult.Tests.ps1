@@ -159,6 +159,13 @@ Describe 'Write-HealthResult' -Tag 'lib' {
             $bad = [pscustomobject]@{ id = 'x'; category = 'storage' }
             { $bad | Write-HealthResult } | Should -Throw -ExpectedMessage '*missing required field*'
         }
+
+        It 'accepts the config category at emit time' {
+            $cfg = New-HealthResult -Id 'chezmoi-drift' -Category 'config' -Os 'windows' `
+                -Severity 'OK' -Summary 'declared configuration matches live state'
+            $out = $cfg | Write-HealthResult
+            ($out | ConvertFrom-Json).category | Should -Be 'config'
+        }
     }
 
     Context '-Human mode' {

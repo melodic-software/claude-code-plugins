@@ -3,6 +3,24 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`config` check category: a home for declared-configuration drift checks.** The category
+  vocabulary (`drivers`, `network`, `power`, `reliability`, `security`, `services`, `storage`,
+  `updates`) named machine subsystems and had no member for checks that compare declared
+  configuration — dotfiles, curated package manifests, infrastructure-as-code — against live
+  machine state. The first real overlay check of that shape (`chezmoi-drift`,
+  melodic-software/dotfiles) shipped as `"category": "config"`, which `Assert-CatalogEntry`
+  rejected; the orchestrator skipped the entry with only a run-log line, so the check silently
+  never ran, and the interim fix mislabeled it `reliability` — a vocabulary for crash and
+  stability telemetry, not configuration integrity. `config` is now a legal value in all four
+  places the vocabulary lives: `catalog/schemas/checks.schema.json`,
+  `catalog/schemas/check-result.schema.json`, `Assert-CatalogEntry`, and `Assert-CheckResult`.
+  A new parity test pins the four copies together so a category added to a schema but not a
+  validator (or vice versa) fails the suite instead of silently disabling checks.
+
 ## [0.9.1]
 
 ### Changed
