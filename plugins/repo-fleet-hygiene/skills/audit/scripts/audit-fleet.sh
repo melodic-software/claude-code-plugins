@@ -890,7 +890,7 @@ analyze_repo() {
   local override_source="git-native" expected_actual="" expected_default="" expected_reason=""
   local canonical_actual="" canonical_reason="" github_repo="" default_branch="" current_branch=""
   local expected_common="" actual_common="" branch tip pr_match pr_any
-  local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status wt_status_output
+  local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false pr_row_count=0
