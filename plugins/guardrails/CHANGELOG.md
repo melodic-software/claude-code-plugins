@@ -7,6 +7,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
+- **Drive-relative `C:git.exe` still counts as git (Codex review on #2592).** The command-position predecessor class now includes `:` so `& 'C:git.exe' --% reset --hard` remains blocked.
+
 - **PowerShell git probe matches `git` in command position only (#2592).**
   `ps::might_invoke_git` (and the twin probe in `ps::git_command_is_readonly`) no
   longer treats any `git` substring as an invocation. Hyphenated identifiers

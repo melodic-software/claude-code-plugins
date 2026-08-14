@@ -802,6 +802,10 @@ run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
 # Intermediate path directory named Git is not a git invocation.
 run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" \
   "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
+# Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
+run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
+  "& 'C:git.exe' --% reset --hard" 2
+
 # Positive controls: the same scriptblock shape WITH a real git command still
 # fails closed / blocks, so the narrowing did not open a bypass.
 run_pwsh "PS: git reset --hard inside scriptblock (still fail-closed, #2592)" \
