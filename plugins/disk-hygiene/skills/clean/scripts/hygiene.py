@@ -28,6 +28,8 @@ MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
 VCS_NAMES = {".git", ".hg", ".svn"}
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+FILE_ATTRIBUTE_HIDDEN = 0x2
+FILE_ATTRIBUTE_SYSTEM = 0x4
 # "The bytes are not here." Each of these marks a name whose content lives in a
 # provider's cloud rather than on this disk, so its st_size is a REMOTE byte
 # count while local occupancy is roughly zero — and deleting it propagates the
@@ -82,6 +84,17 @@ WINDOWS_PER_VOLUME_METADATA = {
     "System Volume Information",
 }
 WINDOWS_VOLUME_SYSTEM_NAMES = WINDOWS_OS_DRIVE_MARKERS | WINDOWS_PER_VOLUME_METADATA
+# Well-known OS-provisioned volume-root directory names that are not always in
+# WINDOWS_VOLUME_SYSTEM_NAMES / system_roots(), but are never the user-created
+# residue root-children mode exists to reach. Prefer excluding when ambiguous
+# (#2588).
+WINDOWS_OS_ROOT_EXTRA_NAMES = {
+    "Users",
+    "PerfLogs",
+    "inetpub",
+    "XboxGames",
+    "Windows.old",
+}
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 BASELINE_POLICY = (
     Path(__file__).resolve().parents[1] / "reference" / "baseline-policy.json"
@@ -921,8 +934,190 @@ def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
         return None, str(exc)
 
 
+def volume_root_os_owned_names(
+    platform_key: str | None = None,
+) -> set[str]:
+    """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
+    current = platform_key or os_key()
+    if current == "windows":
+        return {
+            name.casefold()
+            for name in (
+                WINDOWS_VOLUME_SYSTEM_NAMES
+                | WINDOWS_OS_ROOT_EXTRA_NAMES
+                | {Path(value).name for value in (
+                    os.environ.get("SystemRoot"),
+                    os.environ.get("ProgramFiles"),
+                    os.environ.get("ProgramFiles(x86)"),
+                    os.environ.get("ProgramData"),
+                ) if value}
+            )
+        }
+    if current == "macos":
+        return {
+            name.casefold()
+            for name in (
+                "System",
+                "Library",
+                "Applications",
+                "private",
+                "Volumes",
+                "cores",
+                "usr",
+                "bin",
+                "sbin",
+                "etc",
+                "dev",
+                "tmp",
+                "var",
+            )
+        }
+    return {
+        name.casefold()
+        for name in (
+            "bin",
+            "boot",
+            "dev",
+            "etc",
+            "lib",
+            "lib64",
+            "proc",
+            "run",
+            "sbin",
+            "sys",
+            "usr",
+            "var",
+            "lost+found",
+        )
+    }
+
+
+def root_child_skip_reason(
+    path: Path,
+    *,
+    exact_names: set[str],
+    known_linux_mounts: set[Path] | None = None,
+    os_owned_names: set[str] | None = None,
+) -> str | None:
+    """Why an immediate volume-root entry must not be offered or audited.
+
+    Mirrors the volume-root guard's exclusion spirit (OS-owned / hidden /
+    system / reparse) and fails closed on anything ambiguous (#2588). Root
+    files are never candidates — only directories can be selected.
+    """
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        return f"unreadable:{exc}"
+    if is_linkish_stat(info):
+        return "symlink-junction-or-reparse-point"
+    if is_cloud_placeholder_stat(info):
+        return "cloud-placeholder"
+    if not stat.S_ISDIR(info.st_mode):
+        return "not-a-directory"
+    name = path.name
+    if name in {".", ".."} or not name:
+        return "invalid-name"
+    if name.startswith("."):
+        return "hidden"
+    folded = name.casefold()
+    owned = os_owned_names if os_owned_names is not None else volume_root_os_owned_names()
+    if folded in owned:
+        return "os-owned"
+    # Windows metadata / upgrade residue often uses a $-prefix outside the
+    # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
+    if name.startswith("$"):
+        return "os-owned"
+    attributes = int(getattr(info, "st_file_attributes", 0) or 0)
+    if attributes & FILE_ATTRIBUTE_HIDDEN:
+        return "hidden"
+    if attributes & FILE_ATTRIBUTE_SYSTEM:
+        return "system"
+    if has_protected_name(path, exact_names):
+        return "baseline-protected-name"
+    mounted, mount_error = mount_state(path, known_linux_mounts)
+    if mount_error:
+        return "mount-state-unverified"
+    if mounted:
+        return "nested-mount-point"
+    for root in system_roots():
+        if path.absolute() == root.absolute() or is_within(path.absolute(), root.absolute()):
+            return "os-owned"
+    return None
+
+
+def enumerate_root_children(
+    target: Path,
+    policy: dict[str, Any],
+    known_linux_mounts: set[Path] | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """List immediate volume-root entries into admitted vs skipped buckets.
+
+    Enumerates the root once and never recurses. Admitted entries are
+    directories that cleared every root-children exclusion; skipped entries
+    carry the reason they were withheld.
+    """
+    exact_names = set(policy["protected_exact_names"])
+    os_owned = volume_root_os_owned_names()
+    admitted: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    try:
+        with os.scandir(target) as iterator:
+            children = sorted(iterator, key=lambda entry: entry.name.casefold())
+    except OSError as exc:
+        raise HygieneError(f"cannot enumerate volume root: {exc}") from exc
+    for child in children:
+        path = Path(child.path)
+        reason = root_child_skip_reason(
+            path,
+            exact_names=exact_names,
+            known_linux_mounts=known_linux_mounts,
+            os_owned_names=os_owned,
+        )
+        if reason is None:
+            admitted.append({"name": child.name, "path": str(path)})
+        else:
+            skipped.append({"name": child.name, "path": str(path), "reason": reason})
+    return admitted, skipped
+
+
+def normalize_root_child_selection(
+    selected: list[str], admitted: list[dict[str, str]]
+) -> list[str]:
+    """Map a human selection onto admitted basenames; reject anything else."""
+    if not selected:
+        raise HygieneError(
+            "--root-children requires an explicit --root-child selection; "
+            "a general clean-everything request is not selection"
+        )
+    by_fold = {item["name"].casefold(): item["name"] for item in admitted}
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for raw in selected:
+        if not raw or raw in {".", ".."} or "/" in raw or "\\" in raw:
+            raise HygieneError(
+                f"--root-child must be an immediate basename, not a path: {raw!r}"
+            )
+        key = raw.casefold()
+        if key not in by_fold:
+            raise HygieneError(
+                f"--root-child {raw!r} is not an admitted immediate child directory "
+                "of the OS-managed volume root"
+            )
+        canonical = by_fold[key]
+        if canonical.casefold() in seen:
+            continue
+        seen.add(canonical.casefold())
+        resolved.append(canonical)
+    return resolved
+
+
 def scan_tree(
-    target: Path, policy: dict[str, Any], max_depth: int | None = None
+    target: Path,
+    policy: dict[str, Any],
+    max_depth: int | None = None,
+    *,
+    root_children: list[str] | None = None,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -932,6 +1127,11 @@ def scan_tree(
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
         errors.append({"path": ".", "error": mount_error})
+    allowed_root_children = (
+        {name.casefold() for name in root_children}
+        if root_children is not None
+        else None
+    )
 
     def visit(directory: Path, depth: int = 1) -> int:
         total = 0
@@ -945,6 +1145,16 @@ def scan_tree(
             return 0
         for child in children:
             path = Path(child.path)
+            # Root-children mode never walks the volume root as a whole: only
+            # explicitly selected immediate directories are entered, and the
+            # root's own files / excluded siblings are never inventoried.
+            if (
+                allowed_root_children is not None
+                and depth == 1
+                and directory == target
+                and child.name.casefold() not in allowed_root_children
+            ):
+                continue
             relative = path.relative_to(target).as_posix()
             protections = hard_protection(path, target, exact_names, known_mounts)
             if path.name.casefold() in VCS_NAMES:
@@ -1019,7 +1229,7 @@ def scan_tree(
         target_identity["size_qualifiers"] = sorted(
             set(target_identity["size_qualifiers"] + ["not-walked"])
         )
-    return {
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
         "session_nonce": secrets.token_hex(16),
@@ -1037,6 +1247,10 @@ def scan_tree(
         "truncated_paths": sorted(truncated),
         "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
+    if root_children is not None:
+        payload["root_children_mode"] = True
+        payload["root_children_selected"] = list(root_children)
+    return payload
 
 
 def annotate_tracked(
@@ -1604,6 +1818,10 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     a directory's mtime and size flip whenever any direct child is added or
     removed, so any unrelated write into a live target during the approval
     window would otherwise abort the run.
+
+    Root-children mode is the sole exception to the OS-managed-root veto: the
+    snapshot target is the volume root, but the inventory only covers explicitly
+    selected immediate children — never a recursive walk of the root itself.
     """
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
@@ -1618,8 +1836,19 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     target_mounted, target_mount_error = mount_state(target, known_mounts)
     if mount_error or target_mount_error:
         raise HygieneError("snapshot target mount state is unverified")
-    if is_os_managed_target(target):
+    root_children_mode = bool(snapshot.get("root_children_mode"))
+    if is_os_managed_target(target) and not root_children_mode:
         raise HygieneError("snapshot target is now an OS-managed root")
+    if root_children_mode:
+        if not is_volume_root(target) or not is_os_managed_target(target):
+            raise HygieneError(
+                "root-children snapshot target must remain an OS-managed volume root"
+            )
+        selected = snapshot.get("root_children_selected")
+        if not isinstance(selected, list) or not selected:
+            raise HygieneError("root-children snapshot is missing its selection")
+        if any(not isinstance(name, str) or not name for name in selected):
+            raise HygieneError("root-children snapshot selection is invalid")
     if target_mounted and not is_volume_root(target):
         raise HygieneError("snapshot target is a mount point")
     if has_protected_path_component(target, baseline_protected_names()):
@@ -1650,6 +1879,11 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
     globs = snapshot_protection_globs(snapshot)
+    selected_root_children = {
+        name.casefold()
+        for name in snapshot.get("root_children_selected", [])
+        if isinstance(name, str)
+    }
     results = []
     blocked = False
     for candidate in candidates:
@@ -1661,6 +1895,10 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             blockers.append("native-managed-report-only")
         if overlaps_truncated(relative, truncated_paths):
             blockers.append("truncated-not-inventoried")
+        if snapshot.get("root_children_mode"):
+            parts = PurePosixPath(relative).parts
+            if not parts or parts[0].casefold() not in selected_root_children:
+                blockers.append("outside-root-children-selection")
         expected_paths = subtree_names(relative, entries)
         if "truncated-not-inventoried" in blockers:
             # A truncated candidate is already hard-blocked from planning above;
@@ -2158,6 +2396,25 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--data-root")
     scan.add_argument("--max-depth", type=int)
     scan.add_argument("--confirmed-large-scan", action="store_true")
+    scan.add_argument(
+        "--root-children",
+        action="store_true",
+        help=(
+            "admit an OS-managed volume root only as a listing of immediate "
+            "non-OS child directories; requires explicit --root-child selection "
+            "before any subtree is audited"
+        ),
+    )
+    scan.add_argument(
+        "--root-child",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help=(
+            "immediate child directory basename to audit under --root-children; "
+            "repeatable; never inferred"
+        ),
+    )
     for name in ("preview", "apply"):
         command = subparsers.add_parser(name)
         command.add_argument("--snapshot", required=True)
@@ -2201,7 +2458,21 @@ def main(argv: list[str] | None = None) -> int:
             mounted, target_mount_error = mount_state(target, known_mounts)
             if mount_error or target_mount_error:
                 raise HygieneError("target mount state is unverified")
-            if is_os_managed_target(target):
+            root_children_mode = bool(args.root_children)
+            selected_root_children = list(args.root_child or [])
+            if selected_root_children and not root_children_mode:
+                raise HygieneError("--root-child requires --root-children")
+            if root_children_mode:
+                if not is_volume_root(target):
+                    raise HygieneError(
+                        "--root-children requires a volume-root target"
+                    )
+                if not is_os_managed_target(target):
+                    raise HygieneError(
+                        "--root-children is only valid for an OS-managed volume root; "
+                        "scan a non-OS volume root without this flag"
+                    )
+            elif is_os_managed_target(target):
                 raise HygieneError("OS-managed roots are not valid audit targets")
             if mounted and not is_volume_root(target):
                 raise HygieneError("mount points are not valid audit targets")
@@ -2221,6 +2492,107 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target)
+            if root_children_mode:
+                admitted, skipped = enumerate_root_children(
+                    target, policy, known_mounts
+                )
+                if not selected_root_children:
+                    return emit(
+                        {
+                            "status": "root-children-selection-required",
+                            "target": str(target),
+                            "admitted_children": admitted,
+                            "skipped_children": skipped,
+                            "os_autoclean": advisory,
+                            "note": (
+                                "OS-managed volume roots are never walked as a "
+                                "whole. Re-run with --root-children and one or "
+                                "more explicit --root-child NAME flags naming "
+                                "admitted immediate directories; a general "
+                                "'clean everything' is not selection."
+                            ),
+                        },
+                        5,
+                    )
+                resolved_children = normalize_root_child_selection(
+                    selected_root_children, admitted
+                )
+                # Each selected child is its own audit target for large-scan
+                # gating: a home directory selected under the volume root still
+                # requires a bound or confirmation.
+                child_large_reasons: list[str] = []
+                for child_name in resolved_children:
+                    child_path = target / child_name
+                    child_large_reasons.extend(
+                        f"{child_name}:{reason}"
+                        for reason in large_scan_reasons(child_path)
+                    )
+                if (
+                    child_large_reasons
+                    and args.max_depth is None
+                    and not args.confirmed_large_scan
+                ):
+                    return emit(
+                        {
+                            "status": "large-target-confirmation-required",
+                            "target": str(target),
+                            "root_children_selected": resolved_children,
+                            "large_target_reasons": sorted(set(child_large_reasons)),
+                            "os_autoclean": advisory,
+                            "note": (
+                                "A selected root child is a known-large scan "
+                                "root; re-run with --max-depth N (preferred) or, "
+                                "only after the human confirms a full walk, "
+                                "--confirmed-large-scan."
+                            ),
+                        },
+                        5,
+                    )
+                try:
+                    snapshot = scan_tree(
+                        target,
+                        policy,
+                        args.max_depth,
+                        root_children=resolved_children,
+                    )
+                except HygieneError as exc:
+                    return emit(
+                        {
+                            "status": "invalid-or-blocked",
+                            "error": str(exc),
+                            "os_autoclean": advisory,
+                        },
+                        2,
+                    )
+                snapshot["root_children_skipped"] = skipped
+                write_json(output_path, snapshot)
+                hinted = sum(1 for entry in snapshot["entries"] if entry["hints"])
+                return emit(
+                    {
+                        "status": "scan-complete",
+                        "target": str(target),
+                        "root_children_mode": True,
+                        "root_children_selected": resolved_children,
+                        "snapshot": str(output_path),
+                        "entries": len(snapshot["entries"]),
+                        "hinted_entries": hinted,
+                        "target_logical_bytes": snapshot["target_logical_bytes"],
+                        "target_reclaimable_local_bytes": snapshot[
+                            "target_reclaimable_local_bytes"
+                        ],
+                        "truncated_paths": snapshot["truncated_paths"],
+                        "errors": snapshot["errors"],
+                        "policy_sources": policy["policy_sources"],
+                        "os_autoclean": advisory,
+                        "note": (
+                            "Root-children mode inventoried only the selected "
+                            "immediate directories; the volume root itself and "
+                            "every skipped OS-owned/hidden/system/reparse entry "
+                            "were never walked. Hints are discovery signals, "
+                            "never cleanup verdicts."
+                        ),
+                    }
+                )
             large_reasons = large_scan_reasons(target)
             if (
                 large_reasons

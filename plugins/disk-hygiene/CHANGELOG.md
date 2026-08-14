@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **Root-children mode for OS-managed volume roots (#2588).** Targeting `C:\` or `/` without a new
+  flag still fails closed — nothing walks an OS-managed root as a whole. With `--root-children` the
+  engine enumerates that root's immediate entries only, hard-excludes OS-owned / hidden / system /
+  reparse / mount / protected-shell-folder / non-directory names (preferring more exclusions when
+  ambiguous), and returns `root-children-selection-required` until the operator names one or more
+  admitted directories via repeatable `--root-child <name>`. Selected children are audited into one
+  snapshot and one report; the volume root's own files and every skipped entry are never inventoried.
+  Documented in `skills/clean/SKILL.md` Arguments, the confirmation gate, the scan template, and
+  `reference/safety-model.md`. The skill-scoped guard accepts the new scan flags.
+
 ## [0.17.11]
 
 ### Fixed
