@@ -198,4 +198,4 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
   change adopted fleet-wide, not a local choice.
 - **Tracked outputs cite, never copy.** URL + retrieval date + content hash only; the verbatim
   snapshot lives in the untracked slice. The citation shape is owned by
-  [`reference/citation-shape.md`](../../reference/citation-shape.md) at the plugin root.
+  `${CLAUDE_PLUGIN_ROOT}/reference/citation-shape.md` at the plugin root.
