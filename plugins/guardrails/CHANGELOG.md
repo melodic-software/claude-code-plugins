@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.24]
+
+### Added
+
+- **`block-windows-drive-tmp`** ([#2594](https://github.com/melodic-software/claude-code-plugins/issues/2594)):
+  PreToolUse Bash|PowerShell guard that fails closed on Windows when a write target is a
+  drive-root temp path — POSIX `/tmp`, MSYS `/c/tmp`, `C:\tmp`, or drive-root `\tmp` —
+  which resolve to `<drive>:\tmp` instead of `%TEMP%` and accumulate at the volume root.
+  Redirects and write utilities are blocked with an actionable redirect-to-`%TEMP%` /
+  `$TEMP` / `$env:TEMP` message. Non-Windows hosts are untouched; `%TEMP%` / `$TEMP` /
+  `$TMP` / `$TMPDIR` / `$env:TEMP` / `/var/tmp` usage is allowed. Kill switch:
+  `block_windows_drive_tmp_enabled` (default on).
+
 ## [0.28.23]
 
 ### Fixed

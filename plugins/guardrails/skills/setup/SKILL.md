@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
 resolves. This plugin owns no consumer-project configuration — every tunable is a native
-`userConfig` option (eight per-guard toggles plus the `cli_flag_verify_bins`,
+`userConfig` option (thirteen per-guard toggles plus the `cli_flag_verify_bins`,
 `cli_flag_verify_skip_bins`, and `block_dangerous_git_allow` scalars) — so `apply` is pure
 guidance and writes nothing.
 
@@ -60,7 +60,7 @@ nothing — it only points:
   directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
   record while the effective install stays in place, so the reinstall lands at a scope that
   does not load. Uninstalling also drops the stored `pluginConfigs` entry, so the reinstall must
-  re-supply **every** key whose value should stay non-default — this plugin declares sixteen, and
+  re-supply **every** key whose value should stay non-default — this plugin declares twenty, and
   a reinstall that passes only the key being changed silently re-enables every guard the operator
   had turned off and discards every `*_allow`, `*_bins`, and `*_prefixes` list. Record the current
   values before uninstalling; afterwards there is nothing left to read them from.

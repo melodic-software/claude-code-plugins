@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-08-14T22:57:50Z",
+  "hook": "block-windows-drive-tmp",
+  "hook_event": "PreToolUse",
+  "status": "blocked",
+  "duration_ms": 13,
+  "data": {
+    "tool": "Bash",
+    "subject": "Bash:echo",
+    "form": "redirect"
+  }
+}
