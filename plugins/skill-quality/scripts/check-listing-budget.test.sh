@@ -477,7 +477,7 @@ else
   fail "200-file corpus took ${perf_elapsed}s or miscounted (bound 30s): $out"
 fi
 
-# 20. Non-git plugin-cache tree: explicit root still reports (issue #2619).
+# 20. Non-git plugin-cache tree: explicit root still reports.
 #     Marketplace installs are plain dirs; an explicit skills root must not
 #     abort with "not in a git repo" just because cwd has no .git.
 CACHE_TMP="$(mktemp -d)"

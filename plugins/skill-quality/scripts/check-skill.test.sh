@@ -2516,7 +2516,7 @@ else
   fail "CHECK_SKILL_REQUIRE_EVALS=1 should fail without evals (rc=$rc): $out"
 fi
 
-# 46. Non-git plugin-cache tree: static gates still run (issue #2619).
+# 46. Non-git plugin-cache tree: static gates still run.
 #     Marketplace installs are plain dirs with no .git. Point
 #     CHECK_SKILL_SKILLS_ROOT at a cache-shaped skills root from a cwd that is
 #     not inside any git repository — must not exit 2 with "not in a git repo".
