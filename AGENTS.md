@@ -21,40 +21,6 @@ Stage the specific files a change touches. Never `git add -A` or `git add .`:
 a blanket stage can sweep in synced, generated, or unrelated files you did not
 mean to commit.
 
-## CI `exec-bit=failure`: set a new script's exec bit in the index
-
-CI's `hygiene` lane fails with `exec-bit=failure` when a tracked file whose
-first two bytes are `#!` — any shebang file, not just `.sh` — sits in the git
-index at mode `100644`. Fix each file the lane's error annotation names, then
-commit with the **plain form** — no pathspec after `git commit`:
-
-```shell
-chmod +x -- <path>
-git update-index --chmod=+x -- <path>
-git commit          # NOT `git commit -- <path>`; see below
-git ls-tree HEAD -- <path>   # confirm 100755 was recorded
-```
-
-The defect is invisible on Windows, where it is usually introduced: an NTFS
-clone gets `core.filemode=false`, so git ignores worktree permission bits —
-`chmod +x` alone never reaches the index, every newly added file stages as
-`100644`, and `git status` / `git diff` show nothing wrong afterward. The bad
-mode first surfaces as the red CI lane; locally it is visible only via
-`git ls-files --stage -- <path>`. `git update-index --chmod=+x` writes the
-index entry directly and works regardless of `core.filemode` — but the
-pathspec commit form (`git commit -- <path>`, git's `--only` mode) rebuilds
-the named entries from the working tree, where the `chmod` is invisible under
-`core.filemode=false`, and silently records `100644` again; only the plain
-index commit preserves the fix. "Stage explicit paths" above is not in
-tension: it constrains `git add`, which keeps a corrected entry — only the
-pathspec *commit* form discards it. Committing through the source-control
-plugin's commit skill handles all of this automatically
-(`plugins/source-control/skills/commit/scripts/exec-bit-check.sh`; reasoning
-in [its reference](plugins/source-control/skills/commit/reference/exec-bit.md),
-the pathspec interaction in
-[pathspec-commits.md](plugins/source-control/skills/commit/reference/pathspec-commits.md))
-— the trap bites commits made without it.
-
 ## Pull requests
 
 - Title pull requests with [Conventional Commits](https://www.conventionalcommits.org/).
