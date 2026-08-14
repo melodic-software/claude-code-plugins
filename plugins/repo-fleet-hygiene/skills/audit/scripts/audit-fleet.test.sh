@@ -274,7 +274,8 @@ for-each-ref)
   case "$base" in
   canonical-a)
     # stale/gone: merged-PR batch row exists at a different OID (drift) but the branch has no
-    # remote-tracking ref -- the drift finding must state the local tip is absent (unpushed).
+    # remote-tracking ref -- the drift finding must state tip/headRefOid differ without claiming
+    # the commits were never pushed (they may still be on the remote).
     printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\n'
     ;;
   repo-b)
@@ -583,11 +584,14 @@ assert_contains "privacy-gated handoff distinguishes never-pushed locals" \
   "Never-pushed locals: push to publish the branch name, then rerun"
 
 # Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
-# (pushed); stale/gone has a drift-batch row but NO remote-tracking ref (may be unpushed).
+# (pushed as of last fetch); stale/gone has a drift-batch row but NO remote-tracking ref — that
+# absence must not be framed as "never pushed" (#2603).
 assert_contains "pushed drift named in evidence" \
   "current local tip is drift-tip; local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
-assert_contains "unpushed drift named in evidence" \
-  "current local tip is gone-tip; local tip not on the last-fetched remote-tracking ref (drift commits may never have been pushed)"
+assert_contains "absent remote-tracking tip named without unpushed claim" \
+  "current local tip is gone-tip; local tip not on the last-fetched remote-tracking ref (tip differs from merged PR headRefOid; commits may still be on the remote)"
+assert_not_contains "tip-drift evidence never claims unpushed without proof" \
+  "may never have been pushed"
 
 # Header names the authenticated gh account; a failed login probe degrades to the plain line.
 assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
