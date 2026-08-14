@@ -45,9 +45,11 @@ def candidate(path: str, tier: str = "high") -> dict[str, object]:
     return {
         "path": path,
         "tier": tier,
+        "provenance": "fixture convention documents this as abandoned atomic-write staging",
         "reason": "fixture provenance identifies an abandoned atomic-write temporary",
         "evidence": ["name matches fixture convention", "owner process is absent"],
         "why_not_work_product": "fixture content is generated and has no durable consumer",
+        "risk": "low — fixture residue with no live consumer",
         "owner": "unmanaged",
     }
 
@@ -418,10 +420,110 @@ class HygieneTests(unittest.TestCase):
             # A genuinely empty walked directory still reports 0 with no qualifier.
             self.assertEqual(0, entries["empty"]["logical_size"])
             self.assertEqual([], entries["empty"]["size_qualifiers"])
+            self.assertTrue(hygiene.entry_is_empty_directory(entries["empty"], entries))
+            self.assertFalse(
+                hygiene.entry_is_empty_directory(entries["deep/sub"], entries)
+            )
+            # Parent of a truncated child can show logical_size 0; inventory
+            # descendants keep it out of the empty-directory tidiness count.
+            self.assertFalse(hygiene.entry_is_empty_directory(entries["deep"], entries))
+            self.assertEqual(1, snapshot["empty_directory_count"])
             self.assertEqual(
                 entries["visible.tmp"]["logical_size"],
                 snapshot["target_reclaimable_local_bytes"],
             )
+
+    def test_empty_directory_count_is_linear_and_excludes_error_paths(self) -> None:
+        # Many sibling empty directories must not require a full inventory scan each.
+        entries = [
+            {
+                "path": f"d{i:04d}",
+                "kind": "directory",
+                "logical_size": 0,
+                "size_qualifiers": [],
+            }
+            for i in range(200)
+        ]
+        entries.append(
+            {
+                "path": "parent",
+                "kind": "directory",
+                "logical_size": 0,
+                "size_qualifiers": [],
+            }
+        )
+        entries.append(
+            {
+                "path": "parent/child",
+                "kind": "file",
+                "logical_size": 1,
+                "size_qualifiers": [],
+            }
+        )
+        entries.append(
+            {
+                "path": "unreadable",
+                "kind": "directory",
+                "logical_size": 0,
+                "size_qualifiers": [],
+            }
+        )
+        self.assertEqual(
+            200,
+            hygiene.empty_directory_count(
+                entries, error_paths={"unreadable"}
+            ),
+        )
+        parents = hygiene.inventory_parent_paths(
+            entry["path"] for entry in entries if isinstance(entry.get("path"), str)
+        )
+        self.assertIn("parent", parents)
+        self.assertNotIn("unreadable", parents)
+
+    def test_plan_requires_provenance_and_risk_for_tidiness_reporting(self) -> None:
+        entry = {"kind": "file", "logical_size": 1, "size_qualifiers": []}
+        base = candidate("orphan.tmp")
+        for missing in ("provenance", "risk"):
+            broken = dict(base)
+            del broken[missing]
+            plan = {"version": 1, "tier": "high", "candidates": [broken]}
+            with self.assertRaisesRegex(hygiene.HygieneError, missing):
+                hygiene.validate_plan(plan, {"orphan.tmp": entry})
+
+    def test_preview_surfaces_tidiness_fields_and_empty_directory_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan-empty").mkdir()
+            (root / "keep.txt").write_text("work", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(1, snapshot["empty_directory_count"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan-empty")],
+            }
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+            ):
+                preview = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", preview["status"])
+            item = preview["candidates"][0]
+            self.assertTrue(item["empty_directory"])
+            self.assertEqual(1, preview["empty_directories"])
+            self.assertEqual(0, item["logical_bytes"])
+            self.assertEqual(0, item["reclaimable_local_bytes"])
+            self.assertEqual(candidate("orphan-empty")["provenance"], item["provenance"])
+            self.assertEqual(candidate("orphan-empty")["risk"], item["risk"])
+            self.assertIn("Safe tidiness is the primary objective", preview["warning"])
 
     def test_hard_linked_names_are_qualified_and_excluded_from_reclaimable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1736,8 +1838,45 @@ class HygieneTests(unittest.TestCase):
                 {"candidate/nested/captured.tmp", "candidate/nested", "candidate"},
                 {item["path"] for item in report["removed"]},
             )
+            self.assertEqual(3, report["paths_removed"])
+            self.assertEqual(0, report["empty_directories_removed"])
             self.assertFalse((root / "candidate").exists())
             self.assertEqual("work product", untouched.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "descriptor-relative removal is Linux-only"
+    )
+    def test_apply_report_counts_empty_directory_tidiness_outcomes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan-empty").mkdir()
+            (root / "keep.txt").write_text("work product", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan-empty")],
+            }
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+            ):
+                report = hygiene.apply_plan(snapshot, plan)
+            self.assertEqual("completed", report["status"])
+            self.assertEqual(1, report["paths_removed"])
+            self.assertEqual(1, report["empty_directories_removed"])
+            self.assertTrue(report["removed"][0]["empty_directory"])
+            self.assertEqual(0, report["reclaimable_local_bytes_removed"])
+            self.assertFalse((root / "orphan-empty").exists())
+            self.assertEqual("work product", (root / "keep.txt").read_text(encoding="utf-8"))
 
 
     def test_scan_max_depth_truncates_and_preview_blocks_planning(self) -> None:
