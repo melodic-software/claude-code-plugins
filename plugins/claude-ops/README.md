@@ -284,6 +284,7 @@ reads it from.
 | `pre_compact_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PRE_COMPACT_AUDIT_ENABLED` | Emit telemetry on context-compaction events |
 | `skill_usage_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED` | Emit telemetry on skill usage; shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths) and also gates the shared skill-usage.jsonl store |
 | `tool_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED` | Emit telemetry on Write/Edit/Bash tool failures |
+| `hook_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED` | Warn once per session per hook when the transcript records hook launch/exec failures Claude Code never surfaced |
 | `instructions_loaded_audit_log_session_start` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START` | Opt back into logging session_start instruction loads (dropped by default as deterministic and high-volume) |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long the pipe may go silent before the hook gives up and fails open |
 
