@@ -3,6 +3,15 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Added
+
+- **bench:** commit the benchmark harness that produced #2521's render-path measurements
+  (`bench/bench-idle.sh`, `bench/bench-load.sh`, `bench/trace-probe.sh`, `bench/lib-bench.sh`),
+  adapted to run from a clean checkout against the repo's own tee, with `bench/README.md`
+  recording the baseline numbers, platform, and spawn-floor method (#2582).
+
 ## [0.7.3]
 
 ### Changed
