@@ -150,7 +150,17 @@ git_probe_allowed() {
       [[ $# -eq 4 && "$4" == "--show-current" ]]
       ;;
     status)
-      [[ $# -eq 4 && "$4" == "--porcelain" ]]
+      # --ignored surfaces content plain --porcelain cannot see; reclaimability must not treat a
+      # tree that only holds ignored files as empty of destroyable working-tree content (#2601).
+      # --untracked-files=normal forces untracked entries into the probe even when the repository
+      # sets status.showUntrackedFiles=no, which would otherwise hide both untracked and ignored
+      # paths and falsely emit reclaimable-worktree.
+      [[ $# -eq 6 && "$4" == "--porcelain" && "$5" == "--ignored" && "$6" == "--untracked-files=normal" ]]
+      ;;
+    stash)
+      # refs/stash is repository-global (shared across worktrees). Allow only a bare list, and
+      # callers must invoke it once per repository — never per worktree (#2601).
+      [[ $# -eq 4 && "$4" == "list" ]]
       ;;
     log)
       [[ $# -eq 6 && "$4" == "-1" && "$5" == "--format=%ct" && "$6" == "HEAD" ]]
@@ -868,6 +878,40 @@ IDENT_PATHS=()
 # emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
 
+# Well-known regenerable ignored path prefixes (#2601). Anything else under !! is treated as
+# non-regenerable content that directory removal would destroy without ordinary porcelain warning.
+is_regenerable_ignored_path() {
+  local path="$1"
+  path="${path%/}"
+  case "$path" in
+  node_modules | node_modules/* | target | target/* | .venv | .venv/* | bin | bin/* | obj | obj/* | \
+    dist | dist/*)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+# Join path names for evidence lines. Caps length so a large ignored tree cannot flood the report.
+join_ignored_evidence() {
+  local -a items=("$@")
+  local i out="" limit=8
+  ((${#items[@]} == 0)) && {
+    printf ''
+    return 0
+  }
+  out="${items[0]}"
+  for ((i = 1; i < ${#items[@]} && i < limit; i++)); do
+    out+=", ${items[i]}"
+  done
+  if ((${#items[@]} > limit)); then
+    out+=", …(+$((${#items[@]} - limit)) more)"
+  fi
+  printf '%s' "$out"
+}
+
 emit_finding() {
   local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
   REPO_FINDING_COUNT=$((REPO_FINDING_COUNT + 1))
@@ -1048,6 +1092,23 @@ analyze_repo() {
       "Inspect the canonical checkout, then rerun"
   fi
 
+  # refs/stash lives in the common gitdir and is shared across every worktree (git-worktree(1)
+  # REFS). Removing a worktree directory cannot orphan a stash, so stash state is not a
+  # reclaimability loss vector — but collecting it once per repository (never per worktree)
+  # keeps the report from implying an isolation that does not exist (#2601).
+  local stash_output stash_count stash_field
+  if stash_output="$(run_git_probe -C "$canonical" stash list 2>/dev/null)"; then
+    if [[ -z "$stash_output" ]]; then
+      stash_field="none (repository-global refs/stash; unaffected by worktree removal)"
+    else
+      stash_count="$(printf '%s\n' "$stash_output" | grep -c . || true)"
+      stash_field="${stash_count} (repository-global refs/stash; unaffected by worktree removal)"
+    fi
+  else
+    stash_field="unverifiable (repository-global refs/stash; unaffected by worktree removal)"
+  fi
+  print_field Stashes "$stash_field"
+
   # Parse the stable NUL-delimited porcelain format. Only these registrations are worktree evidence.
   local wt_path="" wt_branch="" wt_prunable="false" wt_locked="false" field worktree_status=1
   local wt_prefix
@@ -1087,6 +1148,9 @@ analyze_repo() {
     WT_PRUNABLE+=("$wt_prunable")
     WT_LOCKED+=("$wt_locked")
   fi
+
+  local status_line ignored_path status_dirty ignored_regen_text ignored_keep_text
+  local -a ignored_regen ignored_keep
 
   for ((wt_index = 0; wt_index < ${#WT_PATHS[@]}; wt_index++)); do
     wt_path="${WT_PATHS[$wt_index]}"
@@ -1152,19 +1216,55 @@ analyze_repo() {
         "Manual administrative-directory decision; never auto-repair/remove" \
         "Inspect both repositories; consider git worktree repair only after choosing the authority"
     elif [[ "$is_main" == "false" && "${WT_LOCKED[$wt_index]}" != "true" ]]; then
-      # Reclaimability is working-tree evidence only: an empty porcelain status means no uncommitted
-      # changes at audit time, not that nobody still needs the checkout. Stash list is deliberately
-      # out of scope — it would widen the read surface and still would not prove wantedness.
-      if wt_status_output="$(run_git_probe -C "$wt_path" status --porcelain 2>/dev/null)"; then
-        if [[ -z "$wt_status_output" ]]; then
-          emit_finding MEDIUM reclaimable-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
-            "git status --porcelain is empty at the registered worktree root" \
-            "Candidate worktree dry-run handoff; emptiness is working-tree evidence only, not proof nobody still needs the checkout" \
-            "Run /source-control:worktree cleanup --dry-run in $canonical"
+      # Reclaimability is working-tree evidence only: no tracked/untracked porcelain changes means
+      # no ordinary uncommitted edits at audit time, not that nobody still needs the checkout.
+      # Plain --porcelain cannot see ignored files, and removing the worktree directory destroys
+      # them — so the probe is --ignored, regenerable ignored paths stay reclaimable, and
+      # non-regenerable ignored content is named rather than offered as safe-to-delete (#2601).
+      # Stashes are repository-global (collected once above); they are unaffected by worktree
+      # removal and are not consulted here.
+      status_dirty="false"
+      ignored_regen=()
+      ignored_keep=()
+      if wt_status_output="$(run_git_probe -C "$wt_path" status --porcelain --ignored --untracked-files=normal 2>/dev/null)"; then
+        while IFS= read -r status_line || [[ -n "$status_line" ]]; do
+          [[ -n "$status_line" ]] || continue
+          if [[ "$status_line" == '!! '* ]]; then
+            ignored_path="${status_line#\!\! }"
+            if is_regenerable_ignored_path "$ignored_path"; then
+              ignored_regen+=("$ignored_path")
+            else
+              ignored_keep+=("$ignored_path")
+            fi
+          else
+            status_dirty="true"
+          fi
+        done <<<"$wt_status_output"
+        if [[ "$status_dirty" == "false" ]]; then
+          if ((${#ignored_keep[@]} > 0)); then
+            ignored_keep_text="$(join_ignored_evidence "${ignored_keep[@]}")"
+            emit_finding MEDIUM worktree-ignored-content "$wt_path${wt_branch:+ ($wt_branch)}" \
+              "git status --porcelain --ignored --untracked-files=normal reports no tracked/untracked changes, but non-regenerable ignored content would be destroyed by removing the worktree directory: $ignored_keep_text" \
+              "Manual review; do not treat this worktree as safe to delete from cleanliness alone" \
+              "Inspect the named ignored paths before any worktree cleanup in $canonical"
+          else
+            if ((${#ignored_regen[@]} > 0)); then
+              ignored_regen_text="$(join_ignored_evidence "${ignored_regen[@]}")"
+              emit_finding MEDIUM reclaimable-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
+                "git status --porcelain --ignored --untracked-files=normal reports no tracked/untracked changes; ignored entries are regenerable only: $ignored_regen_text" \
+                "Candidate worktree dry-run handoff; emptiness is working-tree evidence only, not proof nobody still needs the checkout" \
+                "Run /source-control:worktree cleanup --dry-run in $canonical"
+            else
+              emit_finding MEDIUM reclaimable-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
+                "git status --porcelain --ignored --untracked-files=normal reports no tracked/untracked changes and no ignored entries at the registered worktree root" \
+                "Candidate worktree dry-run handoff; emptiness is working-tree evidence only, not proof nobody still needs the checkout" \
+                "Run /source-control:worktree cleanup --dry-run in $canonical"
+            fi
+          fi
         fi
       else
         emit_finding UNKNOWN worktree-disposability-unverifiable "$wt_path${wt_branch:+ ($wt_branch)}" \
-          "git status --porcelain failed at the registered worktree root" \
+          "git status --porcelain --ignored --untracked-files=normal failed at the registered worktree root" \
           "Do not infer whether this worktree is reclaimable" \
           "Inspect the registered path and Git metadata, then rerun"
       fi

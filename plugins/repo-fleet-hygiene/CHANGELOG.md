@@ -3,6 +3,19 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.4]
+
+### Fixed
+
+- **`reclaimable-worktree` no longer treats ignored files as invisible (#2601).** Classification now
+  uses `git status --porcelain --ignored --untracked-files=normal`. Every reclaimable finding names
+  ignored entries or states there are none; regenerable-only ignored paths (`node_modules/`,
+  `target/`, `.venv/`, `bin/`, `obj/`, `dist/`) keep the reclaimable disposition. Non-regenerable
+  ignored content emits `worktree-ignored-content` instead of a safe-to-delete reclaimable handoff.
+  Stash wording now states that `refs/stash` is repository-global and unaffected by worktree
+  removal; stash state is collected once per repository. Local `status.showUntrackedFiles=no`
+  cannot hide untracked or ignored evidence from this probe.
+
 ## [0.13.2]
 
 ### Fixed

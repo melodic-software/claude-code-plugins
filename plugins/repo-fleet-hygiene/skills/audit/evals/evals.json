@@ -153,14 +153,26 @@
     {
       "id": 13,
       "name": "reclaimable-worktree-is-working-tree-evidence-not-wantedness",
-      "prompt": "The audit reports a MEDIUM reclaimable-worktree finding for a linked worktree whose git status --porcelain is empty. Does that mean nobody is using it and I can delete it?",
-      "expected_output": "No. reclaimable-worktree means only that the working tree has no uncommitted changes at audit time; it is not evidence that the checkout is still wanted. The handoff is a dry-run through /source-control:worktree cleanup, and the human decides.",
+      "prompt": "The audit reports a MEDIUM reclaimable-worktree finding for a linked worktree whose git status --porcelain --ignored shows no tracked/untracked changes and no non-regenerable ignored content. Does that mean nobody is using it and I can delete it?",
+      "expected_output": "No. reclaimable-worktree means only that the working tree has no uncommitted tracked/untracked changes and no non-regenerable ignored content at audit time; it is not evidence that the checkout is still wanted. Stashes are repository-global and unaffected by worktree removal. The handoff is a dry-run through /source-control:worktree cleanup, and the human decides.",
       "files": [],
       "expectations": [
-        "Declines to equate an empty porcelain status with nobody still needing the checkout",
+        "Declines to equate porcelain cleanliness with nobody still needing the checkout",
         "Names reclaimable-worktree as working-tree evidence only",
         "Does not infer disuse from directory naming, age, or activity",
         "Routes the decision to the worktree cleanup dry-run and the human"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "non-regenerable-ignored-content-is-not-silent-reclaimable",
+      "prompt": "A linked worktree has an empty ordinary git status --porcelain, but git status --porcelain --ignored shows !! .work/handoffs/. The audit emitted worktree-ignored-content instead of reclaimable-worktree. Why, and can I delete the worktree directory?",
+      "expected_output": "Ordinary porcelain cannot see ignored files, and removing the worktree directory would destroy them. worktree-ignored-content names the non-regenerable ignored paths and is manual review, not a safe-to-delete reclaimable handoff. Inspect those paths before any cleanup.",
+      "files": [],
+      "expectations": [
+        "Explains that plain porcelain misses ignored content that directory removal destroys",
+        "Treats worktree-ignored-content as a warning, not a reclaimable/safe-to-delete signal",
+        "Requires inspecting the named ignored paths before cleanup"
       ]
     }
   ]

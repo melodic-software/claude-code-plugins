@@ -13,7 +13,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
-  "$TMP/wt-status-fail" \
+  "$TMP/wt-status-fail" "$TMP/wt-regen" "$TMP/wt-ignored" \
   "$TMP/wt-old" \
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
@@ -90,6 +90,8 @@ rev-parse)
     wt-a) printf '%s\n' "$TEST_ROOT/wt-a" ;;
     wt-mismatch) printf '%s\n' "$TEST_ROOT/wt-mismatch" ;;
     wt-status-fail) printf '%s\n' "$TEST_ROOT/wt-status-fail" ;;
+    wt-regen) printf '%s\n' "$TEST_ROOT/wt-regen" ;;
+    wt-ignored) printf '%s\n' "$TEST_ROOT/wt-ignored" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -133,7 +135,7 @@ rev-parse)
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
-    wt-a | wt-mismatch | wt-status-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
+    wt-a | wt-mismatch | wt-status-fail | wt-regen | wt-ignored) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
     sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
@@ -186,9 +188,12 @@ worktree)
     printf 'worktree %s\0HEAD husk\0branch refs/heads/feature/husk\0\0' "$TEST_ROOT/canonical-a/husk"
     # A registered path whose root-ness probe FAILS outright.
     printf 'worktree %s\0HEAD pfail\0branch refs/heads/feature/prefix-fail\0\0' "$TEST_ROOT/prefix-fail"
-    # Linked worktrees for reclaimable-worktree: wt-a is clean, wt-mismatch is dirty, wt-status-fail
-    # cannot answer status --porcelain.
+    # Linked worktrees for reclaimable-worktree: wt-a is clean with no ignored entries, wt-regen
+    # is clean with regenerable ignored only, wt-ignored has non-regenerable ignored content,
+    # wt-mismatch is dirty, wt-status-fail cannot answer status --porcelain --ignored.
     printf 'worktree %s\0HEAD status-fail\0branch refs/heads/feature/status-fail\0\0' "$TEST_ROOT/wt-status-fail"
+    printf 'worktree %s\0HEAD regen\0branch refs/heads/feature/regen\0\0' "$TEST_ROOT/wt-regen"
+    printf 'worktree %s\0HEAD ignored\0branch refs/heads/feature/ignored\0\0' "$TEST_ROOT/wt-ignored"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -308,13 +313,28 @@ for-each-ref)
   ;;
 merge-base) exit 1 ;;
 status)
-  [[ "${1:-}" == "--porcelain" ]] || exit 96
+  [[ "${1:-}" == "--porcelain" && "${2:-}" == "--ignored" && "${3:-}" == "--untracked-files=normal" ]] || exit 96
   case "$base" in
   wt-a) printf '' ;;
+  wt-regen) printf '!! node_modules/\n' ;;
+  wt-ignored) printf '!! .work/handoffs/\n!! node_modules/\n' ;;
   wt-mismatch) printf ' M file.txt\n' ;;
   wt-status-fail) exit 7 ;;
   wt-old) printf '' ;;
   *) printf '' ;;
+  esac
+  ;;
+stash)
+  [[ "${1:-}" == "list" ]] || exit 96
+  # Once-per-repository collection: answer only for canonical checkouts. A per-worktree call
+  # would be a collector bug; leave linked worktree bases failing closed so the suite notices.
+  case "$base" in
+  canonical-a) printf '' ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | \
+    gone-repo | lost-repo | net-repo | zzz-canonical | sub-wt | sep-wt)
+    printf ''
+    ;;
+  *) exit 7 ;;
   esac
   ;;
 log)
@@ -481,8 +501,14 @@ assert_contains "merged worktree evidence" "Finding: merged-worktree"
 assert_contains "tip drift manual review" "Finding: merged-pr-tip-drift"
 assert_contains "worktree common-dir mismatch" "Finding: worktree-admin-mismatch"
 assert_contains "clean linked worktree is reclaimable" "Finding: reclaimable-worktree"
+assert_contains "reclaimable evidence names absence of ignored entries" \
+  "no tracked/untracked changes and no ignored entries"
 assert_contains "failed status probe is disposability-unverifiable" \
   "Finding: worktree-disposability-unverifiable"
+assert_contains "non-regenerable ignored content is reported" "Finding: worktree-ignored-content"
+assert_contains "ignored-content evidence names the destroyable path" ".work/handoffs/"
+assert_contains "stash state is collected once per repository" \
+  "Stashes: none (repository-global refs/stash; unaffected by worktree removal)"
 assert_contains "worktree nested in its own repository is reported" "Finding: worktree-nested-in-repository"
 assert_contains "nested finding names the containing checkout" \
   "registered worktree root is inside the canonical checkout's own working tree ($TMP/canonical-a)"
@@ -516,6 +542,19 @@ assert_kind_targets "reclaimable names wt-a and not dirty or status-fail sibling
   reclaimable-worktree "wt-a" "wt-mismatch"
 assert_kind_targets "reclaimable does not include status-fail sibling" \
   reclaimable-worktree "wt-a" "wt-status-fail"
+assert_kind_targets "reclaimable includes regenerable-ignored worktree" \
+  reclaimable-worktree "wt-regen" "wt-ignored"
+assert_kind_targets "ignored-content names non-regenerable worktree and not regenerable sibling" \
+  worktree-ignored-content "wt-ignored" "wt-regen"
+assert_kind_targets "ignored-content does not include clean wt-a" \
+  worktree-ignored-content "wt-ignored" "wt-a"
+# Regenerable-only evidence must appear on a reclaimable finding (not only in ignored-content).
+if grep -A5 -F "Finding: reclaimable-worktree" "$output" | grep -Fq "ignored entries are regenerable only: node_modules/"; then
+  printf 'PASS: regenerable ignored entries are named on reclaimable-worktree\n'
+else
+  printf 'FAIL: regenerable ignored entries are named on reclaimable-worktree\n' >&2
+  failures=$((failures + 1))
+fi
 assert_contains "moved repository detected" "Target: origin (old/repo -> new/repo)"
 assert_contains "moved-remote finding states analysis continues" \
   "branch and worktree analysis continues against that resolved identity"
@@ -1020,7 +1059,9 @@ run_bounded_gh pr merge --repo github.com/acme/repo-b >/dev/null 2>&1 && forbidd
 run_bounded_gh alias set pr '!touch /tmp/pwned' >/dev/null 2>&1 && forbidden_rejected=false
 calls_after="$(wc -l <"$CALL_LOG")"
 allowed_status=true
-run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 || allowed_status=false
+run_git_probe -C "$TMP/wt-a" status --porcelain --ignored --untracked-files=normal >/dev/null 2>&1 || allowed_status=false
+allowed_stash=true
+run_git_probe -C "$TMP/canonical-a" stash list >/dev/null 2>&1 || allowed_stash=false
 allowed_log=true
 run_git_probe -C "$TMP/wt-a" log -1 --format=%ct HEAD >/dev/null 2>&1 || allowed_log=false
 if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
@@ -1029,11 +1070,41 @@ if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; t
 else
   printf 'PASS: exact command allowlist rejected Git/gh mutation and config-injection vectors\n'
 fi
-if [[ "$allowed_status" != "true" || "$allowed_log" != "true" ]]; then
-  printf 'FAIL: status/log probes were not admitted by the Git allowlist\n' >&2
+if [[ "$allowed_status" != "true" || "$allowed_log" != "true" || "$allowed_stash" != "true" ]]; then
+  printf 'FAIL: status/log/stash probes were not admitted by the Git allowlist\n' >&2
   failures=$((failures + 1))
 else
-  printf 'PASS: status and log probes are admitted by the Git allowlist\n'
+  printf 'PASS: status --ignored --untracked-files=normal, stash list, and log probes are admitted by the Git allowlist\n'
+fi
+# Plain status --porcelain (without --ignored) must no longer be admitted — reclaimability depends
+# on the ignored-aware probe (#2601).
+plain_status_rejected=true
+run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 && plain_status_rejected=false
+if [[ "$plain_status_rejected" != "true" ]]; then
+  printf 'FAIL: plain status --porcelain was admitted after the --ignored require\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: plain status --porcelain is rejected; --ignored is required\n'
+fi
+ignored_only_rejected=true
+run_git_probe -C "$TMP/wt-a" status --porcelain --ignored >/dev/null 2>&1 && ignored_only_rejected=false
+if [[ "$ignored_only_rejected" != "true" ]]; then
+  printf 'FAIL: status --ignored without --untracked-files=normal was admitted\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: status --ignored requires --untracked-files=normal\n'
+fi
+# Stash must not be callable from a linked worktree path in this suite's mock (collector uses the
+# canonical once). The allowlist itself still admits stash list under -C; the once-per-repo
+# contract is the collector's, asserted via a single Stashes field above.
+stash_per_wt_calls_before="$(grep -c ' stash list$' "$CALL_LOG" || true)"
+run_git_probe -C "$TMP/canonical-a" stash list >/dev/null 2>&1 || true
+stash_per_wt_calls_after="$(grep -c ' stash list$' "$CALL_LOG" || true)"
+if [[ "$stash_per_wt_calls_after" -le "$stash_per_wt_calls_before" ]]; then
+  printf 'FAIL: allowlisted stash list did not reach the mock from the canonical path\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: stash list reaches the mock from the canonical path\n'
 fi
 
 # Force the portable watchdog and prove a TERM-ignoring gh cannot outlive the finite KILL grace.
