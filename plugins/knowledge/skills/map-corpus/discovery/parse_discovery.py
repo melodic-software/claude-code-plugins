@@ -114,9 +114,11 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
     fetches external entities, and bundled libexpat >= 2.4 caps entity
     amplification — this check makes the refusal explicit and loud.)
     """
-    head = data[:4096]
+    # scan the WHOLE input, not a prefix window: a prefix scan is bypassable
+    # by padding the prolog, and the full scan is memchr-cheap next to the
+    # XML parse that reads every byte anyway
     for marker in (b"<!DOCTYPE", b"<!ENTITY"):
-        if marker in head:
+        if marker in data:
             fail(2, f"sitemap XML contains {marker.decode()} -- DTDs are not "
                     f"valid in sitemaps and are refused (XXE/entity-expansion "
                     f"hardening).")

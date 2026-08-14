@@ -182,6 +182,14 @@ class TestHtml(unittest.TestCase):
         m = extract(data, suffix=".html")
         self.assertEqual(m["nodes"][0]["kind"], "document")
 
+    def test_unclosed_comment_masks_to_eof(self):
+        data = (b"<h1>Real</h1><p>a</p>"
+                b"<!-- unclosed <h2>Fake heading inside comment</h2>")
+        m = extract(data, suffix=".html")
+        assert_partition(self, m, data)
+        titles = [n["title"] for n in m["nodes"] if n["kind"] == "section"]
+        self.assertEqual(titles, ["Real"])
+
 
 class TestOpaqueAndErrors(unittest.TestCase):
     def test_json_single_node(self):

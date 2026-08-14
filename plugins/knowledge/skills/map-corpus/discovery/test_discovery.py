@@ -164,6 +164,16 @@ class TestParserSitemap(Base):
         proc = self.run_parser_raw(snap, "sitemap-xml", "https://x.org/", 2)
         self.assertIn(b"DOCTYPE", proc.stderr)
 
+    def test_doctype_rejected_beyond_prefix_window(self):
+        # padding the prolog past any prefix window must not smuggle a DTD in
+        padding = b"<!-- " + b"x" * 5000 + b" -->\n"
+        snap = write(self.dir, "xxe-padded.xml",
+                     b'<?xml version="1.0"?>\n' + padding +
+                     b'<!DOCTYPE foo [<!ENTITY x "PWNED">]>'
+                     b'<urlset><url><loc>https://x.org/&x;</loc></url></urlset>')
+        proc = self.run_parser_raw(snap, "sitemap-xml", "https://x.org/", 2)
+        self.assertIn(b"DOCTYPE", proc.stderr)
+
     def test_sitemap_md(self):
         snap = write(self.dir, "sitemap.md",
                      b"# Sitemap\n- [A](/a)\n- [B](/b)\n")

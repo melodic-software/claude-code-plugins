@@ -116,9 +116,12 @@ def main(argv=None) -> int:
 
     if not args.discovery:
         fail(2, "at least one --discovery output is required: a link map with "
-                "no discovery basis cannot demonstrate coverage, and a corpus "
-                "resolving neither llms.txt nor a sitemap stops loudly at "
-                "discovery (rung 3 is deferred by Q19).")
+                "no discovery basis cannot demonstrate coverage. Two cases "
+                "land here: (1) an origin seed resolved neither llms.txt nor "
+                "a sitemap -- stop loudly (rung 3 is deferred by Q19); "
+                "(2) a corpus of resource seeds only -- outside V1 gate scope "
+                "by recorded deferral (see link-map-format.md); route those "
+                "URLs to direct docpage-digest runs instead.")
 
     linkmap = load_json(args.linkmap, "link map")
     if not isinstance(linkmap, dict):

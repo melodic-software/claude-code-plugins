@@ -215,6 +215,10 @@ def html_boundaries(data: bytes):
     masked = data
     for rx in HTML_MASK_RES:
         masked = rx.sub(lambda m: b" " * (m.end() - m.start()), masked)
+    # unclosed comment: mask opener..EOF (closed ones were masked above)
+    m = masked.find(b"<!--")
+    if m != -1 and masked.find(b"-->", m) == -1:
+        masked = masked[:m] + b" " * (len(masked) - m)
     # unclosed script/style/pre/textarea: mask opener..EOF
     for name in (b"script", b"style", b"pre", b"textarea"):
         rx = re.compile(rb"<" + name + rb"\b", re.IGNORECASE)
