@@ -77,3 +77,17 @@ Locked with the user via interview:
 - **2026-08-15** — Contract locked via interview; survey subagent
   dispatched (inventory in flight); this slice opened. Next: roster
   classification when the survey returns.
+- **2026-08-15 (later)** — Inventory complete: 32 candidates + 27
+  refusals persisted to `design/roster.md`; orchestrator spot-check
+  passed (C01 exact, C09 exact, C02 under-counted). Skill update
+  committed (confirm-scope gate + `context/orchestrated-mode.md`,
+  plugin 0.12.0). Verify fleet launched (29 clusters, Opus workers,
+  cap 2), then **PAUSED at the user's request** amid account-wide
+  rate-limit pressure (a CI security-review bot 429'd; this session
+  saw no 429s itself). 4 verdicts cached before pause: C01 PROCEED
+  (Tier 0: 14 inline), C03 PROCEED (19; planning-setup site scoped out
+  per R06), C04 PROCEED (32; R06 trio excluded), C05
+  REFUSE-rule-of-three-fails (n=2 — structurally capped at two
+  plugins). Resume: re-invoke the verify workflow from the saved
+  script with the recorded run id; cached verdicts replay free, C02
+  onward re-runs. Then: ≥80%-refusal abort check → wave plan → execute.
