@@ -30,22 +30,31 @@ file format is that route.
 
 ## Where the file goes
 
-The destination is a **memory-tier, concern-scoped** location, owned by the
-[topic-docs convention](../topic-docs/README.md) — read it for tier semantics, `memory_dir`
-resolution and its overrides, and the invalid-root rules. A producer outside the `review` plugin
-cannot follow `review:fanout`'s own pointer chain, which resolves through a
-`${CLAUDE_PLUGIN_ROOT}`-relative path only that plugin can expand, so the three producer-facing
-specifics that the convention pointer does not itself carry are stated here:
+The destination is a **memory-tier, concern-scoped** location, and a producer resolves it through the
+same binding the consumer does:
+[`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md)
+"Resolution (the contract's five-rung order, earlier wins)", which
+[`SKILL.md`](../../../plugins/review/skills/fanout/SKILL.md) "Shared inputs" names as what
+`review:fanout` resolves through. Naming that file by its repo path is the point of this section:
+`review:fanout` reaches it through a `${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside
+`review` can expand, and it is the same document either way. Nothing it carries is restated here.
 
-1. **Sub-path** — `<memory_dir>/reviews/<branch-slug>/`, defaulting to `.work/reviews/<branch-slug>/`.
-   The axis is the branch, not a topic slug, which is why review reports sit outside topic slices.
-2. **Slug rule** — `<branch-slug>` is the branch name lowercased with every character outside
-   `[a-z0-9._-]` replaced by `-`. It is **lossy** (`feature/foo` and `feature-foo` collide), which is
-   why the file's own `branch:` frontmatter — not its directory — is what proves ownership.
-3. **Self-ignore guard** — the session's first memory-tier write must verify that the resolved memory
-   root carries a `.gitignore` containing `*`, creating it (announced) when absent. Skipping it
-   commits findings that are meant to stay checkout-local. The convention states the full rule,
-   including which roots are invalid; a producer owes the guard, not a re-derivation of it.
+What it leaves to the producer:
+
+- **Run the rung order, not only its last rung.** Writing to the documented default when a higher
+  rung resolved puts the file somewhere the `fix` action never scans, and nothing reports the miss —
+  the configured `memory_dir` and the `CLAUDE.md`-declared location are exactly the cases that fail
+  silently.
+- **Take the non-interactive collapse.** A detector cannot answer a question, so the rungs that
+  confirm with the user or ask-and-persist are settled by the
+  [topic-docs convention](../topic-docs/README.md)'s non-interactive rule — contract-owned, which is
+  why the bindings cite rather than redefine it. A producer that instead invents an answer resolves
+  to a directory the consumer never reaches.
+- **The directory never proves ownership.** The branch-slug mapping is lossy, so what proves a file
+  is this branch's is its own `branch:` frontmatter.
+- **The self-ignore guard is owed, not re-derived** — including the convention's invalid-root rule,
+  which stops the guard from healing into a consumer's root `.gitignore`. Skipping it commits
+  findings that are meant to stay checkout-local.
 
 ## Boundary
 
@@ -120,8 +129,9 @@ the merge set" owns how. Three obligations fall on a producer:
 An apply marks the files it consumed and the consumer subtracts them —
 [`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 5" owns
 the ledger. What binds a producer is one rule: **a detector re-runs and writes what it currently
-finds; it never replays.** Re-emitting a stale file under a new name re-injects findings that may
-already be fixed, and the consumer cannot tell the difference.
+finds; it never replays.** Re-emitting a stale file re-injects findings that may already be fixed.
+How the ledger identifies what an apply consumed is "Step 5"'s to own and may change there; a
+producer owes the rule regardless and never leans on the ledger to catch a replay.
 
 ## What a minimally conforming producer may omit
 
@@ -186,7 +196,8 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - [`plugins/review/skills/fanout/context/fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) — the consumer algorithm, including merge-set construction and consumption marking.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md) — the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
 - [`plugins/review/skills/fanout/context/findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md) — the rank order that makes `low` worse than omission.
-- [`docs/conventions/topic-docs/`](../topic-docs/README.md) — memory-tier resolution, `memory_dir` overrides, and the self-ignore guard that governs where a producer writes.
+- [`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md) — the findings-location binding `review:fanout` resolves through, carrying the rung order, branch sub-path, slug rule, and guard a producer therefore never restates.
+- [`docs/conventions/topic-docs/`](../topic-docs/README.md) — the tier semantics, guards, and invalid-root rule that resolver implements; not itself the pointer for where a producer writes.
 - `melodic-software/standards` `conventions/engineering/enforceability-tiers.md` — tier vocabulary and routing rule.
 - [`liveness-assertion`](../liveness-assertion/README.md) — the fail-loud-or-agent-readable contract a detector satisfies by persisting.
 - [`PLUGIN-PHILOSOPHY` Convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry) — one owner doc per shared concern, and the before-a-second-adopter deadline this stub answers.
