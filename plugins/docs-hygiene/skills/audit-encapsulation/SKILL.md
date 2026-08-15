@@ -71,16 +71,13 @@ Matched shapes:
 - Heading-anchor cites into `SKILL.md` body structure (`<X>/SKILL.md#<anchor>`)
 - Any `*.schema.json` file at any depth (`<X>/<file>.schema.json`)
 
+Matched path prefixes: `.claude/skills/<X>/...`, `plugins/<plugin>/skills/<X>/...`, and relative forms (`skills/<X>/...` plugin-README short cites, plus `../`-prefixed cites whose lexical resolution lands on a private skill surface — including sibling-skill links that never spell `skills/` in the cite text).
+
 Legal external cites: bare `<X>/SKILL.md` path (discouraged but legal — natural-language + slash invocation is canonical), `<X>/<file>.json` data files at skill root (data-file carve-out), and `<X>/scripts/<entry>` entry scripts (entry-surface carve-out below).
 
 **scripts/ entry-surface carve-out:** a skill's `scripts/` is its declared ENTRY surface per `context/public-surface-contract.md`. Harness / CI / hooks / workflow registries MAY path-cite a skill's entry scripts directly, so this inbound audit treats `<X>/scripts/...` cites as legal (like data files and bare `SKILL.md`) and never flags them. The skill-to-skill half of the asymmetry — a sibling SKILL.md citing another skill's `scripts/` stays slash-only — is out of this inbound audit's scope; a consuming repo that wants it enforced wires its own outbound gate.
 
 The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, `plugins/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files — each filtered to what exists.
-
-**Detector limitations** (exit 0 does not mean the tree is clean):
-
-- Relative-path cites (`../skills/...`, bare `skills/...`, relative heading-anchor forms) are invisible to the PATTERN. Tracked as #2716 — not fixed here.
-- Only absolute-looking prefixes (`.claude/skills/...` and `plugins/<plugin>/skills/...`) are matched.
 
 Or invoke the skill (the agent applies the filter taxonomy below):
 
@@ -94,7 +91,7 @@ Or invoke the skill (the agent applies the filter taxonomy below):
 
 | Filter | Hit shape | Why legal |
 |--------|-----------|-----------|
-| **Self-citation** | `.claude/skills/<X>/SKILL.md` cites `.claude/skills/<X>/<private-path>` | Intra-skill progressive disclosure (per `context/public-surface-contract.md`) |
+| **Self-citation** | A skill cites its own internals — absolute (`.claude/skills/<X>/...` / `plugins/.../skills/<X>/...`), bare `skills/<X>/...`, or a `../` cite that resolves into the same skill | Intra-skill progressive disclosure (per `context/public-surface-contract.md`) |
 | **KIND-1 meta-prose** | A rule or doc describing the encapsulation contract itself, OR documenting skill internals as a worked example / historical narrative / empirically-verified quirk | Self-referential explanatory prose, not citation |
 | **KIND-2 forced-cite** | Another tool's semantics structurally require a verbatim path (a path-scoped rule trigger, a watch-glob, a drift-gate comparing against a vendored copy) | Citation IS the structural contract |
 | **KIND-3 self-test** | This skill's / a hook's own regression fixtures embed literal violation strings | Exercise the filter; not real citations |
