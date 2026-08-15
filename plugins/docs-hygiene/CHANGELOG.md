@@ -16,7 +16,10 @@
   between-dispatch checks when the guard's snapshot is present, and wave-committed cadence.
   `actions/batch.md` Step 6 and the identify pre-flight now route through it.
 - **extract-ssot:** eval 7 covers the bare confirm-scope gate (no auto-dispatch; prescribed
-  defaults; orchestrated-mode reference).
+  defaults including path/glob-scoped survey; orchestrated-mode reference).
+- **extract-ssot orchestrated-mode:** rate-limit capability detection matches the reader
+  contract's per-window fail-open (one malformed window does not suppress a valid sibling trip)
+  and reactive-only mode consumes `stop-events.jsonl` as well as local error text.
 
 ## [0.13.0]
 

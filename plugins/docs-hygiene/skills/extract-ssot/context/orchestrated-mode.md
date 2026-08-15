@@ -85,15 +85,29 @@ installed plugin cannot read a sibling plugin's files at runtime.
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 
-Snapshot absent, stale, or implausible → the guard is **unknown**: keep
-the static cap, never fabricate a pause, and fall back to reacting to
-rate-limit errors the session itself sees. A fresh plausible snapshot
-later upgrades the run back to proactive checks. Dynamic *scaling*
-(raising the cap when windows are healthy) is deliberately out of
-scope: with no account identifier in the snapshot and other sessions'
-burn invisible between refreshes, headroom is a weaker signal than a
-trip, and the cost of over-shooting a shared window lands on every
-session on the machine.
+**Capability detection (fail-open), scoped like the reader contract:**
+
+| Observation | Scope | Mode |
+| --- | --- | --- |
+| Fresh snapshot with plausible `rate_limits` | whole guard | **proactive** — apply the operable floor |
+| Tee file absent, stale, or missing `rate_limits` | whole guard | **unknown → reactive-only** |
+| Absurd `used_percentage` or `resets_at` on one window | that window | that window **unknown**; keep applying the floor to every window still plausible |
+| No window plausible | whole guard | **unknown → reactive-only** |
+
+One malformed window must not suppress a valid sibling: if the five-hour record is absurd but the
+seven-day window is plausible and already ≥ 90, pause on the seven-day trip (and vice versa). Only
+the whole-guard rows above drop the run to reactive-only.
+
+**Reactive-only mode:** keep the static concurrency cap, never fabricate a pause from untrusted
+data, and react to (a) detection records in `~/.claude/rate-limit-guard/stop-events.jsonl` (read on
+entering reactive-only and again before each new work claim; records newer than this session's
+start — later, newer than the last resume baseline — are live signal) and (b) rate-limit error text
+this session itself sees. Resume timing comes from that error text where available, otherwise
+backoff-and-retry. A later fresh snapshot with plausible windows upgrades the run back to
+proactive checks. Dynamic *scaling* (raising the cap when windows are healthy) is deliberately out
+of scope: with no account identifier in the snapshot and other sessions' burn invisible between
+refreshes, headroom is a weaker signal than a trip, and the cost of over-shooting a shared window
+lands on every session on the machine.
 
 ## Cadence and commits
 

@@ -9,9 +9,10 @@ Private surface — external consumers invoke `/docs-hygiene:extract-ssot identi
 | Invocation | Mode | Behavior |
 |------------|------|----------|
 | `/docs-hygiene:extract-ssot identify` | Exhaustive (default) | Read-only subagent deep survey across instruction files, rules, skills, agents, ADRs, docs. Returns a ranked candidate roster + dependency chains + file-overlap matrix + batch wave plan |
+| `/docs-hygiene:extract-ssot identify` + confirmed path/glob scope | Exhaustive (path-scoped) | Same survey heuristics and roster shape as whole-repo exhaustive, but the subagent's search roots are the named directories / globs only (tracked markdown under that pathspec). Not a single-cluster grep |
 | `/docs-hygiene:extract-ssot identify <cluster-name>` | Targeted | Tier 0 grep on a named cluster only. Returns instance count + Tier 0 evidence + suggested output type. No subagent dispatch |
 
-User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or `/docs-hygiene:extract-ssot identify` with no args = default to exhaustive mode.
+User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or `/docs-hygiene:extract-ssot identify` with no args = default to exhaustive mode. Path/glob scope from the confirm-scope gate (SKILL.md) keeps exhaustive mode and narrows roots — it does not switch to targeted.
 
 ## When to invoke
 
@@ -32,9 +33,11 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 ## Exhaustive mode steps
 
 ```text
-0. Scope gate: exhaustive mode needs an affirmative scope — an explicit argument/user signal, or
-   the SKILL.md "Bare invocation — confirm scope first" ask answered whole-repo. Large repos run
-   the batch under context/orchestrated-mode.md defaults
+0. Scope gate: exhaustive mode needs an affirmative scope — an explicit argument/user signal, the
+   SKILL.md "Bare invocation — confirm scope first" ask answered whole-repo, or that ask answered
+   with named paths/globs (path-scoped exhaustive). Whole-repo large repos run the batch under
+   `context/orchestrated-mode.md` defaults; path-scoped surveys inherit the same concurrency
+   ceiling when they fan into verify/execute
 1. Pre-flight: confirm no working notes with an active candidate roster (would imply resume, not new identify)
 2. Dispatch a read-only exploration subagent with the survey prompt (template below)
 3. Subagent searches markdown surfaces with 30+ heuristics (template lists them)

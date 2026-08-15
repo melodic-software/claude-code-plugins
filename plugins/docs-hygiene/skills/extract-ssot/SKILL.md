@@ -92,9 +92,13 @@ Ask one question with prescribed defaults, recommended option first:
    sweeps) — runs under `context/orchestrated-mode.md` defaults; in the
    same ask, confirm depth (roster only / verified roster / full
    pipeline with wave commits).
-2. **Targeted cluster** — the user names it; routes to
-   `identify <cluster-name>`.
-3. **Not now.**
+2. **Path- or glob-scoped exhaustive survey** — the user names one or
+   more directories / globs (e.g. `plugins/docs-hygiene/`, `docs/**/*.md`);
+   routes to exhaustive `identify` restricted to tracked markdown under
+   that pathspec (still a survey, not a single-cluster grep).
+3. **Targeted cluster** — the user names a semantic cluster; routes to
+   `identify <cluster-name>` (Tier 0 grep on that cluster only).
+4. **Not now.**
 
 Non-interactive sessions (no user to ask): proceed only when the
 invoking automation supplied an explicit scope or action argument;

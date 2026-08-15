@@ -77,11 +77,11 @@
       "id": 7,
       "name": "bare-invocation-confirms-scope",
       "prompt": "Run /docs-hygiene:extract-ssot with no argument. There are no prior working notes and the conversation has not named a scope.",
-      "expected_output": "Does NOT auto-dispatch the exhaustive survey. Asks one confirmation question with prescribed defaults (recommended option first: whole-repo under context/orchestrated-mode.md; alternatives: named paths/globs, or stop). Non-interactive sessions without an explicit scope report the options and stop.",
+      "expected_output": "Does NOT auto-dispatch the exhaustive survey. Asks one confirmation question with prescribed defaults (recommended option first: whole-repo under context/orchestrated-mode.md; then path/glob-scoped exhaustive survey; then targeted cluster; or stop). Non-interactive sessions without an explicit scope report the options and stop.",
       "files": [],
       "expectations": [
         "Output asks the user to confirm scope before surveying (does not auto-start exhaustive identify)",
-        "Output presents prescribed defaults with a recommended option first",
+        "Output presents prescribed defaults with a recommended option first, including a path/glob-scoped exhaustive survey choice distinct from targeted cluster grep",
         "Output references whole-repo / orchestrated-mode defaults when offering the repo-wide option"
       ]
     }
