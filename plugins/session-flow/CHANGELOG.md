@@ -1,5 +1,17 @@
 # Changelog — session-flow plugin
 
+## [0.23.4]
+
+### Fixed
+
+- **A failing vendored tzdata zip degrades to exit 3, not exit 1 (#2672).**
+  `_ensure_bundled_tzdata()` wraps ZipFile/extractall in try/except so a corrupt
+  or truncated `tzdata-zoneinfo.zip` cannot abort the script with exit 1 (this
+  script's "limit still holds" code). Failures join the missing-bundle path and
+  surface as exit 3 (`timezone-unavailable`). The tempfile cache name also carries
+  a per-user component and refuses a symlinked or foreign-owned cache directory
+  before putting it on `sys.path`.
+
 ## [0.23.3]
 
 ### Fixed

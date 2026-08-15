@@ -125,7 +125,11 @@ class BundledTzdataDegradationTests(unittest.TestCase):
     """
 
     def _run_with_bundle(self, write_bundle) -> int:
-        """Run the script against a scratch copy whose bundle is sabotaged."""
+        """Run the script against a scratch copy whose bundle is sabotaged.
+
+        Empty ``PYTHONTZPATH`` hides the system zoneinfo tree so a sabotaged
+        bundle cannot silently succeed via ``/usr/share/zoneinfo`` on Linux CI.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             scripts = Path(tmp) / "scripts"
             (scripts / "vendor").mkdir(parents=True)
@@ -141,24 +145,30 @@ class BundledTzdataDegradationTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                env={**os.environ, "PYTHONTZPATH": ""},
             )
             return proc.returncode
 
     def test_corrupt_bundle_degrades_to_timezone_unavailable(self) -> None:
+        """Corrupt bytes pass ``is_file()`` and hit the ZipFile try/except (#2672)."""
         code = self._run_with_bundle(
             lambda p: p.write_bytes(b"this is definitely not a zip archive")
         )
         self.assertEqual(code, 3, "a corrupt bundle must not report 'limit holds'")
 
     def test_truncated_bundle_degrades_to_timezone_unavailable(self) -> None:
+        """Truncated zip passes ``is_file()`` and hits the ZipFile try/except (#2648)."""
         head = VENDOR_ZIP.read_bytes()[:2048]
         code = self._run_with_bundle(lambda p: p.write_bytes(head))
         self.assertEqual(code, 3, "a truncated bundle must not report 'limit holds'")
 
-    def test_unreadable_bundle_degrades_to_timezone_unavailable(self) -> None:
-        # A directory at the bundle path stands in for the unreadable class:
-        # chmod 000 does not restrict an Administrator on Windows NTFS, so it
-        # is not a portable probe.
+    def test_directory_at_bundle_path_degrades_to_timezone_unavailable(self) -> None:
+        """A directory at the bundle path fails the ``is_file()`` guard (#2647).
+
+        That path returns before the #2672 try/except; corrupt/truncated cases
+        above exercise the new exception handling. chmod 000 is not a portable
+        probe (Administrator on Windows NTFS ignores it).
+        """
         code = self._run_with_bundle(lambda p: p.mkdir())
         self.assertEqual(code, 3, "an unusable bundle must not report 'limit holds'")
 
