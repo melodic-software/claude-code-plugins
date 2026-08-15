@@ -1,11 +1,18 @@
 # Bundled portable default — python. Rung-4 fallback ONLY (consumer
 # .claude/ecosystems/python.yaml overrides key-by-key). Contract + schema:
 # https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+#
+# fix-cmd is format-only (ruff format). Code-changing autofixes (ruff check
+# --fix) live in code-fix-cmd and require /toolchain:lint --code-fix plus
+# that skill's confirmation / --yes gate. --unfixable F401 matches the
+# ruff-format hook: protects just-added imports during iterative editing;
+# F401 still surfaces as a finding — only auto-deletion is suppressed.
 globs: ["*.py", "pyproject.toml", "uv.lock", "pyrightconfig.json"]
 project-discovery: ["pyproject.toml"]
 build-cmd: null # no separate build step; lint/test cover verification
 test-cmd: "uv run pytest -x -q" # plain pytest when the project doesn't use uv
 check-cmd: "uv run ruff check . --no-fix && uv run ruff format . --check && uv run pyright"
-fix-cmd: "uv run ruff check . --fix && uv run ruff format ." # pyright has no fix mode
+fix-cmd: "uv run ruff format <files>" # format-only; pyright has no fix mode
+code-fix-cmd: "uv run ruff check <files> --fix --no-unsafe-fixes --unfixable F401"
 opt-in: "ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff])"
 install-hint: "pip install ruff pyright uv | brew install uv ruff pyright | winget install astral-sh.uv"

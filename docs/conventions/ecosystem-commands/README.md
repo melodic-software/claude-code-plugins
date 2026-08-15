@@ -110,6 +110,10 @@ documented placeholders:
 | `<project-dir>` | Each per-project root discovered via `project-discovery` |
 | `$REPO_ROOT` | Absolute repo root (`git rev-parse --show-toplevel`) |
 
+`fix-cmd` is **format-only** (whitespace / import layout / style). Semantic/code-changing
+autofixes belong in optional `code-fix-cmd` and are invoked only by `/toolchain:lint --code-fix`
+behind that skill's confirmation / `--yes` gate — never by bare `--fix`.
+
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
 Consuming repos SHOULD validate their files against the schema in their own gates (a
 `check-jsonschema` hook or CI lane); plugins SHOULD fail soft — a malformed file degrades to rung 2

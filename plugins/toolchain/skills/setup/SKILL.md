@@ -41,7 +41,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 
 1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
    report the ecosystem and its resolved command surface
-   (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`). Validate each against the contract's
+   (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
    remediation line), or a tracked ecosystem file excluded by `.gitignore` (teammates would never
    receive it — report the matching rule). Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
@@ -74,7 +74,8 @@ then specialize it to the repo:
 - **python** — `pyproject.toml`/`uv.lock`. Prefer `uv run …` when `uv.lock` exists, else plain
   `ruff`/`pytest`. Set `project-discovery` to the `pyproject.toml` roots.
 - **typescript** — `package.json`/`tsconfig*.json`. Read the `scripts` block for the real `test-cmd`;
-  pick `check-cmd`/`fix-cmd` from the configured linter (`biome.json` → Biome, eslint config → ESLint).
+  pick `check-cmd`/`fix-cmd` (format-only) and `code-fix-cmd` (semantic lint autofixes) from the
+  configured linter (`biome.json` → Biome format vs check --write; eslint config → ESLint).
 - **bash** / **powershell** — shell/PowerShell files present; keep the bundled check/fix commands
   unless the repo documents its own.
 - **markdown** — a markdownlint config present.

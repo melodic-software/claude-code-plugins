@@ -3,6 +3,31 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Added
+
+- **`/toolchain:lint --code-fix` — gated semantic lint autofixes.** New optional ecosystem key
+  `code-fix-cmd` (ecosystem-commands contract 1.3.0) holds code-changing autofixes. The skill emits
+  a plan, then requires interactive confirmation or `--yes` (non-interactive without `--yes` stops
+  after the plan). `--dry-run` always stops after the plan. A default **file-cap of 40** scoped files
+  stops over-broad applies unless `--all-files` is passed. After an apply, surface `git diff --stat`.
+
+### Changed
+
+- **`--fix` is format-only.** Bundled portable defaults split format from code-fix:
+  - python: `fix-cmd` → `ruff format <files>`; `code-fix-cmd` → `ruff check <files> --fix
+    --no-unsafe-fixes --unfixable F401` (matches the `ruff-format` hook's F401 guard)
+  - go: `fix-cmd` → `gofmt -w <files>`; `code-fix-cmd` → `golangci-lint run --fix <files>`
+    Go format/code-fix substitute **only `*.go` paths** (never `go.mod`/`go.sum`) and invoke
+    `golangci-lint run --fix` once per package directory so multi-package changes do not hit
+    `named files must all be in one directory`.
+  - typescript: `fix-cmd` → `biome format --write <files>`; `code-fix-cmd` →
+    `biome check --write <files>`
+  Ecosystems that were already format-only (dotnet, bash, markdown) are unchanged. Consumer
+  overrides that still put code-changing verbs in `fix-cmd` keep that behavior under `--fix`;
+  prefer migrating them to `code-fix-cmd`. Closes #2649.
+
 ## [0.12.1]
 
 ### Changed

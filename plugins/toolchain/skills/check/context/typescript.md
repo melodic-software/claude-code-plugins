@@ -20,8 +20,11 @@ cd "$PROJECT_DIR" && npm test
 # Use the project's configured linter — biome.json → Biome; eslint config → ESLint
 cd "$PROJECT_DIR" && npx biome check .
 
-# Auto-fix
-cd "$PROJECT_DIR" && npx biome check --write .
+# Format-only (/toolchain:lint --fix)
+cd "$PROJECT_DIR" && npx biome format --write <files>
+
+# Code-fix (lint autofixes — /toolchain:lint --code-fix only)
+cd "$PROJECT_DIR" && npx biome check --write <files>
 ```
 
 ## Gotchas
