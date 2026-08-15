@@ -7,10 +7,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Fixed
 
-- **Write-mode allowlist: `*.edn` on its own `case` arm with `spellchecker:disable-line`**
-  so hygiene typos does not treat the Clojure/EDN extension as the English word "end".
-  A disable-line comment cannot sit after a line-continuation `\` inside the multi-line
-  pattern list without breaking bash parsing.
+- **Write-mode allowlist isolates the Clojure data-notation extension** on its own `case` arm with `spellchecker:disable-line` so hygiene spell-check does not treat that extension as the English word "end". A disable-line comment cannot sit after a line-continuation `\` inside the multi-line pattern list without breaking bash parsing.
 
 - **Write mode denies known lockfile basenames** even when the extension is otherwise
   allowlisted (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, …),
