@@ -48,16 +48,22 @@ to that corrector — drift is structurally impossible.
   "at conversation start on …" clause), not from a guess. Report which
   situational correctors were included and which were skipped and why — a
   skip is always reported, never silent.
-- **never** — excluded from the batch by execution or interaction class (the
-  `-deep` fan-out tiers; `scrutinize-dont-coast`, which needs a non-fork
-  fresh context and stops to remediate with the user). Report that they
-  exist and are invoked directly, not batched.
+- **never** — excluded from the batch by execution or interaction class
+  (heavier fan-out tiers; correctors that need a non-fork fresh context or
+  stop to remediate with the user). Membership is whichever correctors
+  declare `discipline-batch: never` — this runbook does not enumerate them.
+  Report that they exist (from the glob) and are invoked directly, not
+  batched.
 
 **userConfig overlay** (see Configuration) applies after tier resolution:
-`exclude` drops a member, `promote` lifts a situational corrector to
-always-run, `demote` drops a core corrector to relevance-gated. Report the
-net effect when an overlay changes the resolved set. Zero-config = tiers
-exactly as the correctors declare them.
+`exclude` drops a member, `promote` lifts a **situational** corrector to
+always-run, `demote` drops a core corrector to relevance-gated. `promote`
+is situational-only: a name whose resolved tier is `never` or `core`, or
+that matches no installed corrector, draws a **visible warning** and is
+not promoted (core stays core; never stays out of the batch; unknown is
+ignored). Report the net effect — including every such warning — when an
+overlay changes the resolved set. Zero-config = tiers exactly as the
+correctors declare them.
 
 ## Preflight: prove the fan-out can inherit (before step 1)
 
@@ -392,7 +398,17 @@ placeholder as unset — no overlay from that key — and never read the literal
 token as a corrector name. Apply
 after tier resolution: `batch_exclude` drops a member, `batch_promote` lifts a
 situational corrector to always-run, `batch_demote` drops a core corrector to
-relevance-gated. Report the net effect whenever the overlay changes the set.
+relevance-gated. **`batch_promote` accepts situational names only.** For each
+promote entry, resolve the name against the globbed correctors' tier metadata:
+
+- **situational** — promote to always-run (the only successful case).
+- **never** — visible warning; do not promote; leave excluded from the batch.
+- **core** — visible warning; do not promote; leave as always-run core (a
+  no-op that must not look like a successful promote).
+- **unknown** (matches no installed corrector) — visible warning; ignore.
+
+Report the net effect whenever the overlay changes the set, and surface every
+never/core/unknown promote warning in that report — never silently drop them.
 
 ## What this skill does NOT do
 
@@ -402,10 +418,14 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
 - **Not a session or SDLC orchestrator.** Staged navigation and session
   lifecycle belong to the `session-flow` plugin; this only sequences the
   re-anchor correctors.
-- **Does not batch the `never` tier** — the `-deep` fan-out siblings and
-  `scrutinize-dont-coast` are invoked directly.
-- **Does not name its members inline** — membership is each corrector's own
-  tier metadata.
+- **Does not batch the `never` tier** — correctors that declare
+  `discipline-batch: never` are invoked directly; this runbook does not list
+  them by name.
+- **Does not define membership by inline names** — membership is each
+  corrector's own tier metadata (glob + read). Inline names elsewhere in this
+  file illustrate rank-order intent or overlay examples, never the member set.
+- **Does not silently accept a non-situational `batch_promote`** — never,
+  core, and unknown promote entries warn and are not promoted.
 
 ## Gotchas
 

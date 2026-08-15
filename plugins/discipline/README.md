@@ -377,7 +377,7 @@ list of corrector names, empty by default (tiers run exactly as declared) — an
 | Option | Effect |
 |---|---|
 | `batch_exclude` | Drop these correctors from the batch |
-| `batch_promote` | Run these situational correctors every session instead of gating them on relevance |
+| `batch_promote` | Run these situational correctors every session instead of gating them on relevance (situational-only; never/core/unknown warn and are not promoted) |
 | `batch_demote` | Run these core correctors only when relevant instead of every session |
 | `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default — subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
 
@@ -400,7 +400,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `batch_exclude` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_EXCLUDE` | Comma-separated corrector skill names to drop from the posture batch (for example: point-dont-copy). Overrides the corrector's own declared tier. Empty runs the tiers exactly as the correctors declare them. |
-| `batch_promote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_PROMOTE` | Comma-separated situational corrector skill names to always run in the batch instead of gating them on relevance to the conversation. |
+| `batch_promote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_PROMOTE` | Comma-separated situational corrector skill names to always run in the batch instead of gating them on relevance to the conversation. Situational-only: a never-tier, core, or unknown name draws a visible warning and is not promoted. |
 | `batch_demote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_DEMOTE` | Comma-separated core corrector skill names to run only when relevant to the conversation instead of every session. |
 | `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research-deep: 'tiered' (the default — resolve trivial and non-load-bearing inventory items inline, fan fresh-context subagents out only over the load-bearing ones) or 'full' (subagent-verify every inventory item). An invocation argument overrides this. An empty value, an unexpanded ${user_config.…} token, or an unrecognized string all fall back to tiered. |
 

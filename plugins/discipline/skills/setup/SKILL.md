@@ -48,12 +48,17 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    batch runs the tiers exactly as the correctors declare them.
 4. **Validate the batch names against what is installed.** Glob the sibling corrector
    directories under this plugin's `skills/` and, for each name in an overlay, report:
-   - a name that matches no installed corrector — FAIL (typo or removed corrector);
-     remediation: fix the value via the plugin configuration prompt;
+   - a name in `batch_exclude` or `batch_demote` that matches no installed corrector —
+     FAIL (typo or removed corrector); remediation: fix via the plugin configuration
+     prompt;
    - the same name in `batch_exclude` and in `batch_promote`/`batch_demote` —
      contradictory; report it;
-   - a `batch_promote` naming an already-core corrector, or a `batch_demote` naming
-     an already-situational one (read its `metadata.discipline-batch`) — a no-op; INFO.
+   - **`batch_promote` is situational-only** (read `metadata.discipline-batch`):
+     promote only situational names. A promote naming a `never`-tier or `core`
+     corrector, or a name that matches no installed corrector, is a **visible
+     warning** and is not promoted — never stays out of the batch, core stays
+     core, unknown is ignored. Do not report these as successful promotes.
+   - a `batch_demote` naming an already-situational corrector — a no-op; INFO.
 5. **Report the deep-research verification depth.** `research_deep_verification` sets
    `do-your-research-deep`'s default depth. Report the effective value: `tiered`
    (fan subagents out only over load-bearing items) or `full` (subagent-verify every

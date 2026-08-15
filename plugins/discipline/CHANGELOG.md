@@ -5,6 +5,24 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.9]
+
+### Changed
+
+- **`sweep-all` membership / `batch_promote` contract (#2738).** Membership stays
+  glob + colocated tier metadata — the runbook no longer names never-tier members
+  inline as if they were the member set. `batch_promote` is situational-only: a
+  never-tier, core, or unknown promote entry draws a visible warning and is not
+  promoted (`setup check` matches). Overlay net-effect reporting must surface
+  those warnings.
+
+### Added
+
+- **`wait-what` eval suite (#2738).** Five cases covering missing-context restore,
+  ASD-STE100 register, project ubiquitous language, re-ground-not-compress, and
+  no-glossary silent no-op — closing the gap where the other sixteen skills shipped
+  evals and this one did not.
+
 ## [0.12.8]
 
 ### Changed

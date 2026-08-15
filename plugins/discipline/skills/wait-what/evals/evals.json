@@ -1,0 +1,65 @@
+{
+  "skill_name": "wait-what",
+  "evals": [
+    {
+      "id": 1,
+      "name": "missing-context-restored",
+      "prompt": "wait-what — I lost you after 'so we ship that'. What decision? What alternatives did you skip?",
+      "expected_output": "Re-pitches the prior message by restoring the missing premise: which decision, what it rests on, and which alternatives were set aside. The repair adds the context the reader lacked rather than restating the same opaque conclusion more firmly.",
+      "files": [],
+      "expectations": [
+        "Surfaces the premise / decision / skipped alternatives the reader was missing",
+        "Does not merely restate the opaque conclusion more confidently",
+        "Treats missing context as the primary repair target"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "ste-register",
+      "prompt": "wait-what — that last reply was full of stacked jargon and long multi-clause sentences; I stopped following mid-paragraph.",
+      "expected_output": "Re-pitches in ASD-STE100 Simplified Technical English: short sentences, one meaning per word, technical terms exact. It drops stacked jargon and multi-clause packing without stripping the technical content the reader still needs.",
+      "files": [],
+      "expectations": [
+        "Rewrites in ASD-STE100 Simplified Technical English (short sentences, one meaning per word)",
+        "Keeps technical terms exact rather than inventing softer synonyms that blur meaning",
+        "Removes stacked jargon / multi-clause packing that caused the skim"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "project-vocab-from-glossary",
+      "prompt": "wait-what — you kept saying 'module' and 'service' but our glossary calls those bounded contexts and application services. Re-pitch with our words.",
+      "expected_output": "Reads the nearest domain glossary or context map per the project's own convention and re-pitches using the project's ubiquitous language (bounded context, application service) instead of the model's improvised synonyms.",
+      "files": [],
+      "expectations": [
+        "Consults the project's glossary or context map when one exists",
+        "Substitutes project ubiquitous language for improvised synonyms",
+        "Does not invent a parallel vocabulary alongside the project's terms"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "re-ground-not-compress",
+      "prompt": "wait-what — shorter please, but I still need to understand the full rationale, not a blunt summary.",
+      "expected_output": "Re-grounds the message: full technical precision stays and the missing premise comes back. It refuses a shorter-but-blunter compression that would lose clarity — re-pitch means re-ground, not compress.",
+      "files": [],
+      "expectations": [
+        "Preserves full technical precision rather than trading it for brevity",
+        "Restores the missing premise so the reader can follow",
+        "Refuses a shorter-but-blunter reply that is no clearer"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-glossary-is-noop",
+      "prompt": "wait-what — that did not land. (This project has no domain glossary or context map.)",
+      "expected_output": "Applies the register and missing-context halves of the repair. With no glossary present, the vocabulary half is a silent no-op — not an error, not a fabricated glossary — and plain technical English alone carries the re-pitch.",
+      "files": [],
+      "expectations": [
+        "Still applies missing-context restoration and STE register",
+        "Treats a missing glossary as a silent no-op, not an error",
+        "Does not invent a project glossary when none exists"
+      ]
+    }
+  ]
+}
