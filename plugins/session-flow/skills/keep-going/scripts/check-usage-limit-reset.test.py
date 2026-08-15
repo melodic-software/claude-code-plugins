@@ -157,7 +157,7 @@ class BundledTzdataDegradationTests(unittest.TestCase):
         self.assertEqual(code, 3, "a corrupt bundle must not report 'limit holds'")
 
     def test_truncated_bundle_degrades_to_timezone_unavailable(self) -> None:
-        """Truncated zip passes ``is_file()`` and hits the ZipFile try/except (#2648)."""
+        """Truncated zip passes ``is_file()`` and hits the ZipFile try/except (#2672)."""
         head = VENDOR_ZIP.read_bytes()[:2048]
         code = self._run_with_bundle(lambda p: p.write_bytes(head))
         self.assertEqual(code, 3, "a truncated bundle must not report 'limit holds'")
