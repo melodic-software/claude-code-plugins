@@ -31,8 +31,7 @@ metadata:
 # Disk hygiene
 
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
-filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
-primary objective; reclaimed bytes are secondary.** Read
+filename pattern is a discovery hint, never proof that an entry is junk. Read
 [the safety model](reference/safety-model.md) before the optional execution lane.
 
 ## Arguments and boundaries
@@ -213,8 +212,7 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 
 ## 3. Classify and report
 
-Safe tidiness leads; reclaimed space follows. Confidence is report priority, not permission — and
-byte size is never a ranking key:
+Confidence is report priority, not permission:
 
 | Tier | Minimum evidence | Default outcome |
 |---|---|---|
@@ -222,25 +220,9 @@ byte size is never a ranking key:
 | Medium | Likely disposable, but one ownership/provenance fact is indirect | Review, then optionally offer its own approval |
 | Low | Name/age-only, conflicting signals, resumable or user-content possibility | Keep unless the human separately reviews and approves exact paths |
 
-Report every finding with these fields, in this order — size last:
-
-1. **Provenance** — where it came from, resolved from evidence (a manifest, a config's own
-   contents, an owning repository's source, a documented naming contract), never guessed from the
-   name alone.
-2. **What it is** — intent / role of the entry (`reason` in engine plans).
-3. **Why removable** — why it is not work product, plus owner / native-GC result.
-4. **Risk** — what could go wrong if it is removed (and why that risk is acceptable at this tier).
-5. Path, tier, evidence, disposition.
-6. Logical / reclaimable bytes as a **secondary** signal only.
-
-Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
-
-**Empty directories are first-class findings.** They are not inherently junk, but zero-byte residue
-must stay visible and rankable: never drop an empty directory from investigation or from the report
-because it reclaims nothing. Prefer ranking by tier, location sensitivity (for example volume-root
-or home-root orphans), and provenance strength over byte totals. The snapshot's
-`empty_directory_count` and each preview candidate's `empty_directory` flag exist so empty dirs do
-not disappear under byte-centric roll-ups.
+Report every finding with path, logical bytes, tier, evidence, owner/native-GC result, why it is not
+work product, and disposition. Separately list protected, locked, needs-elevation, unverified, and
+coverage-gap entries. Empty directories are not inherently junk.
 
 An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty.
 Exclude every qualified entry from any reclaimable-bytes total and state the qualified bytes
@@ -251,8 +233,7 @@ so `logical_size` is `null` rather than `0` — except on the target's own recor
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the
 snapshot's `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing
 `logical_size` yourself — folding qualified or unknown sizes into a total claims space that
-deleting the path would never return. Never treat a low or zero reclaimable-byte figure as a reason
-to skip a finding that otherwise clears the evidence bar.
+deleting the path would never return.
 
 ## 4. Build one exact-tier plan
 
@@ -266,11 +247,9 @@ Only when `--execute` was requested, write `<run-dir>/plan-<tier>.json`; never m
     {
       "path": "relative/exact.tmp",
       "tier": "high",
-      "provenance": "documented atomic-write staging name; owner process absent",
       "reason": "failed atomic-write staging file",
       "evidence": ["documented name shape", "owner process absent"],
       "why_not_work_product": "generated staging bytes with no durable consumer",
-      "risk": "low — regenerable staging residue; no live consumer",
       "owner": "unmanaged"
     }
   ]
@@ -296,11 +275,10 @@ handles from current state rather than trusting snapshot annotations. It also pr
 directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
 blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
-When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
-it is, why removable, risk, empty-directory flag when set, the single tier, and only then logical /
-reclaimable bytes, plus the preview's approval token — then pass the
-[confirmation gate](#confirmation-gate) — the approval must name **exactly that tier and list**.
-Process another tier only with a new plan, preview, and question.
+When status is `ready-for-explicit-approval`, show a table naming every path, the single tier, logical
+bytes, and the preview's approval token, then pass the [confirmation gate](#confirmation-gate) — the
+approval must name **exactly that tier and list**. Process another tier only with a new plan, preview,
+and question.
 
 ## 6. Apply only the confirmed preview
 
@@ -314,7 +292,7 @@ After an affirmative answer in this interactive session, run only:
 ```
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
-skill-scoped hook blocks those bypasses and forces one final permission prompt for the exact engine
+skill-frontmatter belt blocks those bypasses and forces one final permission prompt for the exact engine
 apply command; confirm it only when it matches the tier and paths just approved. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a
 token.
@@ -355,7 +333,12 @@ engine plan:
    next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
    time: delete immediately, and re-run handoff-verify after any delay or interruption.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
-   which was used. That reversibility is conditional, not guaranteed: bin size caps, a
+   which was used. On Windows, Recycle Bin handoff is via
+   `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` with
+   `SendToRecycleBin`, or `Shell.Application` `NameSpace(10)`/`0xa` `MoveHere`/`InvokeVerb` —
+   never `Remove-Item` (always permanent). The PowerShell belt requires a final permission
+   prompt for those Recycle Bin spellings just as it does for `Remove-Item`. That reversibility
+   is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
 3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
@@ -376,11 +359,9 @@ approved list. Engine invocations from PowerShell stay hard-denied. The plugin-l
 argument, so the unset-default hook-drop that once made it inert on a default install is gone.
 `Bash|PowerShell` PreToolUse hooks fire for the PowerShell tool. See `reference/safety-model.md`.
 
-Summarize tidiness outcomes first: paths removed, empty directories cleared
-(`empty_directories_removed` / `paths_removed`), remaining coverage gaps, and every skip grouped by
+Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
-`delete-failed`. Report reclaimable bytes removed and observed free-space delta **after** those
-tidiness figures. Do not claim the observed free-space delta is exact: concurrent disk activity,
+`delete-failed`. Do not claim the observed free-space delta is exact: concurrent disk activity,
 sparse files, hard links, compression, and delayed allocation affect it.
 
 ## Gotchas
@@ -401,14 +382,22 @@ sparse files, hard links, compression, and delayed allocation affect it.
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
-  research uses non-Bash read-only tools; only literal-word bundled scan, preview, handoff-verify, and
-  apply shapes using the hook runtime's same absolute executable pass. Shell expansions, globs,
-  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+- The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. A small
+  literal-form read-only supporting allowlist (`ls`, `test`/`[`, `stat`, `du`, `pwd`, `basename`,
+  `dirname`, `file`, and `find` without side-effect primaries) is permitted for cleanup inspection
+  when the executable is a trusted system binary: bare names only if `PATH` resolution lands under
+  directories such as `/bin` or `/usr/bin`, and absolute paths under those same directories. Relative
+  path-qualified forms and shadowed PATH entries fail closed. Everything else stays denied. Only
+  literal-word bundled scan, preview, handoff-verify, and
+  apply shapes using the hook runtime's same absolute executable pass as engine calls. Shell
+  expansions, globs, splitting/escape forms, operators, redirections, aliases, and exported
+  functions fail closed. Engine containment remains the deletion authority — the allowlist is not.
 - The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
   that receives the data root by plugin-hook substitution and defers instantly on any command not
   referencing the engine; and this skill's frontmatter belt, which adds the deny-by-default Bash and
-  deletion-spelling PowerShell discipline while cleanup is the active work. Both resolve the kill switch
+  deletion-spelling PowerShell discipline for the **rest of the session** after the skill is invoked
+  (Claude Code keeps skill-frontmatter `PreToolUse` hooks registered session-wide — there is no
+  harness-level "skill is active" window for hooks; #2618). Both resolve the kill switch
   the same single way — reading `disk_hygiene_enabled` from user-scope `pluginConfigs` in
   `settings.json`, located from the `${CLAUDE_PLUGIN_ROOT}` both receive — so both honor a configured
   `false`, register unconditionally, and fail closed to enabled when the value is absent or unreadable.
@@ -454,9 +443,12 @@ sparse files, hard links, compression, and delayed allocation affect it.
   (`CLAUDE_TOOL_NAME` does not exist).
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
-  into a final human permission prompt. It is a raised bar, not a fail-closed lane — move, rename,
-  overwrite, and volume-format spellings are not flagged at all (`reference/safety-model.md`); the
-  engine's own containment and the Bash lane remain the deletion authority.
+  into a final human permission prompt — including the Recycle Bin paths this skill prefers
+  (`Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` with
+  `SendToRecycleBin`, and `Shell.Application` `NameSpace(10)`/`0xa` `MoveHere`/`InvokeVerb`).
+  It is a raised bar, not a fail-closed lane — some adjacent mutation spellings remain unflagged
+  (`reference/safety-model.md`); the engine's own containment and the Bash lane remain the
+  deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

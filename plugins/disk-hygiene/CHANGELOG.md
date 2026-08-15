@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1]
+
+### Fixed
+
+- **Read-only supporting Bash allowlist verifies executable identity (#2591).** Bare
+  names (`ls`, `find`, …) are allowed only when `shutil.which` resolves into a trusted
+  system directory (`/bin`, `/usr/bin`, and siblings; Windows System32 / Git usr\bin
+  when applicable). Absolute paths under those directories are allowed; relative
+  path-qualified forms and PATH-shadowed binaries outside trusted prefixes fail closed
+  (same rationale as denying bare `python`/`python3`). Symlinks are realpath'd so a
+  trusted-prefix link into an untrusted tree is denied.
+
 ## [0.19.0]
 
 ### Fixed

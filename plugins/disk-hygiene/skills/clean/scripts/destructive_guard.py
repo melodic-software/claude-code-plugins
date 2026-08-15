@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import shutil
 import json
 import math
 import os
@@ -267,8 +268,10 @@ def _plugin_cache_family_root() -> str | None:
     the escape exists so a consumer's own ``tools/hygiene.py`` is not mistaken
     for this engine (#1640, #1611), and a previous version of this plugin is
     not a consumer's tool. Handing it the escape leaves the kill switch
-    unenforced against it whenever the clean skill is not the active work,
-    because the plugin-level gate is the only guard in that state (#1805).
+    unenforced against it whenever only the plugin-level gate is armed
+    (before the skill-frontmatter belt registers, or in sessions that never
+    invoke ``clean``), because the plugin-level gate is the only guard in
+    that state (#1805).
 
     The prefix is derived from this module's OWN path rather than from
     ``--plugin-root``: ``__file__`` is the file actually executing, so it needs
@@ -463,8 +466,8 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     with no separator, an alias inside a command the literal parser rejects
     when the marker is absent, and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
-    preview/approval-token containment (and to the skill-scoped belt during
-    active cleanup).
+    preview/approval-token containment (and to the skill-frontmatter belt for
+    the rest of the session once that belt has registered).
     """
 
     def _is_interpreter(word: str) -> bool:
@@ -641,13 +644,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 def resolve_mode() -> str:
     """Resolve which registration surface launched this guard.
 
-    ``belt`` (default) is the skill-scoped deployment: deny-by-default Bash and
-    deletion-spelling PowerShell discipline, tolerable only while the clean skill
-    is the active work. ``engine-gate`` is the plugin-level deployment: it cares
-    ONLY about engine invocations (kill switch + data-root authority must hold in
-    every session), so any command that does not reference the engine defers
-    instantly — a plugin-level hook must never tax unrelated work. An
-    unrecognized or absent value falls back to ``belt``, the stricter mode.
+    ``belt`` (default) is the skill-frontmatter deployment: deny-by-default Bash
+    (with a small read-only supporting allowlist) and deletion-spelling PowerShell
+    discipline. Claude Code registers skill-frontmatter ``PreToolUse`` hooks for
+    the rest of the session after the skill is invoked — not only while cleanup is
+    the active work — so this mode stays armed session-wide once registered
+    (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
+    engine invocations (kill switch + data-root authority must hold in every
+    session), so any command that does not reference the engine defers instantly
+    — a plugin-level hook must never tax unrelated work. An unrecognized or
+    absent value falls back to ``belt``, the stricter mode.
     """
     value = _argv_flag_value(sys.argv[1:], _MODE_FLAG)
     return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
@@ -985,6 +991,167 @@ def is_exact_kill_switch_probe(command: str) -> bool:
     return _script_path_key(tokens[1]) == _script_path_key(str(_probe_script_path()))
 
 
+# Narrow belt-mode Bash allowlist for cleanup inspection (#2591). Bare names are
+# accepted only when ``shutil.which`` lands under a trusted system directory;
+# absolute paths under those same directories are accepted when the basename is
+# allowlisted. Relative path-qualified forms (``./ls``) fail closed. Every shape
+# still has to clear ``_literal_shell_words`` (no metacharacters, operators, or
+# redirections). Deletion authority remains the engine's own containment.
+_READONLY_SUPPORTING_BASH_HEADS = frozenset(
+    {
+        "ls",
+        "test",
+        "stat",
+        "du",
+        "pwd",
+        "basename",
+        "dirname",
+        "find",
+        "file",
+    }
+)
+# GNU/BSD find primaries that write or execute; a literal allowlist cannot prove
+# an ``-exec`` payload harmless, so any of these fails closed.
+_FIND_SIDE_EFFECT_PRIMARIES = frozenset(
+    {
+        "-delete",
+        "-exec",
+        "-execdir",
+        "-ok",
+        "-okdir",
+        "-fprint",
+        "-fprint0",
+        "-fprintf",
+        "-fls",
+    }
+)
+
+
+def _parse_bracket_test_words(command: str) -> list[str] | None:
+    """Parse ``[ ... ]`` with the same literal rules as other supporting commands.
+
+    ``[`` / ``]`` are otherwise rejected as shell metacharacters; here they are
+    required bookends and every interior character still faces the expansion /
+    operator deny list.
+    """
+    text = command.strip()
+    if len(text) < 2 or text[0] != "[" or text[-1] != "]":
+        return None
+    interior = text[1:-1]
+    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+        return None
+    stripped = interior.strip()
+    if not stripped:
+        return []
+    return _literal_shell_words(stripped)
+
+
+def _is_readonly_find(tokens: list[str]) -> bool:
+    """True only when ``find`` carries no side-effect primary."""
+    for token in tokens[1:]:
+        if token.casefold() in {name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES}:
+            return False
+    return True
+
+
+def _readonly_supporting_basename(head: str) -> str:
+    """Basename of a supporting command head on either path separator."""
+    return _PATH_SEPARATOR.split(head.rstrip("/\\"))[-1]
+
+
+# Absolute prefixes where an allowlisted head may live after realpath. A
+# repo-controlled ``./ls`` on PATH, or a user ``~/bin/ls``, must not inherit
+# belt approval. ``Path.resolve`` follows symlinks so a trusted-prefix symlink
+# into an untrusted tree also fails closed.
+_TRUSTED_READONLY_BIN_PREFIXES = (
+    "/bin/",
+    "/usr/bin/",
+    "/usr/local/bin/",
+    "/sbin/",
+    "/usr/sbin/",
+    # Windows Git Bash / MSYS common locations
+    "/mingw64/bin/",
+)
+_TRUSTED_READONLY_BIN_SUBSTRINGS_NT = (
+    "/windows/system32/",
+    "/windows/syswow64/",
+    "/git/usr/bin/",
+    "/git/mingw64/bin/",
+)
+
+
+def _path_under_trusted_readonly_bin(path: Path) -> bool:
+    """True when ``path`` is a real file under a trusted system binary directory."""
+    if not path.is_file():
+        return False
+    key = path.as_posix()
+    if os.name == "nt":
+        lowered = key.lower()
+        if any(part in lowered for part in _TRUSTED_READONLY_BIN_SUBSTRINGS_NT):
+            return True
+    return any(key.startswith(prefix) for prefix in _TRUSTED_READONLY_BIN_PREFIXES)
+
+
+def _trusted_system_readonly_head(head: str) -> bool:
+    """True when ``head`` is a trusted-system executable for the allowlist.
+
+    - Bare names: resolve with ``shutil.which`` (ignores shell functions), then
+      require the real path under a trusted prefix. Shadowed PATH entries and
+      failed resolution fail closed — same rationale as denying bare
+      ``python``/``python3``.
+    - Absolute paths: require the real path (symlink-resolved) under a trusted
+      prefix. Relative path-qualified forms are denied.
+    """
+    if not head:
+        return False
+    if "/" in head or "\\" in head:
+        candidate = Path(head)
+        if not candidate.is_absolute():
+            return False
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            return False
+        return _path_under_trusted_readonly_bin(resolved)
+    located = shutil.which(head)
+    if not located:
+        return False
+    try:
+        resolved = Path(located).resolve()
+    except OSError:
+        return False
+    return _path_under_trusted_readonly_bin(resolved)
+
+
+def is_exact_readonly_supporting_command(command: str) -> bool:
+    """Return True for one literal-form read-only supporting Bash command (#2591).
+
+    The belt remains deny-by-default; this opens only the small inspection set
+    needed after the skill-frontmatter hook stays armed for the rest of the
+    session (#2618). Engine containment is still the deletion authority.
+    Bare names and absolute trusted paths both require executable identity under
+    a trusted system directory before they are allowed.
+    """
+    bracket_words = _parse_bracket_test_words(command)
+    if bracket_words is not None:
+        # ``[`` requires a non-empty expression and a closing ``]`` bookend.
+        return bool(bracket_words)
+    tokens = _literal_shell_words(command)
+    if tokens is None or not tokens:
+        return False
+    head = tokens[0]
+    basename = _readonly_supporting_basename(head)
+    if basename not in _READONLY_SUPPORTING_BASH_HEADS:
+        return False
+    if not _trusted_system_readonly_head(head):
+        return False
+    if basename == "find":
+        return _is_readonly_find(tokens)
+    if basename == "test":
+        return len(tokens) >= 2
+    return True
+
+
 _POWERSHELL_MUTATION_WORDS = re.compile(
     r"(?i)(?<![\w./\\-])("
     r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|clear-recyclebin|rimraf|unlink"
@@ -1013,6 +1180,29 @@ _POWERSHELL_ROBOCOPY_PURGE = re.compile(
 _POWERSHELL_QUALIFIED_DELETE = re.compile(
     r"(?i)[a-z][\w.]*\\(remove-item|clear-content|clear-recyclebin)(?![\w-])"
 )
+# Manual-handoff Recycle Bin spellings the skill prefers (#2595). VisualBasic
+# FileIO is also reachable via deletefile/deletedirectory word matches; keep an
+# explicit type-qualified form so the verdict names the preferred path. Shell
+# .Application NameSpace(10) (CSIDL_BITBUCKET; also 0xa) + MoveHere/InvokeVerb
+# had no prior coverage.
+_POWERSHELL_VB_FILESYSTEM_DELETE = re.compile(
+    r"(?i)Microsoft\.VisualBasic\.FileIO\.FileSystem\s*\]?\s*::\s*"
+    r"Delete(?:File|Directory)\b"
+)
+_POWERSHELL_SHELL_APP_NAMESPACE_BIN = re.compile(
+    r"(?i)NameSpace\s*\(\s*(?:10|0x0*a)\s*\)"
+)
+_POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
+    r"(?i)(?<![\w])(?:MoveHere|InvokeVerb)\b"
+)
+
+
+def _is_shell_application_recycle_bin_delete(command: str) -> bool:
+    """True for Shell.Application Recycle Bin MoveHere / InvokeVerb shapes."""
+    return (
+        _POWERSHELL_SHELL_APP_NAMESPACE_BIN.search(command) is not None
+        and _POWERSHELL_SHELL_APP_BIN_ACTION.search(command) is not None
+    )
 
 
 def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
@@ -1042,6 +1232,18 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "disk-hygiene engine invocations must go through the Bash tool's "
             "exact guarded command shapes, not PowerShell. To READ the engine "
             "source, use non-shell file tools.",
+        )
+    if _POWERSHELL_VB_FILESYSTEM_DELETE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
+            "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
+        )
+    if _is_shell_application_recycle_bin_delete(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged a Shell.Application NameSpace(10) Recycle Bin "
+            "MoveHere/InvokeVerb deletion.",
         )
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:
@@ -1108,15 +1310,22 @@ def _bash_denial_guidance(authority: str | None) -> str:
         )
     )
     subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
+    supporting = ", ".join(sorted(_READONLY_SUPPORTING_BASH_HEADS | {"["}))
     return (
         "Disk-hygiene fails closed: Bash is restricted to exact bundled "
         f"{subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} invocations of "
         f'"{_display_path(_engine_script_path())}", plus the argument-free '
-        f'read-only kill-switch probe "{_display_path(_probe_script_path())}" — '
+        f'read-only kill-switch probe "{_display_path(_probe_script_path())}", '
+        f"plus literal-form read-only supporting commands ({supporting}; find "
+        "without -delete/-exec/-ok/-fprint side-effect primaries; bare names "
+        "only when they resolve to trusted system binaries, or absolute paths "
+        "under those directories) — "
         "all of them using the hook's absolute Python interpreter "
-        f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
+        f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
+        "commands are denied because shell functions and aliases can replace them."
         + data_sentence
-        + " Use non-Bash read-only tools for supporting inspection."
+        + " Supporting inspection may use that small Bash allowlist or non-Bash "
+        "read-only tools; everything else stays denied."
     )
 
 
@@ -1285,6 +1494,18 @@ def _decide(command: str, tool_name: str, start: float) -> int:
                 decision(
                     "allow",
                     "Exact bundled disk-hygiene kill-switch probe (read-only report).",
+                )
+            )
+        )
+        _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
+        return 0
+    if is_exact_readonly_supporting_command(command):
+        print(
+            json.dumps(
+                decision(
+                    "allow",
+                    "Exact literal-form read-only supporting Bash command "
+                    "(disk-hygiene belt inspection allowlist).",
                 )
             )
         )

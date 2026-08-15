@@ -136,8 +136,14 @@ any delay or interruption means re-running handoff-verify. Managed-state exclusi
 always was in the manual lane — model judgment plus human review of the audit report — because
 snapshot entries carry no owner claim for the engine to check.
 
-The skill-scoped Bash guard accepts only complete literal words in the four declared engine command
-shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
+The skill-frontmatter Bash belt accepts complete literal words for the four declared
+engine command shapes, the argument-free kill-switch probe, and a small read-only
+supporting allowlist (`ls`, `test`/`[`, `stat`, `du`, `pwd`, `basename`, `dirname`,
+`file`, and `find` without `-delete`/`-exec`/`-ok`/`-fprint` side-effect primaries)
+when the executable identity is a trusted system binary (bare names only after
+`PATH` resolution into `/bin`, `/usr/bin`, and siblings; absolute paths under those
+directories; relative `./ls`-style forms denied).
+It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
 is accepted only when it matches the plugin data directory the guard derives from
@@ -176,7 +182,10 @@ a real marketplace install.
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
 known deletion spellings and .NET Delete calls resolve against the `disk_hygiene_enabled` kill
-switch. When the guard sees execution enabled they are downgraded to a final human permission prompt;
+switch — including the Recycle Bin paths the manual handoff prefers
+(`Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory`, and
+`Shell.Application` `NameSpace(10)` / `0xa` with `MoveHere` or `InvokeVerb`). When the guard sees
+execution enabled they are downgraded to a final human permission prompt;
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
@@ -195,7 +204,7 @@ TODO(#387): extend the flagged set to those spellings.
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
 `hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-scoped belt** (the clean skill's frontmatter hook, shell form through the same launcher
+**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher
 since 0.17.9) — and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
@@ -216,8 +225,10 @@ resolves `false` (audit-only mode), `false` is guard-enforced — denied outrigh
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
-the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
-skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
+the **skill-frontmatter belt** (`powershell_decision`) — denied outright in audit-only — for the **rest of
+the session after the skill is invoked**. Claude Code registers skill-frontmatter `PreToolUse` hooks
+session-wide (not only while cleanup is the active work); there is no harness-level skill-active window
+for hooks (#2618). An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees** — every Bash engine `apply`, and on
 PowerShell only the flagged spellings above — so an unreadable toggle never silently disables the
 guard.

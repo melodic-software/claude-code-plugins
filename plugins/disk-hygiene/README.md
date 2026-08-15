@@ -3,8 +3,7 @@
 `/disk-hygiene:clean` audits an arbitrary directory tree for abandoned temporary files, stale locks,
 failed atomic-write remnants, empty leftovers, and similar disk residue. It is a context-aware audit,
 not a static delete list: bundled patterns are discovery hints only, and every finding needs evidence
-that it is not work product. Safe tidiness is the primary objective; reclaimable bytes are a
-secondary signal, so zero-byte and empty-directory residue stay visible in reports.
+that it is not work product.
 
 The default lane is read-only. Cleanup is available only through a fresh, exact-path preview followed
 by explicit approval of one confidence tier. The engine then rechecks every candidate before removing
@@ -16,10 +15,6 @@ unvalidated tree.
 - The side-effecting skill is manual-only (`disable-model-invocation: true`). Automated, scheduled,
   remote, or otherwise unattended sessions audit and stop.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
-  separate approval naming every path. Per-entry reports lead with provenance, what the entry is,
-  why it is removable, and risk; logical byte counts are secondary and do not drop empty
-  directories from the ranking.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume, user shell-folder roots,
   separate approval naming every path and its logical byte count.
 - Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
   via `--root-children` with an explicit child selection), user shell-folder roots,
@@ -31,16 +26,20 @@ unvalidated tree.
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
 - Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
   A dry-run result is evidence for the report, never authorization for this engine to remove it.
-- The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
-  calls made from literal shell words, returns `ask` for the one canonical apply shape, and denies
+- The skill-frontmatter guard is a fail-closed allowlist. It permits canonical bundled scan/preview
+  calls made from literal shell words, a small read-only supporting set for cleanup inspection
+  (`ls`, `test`/`[`, `stat`, `du`, `pwd`, `basename`, `dirname`, `file`, and read-only `find`
+  shapes) when those heads resolve to trusted system binaries (or are absolute paths under
+  trusted system directories), returns `ask` for the one canonical apply shape, and denies
   every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
-  filename, redirection, and operator syntax is rejected before argument parsing.
+  filename, redirection, and operator syntax is rejected before argument parsing. Engine
+  containment remains the deletion authority.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
   directory non-empty and therefore skipped. After captured children are removed, a directory is
   reopened with `O_NOFOLLOW`, checked empty through its descriptor, and matched by device, inode, and
-  type immediately before descriptor-relative `rmdir`. The report leads with tidiness outcomes
-  (paths removed, empty directories cleared, skips) and records logical / reclaimable bytes plus
-  observed free-space delta as secondary figures.
+  type immediately before descriptor-relative `rmdir`. The report separates removed, locked, changed,
+  protected, needs-elevation, and unverified outcomes and records logical bytes plus observed
+  free-space delta.
 
 The execution lane is Linux-only. It reads the current mount namespace from `/proc/self/mountinfo`,
 re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors,
@@ -67,16 +66,15 @@ at preview. Backups remain the recovery boundary for user data.
   registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
-  authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
-  deny-by-default Bash and deletion-spelling PowerShell discipline during active cleanup work. Both
+  authority; and the skill-frontmatter **belt** registered when `/disk-hygiene:clean` is invoked,
+  which adds the deny-by-default Bash and deletion-spelling PowerShell discipline for the **rest of
+  the session** (Claude Code keeps skill-frontmatter `PreToolUse` hooks armed session-wide after
+  invocation — not only while cleanup is the active work; #2618). Both
   surfaces resolve the kill switch by reading `disk_hygiene_enabled` from user-scope `pluginConfigs`
   in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only from user/managed/`--settings`
   scope since Claude Code 2.1.207, so a repo cannot forge it), register unconditionally, and fail
   closed to enabled — the earlier bare-`${user_config.*}` argument that dropped the engine gate on a
-  default install is gone (since 0.9.0). Hook-lifetime caveat: docs
-  scope a skill hook to the component's lifetime, but session-long firing of the belt has been
-  observed on at least one Claude Code build (producer-reported; see issue #1105) — if unrelated
-  commands are denied after a clean run ends, start a new session and see that issue. PreToolUse
+  default install is gone (since 0.9.0). PreToolUse
   hooks also fire inside subagents, so fanned-out workers run under the same guards. The plugin
   never downloads a runtime.
 - **A silent engine-gate launch/runtime failure is now surfaced (since 0.9.5, #1416).** A `Stop`-event
@@ -200,8 +198,8 @@ hand-cleaning the zone.
   mode. Both guard surfaces resolve the toggle by reading `disk_hygiene_enabled` from user-scope
   `pluginConfigs` in `settings.json` (not the process environment). A configured `false` denies Bash
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
-  PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
-  is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
+  PowerShell deletion spellings are denied outright by the skill-frontmatter belt for the rest of the
+  session after `/disk-hygiene:clean` is invoked (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
   `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
   it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
   the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
@@ -215,8 +213,8 @@ hand-cleaning the zone.
   split registration). Its blast radius is bounded by design: a fixed launch string authored in the
   plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
   reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
-  not referencing the engine, and no new capability beyond what the skill-scoped deployment already
-  did during active cleanup. Known costs, accepted: one launcher shell plus one Python launch per
+  not referencing the engine, and no new capability beyond what the skill-frontmatter deployment already
+  did once registered for the session. Known costs, accepted: one launcher shell plus one Python launch per
   Bash/PowerShell call, and on a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call — the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
