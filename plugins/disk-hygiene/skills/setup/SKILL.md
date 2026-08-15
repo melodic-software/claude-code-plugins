@@ -57,10 +57,10 @@ fails closed like every other guard-relevant unknown in this plugin.
    (shell form falls back to PowerShell there, which cannot run a `.sh`), not as a `PATH` fix.
 2. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
-   that acts only on engine-referencing commands, and the skill-scoped belt inside the
-   `clean` skill's context. Both register unconditionally and resolve the kill switch by
-   reading `disk_hygiene_enabled` from the user `settings.json`; the deny-by-default belt
-   applies only during `clean`.) The required version has one origin: the `MIN_PYTHON`
+   that acts only on engine-referencing commands, and the skill-frontmatter belt that
+   Claude Code keeps armed for the rest of the session after `/disk-hygiene:clean` is
+   invoked. Both register unconditionally and resolve the kill switch by
+   reading `disk_hygiene_enabled` from the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py` — parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
    recite a version number from this file or the README. FAIL if absent or older, naming
