@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Read-only cross-repository Git/GitHub hygiene collector.
-# Intentionally contains no apply mode and no mutating Git/GitHub operation.
+# Intentionally contains no mutating Git/GitHub operation.
+# --apply-plan is a read-only dry-run approval artifact over a prior plan file.
 set -uo pipefail
 
 usage() {
@@ -8,9 +9,22 @@ usage() {
 Usage: audit-fleet.sh [--root DIR]... [--repo DIR]... [--config FILE]
                       [--canonical github.com/owner/repo=PATH]...
                       [--max-depth 1..12] [--project-dir DIR]
+                      [--detail] [--plan-file PATH]
+       audit-fleet.sh --apply-plan PATH
 
 Read-only. Discovers repositories, resolves optional canonical checkouts, and
 reports confidence-tiered branch, worktree, and GitHub-identity findings.
+
+Default human output is a per-repository rollup (counts by finding kind,
+collapsed targets, and an explicit CLEAN / N candidates / BLOCKED verdict)
+plus one fleet-scale action plan that lists recommended skill invocations
+once per repository. Per-finding detail is available with --detail.
+A machine-readable action-plan JSON is always written (--plan-file selects
+the path; otherwise a temp file is used and named in the report).
+
+--apply-plan PATH reads a previously emitted plan and prints the ordered
+dry-run approval artifact (branches before worktrees). It performs no
+mutation; re-derive OIDs at real execution time.
 
 --project-dir supplies the session's project directory, used for the
 project-scoped config rung and as the target when no scope is given. It is
@@ -325,6 +339,10 @@ OVERRIDE_PATHS=()
 CONFIG_FILE=""
 MAX_DEPTH=""
 PROJECT_DIR_ARG=""
+DETAIL=false
+PLAN_FILE=""
+APPLY_PLAN=""
+PLAN_FILE_EXPLICIT=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -370,6 +388,22 @@ while [[ $# -gt 0 ]]; do
     PROJECT_DIR_ARG="$2"
     shift 2
     ;;
+  --detail)
+    DETAIL=true
+    shift
+    ;;
+  --plan-file)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--plan-file requires a path"
+    PLAN_FILE="$2"
+    PLAN_FILE_EXPLICIT=true
+    shift 2
+    ;;
+  --apply-plan)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--apply-plan requires a path"
+    [[ -z "$APPLY_PLAN" ]] || fail "--apply-plan may be supplied only once"
+    APPLY_PLAN="$2"
+    shift 2
+    ;;
   -h | --help)
     usage
     exit 0
@@ -377,6 +411,94 @@ while [[ $# -gt 0 ]]; do
   *) fail "unknown argument: $1" ;;
   esac
 done
+
+# --apply-plan is a standalone read-only mode: render an ordered dry-run approval
+# artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
+if [[ -n "$APPLY_PLAN" ]]; then
+  if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
+    ${#OVERRIDE_KEYS[@]} -gt 0 || -n "$MAX_DEPTH" || -n "$PROJECT_DIR_ARG" ||
+    "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
+    fail "--apply-plan cannot be combined with audit discovery flags"
+  fi
+  [[ -f "$APPLY_PLAN" ]] || fail "apply-plan file not found: $APPLY_PLAN"
+  if ! command -v python3 >/dev/null 2>&1; then
+    fail "python3 is required to read an action plan"
+  fi
+  APPLY_PLAN_PATH="$APPLY_PLAN" python3 - <<'PY'
+import json, os, sys
+path = os.environ["APPLY_PLAN_PATH"]
+try:
+    with open(path, encoding="utf-8") as f:
+        plan = json.load(f)
+except (OSError, json.JSONDecodeError) as e:
+    print(f"Error: invalid action plan JSON: {e}", file=sys.stderr)
+    sys.exit(2)
+if not isinstance(plan, dict) or plan.get("schema_version") != 1:
+    print("Error: action plan schema_version must be 1", file=sys.stderr)
+    sys.exit(2)
+actions = plan.get("actions")
+if not isinstance(actions, list):
+    print("Error: action plan missing actions list", file=sys.stderr)
+    sys.exit(2)
+
+def phase(op: str) -> int:
+    if op == "delete-merged-local-branches":
+        return 1
+    if op == "cleanup-worktrees":
+        return 2
+    return 9
+
+ordered = sorted(
+    enumerate(actions),
+    key=lambda it: (
+        phase(str(it[1].get("operation", ""))),
+        str(it[1].get("canonical", "")),
+        it[0],
+    ),
+)
+print("Repo Fleet Hygiene — apply-plan dry-run (no mutations)")
+print("Mode: read-only approval artifact; re-derive OIDs at execution time")
+print("Confirmation model: ONE gate for this entire plan (not per repository)")
+print("Order rule: delete/clean branches before pruning worktrees")
+print(f"Plan: {path}")
+summary = plan.get("summary") if isinstance(plan.get("summary"), dict) else {}
+if summary:
+    print(
+        "Summary: repositories_audited={ra} high={h} medium={m} low={l} unknown={u} acknowledged={a}".format(
+            ra=summary.get("repositories_audited", "?"),
+            h=summary.get("high", "?"),
+            m=summary.get("medium", "?"),
+            l=summary.get("low", "?"),
+            u=summary.get("unknown", "?"),
+            a=summary.get("acknowledged", "?"),
+        )
+    )
+print()
+if not ordered:
+    print("Actions: none")
+else:
+    print(f"Actions: {len(ordered)}")
+    for step, (_idx, action) in enumerate(ordered, 1):
+        skill = action.get("skill", "?")
+        canonical = action.get("canonical", "?")
+        operation = action.get("operation", "?")
+        kinds = action.get("kinds") or []
+        targets = action.get("targets") or []
+        print(f"{step}. {skill}")
+        print(f"   repository: {canonical}")
+        print(f"   operation: {operation}")
+        if kinds:
+            print(f"   kinds: {', '.join(map(str, kinds))}")
+        if targets:
+            print(f"   targets ({len(targets)}):")
+            for t in targets:
+                print(f"     - {t}")
+        print("   note: re-derive OIDs at execution time; do not trust plan tips")
+        print()
+print("Mutations: none; this invocation only renders the approval artifact.")
+PY
+  exit $?
+fi
 
 # Project directory. ${CLAUDE_PROJECT_DIR} is documented to substitute in a skill's markdown
 # content and in its allowed-tools Bash rules -- NOT to be present in the Bash tool's environment,
@@ -886,6 +1008,74 @@ IDENT_PATHS=()
 # emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
 
+# Buffered findings for rollup / action-plan rendering (#2608, #2609).
+F_CONF=()
+F_KIND=()
+F_TARGET=()
+F_EVIDENCE=()
+F_DISP=()
+F_HANDOFF=()
+F_REPO_IDX=()
+R_DISCOVERED=()
+R_CANONICAL=()
+R_REMOTE=()
+R_RESOLUTION=()
+R_COUNTED=()
+CURRENT_REPO_IDX=-1
+
+json_escape() {
+  # Minimal JSON string escape for path/report text. Iterate bytes under LC_ALL=C so
+  # ${#s}/${s:i:1} are stable, but only \u00XX-escape ASCII controls. Bytes >= 0x80 pass
+  # through unchanged so complete UTF-8 code points stay intact (byte-wise \u00C3\u00A9
+  # style escapes would mojibake non-ASCII repository paths such as répô).
+  local s="$1" out="" i c hex o
+  local LC_ALL=C
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    case "$c" in
+    '"') out+='\"' ;;
+    $'\\') out+=$'\\' ;;
+    $'\b') out+='\b' ;; # portability-ok: bash ANSI-C quoted backspace byte for JSON escape, not GNU grep \\b word-boundary
+    $'\f') out+='\f' ;;
+    $'\n') out+='\n' ;;
+    $'\r') out+='\r' ;;
+    $'\t') out+='\t' ;;
+    *)
+      printf -v o '%d' "'$c"
+      if ((o < 32)); then
+        printf -v hex '%02X' "$o"
+        out+="\\u00${hex}"
+      else
+        out+="$c"
+      fi
+      ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
+begin_repo_record() {
+  local discovered="$1" canonical="$2" remote="$3" resolution="$4"
+  CURRENT_REPO_IDX=${#R_DISCOVERED[@]}
+  R_DISCOVERED+=("$discovered")
+  R_CANONICAL+=("$canonical")
+  R_REMOTE+=("$remote")
+  R_RESOLUTION+=("$resolution")
+  R_COUNTED+=("false")
+  REPO_FINDING_COUNT=0
+}
+
+mark_repo_counted() {
+  [[ "$CURRENT_REPO_IDX" -ge 0 ]] || return 0
+  R_COUNTED[CURRENT_REPO_IDX]="true"
+}
+
+update_repo_canonical() {
+  local canonical="$1"
+  [[ "$CURRENT_REPO_IDX" -ge 0 ]] || return 0
+  R_CANONICAL[CURRENT_REPO_IDX]="$canonical"
+}
+
 emit_finding() {
   local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
   REPO_FINDING_COUNT=$((REPO_FINDING_COUNT + 1))
@@ -896,6 +1086,17 @@ emit_finding() {
   ACKNOWLEDGED) FINDINGS_ACKED=$((FINDINGS_ACKED + 1)) ;;
   *) FINDINGS_UNKNOWN=$((FINDINGS_UNKNOWN + 1)) ;;
   esac
+  F_CONF+=("$confidence")
+  F_KIND+=("$kind")
+  F_TARGET+=("$target")
+  F_EVIDENCE+=("$evidence")
+  F_DISP+=("$disposition")
+  F_HANDOFF+=("$handoff")
+  F_REPO_IDX+=("$CURRENT_REPO_IDX")
+}
+
+print_finding_block() {
+  local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
   print_field Finding "$kind"
   print_field Confidence "$confidence"
   print_field Target "$target"
@@ -904,6 +1105,155 @@ emit_finding() {
   print_field Handoff "$handoff"
   printf '%s\n' '---'
 }
+
+# Actionable fleet-batch handoff kinds. Manual-review and informational findings stay in the
+# rollup but do not produce a skill invocation in the action plan.
+branch_action_kind() {
+  [[ "$1" == "merged-local-branch" ]]
+}
+
+worktree_action_kind() {
+  case "$1" in
+  merged-worktree | prunable-worktree | missing-worktree | reclaimable-worktree) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+repo_verdict() {
+  # Candidate counts follow actionable plan kinds (branch_action_kind / worktree_action_kind),
+  # not mere HIGH/MEDIUM confidence. Manual-review findings such as locked-worktree or
+  # merged-pr-tip-drift stay visible in kind counts but do not inflate "N candidates" when the
+  # action plan correctly lists "Actions: none".
+  local repo_idx="$1"
+  local i conf kind target
+  local unknown=0
+  local -a cand_targets=()
+  local seen t
+  for ((i = 0; i < ${#F_KIND[@]}; i++)); do
+    [[ "${F_REPO_IDX[$i]}" == "$repo_idx" ]] || continue
+    conf="${F_CONF[$i]}"
+    kind="${F_KIND[$i]}"
+    target="${F_TARGET[$i]}"
+    if [[ "$conf" == "UNKNOWN" ]]; then
+      unknown=$((unknown + 1))
+    elif branch_action_kind "$kind" || worktree_action_kind "$kind"; then
+      seen=false
+      for t in "${cand_targets[@]:-}"; do
+        [[ "$t" == "$target" ]] && {
+          seen=true
+          break
+        }
+      done
+      [[ "$seen" == "true" ]] || cand_targets+=("$target")
+    fi
+  done
+  if [[ "$unknown" -gt 0 ]]; then
+    printf 'BLOCKED (evidence gap)'
+  elif [[ ${#cand_targets[@]} -gt 0 ]]; then
+    printf '%s candidates' "${#cand_targets[@]}"
+  else
+    printf 'CLEAN'
+  fi
+}
+
+repo_kind_counts_text() {
+  local repo_idx="$1"
+  local i kind k
+  local -a keys=()
+  local -a counts=()
+  local found idx
+  for ((i = 0; i < ${#F_KIND[@]}; i++)); do
+    [[ "${F_REPO_IDX[$i]}" == "$repo_idx" ]] || continue
+    kind="${F_KIND[$i]}"
+    found=false
+    idx=0
+    for ((k = 0; k < ${#keys[@]}; k++)); do
+      if [[ "${keys[$k]}" == "$kind" ]]; then
+        found=true
+        idx=$k
+        break
+      fi
+    done
+    if [[ "$found" == "true" ]]; then
+      counts[idx]=$((counts[idx] + 1))
+    else
+      keys+=("$kind")
+      counts+=(1)
+    fi
+  done
+  if [[ ${#keys[@]} -eq 0 ]]; then
+    printf '%s' '—'
+    return 0
+  fi
+  local first=true kind_sorted
+  # Stable alphabetical kind order keeps the rollup table diffable.
+  while IFS= read -r kind_sorted; do
+    [[ -n "$kind_sorted" ]] || continue
+    for ((k = 0; k < ${#keys[@]}; k++)); do
+      [[ "${keys[$k]}" == "$kind_sorted" ]] || continue
+      if [[ "$first" == "true" ]]; then
+        first=false
+      else
+        printf ', '
+      fi
+      printf '%s=%s' "$kind_sorted" "${counts[$k]}"
+      break
+    done
+  done < <(printf '%s\n' "${keys[@]}" | LC_ALL=C sort)
+}
+
+print_collapsed_target_detail() {
+  local repo_idx="$1"
+  local i target kind conf t j seen
+  local -a targets=()
+  for ((i = 0; i < ${#F_KIND[@]}; i++)); do
+    [[ "${F_REPO_IDX[$i]}" == "$repo_idx" ]] || continue
+    target="${F_TARGET[$i]}"
+    seen=false
+    for t in "${targets[@]:-}"; do
+      [[ "$t" == "$target" ]] && {
+        seen=true
+        break
+      }
+    done
+    [[ "$seen" == "true" ]] || targets+=("$target")
+  done
+  if [[ ${#targets[@]} -eq 0 ]]; then
+    printf 'Findings: none\n'
+    printf '%s\n' '---'
+    return 0
+  fi
+  local first_kinds kinds_line
+  for t in "${targets[@]}"; do
+    print_field Target "$t"
+    kinds_line=""
+    first_kinds=true
+    for ((j = 0; j < ${#F_KIND[@]}; j++)); do
+      [[ "${F_REPO_IDX[$j]}" == "$repo_idx" && "${F_TARGET[$j]}" == "$t" ]] || continue
+      kind="${F_KIND[$j]}"
+      conf="${F_CONF[$j]}"
+      if [[ "$first_kinds" == "true" ]]; then
+        first_kinds=false
+        kinds_line="$kind ($conf)"
+      else
+        kinds_line+=", $kind ($conf)"
+      fi
+    done
+    print_field Findings "$kinds_line"
+    # One Finding/Confidence pair per kind under the shared Target keeps legacy report greps
+    # working while still collapsing to a single target entry (#2608).
+    for ((j = 0; j < ${#F_KIND[@]}; j++)); do
+      [[ "${F_REPO_IDX[$j]}" == "$repo_idx" && "${F_TARGET[$j]}" == "$t" ]] || continue
+      print_field Finding "${F_KIND[$j]}"
+      print_field Confidence "${F_CONF[$j]}"
+      print_field Evidence "${F_EVIDENCE[$j]}"
+      print_field Disposition "${F_DISP[$j]}"
+      print_field Handoff "${F_HANDOFF[$j]}"
+    done
+    printf '%s\n' '---'
+  done
+}
+
 
 analyze_repo() {
   local discovered="$1" discovered_remote="" discovered_url="" discovered_key="" discovered_slug=""
@@ -935,17 +1285,13 @@ analyze_repo() {
 
   if [[ -n "$discovered_key" ]] && lookup_override "$discovered_key"; then
     [[ -d "$OVERRIDE_VALUE" ]] || {
-      printf '\n'
-      print_field Repo "$discovered"
-      print_field Canonical unresolved
+      begin_repo_record "$discovered" "unresolved" "${discovered_key:-unknown}" "$override_source"
       emit_finding UNKNOWN canonical-override-invalid "$OVERRIDE_VALUE" \
         "override for $discovered_key is not a directory" "Stop for this repository" "Correct the override and rerun"
       return
     }
     canonical="$(run_git_probe -C "$OVERRIDE_VALUE" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
-      printf '\n'
-      print_field Repo "$discovered"
-      print_field Canonical unresolved
+      begin_repo_record "$discovered" "unresolved" "${discovered_key:-unknown}" "$override_source"
       emit_finding UNKNOWN canonical-override-invalid "$OVERRIDE_VALUE" \
         "override for $discovered_key is not a Git working tree" "Stop for this repository" "Correct the override and rerun"
       return
@@ -962,11 +1308,8 @@ analyze_repo() {
     fi
   }
 
-  printf '\n'
-  print_field Repo "$discovered"
-  print_field Canonical "$canonical"
-  print_field 'Canonical resolution' "$override_source"
-  print_field Remote "${discovered_key:-unknown}"
+  begin_repo_record "$discovered" "$canonical" "${discovered_key:-unknown}" "$override_source"
+
 
   if [[ -z "$discovered_key" ]]; then
     emit_finding UNKNOWN github-identity-unavailable "$discovered" \
@@ -1415,18 +1758,13 @@ analyze_repo() {
     fi
   done
 
-  # A clean section previously ended after its header fields with no marker -- indistinguishable
-  # from truncated output. Say so explicitly, with the same terminator finding blocks use.
-  if [[ "$REPO_FINDING_COUNT" -eq 0 ]]; then
-    printf 'Findings: none\n'
-    printf '%s\n' '---'
-  fi
-
   REPOS_AUDITED=$((REPOS_AUDITED + 1))
+  mark_repo_counted
 }
 
 printf 'Repo Fleet Hygiene Audit\n'
 printf 'Mode: read-only (no fetch, prune, repair, delete, checkout, or remote update)\n'
+printf 'Presentation: per-repository rollup by default; pass --detail for collapsed per-target evidence\n'
 if [[ -n "$CONFIG_FILE" ]]; then
   print_field Config "$CONFIG_FILE ($CONFIG_SOURCE)"
 else
@@ -1479,9 +1817,10 @@ for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
 done
 
 # Config-sourced entries that failed per-entry validation during argument processing (the header
-# had not printed yet); each is a visible finding, never a silent skip.
+# had not printed yet); each is a visible finding, never a silent skip. Fleet-scoped: no repository
+# record owns them, so CURRENT_REPO_IDX stays -1 and the rollup lists them under Fleet-level.
+CURRENT_REPO_IDX=-1
 for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++)); do
-  printf '\n'
   emit_finding UNKNOWN stale-config-entry "${STALE_CONFIG_PATHS[$stale_index]}" \
     "${STALE_CONFIG_REASONS[$stale_index]} (source: $CONFIG_FILE)" \
     "Entry skipped; the rest of the fleet was audited" \
@@ -1495,6 +1834,7 @@ done
 # Cross-repository view: multiple independent checkouts of the same normalized GitHub identity are
 # each audited on their own local state (correct), but the coincidence itself gets one LOW
 # informational line per identity -- never more, since same-identity clones legitimately diverge.
+CURRENT_REPO_IDX=-1
 DUP_REPORTED=()
 for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
   dup_key="${IDENT_KEYS[$di]}"
@@ -1512,13 +1852,319 @@ for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
     [[ "${IDENT_KEYS[$dj]}" == "$dup_key" ]] && DUP_PATHS+=("${IDENT_PATHS[$dj]}")
   done
   if [[ "${#DUP_PATHS[@]}" -ge 2 ]]; then
-    printf '\n'
     emit_finding LOW duplicate-checkout "$dup_key" \
       "${#DUP_PATHS[@]} distinct checkouts resolve to the same GitHub identity: ${DUP_PATHS[*]}" \
       "Informational only; same-identity clones have independent local state" \
       "Consolidate manually if unintended; no automated action"
   fi
 done
+
+# --- Human rollup (#2608) ---------------------------------------------------
+printf '\n'
+printf 'Repository rollup\n'
+printf 'Presentation: counts by finding kind; duplicate targets collapsed in detail/plan\n'
+if [[ "$DETAIL" == "true" ]]; then
+  print_field Detail "on (--detail); per-repository collapsed target blocks follow the action plan"
+else
+  print_field Detail "off (pass --detail for per-target evidence)"
+fi
+
+fleet_blocked=0
+fleet_candidates=0
+fleet_clean=0
+for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
+  verdict="$(repo_verdict "$ri")"
+  kinds="$(repo_kind_counts_text "$ri")"
+  printf 'Repo: '
+  display_value "${R_CANONICAL[$ri]}"
+  printf '\n'
+  print_field Verdict "$verdict"
+  print_field 'Kind counts' "$kinds"
+  case "$verdict" in
+  CLEAN) fleet_clean=$((fleet_clean + 1)) ;;
+  BLOCKED*) fleet_blocked=$((fleet_blocked + 1)) ;;
+  *) fleet_candidates=$((fleet_candidates + 1)) ;;
+  esac
+  printf '%s\n' '---'
+done
+
+# Fleet-level findings (stale config, duplicate-checkout) get their own rollup row.
+fleet_level_count=0
+for ((i = 0; i < ${#F_KIND[@]}; i++)); do
+  [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))
+done
+if [[ "$fleet_level_count" -gt 0 ]]; then
+  printf 'Repo: fleet-level\n'
+  print_field Verdict "$(repo_verdict -1)"
+  print_field 'Kind counts' "$(repo_kind_counts_text -1)"
+  printf '%s\n' '---'
+fi
+
+case "$fleet_blocked" in
+0)
+  if [[ "$fleet_candidates" -gt 0 ]]; then
+    fleet_verdict="$fleet_candidates repositories with candidates"
+  else
+    fleet_verdict="CLEAN"
+  fi
+  ;;
+*)
+  fleet_verdict="BLOCKED ($fleet_blocked repositories with evidence gaps)"
+  ;;
+esac
+print_field 'Fleet verdict' "$fleet_verdict"
+printf 'Fleet counts: clean=%s with_candidates=%s blocked=%s\n' \
+  "$fleet_clean" "$fleet_candidates" "$fleet_blocked"
+
+# --- Fleet-scale action plan (#2609) ----------------------------------------
+# One recommended skill invocation per (canonical repository, skill). Branch cleanups are listed
+# before worktree cleanups so an operator approving the plan never prunes a worktree before the
+# branch that still anchors its reflog.
+printf '\n'
+printf 'Fleet action plan\n'
+printf 'Confirmation model: ONE gate for this entire plan (not per repository per skill)\n'
+printf 'Order rule: delete/clean branches before pruning worktrees; re-derive OIDs at execution\n'
+printf 'Mode: read-only plan (producing this plan performs no mutation)\n'
+
+ACTION_SKILL=()
+ACTION_CANONICAL=()
+ACTION_OPERATION=()
+ACTION_PHASE=()
+ACTION_KINDS=()
+# Targets are real array elements owned by action index (ACTION_TARGET_OWNER), not a
+# delimited string: Unix paths may contain newlines, so no in-band separator is safe,
+# and bash scalars cannot store NUL either.
+ACTION_TARGET_OWNER=()
+ACTION_TARGET_VALUE=()
+
+append_or_extend_action() {
+  local skill="$1" canonical="$2" operation="$3" phase="$4" kind="$5" target="$6"
+  local i ti
+  for ((i = 0; i < ${#ACTION_SKILL[@]}; i++)); do
+    if [[ "${ACTION_SKILL[$i]}" == "$skill" && "${ACTION_CANONICAL[$i]}" == "$canonical" &&
+      "${ACTION_OPERATION[$i]}" == "$operation" ]]; then
+      case ",${ACTION_KINDS[$i]}," in
+      *",$kind,"*) ;;
+      *)
+        if [[ -n "${ACTION_KINDS[i]}" ]]; then
+          ACTION_KINDS[i]="${ACTION_KINDS[i]},$kind"
+        else
+          ACTION_KINDS[i]="$kind"
+        fi
+        ;;
+      esac
+      for ((ti = 0; ti < ${#ACTION_TARGET_OWNER[@]}; ti++)); do
+        if [[ "${ACTION_TARGET_OWNER[ti]}" == "$i" && "${ACTION_TARGET_VALUE[ti]}" == "$target" ]]; then
+          return 0
+        fi
+      done
+      ACTION_TARGET_OWNER+=("$i")
+      ACTION_TARGET_VALUE+=("$target")
+      return 0
+    fi
+  done
+  i=${#ACTION_SKILL[@]}
+  ACTION_SKILL+=("$skill")
+  ACTION_CANONICAL+=("$canonical")
+  ACTION_OPERATION+=("$operation")
+  ACTION_PHASE+=("$phase")
+  ACTION_KINDS+=("$kind")
+  ACTION_TARGET_OWNER+=("$i")
+  ACTION_TARGET_VALUE+=("$target")
+}
+
+for ((i = 0; i < ${#F_KIND[@]}; i++)); do
+  kind="${F_KIND[$i]}"
+  target="${F_TARGET[$i]}"
+  repo_idx="${F_REPO_IDX[$i]}"
+  [[ "$repo_idx" -ge 0 ]] || continue
+  canonical="${R_CANONICAL[$repo_idx]}"
+  [[ "$canonical" != "unresolved" ]] || continue
+  if branch_action_kind "$kind"; then
+    append_or_extend_action "/repo-hygiene:clean git" "$canonical" \
+      "delete-merged-local-branches" "1" "$kind" "$target"
+  elif worktree_action_kind "$kind"; then
+    append_or_extend_action "/source-control:worktree cleanup --dry-run" "$canonical" \
+      "cleanup-worktrees" "2" "$kind" "$target"
+  fi
+done
+
+# Stable order: phase (branch=1 before worktree=2), then canonical path, then original index.
+ACTION_ORDER=()
+for ((i = 0; i < ${#ACTION_SKILL[@]}; i++)); do
+  ACTION_ORDER+=("$i")
+done
+if [[ ${#ACTION_ORDER[@]} -gt 0 ]]; then
+  mapfile -t ACTION_ORDER < <(
+    for i in "${ACTION_ORDER[@]}"; do
+      printf '%s\t%s\t%05d\n' "${ACTION_PHASE[$i]}" "${ACTION_CANONICAL[$i]}" "$i"
+    done | LC_ALL=C sort | awk -F '\t' '{print $3+0}'
+  )
+fi
+
+if [[ ${#ACTION_ORDER[@]} -eq 0 ]]; then
+  printf 'Actions: none\n'
+else
+  printf 'Actions: %s (unique repository/skill pairs)\n' "${#ACTION_ORDER[@]}"
+  step=0
+  for i in "${ACTION_ORDER[@]}"; do
+    step=$((step + 1))
+    printf '%s. ' "$step"
+    display_value "${ACTION_SKILL[$i]}"
+    printf '\n'
+    printf '   repository: '
+    display_value "${ACTION_CANONICAL[$i]}"
+    printf '\n'
+    print_field '   operation' "${ACTION_OPERATION[$i]}"
+    print_field '   kinds' "${ACTION_KINDS[$i]}"
+    target_count=0
+    for ((ti = 0; ti < ${#ACTION_TARGET_OWNER[@]}; ti++)); do
+      [[ "${ACTION_TARGET_OWNER[$ti]}" == "$i" ]] || continue
+      target_count=$((target_count + 1))
+    done
+    printf '   targets (%s):\n' "$target_count"
+    for ((ti = 0; ti < ${#ACTION_TARGET_OWNER[@]}; ti++)); do
+      [[ "${ACTION_TARGET_OWNER[$ti]}" == "$i" ]] || continue
+      printf '     - '
+      display_value "${ACTION_TARGET_VALUE[$ti]}"
+      printf '\n'
+    done
+  done
+fi
+printf 'Handoff: approve this plan once, then drive the listed skills (or pass the plan to --apply-plan)\n'
+
+# --- Machine-readable plan artifact ----------------------------------------
+if [[ -z "$PLAN_FILE" ]]; then
+  PLAN_FILE="$(mktemp "${TMPDIR:-/tmp}/repo-fleet-hygiene-plan.XXXXXX.json")"
+fi
+{
+  printf '{\n'
+  printf '  "schema_version": 1,\n'
+  printf '  "mode": "read-only",\n'
+  printf '  "generated_by": "repo-fleet-hygiene/audit",\n'
+  printf '  "execution_order_rule": "delete-merged-local-branches before cleanup-worktrees; re-derive OIDs at execution time",\n'
+  printf '  "confirmation_model": "one-gate-for-entire-plan",\n'
+  printf '  "summary": {\n'
+  printf '    "repositories_audited": %s,\n' "$REPOS_AUDITED"
+  printf '    "high": %s,\n' "$FINDINGS_HIGH"
+  printf '    "medium": %s,\n' "$FINDINGS_MEDIUM"
+  printf '    "low": %s,\n' "$FINDINGS_LOW"
+  printf '    "unknown": %s,\n' "$FINDINGS_UNKNOWN"
+  printf '    "acknowledged": %s,\n' "$FINDINGS_ACKED"
+  printf '    "fleet_verdict": "%s"\n' "$(json_escape "$fleet_verdict")"
+  printf '  },\n'
+  printf '  "repositories": [\n'
+  for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
+    [[ "$ri" -gt 0 ]] && printf ',\n'
+    verdict="$(repo_verdict "$ri")"
+    kinds="$(repo_kind_counts_text "$ri")"
+    printf '    {\n'
+    printf '      "discovered": "%s",\n' "$(json_escape "${R_DISCOVERED[$ri]}")"
+    printf '      "canonical": "%s",\n' "$(json_escape "${R_CANONICAL[$ri]}")"
+    printf '      "remote": "%s",\n' "$(json_escape "${R_REMOTE[$ri]}")"
+    printf '      "verdict": "%s",\n' "$(json_escape "$verdict")"
+    printf '      "kind_counts_text": "%s",\n' "$(json_escape "$kinds")"
+    printf '      "audited": %s,\n' "$([[ "${R_COUNTED[$ri]}" == "true" ]] && echo true || echo false)"
+    printf '      "targets": [\n'
+    # Collapse findings by target for this repository.
+    target_list=()
+    for ((fi = 0; fi < ${#F_KIND[@]}; fi++)); do
+      [[ "${F_REPO_IDX[$fi]}" == "$ri" ]] || continue
+      t="${F_TARGET[$fi]}"
+      seen=false
+      for prev in "${target_list[@]:-}"; do
+        [[ "$prev" == "$t" ]] && {
+          seen=true
+          break
+        }
+      done
+      [[ "$seen" == "true" ]] || target_list+=("$t")
+    done
+    for ((ti = 0; ti < ${#target_list[@]}; ti++)); do
+      [[ "$ti" -gt 0 ]] && printf ',\n'
+      t="${target_list[$ti]}"
+      printf '        {\n'
+      printf '          "target": "%s",\n' "$(json_escape "$t")"
+      printf '          "findings": [\n'
+      first_finding=true
+      for ((fi = 0; fi < ${#F_KIND[@]}; fi++)); do
+        [[ "${F_REPO_IDX[$fi]}" == "$ri" && "${F_TARGET[$fi]}" == "$t" ]] || continue
+        [[ "$first_finding" == "true" ]] && first_finding=false || printf ',\n'
+        printf '            {\n'
+        printf '              "kind": "%s",\n' "$(json_escape "${F_KIND[$fi]}")"
+        printf '              "confidence": "%s",\n' "$(json_escape "${F_CONF[$fi]}")"
+        printf '              "evidence": "%s",\n' "$(json_escape "${F_EVIDENCE[$fi]}")"
+        printf '              "disposition": "%s",\n' "$(json_escape "${F_DISP[$fi]}")"
+        printf '              "handoff": "%s"\n' "$(json_escape "${F_HANDOFF[$fi]}")"
+        printf '            }'
+      done
+      printf '\n          ]\n'
+      printf '        }'
+    done
+    printf '\n      ]\n'
+    printf '    }'
+  done
+  printf '\n  ],\n'
+  printf '  "actions": [\n'
+  first_action=true
+  step=0
+  for i in "${ACTION_ORDER[@]:-}"; do
+    [[ -n "$i" ]] || continue
+    [[ "$first_action" == "true" ]] && first_action=false || printf ',\n'
+    step=$((step + 1))
+    printf '    {\n'
+    printf '      "order": %s,\n' "$step"
+    printf '      "phase": %s,\n' "${ACTION_PHASE[$i]}"
+    printf '      "skill": "%s",\n' "$(json_escape "${ACTION_SKILL[$i]}")"
+    printf '      "canonical": "%s",\n' "$(json_escape "${ACTION_CANONICAL[$i]}")"
+    printf '      "operation": "%s",\n' "$(json_escape "${ACTION_OPERATION[$i]}")"
+    printf '      "kinds": ['
+    first_kind=true
+    IFS=',' read -r -a kind_arr <<<"${ACTION_KINDS[$i]}"
+    for k in "${kind_arr[@]:-}"; do
+      [[ -n "$k" ]] || continue
+      [[ "$first_kind" == "true" ]] && first_kind=false || printf ', '
+      printf '"%s"' "$(json_escape "$k")"
+    done
+    printf '],\n'
+    printf '      "targets": ['
+    first_t=true
+    for ((ti = 0; ti < ${#ACTION_TARGET_OWNER[@]}; ti++)); do
+      [[ "${ACTION_TARGET_OWNER[$ti]}" == "$i" ]] || continue
+      [[ "$first_t" == "true" ]] && first_t=false || printf ', '
+      printf '"%s"' "$(json_escape "${ACTION_TARGET_VALUE[$ti]}")"
+    done
+    printf '],\n'
+    printf '      "note": "Re-derive OIDs at execution time; do not trust plan tips."\n'
+    printf '    }'
+  done
+  printf '\n  ]\n'
+  printf '}\n'
+} >"$PLAN_FILE" || fail "cannot write plan file: $PLAN_FILE"
+print_field 'Action plan' "$PLAN_FILE"
+printf 'Apply dry-run: %s --apply-plan ' "$0"
+display_value "$PLAN_FILE"
+printf '\n'
+
+# --- Optional detail: collapsed per-target blocks + confidence groups -------
+if [[ "$DETAIL" == "true" ]]; then
+  printf '\n'
+  printf 'Detail (targets collapsed; one entry per path/branch)\n'
+  for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
+    printf '\n'
+    print_field Repo "${R_DISCOVERED[$ri]}"
+    print_field Canonical "${R_CANONICAL[$ri]}"
+    print_field 'Canonical resolution' "${R_RESOLUTION[$ri]}"
+    print_field Remote "${R_REMOTE[$ri]}"
+    print_field Verdict "$(repo_verdict "$ri")"
+    print_collapsed_target_detail "$ri"
+  done
+  if [[ "$fleet_level_count" -gt 0 ]]; then
+    printf '\n'
+    print_field Repo fleet-level
+    print_collapsed_target_detail -1
+  fi
+fi
 
 printf '\nSummary: repositories_audited=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
   "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN" "$FINDINGS_ACKED"

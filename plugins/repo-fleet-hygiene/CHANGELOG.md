@@ -3,6 +3,40 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **Per-repository rollup is the default audit presentation (#2608).** The report opens with a
+  fleet header and a per-repository rollup of counts by finding kind, plus an explicit
+  `CLEAN` / `N candidates` / `BLOCKED (evidence gap)` verdict (and a fleet verdict). Per-item
+  evidence moves behind `--detail`, where findings are collapsed to one entry per target so a
+  path that carries both `locked-worktree` and `worktree-nested-in-repository` is triaged once.
+- **Fleet-scale action plan + `--apply-plan` dry-run (#2609).** Every audit writes a
+  machine-readable action-plan JSON (path via `--plan-file`, otherwise a temp file named in the
+  report) that lists recommended skill invocations once per repository — `/repo-hygiene:clean git`
+  for merged local branches, `/source-control:worktree cleanup --dry-run` for worktree candidates —
+  ordered so branch cleanups precede worktree cleanups. `--apply-plan PATH` re-renders that plan as
+  a single-gate dry-run approval artifact; producing or applying the plan never mutates. Re-derive
+  OIDs at real execution time.
+
+### Fixed
+
+- **Plan JSON preserves UTF-8 paths (#2608/#2609 review).** `json_escape` no longer turns each
+  non-ASCII UTF-8 byte into a separate `\u00XX` code point (which mojibaked paths such as `répô`);
+  ASCII controls stay escaped and UTF-8 sequences pass through intact.
+- **Action-plan targets are real array elements (#2609 review).** Paths may legally contain
+  newlines, and bash scalars cannot store NUL, so in-band delimiters are unsafe. Targets are kept
+  as parallel `ACTION_TARGET_OWNER` / `ACTION_TARGET_VALUE` entries so one path cannot forge several
+  plan targets.
+- **Unwritable `--plan-file` fails closed (#2609 review).** A failed plan redirection now exits
+  nonzero via `fail` before the report claims `Action plan: <path>` or prints an `--apply-plan`
+  command for a missing artifact.
+- **Rollup candidates track actionable kinds (#2608 review).** `N candidates` / fleet candidate
+  counts follow `merged-local-branch` and worktree cleanup plan kinds, not mere HIGH/MEDIUM
+  confidence — so manual-review findings such as `locked-worktree` or `merged-pr-tip-drift` no longer
+  inflate candidates while `Actions: none`.
+
 ## [0.17.0]
 
 ### Changed

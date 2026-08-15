@@ -515,7 +515,8 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
 EOF
 
 output="$TMP/output.txt"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" >"$output"
+PLAN_FILE="$TMP/action-plan.json"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" --detail --plan-file "$PLAN_FILE" >"$output"
 
 failures=0
 assert_contains() {
@@ -565,7 +566,11 @@ assert_contains "not-a-root finding says why the probe reads clean" \
 # finding's block and prove nothing.
 assert_kind_targets() {
   local label="$1" kind="$2" wanted="$3" forbidden="$4" targets
-  targets="$(grep -A2 -F "Finding: $kind" "$output" | grep -F 'Target: ')"
+  targets="$(grep -A2 -F "Finding: $kind" "$output" | grep -F "Target: " || true)"
+  # Detail layout prints Target before Finding; also accept Target on preceding lines.
+  if [[ -z "$targets" ]]; then
+    targets="$(grep -B3 -F "Finding: $kind" "$output" | grep -F "Target: " || true)"
+  fi
   if [[ "$targets" == *"$wanted"* && "$targets" != *"$forbidden"* ]]; then
     printf 'PASS: %s\n' "$label"
   else
@@ -579,7 +584,7 @@ assert_kind_targets "nested names the nested worktree and not the husk" \
   worktree-nested-in-repository "worktrees/nested" "canonical-a/husk"
 # Status handoff names reliable-admin linked paths (including a former status-fail sibling) and
 # excludes the admin-mismatched registration — disposability is delegated, not porcelain-gated.
-status_handoff_evidence="$(grep -A5 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:')"
+status_handoff_evidence="$(grep -B2 -A8 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:')"
 if [[ "$status_handoff_evidence" == *"$TMP/wt-a"* &&
   "$status_handoff_evidence" == *"$TMP/wt-status-fail"* &&
   "$status_handoff_evidence" != *"$TMP/wt-mismatch"* ]]; then
@@ -623,8 +628,8 @@ assert_contains "failed repositories not counted successful" "Summary: repositor
 
 # Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
 # resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
-if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
-  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
+if grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
+  grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
   printf 'PASS: moved-remote checkout pairs with fresh clone via canonical identity\n'
 else
   printf 'FAIL: moved-remote checkout pairs with fresh clone via canonical identity\n' >&2
@@ -648,14 +653,14 @@ else
   printf 'FAIL: duplicate-checkout stays LOW\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
-  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
+if grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
+  grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
   printf 'PASS: duplicate-checkout lists both checkout paths\n'
 else
   printf 'FAIL: duplicate-checkout lists both checkout paths\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
+if grep -B3 -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
   printf 'FAIL: single-checkout identity wrongly reported as duplicate\n' >&2
   failures=$((failures + 1))
 else
@@ -681,13 +686,13 @@ else
   failures=$((failures + 1))
 fi
 # Exactness: feature/auth must not inherit feature/auth-v2's merged PR.
-if grep -B5 -Fx "Target: $TMP/prefix-auth :: feature/auth-v2" "$output" | grep -Fq "Finding: merged-local-branch"; then
+if grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth-v2" "$output" | grep -Fq "Finding: merged-local-branch"; then
   printf 'PASS: exact headRefName merge for feature/auth-v2\n'
 else
   printf 'FAIL: exact headRefName merge for feature/auth-v2\n' >&2
   failures=$((failures + 1))
 fi
-if grep -B5 -Fx "Target: $TMP/prefix-auth :: feature/auth" "$output" | grep -Fq "Finding: merged-local-branch"; then
+if grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth" "$output" | grep -Fq "Finding: merged-local-branch"; then
   printf 'FAIL: feature/auth wrongly inherited auth-v2 merge evidence\n' >&2
   failures=$((failures + 1))
 else
@@ -708,13 +713,13 @@ assert_not_contains "tip-drift evidence never claims unpushed without proof" \
 assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
 
 # Clean repos say so explicitly instead of ending the section without a marker.
-if grep -A6 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
+if grep -A30 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
   printf 'PASS: clean repo emits explicit Findings: none marker\n'
 else
   printf 'FAIL: clean repo emits explicit Findings: none marker\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A6 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
+if grep -A30 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
   printf 'FAIL: finding-bearing repo wrongly emitted Findings: none\n' >&2
   failures=$((failures + 1))
 else
@@ -724,20 +729,20 @@ fi
 # fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
 # demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
 # an acked identity stays UNKNOWN with its real reason.
-if grep -B2 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
+if grep -A5 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
   printf 'PASS: acked 404 demoted to ACKNOWLEDGED\n'
 else
   printf 'FAIL: acked 404 demoted to ACKNOWLEDGED\n' >&2
   failures=$((failures + 1))
 fi
 assert_contains "acked finding names its ack source" "acknowledged known-inaccessible via fleet.ackUnavailable"
-if grep -B2 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+if grep -A5 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
   printf 'PASS: unacked 404 stays UNKNOWN\n'
 else
   printf 'FAIL: unacked 404 stays UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-if grep -B2 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+if grep -A5 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
   printf 'PASS: non-404 failure on acked identity stays UNKNOWN\n'
 else
   printf 'FAIL: non-404 failure on acked identity stays UNKNOWN\n' >&2
@@ -816,7 +821,7 @@ cat >"$TMP/stale-only.conf" <<'STALEONLY'
 [fleet]
     repo = ./no-such-dir-anywhere
 STALEONLY
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" >"$ladder_out" 2>&1 &&
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" --detail >"$ladder_out" 2>&1 &&
   grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
   grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out"; then
   printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
@@ -911,7 +916,7 @@ fi
 # handoff carries the canonical path, so picking the worktree would aim per-repository cleanup at a
 # checkout that is not the repository of record.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --root "$TMP/wt-root" >"$ladder_out" 2>&1
+  bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$ladder_out" 2>&1
 if grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
   printf 'PASS: main worktree wins canonical selection over an earlier-sorting linked sibling\n'
 else
@@ -1043,11 +1048,11 @@ fi
 # Dedicated capture: later auth-fail reuse of $ladder_out must not erase this evidence.
 deep_out="$TMP/deep-history.txt"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --root "$TMP/wt-root" >"$deep_out" 2>&1
+  bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$deep_out" 2>&1
 if grep -Fq "Finding: merged-pr-window-truncated" "$deep_out"; then
   printf 'FAIL: retired merged-pr-window-truncated still emitted on deep-history fixture\n' >&2
   failures=$((failures + 1))
-elif grep -B5 -Fx "Target: $TMP/wt-root/zzz-canonical :: feature/linked" "$deep_out" |
+elif grep -B2 -A6 -Fx "Target: $TMP/wt-root/zzz-canonical :: feature/linked" "$deep_out" |
   grep -Fq "Finding: merged-worktree"; then
   printf 'PASS: GraphQL finds merged branch beyond any former REST window\n'
 else
@@ -1059,7 +1064,7 @@ fi
 # UNKNOWN rather than aborting or inferring a negative. Never exercised before, though it is the
 # degradation a machine without gh hits on its very first run.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_AUTH_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --root "$TMP/wt-root" >"$ladder_out" 2>&1
+  bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$ladder_out" 2>&1
 if grep -Fq "GitHub evidence: unavailable" "$ladder_out" &&
   grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
   printf 'PASS: unauthenticated gh degrades to UNKNOWN GitHub evidence and still audits locally\n'
@@ -1097,6 +1102,165 @@ elif kind_diff="$(diff "$emitted_kinds" "$documented_kinds")"; then
 else
   printf 'FAIL: tier table and collector finding kinds have drifted (< emitted only, > documented only)\n%s\n' \
     "$kind_diff" >&2
+  failures=$((failures + 1))
+fi
+
+
+# --- #2608 / #2609 rollup + fleet action plan ---------------------------------
+assert_contains "rollup section present" "Repository rollup"
+assert_contains "fleet action plan present" "Fleet action plan"
+assert_contains "one-gate confirmation model" "ONE gate for this entire plan"
+assert_contains "branch-before-worktree order rule" "delete/clean branches before pruning worktrees"
+assert_contains "action plan path named" "Action plan: $PLAN_FILE"
+if [[ -f "$PLAN_FILE" ]]; then
+  printf 'PASS: action plan file was written\n'
+else
+  printf 'FAIL: action plan file missing\n' >&2
+  failures=$((failures + 1))
+fi
+if PLAN_FILE="$PLAN_FILE" python3 - <<PY
+import json, os, sys
+plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
+assert plan.get("schema_version") == 1
+assert plan.get("confirmation_model") == "one-gate-for-entire-plan"
+actions = plan.get("actions") or []
+# Branch actions must precede worktree actions in plan order.
+phases = [a.get("phase") for a in actions]
+assert phases == sorted(phases), phases
+# Skills appear at most once per canonical repository.
+seen = set()
+for a in actions:
+    key = (a.get("skill"), a.get("canonical"))
+    assert key not in seen, key
+    seen.add(key)
+# Collapsed targets: no target string repeats inside one repository entry.
+for repo in plan.get("repositories") or []:
+    targets = [t.get("target") for t in (repo.get("targets") or [])]
+    assert len(targets) == len(set(targets)), targets
+print("plan-json-ok")
+PY
+then
+  printf 'PASS: action plan JSON schema, ordering, and collapsed targets\n'
+else
+  printf 'FAIL: action plan JSON validation\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Default (no --detail) fits the rollup contract: no per-finding enumeration, but verdicts present.
+rollup_out="$TMP/rollup-only.txt"
+rollup_plan="$TMP/rollup-plan.json"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$rollup_plan" >"$rollup_out" 2>&1 || true
+if grep -Fq "Repository rollup" "$rollup_out" && grep -Fq "Verdict:" "$rollup_out" &&
+  ! grep -Fq "Finding: merged-local-branch" "$rollup_out"; then
+  printf 'PASS: default output is rollup without per-finding enumeration\n'
+else
+  printf 'FAIL: default output rollup contract\n' >&2
+  failures=$((failures + 1))
+fi
+
+# --apply-plan dry-run: one ordered approval artifact, no mutation verbs beyond the plan text.
+apply_out="$TMP/apply-plan-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --apply-plan "$PLAN_FILE" >"$apply_out" 2>&1 || true
+if grep -Fq "apply-plan dry-run (no mutations)" "$apply_out" &&
+  grep -Fq "ONE gate for this entire plan" "$apply_out" &&
+  grep -Fq "Order rule: delete/clean branches before pruning worktrees" "$apply_out"; then
+  printf 'PASS: --apply-plan renders dry-run approval artifact\n'
+else
+  printf 'FAIL: --apply-plan dry-run artifact\n' >&2
+  failures=$((failures + 1))
+fi
+
+# UTF-8 paths must survive json_escape intact (not byte-wise \u00XX mojibake).
+utf8_sample=$'répô'
+utf8_escaped="$(
+  bash -c '
+    eval "$(sed -n "/^json_escape()/,/^}/p" "$1")"
+    json_escape "$2"
+  ' bash "$SCRIPT" "$utf8_sample"
+)"
+if [[ "$utf8_escaped" == "$utf8_sample" && "$utf8_escaped" != *'\\u00'* ]]; then
+  printf 'PASS: json_escape preserves UTF-8 code points\n'
+else
+  printf 'FAIL: json_escape mojibaked UTF-8 (%s)\n' "$utf8_escaped" >&2
+  failures=$((failures + 1))
+fi
+
+# Newline-bearing actionable worktree paths must stay ONE plan target (NUL-delimited packing).
+if PLAN_FILE="$PLAN_FILE" EVIL_PATH="$EVIL_PATH" python3 - <<'PY'
+import json, os, sys
+plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
+evil = os.environ["EVIL_PATH"]
+found = False
+for action in plan.get("actions") or []:
+    if action.get("operation") != "cleanup-worktrees":
+        continue
+    targets = action.get("targets") or []
+    # Exact path (plus optional " (branch)" suffix) must appear as a single element.
+    matches = [t for t in targets if t == evil or t.startswith(evil + " ")]
+    if matches:
+        found = True
+        if any(t == "Finding: forged" or t.startswith("Confidence:") for t in targets):
+            print("split-targets", targets, file=sys.stderr)
+            sys.exit(1)
+if not found:
+    print("evil path missing from worktree actions", file=sys.stderr)
+    sys.exit(1)
+print("nul-targets-ok")
+PY
+then
+  printf 'PASS: newline-bearing worktree path stays one action target\n'
+else
+  printf 'FAIL: newline-bearing worktree path was split across action targets\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Unwritable --plan-file must fail closed (nonzero), not claim success.
+missing_plan_dir="$TMP/missing-plan-dir"
+missing_plan="$missing_plan_dir/nope.json"
+plan_fail_out="$TMP/plan-fail-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$missing_plan" \
+  >"$plan_fail_out" 2>&1
+plan_fail_status=$?
+if [[ "$plan_fail_status" -ne 0 && ! -f "$missing_plan" ]] &&
+  grep -Fq "cannot write plan file" "$plan_fail_out" &&
+  ! grep -Fq "Action plan: $missing_plan" "$plan_fail_out"; then
+  printf 'PASS: unwritable --plan-file fails closed\n'
+else
+  printf 'FAIL: unwritable --plan-file did not fail closed (status=%s)\n' "$plan_fail_status" >&2
+  failures=$((failures + 1))
+fi
+
+# Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence.
+verdict_probe="$(
+  bash -c '
+    eval "$(sed -n "/^branch_action_kind()/,/^}/p; /^worktree_action_kind()/,/^}/p; /^repo_verdict()/,/^}/p" "$1")"
+    F_KIND=(locked-worktree merged-pr-tip-drift)
+    F_CONF=(HIGH MEDIUM)
+    F_TARGET=("/tmp/locked" "/tmp/drift")
+    F_REPO_IDX=(0 0)
+    repo_verdict 0
+  ' bash "$SCRIPT"
+)"
+if [[ "$verdict_probe" == "CLEAN" ]]; then
+  printf 'PASS: manual-review HIGH/MEDIUM findings are not rollup candidates\n'
+else
+  printf 'FAIL: expected CLEAN for manual-review-only findings, got %s\n' "$verdict_probe" >&2
+  failures=$((failures + 1))
+fi
+verdict_probe_actionable="$(
+  bash -c '
+    eval "$(sed -n "/^branch_action_kind()/,/^}/p; /^worktree_action_kind()/,/^}/p; /^repo_verdict()/,/^}/p" "$1")"
+    F_KIND=(merged-local-branch locked-worktree)
+    F_CONF=(HIGH HIGH)
+    F_TARGET=("repo :: feature/x" "/tmp/locked")
+    F_REPO_IDX=(0 0)
+    repo_verdict 0
+  ' bash "$SCRIPT"
+)"
+if [[ "$verdict_probe_actionable" == "1 candidates" ]]; then
+  printf 'PASS: actionable kinds still count as rollup candidates\n'
+else
+  printf 'FAIL: expected 1 candidates with one actionable kind, got %s\n' "$verdict_probe_actionable" >&2
   failures=$((failures + 1))
 fi
 

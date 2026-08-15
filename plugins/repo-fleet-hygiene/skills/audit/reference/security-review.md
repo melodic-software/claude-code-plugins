@@ -23,7 +23,7 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 
 ## Review surfaces
 
-1. **Code execution:** one user-invoked Bash script. Required binaries: Bash, Git, and optional `gh`.
+1. **Code execution:** one user-invoked Bash script. Required binaries: Bash, Git, and optional `gh`. `--apply-plan` additionally requires `python3` to parse the plan JSON.
    It uses quoted argv arrays, no `eval`, no `source`, no dynamic shell execution, no downloads, and no
    write/mutation commands. Consumer config is parsed as data by `git config --file`. A positive
    command gate admits only the collector's exact Git/gh argv shapes; arbitrary global options,
@@ -78,7 +78,10 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 - Repository/config/worktree-derived report values containing newlines or control/ANSI bytes are
   rendered as a single `%q`-encoded field, so they cannot forge report labels or terminal controls.
 - A worktree-looking directory cannot become a finding without Git porcelain membership.
-- A high-confidence finding still cannot mutate because the script has no apply mode.
+- `git status --porcelain` at a registered work-tree root is read-only local metadata; it never
+  transmits content and cannot mutate. A failed status probe cannot be mistaken for a clean tree.
+- A high-confidence finding still cannot mutate because the script has no mutation mode;
+  `--apply-plan` only re-renders a prior plan as a dry-run approval artifact.
 
 ## Deferred verification
 

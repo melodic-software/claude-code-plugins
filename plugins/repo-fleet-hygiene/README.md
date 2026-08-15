@@ -7,8 +7,11 @@
 - GitHub repositories whose configured remote resolves to a different owner or name.
 
 The plugin is deliberately **report-only**. It never fetches, prunes, repairs, deletes, checks out, or
-rewrites anything. Every finding names its evidence, confidence, disposition, and exact target. Cleanup
-stays with the existing per-repository capabilities:
+rewrites anything. Default output is a per-repository rollup with explicit verdicts and a
+**fleet-scale action plan** that lists recommended skill invocations once per repository (one
+confirmation gate for the whole plan). `--detail` expands collapsed per-target evidence; `--apply-plan`
+re-renders a prior plan as a dry-run approval artifact. Cleanup still executes in the existing
+per-repository capabilities:
 
 - `/repo-hygiene:clean git` for a local-branch audit and its own confirmation gate;
 - `/source-control:worktree cleanup --dry-run` for worktree cleanup planning; and

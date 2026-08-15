@@ -79,3 +79,11 @@ not a difference in evidence strength.
 2. A merged worktree routes through worktree cleanup before branch cleanup.
 3. Administrative mismatch wins over ordinary worktree status because the path cannot be trusted.
 4. A stronger confidence tier never authorizes mutation inside this plugin.
+
+## Presentation rollup
+
+Default report output aggregates per repository (kind counts + verdict). Detail mode collapses
+multiple findings that share a target into one entry. Across the fleet action plan, branch skill
+invocations are listed before worktree skill invocations so an approved batch never prunes a
+worktree before the branch that still anchors its reflog. The machine-readable action plan is the
+interchange format for fleet-scale handoff (#2608, #2609).
