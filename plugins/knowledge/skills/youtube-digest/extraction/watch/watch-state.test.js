@@ -145,6 +145,65 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   });
 });
 
+describe("source metadata persistence (source:* envelope subset)", () => {
+  const persistenceFns = () => {
+    const store = new Map();
+    const writeFile = vi.fn(async (path, data) => {
+      store.set(path, data);
+    });
+    const readFile = vi.fn(async (path) => {
+      const value = store.get(path);
+      if (value === undefined) throw new Error("ENOENT");
+      return value;
+    });
+    return { writeFile, readFile };
+  };
+
+  it("persists a flagged snowflake aliasing to disk", async () => {
+    const { writeFile, readFile } = persistenceFns();
+    const aliasing = { deltaMs: 4_000_000, suspectedKind: "quote-or-retweet" };
+    const initial = createWatchState({
+      videoId: "1001551417340022785",
+      videoSlug: "post-1001551623938805763",
+      sourceUrl: "https://x.com/lispower1/status/1001551623938805763",
+      title: "Post",
+      sourceMetadata: {
+        "source:displayId": "1001551623938805763",
+        "source:snowflakeAliasing": aliasing,
+      },
+    });
+    await writeWatchState(
+      "/tmp/slice",
+      initial,
+      writeFile,
+      vi.fn(async () => {}),
+    );
+    const loaded = await readWatchState("/tmp/slice", readFile);
+    expect(loaded?.sourceMetadata?.["source:snowflakeAliasing"]).toEqual(aliasing);
+    expect(loaded?.sourceMetadata?.["source:displayId"]).toBe("1001551623938805763");
+  });
+
+  it("writes no sourceMetadata key for an unflagged run", async () => {
+    const { writeFile, readFile } = persistenceFns();
+    const initial = createWatchState({
+      videoId: "abc",
+      videoSlug: "talk-abc",
+      sourceUrl: "https://youtube.com/watch?v=abc",
+      title: "Talk",
+      sourceMetadata: {},
+    });
+    expect(JSON.stringify(initial)).not.toContain('"sourceMetadata"');
+    await writeWatchState(
+      "/tmp/slice",
+      initial,
+      writeFile,
+      vi.fn(async () => {}),
+    );
+    const loaded = await readWatchState("/tmp/slice", readFile);
+    expect(loaded && "sourceMetadata" in loaded).toBe(false);
+  });
+});
+
 describe("watch state persistence (resume scaffolding)", () => {
   it("round-trips watch.json via injected writeFile/readFile", async () => {
     const store = new Map();

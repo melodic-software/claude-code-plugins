@@ -27,7 +27,11 @@ import { fileURLToPath } from "node:url";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
-import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
+import {
+  primaryEntry,
+  sourceMetadataSubset,
+  UnsupportedSourceError,
+} from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
@@ -153,6 +157,7 @@ export async function runWatchCli(argv) {
       sourceUrl: url,
       title: metadata.title,
       target,
+      sourceMetadata: sourceMetadataSubset(metadata),
     });
     state.tempSession = tempSession;
     state.status = "acquiring";

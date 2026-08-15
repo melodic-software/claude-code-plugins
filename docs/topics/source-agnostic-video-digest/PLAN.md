@@ -285,6 +285,9 @@ the adapter, pipeline-overridable.
   - `[T5-ASR-LEXICON]` input: one clip with/without post-text `initial_prompt`; expected:
     entity-error delta; pass criterion: measurable proper-noun improvement → lexicon also
     feeds the ASR rung; else lexicon stays repair-only.
+  - `[T5-ASR-ENTITY]` probe row — stub 2026-08-15 (clip: x.com/lispower1/status/1001551623938805763, phase-2 verified) · outcome: 2026-08-15, faster-whisper large-v3 (int8/CPU) ADVANTAGE — fixes 4 platform entity errors (`Collision`→`collusion`, `Muller`→`Mueller`, `Inform Ant`→`informant`, `Invest Gative`→`investigative`), introduces none; one non-entity ~0.9s hallucinated phrase noted. Governs future ASR-replace only; no plan change (evidence: `.work/.../evidence/phase3/t5-asr-entity.md`)
+  - `[T5-ASR-TIMESTAMPS]` probe row — stub 2026-08-15 (same clip, platform VTT vs faster-whisper word timestamps) · outcome: 2026-08-15 PASS — 277/288 words aligned (96.2%), word-start delta median 21ms / p95 465ms / max 1.1s, all 48 cue boundaries within 421ms → word timestamps usable for frame alignment; asr rung stays default-on for caption-absent (evidence: `.work/.../evidence/phase3/t5-asr-timestamps.md`)
+  - `[T5-ASR-LEXICON]` probe row — stub 2026-08-15 (same clip, with/without post-text `initial_prompt`) · outcome: 2026-08-15 FAIL — +1 proper-noun fix (`Spygate`) vs −1 entity regression (`feds`→`Fed`) plus a prompt-worsened repetition hallucination; no measurable net improvement → lexicon stays repair-only, `initialPrompt` not fed to the asr rung (evidence: `.work/.../evidence/phase3/t5-asr-lexicon.md`)
 
 **Sanity Check:**
 
@@ -432,9 +435,14 @@ never re-runs pre-flight against the old paths.**
   incl. the skill dir; in-skill: 14 files / 65). Any file NOT in the inventory below gets a
   row before the sweep proceeds. (`docs/topics/` and `.work/` are excluded as immutable
   historical/session records — Decisions table.)
-- [ ] Pre-check the CI job id: `gh api "repos/{owner}/{repo}/branches/main/protection"` (or
+- [x] Pre-check the CI job id: `gh api "repos/{owner}/{repo}/branches/main/protection"` (or
   rulesets) — is `youtube-extraction` a required status check? Required → KEEP job id with
   comment; not required → rename job id alongside the paths. Record outcome here.
+  **Outcome (2026-08-15, run early while P3 probes were in flight):** branch protection 404
+  (no legacy protection); rulesets `base`/`ci-gate`/`signing` active on the default branch;
+  `ci-gate` requires exactly `pr-title / pr-title`, `pr-issue-linkage / pr-issue-linkage`,
+  `do-not-merge / do-not-merge`, `ci-status` — `youtube-extraction` is NOT a required check
+  → **rename the job id alongside the paths.**
 
 **Structural move (single commit):**
 

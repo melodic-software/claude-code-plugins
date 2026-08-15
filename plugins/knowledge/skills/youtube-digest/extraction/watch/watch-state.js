@@ -41,6 +41,9 @@ import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
  * @property {string} title
  * @property {'pending'|'acquiring'|'watching'|'vision'|'researching'|'synthesizing'|'complete'} status
  * @property {WatchPhases} phases
+ * @property {Record<string, unknown>} [sourceMetadata] - the envelope metadata's
+ *   `source:`-prefixed subset (e.g. `source:snowflakeAliasing`), persisted so
+ *   source-specific provenance survives the run; absent when the source set none
  * @property {string} [target] - the `--target <repo>` value resolved at watch start (SKILL.md
  *   "Synthesis target resolution"), a portable repo name/slug never an absolute local-checkout
  *   path. Persisted so an interrupted watch's `resume` recovers it instead of re-asking.
@@ -78,15 +81,18 @@ export const CONTINUATION_PROMPT_FILENAME = "continuation-prompt.md";
  * @param {string} [meta.target] - explicit `--target <repo>` value, when the caller resolved
  *   one at watch start; omitted leaves `state.target` unset for the CLAUDE_PROJECT_DIR/ask rungs
  *   to resolve later (out of scope here — see "Synthesis target resolution" in SKILL.md).
+ * @param {Record<string, unknown>} [meta.sourceMetadata] - `source:`-prefixed
+ *   envelope metadata subset; persisted only when non-empty
  * @returns {WatchState}
  */
-export function createWatchState({ videoId, videoSlug, sourceUrl, title, target }) {
+export function createWatchState({ videoId, videoSlug, sourceUrl, title, target, sourceMetadata }) {
   return {
     videoId,
     videoSlug,
     sourceUrl,
     title,
     ...(target ? { target } : {}),
+    ...(sourceMetadata && Object.keys(sourceMetadata).length > 0 ? { sourceMetadata } : {}),
     status: "pending",
     phases: {
       acquire: null,

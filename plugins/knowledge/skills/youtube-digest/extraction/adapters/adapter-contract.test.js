@@ -9,6 +9,7 @@ import {
   REQUIRED_METHODS,
   RetryableSourceError,
   singleEntry,
+  sourceMetadataSubset,
   UnsupportedSourceError,
   validateAdapter,
 } from "./adapter-contract.js";
@@ -134,6 +135,24 @@ describe("singleEntry", () => {
       workDir: "/w",
     });
     expect(singleEntry(two)).toBeNull();
+  });
+});
+
+describe("sourceMetadataSubset", () => {
+  it("keeps only source:-prefixed keys", () => {
+    const subset = sourceMetadataSubset({
+      ...METADATA,
+      "source:displayId": "123",
+      "source:snowflakeAliasing": { deltaMs: 1 },
+    });
+    expect(subset).toEqual({
+      "source:displayId": "123",
+      "source:snowflakeAliasing": { deltaMs: 1 },
+    });
+  });
+
+  it("returns an empty object when no source keys exist", () => {
+    expect(sourceMetadataSubset(METADATA)).toEqual({});
   });
 });
 

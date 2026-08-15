@@ -166,6 +166,20 @@ export function classifyErrorDetail(errorPatterns, detail) {
  */
 
 /**
+ * Extract the `source:`-prefixed subset of an envelope's metadata — the
+ * source-specific fields (aliasing flags, blocked delegations, counts) that
+ * persist into slice state so they remain readable after the run.
+ *
+ * @param {SourceMetadata} metadata
+ * @returns {Record<string, unknown>}
+ */
+export function sourceMetadataSubset(metadata) {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => key.startsWith("source:")),
+  );
+}
+
+/**
  * One acquired media entry. `mediaPath` is `""` when no media was downloaded
  * (transcript mode, or a media-less entry).
  *
