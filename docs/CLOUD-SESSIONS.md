@@ -155,8 +155,8 @@ The environment side stays generic (Default environment, Trusted network, no var
 | Node | `.node-version` (via the VM's nvm) | required — CI pins a major the VM image doesn't ship |
 | claude CLI + Biome | root `package-lock.json` (`npm ci`) | required |
 | ruff, pytest, pyyaml | `.github/requirements-ci.txt` (hash-locked) | required — `--require-hashes` fails closed |
-| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the hook (GitHub release binaries) | best effort — warns and continues |
-| markdownlint-cli2, check-jsonschema | pinned in the hook (npm -g / uv tool) | best effort |
+| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries) | best effort — warns and continues |
+| markdownlint-cli2, check-jsonschema | pinned in the bootstrap (npm -g / uv tool) | best effort |
 | full git history + `origin/main` | `git fetch` | best effort — the base-ref diff gates need it |
 | the enabled plugin catalog | `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
 
