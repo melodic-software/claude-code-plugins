@@ -12,7 +12,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files (first 20; empty = none): !`git status --porcelain 2>/dev/null | awk '/\.md$/{p=substr($0,4); sub(/^.* -> /,"",p); print p}' | head -20 || echo "(status unavailable)"`
+Uncommitted .md files (first 20; empty = none): !`s=$(git status --porcelain 2>/dev/null) && printf '%s\n' "$s" | awk '/\.md$/{p=substr($0,4); sub(/^.* -> /,"",p); print p}' | head -20 || echo "(status unavailable)"`
 
 ## Purpose
 
