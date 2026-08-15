@@ -11,7 +11,9 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   Discovery still does not follow links. Each skipped intermediate symlink (or Windows directory
   junction, which tests as a symlink under Git Bash) becomes an `UNKNOWN` `discovery-symlink-skip`
   finding and is counted on the `Discovery skips:` header line. Symlinked discovery roots remain
-  refused as before.
+  refused as before. Fleet-level `UNKNOWN` findings (including these skips) now also move the
+  overall `Fleet verdict` off `CLEAN`, so a root whose only content is a skipped symlink cannot
+  report a clean walk.
 
 ## [0.22.4]
 

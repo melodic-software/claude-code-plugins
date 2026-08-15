@@ -1851,6 +1851,7 @@ if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detai
     grep -Fq "Target: $sym_mid_root/via-link" "$sym_mid_out" &&
     grep -Fq "Windows directory junctions" "$sym_mid_out" &&
     grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
+    grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
     ! grep -Fq "buried-repo" "$sym_mid_out"; then
     printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
   else

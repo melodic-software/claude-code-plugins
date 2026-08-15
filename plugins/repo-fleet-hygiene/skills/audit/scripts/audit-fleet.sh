@@ -1217,6 +1217,7 @@ discover_repositories() {
     name="$(basename "$child")"
     case "$name" in
     . | .. | .git | node_modules | vendor | .venv) continue ;;
+    *) ;; # other names fall through to the symlink/dir probes below
     esac
     # Symlinked/junctioned intermediate dirs: do not descend, but record for disclosure (#2711).
     # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
@@ -2569,16 +2570,24 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
   printf '%s\n' '---'
 done
 
-# Fleet-level findings (stale config, duplicate-checkout) get their own rollup row.
+# Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
+# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
+# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))
 done
+fleet_level_verdict="$(repo_verdict -1)"
 if [[ "$fleet_level_count" -gt 0 ]]; then
   printf 'Repo: fleet-level\n'
-  print_field Verdict "$(repo_verdict -1)"
+  print_field Verdict "$fleet_level_verdict"
   print_field 'Kind counts' "$(repo_kind_counts_text -1)"
   printf '%s\n' '---'
+  case "$fleet_level_verdict" in
+  BLOCKED*) fleet_blocked=$((fleet_blocked + 1)) ;;
+  CLEAN) ;;
+  *) fleet_candidates=$((fleet_candidates + 1)) ;;
+  esac
 fi
 
 case "$fleet_blocked" in
