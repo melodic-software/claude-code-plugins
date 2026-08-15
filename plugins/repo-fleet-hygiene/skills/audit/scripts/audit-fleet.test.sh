@@ -61,7 +61,8 @@ rev-parse)
       wt-fail | ref-fail | rref-fail | dup-a | new-clone | root-repo | discovered-c | \
       canonical-c | gone-repo | lost-repo | net-repo | aaa-linked | bbb-linked | zzz-canonical | \
       sub-wt | sep-wt | nested | husk | prefix-fail | wt-a | wt-mismatch | wt-status-fail | \
-      conform-canon | acme-conform-feature-ok | conform-sibling | not-the-layout | conform)
+      conform-canon | acme-conform-feature-ok | acme-conform-feature-old | conform-sibling | \
+      not-the-layout | conform | no-origin-canon | no-origin-canon-feature-ok)
       printf '%s/.git\n' "$repo"
       ;;
     *) exit 1 ;;
@@ -106,9 +107,12 @@ rev-parse)
     wt-status-fail) printf '%s\n' "$TEST_ROOT/wt-status-fail" ;;
     conform-canon) printf '%s\n' "$TEST_ROOT/conform-canon" ;;
     acme-conform-feature-ok) printf '%s\n' "$TEST_ROOT/conform-root/acme-conform-feature-ok" ;;
+    acme-conform-feature-old) printf '%s\n' "$TEST_ROOT/conform-root/acme-conform-feature-old" ;;
     conform-sibling) printf '%s\n' "$TEST_ROOT/ghq-flat/conform-sibling" ;;
     not-the-layout) printf '%s\n' "$TEST_ROOT/conform-root/not-the-layout" ;;
     conform) printf '%s\n' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform" ;;
+    no-origin-canon) printf '%s\n' "$TEST_ROOT/no-origin-canon" ;;
+    no-origin-canon-feature-ok) printf '%s\n' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -153,7 +157,8 @@ rev-parse)
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     wt-a | wt-mismatch | wt-status-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
-    conform-canon | acme-conform-feature-ok | conform-sibling | not-the-layout | conform) printf '%s\n' "$TEST_ROOT/conform-canon/.git" ;;
+    conform-canon | acme-conform-feature-ok | acme-conform-feature-old | conform-sibling | not-the-layout | conform) printf '%s\n' "$TEST_ROOT/conform-canon/.git" ;;
+    no-origin-canon | no-origin-canon-feature-ok) printf '%s\n' "$TEST_ROOT/no-origin-canon/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
     prefix-auth) printf '%s\n' "$TEST_ROOT/prefix-auth/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
@@ -168,7 +173,9 @@ remote)
   if [[ "${1:-}" == "get-url" && "${2:-}" == "origin" ]]; then
     case "$base" in
     discovered-a | canonical-a) printf '%s\n' 'https://github.com/acme/repo-a.git' ;;
-    conform-canon | acme-conform-feature-ok | conform-sibling | not-the-layout | conform) printf '%s\n' 'https://github.com/acme/conform.git' ;;
+    conform-canon | acme-conform-feature-ok | acme-conform-feature-old | conform-sibling | not-the-layout | conform) printf '%s\n' 'https://github.com/acme/conform.git' ;;
+    # No origin: sole upstream GitHub remote must not drive create-shaped layout identity.
+    no-origin-canon | no-origin-canon-feature-ok) exit 1 ;;
     repo-b) printf '%s\n' 'git@github.com:acme/repo-b.git' ;;
     old-repo) printf '%s\n' 'https://github.com/old/repo.git' ;;
     bad-discovered) printf '%s\n' 'https://github.com/acme/bad.git' ;;
@@ -189,8 +196,16 @@ remote)
     sep-wt) printf '%s\n' 'https://github.com/acme/sep-mod.git' ;;
     *) exit 1 ;;
     esac
+  elif [[ "${1:-}" == "get-url" && "${2:-}" == "upstream" ]]; then
+    case "$base" in
+    no-origin-canon | no-origin-canon-feature-ok) printf '%s\n' 'https://github.com/other/upstream-repo.git' ;;
+    *) exit 1 ;;
+    esac
   else
-    printf '%s\n' origin
+    case "$base" in
+    no-origin-canon | no-origin-canon-feature-ok) printf '%s\n' upstream ;;
+    *) printf '%s\n' origin ;;
+    esac
   fi
   ;;
 worktree)
@@ -218,7 +233,14 @@ worktree)
     printf 'worktree %s\0HEAD conf-ok\0branch refs/heads/feature/ok\0\0' "$TEST_ROOT/conform-root/acme-conform-feature-ok"
     printf 'worktree %s\0HEAD conf-flat\0branch refs/heads/feature/flat\0\0' "$TEST_ROOT/ghq-flat/conform-sibling"
     printf 'worktree %s\0HEAD conf-wrong\0branch refs/heads/feature/wrong\0\0' "$TEST_ROOT/conform-root/not-the-layout"
+    # Create-shaped dirname with an older slug; porcelain branch was renamed after creation.
+    printf 'worktree %s\0HEAD conf-renamed\0branch refs/heads/feature/renamed\0\0' "$TEST_ROOT/conform-root/acme-conform-feature-old"
     printf 'worktree %s\0HEAD conf-tool\0branch refs/heads/feature/tool\0\0' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform"
+    ;;
+  no-origin-canon)
+    printf 'worktree %s\0HEAD no-main\0branch refs/heads/main\0\0' "$TEST_ROOT/no-origin-canon"
+    # worktree-create names <checkout-basename>-<slug> when origin is absent.
+    printf 'worktree %s\0HEAD no-ok\0branch refs/heads/feature/ok\0\0' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -287,6 +309,7 @@ branch)
   canonical-a) printf '%s\n' main ;;
   repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo | prefix-auth) printf '%s\n' main ;;
   conform-canon) printf '%s\n' main ;;
+  no-origin-canon) printf '%s\n' main ;;
   aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
   sub-wt | sep-wt) printf '%s\n' main ;;
   esac
@@ -335,7 +358,10 @@ for-each-ref)
   lost-repo) printf 'main\tlost-main\0\n' ;;
   net-repo) printf 'main\tnet-main\0\n' ;;
   conform-canon)
-    printf 'main\tconf-main\0\nfeature/ok\tconf-ok\0\nfeature/flat\tconf-flat\0\nfeature/wrong\tconf-wrong\0\nfeature/tool\tconf-tool\0\n'
+    printf 'main\tconf-main\0\nfeature/ok\tconf-ok\0\nfeature/flat\tconf-flat\0\nfeature/wrong\tconf-wrong\0\nfeature/renamed\tconf-renamed\0\nfeature/tool\tconf-tool\0\n'
+    ;;
+  no-origin-canon)
+    printf 'main\tno-main\0\nfeature/ok\tno-ok\0\n'
     ;;
   aaa-linked | bbb-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
   # Exact headRefName: feature/auth must not inherit feature/auth-v2's merged PR (#2604).
@@ -514,6 +540,7 @@ api)
     ;;
   repos/acme/repo-a) printf 'acme/repo-a\tmain' ;;
   repos/acme/conform) printf 'acme/conform\tmain' ;;
+  repos/other/upstream-repo) printf 'other/upstream-repo\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
@@ -1233,10 +1260,11 @@ assert_not_contains_file "no merged-remote claim without GitHub evidence" "Findi
 # --- #2606 worktree-root conformance ------------------------------------------
 # Separate fixture so the main fleet run stays on the unset-root path. Configured
 # root comes from melodic.worktreeroot (mocked); linked worktrees cover conforming,
-# outside-root, wrong-layout, and Codex tool-owned.
+# outside-root, wrong-layout, rename-after-create (still conforming), and Codex tool-owned.
 mkdir -p "$TMP/conform-root" \
   "$TMP/conform-canon/.git" \
   "$TMP/conform-root/acme-conform-feature-ok/.git" \
+  "$TMP/conform-root/acme-conform-feature-old/.git" \
   "$TMP/ghq-flat/conform-sibling/.git" \
   "$TMP/conform-root/not-the-layout/.git" \
   "$TMP/fake-home/.codex/worktrees/session1/conform/.git"
@@ -1284,7 +1312,7 @@ assert_contains_file "per-repo conformance rollup" \
 assert_contains_file "fleet conformance summary" \
   "Finding: worktree-root-conformance-summary" "$conform_out"
 assert_contains_file "fleet summary counts outside/wrong-layout" \
-  "of 4 linked worktrees are outside the configured root or wrong layout" "$conform_out"
+  "2 of 5 linked worktrees are outside the configured root or wrong layout" "$conform_out"
 # Conforming path must not be flagged outside or wrong-layout.
 conform_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$conform_out" | grep -F 'Target: ' || true)"
 if [[ "$conform_outside_targets" == *acme-conform-feature-ok* ]]; then
@@ -1293,8 +1321,38 @@ if [[ "$conform_outside_targets" == *acme-conform-feature-ok* ]]; then
 else
   printf 'PASS: conforming worktree is not flagged outside-root\n'
 fi
+# CONFORM_RENAME: create-shaped dirname with a renamed branch must stay conforming.
+conform_wrong_targets="$(grep -A2 -F 'Finding: worktree-wrong-layout' "$conform_out" | grep -F 'Target: ' || true)"
+if [[ "$conform_wrong_targets" == *acme-conform-feature-old* ]]; then
+  printf 'FAIL: renamed-branch create-shaped path incorrectly flagged wrong-layout\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: renamed-branch create-shaped path is not wrong-layout\n'
+fi
+assert_contains_file "renamed-branch path counted conforming" \
+  "2 conforming, 2 outside/wrong-layout, 1 tool-owned of 5 linked" "$conform_out"
 assert_not_contains_in "configured-root run does not claim unconfigured" \
   "Finding: worktree-root-unconfigured" "$conform_out"
+
+# CONFORM_NO_ORIGIN: sole non-origin GitHub remote must not invent <owner>-<repo>- layout;
+# worktree-create uses <checkout-basename>-<slug> when origin is absent.
+mkdir -p "$TMP/no-origin-canon/.git" \
+  "$TMP/conform-root/no-origin-canon-feature-ok/.git"
+no_origin_out="$TMP/no-origin-conform-output.txt"
+MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/no-origin-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/no-origin-canon" --detail >"$no_origin_out" 2>&1 || true
+if grep -Fq 'Finding: worktree-wrong-layout' "$no_origin_out" ||
+  grep -Fq 'Finding: worktree-outside-configured-root' "$no_origin_out"; then
+  printf 'FAIL: no-origin create-shaped worktree falsely flagged (upstream-only remote)\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: no-origin create-shaped worktree is conforming (checkout-basename layout)\n'
+fi
+assert_not_contains_in "no-origin layout does not expect upstream owner/repo prefix" \
+  "other-upstream-repo" "$no_origin_out"
+assert_contains_file "no-origin path counted conforming" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
 
 # Fallback to source-control pluginConfigs when melodic key is absent.
 mkdir -p "$TMP/settings-home/.claude"

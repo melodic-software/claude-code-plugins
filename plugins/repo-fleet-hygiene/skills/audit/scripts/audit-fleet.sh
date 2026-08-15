@@ -1673,6 +1673,7 @@ analyze_repo() {
   local remote_tip push_state ri
   local repo_wt_linked=0 repo_wt_conforming=0 repo_wt_nonconforming=0 repo_wt_tool_owned=0
   local wt_owner="" wt_repo="" expected_wt_path="" expected_dirname="" placement_paths=""
+  local origin_url="" wt_basename="" layout_prefix="" creation_slug="" informational_expected=""
   REPO_FINDING_COUNT=0
 
   select_remote "$discovered" && {
@@ -1914,26 +1915,51 @@ analyze_repo() {
         placement_paths+=", "
       fi
       placement_paths+="$wt_path${wt_branch:+ ($wt_branch)}"
+      # Match /source-control:worktree create dirname rules (#2606 review):
+      # owner/repo come from `origin` only; without origin, owner is omitted and
+      # repo is the checkout basename. Never use select_remote's sole-GitHub
+      # fallback (e.g. upstream) — that falsely flags creator-compliant trees.
       wt_owner=""
       wt_repo=""
-      if [[ -n "$github_repo" && "$github_repo" == */* ]]; then
-        wt_owner="${github_repo%%/*}"
-        wt_repo="${github_repo#*/}"
-      elif [[ -n "$canonical_slug" && "$canonical_slug" == */* ]]; then
-        wt_owner="${canonical_slug%%/*}"
-        wt_repo="${canonical_slug#*/}"
-      elif [[ -n "$discovered_slug" && "$discovered_slug" == */* ]]; then
-        wt_owner="${discovered_slug%%/*}"
-        wt_repo="${discovered_slug#*/}"
+      origin_url=""
+      if origin_url="$(run_git_probe -C "$canonical" remote get-url origin 2>/dev/null | tr -d '\r')" &&
+        [[ -n "$origin_url" ]]; then
+        if parse_github_url "$origin_url"; then
+          wt_owner="${PARSED_SLUG%%/*}"
+          wt_repo="${PARSED_SLUG#*/}"
+        fi
       fi
-      expected_dirname="$(expected_worktree_dirname "$wt_owner" "$wt_repo" "$wt_branch")"
+      if [[ -z "$wt_repo" ]]; then
+        wt_repo="${canonical##*/}"
+        wt_owner=""
+      fi
+      # Creation-time path identity: when the dirname already matches the create
+      # pattern, recover that slug. Porcelain's current branch is mutable
+      # (rename/detach) and must not redefine expected layout for comparison.
+      wt_basename="${wt_path##*/}"
+      creation_slug=""
+      if [[ -n "$wt_owner" ]]; then
+        layout_prefix="${wt_owner}-${wt_repo}-"
+      else
+        layout_prefix="${wt_repo}-"
+      fi
+      if [[ -n "$layout_prefix" && "$wt_basename" == "$layout_prefix"* && "$wt_basename" != "$layout_prefix" ]]; then
+        creation_slug="${wt_basename#"$layout_prefix"}"
+      fi
+      if [[ -n "$creation_slug" ]]; then
+        expected_dirname="${layout_prefix}${creation_slug}"
+      else
+        # Non-create-shaped names: recreate guidance uses the same slug rules as create.
+        expected_dirname="$(expected_worktree_dirname "$wt_owner" "$wt_repo" "$wt_branch")"
+      fi
       if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
         expected_wt_path="${CONFIGURED_WORKTREE_ROOT%/}/$expected_dirname"
         if is_tool_owned_worktree "$wt_path"; then
           repo_wt_tool_owned=$((repo_wt_tool_owned + 1))
           FLEET_WT_TOOL_OWNED=$((FLEET_WT_TOOL_OWNED + 1))
+          informational_expected="${CONFIGURED_WORKTREE_ROOT%/}/$(expected_worktree_dirname "$wt_owner" "$wt_repo" "$wt_branch")"
           emit_finding LOW worktree-tool-owned "$wt_path${wt_branch:+ ($wt_branch)}" \
-            "linked worktree sits in a tool-owned location (Codex ~/.codex/worktrees or Cursor ~/.cursor/worktrees); exempt from configured-root conformance; expected fleet location would be $expected_wt_path (root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN)" \
+            "linked worktree sits in a tool-owned location (Codex ~/.codex/worktrees or Cursor ~/.cursor/worktrees); exempt from configured-root conformance; expected fleet location would be $informational_expected (root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN)" \
             "Informational; tool-managed lifecycle, not a misplaced-fleet finding" \
             "Leave to the owning tool, or recreate at the configured root with /source-control:worktree create if migrating"
         elif under_configured_root "$wt_path" &&
@@ -1944,7 +1970,7 @@ analyze_repo() {
           repo_wt_nonconforming=$((repo_wt_nonconforming + 1))
           FLEET_WT_NONCONFORMING=$((FLEET_WT_NONCONFORMING + 1))
           emit_finding MEDIUM worktree-wrong-layout "$wt_path${wt_branch:+ ($wt_branch)}" \
-            "linked worktree is under the configured root ($CONFIGURED_WORKTREE_ROOT) but not at the expected layout path $expected_wt_path (<owner>-<repo>-<slug>); root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
+            "linked worktree is under the configured root ($CONFIGURED_WORKTREE_ROOT) but not at the expected layout path $expected_wt_path (<owner>-<repo>-<slug> or <repo>-<slug>); root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
             "Manual placement decision; never auto-move" \
             "Recreate at $expected_wt_path with /source-control:worktree create, then remove this one"
         else

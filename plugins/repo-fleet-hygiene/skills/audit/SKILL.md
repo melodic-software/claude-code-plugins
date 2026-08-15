@@ -145,8 +145,10 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    verdict. Separately, every linked worktree that passes existence and root-verifiability checks
    is classified against the configured worktree root (`melodic.worktreeroot` when present on the
    first resolvable TARGET, else source-control `worktree_root`): conforming, outside/wrong-layout
-   (expected `<root>/<owner>-<repo>-<slug>` named in evidence; comparisons use physical paths so
-   symlink aliases of the configured root do not false-positive), or tool-owned (Codex/Cursor).
+   (expected `<root>/<owner>-<repo>-<slug>` or `<root>/<repo>-<slug>` without origin, matching
+   `/source-control:worktree create`; create-shaped basenames stay conforming after branch
+   rename/detach; comparisons use physical paths so symlink aliases of the configured root do not
+   false-positive), or tool-owned (Codex/Cursor).
    Missing, prunable, non-root, and root-unverifiable registrations keep their own finding kinds and
    are excluded from conformance denominators. When no root is configured, placement is reported
    without asserting a convention. The collector uses a single fleet-wide root (first TARGET with

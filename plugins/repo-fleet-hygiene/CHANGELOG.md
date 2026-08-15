@@ -5,6 +5,13 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ## [0.21.0]
 
+### Fixed
+
+- **Worktree layout naming matches `/source-control:worktree create` (#2606 review).** Expected
+  dirnames use `origin` only (else `<checkout-basename>-<slug>`); under-root paths whose basename
+  already carries the create-time `<owner>-<repo>-<slug>` / `<repo>-<slug>` prefix stay conforming
+  after branch rename or detach instead of recomputing layout from porcelain's current branch.
+
 ### Added
 
 - **Worktree-root conformance against the configured convention (#2606).** The audit reads
@@ -12,15 +19,15 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   `--show-origin`) when present on the first resolvable TARGET, else source-control's
   `worktree_root` (`CLAUDE_PLUGIN_OPTION_*` or user `pluginConfigs`). Linked worktrees that pass
   existence and root-verifiability checks are classified as conforming, outside the root /
-  wrong `<owner>-<repo>-<slug>` layout (expected location named; physical-path comparison so
-  symlink aliases of the configured root do not false-positive), or tool-owned (Codex/Cursor).
-  Missing / unverifiable / non-root registrations keep their own findings and are excluded from
-  conformance denominators. The collector uses one fleet-wide root (intentionally different
-  per-repository `includeIf` roots are not modeled). When `pluginConfigs` cannot be read because
-  `jq` is missing, emit `UNKNOWN` `worktree-root-pluginconfigs-unreadable` instead of a false
-  unconfigured report. When no root is configured, placement is reported without asserting a
-  convention. Per-repository and fleet rollups always state the classifiable counts — including
-  when every classifiable linked worktree already conforms.
+  wrong `<owner>-<repo>-<slug>` (or `<repo>-<slug>` without origin) layout (expected location named;
+  physical-path comparison so symlink aliases of the configured root do not false-positive), or
+  tool-owned (Codex/Cursor). Missing / unverifiable / non-root registrations keep their own findings
+  and are excluded from conformance denominators. The collector uses one fleet-wide root
+  (intentionally different per-repository `includeIf` roots are not modeled). When `pluginConfigs`
+  cannot be read because `jq` is missing, emit `UNKNOWN` `worktree-root-pluginconfigs-unreadable`
+  instead of a false unconfigured report. When no root is configured, placement is reported without
+  asserting a convention. Per-repository and fleet rollups always state the classifiable counts —
+  including when every classifiable linked worktree already conforms.
 
 ## [0.20.0]
 
