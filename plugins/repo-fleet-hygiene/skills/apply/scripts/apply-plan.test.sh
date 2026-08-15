@@ -368,6 +368,142 @@ rc=0
 bash "$SCRIPT" --plan-file "$bad" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 2 ]] && pass "bad schema exits 2" || fail "bad schema exits 2"
 
+# --- 6) Reject non-audit / unbound action plans (P1 safety) -----------------
+fake="$TMP/fake-plan.json"
+write_plan "$fake" <<EOF
+{
+  "schema_version": 1,
+  "mode": "read-only",
+  "actions": [
+    {
+      "order": 1,
+      "phase": 1,
+      "skill": "/repo-hygiene:clean git",
+      "canonical": "$REPO_A",
+      "operation": "delete-merged-local-branches",
+      "kinds": ["merged-local-branch"],
+      "targets": ["$REPO_A :: feat/alpha"]
+    }
+  ]
+}
+EOF
+rc=0
+fake_out="$TMP/fake-out.txt"
+bash "$SCRIPT" --plan-file "$fake" --apply --yes >"$fake_out" 2>&1 || rc=$?
+if [[ "$rc" -eq 2 ]] && grep -Fq "generated_by" "$fake_out"; then
+  pass "rejects plan without generated_by"
+else
+  fail "rejects plan without generated_by (rc=$rc)"
+  cat "$fake_out" >&2
+fi
+
+unbound="$TMP/unbound-plan.json"
+# Fresh matching tip so a naive apply would otherwise delete.
+OID_UNBOUND="$(add_merged_branch "$REPO_A" "feat/unbound")"
+write_plan "$unbound" <<EOF
+{
+  "schema_version": 1,
+  "mode": "read-only",
+  "generated_by": "repo-fleet-hygiene/audit",
+  "repositories": [
+    {
+      "discovered": "$REPO_A",
+      "canonical": "$REPO_A",
+      "remote": "github.com/acme/a",
+      "verdict": "clean",
+      "kind_counts_text": "",
+      "audited": true,
+      "targets": []
+    }
+  ],
+  "actions": [
+    {
+      "order": 1,
+      "phase": 1,
+      "skill": "/repo-hygiene:clean git",
+      "canonical": "$REPO_A",
+      "operation": "delete-merged-local-branches",
+      "kinds": ["merged-local-branch"],
+      "targets": ["$REPO_A :: feat/unbound"]
+    }
+  ]
+}
+EOF
+rc=0
+unbound_out="$TMP/unbound-out.txt"
+bash "$SCRIPT" --plan-file "$unbound" --apply --yes >"$unbound_out" 2>&1 || rc=$?
+if [[ "$rc" -eq 2 ]] && grep -Fq "no matching actionable audit finding" "$unbound_out"; then
+  pass "rejects action target without audit finding"
+else
+  fail "rejects action target without audit finding (rc=$rc)"
+  cat "$unbound_out" >&2
+fi
+if git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/unbound; then
+  pass "unbound plan mutated nothing"
+else
+  fail "unbound plan mutated nothing"
+fi
+
+# --- 7) Empty TSV fields for prune-only worktree kinds (P2) -----------------
+# Register a missing worktree path so prune is meaningful, then plan a
+# prunable-worktree action whose ref_name and expected_oid are intentionally empty.
+PRUNE_REPO="$TMP/repo-prune"
+make_repo "$PRUNE_REPO"
+# Create and remove a linked worktree so porcelain may still list stale entries
+# after a forced path removal; apply's prune path only needs the kind decode.
+WT_STALE="$TMP/wt-stale"
+git -C "$PRUNE_REPO" worktree add -q "$WT_STALE" -b feat/stale
+rm -rf "$WT_STALE"
+PLAN_PRUNE="$TMP/plan-prune.json"
+write_plan "$PLAN_PRUNE" <<EOF
+{
+  "schema_version": 1,
+  "mode": "read-only",
+  "generated_by": "repo-fleet-hygiene/audit",
+  "repositories": [
+    {
+      "discovered": "$PRUNE_REPO",
+      "canonical": "$PRUNE_REPO",
+      "remote": "github.com/acme/prune",
+      "verdict": "1 candidates",
+      "kind_counts_text": "prunable-worktree=1",
+      "audited": true,
+      "targets": [
+        {
+          "target": "$WT_STALE",
+          "findings": [
+            {
+              "kind": "prunable-worktree",
+              "confidence": "HIGH",
+              "evidence": "worktree path missing on disk; registration still present",
+              "disposition": "Candidate",
+              "handoff": "n/a"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "order": 1,
+      "phase": 2,
+      "skill": "/source-control:worktree cleanup --dry-run",
+      "canonical": "$PRUNE_REPO",
+      "operation": "cleanup-worktrees",
+      "kinds": ["prunable-worktree"],
+      "targets": ["$WT_STALE"],
+      "note": "ref and oid intentionally empty"
+    }
+  ]
+}
+EOF
+prune_out="$TMP/prune-out.txt"
+bash "$SCRIPT" --plan-file "$PLAN_PRUNE" >"$prune_out" 2>&1
+assert_contains "prunable empty fields decode to prune" "[prune-worktrees]" "$prune_out"
+assert_contains "prunable kind preserved" "kind: prunable-worktree" "$prune_out"
+assert_not_contains "prunable not misread as merged-worktree skip" "target has no branch name" "$prune_out"
+
 if [[ "$fails" -ne 0 ]]; then
   printf 'apply-plan tests failed.\n' >&2
   exit 1

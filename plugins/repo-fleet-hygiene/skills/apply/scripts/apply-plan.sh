@@ -81,8 +81,10 @@ if ! command -v git >/dev/null 2>&1; then
   fail "git is required"
 fi
 
-# Parse plan → ordered TSV units on stdout. Columns:
-# phase, operation, canonical, ref_name, expected_oid, kind, target
+# Parse plan → ordered units on stdout. Fields are ASCII Unit Separator (U+001F)
+# delimited so empty ref_name / expected_oid stay intact under Bash 3.2 `read`
+# (tab is IFS whitespace and collapses consecutive delimiters).
+# Columns: phase, operation, canonical, ref_name, expected_oid, kind, target
 # ref_name is the local branch (or empty for prune-only worktree ops).
 # expected_oid may be empty when the plan evidence lacked a headRefOid (fail-closed later).
 PLAN_TSV="$(
@@ -99,18 +101,38 @@ except (OSError, json.JSONDecodeError) as e:
 if not isinstance(plan, dict) or plan.get("schema_version") != 1:
     print("Error: action plan schema_version must be 1", file=sys.stderr)
     sys.exit(2)
+# Accept only audit-produced plan artifacts (not hand-built action lists).
+if plan.get("generated_by") != "repo-fleet-hygiene/audit":
+    print(
+        "Error: action plan must set generated_by to repo-fleet-hygiene/audit",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+if plan.get("mode") != "read-only":
+    print("Error: action plan mode must be read-only", file=sys.stderr)
+    sys.exit(2)
 actions = plan.get("actions")
 if not isinstance(actions, list):
     print("Error: action plan missing actions list", file=sys.stderr)
     sys.exit(2)
 
+BRANCH_KINDS = {"merged-local-branch"}
+WORKTREE_KINDS = {
+    "merged-worktree",
+    "prunable-worktree",
+    "missing-worktree",
+    "reclaimable-worktree",
+}
 oid_re = re.compile(r"headRefOid\s+([0-9a-fA-F]{7,40})")
 # Map (canonical, target) -> first actionable finding kind + oid from evidence.
 finding_index = {}
+audited_canonicals = set()
 for repo in plan.get("repositories") or []:
     if not isinstance(repo, dict):
         continue
     canonical = str(repo.get("canonical") or "")
+    if repo.get("audited") is True and canonical:
+        audited_canonicals.add(canonical)
     for block in repo.get("targets") or []:
         if not isinstance(block, dict):
             continue
@@ -119,6 +141,8 @@ for repo in plan.get("repositories") or []:
             if not isinstance(finding, dict):
                 continue
             kind = str(finding.get("kind") or "")
+            if kind not in BRANCH_KINDS and kind not in WORKTREE_KINDS:
+                continue
             evidence = str(finding.get("evidence") or "")
             m = oid_re.search(evidence)
             oid = m.group(1).lower() if m else ""
@@ -145,6 +169,16 @@ def split_target(target: str, canonical: str) -> str:
         return right.strip()
     return ""
 
+def clean(s: str) -> str:
+    # Keep Unit Separator out of fields; flatten other control whitespace.
+    return (
+        s.replace("\x1f", " ")
+        .replace("\t", " ")
+        .replace("\n", " ")
+        .replace("\r", "")
+    )
+
+FS = "\x1f"
 ordered = sorted(
     enumerate(actions),
     key=lambda it: (
@@ -159,23 +193,43 @@ for _idx, action in ordered:
         continue
     op = str(action.get("operation") or "")
     canonical = str(action.get("canonical") or "")
-    kinds = action.get("kinds") or []
-    kind_hint = str(kinds[0]) if kinds else ""
+    if not canonical or canonical not in audited_canonicals:
+        print(
+            f"Error: action canonical is not an audited repository in the plan: {canonical or '(empty)'}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if op == "delete-merged-local-branches":
+        allowed_kinds = BRANCH_KINDS
+    elif op == "cleanup-worktrees":
+        allowed_kinds = WORKTREE_KINDS
+    else:
+        print(f"Error: unsupported action operation: {op or '(empty)'}", file=sys.stderr)
+        sys.exit(2)
     targets = action.get("targets") or []
-    if not isinstance(targets, list):
-        continue
+    if not isinstance(targets, list) or not targets:
+        print("Error: action missing targets list", file=sys.stderr)
+        sys.exit(2)
     for target in targets:
         target_s = str(target)
-        kind, oid = finding_index.get((canonical, target_s), (kind_hint, ""))
-        if not kind:
-            kind = kind_hint
+        key = (canonical, target_s)
+        if key not in finding_index:
+            print(
+                "Error: action target has no matching actionable audit finding: "
+                f"{target_s}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        kind, oid = finding_index[key]
+        if kind not in allowed_kinds:
+            print(
+                f"Error: finding kind {kind} is not valid for operation {op}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
         ref_name = split_target(target_s, canonical)
-        # TSV: escape tabs/newlines out of path fields.
-        def clean(s: str) -> str:
-            return s.replace("\t", " ").replace("\n", " ").replace("\r", "")
-
         print(
-            "\t".join(
+            FS.join(
                 [
                     str(phase(op)),
                     clean(op),
@@ -190,7 +244,12 @@ for _idx, action in ordered:
 PY
 )" || exit 2
 
-mapfile -t UNITS <<<"${PLAN_TSV}"
+# Bash 3.2-compatible collection (no mapfile).
+UNITS=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -n "$line" ]] || continue
+  UNITS+=("$line")
+done < <(printf '%s\n' "$PLAN_TSV")
 
 is_tty_stdin() {
   [[ -t 0 ]]
@@ -308,9 +367,10 @@ oids_match() {
   [[ -n "$a" && -n "$b" ]] || return 1
   # Compare by unique abbreviated prefix length (min 7) via rev-parse in a repo if both full,
   # else case-insensitive equality / prefix match.
+  # tr (not ${var,,}) keeps this Bash 3.2-safe on stock macOS.
   local al=${#a} bl=${#b}
-  a=${a,,}
-  b=${b,,}
+  a="$(printf '%s' "$a" | tr '[:upper:]' '[:lower:]')"
+  b="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')"
   if [[ "$a" == "$b" ]]; then
     return 0
   fi
@@ -497,9 +557,11 @@ refresh_worktree_cleanup() {
 }
 
 # --- Evidence refresh -------------------------------------------------------
+# Unit Separator (not tab): empty ref/expected fields must survive read.
 for line in "${UNITS[@]:-}"; do
   [[ -n "${line:-}" ]] || continue
-  IFS=$'\t' read -r phase op canonical ref expected kind target <<<"$line"
+  phase="" op="" canonical="" ref="" expected="" kind="" target=""
+  IFS=$'\037' read -r phase op canonical ref expected kind target _ < <(printf '%s\n' "$line")
   case "$op" in
   delete-merged-local-branches)
     refresh_branch_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target"
