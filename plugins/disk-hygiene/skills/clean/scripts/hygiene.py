@@ -949,6 +949,29 @@ def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
         return None, str(exc)
 
 
+def directory_has_child(directory: Path) -> bool:
+    """Whether a directory holds at least one entry — one read, no recursion.
+
+    FAILS CLOSED. Emptiness has to be PROVEN, so an unreadable directory
+    reports True (assume content). The caller uses this to decide whether a
+    scan boundary can be reported as fully inventoried, and a directory whose
+    contents could not be read is exactly the case that must keep its
+    "not inventoried" marking. The read is inside the ``try`` deliberately:
+    Windows surfaces an access denial on the first iteration step rather than
+    on ``os.scandir`` itself.
+
+    Deliberately not ``top_level_entry_count``: that one iterates every child
+    to produce a count, and a boundary directory with hundreds of thousands of
+    entries is precisely the cost ``--max-depth`` exists to avoid. Only the
+    first entry is ever read here — the question is "any?", not "how many?".
+    """
+    try:
+        with os.scandir(directory) as iterator:
+            return next(iter(iterator), None) is not None
+    except OSError:
+        return True
+
+
 def volume_root_os_owned_names(
     platform_key: str | None = None,
 ) -> set[str]:
@@ -1235,9 +1258,26 @@ def scan_tree(
                         walked = False
                         truncated.append(relative)
                     elif max_depth is not None and depth >= max_depth:
-                        subtotal = None
-                        walked = False
-                        truncated.append(relative)
+                        # A depth cut is the one truncation reason emptiness can
+                        # answer. One cheap first-child probe (no recursion, no
+                        # count) decides it: an empty directory has no
+                        # descendants, so nothing is left uninventoried and its
+                        # size is genuinely 0 rather than unknown — record it
+                        # walked, and keep it out of truncated so the four
+                        # downstream consumers stop treating a vacuously complete
+                        # inventory as a coverage gap. Anything with a child, or
+                        # any directory the probe cannot read, keeps the old
+                        # not-walked marking. Scoped to THIS branch on purpose:
+                        # the VCS and protection branches above refuse to walk
+                        # for reasons emptiness does not answer, so an empty
+                        # protected or VCS directory must still land in
+                        # truncated.
+                        if directory_has_child(path):
+                            subtotal = None
+                            walked = False
+                            truncated.append(relative)
+                        else:
+                            subtotal = 0
                     else:
                         subtotal = visit(path, depth + 1)
                     data = metadata(path, kind, subtotal, walked=walked)

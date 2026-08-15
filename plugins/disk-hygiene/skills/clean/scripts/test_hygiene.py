@@ -1777,6 +1777,145 @@ class HygieneTests(unittest.TestCase):
                 "truncated-not-inventoried", result["candidates"][0]["blockers"]
             )
 
+    def test_empty_directory_at_scan_depth_is_inventoried_not_truncated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            (root / "empty").mkdir()
+            (root / "loose.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            entries = hygiene.entry_map(snapshot)
+            # An empty directory AT the boundary is vacuously fully inventoried:
+            # size 0 (not unknown), no not-walked qualifier, no coverage gap.
+            self.assertEqual(0, entries["empty"]["logical_size"])
+            self.assertEqual([], entries["empty"]["size_qualifiers"])
+            self.assertEqual([], snapshot["truncated_paths"])
+            # With nothing left unwalked, the target's own roll-up is exact.
+            self.assertNotIn(
+                "not-walked", snapshot["target_identity"]["size_qualifiers"]
+            )
+
+    def test_non_empty_directory_at_scan_depth_stays_truncated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "full").mkdir(parents=True)
+            (root / "full" / "leaf.txt").write_text("y", encoding="utf-8")
+            (root / "empty").mkdir()
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            entries = hygiene.entry_map(snapshot)
+            # The probe answers "any child?", never "how big?" — a directory
+            # with content at the boundary is as uninventoried as it ever was.
+            self.assertEqual(["full"], snapshot["truncated_paths"])
+            self.assertIsNone(entries["full"]["logical_size"])
+            self.assertIn("not-walked", entries["full"]["size_qualifiers"])
+            self.assertNotIn("full/leaf.txt", entries)
+            self.assertIn("not-walked", snapshot["target_identity"]["size_qualifiers"])
+
+    def test_empty_protected_directory_at_scan_depth_stays_truncated(self) -> None:
+        """Regression guard: the probe must not reach the protections branch.
+
+        A protected directory is refused a walk because the protection forbids
+        it, not because the walk would be deep — emptiness answers nothing
+        there, so it must keep landing in truncated whatever it contains.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            (root / "Documents").mkdir()
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn(
+                "baseline-protected-name", entries["Documents"]["protected_reasons"]
+            )
+            self.assertEqual(["Documents"], snapshot["truncated_paths"])
+            self.assertIsNone(entries["Documents"]["logical_size"])
+            self.assertIn("not-walked", entries["Documents"]["size_qualifiers"])
+
+    def test_empty_vcs_directory_at_scan_depth_stays_truncated(self) -> None:
+        """Regression guard: the probe must not reach the VCS branch.
+
+        ``hard_protection`` is stubbed away so the VCS branch is the ONLY thing
+        that can truncate here — otherwise ``.git``'s own ``vcs-metadata``
+        protection would keep the assertion green even if the probe had leaked
+        into the VCS branch.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            (root / ".git").mkdir()
+            with mock.patch.object(
+                hygiene, "hard_protection", side_effect=lambda *a, **k: []
+            ):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), max_depth=1
+                )
+            entries = hygiene.entry_map(snapshot)
+            self.assertEqual([".git"], snapshot["truncated_paths"])
+            self.assertIsNone(entries[".git"]["logical_size"])
+            self.assertIn("not-walked", entries[".git"]["size_qualifiers"])
+
+    def test_directory_has_child_fails_closed_when_unreadable(self) -> None:
+        # Emptiness must be proven. A directory that cannot be read reports
+        # "has content" so its boundary marking is never cleared on a guess.
+        with tempfile.TemporaryDirectory() as temporary:
+            self.assertFalse(hygiene.directory_has_child(Path(temporary)))
+            self.assertTrue(hygiene.directory_has_child(Path(temporary) / "absent"))
+
+    def test_empty_directory_at_scan_depth_is_previewable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            (root / "empty").mkdir()
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("empty")],
+            }
+            with mock.patch.object(
+                hygiene, "handle_state", return_value=("clear", None)
+            ):
+                result = hygiene.preview(snapshot, plan)
+            blockers = result["candidates"][0]["blockers"]
+            self.assertNotIn("truncated-not-inventoried", blockers)
+            self.assertNotIn("changed-since-scan", blockers)
+
+    def test_cleared_boundary_directory_that_gains_a_child_is_caught(self) -> None:
+        """Clearing truncated does not weaken the drift check — it arms it.
+
+        A truncated candidate short-circuits the live descendant walk (nothing
+        can be proven about it anyway). An empty boundary directory no longer
+        short-circuits, so a child appearing between scan and preview is caught
+        as ``changed-since-scan`` instead of hiding behind the blanket block.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            (root / "empty").mkdir()
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            self.assertEqual([], snapshot["truncated_paths"])
+            (root / "empty" / "arrived.txt").write_text("late", encoding="utf-8")
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("empty")],
+            }
+            with mock.patch.object(
+                hygiene, "handle_state", return_value=("clear", None)
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn("changed-since-scan", result["candidates"][0]["blockers"])
+
     def test_preview_skips_live_recursive_checks_for_truncated_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"

@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1]
+
+### Fixed
+
+- **Empty directories at `--max-depth` are inventoried as size 0 (#2618).** A depth cut used to
+  mark every boundary directory truncated even when it had no children. One first-child probe
+  (no recursion, fail-closed on unreadable) now records empty boundaries as walked with size 0
+  and keeps them out of the truncated set; directories with children and unreadable directories keep
+  the previous not-walked marking. VCS and protection cuts are unchanged — emptiness does not
+  answer those refusals.
+
 ## [0.20.0]
 
 ### Added
