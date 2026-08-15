@@ -1,5 +1,8 @@
 /**
- * YouTube media acquisition via yt-dlp.
+ * Media acquisition via yt-dlp: the source-agnostic dispatch entry
+ * ({@link acquireMedia}, routed through the adapter registry) plus the
+ * YouTube-specific yt-dlp driver ({@link acquireYouTubeMedia}) the YouTube
+ * adapter composes.
  */
 
 import fs from "node:fs/promises";
@@ -8,6 +11,7 @@ import path from "node:path";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { fail, ok } from "@melodic/video-digestion/shared/result";
 
+import { resolveSourceAdapter } from "../adapters/registry.js";
 import { CAPTION_ONLY_SLEEP_SUBTITLES_SEC, sleepMs } from "./acquire-retry-policy.js";
 import { withAcquireThrottle } from "./acquire-throttle.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
@@ -19,6 +23,14 @@ import { parseVideoMetadata } from "./video-metadata.js";
 /** @typedef {import('@melodic/video-digestion/shared/media-artifacts').MediaArtifacts} MediaArtifacts */
 /** @typedef {import('./video-metadata.js').VideoMetadata} VideoMetadata */
 /** @typedef {import('./build-yt-dlp-args.js').AcquisitionMode} AcquisitionMode */
+
+/**
+ * Adapter-declared acquisition declarations: yt-dlp arg flags plus spawn-level
+ * classification. Closed by default — omitted fields declare the behavior off.
+ *
+ * @typedef {import('./build-yt-dlp-args.js').YtDlpSourceOptions &
+ *   import('./spawn-yt-dlp-with-auth-fallback.js').SourceSpawnClassification} SourceAcquisitionDeclarations
+ */
 
 const DEFAULT_ACQUIRE_PHASE_GAP_MS = 3000;
 const ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
@@ -163,6 +175,7 @@ export function resolveMediaArtifacts(files, videoId) {
  *   url: string,
  *   workDir: string,
  *   mode: AcquisitionMode,
+ *   source: SourceAcquisitionDeclarations,
  *   sleepSubtitlesSec?: number,
  *   env?: NodeJS.ProcessEnv,
  * }} params
@@ -172,24 +185,33 @@ async function runYtDlpAcquire({
   url,
   workDir,
   mode,
+  source,
   sleepSubtitlesSec,
   env = process.env,
 }) {
   const outputTemplate = path.join(workDir, "%(id)s.%(ext)s");
   const buildArgs = (authOverride = {}) =>
-    buildYtDlpArgs(url, { mode, outputTemplate, workDir, sleepSubtitlesSec, env, authOverride });
-  return spawnYtDlpWithAuthFallback(spawn, buildArgs, { cwd: workDir, env });
+    buildYtDlpArgs(url, {
+      mode,
+      outputTemplate,
+      workDir,
+      sleepSubtitlesSec,
+      env,
+      authOverride,
+      source,
+    });
+  return spawnYtDlpWithAuthFallback(spawn, buildArgs, { cwd: workDir, env, source });
 }
 
 /**
  * @param {AcquireDeps} deps
  * @param {string} url
  * @param {string} workDir
- * @param {{ mode: AcquisitionMode, sleepSubtitlesSec?: number }} pass
+ * @param {{ mode: AcquisitionMode, source: SourceAcquisitionDeclarations, sleepSubtitlesSec?: number }} pass
  */
-async function runAcquirePass(deps, url, workDir, { mode, sleepSubtitlesSec }) {
+async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitlesSec }) {
   const { spawn, listFiles } = deps;
-  const spawnResult = await runYtDlpAcquire({ spawn, url, workDir, mode, sleepSubtitlesSec });
+  const spawnResult = await runYtDlpAcquire({ spawn, url, workDir, mode, source, sleepSubtitlesSec });
   if (!spawnResult.success) {
     return {
       spawnResult,
@@ -206,18 +228,19 @@ async function runAcquirePass(deps, url, workDir, { mode, sleepSubtitlesSec }) {
  * @param {string} url
  * @param {string} workDir
  * @param {string} videoId
+ * @param {SourceAcquisitionDeclarations} source
  * @returns {Promise<
  *   {ok: true, files: string[], artifacts: MediaArtifacts, acquireMetrics: object} |
  *   {ok: false, error: string, acquireMetrics: object}
  * >}
  */
-async function acquireFullStaged(deps, url, workDir, videoId) {
+async function acquireFullStaged(deps, url, workDir, videoId, source) {
   const { sleep = sleepMs } = deps;
   const videoStarted = Date.now();
 
   const throttle = deps.withThrottle ?? withAcquireThrottle;
   const videoPass = await throttle(() =>
-    runAcquirePass(deps, url, workDir, { mode: "video-only" }),
+    runAcquirePass(deps, url, workDir, { mode: "video-only", source }),
   );
   if (!videoPass.spawnResult.success) {
     return {
@@ -243,6 +266,7 @@ async function acquireFullStaged(deps, url, workDir, videoId) {
   const captionPass = await throttle(() =>
     runAcquirePass(deps, url, workDir, {
       mode: "captions-only",
+      source,
       sleepSubtitlesSec: CAPTION_ONLY_SLEEP_SUBTITLES_SEC,
     }),
   );
@@ -265,10 +289,10 @@ async function acquireFullStaged(deps, url, workDir, videoId) {
 
 /**
  * @param {string} url
- * @param {{workDir: string, mode?: AcquisitionMode}} options
+ * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations}} options
  * @param {Partial<AcquireDeps>} [deps]
  */
-export async function acquireYouTubeMedia(url, { workDir, mode = "full" }, deps = {}) {
+export async function acquireYouTubeMedia(url, { workDir, mode = "full", source = {} }, deps = {}) {
   const started = Date.now();
   const mergedDeps = { ...DEFAULT_DEPS, ...deps };
   const { readFile, withThrottle = withAcquireThrottle } = mergedDeps;
@@ -301,6 +325,7 @@ export async function acquireYouTubeMedia(url, { workDir, mode = "full" }, deps 
       url,
       workDir,
       videoId,
+      source,
     );
     acquireMetrics = staged.acquireMetrics;
     if (!staged.ok) {
@@ -309,7 +334,9 @@ export async function acquireYouTubeMedia(url, { workDir, mode = "full" }, deps 
     files = staged.files;
     artifacts = staged.artifacts;
   } else {
-    const single = await throttle(() => runAcquirePass(mergedDeps, url, workDir, { mode }));
+    const single = await throttle(() =>
+      runAcquirePass(mergedDeps, url, workDir, { mode, source }),
+    );
     if (!single.spawnResult.success) {
       return failVideo(single.detail || "yt-dlp failed");
     }
@@ -323,6 +350,7 @@ export async function acquireYouTubeMedia(url, { workDir, mode = "full" }, deps 
     const captionRetry = await throttle(() =>
       runAcquirePass(mergedDeps, url, workDir, {
         mode: "captions-only",
+        source,
         sleepSubtitlesSec: CAPTION_ONLY_SLEEP_SUBTITLES_SEC,
       }),
     );
@@ -369,4 +397,23 @@ export async function acquireYouTubeMedia(url, { workDir, mode = "full" }, deps 
     { label: videoId },
     Date.now() - started,
   );
+}
+
+/**
+ * Source-agnostic acquisition entry: resolve the owning adapter from the URL
+ * (fails closed on unknown hosts) and acquire through it. Returns the
+ * adapter's result envelope; throws
+ * {@link import('../adapters/adapter-contract.js').UnsupportedSourceError}
+ * when no adapter claims the URL.
+ *
+ * @param {string} url
+ * @param {{workDir: string, mode: 'full'|'transcript'}} options
+ * @param {object} [deps] - adapter-specific injectable I/O (tests only)
+ * @returns {Promise<import('../adapters/adapter-contract.js').AcquireOutcome>}
+ */
+export async function acquireMedia(url, { workDir, mode }, deps = {}) {
+  const adapter = resolveSourceAdapter(url);
+  const claim = adapter.matchUrl(url);
+  const canonicalUrl = claim ? claim.canonicalUrl : url;
+  return adapter.acquire(canonicalUrl, { workDir, mode, deps });
 }

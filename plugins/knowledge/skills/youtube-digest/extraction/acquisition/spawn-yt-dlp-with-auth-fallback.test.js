@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { YOUTUBE_BOT_CHALLENGE_PATTERNS } from "./acquire-yt-dlp-auth.js";
 import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js";
 
 const BOT_ERROR = "ERROR: Sign in to confirm you're not a bot";
 
+/** Adapter-shaped classification for a source that allows browser-cookie fallback. */
+const FALLBACK_SOURCE = {
+  loginRequiredPatterns: YOUTUBE_BOT_CHALLENGE_PATTERNS,
+  allowBrowserCookieProfileFallback: true,
+};
+
 describe("spawnYtDlpWithAuthFallback", () => {
-  it("retries with browser cookies after bot challenge", async () => {
+  it("retries with browser cookies after login-required classification", async () => {
     const spawn = vi
       .fn()
       .mockResolvedValueOnce({
@@ -35,11 +42,39 @@ describe("spawnYtDlpWithAuthFallback", () => {
     const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
       env: {},
       cwd: "/tmp/work",
+      source: FALLBACK_SOURCE,
     });
 
     expect(result.success).toBe(true);
     expect(buildArgs).toHaveBeenCalledWith({ cookiesFromBrowser: expect.any(String) });
     expect(spawn.mock.calls.some((call) => call[1]?.includes("--cookies-from-browser"))).toBe(true);
+  });
+
+  it("never iterates browser profiles when the source lacks the capability", async () => {
+    const spawn = vi.fn().mockResolvedValue({
+      success: false,
+      code: 1,
+      signal: null,
+      stdout: "",
+      stderr: BOT_ERROR,
+      timedOut: false,
+    });
+
+    const buildArgs = () => ["https://example.com"];
+
+    const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
+      env: {},
+      source: {
+        loginRequiredPatterns: YOUTUBE_BOT_CHALLENGE_PATTERNS,
+        allowBrowserCookieProfileFallback: false,
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls.some((call) => call[1]?.includes("--cookies-from-browser"))).toBe(
+      false,
+    );
   });
 
   it("does not retry cookies when explicit env is configured", async () => {
@@ -56,6 +91,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
 
     await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
       env: { YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
+      source: FALLBACK_SOURCE,
     });
 
     expect(spawn).toHaveBeenCalledTimes(1);
@@ -73,7 +109,10 @@ describe("spawnYtDlpWithAuthFallback", () => {
 
     const buildArgs = () => ["https://example.com"];
 
-    const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, { env: {} });
+    const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
+      env: {},
+      source: FALLBACK_SOURCE,
+    });
 
     expect(result.success).toBe(false);
     expect(spawn).toHaveBeenCalledTimes(1);

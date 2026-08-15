@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { adapter as youtubeAdapter } from "../adapters/youtube.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import {
   deduplicateHarvestedLinks,
@@ -29,7 +30,7 @@ describe("harvestMetadataLinks", () => {
     const heatmap = summarizeHeatmap(metadata.heatmap);
     expect(heatmap.present).toBe(false);
 
-    const links = harvestMetadataLinks(metadata);
+    const links = harvestMetadataLinks(metadata, youtubeAdapter);
     const urls = links.map((link) => link.url);
     expect(urls).toContain("https://example.com/docs");
     expect(urls).toContain("https://chapter.example.com");
@@ -42,14 +43,14 @@ describe("harvestMetadataLinks", () => {
     expect(heatmap.present).toBe(true);
     expect(heatmap.peakCount).toBe(3);
 
-    const links = harvestMetadataLinks(metadata);
+    const links = harvestMetadataLinks(metadata, youtubeAdapter);
     expect(links.some((l) => l.source === "pinned-comment")).toBe(false);
     expect(links.some((l) => l.url === "https://docs.example.com/guide")).toBe(true);
   });
 
   it("harvests pinned comment links when present", () => {
     const metadata = loadFixture("pinned-present.json");
-    const links = harvestMetadataLinks(metadata);
+    const links = harvestMetadataLinks(metadata, youtubeAdapter);
 
     const pinned = links.filter((l) => l.source === "pinned-comment");
     expect(pinned).toHaveLength(1);

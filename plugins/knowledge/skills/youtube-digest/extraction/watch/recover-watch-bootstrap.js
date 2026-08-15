@@ -15,6 +15,7 @@ import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-durat
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
+import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
@@ -218,10 +219,13 @@ export async function recoverWatchBootstrapCli(argv) {
     acquiredAt: new Date().toISOString(),
   };
 
+  const sourceUrl = `https://www.youtube.com/watch?v=${metadata.id}`;
+  const adapter = resolveSourceAdapter(sourceUrl);
+
   let state = createWatchState({
     videoId: metadata.id,
     videoSlug: path.basename(sliceDir),
-    sourceUrl: `https://www.youtube.com/watch?v=${metadata.id}`,
+    sourceUrl,
     title: metadata.title,
   });
   state.tempSession = tempSession;
@@ -253,7 +257,7 @@ export async function recoverWatchBootstrapCli(argv) {
     recovered: true,
   });
 
-  const harvestedLinks = harvestMetadataLinks(metadata);
+  const harvestedLinks = harvestMetadataLinks(metadata, adapter);
   await fsPromises.mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
   const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
   await fsPromises.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");

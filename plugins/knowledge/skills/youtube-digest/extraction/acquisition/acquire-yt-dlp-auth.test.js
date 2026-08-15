@@ -4,22 +4,39 @@ import {
   browserCookieFallbackProfiles,
   hasExplicitYtDlpCookieConfig,
   isCookieProfileRetryableError,
-  isYoutubeBotChallengeError,
+  isLoginRequiredError,
+  YOUTUBE_BOT_CHALLENGE_PATTERNS,
 } from "./acquire-yt-dlp-auth.js";
 
-describe("isYoutubeBotChallengeError", () => {
-  it("matches sign-in bot challenge text", () => {
-    expect(isYoutubeBotChallengeError("ERROR: Sign in to confirm you're not a bot")).toBe(true);
+describe("isLoginRequiredError", () => {
+  it("matches sign-in bot challenge text against the declared patterns", () => {
+    expect(
+      isLoginRequiredError(
+        "ERROR: Sign in to confirm you're not a bot",
+        YOUTUBE_BOT_CHALLENGE_PATTERNS,
+      ),
+    ).toBe(true);
   });
 
   it("rejects unrelated failures", () => {
-    expect(isYoutubeBotChallengeError("HTTP Error 429: Too Many Requests")).toBe(false);
+    expect(
+      isLoginRequiredError("HTTP Error 429: Too Many Requests", YOUTUBE_BOT_CHALLENGE_PATTERNS),
+    ).toBe(false);
+  });
+
+  it("matches nothing when the source declares no patterns", () => {
+    expect(isLoginRequiredError("ERROR: Sign in to confirm you're not a bot", [])).toBe(false);
   });
 });
 
 describe("isCookieProfileRetryableError", () => {
   it("matches unsupported browser cookie extraction", () => {
-    expect(isCookieProfileRetryableError("ERROR: unsupported browser: phantom")).toBe(true);
+    expect(
+      isCookieProfileRetryableError(
+        "ERROR: unsupported browser: phantom",
+        YOUTUBE_BOT_CHALLENGE_PATTERNS,
+      ),
+    ).toBe(true);
   });
 });
 

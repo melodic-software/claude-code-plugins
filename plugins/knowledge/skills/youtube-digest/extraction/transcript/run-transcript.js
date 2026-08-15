@@ -2,7 +2,10 @@
 /**
  * CLI: acquire captions + write `.work/<video-slug>/transcript.txt`.
  *
- * Usage: node transcript/run-transcript.js <youtube-url>
+ * Usage: node transcript/run-transcript.js <video-url>
+ *
+ * Acquisition dispatches through the source-adapter registry; an unknown host
+ * fails closed (non-zero exit) listing the supported sources.
  */
 
 import fs from "node:fs/promises";
@@ -12,10 +15,12 @@ import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { singleEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
+import { resolveSourceAdapter } from "../adapters/registry.js";
+import { acquireMedia } from "../acquisition/acquire.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
-import { acquireYouTubeMedia } from "../acquisition/acquire.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "./derive-video-slug.js";
-import { writeTranscriptArtifacts } from "./write-transcript.js";
+import { writeEnvelopeTranscriptArtifacts } from "./write-transcript.js";
 
 /**
  * @param {string[]} argv
@@ -23,47 +28,57 @@ import { writeTranscriptArtifacts } from "./write-transcript.js";
 export async function runTranscriptCli(argv) {
   const url = argv[2];
   if (!url) {
-    writeStderr("Usage: node transcript/run-transcript.js <youtube-url>");
+    writeStderr("Usage: node transcript/run-transcript.js <video-url>");
     return 1;
+  }
+
+  /** @type {import('../adapters/adapter-contract.js').SourceAdapter} */
+  let adapter;
+  try {
+    adapter = resolveSourceAdapter(url);
+  } catch (error) {
+    if (error instanceof UnsupportedSourceError) {
+      writeStderr(error.message);
+      return 1;
+    }
+    throw error;
   }
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-extraction-"));
 
   try {
-    const acquisition = await acquireYouTubeMedia(url, { workDir, mode: "transcript" });
+    const acquisition = await acquireMedia(url, { workDir, mode: "transcript" });
     if (!acquisition.success || !acquisition.data) {
       writeStderr(acquisition.error ?? "Acquisition failed");
       return 1;
     }
 
-    const { artifacts, metadata, caption } = acquisition.data;
-    const selectedCaptionPath = caption.path;
-    const vttText = await fs.readFile(selectedCaptionPath, "utf8");
-    const videoSlug = deriveVideoSlug(metadata.title, metadata.id);
+    const envelope = acquisition.data;
+    const { metadata } = envelope;
+    const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
+    const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
     const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
 
-    const written = await writeTranscriptArtifacts({
-      sliceDir,
-      vttText,
-      isAutoCaption: caption.isAutoCaption,
-      videoTitle: metadata.title,
-      videoId: metadata.id,
-      sourceUrl: url,
-    });
+    const written = await writeEnvelopeTranscriptArtifacts({ sliceDir, envelope, sourceUrl: url });
+    const primary = singleEntry(envelope);
+    const primaryTranscript =
+      written.transcripts.find((entry) => entry.entryIndex === 0) ?? null;
 
     writeStdout(
       JSON.stringify(
         {
           videoSlug,
           sliceDir,
-          captionRung: caption.rung,
-          captionPath: selectedCaptionPath,
-          metadataPath: artifacts.metadataPath,
-          transcriptPath: written.transcriptPath,
-          cueCount: written.cueCount,
-          paragraphCount: written.paragraphCount,
-          cleanedAutoCaptions: written.cleanedAutoCaptions,
-          videoDownloaded: Boolean(artifacts.videoPath),
+          entryCount: written.entryCount,
+          captionRung: primary?.caption?.rung ?? null,
+          captionPath: primary?.caption?.path ?? null,
+          metadataPath: primary?.metadataPath ?? null,
+          transcriptPath: primaryTranscript?.transcriptPath ?? null,
+          cueCount: primaryTranscript?.cueCount ?? 0,
+          paragraphCount: primaryTranscript?.paragraphCount ?? 0,
+          cleanedAutoCaptions: primaryTranscript?.cleanedAutoCaptions ?? false,
+          videoDownloaded: envelope.entries.some((entry) => Boolean(entry.mediaPath)),
+          transcripts: written.transcripts,
         },
         null,
         2,

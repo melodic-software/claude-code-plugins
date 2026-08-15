@@ -1,13 +1,13 @@
 /**
- * Harvest reference links from YouTube metadata (description, chapters, pinned comment).
+ * Link-harvest utilities shared across source adapters, plus the delegation
+ * entry that routes metadata harvest to the owning adapter's `harvestLinks`.
  *
  * On-screen URLs are captured during skill-side frame reads and merged separately.
  * Heatmap is null-tolerant — optional context only, never required.
  */
 
-import { findPinnedComment } from "../acquisition/video-metadata.js";
-
 /** @typedef {import('../acquisition/video-metadata.js').VideoMetadata} VideoMetadata */
+/** @typedef {import('../adapters/adapter-contract.js').SourceAdapter} SourceAdapter */
 /** @typedef {import('./models.js').HarvestedLink} HarvestedLink */
 /** @typedef {import('./models.js').HarvestSource} HarvestSource */
 
@@ -49,32 +49,16 @@ export function linksFromText(text, source, { context = "", timestampSec = null 
 }
 
 /**
- * Harvest links from description, chapters, and pinned comment.
+ * Harvest reference links from source metadata by delegating to the owning
+ * adapter's `harvestLinks` (which composes the utilities above for its
+ * source's metadata shape).
  *
- * @param {VideoMetadata} metadata
+ * @param {import('../adapters/adapter-contract.js').SourceMetadata} metadata
+ * @param {SourceAdapter} adapter
  * @returns {HarvestedLink[]}
  */
-export function harvestMetadataLinks(metadata) {
-  /** @type {HarvestedLink[]} */
-  const links = [];
-
-  links.push(...linksFromText(metadata.description, "description"));
-
-  for (const chapter of metadata.chapters) {
-    links.push(
-      ...linksFromText(chapter.title, "chapter", {
-        context: chapter.title,
-        timestampSec: chapter.startSec,
-      }),
-    );
-  }
-
-  const pinned = findPinnedComment(metadata.comments);
-  if (pinned) {
-    links.push(...linksFromText(pinned, "pinned-comment", { context: pinned }));
-  }
-
-  return deduplicateHarvestedLinks(links);
+export function harvestMetadataLinks(metadata, adapter) {
+  return adapter.harvestLinks(metadata);
 }
 
 /**

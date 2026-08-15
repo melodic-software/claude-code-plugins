@@ -1,12 +1,11 @@
 /**
- * yt-dlp CLI argument construction for YouTube acquisition.
+ * yt-dlp CLI argument construction for media acquisition.
  */
 
 export const YT_DLP_SUB_LANGS = "en.*,-live_chat";
 export const YT_DLP_SUB_FORMAT = "vtt";
 // biome-ignore lint/security/noSecrets: yt-dlp format selector string, not a credential
 export const YT_DLP_VIDEO_FORMAT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]";
-export const YT_DLP_EXTRACTOR_ARGS = "youtube:max_comments=20,all,top;comment_sort=top";
 export const YT_DLP_RETRIES = "3";
 export const YT_DLP_FRAGMENT_RETRIES = "3";
 export const YT_DLP_SLEEP_REQUESTS_SEC = "1";
@@ -23,6 +22,15 @@ export const YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
 
 /**
  * @typedef {{ cookiesFile?: string, cookiesFromBrowser?: string }} YtDlpAuthOverride
+ */
+
+/**
+ * Per-source yt-dlp argument declarations (adapter-declared, closed by default:
+ * omitting a field means the corresponding flag is NOT pushed).
+ *
+ * @typedef {Object} YtDlpSourceOptions
+ * @property {boolean} [writeComments] - push `--write-comments` (comments capability)
+ * @property {string|null} [extractorArgs] - push `--extractor-args <value>` when non-null
  */
 
 /**
@@ -69,9 +77,9 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
 }
 
 /**
- * Build yt-dlp argument list for YouTube acquisition.
+ * Build yt-dlp argument list for media acquisition.
  *
- * @param {string} url - YouTube watch URL
+ * @param {string} url - media URL
  * @param {object} options
  * @param {AcquisitionMode} [options.mode='full'] - transcript mode skips video download
  * @param {string} options.outputTemplate - yt-dlp -o template (includes ext placeholders)
@@ -79,6 +87,7 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
  * @param {number|string} [options.sleepSubtitlesSec] - override --sleep-subtitles
  * @param {NodeJS.ProcessEnv} [options.env] - env for auth flags (defaults to process.env)
  * @param {YtDlpAuthOverride} [options.authOverride] - per-invocation cookie override
+ * @param {YtDlpSourceOptions} [options.source] - adapter-declared flags; omitted fields push nothing
  * @returns {string[]}
  */
 export function buildYtDlpArgs(
@@ -90,6 +99,7 @@ export function buildYtDlpArgs(
     sleepSubtitlesSec = YT_DLP_SLEEP_SUBTITLES_SEC,
     env = process.env,
     authOverride = {},
+    source = {},
   },
 ) {
   /** @type {string[]} */
@@ -110,10 +120,14 @@ export function buildYtDlpArgs(
     "--sleep-requests",
     YT_DLP_SLEEP_REQUESTS_SEC,
     "--write-info-json",
-    "--write-comments",
-    "--extractor-args",
-    YT_DLP_EXTRACTOR_ARGS,
   ];
+
+  if (source.writeComments) {
+    args.push("--write-comments");
+  }
+  if (source.extractorArgs) {
+    args.push("--extractor-args", source.extractorArgs);
+  }
 
   const includeCaptions = mode === "full" || mode === "transcript" || mode === "captions-only";
   if (includeCaptions) {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { adapter as youtubeAdapter } from "../adapters/youtube.js";
 import {
   buildYtDlpArgs,
   resolveYtDlpAuthArgs,
-  YT_DLP_EXTRACTOR_ARGS,
   YT_DLP_SUB_FORMAT,
   YT_DLP_SUB_LANGS,
   YT_DLP_VIDEO_FORMAT,
@@ -19,6 +19,10 @@ describe("buildYtDlpArgs", () => {
       mode: "full",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      source: {
+        writeComments: youtubeAdapter.capabilities.comments,
+        extractorArgs: youtubeAdapter.extractorArgs,
+      },
     });
 
     expect(args).toContain("--write-subs");
@@ -34,12 +38,24 @@ describe("buildYtDlpArgs", () => {
     expect(args).toContain("--write-info-json");
     expect(args).toContain("--write-comments");
     expect(args).toContain("--extractor-args");
-    expect(args[args.indexOf("--extractor-args") + 1]).toBe(YT_DLP_EXTRACTOR_ARGS);
+    expect(args[args.indexOf("--extractor-args") + 1]).toBe(youtubeAdapter.extractorArgs);
     expect(args).toContain("-f");
     expect(args[args.indexOf("-f") + 1]).toBe(YT_DLP_VIDEO_FORMAT);
     expect(args).toContain("--remux-video");
     expect(args[args.indexOf("--remux-video") + 1]).toBe("mp4");
     expect(args.at(-1)).toBe(URL);
+  });
+
+  it("pushes neither comment flags nor extractor args without source declarations", () => {
+    const args = buildYtDlpArgs(URL, {
+      mode: "full",
+      outputTemplate: OUTPUT,
+      workDir: WORK_DIR,
+    });
+
+    expect(args).toContain("--write-info-json");
+    expect(args).not.toContain("--write-comments");
+    expect(args).not.toContain("--extractor-args");
   });
 
   it("forces --no-playlist so a playlist watch URL fetches only the one video", () => {

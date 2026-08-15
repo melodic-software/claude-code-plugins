@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Queue preflight: validate a YouTube URL and fetch lightweight metadata (title + channel)
+ * Queue preflight: validate a video URL and fetch lightweight metadata (title + channel)
  * BEFORE it is enqueued in `.work/<watch-epic>/QUEUE.md`.
+ *
+ * URL acceptance and failure classification are delegated to the owning source
+ * adapter (`acceptForEnqueue` / `errorPatterns`); an unknown host fails closed
+ * as `invalid-url` listing the supported sources.
  *
  * Routes through the same `spawnYtDlpWithAuthFallback` path as acquisition so a bot-checked
  * video that `watch` could acquire with browser cookies is not falsely rejected at queue time.
  *
  * Usage:
- *   node acquisition/preflight-metadata.js <youtube-url> [<youtube-url>...]
+ *   node acquisition/preflight-metadata.js <video-url> [<video-url>...]
  *
  * Emits a JSON array (one entry per URL) to stdout. Each entry:
  *   { url, videoId, ok, status, action, note, reason,
@@ -24,7 +28,8 @@ import { fileURLToPath } from "node:url";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { extractVideoId } from "./acquire.js";
+import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
+import { resolveSourceAdapter } from "../adapters/registry.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { resolveYtDlpAuthArgs } from "./build-yt-dlp-args.js";
 import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js";
@@ -45,23 +50,6 @@ export const MAX_QUEUE_TITLE_CHARS = 60;
 
 /** yt-dlp prints this literal for a null/missing field under `--print`. */
 const YT_DLP_NULL_FIELD = "NA";
-
-/**
- * stderr signatures that mean the video is permanently gone / wrong — reject, do not enqueue.
- * Everything else (bot-check, age-gate, network, unknown) is treated as transient.
- *
- * @type {readonly RegExp[]}
- */
-export const PREFLIGHT_UNAVAILABLE_PATTERNS = [
-  /Video unavailable/i,
-  /Private video/i,
-  /This video (?:is|has been) (?:no longer available|removed|private)/i,
-  /removed by the uploader/i,
-  /(?:account|channel) (?:.*)?has been terminated/i,
-  /does not exist/i,
-  /Incomplete YouTube ID/i,
-  /is not a valid URL/i,
-];
 
 /**
  * Escape a value for a markdown table cell: collapse whitespace/newlines and escape `|`,
@@ -145,11 +133,17 @@ export function parsePreflightLine(stdout) {
 }
 
 /**
+ * Classify a preflight probe failure against the owning adapter's declared
+ * fatal patterns: a fatal match is permanently `unavailable` (reject, do not
+ * enqueue); everything else (bot-check, age-gate, network, unknown) is
+ * `transient`.
+ *
  * @param {string} detail
+ * @param {readonly RegExp[]} fatalPatterns
  * @returns {'unavailable' | 'transient'}
  */
-export function classifyPreflightFailure(detail) {
-  if (detail && PREFLIGHT_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(detail))) {
+export function classifyPreflightFailure(detail, fatalPatterns) {
+  if (detail && fatalPatterns.some((pattern) => pattern.test(detail))) {
     return "unavailable";
   }
   return "transient";
@@ -214,29 +208,53 @@ function summarizeDetail(detail) {
  */
 export async function preflightVideo(url, deps = {}) {
   const { spawn = spawnAsync, env = process.env } = deps;
-  const videoId = extractVideoId(url);
 
-  if (!videoId) {
-    return {
-      url,
-      videoId: null,
-      ok: false,
-      status: "invalid-url",
-      action: "reject",
-      note: "not a YouTube video URL",
-      reason: "URL does not resolve to a YouTube video id",
-      title: "",
-      channel: "",
-      handle: "",
-      displayTitle: "",
-      displayChannel: "",
-    };
+  /** @param {string} note @param {string} reason @returns {PreflightResult} */
+  const rejectInvalid = (note, reason) => ({
+    url,
+    videoId: null,
+    ok: false,
+    status: "invalid-url",
+    action: "reject",
+    note,
+    reason,
+    title: "",
+    channel: "",
+    handle: "",
+    displayTitle: "",
+    displayChannel: "",
+  });
+
+  /** @type {import('../adapters/adapter-contract.js').SourceAdapter} */
+  let adapter;
+  try {
+    adapter = resolveSourceAdapter(url);
+  } catch (error) {
+    if (error instanceof UnsupportedSourceError) {
+      return rejectInvalid(
+        `unsupported source (supported: ${error.supportedHosts.join(", ")})`,
+        error.message,
+      );
+    }
+    throw error;
   }
+
+  const decision = adapter.acceptForEnqueue(url);
+  if (!decision.ok) {
+    return rejectInvalid(decision.note ?? "rejected by source adapter", decision.reason ?? "");
+  }
+  const videoId = decision.key ?? adapter.extractSliceKey(url, null);
 
   const buildArgs = (
     /** @type {import('./build-yt-dlp-args.js').YtDlpAuthOverride} */ authOverride = {},
   ) => buildPreflightArgs(url, { env, authOverride });
-  const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, { env });
+  const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
+    env,
+    source: {
+      loginRequiredPatterns: adapter.errorPatterns.loginRequired,
+      allowBrowserCookieProfileFallback: adapter.capabilities.browserCookieFallback === true,
+    },
+  });
 
   if (result.success) {
     const parsed = parsePreflightLine(result.stdout);
@@ -257,7 +275,7 @@ export async function preflightVideo(url, deps = {}) {
   }
 
   const detail = spawnFailureDetail(result);
-  const status = classifyPreflightFailure(detail);
+  const status = classifyPreflightFailure(detail, adapter.errorPatterns.fatal);
   const reason = summarizeDetail(detail);
   return {
     url,
@@ -296,7 +314,7 @@ export async function preflightVideos(urls, deps = {}) {
 async function main(argv) {
   const urls = argv.slice(2).filter((arg) => arg.length > 0);
   if (urls.length === 0) {
-    writeStderr("Usage: preflight-metadata.js <youtube-url> [<youtube-url>...]");
+    writeStderr("Usage: preflight-metadata.js <video-url> [<video-url>...]");
     process.exit(1);
   }
 
