@@ -57,7 +57,7 @@ runs in a fresh context"):
    the foot off the gas — do not push the in-flight action one step further before
    the re-examination has run. No other corrector prepends a stop; this one does,
    because the trigger *is* "you are moving too fast on this."
-2. **Remediate *with* the user, not autonomously.** The shared loop's step 3
+2. **Remediate *with* the user, not autonomously.** The shared loop's step 3 (correct forward)
    corrects forward on its own, in-tree, now. Here that step becomes collaborative:
    surface the adversarial findings and work the fixes **with** the user rather than
    barrelling ahead into an autonomous rewrite. The reason is the same failure mode

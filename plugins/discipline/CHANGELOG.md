@@ -18,7 +18,9 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   overload the word. (3) Sibling boundaries were declared one-way; `reason-dont-recite` now names
   the reciprocal carve-outs (recheck-against-upstream, reuse-or-replace, pick-for-the-problem) and
   `pick-for-the-problem` names `reuse-or-replace`'s consistency axis, so a scope edit on either
-  side has the other in view.
+  side has the other in view. (4) Method-doc step citations now carry the step's name alongside its
+  number ("step 2, self-audit") across the correctors, so a future loop renumbering cannot
+  silently invalidate them.
 
 ## [0.12.7]
 

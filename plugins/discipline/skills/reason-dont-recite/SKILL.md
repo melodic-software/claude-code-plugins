@@ -50,7 +50,7 @@ justified.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - a decision justified only by precedent — "that's how this repo does it",
   "the existing code does X, so match it" — with no rationale stated;

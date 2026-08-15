@@ -73,7 +73,7 @@ never a bare recalled verdict.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2). This fires
+Name concrete, located findings (per the method doc's step 2, self-audit). This fires
 both at an explicit choice-time AND over choices already embedded in the
 work in flight:
 
