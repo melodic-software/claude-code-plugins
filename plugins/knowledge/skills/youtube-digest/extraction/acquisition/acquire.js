@@ -1,8 +1,7 @@
 /**
- * Media acquisition via yt-dlp: the source-agnostic dispatch entry
- * ({@link acquireMedia}, routed through the adapter registry) plus the
- * YouTube-specific yt-dlp driver ({@link acquireYouTubeMedia}) the YouTube
- * adapter composes.
+ * yt-dlp acquisition machinery the source adapters compose. Source dispatch
+ * lives in `adapters/registry.js` (`acquireMedia`); this module never imports
+ * the registry, keeping the adapter module graph acyclic.
  */
 
 import fs from "node:fs/promises";
@@ -11,7 +10,6 @@ import path from "node:path";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { fail, ok } from "@melodic/video-digestion/shared/result";
 
-import { resolveSourceAdapter } from "../adapters/registry.js";
 import { CAPTION_ONLY_SLEEP_SUBTITLES_SEC, sleepMs } from "./acquire-retry-policy.js";
 import { withAcquireThrottle } from "./acquire-throttle.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
@@ -31,6 +29,24 @@ import { parseVideoMetadata } from "./video-metadata.js";
  * @typedef {import('./build-yt-dlp-args.js').YtDlpSourceOptions &
  *   import('./spawn-yt-dlp-with-auth-fallback.js').SourceSpawnClassification} SourceAcquisitionDeclarations
  */
+
+/**
+ * Map a source adapter's declared attributes onto the option bundle the shared
+ * yt-dlp machinery consumes (arg flags + spawn classification). The adapter
+ * declarations are the single source of truth; production never re-states them
+ * in a side object.
+ *
+ * @param {import('../adapters/adapter-contract.js').SourceAdapter} adapter
+ * @returns {SourceAcquisitionDeclarations}
+ */
+export function adapterSourceDeclarations(adapter) {
+  return {
+    writeComments: adapter.capabilities.comments === true,
+    extractorArgs: adapter.extractorArgs,
+    errorPatterns: adapter.errorPatterns,
+    allowBrowserCookieProfileFallback: adapter.capabilities.browserCookieFallback === true,
+  };
+}
 
 const DEFAULT_ACQUIRE_PHASE_GAP_MS = 3000;
 const ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
@@ -52,8 +68,6 @@ const ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
  * @property {(ms: number) => Promise<void>} [sleep]
  * @property {<T>(fn: () => Promise<T>) => Promise<T>} [withThrottle]
  */
-
-const YOUTU_BE_PATH_PREFIX = /^\//;
 
 /** @type {AcquireDeps} */
 const DEFAULT_DEPS = {
@@ -108,45 +122,6 @@ export async function listWorkDirFiles(dir) {
   }
 
   return files;
-}
-
-const YOUTUBE_VIDEO_ID_PATTERN = /^[\w-]{11}$/;
-
-/**
- * @param {string} segment
- * @returns {string|null}
- */
-function normalizeYouTubeVideoIdSegment(segment) {
-  const trimmed = segment.replace(/\/$/, "");
-  return YOUTUBE_VIDEO_ID_PATTERN.test(trimmed) ? trimmed : null;
-}
-
-/**
- * @param {string} url
- * @returns {string|null}
- */
-export function extractVideoId(url) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname.includes("youtu.be")) {
-      return normalizeYouTubeVideoIdSegment(parsed.pathname.replace(YOUTU_BE_PATH_PREFIX, ""));
-    }
-
-    const queryId = parsed.searchParams.get("v");
-    if (queryId) {
-      return normalizeYouTubeVideoIdSegment(queryId);
-    }
-
-    const pathSegments = parsed.pathname.split("/").filter(Boolean);
-    const pathPrefixes = new Set(["live", "embed", "shorts", "v"]);
-    if (pathSegments.length >= 2 && pathPrefixes.has(pathSegments[0])) {
-      return normalizeYouTubeVideoIdSegment(pathSegments[1]);
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -289,19 +264,24 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
 
 /**
  * @param {string} url
- * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations}} options
+ * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string}} options -
+ *   `videoId` is the URL-claim id the adapter derived (`matchUrl`); this driver
+ *   never re-derives it
  * @param {Partial<AcquireDeps>} [deps]
  */
-export async function acquireYouTubeMedia(url, { workDir, mode = "full", source = {} }, deps = {}) {
+export async function acquireYouTubeMedia(
+  url,
+  { workDir, mode = "full", source = {}, videoId },
+  deps = {},
+) {
   const started = Date.now();
   const mergedDeps = { ...DEFAULT_DEPS, ...deps };
   const { readFile, withThrottle = withAcquireThrottle } = mergedDeps;
   const throttle = /** @type {<T>(fn: () => Promise<T>) => Promise<T>} */ (withThrottle);
-  const videoId = extractVideoId(url);
 
   if (!videoId) {
     return fail(
-      "Could not extract YouTube video id from URL",
+      "No YouTube video id supplied for acquisition (the adapter's URL claim derives it)",
       "acquire-youtube-media",
       { label: url },
       Date.now() - started,
@@ -397,23 +377,4 @@ export async function acquireYouTubeMedia(url, { workDir, mode = "full", source 
     { label: videoId },
     Date.now() - started,
   );
-}
-
-/**
- * Source-agnostic acquisition entry: resolve the owning adapter from the URL
- * (fails closed on unknown hosts) and acquire through it. Returns the
- * adapter's result envelope; throws
- * {@link import('../adapters/adapter-contract.js').UnsupportedSourceError}
- * when no adapter claims the URL.
- *
- * @param {string} url
- * @param {{workDir: string, mode: 'full'|'transcript'}} options
- * @param {object} [deps] - adapter-specific injectable I/O (tests only)
- * @returns {Promise<import('../adapters/adapter-contract.js').AcquireOutcome>}
- */
-export async function acquireMedia(url, { workDir, mode }, deps = {}) {
-  const adapter = resolveSourceAdapter(url);
-  const claim = adapter.matchUrl(url);
-  const canonicalUrl = claim ? claim.canonicalUrl : url;
-  return adapter.acquire(canonicalUrl, { workDir, mode, deps });
 }

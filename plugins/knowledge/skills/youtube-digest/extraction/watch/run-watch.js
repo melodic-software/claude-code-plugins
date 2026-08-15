@@ -22,9 +22,8 @@ import { fileURLToPath } from "node:url";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
-import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
-import { resolveSourceAdapter } from "../adapters/registry.js";
-import { acquireMedia } from "../acquisition/acquire.js";
+import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
+import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
@@ -107,7 +106,17 @@ export async function runWatchCli(argv) {
   const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-sheets-"));
 
   try {
-    const acquisition = await acquireMedia(url, { workDir, mode: "full" });
+    /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
+    let acquisition;
+    try {
+      acquisition = await acquireMedia(url, { workDir, mode: "full" });
+    } catch (error) {
+      if (error instanceof UnsupportedSourceError) {
+        writeStderr(error.message);
+        return 1;
+      }
+      throw error;
+    }
     if (!acquisition.success || !acquisition.data) {
       writeStderr(acquisition.error ?? "Acquisition failed");
       return 1;
@@ -118,7 +127,7 @@ export async function runWatchCli(argv) {
     const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
     const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
     const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
-    const primary = entries.find((entry) => Boolean(entry.mediaPath)) ?? null;
+    const primary = primaryEntry(envelope);
 
     const tempSession = {
       workDir,
@@ -144,10 +153,14 @@ export async function runWatchCli(argv) {
       ...(envelope.acquireMetrics ?? {}),
     });
 
-    const written = await writeEnvelopeTranscriptArtifacts({ sliceDir, envelope, sourceUrl: url });
-    const primaryIndex = primary ? entries.indexOf(primary) : -1;
+    const written = await writeEnvelopeTranscriptArtifacts({
+      sliceDir,
+      envelope,
+      sourceUrl: url,
+      sliceKey,
+    });
     const primaryTranscript =
-      written.transcripts.find((entry) => entry.entryIndex === primaryIndex) ??
+      written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
       written.transcripts[0] ??
       null;
     state = markPhaseComplete(
@@ -191,7 +204,7 @@ export async function runWatchCli(argv) {
       return { state: next, harvestedLinks, harvestPath, continuationPrompt, postBootstrap };
     };
 
-    if (!primary) {
+    if (!primary?.mediaPath) {
       // 0-media envelope: well-formed text-only slice — watching/vision cannot
       // run without media, recorded as skipped so resume advances past them.
       state = markPhaseComplete(state, "watching", { skipped: true, reason: "no media entries" });

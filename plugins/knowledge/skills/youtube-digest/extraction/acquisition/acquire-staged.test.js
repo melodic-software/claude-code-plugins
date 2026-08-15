@@ -49,7 +49,7 @@ describe("acquireYouTubeMedia staged full mode", () => {
 
     const result = await acquireYouTubeMedia(
       DRIVER_WATCH_URL,
-      { workDir: WORK_DIR, mode: "full" },
+      { workDir: WORK_DIR, mode: "full", videoId: "7zZy1QTvokM" },
       {
         ...NO_THROTTLE,
         spawn: createStagedSpawn(modes),
@@ -79,7 +79,7 @@ describe("acquireYouTubeMedia staged full mode", () => {
   it("fails when video-only pass fails", async () => {
     const result = await acquireYouTubeMedia(
       DRIVER_WATCH_URL,
-      { workDir: WORK_DIR, mode: "full" },
+      { workDir: WORK_DIR, mode: "full", videoId: "7zZy1QTvokM" },
       {
         ...NO_THROTTLE,
         spawn: async () => ({

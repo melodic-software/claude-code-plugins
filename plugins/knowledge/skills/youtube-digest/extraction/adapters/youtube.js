@@ -4,7 +4,7 @@
  * `acquisition/`.
  */
 
-import { acquireYouTubeMedia, extractVideoId } from "../acquisition/acquire.js";
+import { acquireYouTubeMedia, adapterSourceDeclarations } from "../acquisition/acquire.js";
 import { YOUTUBE_BOT_CHALLENGE_PATTERNS } from "../acquisition/acquire-yt-dlp-auth.js";
 import { findPinnedComment } from "../acquisition/video-metadata.js";
 import { deduplicateHarvestedLinks, linksFromText } from "../harvesting/harvest-links.js";
@@ -37,16 +37,45 @@ export const YOUTUBE_UNAVAILABLE_PATTERNS = Object.freeze([
 
 const YOUTUBE_EXTRACTOR_ARGS = "youtube:max_comments=20,all,top;comment_sort=top";
 
+const YOUTUBE_VIDEO_ID_PATTERN = /^[\w-]{11}$/;
+const YOUTU_BE_PATH_PREFIX = /^\//;
+
 /**
- * yt-dlp arg + spawn-classification declarations the shared acquisition
- * machinery consumes for this source.
+ * @param {string} segment
+ * @returns {string|null}
  */
-const YOUTUBE_SOURCE_ACQUISITION = Object.freeze({
-  writeComments: true,
-  extractorArgs: YOUTUBE_EXTRACTOR_ARGS,
-  loginRequiredPatterns: YOUTUBE_BOT_CHALLENGE_PATTERNS,
-  allowBrowserCookieProfileFallback: true,
-});
+function normalizeYouTubeVideoIdSegment(segment) {
+  const trimmed = segment.replace(/\/$/, "");
+  return YOUTUBE_VIDEO_ID_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * @param {string} url
+ * @returns {string|null}
+ */
+export function extractVideoId(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes("youtu.be")) {
+      return normalizeYouTubeVideoIdSegment(parsed.pathname.replace(YOUTU_BE_PATH_PREFIX, ""));
+    }
+
+    const queryId = parsed.searchParams.get("v");
+    if (queryId) {
+      return normalizeYouTubeVideoIdSegment(queryId);
+    }
+
+    const pathSegments = parsed.pathname.split("/").filter(Boolean);
+    const pathPrefixes = new Set(["live", "embed", "shorts", "v"]);
+    if (pathSegments.length >= 2 && pathPrefixes.has(pathSegments[0])) {
+      return normalizeYouTubeVideoIdSegment(pathSegments[1]);
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 const spec = /** @satisfies {SourceAdapterSpec} */ ({
   id: "youtube",
@@ -100,7 +129,12 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   acquire: async (url, context) => {
     const result = await acquireYouTubeMedia(
       url,
-      { workDir: context.workDir, mode: context.mode, source: YOUTUBE_SOURCE_ACQUISITION },
+      {
+        workDir: context.workDir,
+        mode: context.mode,
+        source: adapterSourceDeclarations(adapter),
+        videoId: extractVideoId(url) ?? undefined,
+      },
       context.deps ?? {},
     );
     if (!result.success || !result.data) {

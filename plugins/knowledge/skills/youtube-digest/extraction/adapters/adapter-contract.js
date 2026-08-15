@@ -233,6 +233,25 @@ export function singleEntry(envelope) {
 }
 
 /**
+ * Convenience accessor for call sites that operate on one distinguished entry:
+ * the first media-bearing entry, else the first caption-bearing entry, else
+ * the first entry, else null. Defined ONCE here so transcript naming and
+ * watch orchestration always pair on the same entry.
+ *
+ * @param {AcquisitionEnvelope} envelope
+ * @returns {SourceEntryResult|null}
+ */
+export function primaryEntry(envelope) {
+  const { entries } = envelope;
+  return (
+    entries.find((entry) => Boolean(entry.mediaPath)) ??
+    entries.find((entry) => Boolean(entry.caption)) ??
+    entries[0] ??
+    null
+  );
+}
+
+/**
  * Outcome of an adapter `acquire` call (structurally the shared `ok`/`fail`
  * result shape, with the envelope as payload).
  *
@@ -267,7 +286,10 @@ export function singleEntry(envelope) {
  * @param {string} url
  * @param {SourceMetadata|null} metadata - null when called before acquisition
  *   (queue lane); the key is URL-authoritative, metadata is a fallback only
- * @returns {string|null}
+ * @returns {string|null} the slice key, which becomes an on-disk directory
+ *   segment: it MUST match `[A-Za-z0-9_-]+` (no separators, no dots) — the
+ *   shared slug derivation rejects anything else, so a non-conforming key is
+ *   an adapter bug, not a path
  */
 
 /**
@@ -309,8 +331,9 @@ export function singleEntry(envelope) {
  * @property {string} id - stable source identifier (e.g. "youtube")
  * @property {readonly string[]} hosts - owned hosts; the registry's keys
  * @property {string|null} extractorArgs - acquisition extractor args, or null
- * @property {string} captionClass - declared caption provenance class consumed
- *   by the shared caption-selection ladder
+ * @property {string} captionClass - declared caption provenance class; reserved
+ *   for the shared caption-selection ladder, whose consumer lands with the
+ *   transcript-strategy seam (no shared consumer reads it yet)
  * @property {SourceErrorPatterns} errorPatterns
  * @property {'captions'|'captions+repair'|'asr'} transcriptStrategy - per-source
  *   default; pipeline-overridable

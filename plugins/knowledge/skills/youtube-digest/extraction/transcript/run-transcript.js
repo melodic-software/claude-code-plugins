@@ -15,9 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { singleEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
-import { resolveSourceAdapter } from "../adapters/registry.js";
-import { acquireMedia } from "../acquisition/acquire.js";
+import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
+import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "./derive-video-slug.js";
 import { writeEnvelopeTranscriptArtifacts } from "./write-transcript.js";
@@ -47,7 +46,17 @@ export async function runTranscriptCli(argv) {
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-extraction-"));
 
   try {
-    const acquisition = await acquireMedia(url, { workDir, mode: "transcript" });
+    /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
+    let acquisition;
+    try {
+      acquisition = await acquireMedia(url, { workDir, mode: "transcript" });
+    } catch (error) {
+      if (error instanceof UnsupportedSourceError) {
+        writeStderr(error.message);
+        return 1;
+      }
+      throw error;
+    }
     if (!acquisition.success || !acquisition.data) {
       writeStderr(acquisition.error ?? "Acquisition failed");
       return 1;
@@ -59,10 +68,17 @@ export async function runTranscriptCli(argv) {
     const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
     const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
 
-    const written = await writeEnvelopeTranscriptArtifacts({ sliceDir, envelope, sourceUrl: url });
-    const primary = singleEntry(envelope);
+    const written = await writeEnvelopeTranscriptArtifacts({
+      sliceDir,
+      envelope,
+      sourceUrl: url,
+      sliceKey,
+    });
+    const primary = primaryEntry(envelope);
     const primaryTranscript =
-      written.transcripts.find((entry) => entry.entryIndex === 0) ?? null;
+      written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
+      written.transcripts[0] ??
+      null;
 
     writeStdout(
       JSON.stringify(

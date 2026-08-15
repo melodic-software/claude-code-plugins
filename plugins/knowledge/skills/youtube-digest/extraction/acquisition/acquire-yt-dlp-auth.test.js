@@ -1,42 +1,37 @@
 import { describe, expect, it } from "vitest";
 
+import { adapter as youtubeAdapter } from "../adapters/youtube.js";
 import {
   browserCookieFallbackProfiles,
   hasExplicitYtDlpCookieConfig,
   isCookieProfileRetryableError,
-  isLoginRequiredError,
-  YOUTUBE_BOT_CHALLENGE_PATTERNS,
 } from "./acquire-yt-dlp-auth.js";
 
-describe("isLoginRequiredError", () => {
-  it("matches sign-in bot challenge text against the declared patterns", () => {
-    expect(
-      isLoginRequiredError(
-        "ERROR: Sign in to confirm you're not a bot",
-        YOUTUBE_BOT_CHALLENGE_PATTERNS,
-      ),
-    ).toBe(true);
+const NO_PATTERNS = { retryable: [], fatal: [], loginRequired: [] };
+
+describe("isCookieProfileRetryableError", () => {
+  it("matches unsupported browser cookie extraction regardless of source patterns", () => {
+    expect(isCookieProfileRetryableError("ERROR: unsupported browser: phantom", NO_PATTERNS)).toBe(
+      true,
+    );
   });
 
-  it("rejects unrelated failures", () => {
+  it("advances on a login-required classification from the adapter's table", () => {
     expect(
-      isLoginRequiredError("HTTP Error 429: Too Many Requests", YOUTUBE_BOT_CHALLENGE_PATTERNS),
+      isCookieProfileRetryableError(
+        "ERROR: Sign in to confirm you're not a bot",
+        youtubeAdapter.errorPatterns,
+      ),
+    ).toBe(true);
+    expect(
+      isCookieProfileRetryableError("ERROR: Sign in to confirm you're not a bot", NO_PATTERNS),
     ).toBe(false);
   });
 
-  it("matches nothing when the source declares no patterns", () => {
-    expect(isLoginRequiredError("ERROR: Sign in to confirm you're not a bot", [])).toBe(false);
-  });
-});
-
-describe("isCookieProfileRetryableError", () => {
-  it("matches unsupported browser cookie extraction", () => {
+  it("does not advance on unrelated failures", () => {
     expect(
-      isCookieProfileRetryableError(
-        "ERROR: unsupported browser: phantom",
-        YOUTUBE_BOT_CHALLENGE_PATTERNS,
-      ),
-    ).toBe(true);
+      isCookieProfileRetryableError("HTTP Error 429: Too Many Requests", youtubeAdapter.errorPatterns),
+    ).toBe(false);
   });
 });
 

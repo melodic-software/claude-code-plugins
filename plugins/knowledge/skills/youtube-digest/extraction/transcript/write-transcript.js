@@ -9,16 +9,8 @@ import { cleanAutoCaptions } from "@melodic/video-digestion/transcript/auto-capt
 import { cleanManualCaptions } from "@melodic/video-digestion/transcript/manual-caption-clean";
 import { formatTranscript } from "@melodic/video-digestion/transcript/vtt-parser";
 
+import { primaryEntry } from "../adapters/adapter-contract.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-
-/**
- * @typedef {Object} TranscriptWriteResult
- * @property {string} transcriptPath
- * @property {string} transcript
- * @property {number} cueCount
- * @property {number} paragraphCount
- * @property {boolean} cleanedAutoCaptions
- */
 
 /**
  * Build transcript text from a caption file.
@@ -51,43 +43,6 @@ export function buildTranscriptText(vttText, isAutoCaption) {
     paragraphCount,
     cleanedAutoCaptions,
     cleanedManualCaptions,
-  };
-}
-
-/**
- * Write transcript artifacts into a video-digest slice directory.
- *
- * @param {object} options
- * @param {string} options.sliceDir - `.work/<video-slug>/`
- * @param {string} options.vttText
- * @param {boolean} options.isAutoCaption
- * @param {string} options.videoTitle
- * @param {string} options.videoId
- * @param {string} options.sourceUrl
- * @param {typeof fs.writeFile} [options.writeFile]
- * @param {typeof fs.mkdir} [options.mkdir]
- * @returns {Promise<TranscriptWriteResult>}
- */
-export async function writeTranscriptArtifacts(
-  { sliceDir, vttText, isAutoCaption, videoTitle, videoId, sourceUrl },
-  { writeFile = fs.writeFile, mkdir = fs.mkdir } = {},
-) {
-  await mkdir(sliceDir, { recursive: true });
-
-  const built = buildTranscriptText(vttText, isAutoCaption);
-  const sourceDir = lanePath(sliceDir, LANES.source);
-  await mkdir(sourceDir, { recursive: true });
-  const transcriptPath = lanePath(sliceDir, LANES.source, "transcript.txt");
-  await writeFile(transcriptPath, `${built.transcript}\n`, "utf8");
-
-  await writeSliceReadme({ sliceDir, videoTitle, videoId, sourceUrl }, { writeFile });
-
-  return {
-    transcriptPath,
-    transcript: built.transcript,
-    cueCount: built.cueCount,
-    paragraphCount: built.paragraphCount,
-    cleanedAutoCaptions: built.cleanedAutoCaptions,
   };
 }
 
@@ -127,15 +82,18 @@ Bulk frames and source video stay in OS temp during the watch session; only cura
 }
 
 /**
- * Slice-relative transcript filename for an envelope entry: the first entry
- * keeps the historical `transcript.txt` name; further entries are suffixed
- * with their 1-based position (`transcript-2.txt`, …).
+ * Slice-relative transcript filename for an envelope entry. The PRIMARY entry
+ * (the one watch orchestration covers — {@link primaryEntry}) keeps the
+ * historical `transcript.txt` name every downstream consumer assumes is THE
+ * transcript; other entries are suffixed with their 1-based envelope position
+ * (`transcript-2.txt`, …).
  *
  * @param {number} entryIndex
+ * @param {number} primaryEntryIndex
  * @returns {string}
  */
-export function transcriptFilename(entryIndex) {
-  return entryIndex === 0 ? "transcript.txt" : `transcript-${entryIndex + 1}.txt`;
+export function transcriptFilename(entryIndex, primaryEntryIndex) {
+  return entryIndex === primaryEntryIndex ? "transcript.txt" : `transcript-${entryIndex + 1}.txt`;
 }
 
 /**
@@ -150,6 +108,7 @@ export function transcriptFilename(entryIndex) {
 /**
  * @typedef {Object} EnvelopeTranscriptsResult
  * @property {number} entryCount - envelope arity (0..N)
+ * @property {number} primaryEntryIndex - index of the primary entry (-1 for a 0-entry envelope)
  * @property {EnvelopeTranscriptEntry[]} transcripts - one row per caption-bearing entry
  * @property {number} captionlessEntryCount - entries that carried no selected caption
  */
@@ -158,12 +117,16 @@ export function transcriptFilename(entryIndex) {
  * Consume an acquisition envelope into slice transcript artifacts. Handles all
  * arities: 0 entries writes the README only (a well-formed metadata-only
  * slice), 1 entry matches the historical single-transcript layout, N entries
- * write one transcript per caption-bearing entry ({@link transcriptFilename}).
+ * write one transcript per caption-bearing entry with the PRIMARY entry owning
+ * `transcript.txt` ({@link transcriptFilename}).
  *
  * @param {object} options
  * @param {string} options.sliceDir
  * @param {import('../adapters/adapter-contract.js').AcquisitionEnvelope} options.envelope
  * @param {string} options.sourceUrl
+ * @param {string} options.sliceKey - the URL-authoritative slice key (also the
+ *   README's recorded video id, so the README matches the slice directory even
+ *   when the source metadata id diverges from the URL)
  * @param {object} [io]
  * @param {typeof fs.readFile} [io.readFile]
  * @param {typeof fs.writeFile} [io.writeFile]
@@ -171,14 +134,16 @@ export function transcriptFilename(entryIndex) {
  * @returns {Promise<EnvelopeTranscriptsResult>}
  */
 export async function writeEnvelopeTranscriptArtifacts(
-  { sliceDir, envelope, sourceUrl },
+  { sliceDir, envelope, sourceUrl, sliceKey },
   { readFile = fs.readFile, writeFile = fs.writeFile, mkdir = fs.mkdir } = {},
 ) {
   const { metadata, entries } = envelope;
+  const primary = primaryEntry(envelope);
+  const primaryEntryIndex = primary ? entries.indexOf(primary) : -1;
 
   await mkdir(sliceDir, { recursive: true });
   await writeSliceReadme(
-    { sliceDir, videoTitle: metadata.title, videoId: metadata.id, sourceUrl },
+    { sliceDir, videoTitle: metadata.title, videoId: sliceKey, sourceUrl },
     { writeFile },
   );
 
@@ -194,7 +159,11 @@ export async function writeEnvelopeTranscriptArtifacts(
     const vttText = String(await readFile(entry.caption.path, "utf8"));
     const built = buildTranscriptText(vttText, entry.caption.isAutoCaption);
     await mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
-    const transcriptPath = lanePath(sliceDir, LANES.source, transcriptFilename(entryIndex));
+    const transcriptPath = lanePath(
+      sliceDir,
+      LANES.source,
+      transcriptFilename(entryIndex, primaryEntryIndex),
+    );
     await writeFile(transcriptPath, `${built.transcript}\n`, "utf8");
     transcripts.push({
       entryIndex,
@@ -205,5 +174,5 @@ export async function writeEnvelopeTranscriptArtifacts(
     });
   }
 
-  return { entryCount: entries.length, transcripts, captionlessEntryCount };
+  return { entryCount: entries.length, primaryEntryIndex, transcripts, captionlessEntryCount };
 }

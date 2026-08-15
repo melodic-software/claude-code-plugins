@@ -1,12 +1,13 @@
 /**
  * yt-dlp auth fallback — login-required detection and browser cookie profiles.
  *
- * The login-required patterns are per-source, declared by each adapter's
- * `errorPatterns.loginRequired`; the cookie-profile retry hints are shared
- * machinery (they describe LOCAL browser-profile extraction failures, not
- * source behavior).
+ * Login-required classification is per-source, declared by each adapter's
+ * `errorPatterns` and evaluated through the contract's `classifyErrorDetail`;
+ * the cookie-profile retry hints are shared machinery (they describe LOCAL
+ * browser-profile extraction failures, not source behavior).
  */
 
+import { classifyErrorDetail } from "../adapters/adapter-contract.js";
 import { YT_DLP_COOKIES_FILE_ENV, YT_DLP_COOKIES_FROM_BROWSER_ENV } from "./build-yt-dlp-args.js";
 
 /** @type {readonly RegExp[]} */
@@ -26,27 +27,18 @@ export const COOKIE_PROFILE_RETRY_HINT_PATTERNS = [
 ];
 
 /**
- * @param {string} detail
- * @param {readonly RegExp[]} loginRequiredPatterns - the source adapter's declared patterns
- * @returns {boolean}
- */
-export function isLoginRequiredError(detail, loginRequiredPatterns) {
-  if (!detail) return false;
-  return loginRequiredPatterns.some((pattern) => pattern.test(detail));
-}
-
-/**
  * Whether a failed browser-cookie-profile attempt should advance to the next
  * profile (the profile was unusable, or the source still demands login).
  *
  * @param {string} detail
- * @param {readonly RegExp[]} loginRequiredPatterns - the source adapter's declared patterns
+ * @param {import('../adapters/adapter-contract.js').SourceErrorPatterns} errorPatterns -
+ *   the source adapter's declared taxonomy table
  * @returns {boolean}
  */
-export function isCookieProfileRetryableError(detail, loginRequiredPatterns) {
+export function isCookieProfileRetryableError(detail, errorPatterns) {
   if (!detail) return false;
   return (
-    isLoginRequiredError(detail, loginRequiredPatterns) ||
+    classifyErrorDetail(errorPatterns, detail) === "login-required" ||
     COOKIE_PROFILE_RETRY_HINT_PATTERNS.some((pattern) => pattern.test(detail))
   );
 }

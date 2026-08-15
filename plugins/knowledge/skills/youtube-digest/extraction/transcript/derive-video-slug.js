@@ -22,13 +22,26 @@ export function slugifyTitle(text) {
 }
 
 /**
- * Build the per-video work slice slug: kebab-case title (40-char cap) + video id suffix.
+ * Slice keys become on-disk directory segments under `.work/`, so the shared
+ * slug derivation fails closed on anything that could traverse or terminate a
+ * path (separators, dots, empty). Mirrors the adapter contract's
+ * `extractSliceKey` invariant — a non-conforming key is an adapter bug.
+ */
+const SAFE_SLICE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Build the per-video work slice slug: kebab-case title (40-char cap) + slice key suffix.
  *
  * @param {string} title
- * @param {string} videoId
+ * @param {string} videoId - the source adapter's slice key; must match `[A-Za-z0-9_-]+`
  * @returns {string}
  */
 export function deriveVideoSlug(title, videoId) {
+  if (!SAFE_SLICE_KEY_PATTERN.test(videoId)) {
+    throw new Error(
+      `Unsafe slice key ${JSON.stringify(videoId)}: must match [A-Za-z0-9_-]+ (it becomes a directory segment under .work/)`,
+    );
+  }
   const base = slugifyTitle(title).slice(0, MAX_TITLE_CHARS).replace(/-+$/g, "");
   const prefix = base || "video";
   return `${prefix}-${videoId}`;

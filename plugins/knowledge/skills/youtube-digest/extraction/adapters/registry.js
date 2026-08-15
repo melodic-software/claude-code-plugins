@@ -19,7 +19,7 @@
 import { UnsupportedSourceError } from "./adapter-contract.js";
 import * as youtubeModule from "./youtube.js";
 
-/** @import { SourceAdapter } from './adapter-contract.js' */
+/** @import { AcquireOutcome, SourceAdapter } from './adapter-contract.js' */
 
 /**
  * Host → statically-imported adapter module. Keys must mirror each adapter's
@@ -32,35 +32,27 @@ export const SOURCE_MODULES = Object.freeze({
   "youtu.be": youtubeModule,
 });
 
-let consistencyVerified = false;
-
-/**
- * Consistency check (pure, no I/O): every registry key is declared by its
- * adapter, and every declared host is registered. Runs before the first
- * dispatch rather than at module init because adapter modules import shared
- * machinery that imports this registry — dereferencing `module.adapter` during
- * module evaluation would hit the still-initializing module in that cycle.
- * Cross-adapter host collisions are covered by the conformance suite.
- */
-function verifyRegistryConsistency() {
-  if (consistencyVerified) return;
-  for (const [host, module] of Object.entries(SOURCE_MODULES)) {
-    if (!module.adapter.hosts.includes(host)) {
+// Init-time consistency check (pure, no I/O): every registry key is declared
+// by its adapter, and every declared host is registered. Safe at module init
+// because nothing this registry imports (directly or transitively) imports it
+// back — shared acquisition machinery must never import this module, or the
+// cycle would make `module.adapter` dereference a still-initializing module.
+// Cross-adapter host collisions are covered by the conformance suite.
+for (const [host, module] of Object.entries(SOURCE_MODULES)) {
+  if (!module.adapter.hosts.includes(host)) {
+    throw new Error(
+      `Registry key "${host}" is not declared in adapter "${module.adapter.id}" hosts [${module.adapter.hosts.join(", ")}]`,
+    );
+  }
+}
+for (const module of new Set(Object.values(SOURCE_MODULES))) {
+  for (const host of module.adapter.hosts) {
+    if (SOURCE_MODULES[host] !== module) {
       throw new Error(
-        `Registry key "${host}" is not declared in adapter "${module.adapter.id}" hosts [${module.adapter.hosts.join(", ")}]`,
+        `Adapter "${module.adapter.id}" declares host "${host}" but the registry does not map it`,
       );
     }
   }
-  for (const module of new Set(Object.values(SOURCE_MODULES))) {
-    for (const host of module.adapter.hosts) {
-      if (SOURCE_MODULES[host] !== module) {
-        throw new Error(
-          `Adapter "${module.adapter.id}" declares host "${host}" but the registry does not map it`,
-        );
-      }
-    }
-  }
-  consistencyVerified = true;
 }
 
 /**
@@ -74,7 +66,6 @@ export function supportedHosts() {
  * @returns {readonly SourceAdapter[]} distinct registered adapters
  */
 export function sourceAdapters() {
-  verifyRegistryConsistency();
   return [...new Set(Object.values(SOURCE_MODULES))].map((module) => module.adapter);
 }
 
@@ -95,7 +86,6 @@ function normalizeHostname(hostname) {
  * @returns {SourceAdapter}
  */
 export function resolveSourceAdapter(url) {
-  verifyRegistryConsistency();
   /** @type {URL} */
   let parsed;
   try {
@@ -111,4 +101,25 @@ export function resolveSourceAdapter(url) {
     }
   }
   throw new UnsupportedSourceError(url, supportedHosts());
+}
+
+/**
+ * Source-agnostic acquisition entry: resolve the owning adapter, require a
+ * positive URL claim, and acquire through the adapter with the claim's
+ * canonical URL. Fails closed with {@link UnsupportedSourceError} when no
+ * adapter owns the host OR the owning adapter declines the URL (null claim) —
+ * `acquire` is never called with an unclaimed URL.
+ *
+ * @param {string} url
+ * @param {{workDir: string, mode: 'full'|'transcript'}} options
+ * @param {object} [deps] - adapter-specific injectable I/O (tests only)
+ * @returns {Promise<AcquireOutcome>}
+ */
+export async function acquireMedia(url, { workDir, mode }, deps = {}) {
+  const adapter = resolveSourceAdapter(url);
+  const claim = adapter.matchUrl(url);
+  if (!claim) {
+    throw new UnsupportedSourceError(url, supportedHosts());
+  }
+  return adapter.acquire(claim.canonicalUrl, { workDir, mode, deps });
 }

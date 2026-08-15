@@ -28,8 +28,9 @@ import { fileURLToPath } from "node:url";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
+import { classifyErrorDetail, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter } from "../adapters/registry.js";
+import { adapterSourceDeclarations } from "./acquire.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { resolveYtDlpAuthArgs } from "./build-yt-dlp-args.js";
 import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js";
@@ -134,19 +135,16 @@ export function parsePreflightLine(stdout) {
 
 /**
  * Classify a preflight probe failure against the owning adapter's declared
- * fatal patterns: a fatal match is permanently `unavailable` (reject, do not
- * enqueue); everything else (bot-check, age-gate, network, unknown) is
+ * pattern table: a fatal classification is permanently `unavailable` (reject,
+ * do not enqueue); everything else (bot-check, age-gate, network, unknown) is
  * `transient`.
  *
  * @param {string} detail
- * @param {readonly RegExp[]} fatalPatterns
+ * @param {import('../adapters/adapter-contract.js').SourceErrorPatterns} errorPatterns
  * @returns {'unavailable' | 'transient'}
  */
-export function classifyPreflightFailure(detail, fatalPatterns) {
-  if (detail && fatalPatterns.some((pattern) => pattern.test(detail))) {
-    return "unavailable";
-  }
-  return "transient";
+export function classifyPreflightFailure(detail, errorPatterns) {
+  return classifyErrorDetail(errorPatterns, detail) === "fatal" ? "unavailable" : "transient";
 }
 
 /**
@@ -164,6 +162,8 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {} }
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
     ...resolveYtDlpAuthArgs(env, authOverride),
+    // End-of-options sentinel: the URL can never be parsed as a flag.
+    "--",
     url,
   ];
 }
@@ -250,10 +250,7 @@ export async function preflightVideo(url, deps = {}) {
   ) => buildPreflightArgs(url, { env, authOverride });
   const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
     env,
-    source: {
-      loginRequiredPatterns: adapter.errorPatterns.loginRequired,
-      allowBrowserCookieProfileFallback: adapter.capabilities.browserCookieFallback === true,
-    },
+    source: adapterSourceDeclarations(adapter),
   });
 
   if (result.success) {
@@ -275,7 +272,7 @@ export async function preflightVideo(url, deps = {}) {
   }
 
   const detail = spawnFailureDetail(result);
-  const status = classifyPreflightFailure(detail, adapter.errorPatterns.fatal);
+  const status = classifyPreflightFailure(detail, adapter.errorPatterns);
   const reason = summarizeDetail(detail);
   return {
     url,

@@ -33,9 +33,25 @@ import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
 import {
   createWatchState,
   markPhaseComplete,
+  readWatchState,
   writeContinuationPrompt,
   writeWatchState,
 } from "./watch-state.js";
+
+/**
+ * Recovery's source of truth for the slice's origin URL: the `sourceUrl` the
+ * original watch run persisted in `watch.json`. Never synthesized from
+ * metadata — a synthesized URL would stamp the wrong source (and route harvest
+ * to the wrong adapter) for any non-YouTube slice.
+ *
+ * @param {string} sliceDir
+ * @returns {Promise<string|null>}
+ */
+export async function resolveRecoverySourceUrl(sliceDir) {
+  const state = await readWatchState(sliceDir);
+  const sourceUrl = state?.sourceUrl;
+  return typeof sourceUrl === "string" && sourceUrl.length > 0 ? sourceUrl : null;
+}
 
 /**
  * @param {string} file
@@ -133,6 +149,15 @@ export async function recoverWatchBootstrapCli(argv) {
     return 1;
   }
 
+  const sourceUrl = await resolveRecoverySourceUrl(sliceDir);
+  if (!sourceUrl) {
+    writeStderr(
+      `Cannot recover: no sourceUrl in ${path.join(sliceDir, "run-state", "watch.json")} — re-run the watch from its original URL instead`,
+    );
+    return 1;
+  }
+  const adapter = resolveSourceAdapter(sourceUrl);
+
   const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir);
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
@@ -218,9 +243,6 @@ export async function recoverWatchBootstrapCli(argv) {
     contactSheetsDir,
     acquiredAt: new Date().toISOString(),
   };
-
-  const sourceUrl = `https://www.youtube.com/watch?v=${metadata.id}`;
-  const adapter = resolveSourceAdapter(sourceUrl);
 
   let state = createWatchState({
     videoId: metadata.id,

@@ -150,6 +150,8 @@ export function buildYtDlpArgs(
   }
 
   args.push(...resolveYtDlpAuthArgs(env, authOverride));
-  args.push(url);
+  // End-of-options sentinel: the URL can never be parsed as a flag, so the
+  // argv boundary defends itself instead of relying on upstream URL vetting.
+  args.push("--", url);
   return args;
 }

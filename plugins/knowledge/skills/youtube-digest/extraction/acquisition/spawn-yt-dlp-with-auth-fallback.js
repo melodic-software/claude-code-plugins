@@ -2,19 +2,20 @@
  * yt-dlp spawn with rate-limit retries and automatic browser-cookie fallback on
  * login-required failures.
  *
- * Classification is adapter-declared: the caller passes the source's
- * login-required patterns and its browser-cookie-fallback capability. The
- * fallback loop is CLOSED BY DEFAULT — a source that does not declare the
- * capability (e.g. a cookies-file-only source) never iterates browser
- * profiles — and it fires on login-required classification only.
+ * Classification is adapter-declared: the caller passes the source's error
+ * pattern table and its browser-cookie-fallback capability, and this module
+ * classifies stderr through the contract's `classifyErrorDetail`. The fallback
+ * loop is CLOSED BY DEFAULT — a source that does not declare the capability
+ * (e.g. a cookies-file-only source) never iterates browser profiles — and it
+ * fires on login-required classification only.
  */
 
+import { classifyErrorDetail } from "../adapters/adapter-contract.js";
 import { spawnFailureDetail, spawnWithAcquireRetry } from "./acquire-with-retry.js";
 import {
   browserCookieFallbackProfiles,
   hasExplicitYtDlpCookieConfig,
   isCookieProfileRetryableError,
-  isLoginRequiredError,
 } from "./acquire-yt-dlp-auth.js";
 
 /**
@@ -29,12 +30,20 @@ import {
  * @typedef {(authOverride?: YtDlpAuthOverride) => string[]} BuildYtDlpArgs
  */
 
+/** Empty pattern table: classifies nothing, so no fallback can fire. */
+const NO_ERROR_PATTERNS = Object.freeze({
+  retryable: Object.freeze([]),
+  fatal: Object.freeze([]),
+  loginRequired: Object.freeze([]),
+});
+
 /**
  * Adapter-declared spawn classification for one source.
  *
  * @typedef {Object} SourceSpawnClassification
- * @property {readonly RegExp[]} [loginRequiredPatterns] - stderr signatures that
- *   classify as login-required (the only class that gates cookie fallback)
+ * @property {import('../adapters/adapter-contract.js').SourceErrorPatterns} [errorPatterns] -
+ *   the adapter's declared taxonomy table; only a login-required classification
+ *   gates cookie fallback
  * @property {boolean} [allowBrowserCookieProfileFallback] - whether the
  *   browser-cookie-profile loop may iterate for this source (default false)
  */
@@ -54,7 +63,7 @@ import {
  */
 export async function spawnYtDlpWithAuthFallback(spawn, buildArgs, options = {}) {
   const { cwd, env = process.env, source = {} } = options;
-  const { loginRequiredPatterns = [], allowBrowserCookieProfileFallback = false } = source;
+  const { errorPatterns = NO_ERROR_PATTERNS, allowBrowserCookieProfileFallback = false } = source;
   const spawnOptions = cwd ? { cwd } : {};
 
   if (!allowBrowserCookieProfileFallback || hasExplicitYtDlpCookieConfig(env)) {
@@ -67,7 +76,7 @@ export async function spawnYtDlpWithAuthFallback(spawn, buildArgs, options = {})
   }
 
   let detail = spawnFailureDetail(result);
-  if (!isLoginRequiredError(detail, loginRequiredPatterns)) {
+  if (classifyErrorDetail(errorPatterns, detail) !== "login-required") {
     return result;
   }
 
@@ -78,7 +87,7 @@ export async function spawnYtDlpWithAuthFallback(spawn, buildArgs, options = {})
     }
 
     detail = spawnFailureDetail(result);
-    if (!isCookieProfileRetryableError(detail, loginRequiredPatterns)) {
+    if (!isCookieProfileRetryableError(detail, errorPatterns)) {
       return result;
     }
   }

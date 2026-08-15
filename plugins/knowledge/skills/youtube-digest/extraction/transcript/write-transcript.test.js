@@ -2,7 +2,12 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { buildTranscriptText, writeTranscriptArtifacts } from "./write-transcript.js";
+import { createAcquisitionEnvelope } from "../adapters/adapter-contract.js";
+import {
+  buildTranscriptText,
+  transcriptFilename,
+  writeEnvelopeTranscriptArtifacts,
+} from "./write-transcript.js";
 
 const TIMESTAMP_PARAGRAPH_PATTERN = /^\[0:0\d\]/;
 
@@ -38,31 +43,75 @@ Manual caption line.
   });
 });
 
-describe("writeTranscriptArtifacts", () => {
-  it("writes transcript.txt and README stub via injected fs", async () => {
+describe("transcriptFilename", () => {
+  it("gives the primary entry the historical transcript.txt name wherever it sits", () => {
+    expect(transcriptFilename(0, 0)).toBe("transcript.txt");
+    expect(transcriptFilename(1, 1)).toBe("transcript.txt");
+    expect(transcriptFilename(0, 1)).toBe("transcript-1.txt");
+    expect(transcriptFilename(2, 1)).toBe("transcript-3.txt");
+  });
+});
+
+describe("writeEnvelopeTranscriptArtifacts", () => {
+  const sliceDir = "/repo/.work/sample-abc";
+  const metadata = { id: "metadataId0", title: "Sample Talk", description: "" };
+
+  /** @param {object} [overrides] */
+  function entry(overrides = {}) {
+    return { mediaPath: "", captionPaths: [], metadataPath: "", caption: null, ...overrides };
+  }
+
+  /** @param {string} vttPath */
+  function caption(vttPath) {
+    return { path: vttPath, rung: "manual-en", isAutoCaption: false };
+  }
+
+  /** @param {import('../adapters/adapter-contract.js').AcquisitionEnvelope} envelope */
+  async function writeWithFakeFs(envelope) {
     /** @type {Record<string, string>} */
     const files = {};
-
-    const sliceDir = "/repo/.work/sample-abc";
-    const result = await writeTranscriptArtifacts(
-      {
-        sliceDir,
-        vttText: SAMPLE_VTT,
-        isAutoCaption: true,
-        videoTitle: "Sample Talk",
-        videoId: "abc",
-        sourceUrl: "https://www.youtube.com/watch?v=abc",
-      },
+    const result = await writeEnvelopeTranscriptArtifacts(
+      { sliceDir, envelope, sourceUrl: "https://www.youtube.com/watch?v=abc", sliceKey: "urlKey0" },
       {
         mkdir: async () => {},
+        readFile: async () => SAMPLE_VTT,
         writeFile: async (filePath, content) => {
-          files[filePath] = String(content);
+          files[String(filePath)] = String(content);
         },
       },
     );
+    return { files, result };
+  }
 
-    expect(files[result.transcriptPath]).toContain("[");
-    expect(files[path.join(sliceDir, "README.md")]).toContain("Sample Talk");
-    expect(result.transcriptPath.endsWith("transcript.txt")).toBe(true);
+  it("records the slice key, not the metadata id, in the README", async () => {
+    const { files } = await writeWithFakeFs(
+      createAcquisitionEnvelope({ entries: [], metadata, workDir: "/w" }),
+    );
+    const readme = files[path.join(sliceDir, "README.md")];
+    expect(readme).toContain("urlKey0");
+    expect(readme).not.toContain("metadataId0");
+  });
+
+  it("pairs transcript.txt with the primary (media-bearing) entry, not entry 0", async () => {
+    const { files, result } = await writeWithFakeFs(
+      createAcquisitionEnvelope({
+        entries: [
+          entry({ captionPaths: ["/w/a.vtt"], caption: caption("/w/a.vtt") }),
+          entry({
+            mediaPath: "/w/b.mp4",
+            captionPaths: ["/w/b.vtt"],
+            caption: caption("/w/b.vtt"),
+          }),
+        ],
+        metadata,
+        workDir: "/w",
+      }),
+    );
+
+    expect(result.primaryEntryIndex).toBe(1);
+    const paths = result.transcripts.map((t) => path.basename(t.transcriptPath));
+    expect(paths).toEqual(["transcript-1.txt", "transcript.txt"]);
+    expect(files[path.join(sliceDir, "source", "transcript.txt")]).toBeDefined();
+    expect(files[path.join(sliceDir, "source", "transcript-1.txt")]).toBeDefined();
   });
 });

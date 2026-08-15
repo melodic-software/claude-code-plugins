@@ -33,4 +33,14 @@ describe("unknown-host dispatch through the CLI wrappers", () => {
     expect(stderr).toContain("Unsupported source URL");
     expect(stderr).toContain("youtube.com");
   });
+
+  it("transcript CLI exits non-zero when the owning adapter declines the URL", async () => {
+    const code = await runTranscriptCli([
+      "node",
+      "run-transcript.js",
+      "https://www.youtube.com/@somechannel",
+    ]);
+    expect(code).toBe(1);
+    expect(captured.stderr.join("\n")).toContain("Unsupported source URL");
+  });
 });

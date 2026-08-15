@@ -26,6 +26,12 @@ describe("deriveVideoSlug", () => {
   it("falls back when title slugifies empty", () => {
     expect(deriveVideoSlug("!!!", "abc123")).toBe("video-abc123");
   });
+
+  it("fails closed on slice keys that could traverse or terminate a path", () => {
+    for (const hostile of ["../../x", "..", "a/b", "a\\b", "a.b", "", "a b"]) {
+      expect(() => deriveVideoSlug("Title", hostile), hostile).toThrow(/Unsafe slice key/);
+    }
+  });
 });
 
 describe("resolveWorkSliceDir", () => {

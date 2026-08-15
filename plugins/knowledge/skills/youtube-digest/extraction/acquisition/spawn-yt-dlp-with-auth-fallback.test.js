@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { YOUTUBE_BOT_CHALLENGE_PATTERNS } from "./acquire-yt-dlp-auth.js";
+import { adapter as youtubeAdapter } from "../adapters/youtube.js";
+import { adapterSourceDeclarations } from "./acquire.js";
 import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js";
 
 const BOT_ERROR = "ERROR: Sign in to confirm you're not a bot";
 
-/** Adapter-shaped classification for a source that allows browser-cookie fallback. */
-const FALLBACK_SOURCE = {
-  loginRequiredPatterns: YOUTUBE_BOT_CHALLENGE_PATTERNS,
-  allowBrowserCookieProfileFallback: true,
-};
+/** The production derivation of a fallback-capable source's classification. */
+const FALLBACK_SOURCE = adapterSourceDeclarations(youtubeAdapter);
 
 describe("spawnYtDlpWithAuthFallback", () => {
   it("retries with browser cookies after login-required classification", async () => {
@@ -64,10 +62,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
 
     const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
       env: {},
-      source: {
-        loginRequiredPatterns: YOUTUBE_BOT_CHALLENGE_PATTERNS,
-        allowBrowserCookieProfileFallback: false,
-      },
+      source: { ...FALLBACK_SOURCE, allowBrowserCookieProfileFallback: false },
     });
 
     expect(result.success).toBe(false);

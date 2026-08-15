@@ -102,24 +102,31 @@ describe("parsePreflightLine", () => {
 });
 
 describe("classifyPreflightFailure", () => {
-  const fatal = youtubeAdapter.errorPatterns.fatal;
+  const patterns = youtubeAdapter.errorPatterns;
 
   it("classifies removed/private/unavailable as permanent unavailable", () => {
-    expect(classifyPreflightFailure("ERROR: [youtube] xyz: Video unavailable", fatal)).toBe(
+    expect(classifyPreflightFailure("ERROR: [youtube] xyz: Video unavailable", patterns)).toBe(
       "unavailable",
     );
     expect(
-      classifyPreflightFailure("ERROR: Private video. Sign in if you've been granted access", fatal),
+      classifyPreflightFailure(
+        "ERROR: Private video. Sign in if you've been granted access",
+        patterns,
+      ),
     ).toBe("unavailable");
-    expect(classifyPreflightFailure("This video has been removed by the uploader", fatal)).toBe(
+    expect(classifyPreflightFailure("This video has been removed by the uploader", patterns)).toBe(
       "unavailable",
     );
   });
 
   it("classifies bot-check / auth / network as transient", () => {
-    expect(classifyPreflightFailure("Sign in to confirm you're not a bot", fatal)).toBe("transient");
-    expect(classifyPreflightFailure("unable to download: HTTP Error 429", fatal)).toBe("transient");
-    expect(classifyPreflightFailure("", fatal)).toBe("transient");
+    expect(classifyPreflightFailure("Sign in to confirm you're not a bot", patterns)).toBe(
+      "transient",
+    );
+    expect(classifyPreflightFailure("unable to download: HTTP Error 429", patterns)).toBe(
+      "transient",
+    );
+    expect(classifyPreflightFailure("", patterns)).toBe("transient");
   });
 });
 

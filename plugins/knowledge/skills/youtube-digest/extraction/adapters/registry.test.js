@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { UnsupportedSourceError } from "./adapter-contract.js";
 import {
+  acquireMedia,
   resolveSourceAdapter,
   SOURCE_MODULES,
   sourceAdapters,
@@ -28,7 +29,7 @@ describe("registry static-import conformance", () => {
         expect(Object.keys(SOURCE_MODULES)).toContain(host);
       }
     }
-    expect(supportedHosts().sort()).toEqual(["youtu.be", "youtube.com"]);
+    expect(supportedHosts()).toEqual(expect.arrayContaining(["youtube.com", "youtu.be"]));
   });
 });
 
@@ -80,5 +81,15 @@ describe("resolveSourceAdapter", () => {
     ]) {
       expect(() => resolveSourceAdapter(url)).toThrow(UnsupportedSourceError);
     }
+  });
+});
+
+describe("acquireMedia dispatch", () => {
+  it("fails closed when the owning adapter declines the URL (null claim)", async () => {
+    // youtube.com owns the host, but a channel URL carries no video claim —
+    // acquire must never be reached with an unclaimed URL.
+    await expect(
+      acquireMedia("https://www.youtube.com/@somechannel", { workDir: "/w", mode: "transcript" }),
+    ).rejects.toThrow(UnsupportedSourceError);
   });
 });

@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAcquisitionEnvelope } from "../adapters/adapter-contract.js";
-import { acquireMedia } from "../acquisition/acquire.js";
+import { acquireMedia } from "../adapters/registry.js";
 import { runWatchCli } from "./run-watch.js";
 
 const captured = vi.hoisted(() => ({
@@ -22,7 +22,7 @@ vi.mock("@melodic/video-digestion/shared/terminal", () => ({
   },
 }));
 
-vi.mock("../acquisition/acquire.js", async (importOriginal) => {
+vi.mock("../adapters/registry.js", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, acquireMedia: vi.fn() };
 });
@@ -223,5 +223,44 @@ describe("runWatchCli envelope consumption", () => {
     await expect(
       fs.readFile(path.join(sliceDir(), "source", "transcript-2.txt"), "utf8"),
     ).resolves.toContain("hello world");
+  });
+
+  it("pairs watching and transcript.txt on the media-bearing entry when entry 0 is medialess", async () => {
+    const captionOnly = await writeVtt("caption-only.en.vtt");
+    const withMedia = await writeVtt("with-media.en.vtt");
+    vi.mocked(acquireMedia).mockResolvedValue({
+      success: true,
+      data: createAcquisitionEnvelope({
+        entries: [
+          mediaEntry(captionOnly, { mediaPath: "" }),
+          mediaEntry(withMedia, { mediaPath: path.join(fixtureDir, "video-2.mp4") }),
+        ],
+        metadata: METADATA,
+        workDir: fixtureDir,
+      }),
+    });
+
+    const code = await runWatchCli(["node", "run-watch.js", URL]);
+    expect(code).toBe(0);
+
+    // Watch orchestration covers the media-bearing entry…
+    expect(vi.mocked(orchestrateWatching)).toHaveBeenCalledOnce();
+    expect(vi.mocked(orchestrateWatching).mock.calls[0][0].videoPath).toBe(
+      path.join(fixtureDir, "video-2.mp4"),
+    );
+
+    // …and transcript.txt names THAT entry's transcript, so downstream
+    // consumers that assume transcript.txt is THE transcript stay correct.
+    const state = await readWatchJson();
+    expect(state.phases.acquire.metrics.entryCount).toBe(2);
+    await expect(
+      fs.readFile(path.join(sliceDir(), "source", "transcript.txt"), "utf8"),
+    ).resolves.toContain("hello world");
+    await expect(
+      fs.readFile(path.join(sliceDir(), "source", "transcript-1.txt"), "utf8"),
+    ).resolves.toContain("hello world");
+    await expect(
+      fs.access(path.join(sliceDir(), "source", "transcript-2.txt")),
+    ).rejects.toThrow();
   });
 });

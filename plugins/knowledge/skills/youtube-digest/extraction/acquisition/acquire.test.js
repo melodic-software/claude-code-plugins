@@ -1,34 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  acquireYouTubeMedia,
-  extractVideoId,
-  listWorkDirFiles,
-  resolveMediaArtifacts,
-} from "./acquire.js";
+import { acquireYouTubeMedia, listWorkDirFiles, resolveMediaArtifacts } from "./acquire.js";
 
 const DRIVER_WATCH_URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
-const DRIVER_SHORT_URL = "https://youtu.be/7zZy1QTvokM";
-const DRIVER_LIVE_URL = "https://www.youtube.com/live/abcdefghijk";
-const DRIVER_LIVE_VIDEO_ID = "abcdefghijk";
-
-describe("extractVideoId", () => {
-  it("parses watch URLs", () => {
-    expect(extractVideoId(DRIVER_WATCH_URL)).toBe("7zZy1QTvokM");
-  });
-
-  it("parses youtu.be URLs", () => {
-    expect(extractVideoId(DRIVER_SHORT_URL)).toBe("7zZy1QTvokM");
-  });
-
-  it("parses youtube.com/live URLs", () => {
-    expect(extractVideoId(DRIVER_LIVE_URL)).toBe(DRIVER_LIVE_VIDEO_ID);
-  });
-
-  it("parses youtube.com/shorts URLs", () => {
-    expect(extractVideoId("https://www.youtube.com/shorts/7zZy1QTvokM")).toBe("7zZy1QTvokM");
-  });
-});
+const DRIVER_VIDEO_ID = "7zZy1QTvokM";
 
 describe("resolveMediaArtifacts", () => {
   it("collects caption, metadata, and video paths", () => {
@@ -58,7 +33,7 @@ describe("acquireYouTubeMedia", () => {
 
     const result = await acquireYouTubeMedia(
       DRIVER_WATCH_URL,
-      { workDir, mode: "transcript" },
+      { workDir, mode: "transcript", videoId: DRIVER_VIDEO_ID },
       {
         ...NO_THROTTLE,
         spawn: async () => ({
@@ -91,7 +66,7 @@ describe("acquireYouTubeMedia", () => {
   it("surfaces caption ladder failure", async () => {
     const result = await acquireYouTubeMedia(
       DRIVER_WATCH_URL,
-      { workDir: "/tmp/fake-work", mode: "transcript" },
+      { workDir: "/tmp/fake-work", mode: "transcript", videoId: DRIVER_VIDEO_ID },
       {
         ...NO_THROTTLE,
         spawn: async () => ({

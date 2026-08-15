@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { adapter as youtubeAdapter } from "../adapters/youtube.js";
+import { adapterSourceDeclarations } from "./acquire.js";
 import {
   buildYtDlpArgs,
   resolveYtDlpAuthArgs,
@@ -15,14 +16,13 @@ const OUTPUT = `${WORK_DIR}/%(id)s.%(ext)s`;
 
 describe("buildYtDlpArgs", () => {
   it("includes caption and metadata flags for full mode", () => {
+    // The production derivation — never hand-wired values that could mask a
+    // divergence between the adapter's declarations and the built args.
     const args = buildYtDlpArgs(URL, {
       mode: "full",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
-      source: {
-        writeComments: youtubeAdapter.capabilities.comments,
-        extractorArgs: youtubeAdapter.extractorArgs,
-      },
+      source: adapterSourceDeclarations(youtubeAdapter),
     });
 
     expect(args).toContain("--write-subs");
@@ -43,6 +43,7 @@ describe("buildYtDlpArgs", () => {
     expect(args[args.indexOf("-f") + 1]).toBe(YT_DLP_VIDEO_FORMAT);
     expect(args).toContain("--remux-video");
     expect(args[args.indexOf("--remux-video") + 1]).toBe("mp4");
+    expect(args.at(-2)).toBe("--");
     expect(args.at(-1)).toBe(URL);
   });
 
@@ -113,6 +114,7 @@ describe("buildYtDlpArgs", () => {
     });
     expect(args).toContain("--js-runtimes");
     expect(args[args.indexOf("--js-runtimes") + 1]).toBe("node");
+    expect(args.at(-2)).toBe("--");
     expect(args.at(-1)).toBe(URL);
   });
 
