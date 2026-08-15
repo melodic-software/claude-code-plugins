@@ -19,14 +19,18 @@ points at each remediation. Both are non-interactive — never prompt when the a
 ## `check` (read-only)
 
 The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the
-single source of truth for what the plugin requires per platform. **Read them first** —
-probe what they actually require, don't recite this file. Then run each probe via Bash and
-report a PASS/FAIL/INFO table with one remediation line per FAIL.
+single source of truth for what the plugin requires per platform.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics. One exception: every step-1 and step-2 failure stays
-FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, every guard surface
+INFO — the guard reads the toggle itself and enforces nothing when it is off, so a deliberately
+disabled plugin is not broken. Report the probes informationally and note that re-enabling
+restores the FAIL semantics.
+
+One exception: every step-1 and step-2 failure stays FAIL with the toggle disabled.
+Audit-only mode is *enforced by* the guard, every guard surface
 depends on a Python 3 interpreter resolving (every surface through
 `hooks/run-python-hook.sh`, which tries `python3`, then `python`, then `py -3`), and a
 guard that never runs can neither read nor enforce the configured `false` — so the fail-open

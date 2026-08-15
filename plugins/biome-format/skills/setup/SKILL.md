@@ -21,9 +21,10 @@ install described below. All are non-interactive — never prompt when the actio
 ## `check` (read-only)
 
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh`) is the single source of
-truth for what it requires and how it resolves things. **Read it first** — probe what it
-actually does, don't recite this file. Then run each probe via Bash and report a
-PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+truth for what it requires and how it resolves things.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
