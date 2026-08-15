@@ -190,12 +190,39 @@ run_git_probe() {
   )
 }
 
-# The repository-scoped merged-PR batch window, single-sourced so the query, the allowlist that pins
-# it, the truncation disclosure, and the evidence text cannot drift apart. It is a script constant
-# set before any argument or config is read, so the allowlist below stays as fixed a pin as the
-# literal it replaced -- nothing reachable by a caller can change it.
-MERGED_PR_WINDOW=1000
-MERGED_PR_HEAD_LIMIT=100
+# Aliased GraphQL merged-PR page size. GitHub admits first/last in 1..100; each alias costs one
+# node. Measured live: cost stays 1 for at least 40 aliases (nodeCount equals the alias count).
+# 100 aliases per page stays well under the 500_000-node ceiling and the 5_000-point/hour primary
+# limit. Single-sourced with the allowlist so nothing reachable by a caller can change it.
+MERGED_PR_GRAPHQL_ALIAS_PAGE=100
+
+# Fixed jq flatten for the aliased GraphQL response — single-sourced with the allowlist pin.
+# Filters rateLimit and null repository payloads; emits one TSV row per merged PR node.
+MERGED_PR_GRAPHQL_JQ='.data|to_entries[]|select(.key|test("^b[0-9]+$"))|.value//empty|.pullRequests.nodes[]?|[.number,.headRefName,.headRefOid,.mergedAt,.url]|@tsv'
+
+# Escape a value for inclusion in a GraphQL string literal (owner, name, headRefName).
+graphql_string_escape() {
+  local s=${1-}
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  printf '%s' "$s"
+}
+
+# Admit only the collector's query-shaped merged-PR GraphQL document: no mutation/subscription,
+# exact headRefName matching (never the search API's prefix-matching head: qualifier), first:1.
+graphql_query_admitted() {
+  local q=${1-}
+  [[ -n "$q" ]] || return 1
+  [[ "$q" =~ [[:cntrl:]] ]] && return 1
+  # Literal brace prefixes: query{...} or query {...}
+  [[ "$q" == "query{"* || "$q" == "query {"* ]] || return 1
+  case "$(printf '%s' "$q" | tr '[:upper:]' '[:lower:]')" in
+  *mutation* | *subscription*) return 1 ;;
+  *) ;; # admitted shape continues below
+  esac
+  [[ "$q" == *'headRefName:'* && "$q" == *'first:1'* && "$q" == *'states:[MERGED]'* &&
+    "$q" == *'pullRequests('* && "$q" == *'repository(owner:'* ]]
+}
 
 gh_probe_allowed() {
   case "${1:-}" in
@@ -203,30 +230,24 @@ gh_probe_allowed() {
     [[ $# -eq 4 && "$2" == "status" && "$3" == "--hostname" && "$4" == "github.com" ]]
     ;;
   api)
-    # Exactly two read-only endpoints: the repository identity probe and the authenticated-login
-    # probe for the report header. Both are GET with a fixed template; nothing else is admitted.
-    [[ $# -eq 8 && "$2" =~ ^repos/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
+    # Three read-only shapes: repository identity GET, authenticated-login GET, and the aliased
+    # GraphQL merged-PR query (query documents only; fixed --jq flatten).
+    if [[ $# -eq 8 && "$2" =~ ^repos/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
       "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
-      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]] ||
-      [[ $# -eq 8 && "$2" == "user" &&
-        "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
-        "$7" == "--template" && "$8" == '{{.login}}' ]]
-    ;;
-  pr)
-    [[ "${2:-}" == "list" && "${3:-}" == "--repo" &&
-      "${4:-}" =~ ^github\.com/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
-      "${5:-}" == "--state" && "${6:-}" == "merged" ]] || return 1
-    if [[ $# -eq 12 ]]; then
-      [[ "$7" == "--limit" && "$8" == "$MERGED_PR_WINDOW" && "$9" == "--json" &&
-        "${10}" == "number,headRefName,headRefOid,mergedAt,url" && "${11}" == "--template" &&
-        "${12}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
+      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]]; then
+      return 0
+    fi
+    if [[ $# -eq 8 && "$2" == "user" &&
+      "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
+      "$7" == "--template" && "$8" == '{{.login}}' ]]; then
+      return 0
+    fi
+    if [[ $# -eq 8 && "$2" == "graphql" && "$3" == "--hostname" && "$4" == "github.com" &&
+      "$5" == "-f" && "$6" == query=* && "$7" == "--jq" && "$8" == "$MERGED_PR_GRAPHQL_JQ" ]]; then
+      graphql_query_admitted "${6#query=}"
       return
     fi
-    [[ $# -eq 14 && "$7" == "--head" && -n "$8" && "$8" != -* &&
-      ! "$8" =~ [[:cntrl:]] && "$9" == "--limit" && "${10}" == "$MERGED_PR_HEAD_LIMIT" &&
-      "${11}" == "--json" && "${12}" == "number,headRefName,headRefOid,mergedAt,url" &&
-      "${13}" == "--template" &&
-      "${14}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
+    return 1
     ;;
   *) return 1 ;;
   esac
@@ -526,20 +547,14 @@ RETARGETED_TO=()
 # printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
 STALE_CONFIG_PATHS=()
 STALE_CONFIG_REASONS=()
-# Discovery-sourced paths that looked like repositories (had a .git marker) but failed validation.
-# Same per-entry degradation as config: one husk under a --root must not abort the fleet.
-DISCOVERY_SKIP_PATHS=()
-DISCOVERY_SKIP_REASONS=()
-DISCOVERY_NONREPO_COUNT=0
-DISCOVERY_UNREADABLE_COUNT=0
 # reject_target <origin> <message>: apply the rejection policy for a target that failed a
-# prerequisite. "config" and "discovery" return 1 so the caller records a per-entry skip and
-# continues; every other origin stops the run. "default" is the implicit no-argument target — the
-# same hard failure, plus the scope remedies, because the operator did not choose this path and the
-# bare rejection gives them nothing to act on.
+# prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
+# other origin stops the run. "default" is the implicit no-argument target — the same hard failure,
+# plus the scope remedies, because the operator did not choose this path and the bare rejection
+# gives them nothing to act on.
 reject_target() {
   local origin="$1" message="$2"
-  [[ "$origin" == "config" || "$origin" == "discovery" ]] && return 1
+  [[ "$origin" == "config" ]] && return 1
   printf 'Error: ' >&2
   display_value "$message" >&2
   printf '\n' >&2
@@ -597,62 +612,28 @@ main_worktree() {
   printf '%s\n' "$record"
 }
 
-# record_rejected_target <origin> <candidate> <config_reason> <discovery_reason>: after reject_target
-# returned (config/discovery), append the matching per-entry skip record. CLI/default never reach
-# here — reject_target exits for those origins.
-record_rejected_target() {
-  local origin="$1" candidate="$2" config_reason="$3" discovery_reason="$4"
-  if [[ "$origin" == "config" ]]; then
-    STALE_CONFIG_PATHS+=("$candidate")
-    STALE_CONFIG_REASONS+=("$config_reason")
-  elif [[ "$origin" == "discovery" ]]; then
-    DISCOVERY_SKIP_PATHS+=("$candidate")
-    DISCOVERY_SKIP_REASONS+=("$discovery_reason")
-    if [[ "$discovery_reason" == *"not readable"* ]]; then
-      DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
-    else
-      DISCOVERY_NONREPO_COUNT=$((DISCOVERY_NONREPO_COUNT + 1))
-    fi
-  fi
-}
-
-# discovery_skip_reason <candidate> <fallback>: prefer an unreadable classification when the path
-# cannot be entered; otherwise the caller-supplied non-repository reason.
-discovery_skip_reason() {
-  local candidate="$1" fallback="$2"
-  if [[ ! -r "$candidate" || ! -x "$candidate" ]]; then
-    printf '%s\n' "discovered path is not readable"
-  else
-    printf '%s\n' "$fallback"
-  fi
-}
-
 # add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
 # run); origin "default" hard-fails with the scope remedies; origin "config" records a
 # stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
-# config); origin "discovery" records a discovery-skip and continues (a husk under --root must not
-# abort every subsequent repository). Invalid config SYNTAX still hard-fails upstream.
+# config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
   local candidate="$1" origin="${2:-cli}" top common common_key existing main_top main_resolved rt_known rt_existing
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
-    record_rejected_target "$origin" "$candidate" \
-      "configured fleet.repo path is not a directory" \
-      "$(discovery_skip_reason "$candidate" "discovered path is not a directory")"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a directory")
     return 0
   fi
   top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
     reject_target "$origin" "not a Git working tree: $candidate"
-    record_rejected_target "$origin" "$candidate" \
-      "configured fleet.repo path is not a Git working tree" \
-      "$(discovery_skip_reason "$candidate" "discovered path is not a Git working tree")"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a Git working tree")
     return 0
   }
   common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" || {
     reject_target "$origin" "cannot resolve Git common directory: $candidate"
-    record_rejected_target "$origin" "$candidate" \
-      "cannot resolve the Git common directory for the configured path" \
-      "$(discovery_skip_reason "$candidate" "cannot resolve the Git common directory for the discovered path")"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("cannot resolve the Git common directory for the configured path")
     return 0
   }
   # Siblings sharing one common directory are one repository, and the dedup below keeps whichever
@@ -719,21 +700,8 @@ done
 discover_repositories() {
   local dir="$1" depth="$2" child name
   [[ -d "$dir" && ! -L "$dir" ]] || return 0
-  # Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN).
-  # Count and move on; never abort the walk. A .git marker that is somehow still visible is recorded
-  # as a discovery skip so the header's unreadable count is not the only signal.
-  if [[ ! -r "$dir" || ! -x "$dir" ]]; then
-    if [[ -e "$dir/.git" ]]; then
-      reject_target discovery "not a Git working tree: $dir"
-      record_rejected_target discovery "$dir" "" "discovered path is not readable"
-    else
-      DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
-    fi
-    return 0
-  fi
   if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
-    # Discovery origin: a .git marker that is not a usable working tree degrades per-entry.
-    add_target "$dir" discovery
+    add_target "$dir"
     return 0
   fi
   [[ "$depth" -lt "$MAX_DEPTH" ]] || return 0
@@ -774,10 +742,10 @@ for root in "${ROOT_ARGS[@]:-}"; do
   ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
 
-# An all-stale config (every entry deleted since the last run) or a --root that found only husks
-# must still produce a report whose per-entry skip findings tell the user what happened -- hard-fail
-# only when there is neither a target to audit nor a skip entry to report.
-if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 ]]; then
+# An all-stale config (every entry deleted since the last run) must still produce a report whose
+# stale-config-entry findings tell the user what to remediate -- hard-fail only when there is
+# neither a target to audit nor a stale entry to report.
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 ]]; then
   fail "no Git working trees found in the requested scope"
 fi
 
@@ -945,12 +913,14 @@ analyze_repo() {
   local expected_common="" actual_common="" branch tip pr_match pr_any
   local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
   local ref_record branch_status=1 branch_inventory_valid=true
-  local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
-  local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false pr_row_count=0
+  local remote_ref_record remote_branch_status=1 remote_branch_short
+  local repo_pr_rows="" repo_pr_available=false protected=false
   local remote_inventory_failed=false
+  local gql_owner="" gql_name="" gql_owner_esc="" gql_name_esc="" gql_query="" gql_page_rows=""
+  local gql_page_start=0 gql_page_end=0 gql_alias_i=0 gql_bi=0 gql_branch_esc=""
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
   local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
-  local -a PRIVACY_GATED_BRANCHES=()
+  local -a GQL_BRANCHES=()
   local remote_tip push_state ri
   REPO_FINDING_COUNT=0
 
@@ -1267,11 +1237,9 @@ analyze_repo() {
     return
   fi
 
-  # Every local branch name is a candidate for the exact per-branch GitHub query below, but only
-  # a branch already represented on the remote may actually be sent there -- this repo's security
-  # posture (security-review.md) promises GitHub sees only identifiers the remote already carries.
-  # Enumerate remote-tracking branches purely locally (no network) so that promise holds even for
-  # a branch that only ever existed on this machine.
+  # Remote-tracking inventory is local-only evidence for merged-pr-tip-drift push-state wording.
+  # Merge evidence itself is gathered by exact headRefName GraphQL aliases below and does not
+  # depend on these refs (auto-deleted-then-pruned heads stay queryable on GitHub).
   if [[ -n "$canonical_remote" ]]; then
     while IFS= read -r -d '' remote_ref_record; do
       while [[ "$remote_ref_record" == $'\n'* || "$remote_ref_record" == $'\r'* ]]; do
@@ -1301,46 +1269,70 @@ analyze_repo() {
       printf '\0__repo_fleet_ref_status__ %s\0' "$?"
     )
     if [[ "$remote_branch_status" != "0" ]]; then
-      # The producer may have emitted and appended some records before failing partway through;
-      # discard them so a partial remote-ref inventory can never make remote_branch_known true
-      # below and drive the exact --head fallback query on stale/incomplete evidence. The failure
-      # flag keeps the per-branch privacy-gap aggregate quiet: this repo-wide finding already says
-      # every exact lookup is skipped, so repeating it per branch would double-report.
+      # Partial producer output is discarded so tip-drift push-state never trusts a half-built list.
       REMOTE_BRANCH_NAMES=()
       REMOTE_BRANCH_TIPS=()
       remote_inventory_failed=true
       emit_finding UNKNOWN remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
-        "Exact per-branch GitHub lookups are skipped for every branch in this repository" \
+        "Remote-tracking tip comparison for merged-pr-tip-drift is unavailable; GraphQL merge evidence still runs" \
         "Repair Git metadata or correct the canonical checkout, then rerun"
     fi
   fi
 
-  # One repository-scoped query avoids N network round trips while keeping same-named branches
-  # isolated by --repo. A finite limit can cause a false negative, never a false merged claim.
+  # One aliased GraphQL query per page of local branches (exact headRefName, first:1, MERGED).
+  # Per-branch aliases retire the REST window truncation and the privacy-gated --head fallback:
+  # every non-default local branch the operator asked about is queried by exact name. Fail closed
+  # when gh/GraphQL is unavailable — never infer unmerged from a missing row after a failed page.
   if [[ -n "$github_repo" && "$GH_READY" == "true" ]]; then
-    repo_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --limit "$MERGED_PR_WINDOW" \
-      --json number,headRefName,headRefOid,mergedAt,url \
-      --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)" &&
-      repo_pr_available=true
-    # A repository whose merged history exceeds the query window loses the older PRs silently, and
-    # a branch merged before the window then reports no merged finding at all -- indistinguishable
-    # in the report from a branch that was never merged. gh returns at most --limit rows, so a full
-    # batch means the window was reached; it cannot distinguish "exactly 200" from "far more", and
-    # deliberately errs toward warning, because a missing warning is the failure that costs history.
-    if [[ "$repo_pr_available" == "true" ]]; then
-      pr_row_count="$(printf '%s' "$repo_pr_rows" | grep -c . || true)"
-      if [[ "$pr_row_count" -ge "$MERGED_PR_WINDOW" ]]; then
-        emit_finding UNKNOWN merged-pr-window-truncated "$github_repo" \
-          "the merged-PR query returned $pr_row_count rows, equal to its $MERGED_PR_WINDOW-PR window; older merged PRs are outside it" \
-          "Merged evidence for this repository covers only the most recent $MERGED_PR_WINDOW merged PRs; an older merge reports no merged finding" \
-          "Treat absent merged findings here as unproven; verify an individual branch on GitHub before cleanup"
-      fi
-    fi
-    if [[ "$repo_pr_available" != "true" ]]; then
+    gql_owner="${github_repo%%/*}"
+    gql_name="${github_repo#*/}"
+    if [[ -z "$gql_owner" || -z "$gql_name" || "$gql_owner" == */* || "$github_repo" != */* ]]; then
       emit_finding UNKNOWN github-pr-evidence-unavailable "$github_repo" \
-        "repository-scoped merged-PR query failed" "Do not infer branch merge state" \
+        "resolved GitHub identity is not owner/name shaped for GraphQL" "Do not infer branch merge state" \
         "Restore GitHub access/authentication and rerun"
+    else
+      gql_owner_esc="$(graphql_string_escape "$gql_owner")"
+      gql_name_esc="$(graphql_string_escape "$gql_name")"
+      GQL_BRANCHES=()
+      for branch in "${BRANCH_NAMES[@]:-}"; do
+        [[ -n "$branch" && "$branch" != "$default_branch" ]] || continue
+        [[ "$branch" =~ [[:cntrl:]] ]] && continue
+        GQL_BRANCHES+=("$branch")
+      done
+      repo_pr_available=true
+      repo_pr_rows=""
+      gql_page_start=0
+      while [[ "$gql_page_start" -lt "${#GQL_BRANCHES[@]}" ]]; do
+        gql_page_end=$((gql_page_start + MERGED_PR_GRAPHQL_ALIAS_PAGE))
+        [[ "$gql_page_end" -gt "${#GQL_BRANCHES[@]}" ]] && gql_page_end=${#GQL_BRANCHES[@]}
+        gql_query='query{rateLimit{cost nodeCount}'
+        gql_alias_i=0
+        for ((gql_bi = gql_page_start; gql_bi < gql_page_end; gql_bi++)); do
+          gql_branch_esc="$(graphql_string_escape "${GQL_BRANCHES[$gql_bi]}")"
+          gql_query+="b${gql_alias_i}:repository(owner:\"${gql_owner_esc}\",name:\"${gql_name_esc}\"){pullRequests(headRefName:\"${gql_branch_esc}\",first:1,states:[MERGED]){nodes{number headRefName headRefOid mergedAt url}}}"
+          gql_alias_i=$((gql_alias_i + 1))
+        done
+        gql_query+='}'
+        if ! gql_page_rows="$(run_bounded_gh api graphql --hostname github.com -f "query=$gql_query" \
+          --jq "$MERGED_PR_GRAPHQL_JQ" 2>/dev/null)"; then
+          repo_pr_available=false
+          break
+        fi
+        if [[ -n "$gql_page_rows" ]]; then
+          if [[ -n "$repo_pr_rows" ]]; then
+            repo_pr_rows+=$'\n'"$gql_page_rows"
+          else
+            repo_pr_rows="$gql_page_rows"
+          fi
+        fi
+        gql_page_start=$gql_page_end
+      done
+      if [[ "$repo_pr_available" != "true" ]]; then
+        emit_finding UNKNOWN github-pr-evidence-unavailable "$github_repo" \
+          "aliased GraphQL merged-PR query failed" "Do not infer branch merge state" \
+          "Restore GitHub access/authentication and rerun"
+      fi
     fi
   fi
 
@@ -1370,53 +1362,6 @@ analyze_repo() {
           break
         fi
       done <<<"$repo_pr_rows"
-      # The batch is an optimization, not an evidence boundary: an exact repository+head fallback
-      # catches a merged PR outside the recent-created batch window -- but only for a branch still
-      # present in the local remote-tracking inventory. After the common merge flow (head branch
-      # auto-deleted by GitHub, then a prune fetch) that ref is gone and the privacy gate below
-      # skips this lookup, so the gap is reported as merge-evidence-privacy-gated rather than
-      # passing silently. Only send a branch name GitHub can already see: --head transmits it
-      # verbatim to github.com, so a purely local branch (never pushed) must never reach this
-      # query at all. Deferred (revisit if the gap keeps biting): widening proof-of-prior-push
-      # via branch.<name>.merge/.remote config, and paginating the batch window.
-      if [[ -z "$pr_match" ]]; then
-        remote_branch_known=false
-        # ":-" guard: expanding an empty array under set -u is a fatal unbound-variable error on
-        # bash <= 4.3 (fixed in 4.4; macOS system bash is 3.2), and analyze_repo runs in the main
-        # shell -- one
-        # repo with zero remote-tracking refs would abort the whole fleet report without it.
-        for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
-          [[ -n "$remote_branch_short" ]] || continue
-          [[ "$remote_branch_short" == "$branch" ]] && {
-            remote_branch_known=true
-            break
-          }
-        done
-        if [[ "$remote_branch_known" == "true" ]]; then
-          if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit "$MERGED_PR_HEAD_LIMIT" \
-            --json number,headRefName,headRefOid,mergedAt,url \
-            --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)"; then
-            while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
-              [[ -n "$pr_num" && "$pr_branch" == "$branch" ]] || continue
-              [[ -z "$pr_any" ]] && pr_any="$pr_num|$pr_oid|$pr_merged|$pr_url"
-              if [[ "$pr_oid" == "$tip" ]]; then
-                pr_match="$pr_num|$pr_oid|$pr_merged|$pr_url"
-                break
-              fi
-            done <<<"$exact_pr_rows"
-          else
-            emit_finding UNKNOWN github-pr-evidence-unavailable "$canonical :: $branch" \
-              "exact repository-and-head merged-PR query failed" "Do not infer branch merge state" \
-              "Restore GitHub access/authentication and rerun"
-          fi
-        elif [[ "$protected" == "false" && -z "$pr_any" && "$remote_inventory_failed" == "false" ]]; then
-          # Privacy gate engaged with zero batch evidence: this branch cannot be checked against
-          # GitHub without transmitting a name the remote may not carry. Collect it so the gap is
-          # reported once per repository below -- a silent miss here is exactly the merged-then-
-          # auto-deleted-then-pruned branch disappearing from the report.
-          PRIVACY_GATED_BRANCHES+=("$branch")
-        fi
-      fi
     fi
 
     if [[ -n "$pr_match" ]]; then
@@ -1469,16 +1414,6 @@ analyze_repo() {
       fi
     fi
   done
-
-  # One aggregate line per repository (not per branch) keeps a fleet full of local-only branches
-  # from drowning the report while still honoring the no-silent-caps ethos: every skipped exact
-  # lookup is named. The branch names appear only in this local report, never in a GitHub query.
-  if [[ "${#PRIVACY_GATED_BRANCHES[@]}" -gt 0 ]]; then
-    emit_finding UNKNOWN merge-evidence-privacy-gated "$canonical" \
-      "exact merged-PR lookup skipped for ${#PRIVACY_GATED_BRANCHES[@]} branch(es) absent from the local remote-tracking inventory: ${PRIVACY_GATED_BRANCHES[*]}" \
-      "Merged state unverified; absent remote-tracking refs include never-pushed locals and merged heads whose remote ref was auto-deleted and pruned (re-fetch cannot restore them)" \
-      "Never-pushed locals: push to publish the branch name, then rerun. Auto-deleted merged heads: verify each named branch with gh pr list --repo github.com/$github_repo --state merged --head <branch> --json headRefOid and confirm headRefOid equals the local tip (merged PRs stay queryable after head deletion); no cleanup handoff until merge state is confirmed"
-  fi
 
   # A clean section previously ended after its header fields with no marker -- indistinguishable
   # from truncated output. Say so explicitly, with the same terminator finding blocks use.
@@ -1542,13 +1477,6 @@ for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   display_value "${ROOT_LABELS[$root_index]}"
   printf ': %s repositories\n' "${ROOT_COUNTS[$root_index]}"
 done
-# Discovery walks directories that are mostly not repositories; when a .git marker fails validation
-# (or a directory is unreadable), the path is skipped rather than aborting. Report the counts so
-# silence is not mistaken for a complete walk.
-if [[ ${#ROOT_LABELS[@]} -gt 0 ]]; then
-  printf 'Discovery skips: %s non-repository, %s unreadable\n' \
-    "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT"
-fi
 
 # Config-sourced entries that failed per-entry validation during argument processing (the header
 # had not printed yet); each is a visible finding, never a silent skip.
@@ -1558,15 +1486,6 @@ for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++));
     "${STALE_CONFIG_REASONS[$stale_index]} (source: $CONFIG_FILE)" \
     "Entry skipped; the rest of the fleet was audited" \
     "Remove or correct the entry via /repo-fleet-hygiene:setup apply, or restore the path, then rerun"
-done
-
-# Discovery-sourced husks/unreadable paths with a .git marker; same visibility rule as stale config.
-for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); do
-  printf '\n'
-  emit_finding UNKNOWN discovery-skip "${DISCOVERY_SKIP_PATHS[$skip_index]}" \
-    "${DISCOVERY_SKIP_REASONS[$skip_index]}" \
-    "Path skipped; the rest of the fleet was audited" \
-    "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun"
 done
 
 for target in "${TARGETS[@]}"; do

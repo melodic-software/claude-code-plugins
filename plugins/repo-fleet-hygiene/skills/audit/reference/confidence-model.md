@@ -42,18 +42,15 @@ failure rather than a discovery.
 | `canonical-identity-unverified` | An override target's GitHub identity could not be resolved for comparison against the discovered one | `UNKNOWN` | Stop that repository; never combine evidence |
 | `canonical-identity-conflict` | An override target resolves to a different GitHub identity than the discovered checkout | `UNKNOWN` | Stop that repository; never combine evidence |
 | `github-identity-unavailable` | `GET /repos/{owner}/{repo}` returned 404/403, failed, or timed out | `UNKNOWN`, demoted to `ACKNOWLEDGED` when the identity is listed in `fleet.ackUnavailable` and the failure was 404/403 | Investigate; never infer "deleted" or "moved" |
-| `github-pr-evidence-unavailable` | The repository-scoped merged-PR query failed | `UNKNOWN` | Do not infer branch merge state |
-| `merged-pr-window-truncated` | The merged-PR query returned a full window of rows, so older merged PRs fall outside it | `UNKNOWN` | Absent merged findings in this repository are unproven; verify a branch on GitHub before cleanup |
-| `merge-evidence-privacy-gated` | The exact per-branch merged-PR lookup was skipped because the branch is absent from the local remote-tracking inventory, so its name must not be sent to GitHub | `UNKNOWN` | Merged state unverified; distinguish never-pushed locals from auto-deleted merged heads (re-fetch cannot restore pruned refs) |
+| `github-pr-evidence-unavailable` | The aliased GraphQL merged-PR query failed or GitHub evidence is otherwise unavailable | `UNKNOWN` | Do not infer branch merge state |
 | `worktree-inventory-unavailable` | `git worktree list --porcelain -z` failed | `UNKNOWN` | Stop local branch/worktree classification for that repository |
 | `worktree-common-dir-unavailable` | A registered worktree path exists but its `--git-common-dir` could not be resolved | `UNKNOWN` | Manual inspection; the registration cannot be trusted either way |
 | `branch-inventory-unavailable` | `git for-each-ref` over `refs/heads/` failed or emitted malformed/partial output | `UNKNOWN` | Discard partial records, stop branch classification, exclude from the audited count |
-| `remote-branch-inventory-unavailable` | `git for-each-ref` over `refs/remotes/<remote>/` failed | `UNKNOWN` | Exact per-branch GitHub lookups are skipped for the whole repository |
+| `remote-branch-inventory-unavailable` | `git for-each-ref` over `refs/remotes/<remote>/` failed | `UNKNOWN` | Remote-tracking tip comparison for `merged-pr-tip-drift` is unavailable; GraphQL merge evidence still runs |
 | `current-branch-unavailable` | `git branch --show-current` failed, so branch-protection membership is unknown | `UNKNOWN` | Emit no standalone branch cleanup candidate for that repository |
 | `git-common-dir-unavailable` | The canonical checkout's own `--git-common-dir` could not be resolved | `UNKNOWN` | Stop that repository; registration comparison is impossible |
 | `local-ancestry-unavailable` | `git merge-base --is-ancestor` failed with an error status | `UNKNOWN` | Do not infer local ancestry |
 | `stale-config-entry` | A config-sourced `fleet.root`/`fleet.repo` path is missing or not a Git working tree | `UNKNOWN` | Entry skipped, rest of the fleet still audited; correct or remove the entry |
-| `discovery-skip` | A path discovered under `--root` is unreadable or not a Git working tree despite a `.git` marker | `UNKNOWN` | Path skipped, rest of the fleet still audited; inspect unexpected `.git` markers |
 
 ## What the tiers depend on
 
