@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mutation-testing",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Measures whether a test suite can actually detect faults, not merely execute code: `/mutation-testing:principles` answers operator, mutant-state, and metric questions from the primary literature; `/mutation-testing:setup` verifies the ecosystem's mutation tool and writes the tracked config; `/mutation-testing:audit` runs diff-scoped mutation analysis and reports surviving mutants, verifying that tracked source was restored and failing the run when it cannot, delegating the productive-versus-arid judgment to a fresh-context reviewer and test authoring to the test lane, and optionally persisting survivors as a findings file the review fix pass consumes.",
   "author": {
     "name": "Melodic Software",
