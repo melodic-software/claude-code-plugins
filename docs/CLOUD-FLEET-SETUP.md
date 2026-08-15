@@ -22,9 +22,11 @@ result is cached as a filesystem snapshot (the "warm boot": script runs once, la
 from the snapshot; rebuilds only on script/network edits or ~7-day expiry). So the fleet uses
 **one shared environment** whose setup script installs the *union* of static toolchains the
 repos pin — .NET SDKs, Node 24, `gh`, PowerShell — inside the ~5-minute cache-build budget, while
-**each repo owns its own bootstrap** in a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
-SessionStart hook that installs manifest-driven dependencies (`npm ci`, repo-local .NET, `uv
-sync`). The environment stays generic; repos opt in by adopting the hook pattern.
+**each repo owns its own bootstrap**: a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
+`.claude/cloud-bootstrap.sh` that installs manifest-driven dependencies (`npm ci`, repo-local
+.NET, `uv sync`), run by the environment's setup script pre-launch (the call that gets the repo's
+plugins loaded at turn one) and re-run per session by a registered SessionStart hook as drift
+repair. The environment stays generic; repos opt in by adopting the pattern.
 
 ## Fleet audit (2026-08-13)
 
@@ -89,16 +91,18 @@ exit 0
 What the canonical script does (details and lifecycle in the
 [component README](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/README.md)):
 parallel tracks install `gh` + PowerShell (apt), the fleet's exact .NET SDK pins into
-`/opt/dotnet`, and Node 24.18.0 via the VM's nvm; it then bakes the checked-out repo's own
-SessionStart hook into the snapshot. Every step logs with a timestamp to
+`/opt/dotnet`, and Node 24.18.0 via the VM's nvm; it then runs the checked-out repo's own
+`.claude/cloud-bootstrap.sh` — baking its results into the snapshot, and, because it runs before
+the session process launches, making the repo's plugins live at turn one. Every step logs with a timestamp to
 `/var/log/melodic-env-setup.log`, and `/opt/melodic-env-setup.done` (version + timestamp) is
 written strictly last — so a missing stamp is the signature of an interrupted cache build
 ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 2), fixed
 by forcing a rebuild.
 
 Two lifecycle caveats: the fleet's toolchain pins are duplicated into the component by necessity
-(the script cannot read repos it isn't running in) — each repo's hook *also* installs its exact
-SDK repo-locally, so the env copy is a warm cache and the hook is the correctness guarantee. And
+(the script cannot read repos it isn't running in) — each repo's bootstrap *also* installs its
+exact SDK repo-locally, so the env copy is a warm cache and the bootstrap is the correctness
+guarantee. And
 a merged component change does **not** reach existing environments on its own: the snapshot
 rebuilds only on an edit to the environment's script/network fields or ~7-day cache expiry, so
 after a standards bump, force a rebuild with any trivial edit to the script field.
@@ -121,7 +125,7 @@ in cloud sessions, unlike anything user-scoped):
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/cloud-bootstrap.sh"
           }
         ]
       }
@@ -136,19 +140,21 @@ in cloud sessions, unlike anything user-scoped):
 }
 ```
 
-**`.claude/hooks/session-start.sh`** — manifest-driven, so one template serves the fleet; delete
-the blocks a repo doesn't need. Design rules (same as this repo's production hook): cloud-only
-guard, idempotent (hooks run on every startup *and* resume), warn-and-continue for anything the
-session can limp along without, and `$CLAUDE_ENV_FILE` as the only way to shape the session's
-environment (append `export`-lines, dedup-guarded):
+**`.claude/cloud-bootstrap.sh`** — manifest-driven, so one template serves the fleet; delete
+the blocks a repo doesn't need. Design rules (same as this repo's production bootstrap):
+cloud-only guard, idempotent (the SessionStart hook re-runs it on every startup *and* resume,
+on top of the environment's pre-launch call), warn-and-continue for anything the session can
+limp along without, and `$CLAUDE_ENV_FILE` as the only way to shape the session's environment
+(append `export`-lines, dedup-guarded):
 
 ```bash
 #!/usr/bin/env bash
-# SessionStart bootstrap — cloud sessions only; idempotent; warn-and-continue.
+# Cloud bootstrap — cloud sessions only; idempotent; warn-and-continue. Run by
+# the environment setup script pre-launch and by the SessionStart hook.
 set -u
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
-warn() { printf 'session-start: %s\n' "$*" >&2; }
+warn() { printf 'cloud-bootstrap: %s\n' "$*" >&2; }
 
 env_line() { # append an export line to the session env, once
   [ -n "${CLAUDE_ENV_FILE:-}" ] || return 0
@@ -253,8 +259,8 @@ session on this repo in the new environment and ask Claude to verify:
    debugging anything else; `/var/log/melodic-env-setup.log` shows how far the build got.
 1. `gh --version`, `pwsh --version`, `dotnet --list-sdks` (expect 10.0.302 and 10.0.400),
    `node --version` (expect the `.node-version` pin), `check-tools` for the VM inventory.
-2. The repo's hook ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
-   `actionlint`), and re-running the hook is a fast no-op.
+2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
+   `actionlint`), and re-running the bootstrap is a fast no-op.
 3. `echo $GH_TOKEN` prints `proxy-injected` (GitHub proxy is authenticating).
 4. Marketplace plugins loaded (`/plugin` → installed list shows `@melodic-software` entries) in a
    session on a repo that declares them (songwriting or medley).
@@ -264,7 +270,7 @@ session on this repo in the new environment and ask Claude to verify:
 6. Python: in a claude-code-proxy or medley session, `uv python install 3.14` — if the download
    is `403`-blocked (release assets ride the GitHub proxy's repository scope), fall back to the
    VM's system Python for tooling or add the astral-sh host to a Custom allowlist. This repo's
-   SessionStart hook installs from `.github/requirements-ci.txt` with `--require-hashes`; that
+   cloud bootstrap installs from `.github/requirements-ci.txt` with `--require-hashes`; that
    pin list includes cp311 wheels so the cloud VM's system Python 3.11 can satisfy `pyyaml`
    (CI itself uses 3.14).
 

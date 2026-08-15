@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
-# SessionStart bootstrap for Claude Code cloud sessions (Claude Code on the web).
+# Cloud bootstrap for Claude Code cloud sessions (Claude Code on the web).
 #
-# Registered in .claude/settings.json (matcher: startup|resume); runs before the
-# agent takes its first turn. Local sessions exit immediately via the
-# CLAUDE_CODE_REMOTE guard — a local machine is presumed provisioned by its
-# owner, and this script must never mutate one.
+# Two callers run this script, both with CLAUDE_CODE_REMOTE=true:
+#   1. The account environments' setup scripts, after clone and BEFORE the
+#      session process launches. Claude Code builds its plugin/command/skill
+#      registry at process start and never re-reads it, so this pre-launch call
+#      is the only path that gets the repo's plugins loaded at turn one.
+#   2. The SessionStart hook registered in .claude/settings.json (matcher:
+#      startup|resume), which re-runs the same script on every session start
+#      and resume as drift repair — the environment cache can be ~7 days
+#      stale. Plugin installs made by a hook run go live at the next resume,
+#      not in the session that ran the hook.
+# Local sessions exit immediately via the CLAUDE_CODE_REMOTE guard — a local
+# machine is presumed provisioned by its owner, and this script must never
+# mutate one.
 #
 # Purpose: give a fresh cloud VM the same tool inventory as
 # .github/workflows/ci.yml, so the repo's gates (scripts/run-plugin-tests.sh,
@@ -25,11 +34,11 @@
 set -euo pipefail
 
 if [[ "${CLAUDE_CODE_REMOTE:-}" != "true" ]]; then
-  echo "session-start: not a cloud session; nothing to do." >&2
+  echo "cloud-bootstrap: not a cloud session; nothing to do." >&2
   exit 0
 fi
 
-repo_root="${CLAUDE_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}"
+repo_root="${CLAUDE_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd -- "$repo_root"
 
 bin_dir="$HOME/.local/bin"
@@ -70,7 +79,7 @@ current_node="$(node --version 2>/dev/null || true)"
 if [[ "$current_node" != "v$node_pin" ]]; then
   export NVM_DIR="${NVM_DIR:-/opt/nvm}"
   if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
-    echo "session-start: error: Node $node_pin required and nvm not found at $NVM_DIR" >&2
+    echo "cloud-bootstrap: error: Node $node_pin required and nvm not found at $NVM_DIR" >&2
     exit 1
   fi
   set +u # nvm.sh reads intentionally-unset variables
@@ -83,9 +92,11 @@ fi
 node_bin="$(dirname -- "$(command -v node)")"
 
 # --- Session PATH (required) -------------------------------------------------
-# Hook-process env dies with this script; $CLAUDE_ENV_FILE is the sanctioned
+# This process's env dies with the script; $CLAUDE_ENV_FILE is the sanctioned
 # channel for shaping the session's Bash environment (per the cloud-environments
-# doc). node_modules/.bin exposes the pinned claude CLI and Biome from npm ci.
+# doc). It is set only for the SessionStart-hook caller — the pre-launch caller
+# has no session yet, so this block is skipped there.
+# node_modules/.bin exposes the pinned claude CLI and Biome from npm ci.
 if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
   # shellcheck disable=SC2016 # $PATH must stay literal for the session to expand
   path_line="$(printf 'export PATH="%s:%s/node_modules/.bin:%s:$PATH"' \
@@ -116,23 +127,25 @@ fi
 # a session exercises the plugin code on the current branch, not published main.
 #
 # Never `claude plugin marketplace remove` here. That subcommand deletes the
-# marketplace's entry from .claude/settings.json, so a hook that used it to
-# force a re-add would silently mutate tracked repository config.
+# marketplace's entry from .claude/settings.json, so using it to force a
+# re-add would silently mutate tracked repository config.
 #
 # Best effort by design: a plugin that fails to install costs that plugin's
 # skills, not the session. Idempotent — installed plugins are skipped, so a
-# resume re-run costs one `claude plugin list` call.
+# resume re-run costs one `claude plugin list` call. Only the pre-launch
+# caller's installs are live at turn one; installs made by a SessionStart-hook
+# run surface at the next resume (the registry is read once, at process start).
 claude_bin="$repo_root/node_modules/.bin/claude"
 marketplace_name="melodic-software"
 if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   if ! "$claude_bin" plugin marketplace list --json 2>/dev/null |
     jq -e --arg n "$marketplace_name" 'any(.[]; .name == $n)' >/dev/null; then
     "$claude_bin" plugin marketplace add "$repo_root" --scope user >/dev/null ||
-      echo "session-start: warning: could not register the $marketplace_name marketplace" >&2
+      echo "cloud-bootstrap: warning: could not register the $marketplace_name marketplace" >&2
   fi
 
-  # Enabled-and-not-yet-installed, computed from the tracked settings file so the
-  # hook can never drift from the catalog the repo actually enables.
+  # Enabled-and-not-yet-installed, computed from the tracked settings file so
+  # this script can never drift from the catalog the repo actually enables.
   mapfile -t wanted < <(
     jq -r --arg n "$marketplace_name" \
       '.enabledPlugins // {} | to_entries[]
@@ -187,7 +200,7 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
         refreshed=$((refreshed + 1))
       else
         failed=$((failed + 1))
-        echo "session-start: warning: plugin refresh failed: $id" >&2
+        echo "cloud-bootstrap: warning: plugin refresh failed: $id" >&2
       fi
       continue
     fi
@@ -195,12 +208,12 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       installed=$((installed + 1))
     else
       failed=$((failed + 1))
-      echo "session-start: warning: plugin install failed: $id" >&2
+      echo "cloud-bootstrap: warning: plugin install failed: $id" >&2
     fi
   done
-  echo "session-start: plugins ${#wanted[@]} enabled, $installed newly installed, $refreshed refreshed, $failed failed"
+  echo "cloud-bootstrap: plugins ${#wanted[@]} enabled, $installed newly installed, $refreshed refreshed, $failed failed"
 else
-  echo "session-start: warning: claude CLI or jq unavailable; plugins will not load" >&2
+  echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
 fi
 
 # --- Python CI deps (required) -------------------------------------------------
@@ -231,14 +244,14 @@ fetch_release_tool() {
     return 0
   fi
   if [[ "$(uname -m)" != "x86_64" ]]; then
-    echo "session-start: warning: skipping $name (non-x86_64 VM)" >&2
+    echo "cloud-bootstrap: warning: skipping $name (non-x86_64 VM)" >&2
     return 0
   fi
   tmp="$(mktemp -d)"
   local failed=0
   curl -fsSL -o "$tmp/asset" "$url" || failed=1
   if [[ "$failed" -eq 0 ]] && ! echo "$sha  $tmp/asset" | sha256sum --check --quiet --status; then
-    echo "session-start: warning: $name checksum mismatch ($url); refusing to install" >&2
+    echo "cloud-bootstrap: warning: $name checksum mismatch ($url); refusing to install" >&2
     failed=1
   fi
   if [[ "$failed" -eq 0 ]]; then
@@ -251,7 +264,7 @@ fetch_release_tool() {
   if [[ "$failed" -eq 0 && -f "$tmp/$member" ]]; then
     install -m 0755 "$tmp/$member" "$bin_dir/$name"
   else
-    echo "session-start: warning: $name install failed ($url); its checks will SKIP" >&2
+    echo "cloud-bootstrap: warning: $name install failed ($url); its checks will SKIP" >&2
   fi
   rm -rf "$tmp"
   return 0
@@ -284,16 +297,16 @@ fetch_release_tool shfmt \
 # above but an accepted one — npm -g has no --require-hashes equivalent.
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   npm install -g --no-audit --no-fund "markdownlint-cli2@${markdownlint_pin}" ||
-    echo "session-start: warning: markdownlint-cli2 install failed" >&2
+    echo "cloud-bootstrap: warning: markdownlint-cli2 install failed" >&2
 fi
 
 if ! command -v check-jsonschema >/dev/null 2>&1; then
   if command -v uv >/dev/null 2>&1; then
     uv tool install --quiet "check-jsonschema==${check_jsonschema_pin}" ||
-      echo "session-start: warning: check-jsonschema install failed" >&2
+      echo "cloud-bootstrap: warning: check-jsonschema install failed" >&2
   else
     python3 -m pip install --user --quiet "check-jsonschema==${check_jsonschema_pin}" ||
-      echo "session-start: warning: check-jsonschema install failed" >&2
+      echo "cloud-bootstrap: warning: check-jsonschema install failed" >&2
   fi
 fi
 
@@ -304,12 +317,12 @@ fi
 git_dir="$(git rev-parse --git-dir)"
 if [[ -f "$git_dir/shallow" ]]; then
   git fetch --quiet --unshallow ||
-    echo "session-start: warning: could not unshallow; base-ref diffs may fail" >&2
+    echo "cloud-bootstrap: warning: could not unshallow; base-ref diffs may fail" >&2
 fi
 # Explicit destination refspec: in a single-branch clone a bare `fetch origin
 # main` only writes FETCH_HEAD and never creates refs/remotes/origin/main.
 git fetch --quiet origin "+main:refs/remotes/origin/main" ||
-  echo "session-start: warning: could not fetch origin/main" >&2
+  echo "cloud-bootstrap: warning: could not fetch origin/main" >&2
 
 # --- Report --------------------------------------------------------------------
 report_tool() {
@@ -317,12 +330,12 @@ report_tool() {
   local name="$1"
   shift
   if command -v "$name" >/dev/null 2>&1; then
-    echo "session-start: $name $("$name" "$@" 2>/dev/null | head -1)"
+    echo "cloud-bootstrap: $name $("$name" "$@" 2>/dev/null | head -1)"
   else
-    echo "session-start: $name ABSENT (its checks will SKIP)"
+    echo "cloud-bootstrap: $name ABSENT (its checks will SKIP)"
   fi
 }
-echo "session-start: bootstrap complete in $repo_root"
+echo "cloud-bootstrap: bootstrap complete in $repo_root"
 report_tool node --version
 report_tool ruff --version
 report_tool shellcheck --version
