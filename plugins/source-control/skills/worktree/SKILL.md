@@ -159,7 +159,7 @@ Remove stale worktrees, orphaned metadata, and branches from merged PRs. Full 5-
 
 ## Action: `audit`
 
-Periodic health check for worktree infrastructure — suitable as a recurring work item in your tracker. **Step 1:** run the `status` action internally, flagging any worktree whose Work axis is not `safe` (`stranded`, `unknown`, `superseded`, `notgit`) and any whose Status shows an issue (stale, merged-not-cleaned, prunable, locked). Stranded work leads the findings — it is the only class where doing nothing is safer than acting. The Step 2 configuration-health checklist (`delete_branch_on_merge`, the `melodic.worktreeroot` conformance doctor, gitignored-file propagation) and the Step 3 findings presentation: [context/audit.md](context/audit.md).
+Periodic health check for worktree infrastructure — suitable as a recurring work item in your tracker. **Step 1:** run the `status` action internally, flagging any worktree whose Work axis is any value other than `safe` (see [context/status.md](context/status.md) for the closed mapping — do not re-enumerate here) and any whose Status shows an issue (stale, merged-not-cleaned, prunable, locked). Stranded work leads the findings — it is the only class where doing nothing is safer than acting. The Step 2 configuration-health checklist (`delete_branch_on_merge`, the `melodic.worktreeroot` conformance doctor, gitignored-file propagation) and the Step 3 findings presentation: [context/audit.md](context/audit.md).
 
 ---
 
