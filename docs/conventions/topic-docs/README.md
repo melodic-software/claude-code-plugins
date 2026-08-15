@@ -441,12 +441,14 @@ a `<STAGE>-<scope>.md` sidecar.
    collapses the task branch into one new commit on `main` and carries
    none of its ancestry; the head branch is deleted on merge. GitHub's
    three-dot PR diff also drops pruned files, so `docs/topics/<slug>/…`
-   on `main` will not resolve. Forms that name a **branch** commit —
-   `git show <pre-prune-sha>:<path>`, or `?ref=<pruning-commit>^` — fail
-   from a fresh clone: the object was never fetched, and the squash
-   commit's parent never contained the slice. They succeed only in a
-   checkout that fetched the branch before deletion (typically the
-   machine that wrote the pointer).
+   on `main` will not resolve. Local `git show <pre-prune-sha>:<path>`
+   fails from a fresh clone until that object is fetched (for example
+   via `git fetch origin refs/pull/<N>/head` when permitted — typically
+   the machine that wrote the pointer already has it). The Contents API
+   form `?ref=<pruning-commit>^` fails for a different reason: it is a
+   remote lookup, and the squash commit's parent never contained the
+   slice, so naming the parent of the pruning/squash commit is not a
+   recovery path regardless of local checkout state.
 
    While GitHub retains the unreachable object, the Contents API can still
    resolve a **pre-prune commit SHA** (the last commit that still
