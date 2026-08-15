@@ -58,9 +58,13 @@ audit_noise_line_has_ghost_ref() {
     root="${BASH_REMATCH[1]}"
     seg="${BASH_REMATCH[2]}"
     after="${rest#*"$path"}"
+    # Bare-root exemption: nothing concrete after the trailing slash. A
+    # sentence-ending period (`.work/running-retros/.`) starts with `.` but is
+    # punctuation, not a hidden child — only `.` followed by a path segment
+    # character counts as concrete (`.gitignore`-style names still flag).
     if [[ "$root" != 'docs/topics' && "$root" != "${AUDIT_NOISE_CONTRACT_ROOT:-docs/topics}" ]] &&
       [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' ]] &&
-      [[ ! "$after" =~ ^[A-Za-z0-9._-] ]]; then
+      { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
       continue
     fi

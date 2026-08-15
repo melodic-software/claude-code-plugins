@@ -261,9 +261,11 @@ cat >"$BARE_ROOT" <<'EOF'
 
 .work/reviews/ is self-ignoring
 .work/running-retros/ holds session ledgers
+The ledgers live in .work/running-retros/.
 EOF
 bare_out="$(bash "$DETECT" "$BARE_ROOT")"
 assert_not_contains "bare concern root is not a ghost ref" "$bare_out" "Finding shape: ghost-ref"
+assert_not_contains "bare concern root with terminal period stays exempt" "$bare_out" "Finding shape: ghost-ref"
 
 RUNNING_RETRO_CHILD="$TEST_TMPDIR/running-retro-child.md"
 cat >"$RUNNING_RETRO_CHILD" <<'EOF'

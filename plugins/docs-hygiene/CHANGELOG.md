@@ -6,8 +6,16 @@
 
 - **audit-noise:** bare concern-scoped root exemption now includes
   `.work/running-retros/` alongside `.work/handoffs/` and `.work/reviews/`,
+<<<<<<< HEAD
   matching the topic-docs Memory, concern-scoped tier roster (convention 2.4.4).
   Concrete children under any of those roots still flag as ghost-refs. (#2730)
+=======
+  matching the topic-docs Memory, concern-scoped tier roster (convention 2.4.3).
+  Concrete children under any of those roots still flag as ghost-refs. A
+  sentence-ending period after the trailing slash (`.work/running-retros/.`)
+  stays bare; a hidden-file child (`.work/running-retros/.keep`) still flags.
+  (#2730)
+>>>>>>> 612c2f3f (fix(docs-hygiene): treat sentence-ending period as bare-root punctuation)
 
 ## [0.14.0]
 
