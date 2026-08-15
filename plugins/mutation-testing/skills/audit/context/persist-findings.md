@@ -33,60 +33,76 @@ handed to the merge set — the same defect as writing into a file another produ
 
 ## Prove the destination is outside tracked space before writing to it
 
-The property to prove is that **git will not pick the write up** — not that one particular repository
-ignores it. Resolve which repository governs the destination, then probe *there*:
+This phase makes **two** writes — the findings file and, when the self-ignore guard heals a root, that
+root's `.gitignore` — and the property to prove is that git picks up neither. Both are proven before
+either happens, and the order is what makes that true:
 
-1. `git -C <the destination's directory> rev-parse --show-toplevel`. Non-zero means **no repository
-   governs the path**: nothing can track it, there is no ignore rule to satisfy, and the write
-   proceeds.
-2. Otherwise `git -C <the destination's directory> check-ignore -q -- <the exact intended file path>`,
-   and **write only on exit 0.**
+1. **Find the governing checkout by walking the resolved root's ancestors** for a `.git` entry:
+   `test -e <ancestor>/.git`, with `-e` and not `-d`, because a worktree's `.git` is a file. The first
+   ancestor that has one is the checkout `T` governing the destination. If none does, **no checkout
+   governs the path** — nothing can track anything beneath it, and both writes proceed. A `.git`
+   that is present but unusable — dangling `gitdir:`, a bare repository, or the destination sitting
+   inside a checkout's own `.git/` — is **not** an absence: `T` was found, so steps 3 and 5 run and
+   refuse on the non-zero exit git returns. Only "no ancestor has one" is the permissive branch.
+2. **Reject a root-equivalent `memory_dir`** — the contract's invalid-root rule, judged against `T`
+   rather than the invoking worktree, since a root that is *another* checkout's toplevel would heal
+   into *that* repo's root `.gitignore`.
+3. **Prove the guard's write before the guard makes it:** `git -C T ls-files -- <the resolved root>`
+   must list **nothing**. A memory root holding tracked files is a source directory, and healing `*`
+   into it rewrites the ignore semantics of files the consumer owns. Stop there, before anything is
+   created — this step, not a later report, is what keeps the guard's write inside the proof.
+4. **Run the self-ignore guard**, then create the destination directory.
+5. **Prove the findings file:** `git -C T check-ignore -q -- <the exact intended file path>`, and
+   **write only on exit 0.**
 
-**Three outcomes, and three distinct reports.** Exit 0 writes. Exit 1 means *the destination is
-tracked space*, and is reported as that. Any other exit means *the probe did not evaluate this path*,
-and is reported as that, quoting the resolved path and the exit status. Both non-zero cases refuse —
-fail closed, because a probe that did not answer is never permission — but reporting an undetermined
-probe as "tracked space" sends the reader after a repair that does not exist. Collapsing those two
-states is what let a worktree-anchored probe pass for a working proof.
+**Why a filesystem walk in step 1 and not `git rev-parse --show-toplevel`.** `rev-parse` fails
+identically — exit 128 — for "there is no repository", for "that directory does not exist", and for a
+discovery limit such as `GIT_CEILING_DIRECTORIES` under which a repository *does* govern the path.
+Reading any non-zero as "no repository" would be fail-open at the one step that decides whether the
+rest of the proof is needed. The walk has no ambiguous state, needs no directory to exist yet — which
+is why steps 2 and 3 can run before anything is created — and cannot be narrowed by the environment.
+It is not a path-prefix comparison either: that would need canonicalized paths, and both `realpath`
+and `readlink`'s canonicalizing flag are GNU-only.
 
-**Anchor the probe to the destination, never to the invoking worktree.** A `memory_dir` resolving
-outside the worktree is a supported configuration the consumer handles explicitly (`fix-pass-mode.md`
-"Step 1", the shared-findings-directory bullet), and `git check-ignore` on a path outside its
-repository is `fatal: … is outside repository`, exit 128 — so a worktree-anchored probe can never
-succeed there, and `--persist-findings` would refuse every write in precisely the layout the consumer
-supports. Anchoring to the destination also answers the case the invoking worktree cannot see at all:
-an external root that sits inside *another* checkout, whose tracked space is just as real.
+**Anchor steps 3 and 5 to `T`, never to the invoking worktree.** A `memory_dir` resolving outside the
+worktree is a supported configuration the consumer handles explicitly (`fix-pass-mode.md` "Step 1",
+the shared-findings-directory bullet), and `git check-ignore` on a path outside its repository is
+`fatal: … is outside repository`, exit 128 — so a worktree-anchored probe can never succeed there,
+and `--persist-findings` would refuse every write in precisely the layout the consumer supports.
+Anchoring to `T` also answers the case the invoking worktree cannot see at all: an external root that
+sits inside *another* checkout, whose tracked space is just as real.
 
-**Do not reduce this to a path-prefix comparison** against `git rev-parse --show-toplevel`. A prefix
-test is only sound on canonicalized paths, and both `realpath` and `readlink`'s canonicalizing flag
-are GNU-only; `git -C` puts the question to git in the right place and needs no canonicalization.
+**Three outcomes at step 5, and three distinct reports.** Exit 0 writes. Exit 1 means *the
+destination is tracked space*, and is reported as that. Any other exit means *the probe did not
+evaluate this path*, and is reported as that, quoting the resolved path and the exit status. Both
+non-zero cases refuse — fail closed, because a probe that did not answer is never permission — but
+reporting an undetermined probe as "tracked space" sends the reader after a repair that does not
+exist. Collapsing those two states is what let a worktree-anchored probe pass for a working proof.
 
-**Order, because `git -C` needs its directory to exist:** resolve the destination → reject a
-root-equivalent `memory_dir` → create the memory root → run the self-ignore guard → create the
-destination directory → probe → write. Judge the invalid-root rule against **the repository that
-governs the resolved root**, not the invoking worktree — that is the contract's own rule read where
-the guard actually writes, since an external root that is another checkout's toplevel would heal into
-*that* repo's root `.gitignore`.
-
-The probe is positive, and the distinction matters because the obvious alternative is worthless: a
+Step 5 is positive, and the distinction matters because the obvious alternative is worthless: a
 `.gitignore` whose content is `*` matches **itself**, so a resolved root inside tracked space leaves
 `git status --porcelain` byte-identical to the Phase 0 snapshot whether the write was ignored or not.
 Comparing porcelain before and after therefore cannot detect the failure it appears to test.
 
-Three states this catches that reasoning about the guard alone does not:
+Three states these steps catch that reasoning about the guard alone does not — and **which step
+catches which** is the part to keep straight, because the guard heals between them:
 
-- A `memory_dir` or `CLAUDE.md`-declared location resolving **inside a tracked tree**. The
-  invalid-root rule rejects a root-*equivalent* value, not every tracked one, so this resolves
-  legally and still lands in tracked space.
-- A resolved root whose `.gitignore` **exists but does not ignore the file** — the guard creates one
-  only when absent, so a present-but-narrower file is a state no creation step reaches.
-- Any consumer-side ignore rule that **re-includes** the path (a later negation pattern), which no
-  amount of writing `*` at the root of the memory tier overrides.
+- **Step 3.** A `memory_dir` or `CLAUDE.md`-declared location resolving **inside a tracked tree and
+  holding tracked files**. The invalid-root rule rejects a root-*equivalent* value, not every tracked
+  one, so this resolves legally. Step 5 cannot catch it — by the time step 5 runs the guard has
+  written `*` there, so `check-ignore` exits 0 and `git status` is empty. Nothing is left visible to
+  git, which is exactly why only a check *before* the heal sees it at all.
+- **Step 5.** A resolved root whose `.gitignore` **exists but does not ignore the file** — the guard
+  creates one only when absent, so a present-but-narrower file is a state no creation step reaches.
+- **Step 5.** Any consumer-side ignore rule that **re-includes** the path (a later negation pattern),
+  which no amount of writing `*` at the root of the memory tier overrides.
 
-The guard may itself create a `.gitignore`; that write is the guard's, is announced, and is the only
-write this phase makes outside the findings file. It necessarily runs **before** the probe — on a
-fresh root that file is what makes the probe pass — so a refusal after it must report the guard's
-write too, never leave it behind unannounced.
+The guard's `.gitignore` is the only write this phase makes outside the findings file, and step 3 is
+what proves it rather than disclosing it. Step 3 cannot be folded into step 5: on a fresh root the
+guard's file is exactly what makes step 5 pass, so a single probe after the guard would be testing a
+state the guard had already created. Step 5 can still refuse after the guard has healed — a consumer
+negation re-including the path is that case — and such a refusal reports the guard's write alongside
+it rather than leaving it behind unannounced.
 
 ## What each cell says
 
@@ -166,7 +182,12 @@ on a pattern it never verified — does not arise. `low` is never emitted, per t
 
 ## When the file is written at all
 
-The discriminator is whether the run **examined** anything, not whether it found anything:
+**A failed restore precedes this question and is not one of its answers.** A run that could not verify
+a revert ended in failure at Phase 3, so this phase is unreachable and nothing below applies to it —
+"examined mutants and found survivors" is true of such a run and must not be read as licence to write.
+
+For a run that reached here, the discriminator is whether it **examined** anything, not whether it
+found anything:
 
 - **Rows to emit** → write.
 - **At least one mutant examined, no rows to emit** — no survivors, or every survivor was arid or
@@ -182,7 +203,8 @@ The discriminator is whether the run **examined** anything, not whether it found
   contract's omit-rather-than-fabricate rule forbids. Say so in the Phase 5 report instead.
 
 A partial run writes what it found and names what did not run, exactly as the partial-run rule in
-Gotchas governs the report.
+Gotchas governs the report — "partial" there meaning mutants that never ran, never a run whose tree
+was left mutated.
 
 ## Coverage the file does carry, and what it omits
 
@@ -206,8 +228,9 @@ and never read the consumer's ledger to decide what to write.
 
 Tracked source is byte-identical to the Phase 0 snapshot on three limbs, none of them assumed:
 Phase 3 verified every revert against that snapshot, nothing in this phase edits tracked source, and
-the destination was proven outside tracked space before the write. The first limb is why this phase
-can describe a tree at all — a run whose revert did not verify ends in failure at Phase 3 and never
-reaches here, so a findings file never claims `Location`s against source left mutated. The third is
+**both** of this phase's writes — the findings file and the guard's `.gitignore` — were proven outside
+tracked space before either was made. The first limb is why this phase can describe a tree at all — a
+run whose revert did not verify ends in failure at Phase 3 and never reaches here, so a findings file
+never claims `Location`s against source left mutated. The third is
 not traded for a findings file either: a destination that cannot be proven outside tracked space is
 reported and not written to.

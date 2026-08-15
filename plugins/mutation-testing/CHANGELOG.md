@@ -13,14 +13,21 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>).
   The destination, the self-ignore guard, and the producer-computed fields are resolved through that
   contract rather than restated. Bare invocation is unchanged: it reports and stops.
-- **The destination is proven outside tracked space before anything is written**, and a destination
-  that cannot be proven is not written to at all. The probe is `git check-ignore` anchored to the
-  repository that governs the destination — never to the invoking worktree, where a memory root
-  resolving outside the worktree (a layout the `review:fanout` `fix` action supports explicitly)
-  makes the probe fatal with exit 128 and every write a refusal. A destination no repository governs
-  is untrackable and needs no ignore rule. The obvious alternative is worthless: a `.gitignore` whose
-  content is `*` matches itself, so a memory root resolving inside tracked space leaves
-  `git status --porcelain` byte-identical whether the write was ignored or not.
+- **Both of the phase's writes are proven outside tracked space before either is made** — the
+  findings file and the self-ignore guard's own `.gitignore`. The guard's write is proven *before the
+  guard heals*, by requiring the resolved root to hold no tracked files, because writing `*` into a
+  root that does would rewrite the ignore semantics of the consumer's own files; proving only the
+  findings file would leave that write ahead of the proof. The governing checkout is found by walking
+  the resolved root's ancestors for a `.git` entry rather than by `git rev-parse --show-toplevel`,
+  which fails with exit 128 alike for no-repository, a missing directory, and a discovery limit under
+  which a repository does govern the path — reading non-zero as "no repository" would be fail-open.
+  With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
+  worktree, where a memory root outside the worktree (a layout the `review:fanout` `fix` action
+  supports explicitly) makes the probe fatal with exit 128 and every write a refusal. "The path is
+  tracked space" and "the probe could not evaluate the path" are reported as the different states
+  they are; both refuse. The obvious alternative is worthless: a `.gitignore` whose content is `*`
+  matches itself, so a memory root resolving inside tracked space leaves `git status --porcelain`
+  byte-identical whether the write was ignored or not.
 - **`Action` names the covering test file**, since Phase 1 already cached that selection and
   withholding it is information loss.
 - **Severity is computed from the Phase 4 verdict class, never from the finding's prose.** Productive
@@ -36,7 +43,8 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 ### Changed
 
 - **The read-only invariant is narrowed from the working tree to tracked source.** A mutant is still
-  applied, measured, and reverted, and tracked source is still byte-identical when the run ends — but
+  applied, measured, and reverted, and a run still either ends with tracked source byte-identical or
+  ends in failure naming what it could not restore — but
   the property no longer covers the whole tree, because `--persist-findings` writes into the ignored
   memory tier. That is a real widening of what the skill may do, disclosed here rather than folded
   into a wording note; what did *not* change is the skill's standing under the naming doctrine, whose
@@ -44,8 +52,9 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   `scripts/skill-leaf-name-registry.txt` records the amended grounds on which this plugin holds the
   `audit` leaf.
 - **A failed restoration now ends the run instead of headlining a report.** Phase 3 verifies every
-  revert against the Phase 0 snapshot *inside* the mutant loop, and the first path it cannot confirm
-  restored is terminal: no further mutants, no triage, no ranked report, and no findings file even
+  revert against the Phase 0 snapshot *inside* the mutant loop — and on the trap's exit paths too,
+  since a trap fires outside the loop and the crash path is where a revert that ran but did not work
+  is likeliest. The first path it cannot confirm restored is terminal: no further mutants, no triage, no ranked report, and no findings file even
   under `--persist-findings`. Previously the failure was reported as the run's headline finding while
   the run continued, which let a normal-looking outcome — and, with the flag, a conforming findings
   file whose `Location`s assert a restored tree — be produced over source left mutated. That is the

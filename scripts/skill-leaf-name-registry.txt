@@ -46,7 +46,9 @@ setup *
 # because the obvious alternative is wrong: the verb table fixes `clean`/`tidy`/
 # `fix` as "mutates the target", so a leaf named `mutate` would promise to edit
 # the consumer's source — the opposite of the contract, since every mutant is
-# reverted and tracked source is byte-identical when the run ends. What the skill
+# reverted and every revert verified, so the run either ends with tracked source
+# byte-identical or ends in failure naming what it could not restore, never in a
+# reported outcome over edited source. What the skill
 # produces is a findings report (surviving mutants), which is this verb. Its
 # object — the mutation analysis — is supplied by the namespace, so a topic
 # qualifier would say it twice. The opt-in `--persist-findings` write does not

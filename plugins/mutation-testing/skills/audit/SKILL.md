@@ -37,15 +37,17 @@ Arguments: `$ARGUMENTS`
 Three properties, stated first because everything below depends on them:
 
 1. **Read-only with respect to tracked source.** A mutant is applied, measured, and reverted.
-   Tracked source at the end of a run is byte-identical to tracked source at the start. That is
-   enforced, not assumed: every revert is verified against the Phase 0 snapshot, and the first one
-   that cannot be verified ends the run in failure — no later phase runs and nothing is persisted
+   Every revert is verified against the Phase 0 snapshot, so a run **either** ends with tracked
+   source byte-identical to tracked source at the start **or** ends in failure naming what it could
+   not restore — never in a reported outcome over edited source. The first revert that cannot be
+   verified is that failure: no later phase runs and nothing is persisted
    ([Phase 3](#phase-3--execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
-   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes — the findings file, and
-   the self-ignore guard's own `.gitignore` when it creates one — land only where git is **proven**
-   to ignore them, never in tracked source and never in a file another producer owns.
+   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its two writes — the findings file,
+   and the self-ignore guard's own `.gitignore` when it heals a root — are each **proven outside
+   tracked space before either is made**, never in tracked source and never in a file another
+   producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -67,6 +69,11 @@ Refuse to proceed, with the specific remediation, when any of these fail:
 Record the baseline run's result and wall-clock. Every later "killed" verdict is meaningful only
 against a green baseline captured in this run — not against the one `setup` recorded, which may be
 stale.
+
+**Capture `git status --porcelain` here.** This is *the Phase 0 snapshot* every later restoration
+check compares against, and the rest of this skill refers to it by that name. It is taken before the
+first mutant is applied and never re-taken: a snapshot refreshed mid-run would absorb the very
+difference it exists to detect.
 
 ## Phase 1 — Scope
 
@@ -117,22 +124,37 @@ mechanical judgments.
 
 Revert must be guaranteed on every exit path — pass, fail, error, or interrupt. Apply the mutation
 as a patch reverted in a trap or `finally`, never as an edit depending on a later step to clean up.
+**The verification below runs on those paths too.** A trap fires outside the loop, so the loop's own
+comparison never sees a crashed or interrupted run; the trap's revert is followed by the same
+comparison, and a trap-path revert whose comparison does not match — or cannot be made — is a failed
+restore reported as one. A revert that merely *ran* is not a revert that *worked*, and the crash path
+is where that difference is most likely to bite.
 
 **Verify restoration against the Phase 0 snapshot, not against a clean tree.** Phase 0 rejects a
 dirty *target* but permits unrelated dirty files elsewhere, so an unconditional "tree is clean" probe
 would report a restoration failure on a repo that merely has unrelated work in progress — and, worse,
-would teach the reader to ignore that line. Capture `git status --porcelain` before Phase 3 and
-compare the after-state to it: equality is success, any difference in a mutated path is a failed
-restore.
+would teach the reader to ignore that line. Compare the after-state against that snapshot: equality
+is success, any difference in a mutated path is a failed restore.
 
-**Compare after every revert, inside the loop — never once at the end.** A failed restore means the
-trap itself failed, so the next mutant would be applied on top of unrestored source: every verdict
-after that point describes a tree nobody wrote, and an end-of-phase comparison cannot tell you which
-mutant broke it.
+**How often to compare depends on who owns the mutant loop, and both answers are mandatory.**
+
+- **This skill owns the loop** (`tool: manual`, and any path where this skill applies and reverts):
+  compare **after every revert, inside the loop** — a failed restore means the trap itself failed, so
+  the next mutant would be applied on top of unrestored source, every verdict after that describes a
+  tree nobody wrote, and an end-of-loop comparison cannot even say which mutant broke it.
+- **The configured tool owns the loop** ([Phase 2](#phase-2--generate)'s diff-scoped delegation —
+  the tool applies, runs, and reverts internally and returns only results): this skill cannot
+  interpose, so it compares **once, when the tool returns**, and that comparison is required rather
+  than a nicety. Say what it cannot do instead of pretending otherwise: it cannot name the mutant
+  that broke the restore and it cannot stop the tool mid-run, so its report says the run is
+  unattributable as well as failed. Never treat the tool's own exit status as the restoration
+  verdict — a harness that reverts by writing the file back reports success for a write it never
+  re-read.
 
 **The first failed restore ends the run.** It is terminal, not a finding reported beside the others:
 
-- Apply no further mutants.
+- Apply no further mutants — binding on the skill-owned loop; on the tool-owned one the run is
+  already over, which is precisely why the remaining two are what carry the rule there.
 - Enter no later phase — no triage, no ranked report, and **no findings file, `--persist-findings`
   or not**.
 - Return a **failure** verdict naming every unrestored path and the recovery command. The failure is
@@ -248,19 +270,20 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-the destination is **proven** outside tracked space before anything is written, by a
-`git check-ignore` anchored to the repository that governs the destination rather than to the
-invoking worktree — a memory root inside tracked space leaves `git status` identical either way and
-so cannot detect itself, while a memory root outside the worktree is a layout the consumer supports
-and a worktree-anchored probe could only ever refuse; `Tier` and `Confidence` are computed from the
-Phase 4 **verdict class** and never from the
+**both** of the phase's writes — the findings file and the self-ignore guard's `.gitignore` — are
+proven outside tracked space before **either** is made, against the checkout that governs the
+destination rather than the invoking worktree, and with the guard's own write proven before the guard
+heals rather than reported afterwards (a memory root inside tracked space leaves `git status`
+identical either way and so cannot detect itself, while a root outside the worktree is a layout the
+consumer supports and a worktree-anchored probe could only ever refuse); `Tier` and `Confidence` are
+computed from the Phase 4 **verdict class** and never from the
 finding's prose, with `Confidence: low` never emitted; every cell describes a mutant this run
 actually executed, never an illustrative one; a run that examined mutants writes even when it found
 nothing, while a run that examined **none** writes nothing at all; and an existing path is never
 overwritten.
 
-Persisting does not trade away the property in "The contract this skill holds": tracked source is
-byte-identical when the run ends — verified, not assumed — and a destination that cannot be proven
+Persisting does not trade away the property in "The contract this skill holds": this phase is
+reachable only from a run whose every revert verified, and a destination that cannot be proven
 outside tracked space is not written to at all.
 
 **Known limitation, routed not solved.** A mutation finding's remediation lands in the covering test,
@@ -306,7 +329,9 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   is the entire reason the covered-code score is the one reported.
 - **A partially-completed run must report as partial.** Mutants that never ran are named as not-run —
   never counted as killed, never silently omitted. The same rule applies to a mutant set truncated
-  by a cap.
+  by a cap. **A run cut short by a failed restore is not this case** — it reports failure, not a
+  partial result ([Phase 3](#phase-3--execute)). A partial report describes a tree that is intact;
+  that one is not.
 - **Reaching for "equivalent" is the standard way this technique manufactures false confidence.**
   It is the convenient explanation for any survivor whose test is hard to write. Require the
   demonstration; report the claim as unclassified when none exists.
@@ -322,7 +347,7 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 
 - Write or modify tests, or leave any mutation in the tree.
 - Persist anything on bare invocation. The findings file is written only under `--persist-findings`,
-  and only into the gitignored memory tier.
+  and only into a memory tier proven to sit outside tracked space.
 - Apply its own findings, or read the consumer's consumption ledger. It writes one file and stops;
   what happens to that file belongs to the `fix` action.
 - Write suppressions without the user accepting them.
