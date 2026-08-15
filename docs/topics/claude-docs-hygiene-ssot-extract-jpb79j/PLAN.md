@@ -72,11 +72,47 @@ Locked with the user via interview:
    here; repo lint/validation on touched files; push; ready-for-review
    PR.
 
+## Verify results (2026-08-15, 29 clusters, 0 worker errors)
+
+| Verdict | Clusters |
+|---|---|
+| PROCEED (7) | C01 (14/0), C02 (31/0), C04 (32/0), C06 (14/8), C07 (16/0), C09 (12/0), C23 (4/1) |
+| WARN-borderline (4) | C03 (21/0), C13 (11/0), C17 (9/0), C25 (16/0) — adversarial diff review before commit |
+| REFUSE (18) | C05, C19, C20, C28, C29 (rule-of-three, n=2); C14, C15, C18, C22, C31, C32 (already-cites-canonical); C11, C12, C16, C21, C27 (low-roi); C10 (off-by-one-different-concern); C24 (primary-source-citation-gate) |
+
+Counts are `inline/citing` from each worker's own Tier 0 grep. C03
+returned both a cached PROCEED (19/0) and a live WARN (21/0); the WARN
+verdict governs. Refusal rate 62% — under the 80% batch-abort
+threshold. Full per-gate evidence: workflow journal (memory tier).
+
+## Execution wave plan (cap 2, disjoint lanes; one commit per wave)
+
+| Wave | Lane A | Lane B | Overlap rationale |
+|---|---|---|---|
+| 1 | C02 (setup contract; owns `PLUGIN-PHILOSOPHY.md` edits this wave) | C06 (untrusted-content convention) | disjoint |
+| 2 | C01 (advisor-fallback trim) | C09 (README preamble deletion) | disjoint; philosophy edits sequential after W1 |
+| 3 | C07 (probe ladder) | C13 (context-gather, WARN) | disjoint |
+| 4 | C04 (settings-ownership trim) | C17 (songwriting attribution, WARN) | disjoint |
+| 5 | C03 (reconfigure recipe rule-file, WARN) | C23 (mktemp idiom) | disjoint |
+| 6 | C25 (enabledPlugins wording, WARN) | — | after C09's README commits |
+
+Setup-skill chain C02 → C07 → C04 → C03 stays strictly sequential
+across waves (shared `plugins/*/skills/setup/SKILL.md` files); README
+chain C09 → C25 likewise. Portability constraint injected into every
+worker: plugin runtime surfaces must stay operable standalone — a
+marketplace-docs citation is provenance-only, never a runtime
+dependency (the loop-lane inline-floor form is the precedent).
+
 ## Status log
 
 - **2026-08-15** — Contract locked via interview; survey subagent
   dispatched (inventory in flight); this slice opened. Next: roster
   classification when the survey returns.
+- **2026-08-15 (resume)** — User go-ahead received; verify fleet
+  resumed from cached run and completed 29/29 (tally above). Wave plan
+  locked; execution begins with Wave 1 (C02 ∥ C06). CI review lanes
+  (429-failed earlier) deferred to close-out to avoid competing with
+  the fleet for windows.
 - **2026-08-15 (later)** — Inventory complete: 32 candidates + 27
   refusals persisted to `design/roster.md`; orchestrator spot-check
   passed (C01 exact, C09 exact, C02 under-counted). Skill update
