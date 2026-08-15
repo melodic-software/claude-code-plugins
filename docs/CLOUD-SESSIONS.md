@@ -106,10 +106,14 @@ plus the cost model of
   `CLAUDE_CODE_REMOTE` and make every step idempotent; the cost is paid per session.
 - **Neither is for processes**: the cache keeps files, not running services. Start databases or
   `docker compose` stacks per session (ask Claude, or start them from the hook).
-- **Performance lever — cache the hook's work**: the setup script runs after the repository is
-  cloned, so a guarded line in the environment's setup script can run this repo's bootstrap and
-  bake its results into the cached snapshot, dropping per-session hook time to the idempotent
-  re-check (~3 s here):
+- **The setup script is the only pre-launch slot — plugins require it, and it caches the hook's
+  work**: the setup script runs after the repository is cloned and before the session's Claude
+  Code process starts, so a guarded line in the environment's setup script can run this repo's
+  bootstrap and bake its results into the cached snapshot. That drops per-session hook time to
+  the idempotent re-check (~3 s here) — and, more importantly, it is the only point where
+  `claude plugin install` can land before the process reads its plugin registry, which is what
+  makes plugins live in a session at all (see the same-session limit under
+  [Plugins in sessions on this repo](#plugins-in-sessions-on-this-repo)):
 
   ```bash
   [ -f .claude/hooks/session-start.sh ] && CLAUDE_CODE_REMOTE=true bash .claude/hooks/session-start.sh || true
@@ -187,14 +191,36 @@ enables; the session-start hook installs (see
   That is exactly the split the table predicts, and it is why
   [what carries over](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
   promising plugins "installed at session start from the marketplace you declared" did not hold
-  here. A hook is the durable fix precisely because hooks run untrusted.
+  here. Hooks run untrusted, so a hook can repair the on-disk state — but not the running
+  session; see the next bullet.
+- **A SessionStart install is never visible to the session that ran it.** Observed 2026-08-15 in
+  a cloud session on this repo: the hook completed `65 enabled, 65 newly installed, 0 failed`,
+  `~/.claude/plugins/installed_plugins.json` and user-scope `settings.json` were fully populated
+  with the whole catalog — yet the same session's plugin registry stayed empty: its first
+  message, a plugin slash command, returned "Unknown command", and a mid-session probe of the
+  skill registry resolved no plugin skill. The command/skill registry is built when the Claude
+  Code process starts, before SessionStart hook effects land, and is not re-read afterwards; the
+  [hooks reference](https://code.claude.com/docs/en/hooks#sessionstart) documents no same-session
+  pickup, and neither `/plugin` nor `--plugin-dir` exists in cloud sessions to force one. On an
+  ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is
+  already built, so the hook alone can never produce a session with plugins loaded. What the
+  hook still buys is correct on-disk state for any process start that happens *after* it — a
+  resume served by a persisting container, and (the actual fix) the environment setup script
+  running this same bootstrap at cache-build time, before any session process launches: the
+  guarded one-liner in the
+  [setup-script lever above](#setup-script-vs-sessionstart-hook-decision-criteria), already
+  present in [CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md)'s step-1 script. Whether the cached
+  snapshot's `~/.claude` actually reaches sessions is undocumented — after adding the line,
+  rebuild the cache (edit saves the script) and verify with a fresh session whose *first*
+  message is a plugin slash command.
 - Being a `directory` source may compound it —
   [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
   and the carry-over note qualifies install-at-session-start with "requires network access to reach
   the marketplace source". The two candidates were not separated, because the trust gate alone
   accounts for the symptom and the hook makes both moot.
 - The hook therefore registers the checkout by absolute path and installs the enabled set
-  explicitly. It never calls `claude plugin marketplace remove`, which deletes the marketplace's
+  explicitly — for the benefit of the *next* process start, per the timing bullet above. It
+  never calls `claude plugin marketplace remove`, which deletes the marketplace's
   entry from `.claude/settings.json` and would have the hook mutate tracked config.
 - On resume it also repairs [same-version commit drift](MIGRATION-PLAYBOOK.md): because a
   directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a

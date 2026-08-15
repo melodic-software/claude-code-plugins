@@ -112,8 +112,16 @@ fi
 # source is documented as a development source, and sessions in fact arrive with
 # an empty plugin registry — no plugin skill loaded and every `/plugin` command
 # unknown. Registering the checkout by absolute path and installing the enabled
-# set repairs that while keeping the property the directory source exists for:
-# a session exercises the plugin code on the current branch, not published main.
+# set repairs the on-disk state while keeping the property the directory source
+# exists for: a session exercises the plugin code on the current branch, not
+# published main.
+#
+# Timing limit (docs/CLOUD-SESSIONS.md, "Plugins in sessions on this repo"):
+# the plugin/command registry is read at process start, BEFORE this hook runs,
+# and is not re-read, so these installs are invisible to the session performing
+# them. They serve the next process start — which on an ephemeral cloud VM
+# means the environment's setup script must run this hook at cache-build time
+# for a session to ever start with plugins loaded.
 #
 # Never `claude plugin marketplace remove` here. That subcommand deletes the
 # marketplace's entry from .claude/settings.json, so a hook that used it to

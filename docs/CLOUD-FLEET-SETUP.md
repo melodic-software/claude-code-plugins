@@ -273,8 +273,11 @@ the cache). Start a cloud session on this repo in the new environment and ask Cl
 2. The repo's hook ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
    `actionlint`), and re-running the hook is a fast no-op.
 3. `echo $GH_TOKEN` prints `proxy-injected` (GitHub proxy is authenticating).
-4. Marketplace plugins loaded (`/plugin` → installed list shows `@melodic-software` entries) in a
-   session on a repo that declares them (songwriting or medley).
+4. Marketplace plugins loaded, in a session on a repo that declares them (songwriting or
+   medley): make the session's *first* message a plugin slash command and confirm it resolves —
+   `/plugin` is not available in cloud sessions, and a Bash-side
+   `claude plugin list` proves only disk state, not that the session loaded anything (see the
+   same-session limit in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
 5. If the .NET setup-script step failed (`dotnet` missing), apply the Custom-allowlist fallback
    from [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) and re-verify.
 6. Python: in a claude-code-proxy or medley session, `uv python install 3.14` — if the download
@@ -286,16 +289,15 @@ the cache). Start a cloud session on this repo in the new environment and ask Cl
 
 ## Findings
 
-- **This repo's bootstrap is currently unwired.** `.claude/hooks/session-start.sh` exists and
-  `docs/CLOUD-SESSIONS.md` §"How this repository is set up" describes `settings.json` registering
-  it (plus a nine-plugin `enabledPlugins` set), but the committed `settings.json` on `main`
-  carries neither key — confirmed empirically in the session that produced this doc: `npm ci`
-  had not run and the hook-pinned tools were absent at session start. The `claude-ops`
-  converge/sync machinery owns committed plugin enablement (see #2539), so this doc does not
-  patch `settings.json` unilaterally: **decide whether the removal was intentional**, then either
-  re-register the hook (snippet in [Step 2](#step-2--per-repo-templates)) or update
-  CLOUD-SESSIONS.md to describe the deliberate state. Until one of those lands, cloud sessions on
-  this repo start without their toolchain.
+- **This repo's bootstrap is wired** (resolved; found unwired on 2026-08-13). The committed
+  `settings.json` on `main` registers the SessionStart hook and enables the full catalog, and a
+  2026-08-15 cloud session confirmed the hook ran at startup and installed all 65 plugins. That
+  same session also established the follow-on limit now recorded in
+  `docs/CLOUD-SESSIONS.md` §"Plugins in sessions on this repo": hook-time installs land on disk
+  but are never loaded by the session that ran them (the registry is read before the hook), so
+  plugins are live in a session only once the environment setup script
+  ([Step 1](#step-1--the-shared-environment-claudeai-ui-one-time)) runs the bootstrap at
+  cache-build time.
 - **`dotfiles` cannot deliver user config to the cloud.** By platform design nothing from
   `~/.claude` reaches cloud sessions; the repo remains editable in the cloud, but any behavior it
   installs locally must be re-homed (repo `.claude/`, plugins, or the environment) to exist
