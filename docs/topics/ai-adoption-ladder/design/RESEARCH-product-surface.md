@@ -148,7 +148,7 @@ None material. All 12 doc pages and all Part B primaries agree with the changelo
 
 ## Project fit
 
-This is external product research, not a change to the melodic-software repos; no CLAUDE.md/standards conventions apply beyond the research discipline (primary-source-first, direct fetch, per-claim Tier-1 + corroboration), which was followed. Artifact persisted to the requested `.work/ai-adoption-ladder/` path (memory-tier, not committed).
+This is external product research, not a change to the melodic-software repos; no CLAUDE.md/standards conventions apply beyond the research discipline (primary-source-first, direct fetch, per-claim Tier-1 + corroboration), which was followed.
 
 ## Outcome gate
 

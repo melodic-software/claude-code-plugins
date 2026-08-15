@@ -315,9 +315,8 @@ optionally runs `gh pr list` (read-only) and, when a work-item tracker capabilit
 its open items — degrading to local git state alone when `gh` or the tracker is absent. The observer's
 autonomous analysis leg reaches the network only when armed with `observer_analysis_enabled` on: it
 runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
-checkpoint are network-free. The remaining skills — workflow, handoff, continue-in-background,
-keep-going, find-handoff, retro, running-retro (in-session), orchestrate, reconcile, and setup — are
-network-free (retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
+checkpoint are network-free. Every skill not named above is network-free
+(retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
 `~/.claude/projects/` transcripts; find-handoff scans those same local transcripts read-only with no
 parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary

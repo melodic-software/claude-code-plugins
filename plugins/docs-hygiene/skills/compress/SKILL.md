@@ -18,7 +18,7 @@ Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep '\.md$' | hea
 
 Markdown in `docs/`, README files, onboarding docs, third-party pasted prose, and drifted skill bodies accumulates FLAVOR — filler ("just", "really", "basically"), hedging ("perhaps", "might"), articles, pleasantries, redundant restatement. `context/flavor-vs-content-matrix.md` defines FLAVOR (safe to cut) vs CONTENT (never cut); this skill applies that taxonomy AT EDIT TIME to content where author-time discipline does NOT apply.
 
-Always-loaded instruction files (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) bound empirically at 2-3% yield (baseline from the authoring repo: 3/3 attempts reverted, all flavor-only, 0 semantic loss). Likely 5-15% yield on author-time-undisciplined content.
+Always-loaded instruction files (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) bound empirically at 2-3% yield (see ## Sources). Likely 5-15% yield on author-time-undisciplined content.
 
 Methodology: snapshot original → backend mechanical compression (the `caveman` plugin via `/caveman:compress`, OR in-session Edit fallback) → spawn semantic-diff subagent comparing original vs condensed (output: SEMANTIC LOSS / AMBIGUITY / FALSE POSITIVE per finding with verbatim citations) → revert every SEMANTIC LOSS + AMBIGUITY → run `markdownlint-cli2` → ship or revert.
 
@@ -96,8 +96,8 @@ Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP
 
 Observed failure points — each traces to a real incident; grown iteratively.
 
-- **Self-audit drifts toward EXPANSION.** The semantic-diff dispatch must run as a SEPARATE fresh-context audit, never a self-audit by the model that produced the edits — self-audit re-adds words just removed ("preserve clarity"). Prefer a cross-vendor advisor for that audit when one is installed and set up — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve. Empirically observed in the authoring repo: 4/4 reverse-direction edits in one batch compression wave. Subagents cannot reliably spawn the verifier themselves (nested subagent support is version-dependent, and a fresh-context verifier beats self-critique regardless), so for batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents, reconciling per finding.
-- **Sub-3% diffs auto-revert unless `--force`.** Default `<3% AND 0 semantic-loss → REVERT`; always-loaded instruction files bound at 2-3% yield (empirical baseline: 3/3 reverted, all flavor-only). Pass `--force` only when a targeted sub-3% diff is intentional — the user owns the result.
+- **Self-audit drifts toward EXPANSION.** The semantic-diff dispatch must run as a SEPARATE fresh-context audit, never a self-audit by the model that produced the edits — self-audit re-adds words just removed ("preserve clarity"; an observed failure — see ## Sources). Prefer a cross-vendor advisor for that audit when one is installed and set up — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve. Subagents cannot reliably spawn the verifier themselves (nested subagent support is version-dependent, and a fresh-context verifier beats self-critique regardless), so for batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents, reconciling per finding.
+- **Sub-3% diffs auto-revert unless `--force`.** Default `<3% AND 0 semantic-loss → REVERT`; always-loaded instruction files bound at 2-3% yield (see ## Sources). Pass `--force` only when a targeted sub-3% diff is intentional — the user owns the result.
 - **Caveman writes a `<file>.original.md` backup beside the target.** The caveman backend hardcodes this backup path; running it against the real file litters the repo. Backend Step B wraps caveman in a `mktemp -d` tempdir so the backup lands there and the `trap` cleans it; a gitignore entry for `**/*.original.md` in the consuming repo is optional belt-and-suspenders.
 
 ## When NOT to use
@@ -116,6 +116,11 @@ Observed failure points — each traces to a real incident; grown iteratively.
 - **Not a `/code-review` / `/simplify` shadow.** The bundled `/code-review` and `/simplify` skills review code changes; `/docs-hygiene:compress` rewrites markdown prose. Different concerns
 - **Not `/docs-hygiene:audit-noise`.** `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement). `/docs-hygiene:audit-noise` owns NOISE classification (historical citations, ghost refs, "Why this file exists" preambles, hard-coupled enumerated consumer lists) per its own taxonomy. Different concerns; both may apply to the same target iteratively
 - **Not a content-relocation / cite-don't-recap tool.** When an inline passage recaps detail that already lives in a cited single source of truth (another doc or rule), condensing it is content RELOCATION, not flavor removal — the mandatory semantic-diff net sees the words gone from THIS file and reverts them as SEMANTIC LOSS, blind to the SSOT. Apply "reference, don't duplicate" as a MANUAL editorial pass (verify the cited SSOT actually holds the detail first — an unread pointer is an unverified claim); use `/docs-hygiene:extract-ssot` when the duplicated cluster spans 3+ files
+
+## Sources
+
+- Always-loaded instruction-file yield bound (2-3%): authoring-repo baseline, 3/3 compression attempts reverted, all flavor-only, 0 semantic loss
+- Self-audit expansion drift: authoring-repo batch compression wave, 2026-05-23 — 4/4 reverse-direction edits from self-audit (`context/fan-out-orchestration.md` ## History)
 
 ## Cross-references
 
