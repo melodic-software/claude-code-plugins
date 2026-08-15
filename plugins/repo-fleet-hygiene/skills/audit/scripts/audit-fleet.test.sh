@@ -19,7 +19,18 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
   "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
   "$TMP/canonical-a/.claude/worktrees/nested" "$TMP/canonical-a/husk" \
-  "$TMP/prefix-fail" "$TMP/prefix-auth/.git"
+  "$TMP/prefix-fail" "$TMP/prefix-auth/.git" \
+  "$TMP/bare-live/.git" "$TMP/bare-live-link" \
+  "$TMP/bare-pure/objects" "$TMP/bare-pure/refs"
+# bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
+# administrative anomaly the collector must classify rather than reject (#2602 / #2656).
+: >"$TMP/bare-live/README"
+: >"$TMP/bare-live/.gitignore"
+# bare-pure: conventional `git init --bare` shape (HEAD/config/objects/refs at the repository
+# root, no in-tree .git). Administrative entries must not count as working-tree content (#2602).
+: >"$TMP/bare-pure/HEAD"
+: >"$TMP/bare-pure/config"
+: >"$TMP/bare-pure/description"
 # Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
 # worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
 # a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
@@ -113,6 +124,10 @@ rev-parse)
     conform) printf '%s\n' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform" ;;
     no-origin-canon) printf '%s\n' "$TEST_ROOT/no-origin-canon" ;;
     no-origin-canon-feature-ok) printf '%s\n' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok" ;;
+    # bare-live / bare-pure: show-toplevel fails (not a work tree). bare-live-link is a real linked
+    # worktree of the misconfigured main and answers normally.
+    bare-live-link) printf '%s\n' "$TEST_ROOT/bare-live-link" ;;
+    bare-live | bare-pure) exit 1 ;;
     *) exit 1 ;;
     esac
     ;;
@@ -130,8 +145,9 @@ rev-parse)
     esac
     ;;
   --is-bare-repository)
-    # Only the bare hub answers true; everything else is a working checkout.
+    # bare-live and bare-pure answer true; linked worktrees of a bare-misconfigured main answer false.
     case "$base" in
+    bare-live | bare-pure) printf 'true\n' ;;
     *) printf 'false\n' ;;
     esac
     ;;
@@ -163,6 +179,8 @@ rev-parse)
     prefix-auth) printf '%s\n' "$TEST_ROOT/prefix-auth/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
     sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
+    bare-live | bare-live-link) printf '%s\n' "$TEST_ROOT/bare-live/.git" ;;
+    bare-pure) printf '%s\n' "$TEST_ROOT/bare-pure" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -298,6 +316,19 @@ worktree)
   # First record is the detached git directory, which is not a working tree at all.
   sep-wt)
     printf 'worktree %s\0HEAD sep-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-admin/sep-gitdir"
+    ;;
+  # bare-live: main registration is bare; a linked worktree still exists (the anomaly shape).
+  bare-live)
+    printf 'worktree %s\0HEAD bare-main\0bare\0\0' "$TEST_ROOT/bare-live"
+    printf 'worktree %s\0HEAD bare-link\0branch refs/heads/feat\0\0' "$TEST_ROOT/bare-live-link"
+    ;;
+  # bare-pure: only the bare registration, no linked worktrees; admin files at root are not debris.
+  bare-pure)
+    printf 'worktree %s\0HEAD bare-pure\0bare\0\0' "$TEST_ROOT/bare-pure"
+    ;;
+  bare-live-link)
+    printf 'worktree %s\0HEAD bare-main\0bare\0\0' "$TEST_ROOT/bare-live"
+    printf 'worktree %s\0HEAD bare-link\0branch refs/heads/feat\0\0' "$TEST_ROOT/bare-live-link"
     ;;
   esac
   ;;
@@ -1029,6 +1060,52 @@ else
   failures=$((failures + 1))
 fi
 
+# core.bare=true with working-tree content / linked worktrees is an administrative anomaly, not a
+# silent omission and not a run abort (#2602 / #2656). Explicit --repo must emit the finding and
+# continue so a companion repository is still audited. --detail surfaces Finding:/Handoff lines
+# (default output is rollup kind counts only).
+bare_out="$TMP/bare-live-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-live" --repo "$TMP/repo-b" \
+  --detail >"$bare_out" 2>&1; then
+  if grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out" &&
+    grep -Fq "git config --local core.bare false" "$bare_out" &&
+    grep -Fq "linked worktrees are unaffected" "$bare_out" &&
+    grep -Fq "Repo: $TMP/repo-b" "$bare_out" &&
+    ! grep -Fq "Error: not a Git working tree" "$bare_out"; then
+    printf 'PASS: bare-repo-with-working-tree is reported and does not abort the run\n'
+  else
+    printf 'FAIL: bare-repo-with-working-tree is reported and does not abort the run\n' >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: bare-repo-with-working-tree run aborted (exit %s)\n' "$?" >&2
+  failures=$((failures + 1))
+fi
+
+# Discovery under --root must classify the same anomaly rather than aborting before the report.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/bare-live" --repo "$TMP/repo-b" \
+  --detail >"$bare_out" 2>&1 &&
+  grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out" &&
+  grep -Fq "Repo: $TMP/repo-b" "$bare_out"; then
+  printf 'PASS: discovery of bare-with-live-tree emits a finding and continues\n'
+else
+  printf 'FAIL: discovery of bare-with-live-tree emits a finding and continues\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A pure bare hub (no checkout debris, no linked worktrees) is still not this finding.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-pure" >"$bare_out" 2>&1; then
+  printf 'FAIL: pure bare hub unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$bare_out" &&
+  ! grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out" &&
+  ! grep -Fq "bare-repo-with-working-tree=" "$bare_out"; then
+  printf 'PASS: pure bare hub without live tree still rejects as not a working tree\n'
+else
+  printf 'FAIL: pure bare hub without live tree still rejects as not a working tree\n' >&2
+  failures=$((failures + 1))
+fi
+
 # Bare path ≡ --root (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/root" >"$ladder_out" 2>&1 &&
   grep -Fq "Repo: $TMP/root/acme/root-repo" "$ladder_out" &&
@@ -1587,6 +1664,58 @@ if [[ "$verdict_probe_actionable" == "1 candidates" ]]; then
   printf 'PASS: actionable kinds still count as rollup candidates\n'
 else
   printf 'FAIL: expected 1 candidates with one actionable kind, got %s\n' "$verdict_probe_actionable" >&2
+  failures=$((failures + 1))
+fi
+
+# directory_has_non_git_entries lives after the source-early-return guard, so extract it the same
+# way as the rollup helpers above. bare-live (nested .git + debris) must be true; bare-pure
+# (ordinary git init --bare admin files, no nested .git) must be false (#2602 / #2656).
+dh_probe="$(
+  SCRIPT="$SCRIPT" BARE_LIVE="$TMP/bare-live" BARE_PURE="$TMP/bare-pure" bash -c '
+    eval "$(sed -n "/^directory_has_non_git_entries()/,/^}/p" "$SCRIPT")"
+    if directory_has_non_git_entries "$BARE_LIVE"; then
+      printf "live-yes\n"
+    else
+      printf "live-no\n"
+    fi
+    if directory_has_non_git_entries "$BARE_PURE"; then
+      printf "pure-yes\n"
+    else
+      printf "pure-no\n"
+    fi
+  '
+)"
+if [[ "$dh_probe" == $'live-yes\npure-no' ]]; then
+  printf 'PASS: directory_has_non_git_entries distinguishes bare-live debris from bare-pure hubs\n'
+else
+  printf 'FAIL: directory_has_non_git_entries distinguishes bare-live debris from bare-pure hubs (%s)\n' \
+    "$(printf '%s' "$dh_probe" | tr '\n' '/')" >&2
+  failures=$((failures + 1))
+fi
+
+# record_bare_live_tree dedups BARE_LIVE_TREE_* by common-dir key so linked worktrees of the same
+# misconfigured main do not double-emit bare-repo-with-working-tree (#2602 / #2656).
+bare_record_probe="$(
+  SCRIPT="$SCRIPT" bash -c '
+    eval "$(sed -n "/^record_bare_live_tree()/,/^}/p" "$SCRIPT")"
+    BARE_LIVE_TREE_PATHS=()
+    BARE_LIVE_TREE_EVIDENCE=()
+    BARE_LIVE_TREE_COMMON_KEYS=()
+    record_bare_live_tree /tmp/bare-live "evidence-a" common-key-1
+    record_bare_live_tree /tmp/bare-live-link "evidence-b" common-key-1
+    record_bare_live_tree /tmp/other-bare "evidence-c" common-key-2
+    printf "%s\n" "${#BARE_LIVE_TREE_PATHS[@]}"
+    printf "%s\n" "${BARE_LIVE_TREE_PATHS[0]}"
+    printf "%s\n" "${BARE_LIVE_TREE_PATHS[1]}"
+    printf "%s\n" "${BARE_LIVE_TREE_EVIDENCE[0]}"
+    printf "%s\n" "${BARE_LIVE_TREE_COMMON_KEYS[1]}"
+  '
+)"
+if [[ "$bare_record_probe" == $'2\n/tmp/bare-live\n/tmp/other-bare\nevidence-a\ncommon-key-2' ]]; then
+  printf 'PASS: record_bare_live_tree dedups BARE_LIVE_TREE_* by common-dir key\n'
+else
+  printf 'FAIL: record_bare_live_tree dedups BARE_LIVE_TREE_* by common-dir key (%s)\n' \
+    "$(printf '%s' "$bare_record_probe" | tr '\n' '/')" >&2
   failures=$((failures + 1))
 fi
 

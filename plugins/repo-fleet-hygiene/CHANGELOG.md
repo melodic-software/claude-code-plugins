@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Fixed
+
+- **Bare-repo-with-working-tree coverage restored in the audit suite (#2656).** The collector
+  still emitted the finding after the #2633/#2640 rewrite, but the suite no longer asserted
+  `Finding: bare-repo-with-working-tree` under `--detail`. Coverage is restored, and the
+  out-of-suite finding-kind gate now requires that needle (not a bare token / `F_KIND`
+  mention) so false-green setup references cannot satisfy it.
+
 ## [0.21.0]
 
 ### Fixed

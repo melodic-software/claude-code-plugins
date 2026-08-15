@@ -1,0 +1,24 @@
+# (#2656)
+# an exact kind token. scripts/check-fleet-finding-test-coverage.sh --check
+# audit-fleet.test.sh. Substring / F_KIND mentions do not count. Each entry is
+# Burn-down is intentional; do not add new kinds here without an owning issue.
+canonical-identity-conflict
+canonical-identity-unverified
+canonical-override-invalid
+current-branch-unavailable
+discovery-skip
+# fails on a stale entry (kind now Finding:-asserted or no longer emitted).
+# Finding kinds emitted by plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh
+git-common-dir-unavailable
+github-identity-unavailable
+github-pr-evidence-unavailable
+github-remote-moved
+local-ancestry-only
+local-ancestry-unavailable
+locked-worktree
+missing-worktree
+prunable-worktree
+# that do not yet have a collector-output assertion (`Finding: <kind>`) in
+worktree-common-dir-unavailable
+worktree-placement-unverifiable
+worktree-root-pluginconfigs-unreadable

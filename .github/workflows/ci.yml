@@ -598,6 +598,28 @@ jobs:
   # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
   # never relaxed by the baseline. The self-test runs unconditionally so a broken
   # gate cannot mask a regression, and the PR-diff step is event-gated.
+# Every finding kind audit-fleet.sh emits must have a Finding: <kind>
+# collector-output assertion in audit-fleet.test.sh (or be grandfathered).
+# Lives outside the suite so a stale-base squash that rewrites the test file
+# alongside the collector cannot delete its own defender (#2656). Existing
+# debt is grandfathered in scripts/fleet-finding-test-coverage-baseline.txt
+# with a stale guard.
+  fleet-finding-test-coverage-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so the self-test can prove the gate goes red on the
+          # historical commits that shipped the coverage gap (#2656).
+          fetch-depth: 0
+      - name: Test the fleet finding-kind test-coverage detector
+        run: bash scripts/check-fleet-finding-test-coverage.test.sh
+      - name: Check every emitted fleet finding kind has a Finding: assertion
+        run: scripts/check-fleet-finding-test-coverage.sh --check
+
   changelog-parity-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1155,6 +1177,7 @@ jobs:
       - silent-skip-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
+      - fleet-finding-test-coverage-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
