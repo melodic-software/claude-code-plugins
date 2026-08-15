@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Locked CI-only toolchain for the Claude Code plugin marketplace.",
+  "description": "Locked CI-only toolchain for the Claude Code plugin marketplace (claude CLI, Biome, and markdownlint-cli2 for the markdown-format hook's repo-local node_modules/.bin probe).",
   "engines": {
     "node": ">=24"
   },
