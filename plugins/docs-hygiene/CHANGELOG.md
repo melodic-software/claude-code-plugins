@@ -1,5 +1,20 @@
 # Changelog — docs-hygiene plugin
 
+## [0.12.0]
+
+### Changed
+
+- **`audit-derivability`: the empty-target no-op now offers a repo-wide sweep.** With no argument
+  and a clean tree the skill previously dead-ended ("no uncommitted .md files"). It now reports
+  that, then offers — confirmation-gated, never unprompted — escalation to a corpus sweep of all
+  tracked markdown, with prescribed defaults (tracked `.md` scope, batched read-only subagents, low
+  bounded concurrency, capped spot-tests) presented as pre-filled interview answers. Decline or
+  silence preserves the old no-op outcome.
+- **`audit-derivability`: `sweep` batches large corpora.** Doc-by-doc fan-out stays for a small
+  corpus; a large one now groups ~15-25 documents per subagent by directory affinity, so a
+  1000-doc repo needs tens of agents rather than a thousand. Default concurrency is pinned low
+  (3-4) — rate-limit headroom over wall-clock.
+
 ## [0.11.3]
 
 ### Changed

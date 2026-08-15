@@ -65,17 +65,27 @@ Gate the spot-test by stakes: skip it for an obviously trivial derivable file (a
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files; file path → single doc; dir path → each `.md` directly in it | Run the rubric per document: heuristic pass, spot-test where gated, emit the verdict ledger |
 | `audit [target]` | same target rules | Explicit form of the default; identical behavior |
-| `sweep <dir>` | a directory to walk recursively | Corpus audit. Throttled **doc-by-doc** fan-out: dispatch a fresh read-only subagent per document (bounded concurrency, e.g. 3-5 at a time), each returning one document's verdict; aggregate into one ledger. Never load the whole corpus into one context. |
+| `sweep <dir>` | a directory to walk recursively | Corpus audit. Throttled fan-out of fresh read-only subagents at deliberately low bounded concurrency (default 3-4 at a time — rate-limit headroom beats wall-clock). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context. Each subagent returns per-document verdicts; aggregate into one ledger. Never load the whole corpus into one context. |
 
 One action per response; actions do not chain implicitly. `sweep` is the only recursive mode — the bare/`audit` default never walks subdirectories, so a large tree is never audited by accident.
 
 ## Auto-detect default
 
-1. Empty arg AND clean tree → friendly no-op exit 0 ("No uncommitted .md files. Pass a file/dir target, or `sweep <dir>` for a corpus.")
+1. Empty arg AND clean tree → no default target exists. Report that, then OFFER escalation to a repo-wide corpus sweep — never start it unprompted. Confirm with the user first (via `AskUserQuestion` where available, a plain prose question otherwise), presenting the prescribed defaults below pre-filled so a bare "yes" suffices; the interview may adjust any knob. Declining, or no answer, ends as the friendly no-op exit 0 ("No uncommitted .md files. Pass a file/dir target, or `sweep <dir>` for a corpus.")
 2. Empty arg AND uncommitted `.md` files → audit those files
 3. Single file path → single-document audit
 4. Directory path (bare/`audit`) → audit each `.md` directly in the directory (non-recursive; filenames sorted lexically)
 5. First positional == `sweep` → recursive throttled corpus audit on the rest
+
+### Repo-wide escalation — prescribed defaults
+
+The interview knobs for the confirmation in rule 1, each with its default. A confirmed escalation runs as a `sweep` over the resolved scope; every hard rule (read-only above all) still applies.
+
+- **Scope** — all tracked `.md` files (`git ls-files '*.md'`); the user may narrow to a directory.
+- **Execution** — the `sweep` contract: fresh read-only subagents, batched for a large corpus.
+- **Concurrency** — low (3-4 concurrent) by default: rate-limit headroom over wall-clock; raise only if the user asks.
+- **Subagent model tier** — the session's model unless the user pins a tier.
+- **Spot-tests** — run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap; verdicts whose spot-test was skipped are reported as *provisional*, never as confirmed.
 
 ## Output schema
 
@@ -112,6 +122,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 - **Cache verdicts carry a drift-control condition or they demote.** No regeneration path and no recheck trigger → not a cache, demote to pointer/delete.
 - **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (official docs contrast it with a skill's `context: fork`, which starts blank; #1258 contests the Agent-tool half at runtime — documented guidance for routing, not a settled probe result).
 - **Audience named in every verdict.** Agent-facing and human-facing docs clear different deletion bars.
+- **The empty-target escalation is offer-only.** A repo-wide sweep from the no-op path runs only after explicit user confirmation; decline or silence ends as the no-op.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
 - **Output deterministic.** Filenames sort lexically; no timestamps in output.
 

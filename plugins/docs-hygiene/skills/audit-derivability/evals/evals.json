@@ -103,6 +103,19 @@
       ]
     },
     {
+      "id": 10,
+      "name": "empty-target-offers-repo-wide-sweep",
+      "prompt": "Run the audit with no argument in a repository whose working tree is clean (no uncommitted .md files).",
+      "expected_output": "Does not dead-end and does not start scanning on its own. Reports there are no uncommitted .md files, then OFFERS escalation to a repo-wide corpus sweep of tracked markdown, presenting the prescribed defaults (all tracked .md files, batched read-only subagents, low bounded concurrency, capped spot-tests) for confirmation — via AskUserQuestion where available. On decline or no answer, ends as the friendly no-op suggesting a file/dir target or `sweep <dir>`.",
+      "files": [],
+      "expectations": [
+        "Reports the clean tree / absence of uncommitted .md files",
+        "Offers a repo-wide sweep with prescribed defaults instead of only dead-ending",
+        "Does NOT start the repo-wide sweep without explicit user confirmation",
+        "On decline or no answer, falls back to the friendly no-op"
+      ]
+    },
+    {
       "id": 8,
       "name": "not-line-level-noise",
       "prompt": "Audit derivability of a rule file that clearly owns a non-derivable team constraint but also contains a dated 'Empirically observed 2026-03-14' citation line and a bit of filler prose.",
