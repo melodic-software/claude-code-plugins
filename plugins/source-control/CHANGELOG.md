@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.5]
+
+### Fixed
+
+- **Nesting-invariant SSOT test enforces the unconditional expiry date arm (#2767).**
+  `nesting-invariant-ssot.test.sh` previously only asserted the literal strings
+  `as-of **2026-08-07**` and `Unconditional expiry` — so the stamp could pass its
+  expiry and the suite stayed green forever. It now parses the as-of date and both
+  expiry arms, fails when today is on or after the date arm, asserts the version
+  arm is present and `N.N.N`-shaped (not evaluated — CI has no live Claude Code
+  version), and proves the red path with an injected post-expiry "today".
+
 ## [0.54.4]
 
 ### Changed
