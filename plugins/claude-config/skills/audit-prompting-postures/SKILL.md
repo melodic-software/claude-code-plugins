@@ -133,9 +133,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 
 `${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so a fixed `last-audit.md` is silently
 overwritten by the next run from any other root — this skill's only durable deliverable, destroyed by
-ordinary use of it. The scheme is `audit-pass`'s, reused rather than reinvented:
-`<repo-identity>/<worktree-discriminator>`, per
-[audit-pass's run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3, and it
+ordinary use of it. The scheme is `<repo-identity>/<worktree-discriminator>`, defined by the
+marketplace's `plugin-data-report-keying` convention and reused rather than reinvented, and it
 lives in one executable rather than being restated per skill —
 [`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it. Pass `--explain`
 when the report should say which rung produced the key. **The key stops overwrites, not reaping** —

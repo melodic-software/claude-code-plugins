@@ -3,6 +3,128 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1]
+
+### Changed
+
+- **`fanout`'s writer contract points at the detector-findings convention instead of stating the
+  producer rules itself (#2679).** 0.20.0 put the multi-producer rule in
+  `context/default-mode.md`, but that rule binds every component that writes a conforming findings
+  file — not just this plugin — and `docs/PLUGIN-PHILOSOPHY.md` "Convention registry" is one owner
+  doc per shared concern. The general rules (producer-owned fields, coexistence obligations,
+  minimal conformance) now live in `docs/conventions/detector-findings/`, cited by raw URL because a
+  plugin installs standalone and cannot resolve a repo-relative path. `default-mode.md` keeps only
+  fanout's own writer contract. The findings-file shape, the fix action, and every gate are
+  unchanged; what moved is instruction text an agent reads, so a producer authored against 0.20.0's
+  prose still conforms.
+
+## [0.20.0]
+
+### Changed
+
+- **`fanout`'s `fix` action consumes a merged SET of findings files, not the newest one
+  ([ADR 0010](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0010-merge-findings-across-producers-and-mark-consumption-explicitly.md),
+  #2678).** The findings-file shape is the whole integration contract — nothing authenticates the
+  writer — so any component that persists a conforming file reaches the apply relay. That made a
+  second producer a silent-data-loss bug: `fix` took the newest `*.md` and merged nothing, so a
+  detector running after a full review shadowed the entire review with no error, no warning, and a
+  green run. `fix` now takes every conforming file for the exact current branch, unions the coverage
+  fields (`## Unparsed` concatenated, `## Surfaces` attributed per producer, every consumed file's
+  `tier:` reported rather than one winning), and names the consumed set in its plan header. Dedup is
+  presence-only — identical `Location` AND identical `Finding` text — deliberately narrower than
+  Stage 3's ±3-line semantic key, which the `fix` action cannot compute because it runs no LLM stage
+  and which would drop one of two distinct defects at `foo.ts:42` and `foo.ts:44`. A one-file set
+  applies exactly the set it applied before — merge, union and dedup are all identities on one
+  input — and an empty set keeps the clean STOP. The emitted bytes do differ: the plan header gained
+  per-file lines and a `Surfaces (union)` line, and an interactive apply now writes a record.
+- **The applied-plan record is now written on EVERY apply path and is the consumption ledger.**
+  It was headless-`--yes`-only, so a bound anchored on it was a no-op on the dominant interactive
+  path and the merge set would have grown without limit, re-injecting findings the required post-fix
+  re-review had already resolved. `source-findings:` is now always a YAML block sequence of
+  `name:` + `sha256:` mappings, one entry per consumed file. `fix` subtracts a candidate only when a
+  record entry matches BOTH its file name and its content digest, and the exact-`branch:` filter
+  binds records as well as candidates so a slug-collided branch's record cannot truncate the set.
+  Consumption is per file, not per row: rows surfaced or narrowed out are named in the record body
+  and recovered by re-running the review, never by re-consumption. Operators reading the branch
+  findings directory will now see records from interactive applies where previously only headless
+  runs produced them.
+- **A consumed file is identified by its CONTENT, not by its file name.** A findings file's
+  `<UTC-timestamp>-<topic>.md` name is unique only in the moment it is written — the timestamp has
+  second resolution and the topic is producer-chosen — so with arbitrary producers sharing one
+  directory a later file can reuse a name an old record already names. Matching on the name alone
+  would retire that new file unread, silently skipping its findings. Two consequences: the merge-set
+  subtraction now compares the digest as well as the name (above), and the consumption record's own
+  file name carries the digest of its body — `<UTC-timestamp>-fix-pass-applied-<sha256-12>.md`,
+  staged through `mktemp` and moved into place. Without that suffix, two applies on one branch
+  finishing in the same UTC second wrote the same path and the second clobbered the first; because
+  the record is now the ledger `fix` subtracts by, a lost record re-injected its files' already-
+  applied findings on the next run. The digest also makes the remaining collision harmless: two
+  byte-identical records name the same consumed set, so the overwrite is a no-op. Producers are
+  additionally asked never to overwrite an existing findings path (write `-2`, `-3`, …), but that is
+  hygiene against a producer losing its OWN findings — the fix action's correctness no longer
+  depends on any producer choosing a collision-free name.
+- **The coverage fields are required of `fanout`'s own writer, not of every producer.** The
+  findings-file shape called `date`, `tier`, `## By dimension`, `## Unparsed` and `## Surfaces` required
+  unconditionally, while the `fix` action's admission test is only `type:`, `branch:` and a parseable
+  `## Findings` table — so a detector omitting them was conforming to one half of the contract and
+  non-conforming to the other, and a producer author got a different answer depending on which file
+  they read. The requirement on `fanout` itself is unchanged and still load-bearing, since Step 2's
+  coverage union depends on it; what changed is that the shape now says whom it binds, and the
+  admission test names the same field set from the other side.
+- **The findings home is resolved through the binding, never assumed from the default's shape.**
+  Both skills glossed it as `<memory_dir>/reviews/<branch-slug>/` unconditionally, but only two of
+  `reference/topic-docs.md`'s five rungs compose that segment — a location declared in the
+  consumer's `CLAUDE.md`, inferred from the repo, or chosen by the user is used as given. A producer
+  and a consumer disagreeing about whether the segment is appended land in different directories,
+  and the `fix` action's symptom is a clean empty-set STOP an operator cannot distinguish from "no
+  findings" — the same green-with-hidden-findings class the merge set closes, arriving through the
+  path instead. Both `SKILL.md` "Shared inputs" sections, `fanout`'s Step 1, and the plugin README
+  now cite the binding as the authority instead of restating a path shape, and the binding states
+  which rungs compose the segment.
+- **Every row that did not land is rendered and attributed in the consumption record.** The record
+  body now carries a "Not applied" table — location, finding, why, and the consumed file it came
+  from — covering correctness rows surfaced rather than auto-applied, rows of any class the operator
+  narrowed out, and unparsed entries. Previously the correctness line reported a bare `<surfaced>`
+  count and a narrowed-out cleanup row was rendered nowhere at all, so the record did not meet its
+  own stated requirement that every such row be named with its source file. Because consumption is
+  per file, the file is retired whole and re-running the producer named in that column is the only
+  route back to a deferred row — a count cannot say which producer that is.
+- **The binding now cites the topic-docs convention's "Non-interactive / forked mode" rule.** Two of
+  the resolution rungs confirm with the user or ask, and the binding stated no behavior for a
+  context that can do neither — forked subagents, dispatched workers, and headless runs, which is
+  exactly `fanout`'s `fix --yes` path. The rule is contract-owned, so the binding cites it rather
+  than redefining it.
+
+  **Migration — records written by 0.19.0 and earlier are honored.** Those carry
+  `source-findings:` as a bare scalar repo-relative path, and they persist across the upgrade
+  because the findings directory is gitignored local state. An entry that carries no digest — the
+  legacy scalar, or any bare name — matches by name alone, compared by base name, so a legacy record
+  still retires its file. Without that tolerance the legacy record would subtract nothing and its
+  already-applied findings would be re-injected on the next `fix` — the exact harm the ledger exists
+  to prevent. The fallback is bounded twice: an entry that has a digest never degrades to name-alone,
+  and a digest-less entry is honored only when the candidate's `date:` is STRICTLY OLDER than the
+  record's `date:` — declared frontmatter instants on both sides, never filesystem modification
+  times, which a copied or restored findings directory rewrites. That second bound matters because
+  nothing requires a producer to put a timestamp in its file name — a detector may write one fixed
+  name it overwrites every run, and without the check a single stale legacy record would retire every
+  future version of that file silently and forever. Equal dates keep the candidate, as does an
+  unreadable or absent one: `date:` is producer-DECLARED, so a detector deriving it from the commit
+  under review or a template constant makes equality the normal state, and subtracting on equal would
+  reintroduce that permanent retirement through the tiebreak. Every branch of the comparison fails
+  open, because re-application is recoverable and silent retirement is not. No operator action is
+  required; pre-0.20.0 records may simply be deleted, being gitignored local state.
+- **The findings-file shape now states what `date:` MEANS.** It was a bare `date: <ISO-8601 UTC>`
+  with no semantics, which was harmless while nothing read it and is not now that the legacy path
+  depends on it. `review:fanout`'s writer MUST stamp the instant the file is written — not the commit
+  date, not a scan date, not a constant — and the file name must end in `.md`, which is what makes it
+  visible to the consumer's scan at all. Both bind fanout's own writer; the consumer still assumes
+  neither, which is why the comparison subtracts only on a strictly older candidate.
+- **The empty-set STOP now prints where it looked.** It reported no unconsumed findings without
+  naming the resolved directory or the rung that resolved it, so a wrong-directory resolution and a
+  genuinely empty directory produced an identical clean stop — the one failure the step cannot detect
+  was also the one an operator could not see. It now prints the searched path and its rung, and on a
+  non-interactive run says that the rungs which ask or persist were skipped.
+
 ## [0.19.0]
 
 ### Added

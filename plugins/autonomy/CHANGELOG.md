@@ -3,6 +3,106 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **Nine routine-catalog rows for every class considered, including the ones deliberately not built
+  (#2682).** A catalog that lists only what shipped cannot be reasoned from — a reader asking "why
+  isn't there a clone unifier?" finds silence, which reads as an oversight rather than a decision.
+  Every new row derives its guardrail class **through the mapping rules**, never by hand: three
+  Tier-1 classes with join triggers (`formal-logic-modeling`, `cant-fail-test-repair`,
+  `layering-enforcement`), two Tier-2 (`clone-trend-gate`, `stale-flag-removal`), and four Tier-3
+  recording why they are not built (`logic-simplification-sweep`, `abstraction-flattening`,
+  `ant-only-shipper`, `gui-crash-fuzzing`). A tenth class, `dead-code-sweep`, already had a row and
+  was amended rather than duplicated — see Changed.
+- **A `Class parameters` section**, the contract's third progressive-disclosure tier: normative
+  detail a row's six cells cannot hold, binding whether or not the class ever gains a leaf. Most
+  load-bearing: `dead-code-sweep`'s quarantine window floor of **30–90 days with staged quarantine,
+  never one day**, not tunable downward by an org binding — the bound derives from what the window
+  must out-last, since 30 days is the shortest window spanning a monthly invocation cadence at all
+  and 90 spans a quarterly one, while a one-day window spans nothing and turns a detector false
+  positive into a deletion before anything can contradict it. Also: `clone-trend-gate` is detection
+  and trend gating only, with the unify *decision* excluded rather than deferred (no surveyed clone
+  tool automates it, so there is nothing to defer to); `stale-flag-removal`'s and
+  `ant-only-shipper`'s dispositions never automate, because which branch survives and whether to
+  promote are product calls; and `clone-trend-gate` and `coverage-mutation-watch` carry identical
+  cells but are distinct classes over distinct observables, which only a parameter can say.
+- **A `join (external): …` catalog status** for a class deferred on world state no adopting org can
+  act on. The pre-existing `join:` triggers are all conditions an org can satisfy;
+  `logic-simplification-sweep` and `abstraction-flattening` wait on published evidence and a
+  published validated detector respectively, which no adopter step fires. One token carrying both
+  semantics made those two rows read as backlog items rather than records.
+
+### Changed
+
+- **`dead-code-sweep` amended, not duplicated (#2682).** It was `DET detect` only; the
+  quarantine-exit judgment makes it a hybrid whose judgment portion derives `C3`, because liveness
+  is not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat
+  the build. `C3` is the **class-level** derivation: deleting a symbol on a published,
+  cross-repo-consumed surface is a contract change, so the structural axis fires per item and
+  escalates that item to `C4`. The class does not derive `C4` wholesale, or the direct-change
+  rule's `C2`/`C3` branch would be nearly unpopulated for repo-scoped deletion work. Its precedent
+  pointer was updated in step: the pointer describes deletion pipelines, and the staged quarantine
+  is the row's own normative content rather than a property read off them.
+- **Four general derivation rules now live in `## Mapping rules` itself**, where an org classifying
+  a novel class will actually look — three of them relocated from a per-class note, each a place an
+  independent re-derivation showed a careful reader can stop early or over-read. A hybrid row is
+  portion-split and so binds a posture-qualified identity, its `Derived row` cell carries the
+  judgment portion's class, and it is **never** flagged `not-a-routine` — that flag is reserved for
+  a wholly deterministic class. `AGT/HUM` assigns a **disposition, not a class**, so it never
+  terminates a derivation; a row stopping there would carry a human-gated disposition with no
+  verification topology, checker floor, or cost tier. The structural-blast-radius axis fires on the
+  change's **target**, not on the file it lives in — and because no catalog column records a target,
+  two rows can carry identical axis cells and derive different classes, which the rule now says
+  outright. Fourth and newly stated: a risk-raising axis evaluates **per item** as well as
+  class-wide, so a class whose axis fires on only some items derives the lower class and records the
+  escalation rather than deriving the higher one wholesale.
+- **`gui-crash-fuzzing` re-scored against the GUI-actuation mapping rule.** Its `Derived row` cell
+  now applies the rule that unattended GUI actuation requires `L3`, which the `repo` access class
+  alone does not give. The `L3` comes from that mapping rule directly and not from the guardrail
+  matrix's min-isolation column, which is indexed by work class and which a row deriving no class
+  cannot reach. Its class parameter also records that reproducibility
+  triage of a filed crash is *excluded* from the class rather than left as an unmodelled judgment
+  portion — a filed crash is ordinary queue intake — so the `DET` exit is complete rather than
+  skipping a split.
+- **Deployment-specific and over-precise claims removed from normative text.** A binding parameter
+  no longer rests on this fleet's inventory ("ships no GUI to fuzz"), a two-significant-figure
+  reproducibility statistic, or universal negatives over unnamed literature. Surveyed-record
+  hedging replaces them throughout both files, matching the register the one well-calibrated claim
+  in the section already used. The precedent-pointer scope line likewise no longer implies the list
+  is exhaustive, and the reviewer-burden deferral no longer cites a "trust-path" commitment that
+  appears nowhere else in the repository.
+- **`guardrails/isolation-ladder.md` now names both demands for `L3`.** It scoped kernel separation
+  to untrusted-provenance (`C5`) work alone, while the routine catalog's access rule has always also
+  required it for unattended GUI actuation — a demand that reaches classes deriving no work class,
+  so it cannot travel through the matrix's min-isolation column. The ladder is the contract's source
+  of truth for when a level applies, and was incomplete against that charter.
+- **`guardrails/work-classes.md` records what may never enter a promotion predicate (#2683).** An
+  acceptance or merge rate is never a promotion input and is not an efficacy signal, in either role,
+  at any cell. The rule rests on the one finding verified at primary source — Lenarduzzi et al.'s,
+  that code quality did not affect pull-request acceptance at all — rather than on the three design
+  families the survey found pointing the same way, only one of which was checked against its source.
+  The section distinguishes the two shipped terms that sit closest to the line, so the
+  new prohibition cannot be misread as contradicting the predicates above it: `0 human-reverted
+  merges` is a correctness signal (a human asserting the change was wrong), not an acceptance rate
+  (how much got merged); and `≥ 20 autonomous C2 merges over ≥ 14 days` is a **volume floor**, not
+  an acceptance rate — the two behave oppositely under the move that makes an acceptance metric
+  untrustworthy, since a ratio rises when its denominator shrinks (attempting less, or attempting
+  only what is certain to land) while a count has no denominator to shrink. The section also
+  enumerates every distinct term type the predicate table actually uses — seven, where the prose
+  previously named four.
+- **The reviewer-burden term is recorded as deferred with an explicit trigger, not omitted
+  (#2683).** It needs a denominator, and a denominator needs three org-scale things this contract
+  does not have — a population to divide by, a non-merge outcome signal, and a lookback window with
+  a demotion rule. Without them the term moves with volume rather than
+  trustworthiness — which would reward a cell for producing less. Recorded because a designated
+  planning pass was asked to settle it, and silence would have left that obligation unfilled.
+- **Standing constraint on any future tuner:** its signal set stays disjoint from promotion
+  evidence. Overlap is a self-dealing loop — a tuner optimizing a signal that also promotes a cell
+  can raise that signal to reduce scrutiny of the tuner's own output. Binds the tuner's inputs, not
+  its intent, and binds whether or not the reviewer-burden term is ever activated.
+
 ## [0.16.12]
 
 ### Changed

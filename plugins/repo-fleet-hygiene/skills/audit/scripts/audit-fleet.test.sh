@@ -230,7 +230,13 @@ worktree)
   [[ "${1:-}" == "list" ]] || exit 97
   case "$base" in
   canonical-a)
-    printf 'worktree %s\0HEAD main-a\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-a"
+    # F2: the MAIN worktree (record 0 => is_main) checked out on a branch that is
+    # NOT the default branch. It is protected via is_main, so merged-local-branch
+    # declines it; merged-worktree requires a NON-main worktree, so that declines it
+    # too. Both the default branch and a non-first record fail to reach that arm --
+    # the default branch is excluded from merge-evidence collection upstream, and a
+    # later record has is_main=false, which routes to merged-worktree instead.
+    printf 'worktree %s\0HEAD main-attached-tip\0branch refs/heads/feature/main-attached\0\0' "$TEST_ROOT/canonical-a"
     printf 'worktree %s\0HEAD sha-a\0branch refs/heads/feature/shared\0\0' "$TEST_ROOT/wt-a"
     printf 'worktree %s\0HEAD mismatch\0branch refs/heads/feature/mismatch\0\0' "$TEST_ROOT/wt-mismatch"
     printf 'worktree %s\0HEAD evil\0prunable missing\0\0' "$EVIL_PATH"
@@ -372,7 +378,7 @@ for-each-ref)
     # stale/gone: GraphQL returns a merged PR at a different OID (drift) and the branch has no
     # remote-tracking ref -- the drift finding must state tip/headRefOid differ without claiming
     # the commits were never pushed (they may still be on the remote).
-    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\n'
+    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\nfeature/main-attached\tmain-attached-tip\0\n'
     ;;
   repo-b)
     printf 'main\tmain-b\0\nfeature/shared\tsha-b\0\n'
@@ -512,6 +518,8 @@ api)
         feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
         feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
         feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
+        # F2: exact-OID merged evidence on a main-worktree-attached branch.
+        feature/main-attached) printf '47|main-attached-tip|2026-07-07T00:00:00Z|https://github.com/acme/repo-a/pull/47' ;;
         *) printf '' ;;
         esac
         ;;
@@ -727,6 +735,25 @@ assert_kind_targets "moved-remote still emits merged-worktree on resolved identi
   merged-worktree "old-repo :: feature/moved-merged" "new-clone"
 assert_kind_targets "moved-remote still emits merged-local-branch on resolved identity" \
   merged-local-branch "old-repo :: feature/moved-local" "new-clone"
+
+# F2: exact-OID merged evidence on a PROTECTED branch must be reported, not discarded.
+# Neither the merged-worktree arm (needs a non-main worktree) nor the
+# merged-local-branch arm (needs protected=false) accepts a main-worktree-attached
+# branch, so before the else arm existed the collector's strongest evidence produced
+# no finding at all -- while the weaker merged-pr-tip-drift, which carries no
+# protection guard, still emitted. Silence read as "nothing merged".
+assert_contains "protected branch with exact-OID merge evidence is reported" \
+  "Finding: merged-protected-branch"
+assert_contains "merged-protected-branch names the protection reason" \
+  "attached to the main worktree"
+# The protection rule is unchanged: it must never become a cleanup candidate.
+if grep -A6 -F "Finding: merged-protected-branch" "$output" |
+  grep -Fq "Run /repo-hygiene:clean git"; then
+  printf 'FAIL: merged-protected-branch must not route to branch cleanup\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: merged-protected-branch does not route to branch cleanup\n'
+fi
 
 # #2607: remote heads that still exist after a MERGED PR are a distinct finding from local cleanup.
 assert_contains "merged remote-tracking head is reported" "Finding: merged-remote-branch"

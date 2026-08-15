@@ -402,9 +402,9 @@ Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last
 bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
 
-It prints `<repo-identity>/<worktree-discriminator>` — `audit-pass`'s scheme, per
-[its run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3, which
-`audit-prompting-postures` also uses. Run it and use the result. Do **not** express the path as a
+It prints `<repo-identity>/<worktree-discriminator>` — the state-key scheme the marketplace's
+`plugin-data-report-keying` convention defines, implemented once in the shared `lib/state-key.sh`,
+which `audit-prompting-postures` also uses. Run it and use the result. Do **not** express the path as a
 condition over `${CLAUDE_PROJECT_DIR}` "when set": that placeholder is substituted inline before this
 file reaches you, so the literal token is never visible and the condition is not yours to evaluate.
 

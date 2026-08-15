@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.12.0]
+## [0.13.0]
 
 ### Changed
 
@@ -38,6 +38,44 @@
   verdict past the spot-test cap is provisional and excluded from actionable routing until its
   deferred spot-test runs, reconciling the cap with the mandatory spot-test hard rule (Codex
   review, #2695).
+
+## [0.12.1]
+
+### Added
+
+- **`audit-encapsulation`: no-scope confirmation + `sweep` action.** A bare invocation with no
+  inherited working set — no diff in flight, no prior audit notes, nothing narrowing the scope —
+  now asks ONE confirmation before the repo-wide run, presenting prescribed defaults (scope: entire
+  tracked repo; mode: detect + classify only; worker fan-out: off, capped at 2–3 concurrent workers
+  when the user opts in and no rate-limit telemetry is readable — pacing resolves from the
+  `rate-limit-guard` plugin's reader contract when its snapshot is present). The new `sweep`
+  argument is the explicit opt-in that skips the confirmation and runs the repo-wide detect
+  immediately. Eval cases 7–8 pin both behaviors.
+
+## [0.12.0]
+
+### Fixed
+
+- **audit-noise:** `detect.sh` now honors the documented scope of the opt-out markers.
+  `<!-- markdown-discipline-ignore -->` suppresses the whole next paragraph (through the next blank
+  line) instead of only the next line, and `<!-- markdown-discipline-ignore-line -->` is
+  distinguished from the bare form. Found when repo-wide-run markers on multi-line paragraphs
+  failed to suppress their wrapped lines.
+
+### Changed
+
+- **audit-noise:** hard rules tightened from first-run findings — Tier 3 explicitly carries no
+  treatment; the `-line` opt-out marker's exact-next-line semantics are documented; the ghost-ref
+  treatment accepts a carrying/pruning PR number as a durable pointer alongside commit-SHA
+  permalinks; the judgment pass's recurring dismissal grounds (fictional example slugs, vendored
+  baselines, delete-instruction targets, self-matches) are codified; and `detect.sh` now skips
+  `CHANGELOG.md` by basename, matching the long-documented exemption.
+- **audit-noise:** the clean-tree default is no longer a silent no-op. With no target and a clean
+  tree the skill now offers a confirmation-gated repo-wide audit with prescribed defaults
+  (fixture/changelog exclusions, slice sectioning, chunked scan, flagged-files-only judgment
+  fan-out with a fresh-context verification pass, report-first order). Unattended runs surface the
+  offer as blocked instead of launching. Shaped by the first repo-wide run (2026-08-15: 1027 files,
+  55 scanner candidates, 37 verified findings).
 
 ## [0.11.3]
 

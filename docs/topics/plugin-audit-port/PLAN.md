@@ -8,7 +8,8 @@ Port the machine-local `~/.claude/skills/plugin-audit` skill into this marketpla
 repo/machine/user/org-agnostic plugin (`plugin-quality`, skill `audit`), improved rather than copied,
 plus a new sibling producer plugin (`context-guard`) that makes per-session context-window usage
 observable so the audit survives long sessions and compaction. Interview locked 2026-07-23; decision
-ledger: `.work/plugin-audit-port/interview-checklist.md`.
+ledger: `.work/plugin-audit-port/interview-checklist.md` (checkout-local memory tier — uncommitted,
+invisible outside the authoring checkout; the Brief below carries the locked rulings).
 
 ### Goal
 
@@ -147,7 +148,8 @@ plan.
 ### Design inputs
 
 `design/design-resolution.md` (early-exit: design threads resolved in the interview; contract
-sketches there). Decision ledger: `.work/plugin-audit-port/interview-checklist.md`.
+sketches there). Decision ledger: the topic's checkout-local interview ledger (see the Brief's note
+above).
 
 ### Lane A — `context-guard` (merges first; its reader contract is the seam)
 

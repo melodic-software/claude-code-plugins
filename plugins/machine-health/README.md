@@ -79,7 +79,7 @@ A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only 
 mocks Win32/MSFT CIM types that resolve only there:
 
 ```powershell
-pwsh -NoProfile -File plugins/machine-health/skills/audit/tests/Invoke-MachineHealthTests.ps1
+pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
 ```
 
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

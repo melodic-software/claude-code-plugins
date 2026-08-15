@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.23.5]
+## [0.23.6]
 
 ### Changed
 
@@ -16,6 +16,14 @@
   Large-workflow threshold riders, and the v2.1.232 fork-default note. (3) The `${CLAUDE_EFFORT}`
   priming addendum now self-detects the direct-read fallback (a literal placeholder means the
   substitution never ran) instead of degrading silently.
+
+## [0.23.5]
+
+### Changed
+
+- **README:** the Network section's closed roster of network-free skills is reopened to a category
+  statement ("every skill not named above"), so skill additions no longer silently drift the list
+  (repo-wide `/docs-hygiene:audit-noise` run, 2026-08-15).
 
 ## [0.23.4]
 

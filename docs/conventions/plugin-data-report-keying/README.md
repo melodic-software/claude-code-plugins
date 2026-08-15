@@ -58,10 +58,9 @@ namespace and the filename:
 ${CLAUDE_PLUGIN_DATA}/<component>/<state-key>/<filename>
 ```
 
-**`<state-key>` = `<repo-identity>/<worktree-discriminator>`.** The scheme is
-`claude-config:audit-pass`'s, specified in full in its
-[`reference/run-state-and-resumability.md`](../../../plugins/claude-config/skills/audit-pass/reference/run-state-and-resumability.md)
-§3:
+**`<state-key>` = `<repo-identity>/<worktree-discriminator>`.** The scheme originated in the
+`claude-config:audit-pass` skill and is specified in full **here** — this doc is the definition every
+adopter derives from, that skill included:
 
 - **`repo-identity`** — the **first configured remote** URL (not necessarily one named `origin`)
   normalized to `host/owner/repo`, lowercased, scheme/credentials/`.git` stripped. No remote →

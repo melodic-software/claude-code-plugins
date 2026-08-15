@@ -3,6 +3,15 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Added
+
+- **`generate` gains a public test entry surface (#2701).** The new `scripts/run-tests.sh` facade
+  (`install`/`test`/`all`) delegates into the private `output/build/` npm package; CI and repo
+  docs now invoke the facade instead of running npm directly inside the private subdirectory.
+  The build package itself is unchanged.
+
 ## [0.7.1]
 
 ### Changed

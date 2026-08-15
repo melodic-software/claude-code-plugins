@@ -2,7 +2,7 @@
 
 Read this when batch-compressing N markdown files via parallel subagents. Codifies the multi-phase split that keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor. Before Claude Code v2.1.172 a subagent could not spawn the verifier at all (no nested Agent tool); as of v2.1.172 a foreground subagent can, but nested spawning is version-dependent and a fresh-context verifier beats self-critique regardless — so the auditor phase stays a main-session dispatch.
 
-**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context — self-audit by the same model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed). Empirically observed: 4/4 reverse-direction edits in a compression wave (see ## History). Fix: move the semantic-diff into a separate fresh-context subagent dispatched by the main session.
+**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context — self-audit by the same model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed; an observed failure — see ## History). Fix: move the semantic-diff into a separate fresh-context subagent dispatched by the main session.
 
 ## Architecture (three phases per wave)
 
