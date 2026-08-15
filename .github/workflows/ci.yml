@@ -625,6 +625,26 @@ jobs:
       - name: "Check every emitted fleet finding kind has a Finding: assertion"
         run: scripts/check-fleet-finding-test-coverage.sh --check
 
+  # The audit skill's documented argument grammar must match what audit-fleet.sh
+  # actually accepts. Lives outside both SKILL.md and the collector so a
+  # docs-only silent revert (#2646) cannot delete its own defender (#2713).
+  # Probes the script (never pattern-matches the parser) under a sealed env.
+  fleet-audit-doc-grammar-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so the self-test can prove the gate goes red on the
+          # historical commit that shipped the docs-only grammar revert (#2713).
+          fetch-depth: 0
+      - name: Test the fleet audit doc-grammar detector
+        run: bash scripts/check-fleet-audit-doc-grammar.test.sh
+      - name: Check audit skill grammar matches the parser
+        run: scripts/check-fleet-audit-doc-grammar.sh --check
+
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
   # version heading does not outrun the manifest (static --check), a PR that
   # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
@@ -1191,6 +1211,7 @@ jobs:
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - fleet-finding-test-coverage-gate
+      - fleet-audit-doc-grammar-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
