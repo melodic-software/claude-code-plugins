@@ -100,7 +100,9 @@ never label a claim "known" / "from memory" / "obvious".
 **Priming addendum (current session only).** As the main session — not a spawned non-fork worker —
 you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
 lead session; the docs do not state whether a fork of the lead can drive one) and dynamic workflows
-(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it
+(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}` — if that value reads as a literal
+placeholder, this body was read directly rather than skill-loaded, so the substitution never ran:
+resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: it is the level a spawn inherits when neither the call nor
 the agent definition sets one (a definition's own `effort` overrides the session), so its gap from
 what a subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
@@ -163,11 +165,18 @@ after that list was written — the per-session spawn total, removed in v2.1.220
 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified 2026-08-10). The depth
 ceiling itself is still where v2.1.219 left it; what the removal changes is how many caps there are.
 Two remain, each separately capped and separately overridable
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`). Read the current
-values rather than assuming them, and
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`) — but those two
+govern Agent-tool subagents only: workflow agents and agent-team teammates follow their own limits
+instead ([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15), and the
+workflow runtime's concurrency limit is CPU-dependent with no env-var override
+([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-15) — so "read the current
+values" must include the workflows page whenever the run will use the Workflow tool. Read the
+current values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
-not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork, so a fork
-is a leaf, never an intermediate tier.
+not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork
+([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15 — the docs state only
+that narrow claim; whether a below-limit fork can parent non-fork children is implied but not
+stated, so do not treat a fork as a forbidden intermediate tier on this sentence alone).
 
 **Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose docs
 track it: on 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still

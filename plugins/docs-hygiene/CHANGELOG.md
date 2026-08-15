@@ -14,6 +14,23 @@
   corpus; a large one now groups ~15-25 documents per subagent by directory affinity, so a
   1000-doc repo needs tens of agents rather than a thousand. Default concurrency is pinned low
   (3-4) — rate-limit headroom over wall-clock.
+- **`audit-derivability`: fixes from a plugin-quality audit of the skill's first full-repo run**
+  (1131 docs; 7 of 11 actionable verdicts were judged wrong or inapplicable on apply). The scoped
+  `sweep` enumeration used two OR'd pathspecs and silently escalated to the whole repo — now one
+  combined pathspec, with the trap named, plus a report-scope-and-count-before-fan-out guard.
+  Functional artifacts (checklist templates, eval fixtures, scaffolds a component consumes at
+  runtime) are now an explicit `out-of-scope` disposition with a one-line test — the source of five
+  wrong verdicts. Actionable verdicts on empty/near-empty files now require a `git log`
+  deliberate-state check (the empty unhobble-baseline `CLAUDE.md` case). `convert-to-pointer`
+  verdicts must verify their recommended anchor exists (one shipped citing nonexistent scripts).
+  Sweeps route same-basename/near-identical files into one batch and reconcile divergent verdicts
+  (the linux/macos placeholder split), sample keep verdicts so false-keeps are bounded, and defer
+  scope exclusions to `extract-ssot`'s codified list instead of a drifted paraphrase. The
+  read-only hard rule is scoped to the repository (scratchpad ledgers are sanctioned); concurrency
+  is a ceiling the runtime may cap below; the internal #1258 citation is qualified as internal;
+  the pre-computed pipeline's dead `|| echo` fallback is fixed; the aggregate line gains
+  routed-to-sibling and out-of-scope slots; three regression evals added (scaffold, deliberate
+  state, anchor verification) and eval ids reordered.
 - **`audit-derivability`: corpus output is bounded and the spot-test cap defers, never waives.**
   Sweep subagents write per-document detail to batch ledger files; the reply carries only the
   aggregate, the actionable subset (confirmed vs provisional), and ledger pointers — so a large

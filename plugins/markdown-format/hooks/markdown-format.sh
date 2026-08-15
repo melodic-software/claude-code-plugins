@@ -495,7 +495,7 @@ else
   # both channels, once per session.
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 is neither on PATH nor available as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this session. Install it explicitly; this hook does not invoke npx or download tools."
+      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped until it is resolvable (re-checked on every Markdown edit; this notice shows once per session). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools."
   fi
   emit_tel "skipped" '[]'
   exit 0

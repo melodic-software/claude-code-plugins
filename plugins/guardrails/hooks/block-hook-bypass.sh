@@ -958,7 +958,9 @@ file-write forms plus inline python code (python/python3/py/pypy with -c, or a \
 program read from stdin as python3 - <<PY) only. POSIX tee pipe writes, other \
 inline-interpreter writes (e.g. node -e, sed -i), a stdin heredoc with no - \
 argument (python3 <<PY), writes inside an invoked script file or a program's own \
-opaque code, and redirects produced by another program, are not seen."
+opaque code, redirects produced by another program, and a staged write moved into \
+place (<producer> > <tmp> && mv <tmp> <dest>) whose producer is unmodeled, are \
+not seen."
 _BYPASS_SCOPE_NOTE_PWSH="Scope: only this command string is inspected — known PowerShell \
 file-write cmdlets and content-producer redirects (including Tee-Object and the \
 tee alias) plus inline python code (python/python3/py/pypy with -c) only. Other \

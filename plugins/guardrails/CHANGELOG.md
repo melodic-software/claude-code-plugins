@@ -3,6 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.26]
+
+### Changed
+
+- **`block-hook-bypass`: the staged-write shape is now a named residual.** A plugin-quality audit
+  (#2695 session) produced session-record reachability evidence — the same standard that reopened
+  #2217 — for `<producer> > <tmp> && mv <tmp> <dest>` with an unmodeled producer: it reached repo
+  manifests and the intermediate tool (`jq`) silently un-escaped `\u` sequences, caught only by
+  manual diff review. `_BYPASS_SCOPE_NOTE_BASH` and the README residual list now name the shape,
+  and the README states the consequence: Bash-side writes these residuals allow also skip the
+  `Write|Edit`-matched content guards (secret patterns, hardcoded paths), so content invariants
+  need a write-path-independent layer (git hooks / CI). A narrow same-command detector lane
+  (effective redirect target reused as `mv`/`cp` source) and that repo-layer content check are the
+  recorded follow-ups, deliberately not rushed into this release.
+- **`block-noncanonical-commit`: the harness-timeout fail-open edge is documented at the alias
+  budget.** `HOOK_ALIAS_WORK_MAX` bounds analysis count, not wall clock; the hooks reference says a
+  timed-out hook fails open, so the 60s harness ceiling can invert the guard's fail-closed posture
+  on a pathologically slow filesystem. Named as an accepted residual with its revisit trigger.
+
 ## [0.28.25]
 
 ### Fixed

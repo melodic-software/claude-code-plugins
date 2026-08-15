@@ -117,7 +117,18 @@ out of scope until such a signal exists.
   trailing interpreter token would block `cat script.py | python3`. On the **Bash**
   tool, **`tee` / `tee -a` and inline writes via other interpreters (`node -e`,
   `perl -e`, `ruby -e`, `sed -i`, `dd of=`, `awk >`, …) are accepted residuals** —
-  outside the modeled surface, not oversights. The block message carries a lane-specific scope note so a reader does
+  outside the modeled surface, not oversights. So is a **staged write moved into
+  place** (`jq . f > /tmp/x && mv /tmp/x <repo-file>`): the essential element is
+  the unmodeled producer (a direct `jq . f > <repo-file>` is equally allowed),
+  and the staging appears only because some producers cannot write in place.
+  Session-record evidence (2026-08-15) shows this shape reaching repo files with
+  real content damage from the intermediate tool — the same reachability standard
+  that reopened #2217 — so it is a *named* residual pending a narrow same-command
+  detector; note the consequence either way: any Bash-side write these residuals
+  allow also skips the `Write|Edit`-matched content guards (secret patterns,
+  hardcoded paths), so those guards are defense-in-depth, not a sandbox — content
+  invariants that must hold need a write-path-independent layer (git hooks / CI).
+  The block message carries a lane-specific scope note so a reader does
   not credit the guard with coverage it never claimed.
 - **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
   it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`

@@ -12,7 +12,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep '\.md$' | sed 's/^...//' | head -20 || echo "none"`
+Uncommitted .md files (first 20; empty = none): !`git status --porcelain 2>/dev/null | awk '/\.md$/{p=substr($0,4); sub(/^.* -> /,"",p); print p}' | head -20`
 
 ## Purpose
 
@@ -40,11 +40,15 @@ Fact ownership is the trump card: a document that owns even one non-derivable fa
 | Verdict | Meaning | Condition |
 |---|---|---|
 | `delete` | The document is derivable, cheap to re-derive, and owns no non-derivable fact. It is dead weight. | All of: derivable, low re-derivation cost, no owned facts. Load-bearing or contested candidates require the empirical spot-test below before a confident `delete`. |
-| `convert-to-pointer` | The document exists to route readers to a truth that lives elsewhere (code, another doc, an external source). Replace the body with a one-line pointer to the source of truth. | Derivable OR duplicative, but the routing/orientation value is real. Point, don't copy. |
+| `convert-to-pointer` | The document exists to route readers to a truth that lives elsewhere (code, another doc, an external source). Replace the body with a one-line pointer to the source of truth. | Derivable OR duplicative, but the routing/orientation value is real. Point, don't copy. The verdict MUST name its pointer target as a repo path verified to exist (or an external URL) — the verification is part of the rationale; a pointer at a nonexistent anchor is worse than the doc it replaces. |
 | `keep-as-derivation-cache` | The content is derivable but re-derivation is expensive enough that a cached rendering earns its keep — IF the cache cannot silently rot. | Derivable + high re-derivation cost + **a drift-control condition is present**: a regeneration/verification path, or a recorded recheck trigger. Absent that condition, this verdict **demotes** to `convert-to-pointer` or `delete`. |
 | `keep-owns-facts` | The document owns at least one non-derivable fact (rationale, decision, constraint, external fact, cross-cutting invariant). | Any owned non-derivable fact. Route the derivable remainder to the trimming siblings. |
 
 A cache verdict with no regeneration path and no recheck trigger is an unmaintained copy that drifts silently from its source — demote it (the standing rule below; the why is in `context/rubric.md`).
+
+### Out of scope — functional artifacts
+
+A file a component CONSUMES or copies at runtime — a checklist template a skill instructs agents to copy and tick, an eval fixture, a scaffold — is machinery, not documentation, and receives NO verdict here. The one-line test: is this file an INPUT a tool or skill consumes, rather than prose a reader learns from? If yes, record it as `out-of-scope: functional artifact` in the ledger and move on — the four factors presuppose a document read for its claims, and a scaffold has none to derive.
 
 ## Audience-awareness
 
@@ -54,8 +58,8 @@ Re-derivation cost is paid by the reader, and agent-facing and human-facing read
 
 Do NOT guess derivability from a skim. Two passes, escalating only where the stakes justify it:
 
-1. **Heuristic claim-source classification (every document).** Classify each load-bearing claim by where its truth lives — *code/config/structure* (derivable), *another tracked doc* (duplication → `/docs-hygiene:extract-ssot`), or *nowhere else* (owned, non-derivable) — and let the mix drive a provisional verdict.
-2. **Empirical spot-test (load-bearing or contested deletions only).** Once this context has read the document it knows the answers and will overestimate how derivable they were — a self-grade. Confirm a `delete`/`convert-to-pointer` by delegating to a **fresh-context, non-fork subagent** (e.g. `Explore`) that has NOT seen the document: it reproduces the document's conclusions from native exploration only, then compare. Prefer a cross-vendor advisor for that spot-test when one is installed and set up — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve. Convergence confirms derivable; divergence means the document owns something exploration could not recover — keep it. Never the Agent tool's `fork` subagent type for spot-tests that must stay uncontaminated — official docs contrast it (inherits the parent conversation) with a skill's own `context: fork` frontmatter (starts blank); #1258 contests whether the Agent-tool fork actually inherits at runtime, so treat the contrast as documented guidance for routing spot-tests, not as a settled probe result. Full protocol: `context/rubric.md`.
+1. **Heuristic claim-source classification (every document).** Classify each load-bearing claim by where its truth lives — *code/config/structure* (derivable), *another tracked doc* (duplication → `/docs-hygiene:extract-ssot`), or *nowhere else* (owned, non-derivable) — and let the mix drive a provisional verdict. Before an actionable verdict on an empty or near-empty file, check `git log` for evidence the state is deliberate: a deliberately emptied or reset file is a recorded decision (Factor 4) → `keep-owns-facts`.
+2. **Empirical spot-test (load-bearing or contested deletions only).** Once this context has read the document it knows the answers and will overestimate how derivable they were — a self-grade. Confirm a `delete`/`convert-to-pointer` by delegating to a **fresh-context, non-fork subagent** (e.g. `Explore`) that has NOT seen the document: it reproduces the document's conclusions from native exploration only, then compare. Prefer a cross-vendor advisor for that spot-test when one is installed and set up — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve. Convergence confirms derivable; divergence means the document owns something exploration could not recover — keep it. Never the Agent tool's `fork` subagent type for spot-tests that must stay uncontaminated — official docs contrast it (inherits the parent conversation) with a skill's own `context: fork` frontmatter (starts blank); an internal melodic-software tracker issue (#1258 there) contests whether the Agent-tool fork actually inherits at runtime, so treat the contrast as documented guidance for routing spot-tests, not as a settled probe result. Full protocol: `context/rubric.md`.
 
 Gate the spot-test by stakes: skip it for an obviously trivial derivable file (an auto-generated index, a verbatim config restatement); run it whenever being wrong about the deletion costs a reader something real.
 
@@ -65,7 +69,7 @@ Gate the spot-test by stakes: skip it for an obviously trivial derivable file (a
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files; file path → single doc; dir path → each `.md` directly in it | Run the rubric per document: heuristic pass, spot-test where gated, emit the verdict ledger |
 | `audit [target]` | same target rules | Explicit form of the default; identical behavior |
-| `sweep <dir>` | a directory to walk recursively | Corpus audit of the directory's tracked markdown (enumerate via `git ls-files -- '<dir>/*.md'` — one combined pathspec; two pathspecs (`'*.md' -- <dir>`) OR together and silently escalate the sweep to the whole repo. Gitignored, untracked, and vendored/ephemeral files are out of scope — the same tracked-only convention `/docs-hygiene:extract-ssot` codifies). Throttled fan-out of fresh read-only subagents at deliberately low bounded concurrency (default 3-4 at a time — rate-limit headroom beats wall-clock). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context. Each subagent writes its per-document verdict blocks to a batch ledger file (session scratchpad or similar) and returns compact verdicts and counts; the reply carries the aggregate, the actionable subset, and pointers to the batch ledgers — corpus-scale per-document detail never streams through one context or one reply. |
+| `sweep <dir>` | a directory to walk recursively | Corpus audit of the directory's tracked markdown (enumerate via `git ls-files -- '<dir>/*.md'` — one combined pathspec; two pathspecs (`'*.md' -- <dir>`) OR together and silently escalate the sweep to the whole repo. Gitignored and untracked files are out of scope, and so are `/docs-hygiene:extract-ssot`'s codified survey exclusions (vendored trees, eval fixtures, test data, run logs — its `actions/identify.md` owns that list; read it there, don't paraphrase it). Report the scope root and enumerated file count before fan-out. Throttled fan-out of fresh read-only subagents at a low concurrency ceiling (at most 3-4 at a time — rate-limit headroom beats wall-clock; the runtime may cap lower, which is fine). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context — and route same-basename or near-identical files into ONE batch; where they still split, reconcile divergent verdicts on near-identical documents before the aggregate. Each subagent writes its per-document verdict blocks to a batch ledger file (session scratchpad or similar) and returns compact verdicts and counts; the reply carries the aggregate, the actionable subset, and pointers to the batch ledgers — corpus-scale per-document detail never streams through one context or one reply. Spot-test a small sample of keep verdicts too, so false-keeps are bounded, not only false-deletes. |
 
 One action per response; actions do not chain implicitly. `sweep` is the only recursive mode — the bare/`audit` default never walks subdirectories, so a large tree is never audited by accident.
 
@@ -83,7 +87,7 @@ The interview knobs for the confirmation in rule 1, each with its default. A con
 
 - **Scope** — all tracked `.md` files (`git ls-files '*.md'`); the user may narrow to a directory.
 - **Execution** — the `sweep` contract: fresh read-only subagents, batched for a large corpus.
-- **Concurrency** — low (3-4 concurrent) by default: rate-limit headroom over wall-clock; raise only if the user asks.
+- **Concurrency** — a low ceiling (at most 3-4 concurrent): rate-limit headroom over wall-clock; the runtime may cap lower, which is fine. Raise only if the user asks.
 - **Subagent model tier** — the session's model unless the user pins a tier.
 - **Spot-tests** — run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap per pass. A flagged verdict past the cap is emitted as **provisional**: pending its spot-test, excluded from the actionable-routing offer, never presented as a confirmed delete. The cap *defers* the hard rule's spot-test to a follow-up pass; it never waives it.
 
@@ -110,7 +114,7 @@ Cache drift-control (if keep-as-derivation-cache): <the regeneration path or rec
 Batch / sweep aggregate at the end:
 
 ```text
-Audited <N> document(s): <d> delete, <p> convert-to-pointer, <c> keep-as-cache, <k> keep-owns-facts.
+Audited <N> document(s): <d> delete, <p> convert-to-pointer, <c> keep-as-cache, <k> keep-owns-facts, <r> routed-to-sibling, <f> out-of-scope functional artifacts.
 ```
 
 Corpus-scale sweeps (more documents than one reply can carry): the per-document blocks live in the batch ledger files; the reply carries the aggregate line, the confirmed-actionable (`delete` / `convert-to-pointer`) subset, the provisional (cap-deferred) verdicts reported separately for visibility — never as part of the actionable subset — and the ledger file locations.
@@ -119,10 +123,10 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 
 ## Hard rules
 
-- **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. The author applies every deletion and rewrite. Deletion is the highest-stakes doc edit; the classifier only recommends.
+- **Read-only with respect to the repository.** No `Edit` or `Write` inside the repo, no `Bash` that mutates it; session-scratchpad ledgers and artifacts are the one sanctioned write surface. The author applies every deletion and rewrite. Deletion is the highest-stakes doc edit; the classifier only recommends.
 - **Never derivability alone.** A `delete` verdict requires all of: derivable, low re-derivation cost, no owned facts. Any owned non-derivable fact forces `keep-owns-facts`.
 - **Cache verdicts carry a drift-control condition or they demote.** No regeneration path and no recheck trigger → not a cache, demote to pointer/delete.
-- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (official docs contrast it with a skill's `context: fork`, which starts blank; #1258 contests the Agent-tool half at runtime — documented guidance for routing, not a settled probe result). A verdict whose spot-test is deferred (e.g. past a sweep's cap) stays provisional and is never routed as actionable.
+- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (official docs contrast it with a skill's `context: fork`, which starts blank; an internal melodic-software tracker issue contests the Agent-tool half at runtime — documented guidance for routing, not a settled probe result). A verdict whose spot-test is deferred (e.g. past a sweep's cap) stays provisional and is never routed as actionable.
 - **Audience named in every verdict.** Agent-facing and human-facing docs clear different deletion bars.
 - **The empty-target escalation is offer-only.** A repo-wide sweep from the no-op path runs only after explicit user confirmation; decline or silence ends as the no-op.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.

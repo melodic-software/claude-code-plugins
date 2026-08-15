@@ -65,6 +65,16 @@ purpose, and either confirm it with a live rationale or challenge it with
 the first-principles alternative. Do not stop at restating what the
 inherited source says — reason about whether it should still hold.
 
+## Reciprocal boundaries
+
+Siblings carve their axes out of this one; keep the carve-outs in sync from
+this side too. Conformance to an EXTERNAL vendor's current docs is
+`/discipline:recheck-against-upstream`'s axis; the production-side rule that
+new work reuses or openly replaces an established way (never a silent second
+way) is `/discipline:reuse-or-replace`'s; a technology/dependency selection is
+`/discipline:pick-for-the-problem`'s. This skill owns the general evaluation
+of inherited content's justification.
+
 ## When the inherited content is a shared standard
 
 Interrogating a shared convention can end in disagreement. Do not silently

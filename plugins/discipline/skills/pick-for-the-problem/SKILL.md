@@ -97,7 +97,11 @@ The incumbency sin here is selection-specific — "the repo uses X, so this
 new work uses X". The general interrogation of inherited precedent is
 `/discipline:reason-dont-recite`; this skill applies that lens narrowly to a
 technology choice and adds the field survey, the ladder, and the coupling
-price. Route a broader inherited-design challenge there.
+price. Route a broader inherited-design challenge there. The reciprocal
+boundary: consistency of idioms, structure, and process — where matching the
+established way is usually right — is `/discipline:reuse-or-replace`'s axis,
+which carves tool/dependency selection out to this skill; keep the two
+carve-outs in sync.
 
 ## What this skill does NOT do
 

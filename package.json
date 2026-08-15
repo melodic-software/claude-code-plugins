@@ -9,7 +9,8 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-code": "2.1.232",
-    "@biomejs/biome": "2.5.7"
+    "@biomejs/biome": "2.5.7",
+    "markdownlint-cli2": "0.23.1"
   },
   "allowScripts": {
     "@anthropic-ai/claude-code@2.1.209": true
