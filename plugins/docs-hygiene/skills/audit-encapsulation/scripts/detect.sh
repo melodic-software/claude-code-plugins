@@ -99,15 +99,16 @@ fi
 #      subdirs regardless of name; excludes bare SKILL.md by requiring `/`)
 #   2. `<skill>/SKILL.md#<anchor>`  — heading-anchor cites
 #   3. `<skill>/<file>.schema.json` — schema files at any depth
-# Skill and subdir segments are `[^/]+` so uppercase, single-char,
-# digit-leading, and underscore-leading names match. Bare `<skill>/SKILL.md`
-# path cites still pass (discouraged-but-legal) because they lack `#` and a
-# trailing subdir slash. Does NOT match plain-JSON data files at skill root
-# (`<skill>/catalog.json`) per the data-file carve-out.
+# Skill and subdir segments are `[A-Za-z0-9_.-]+` so uppercase, single-char,
+# digit-leading, and underscore-leading names match, while whitespace and prose
+# punctuation between roots cannot span a false multi-root match. Bare
+# `<skill>/SKILL.md` path cites still pass (discouraged-but-legal) because they
+# lack `#` and a trailing subdir slash. Does NOT match plain-JSON data files at
+# skill root (`<skill>/catalog.json`) per the data-file carve-out.
 # Two skill-root layouts share one detector:
 #   - consumer-installed: `.claude/skills/<skill>/...`
 #   - marketplace monorepo: `plugins/<plugin>/skills/<skill>/...`
-PATTERN='\.claude/skills/[^/]+/[^/]+/|\.claude/skills/[^/]+/SKILL\.md#|\.claude/skills/[^/]+/[^/]+\.schema\.json|plugins/[^/]+/skills/[^/]+/[^/]+/|plugins/[^/]+/skills/[^/]+/SKILL\.md#|plugins/[^/]+/skills/[^/]+/[^/]+\.schema\.json'
+PATTERN='\.claude/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/|\.claude/skills/[A-Za-z0-9_.-]+/SKILL\.md#|\.claude/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.schema\.json|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/SKILL\.md#|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.schema\.json'
 
 # scripts/ entry-surface carve-out: a skill's `scripts/` is its declared ENTRY
 # surface — harness / CI / hooks / workflow registries MAY path-cite it. Like
@@ -121,7 +122,7 @@ PATTERN='\.claude/skills/[^/]+/[^/]+/|\.claude/skills/[^/]+/SKILL\.md#|\.claude/
 # line. The skill-to-skill half of the asymmetry (a sibling SKILL.md citing
 # another skill's scripts/ stays slash-only) is out of this inbound audit's
 # scope — see the contract file.
-SCRIPTS_RE='(\.claude/skills/[^/]+/scripts/|plugins/[^/]+/skills/[^/]+/scripts/)'
+SCRIPTS_RE='(\.claude/skills/[A-Za-z0-9_.-]+/scripts/|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/scripts/)'
 
 HITS_FILE="$(mktemp)"
 trap 'rm -f "$HITS_FILE"' EXIT

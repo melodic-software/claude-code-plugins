@@ -225,6 +225,13 @@ for shape_desc_path in \
   assert_contains "F3 ${shape} emitted" "$out" "$match_prefix"
 done
 
+# Prose listing multiple skill roots must not span whitespace/punctuation into one hit.
+prose_repo="$(fixture_repo ".claude/rules/prose.md" \
+  "The roots are .claude/skills/, .claude/agents/, and .claude/rules/.")"
+out="$(cd "$prose_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "multi-root prose list → exit 0 (no false span)" 0 "$?"
+assert_silent "multi-root prose list emits nothing" "$out"
+
 # --help documents candidate semantics and relative-path limitation
 help_out="$(bash "$SCRIPT" --help 2>&1)"
 assert_contains "--help says candidates exist" "$help_out" "candidates exist"
