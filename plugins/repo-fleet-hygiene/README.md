@@ -15,10 +15,12 @@ The currently shipped audit reports:
 - linked worktrees that do not conform to the configured worktree root (or placement when unset); and
 - GitHub repositories whose configured remote resolves to a different owner or name.
 
-The plugin is deliberately **read-only by default**. The current release is report-only: it never
-fetches, prunes, repairs, deletes, checks out, or rewrites anything. Every finding names its evidence,
-confidence, disposition, and exact target. Cleanup stays with the existing per-repository
-capabilities:
+The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:audit` never fetches,
+prunes, repairs, deletes, checks out, or rewrites anything. Every finding names its evidence,
+confidence, disposition, and exact target. Fleet-wide mutation is a separate explicit act:
+`/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes]` consumes the audit's action-plan
+JSON behind one confirmation gate (see [Fleet cleanup plan](#fleet-cleanup-plan)). Per-repository
+owners remain available for interactive work:
 
 - `/repo-hygiene:clean git` for a local-branch audit and its own confirmation gate;
 - `/source-control:worktree cleanup --dry-run` for worktree cleanup planning; and
@@ -35,7 +37,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |
 | Per-repository verdicts, target deduplication, and a machine-readable rollup artifact | `repo-fleet-hygiene` | Shipped in [#2644](https://github.com/melodic-software/claude-code-plugins/pull/2644) / [#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) |
-| One fleet cleanup-plan handoff consuming that artifact | `repo-fleet-hygiene` plus the per-repo owners | Plan artifact shipped in [#2644](https://github.com/melodic-software/claude-code-plugins/pull/2644) / [#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609); execute consumer still deferred |
+| One fleet cleanup-plan handoff consuming that artifact | `repo-fleet-hygiene:apply` (owns batched merged-local-branch deletion; worktree cleanup in plan order) | Shipped in 0.22.0 / [#2597](https://github.com/melodic-software/claude-code-plugins/issues/2597); plan artifact from [#2644](https://github.com/melodic-software/claude-code-plugins/pull/2644) / [#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609) |
 | Conformance against the configured worktree root | `repo-fleet-hygiene`, reading the convention owned by `source-control` | Shipped in [#2651](https://github.com/melodic-software/claude-code-plugins/pull/2651) / [#2606](https://github.com/melodic-software/claude-code-plugins/issues/2606) |
 | Complete exact branch merge evidence via GraphQL | `repo-fleet-hygiene` | Shipped in [#2642](https://github.com/melodic-software/claude-code-plugins/pull/2642) / [#2604](https://github.com/melodic-software/claude-code-plugins/issues/2604) |
 | Merged remote-branch reporting and its separate safety gate | `repo-fleet-hygiene` | Tracked by [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607); follow-up PR [#2645](https://github.com/melodic-software/claude-code-plugins/pull/2645) |
@@ -48,7 +50,8 @@ report and exact per-repository handoffs.
 
 | Skill | Purpose |
 |---|---|
-| `/repo-fleet-hygiene:audit` | Scan one repository, explicit repositories, or repository-tree roots and render a fleet report |
+| `/repo-fleet-hygiene:audit` | Scan one repository, explicit repositories, or repository-tree roots and render a fleet report (read-only; writes an action-plan JSON) |
+| `/repo-fleet-hygiene:apply` | Dry-run or apply a prior action-plan JSON behind one fleet confirmation (`--apply` + confirm / `--yes`) |
 | `/repo-fleet-hygiene:setup` | `check` inspects the optional tracked fleet configuration read-only; `apply` creates or updates it without touching user settings |
 
 ## Quick start
@@ -79,23 +82,27 @@ additive.
 
 ## Fleet cleanup plan
 
-The fleet cleanup-plan contract consumes the machine-readable rollup artifact defined by
-[#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608); it must never scrape the
-human report. The consumer defined by
-[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609) will:
+`/repo-fleet-hygiene:apply` consumes the machine-readable action-plan JSON from
+[#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) /
+[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609); it never scrapes the
+human report.
 
-1. validate that the artifact came from a completed fleet audit and preserve repository-qualified
-   targets, evidence, confidence, and evidence gaps;
-2. group approved work by canonical repository and route each action to `/repo-hygiene:clean` or
-   `/source-control:worktree`, rather than duplicating either skill's per-repository verdict;
-3. show one fleet action plan and require one explicit confirmation before any mutation; and
-4. re-derive mutable facts such as branch and worktree OIDs at execution time rather than treating
-   the artifact as fresh authorization.
+```text
+/repo-fleet-hygiene:apply --plan-file <path-from-audit>
+/repo-fleet-hygiene:apply --plan-file <path-from-audit> --apply
+/repo-fleet-hygiene:apply --plan-file <path-from-audit> --apply --yes
+```
 
-Neither the rollup artifact nor its consumer is present in this release. Do not invent a
-`cleanup-plan`, `execute`, or auto-delete command, and do not interpret a `HIGH` finding as permission
-to remove a branch or worktree. Until #2608 and #2609 ship, use the exact per-repository handoffs in
-the report, each receiving tool's preview, and its own confirmation gate.
+The apply verb:
+
+1. validates `schema_version: 1` and preserves repository-qualified targets;
+2. owns batched `merged-local-branch` deletion (repo-hygiene branch deletion stays interactive) and
+   cleans merged/prunable/missing worktrees in the plan's declared order;
+3. shows one fleet plan and requires one explicit confirmation (or `--yes`) before any mutation; and
+4. re-derives mutable branch/worktree OIDs at execution time — tip drift skips fail-closed.
+
+Audit remains read-only. A `HIGH` finding is never itself permission to delete; only `:apply
+--apply` after confirmation (or `--yes`) mutates. Do not add an execute flag to `audit-fleet.sh`.
 
 ## Configuration
 
