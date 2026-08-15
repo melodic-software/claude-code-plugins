@@ -429,6 +429,7 @@ validate_skip_name() {
   */* | *\\*)
     fail "invalid ${origin} value (expected a bare directory name, no path separator): $name"
     ;;
+  *) ;;
   esac
 }
 
@@ -724,6 +725,7 @@ should_skip_dir_name() {
   local name="$1" skip
   case "$name" in
   . | ..) return 0 ;;
+  *) ;;
   esac
   for skip in "${SKIP_NAMES[@]}"; do
     [[ -n "$skip" && "$name" == "$skip" ]] && return 0
