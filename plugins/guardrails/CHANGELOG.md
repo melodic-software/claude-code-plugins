@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.29]
+
+### Added
+
+- **`block-hook-bypass`: narrow same-command staged-write `mv`/`cp` detector
+  ([#2731](https://github.com/melodic-software/claude-code-plugins/issues/2731)).**
+  Blocks a command whose *effective* stdout redirect target (existing
+  `set_last_stdout_target` machinery) is later reused in the same command string
+  as the SOURCE operand of `mv`/`cp` with a destination outside configured
+  scratch roots. Path-identity keeps ordinary renames and data-pipeline moves
+  unblocked; a dest under `block_hook_bypass_scratch_roots` stays staging.
+  Closes the session-record reachability shape
+  `jq . f > /tmp/x && mv /tmp/x <repo-file>` that #2695 named as a residual.
+  Documented residuals this lane still cannot see: cross-tool-call staging,
+  variable-carried paths, quoted/opaque move sources, and other movers
+  (`install`, `rsync`, `dd`). A broad any-redirect-into-repo lane stays
+  rejected (never-hard-block tier).
+
+- **Write-path-independent content invariants — opt-in git `pre-commit` hook
+  ([#2731](https://github.com/melodic-software/claude-code-plugins/issues/2731)).**
+  New `/guardrails:setup apply install-pre-commit-content` installs
+  `lib/git-hooks/pre-commit-content-invariants.sh` plus a
+  `guardrails-content-lib/` copy of `lib/secret-detection/` and
+  `lib/path-detection/` into the operator's personal `.git/hooks/`. Scans every
+  staged blob for the same high-confidence secret patterns and hardcoded
+  machine-path patterns the Write|Edit-matched guards enforce — closing the
+  damage class those guards silently load-bear on write-path choice (audit F2).
+  Same personal-lane trust-surface contract as `install-commit-msg`
+  (chain-or-refuse, managed-repo refuse, sentinel-marked, never suggests
+  `--no-verify`). Secret patterns extracted to
+  `lib/secret-detection/secret-patterns.sh` so PreToolUse and pre-commit cannot
+  drift. 8-case contract suite
+  (`lib/git-hooks/pre-commit-content-invariants.test.sh`).
+
 ## [0.28.28]
 
 ### Fixed
