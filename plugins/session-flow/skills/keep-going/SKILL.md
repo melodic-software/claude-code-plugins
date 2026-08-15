@@ -158,8 +158,11 @@ For any "is it stuck / check the monitor / poke it":
   Exit `0` means the reset has passed — treat the worker as resumable now.
   Exit `1` means the limit still holds — hand back via `/session-flow:handoff`
   and stop. Exit `2` means the message carried no parseable reset clause; say
-  so plainly and ask the operator rather than guessing. In a single interactive
-  session, if you are running, the answer is already GO.
+  so plainly and ask the operator rather than guessing. Exit `3` means the
+  reset clause parsed but the IANA timezone could not be resolved (rare when
+  the bundled `tzdata` under `scripts/vendor` is present); report the timezone
+  failure rather than treating the message as unparsable. In a single
+  interactive session, if you are running, the answer is already GO.
 - Reset information available in-session is the limit **message text**
   only (e.g. `resets 3:45pm`) and the interactive `/usage` view — there is
   no environment variable, file, or API that exposes it. Read the reset

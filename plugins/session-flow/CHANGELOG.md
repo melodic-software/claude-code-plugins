@@ -1,5 +1,18 @@
 # Changelog — session-flow plugin
 
+## [0.23.3]
+
+### Fixed
+
+- **`keep-going` usage-limit reset checker on Windows (#2647).**
+  `check-usage-limit-reset.py` now bundles the first-party `tzdata` package as
+  `skills/keep-going/scripts/vendor/tzdata-zoneinfo.zip`, extracts it once into
+  a tempfile cache, and puts that cache on `sys.path` before resolving IANA
+  zones, so messages like `resets 7:10pm (America/New_York)` work when the host
+  has no system TZDB (the stock Windows case). The zip form keeps zone tab text
+  out of hygiene/typos. A missing zone after that fallback exits `3` with
+  `timezone-unavailable:` instead of collapsing into exit `2` (`unparsed:`).
+
 ## [0.23.2]
 
 ### Changed
