@@ -117,7 +117,7 @@ Code has context only git reveals — who changed it, when, why, and what else c
 Understand how the pieces fit together before moving any of them.
 
 - **Directory layout** — if the project documents its repository structure, verify the doc matches reality; otherwise map the tree yourself
-- **Project references / imports** — map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`)
+- **Project references / imports** — map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` — compose `/toolchain:check`'s resolved ecosystem surface when the `toolchain` plugin is installed; otherwise the reference's fallback table)
 - **Solution / workspace membership** — check the repo's solution or workspace file at the root for what's included
 - **Layer boundaries** — respect any dependency-direction rules the project declares
 - **Planned direction** — cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state AND planned direction
@@ -126,7 +126,7 @@ Understand how the pieces fit together before moving any of them.
 
 Tests are executable documentation. They reveal intended behavior, edge cases, and existing coverage.
 
-- **Find test projects** — Glob the per-ecosystem test patterns in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`
+- **Find test projects** — Glob the per-ecosystem test patterns in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (`test-globs` / `test-content-grep` are explore-owned even when composing the toolchain seam)
 - **Co-located tests** — check whether unit tests live next to their source (sibling test project, `__tests__/`, adjacent `_test.go`) or in a separate tree
 - **Cross-cutting tests** — a repo-root `tests/` for architecture, dependency, or naming-rule tests that span multiple libraries
 - **Test patterns** — read existing tests (start with 2-3, scale to the number of distinct patterns in play) to understand naming conventions, assertion style, and fixture patterns before writing new ones
@@ -136,7 +136,7 @@ Tests are executable documentation. They reveal intended behavior, edge cases, a
 
 Build configuration constrains what's possible. Understand it before fighting it.
 
-- **Build configs** — read the ecosystem's build / package / config files (per-ecosystem lists in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`)
+- **Build configs** — read the ecosystem's build / package / config files per `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (resolved `project-discovery` / `anchor` / config-bearing `globs` when the `toolchain` plugin is installed; otherwise the reference's fallback `build-configs`)
 - **Analyzer / lint config** — `.editorconfig` for shared severity levels; ecosystem-specific analyzer/linter files
 - **Package versions** — check the ecosystem's manifest (lockfile + central-version-management file if applicable)
 - **CI/CD** — `.github/workflows/` (or the project's CI equivalent) for what's validated on every PR
@@ -145,7 +145,7 @@ Build configuration constrains what's possible. Understand it before fighting it
 
 When the task involves tooling, MCP servers, or infrastructure:
 
-- **Installed versions** — run the per-ecosystem version commands in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`
+- **Installed versions** — probe per `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (toolchain `install-hint` / native version probe when the `toolchain` plugin is installed; otherwise the reference's fallback `runtime-version-cmd`)
 - **MCP server status** — test with a read-only call before depending on it
 - **Worktree state** — `git worktree list`, current branch, uncommitted changes
 - **Local config** — project-local settings for env vars and tokens (don't read secrets, just verify presence)

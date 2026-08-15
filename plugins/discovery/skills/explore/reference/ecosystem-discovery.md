@@ -3,6 +3,41 @@
 Per-ecosystem discovery primitives consumed by the explore skill's Dimensions 3–6
 (project structure / test discovery / configuration & build state / environment).
 
+## Prefer the toolchain seam
+
+When the `toolchain` plugin is installed, compose `/toolchain:check`'s ecosystem
+detection and command-resolution seam for the shared signal vocabulary — do not
+bake a second inventory of ecosystems, build/config anchors, or runtime probes.
+`/toolchain:check` is the reference skill other plugins compose for that concern
+instead of baking their own tables. Gate and fallback follow
+`docs/conventions/seam-phrasing/README.md`.
+
+Resolve each ecosystem through the ladder `/toolchain:check` documents (consumer
+`.claude/ecosystems/<ecosystem>.yaml` authoritative when present; bundled
+portable defaults only as that ladder's final rung). Read *resolved* state: an
+ecosystem present but `enabled: false` is not configured for exploration either.
+
+| Explore need | Compose from the toolchain seam |
+|---|---|
+| Which ecosystems are in play | Resolved `globs` (and covered-ecosystem set) |
+| Project / workspace roots (Dimension 3 adjacency) | Resolved `project-discovery` / `anchor` |
+| Build / package / config files to read (Dimension 5) | Resolved `project-discovery`, `anchor`, and config-bearing entries in `globs` |
+| Runtime / toolchain presence (Dimension 6) | Tools named by resolved `install-hint` and the ecosystem's native version probe — not a parallel `runtime-version-cmd` table |
+
+**Explore-only keys the seam does not own.** `dependency-grep`, `test-globs`, and
+`test-content-grep` have no home in the ecosystem-commands surface. Use the
+fallback table below for those keys even when composing the toolchain seam for
+the shared vocabulary above.
+
+Where the consuming project's own conventions differ (a custom test layout, a
+nonstandard workspace file), the project's conventions win.
+
+## Fallback — toolchain absent
+
+When the `toolchain` plugin is not installed, use the table below for every
+sub-key. This is the documented standalone fallback, not a peer source of truth
+alongside the seam.
+
 Sub-keys:
 
 - `test-globs` — glob patterns identifying test projects / files (Dimension 4)
@@ -13,10 +48,6 @@ Sub-keys:
 - `dependency-grep` — content regex grepped across source / project files to map
   the dependency graph (Dimension 3)
 - `runtime-version-cmd` — command to check the installed runtime version (Dimension 6)
-
-Use only the ecosystems the consuming repo actually contains. Where the consuming
-project's own conventions differ (a custom test layout, a nonstandard workspace
-file), the project's conventions win — this table is the generic starting point.
 
 ```yaml
 ecosystems:

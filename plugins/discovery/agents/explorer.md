@@ -16,6 +16,8 @@ need arrives in your dispatch prompt.
 The `/discovery:explore` skill is preloaded into your context at startup. Its exploration
 dimensions, output format, and outcome gate are your procedure. It names a sibling
 ecosystem-discovery reference — Read that at the dimension that needs it rather than up front.
+That reference composes `/toolchain:check`'s resolved ecosystem surface when the `toolchain`
+plugin is installed (fallback table when it is not); do not invent a parallel signal inventory.
 
 ## Your dispatch prompt must carry these; refuse to guess any of them
 
