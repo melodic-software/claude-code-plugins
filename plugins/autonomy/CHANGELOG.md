@@ -45,14 +45,19 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   rule's `C2`/`C3` branch would be nearly unpopulated for repo-scoped deletion work. Its precedent
   pointer was updated in step: the pointer describes deletion pipelines, and the staged quarantine
   is the row's own normative content rather than a property read off them.
-- **Three derivation rules moved into `## Mapping rules` itself**, where an org classifying a novel
-  class will actually look — each one a place an independent re-derivation showed a careful reader
-  can stop early or over-read. A hybrid row is portion-split and so binds a posture-qualified
-  identity, its `Derived row` cell carries the judgment portion's class, and it is **never** flagged
-  `not-a-routine` — that flag is reserved for a wholly deterministic class. `AGT/HUM` assigns a
-  **disposition, not a class**, so it never terminates a derivation; a row stopping there would
-  carry a human-gated disposition with no verification topology, checker floor, or cost tier. And
-  the structural-blast-radius axis fires on the change's **target**, not on the file it lives in.
+- **Four general derivation rules now live in `## Mapping rules` itself**, where an org classifying
+  a novel class will actually look — three of them relocated from a per-class note, each a place an
+  independent re-derivation showed a careful reader can stop early or over-read. A hybrid row is
+  portion-split and so binds a posture-qualified identity, its `Derived row` cell carries the
+  judgment portion's class, and it is **never** flagged `not-a-routine` — that flag is reserved for
+  a wholly deterministic class. `AGT/HUM` assigns a **disposition, not a class**, so it never
+  terminates a derivation; a row stopping there would carry a human-gated disposition with no
+  verification topology, checker floor, or cost tier. The structural-blast-radius axis fires on the
+  change's **target**, not on the file it lives in — and because no catalog column records a target,
+  two rows can carry identical axis cells and derive different classes, which the rule now says
+  outright. Fourth and newly stated: a risk-raising axis evaluates **per item** as well as
+  class-wide, so a class whose axis fires on only some items derives the lower class and records the
+  escalation rather than deriving the higher one wholesale.
 - **`gui-crash-fuzzing` re-scored against the GUI-actuation mapping rule.** Its `Derived row` cell
   now applies the rule that unattended GUI actuation requires `L3`, which the `repo` access class
   alone does not give. The `L3` comes from that mapping rule directly and not from the guardrail
@@ -64,12 +69,21 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - **Deployment-specific and over-precise claims removed from normative text.** A binding parameter
   no longer rests on this fleet's inventory ("ships no GUI to fuzz"), a two-significant-figure
   reproducibility statistic, or universal negatives over unnamed literature. Surveyed-record
-  hedging replaces them, matching the register the one well-calibrated claim in the section already
-  used. The precedent-pointer scope line likewise no longer implies the list is exhaustive.
+  hedging replaces them throughout both files, matching the register the one well-calibrated claim
+  in the section already used. The precedent-pointer scope line likewise no longer implies the list
+  is exhaustive, and the reviewer-burden deferral no longer cites a "trust-path" commitment that
+  appears nowhere else in the repository.
+- **`guardrails/isolation-ladder.md` now names both demands for `L3`.** It scoped kernel separation
+  to untrusted-provenance (`C5`) work alone, while the routine catalog's access rule has always also
+  required it for unattended GUI actuation — a demand that reaches classes deriving no work class,
+  so it cannot travel through the matrix's min-isolation column. The ladder is the contract's source
+  of truth for when a level applies, and was incomplete against that charter.
 - **`guardrails/work-classes.md` records what may never enter a promotion predicate (#2683).** An
   acceptance or merge rate is never a promotion input and is not an efficacy signal, in either role,
-  at any cell. Three independent lines of evidence find artifact quality weakly-to-not coupled to
-  acceptance. The section distinguishes the two shipped terms that sit closest to the line, so the
+  at any cell. The rule rests on the one finding verified at primary source — Lenarduzzi et al.'s,
+  that code quality did not affect pull-request acceptance at all — rather than on the three design
+  families the survey found pointing the same way, only one of which was checked against its source.
+  The section distinguishes the two shipped terms that sit closest to the line, so the
   new prohibition cannot be misread as contradicting the predicates above it: `0 human-reverted
   merges` is a correctness signal (a human asserting the change was wrong), not an acceptance rate
   (how much got merged); and `≥ 20 autonomous C2 merges over ≥ 14 days` is a **volume floor**, not
@@ -79,8 +93,9 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   enumerates every distinct term type the predicate table actually uses — seven, where the prose
   previously named four.
 - **The reviewer-burden term is recorded as deferred with an explicit trigger, not omitted
-  (#2683).** It needs a denominator, and a denominator needs the org-scale trust-path requirements
-  already deferred at solo volume. Without them the term moves with volume rather than
+  (#2683).** It needs a denominator, and a denominator needs three org-scale things this contract
+  does not have — a population to divide by, a non-merge outcome signal, and a lookback window with
+  a demotion rule. Without them the term moves with volume rather than
   trustworthiness — which would reward a cell for producing less. Recorded because a designated
   planning pass was asked to settle it, and silence would have left that obligation unfilled.
 - **Standing constraint on any future tuner:** its signal set stays disjoint from promotion

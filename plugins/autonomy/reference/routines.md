@@ -120,7 +120,14 @@ class on the catalog's axes, then apply the rules below.
   one-line fix that merely sits in a file declaring an interface is the over-read this excludes,
   and a purely mechanical single-implementation inline does not demote a row whose target IS the
   structural surface, because the axis keys on blast radius rather than on how reliable the
-  mechanism performing the edit is.
+  mechanism performing the edit is. **No catalog column records the target**, so two rows can carry
+  identical axis cells and derive different classes; the target comes from the class's own
+  definition, and a row whose derivation turns on it says so in its `Derived row` cell.
+- **Per-item escalation** — a risk-raising axis evaluates per ITEM as well as class-wide. Where it
+  fires only on some items of a class, the class derives the lower class and the row records the
+  escalation, rather than the class deriving the higher one wholesale — otherwise the lower branch
+  goes nearly unpopulated for whole categories of work. The definition leaf owns the predicate that
+  decides which side an item falls on.
 - **Input provenance** — a routine consuming attacker-writable external content derives
   `C5`, the untrusted-provenance class. This is a class outcome, not a caveat. The axis keys
   on EXTERNAL content: the `ext` access class, and judgment postures that reason over
@@ -236,12 +243,10 @@ Normative detail a row's cells cannot carry. A parameter here binds the class; i
 commentary, and a leaf that contradicts one is non-conforming.
 
 - **`dead-code-sweep` — `C3` is the class-level derivation; a published surface escalates the ITEM
-  to `C4`.** Deleting a symbol on a published, cross-repo-consumed API surface is a contract change,
-  so the structural-blast-radius rule fires per item and composition takes it to `C4`. The class does
-  not derive `C4` wholesale, because then the direct-change rule's `C2`/`C3` branch would be nearly
-  unpopulated for repo-scoped deletion work. The definition leaf owns the predicate that decides
-  which side an item falls on. What turns on it: `C3` versus `C4` is the difference between
-  auto-merge ever becoming eligible and human merge always.
+  to `C4`.** This is the per-item escalation rule applied: deleting a symbol on a published,
+  cross-repo-consumed API surface is a contract change, so the structural-blast-radius axis fires on
+  that item and composition takes it to `C4`, while the class stays `C3`. What turns on it: `C3`
+  versus `C4` is the difference between auto-merge ever becoming eligible and human merge always.
 - **`dead-code-sweep` — a green quarantine window is inductive evidence, never proof.** It shows no
   observed invocation over a bounded period under observed workloads. The paths a bounded window
   under-samples worst — disaster recovery, annual and quarterly jobs, error and fallback branches, a
@@ -261,9 +266,9 @@ commentary, and a leaf that contradicts one is non-conforming.
   is a duplicate of the other, and neither subsumes the other's observable.
 - **`clone-trend-gate` — detection and trend gating ONLY.** The unify *decision* is deliberately not
   in this class and is not a deferred posture of it: no surveyed clone-detection tool automates the
-  choice of which clones to unify, and the detection side has matured for two decades without one
-  appearing, so there is nothing to defer to. A request to add a unify posture re-opens the class
-  rather than extending it.
+  choice of which clones to unify, across a detection literature the survey found spanning two
+  decades. On that record there is nothing to defer to, so a request to add a unify posture re-opens
+  the class rather than extending it.
 - **`stale-flag-removal` — the disposition never automates.** Staleness is detectable; which branch
   survives is a product decision. The flag-lifecycle tooling surveyed stops at the same line; where
   an instance does act, the decision was pre-encoded (a flag already at a single variation
@@ -272,7 +277,8 @@ commentary, and a leaf that contradicts one is non-conforming.
   assembles the promotion evidence; whether to promote, hold, or retire is not delegable to the
   routine.
 - **`layering-enforcement` — the inform-human posture only.** A direct-change posture would derive
-  `C4` by structural blast radius and has no evidence behind it; it is excluded, not deferred.
+  `C4` by structural blast radius, and no surveyed precedent supports one; it is excluded, not
+  deferred.
   Admission also requires layering rules stated as text — a routine cannot enforce a rule nobody
   wrote — and requires clearing the incumbent gate against the existing architecture-review surface.
 - **`logic-simplification-sweep` — above expression level only, and unbuilt.** Equivalence above
@@ -289,14 +295,17 @@ commentary, and a leaf that contradicts one is non-conforming.
   the trigger names. The empirical record also runs backwards: those smells are in some studies
   associated with *fewer* faults, not more. Satisfying the join trigger would not settle that
   question — both must clear.
-- **`gui-crash-fuzzing` — reproducibility triage is excluded from the class, and replay is
-  unreliable.** Reported crash-replay reproducibility sits well below half, so a filed work item is
-  more often unreproducible than not, which would degrade the governed queue rather than feed it.
-  Deciding whether a filed crash is reproducible is nonetheless not an unmodelled judgment portion
-  of this class: a filed crash is ordinary queue intake, triaged by the issue-lifecycle classes, so
-  the class is fuzz-and-file only and the `DET` exit is complete rather than skipping a split.
-  The `L3` its row carries comes from the GUI-actuation rule directly, not from the matrix's
-  min-isolation column, which a row deriving no class cannot index: the fuzz target is built from
+- **`gui-crash-fuzzing` — the `WI` half of its Output is replay-gated, and reproducibility triage is
+  excluded from the class.** Reported crash-replay reproducibility is low enough that filing every
+  crash would degrade the governed queue rather than feed it. So the row's `WI` output is
+  admission-constrained: an item is filed only where re-running the recorded input sequence
+  reproduces the crash, and everything else stays in the `R` half as a fuzzer report. That gate is a
+  re-run, not a judgment, so it introduces no `AGT` portion and the `DET` exit stays complete rather
+  than skipping a split. Judging a *filed* item beyond that — whether it is worth fixing, whether it
+  duplicates another — is ordinary queue intake owned by the issue-lifecycle classes, excluded from
+  this class rather than deferred within it.
+- **`gui-crash-fuzzing` — the `L3` floor comes from the mapping rule, not the matrix.** A row
+  deriving no class cannot index the matrix's min-isolation column. The fuzz target is built from
   the repo, but synthetic input actuation is not contained by a process boundary, so the `L2` the
   `repo` access class alone would give is not the operative floor.
 - **`cant-fail-test-repair` — repair, not pruning.** A test that cannot fail is a coverage claim that
@@ -370,7 +379,7 @@ of their evidence in their class parameters instead.
 - `coverage-mutation-watch` — coverage threshold gates and nightly mutation-score ratchets
 - `release-notes-generation` — deterministic release-cut tooling plus drafted narratives
   flagged for human review
-- `knowledge-base-gardening` — weakest precedent of the catalog; wiki and glossary
+- `knowledge-base-gardening` — among the weakest precedent the survey found; wiki and glossary
   maintainer samples in agentic-workflow packs
 - `rotating-quality-improver` — daily targeted test, performance, and accessibility
   improver samples in agentic-workflow packs

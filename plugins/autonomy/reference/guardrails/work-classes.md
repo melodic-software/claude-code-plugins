@@ -135,11 +135,11 @@ auto-merge with it.
 ### What may never enter a predicate
 
 **An acceptance or merge rate is never a promotion input, and it is not an efficacy signal**
-— in either role, at any cell, at any threshold. Findings across observational, regression, and
-randomized designs point the same way: artifact quality is weakly-to-not coupled to whether a
-change is accepted. The one verified at primary source, and the strongest statement of it, is
-Lenarduzzi et al.'s: *"code quality turned out not to affect the acceptance of a pull request at
-all."* A predicate built on acceptance would therefore promote throughput while claiming to
+— in either role, at any cell, at any threshold. One finding is verified at primary source and is
+the strongest statement of the point — Lenarduzzi et al.'s: *"code quality turned out not to affect
+the acceptance of a pull request at all."* The survey behind this contract found observational,
+regression, and randomized work pointing the same way, but only that one was checked against its
+source, so it is the one this rule rests on. A predicate built on acceptance would therefore promote throughput while claiming to
 measure trustworthiness.
 
 This does not touch the predicates above, and the distinction is worth stating because two of their
@@ -172,11 +172,12 @@ A reviewer-burden term (how much human review effort a cell's output actually co
 because a designated planning pass was asked to settle it and silence would leave that obligation
 unfilled.
 
-**Why deferred:** the term needs a denominator, and a denominator needs the org-scale trust-path
-requirements this contract already defers at solo volume — a population to divide by, a non-merge
-outcome signal, and a lookback window with a demotion rule. Absent those, "reviewer burden" is a
-count with nothing to normalize against: it moves with volume rather than with trustworthiness, and
-a term that moves with volume rewards a cell for producing less. A metric in name only.
+**Why deferred:** the term needs a denominator, and a denominator needs three things this contract
+does not have — a population to divide by, a non-merge outcome signal, and a lookback window with a
+demotion rule. All three are org-scale: none of them exists at the volume a single deployment
+produces. Absent them, "reviewer burden" is a count with nothing to normalize against: it moves with
+volume rather than with trustworthiness, and a term that moves with volume rewards a cell for
+producing less. A metric in name only.
 
 **Trigger to reconsider:** the volume at which all three requirements are satisfiable is reached,
 and a non-merge outcome signal exists. Reaching only the volume is not the trigger.
