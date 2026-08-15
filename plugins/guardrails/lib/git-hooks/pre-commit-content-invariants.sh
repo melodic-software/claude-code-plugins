@@ -58,14 +58,17 @@ source "$LIB_DIR/path-detection/hardcoded-path-patterns.sh"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 
 # Staged paths that still exist in the index (Added/Copied/Modified/Renamed).
-mapfile -t STAGED < <(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR -z |
-  tr '\0' '\n' | sed '/^$/d')
+# Preserve Git's NUL delimiters — a newline in a filename must not split entries.
+mapfile -d '' -t STAGED < <(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR -z)
+if [[ ${#STAGED[@]} -gt 0 && -z "${STAGED[-1]}" ]]; then
+  unset 'STAGED[-1]'
+fi
 
 [[ ${#STAGED[@]} -gt 0 ]] || exit 0
 
-# Allowlist mirrors the PreToolUse secret-pattern / hardcoded-path exemptions
-# that still make sense at commit time.
-allowlisted() {
+# Secret-pattern exemptions (mirror secret-pattern-detection.sh), including
+# tests/fixtures which that guard alone exempts.
+secret_allowlisted() {
   local f="${1//\\//}"
   case "$f" in
   *.claude/hooks/* | *.lefthook/*) return 0 ;;
@@ -80,17 +83,46 @@ allowlisted() {
   esac
 }
 
+# Hardcoded-path exemptions — same set MINUS tests/fixtures, which remain
+# subject to hardcoded-path-check.sh.
+path_allowlisted() {
+  local f="${1//\\//}"
+  case "$f" in
+  *.claude/hooks/* | *.lefthook/*) return 0 ;;
+  *settings.local.json | *CLAUDE.local.md) return 0 ;;
+  */.venv/* | .venv/* | */node_modules/* | node_modules/*) return 0 ;;
+  *.env.example | *.env.sample | *.env.template) return 0 ;;
+  *.claude/skills/*/context/* | *.claude/skills/*/completed/*) return 0 ;;
+  */lib/secret-detection/* | */lib/path-detection/*) return 0 ;;
+  */guardrails-content-lib/*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # Home-checkout suppression for the repo-path branch — same predicate as
-# hardcoded-path-check.sh.
+# hardcoded-path-check.sh, including Windows drive-letter ↔ MSYS fold.
+_normalize_path_cmp() {
+  local p="${1//\\//}"
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
+      local rest="${p:2}"
+      printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
+      return
+    fi
+    ;;
+  *) ;; # POSIX hosts: case-sensitive FS, no drive fold
+  esac
+  printf '%s' "$p"
+}
+
 SCAN_ROOT=""
 _toplevel="$(git -C "$REPO_ROOT" rev-parse --show-toplevel 2>/dev/null)"
 if [[ -n "$_toplevel" ]]; then
-  _tl="${_toplevel//\\//}"
-  _tl="${_tl%/}"
+  _tl="$(_normalize_path_cmp "${_toplevel%/}")"
   _home="${HOME:-${USERPROFILE:-}}"
-  _home="${_home//\\//}"
-  _home="${_home%/}"
-  if [[ -n "$_home" && ("$_tl" == "$_home" || "$_home" == "$_tl"/*) ]]; then
+  _home="$(_normalize_path_cmp "${_home%/}")"
+  if [[ -n "$_home" && ("$_tl" == "$_home" || "$_tl" == "$_home"/* || "$_home" == "$_tl" || "$_home" == "$_tl"/*) ]]; then
     SCAN_ROOT=""
   else
     SCAN_ROOT="$REPO_ROOT"
@@ -106,7 +138,6 @@ is_git_binary() {
 
 failed=0
 for rel in "${STAGED[@]}"; do
-  allowlisted "$rel" && continue
   if git -C "$REPO_ROOT" check-ignore -q -- "$rel" 2>/dev/null; then
     continue
   fi
@@ -122,33 +153,37 @@ for rel in "${STAGED[@]}"; do
   # PreToolUse guards hit once jq has delivered the field. Git-classified
   # binaries are skipped above; no further NUL probe is reliable in-shell.
 
-  secret_out=$(
-    secrets::scan_text "$content"
-    printf x
-  )
-  secret_out=${secret_out%x}
-  if [[ -n "$secret_out" ]]; then
-    {
-      echo "pre-commit (guardrails): secret/credential pattern(s) in staged $rel:"
-      printf '%s\n' "$secret_out"
-      echo "Remove the secret from the index and commit again."
-      echo "Never pass --no-verify to skip this check."
-    } >&2
-    failed=1
+  if ! secret_allowlisted "$rel"; then
+    secret_out=$(
+      secrets::scan_text "$content"
+      printf x
+    )
+    secret_out=${secret_out%x}
+    if [[ -n "$secret_out" ]]; then
+      {
+        echo "pre-commit (guardrails): secret/credential pattern(s) in staged $rel:"
+        printf '%s\n' "$secret_out"
+        echo "Remove the secret from the index and commit again."
+        echo "Never pass --no-verify to skip this check."
+      } >&2
+      failed=1
+    fi
   fi
 
-  path_out=$(
-    hpp::scan_text "$content" "$SCAN_ROOT" "$REPO_ROOT/$rel"
-    printf x
-  )
-  path_out=${path_out%x}
-  if [[ -n "$path_out" ]]; then
-    {
-      echo "pre-commit (guardrails): hardcoded machine-specific path(s) in staged $rel:"
-      printf '%s' "$path_out"
-      echo "Use portable alternatives and commit again. Never pass --no-verify to skip this check."
-    } >&2
-    failed=1
+  if ! path_allowlisted "$rel"; then
+    path_out=$(
+      hpp::scan_text "$content" "$SCAN_ROOT" "$REPO_ROOT/$rel"
+      printf x
+    )
+    path_out=${path_out%x}
+    if [[ -n "$path_out" ]]; then
+      {
+        echo "pre-commit (guardrails): hardcoded machine-specific path(s) in staged $rel:"
+        printf '%s' "$path_out"
+        echo "Use portable alternatives and commit again. Never pass --no-verify to skip this check."
+      } >&2
+      failed=1
+    fi
   fi
 done
 

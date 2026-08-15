@@ -854,8 +854,13 @@ scratch_target_exempt() {
 # staging (write in one Bash call, move in another), variable-carried paths
 # (`t=/tmp/x; jq … > "$t"; mv "$t" dest`), quoted/opaque mv|cp source operands
 # (strip_literals drops non-redirect quotes), and other movers (`install`,
-# `rsync`, `dd`) are not seen. A broad any-redirect-into-repo lane was assessed
-# and rejected (blocks legitimate data-processing redirects).
+# `rsync`, `dd`) are not seen. Path identity also runs on the lowercased
+# command stream (`EXEC_LC` / `NORMALIZED_SEGMENTS`), so on a case-sensitive
+# filesystem distinct paths that differ only by case can collide — matching
+# the rest of this guard's case-folded producer scan; preserving original
+# operand case would need a parallel case-preserved segment pass.
+# A broad any-redirect-into-repo lane was assessed and rejected (blocks
+# legitimate data-processing redirects).
 #
 # Destination outside configured scratch roots: with no roots configured
 # (shipped default), every destination is outside, so any matched staged move
@@ -886,18 +891,20 @@ paths_identical() {
   [[ "$a" == "$b" ]]
 }
 
-# Parse an mv|cp segment into MOVE_SOURCES (NUL-separated) and MOVE_DEST.
+# Parse an mv|cp segment into MOVE_SOURCES (array) and MOVE_DEST.
 # Supports GNU `-t DIR` / `--target-directory=DIR` (dest in the option; remaining
 # non-options are sources) and the common `sources… dest` form. Returns 1 when
 # the segment is not an mv|cp simple command or operands are incomplete.
-MOVE_SOURCES=""
+MOVE_SOURCES=()
 MOVE_DEST=""
 parse_mv_cp_operands() {
-  local seg="$1" head tok expect_t=0 saw_cmd=0
+  # Use mv_seg (not seg): sibling scanners also local `seg`, and ShellCheck
+  # SC2178 flags reusing that name as a string after array-shaped reads elsewhere.
+  local mv_seg="$1" head tok expect_t=0 saw_cmd=0
   local -a srcs=()
-  MOVE_SOURCES=""
+  MOVE_SOURCES=()
   MOVE_DEST=""
-  head="${seg#"${seg%%[![:space:]]*}"}"
+  head="${mv_seg#"${mv_seg%%[![:space:]]*}"}"
   # Peel the same prefix class producer_redirect_bypass peels so
   # `env mv /tmp/x dest` still classifies.
   local prev_mod=""
@@ -963,7 +970,7 @@ parse_mv_cp_operands() {
   ((expect_t)) && return 1 # `-t` without its directory operand
   if [[ -n "$MOVE_DEST" ]]; then
     ((${#srcs[@]} >= 1)) || return 1
-    MOVE_SOURCES=$(printf '%s\0' "${srcs[@]}")
+    MOVE_SOURCES=("${srcs[@]}")
     return 0
   fi
   # Classic form (including after `--`): last operand is dest, earlier are sources.
@@ -971,7 +978,7 @@ parse_mv_cp_operands() {
   MOVE_DEST="${srcs[-1]}"
   unset 'srcs[-1]'
   ((${#srcs[@]} >= 1)) || return 1
-  MOVE_SOURCES=$(printf '%s\0' "${srcs[@]}")
+  MOVE_SOURCES=("${srcs[@]}")
   return 0
 }
 
@@ -989,7 +996,7 @@ staged_write_move_bypass() {
       if ! ((TARGET_OPAQUE)) && scratch_target_exempt "$TARGET_TEXT"; then
         :
       else
-        while IFS= read -r -d '' src || [[ -n "$src" ]]; do
+        for src in "${MOVE_SOURCES[@]}"; do
           [[ -n "$src" ]] || continue
           rest="$seen"
           while [[ -n "$rest" ]]; do
@@ -1000,7 +1007,7 @@ staged_write_move_bypass() {
               return 0
             fi
           done
-        done < <(printf '%s' "$MOVE_SOURCES")
+        done
       fi
     fi
     # Record this segment's effective stdout target for later segments.

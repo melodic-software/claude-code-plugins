@@ -1303,6 +1303,8 @@ run "#2731: staged move from scratch path to repo (blocked)" \
   "$SCRATCH_ENV=/tmp/scratch"
 run "#2731: install mover residual (allowed — not mv|cp)" \
   "jq . f > /tmp/x && install /tmp/x dest.txt" 0
+run "#2731: multi-source cp keeps sources distinct (blocked)" \
+  "jq . f > /tmp/x && cp /tmp/x /tmp/other destdir/" 2
 # Scope note names the new lane and the residuals it still cannot see.
 scopeout=$(bash "$HOOK" <<<"$(command_json 'jq . f > /tmp/x && mv /tmp/x dest')" 2>&1 >/dev/null) || true
 assert_contains "#2731: block names staged-write-move form" "$scopeout" "staged write"

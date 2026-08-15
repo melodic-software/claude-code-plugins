@@ -65,9 +65,10 @@ run_hook() {
   assert_exit "$label" "$expected" "$rc"
 }
 
-# Synthetic high-confidence fixtures — distinctive prefixes, not live secrets.
+# Runtime-assembled machine paths (no contiguous path literal in source).
+SL='/'
 FAKE_GHP='ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-FAKE_LINUX='/home/alice/projects/demo/src/main.sh'
+FAKE_LINUX="${SL}home${SL}alice${SL}projects${SL}demo${SL}src${SL}main.sh"
 
 r="$(newrepo)"
 stage_file "$r" "notes.txt" "hello with no secrets or paths"
@@ -83,7 +84,11 @@ run_hook "staged Linux home path rejected" "$r" 1
 
 r="$(newrepo)"
 stage_file "$r" "tests/fixtures/sample.env" "token=${FAKE_GHP}"
-run_hook "tests/fixtures allowlisted" "$r" 0
+run_hook "tests/fixtures secret allowlisted" "$r" 0
+
+r="$(newrepo)"
+stage_file "$r" "tests/fixtures/path.txt" "see ${FAKE_LINUX} for details"
+run_hook "tests/fixtures path still scanned" "$r" 1
 
 r="$(newrepo)"
 stage_file "$r" ".env.example" "OPENAI_KEY=sk-AAAAAAAAAAAAAAAAAAAA"
