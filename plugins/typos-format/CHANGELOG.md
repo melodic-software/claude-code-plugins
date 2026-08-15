@@ -3,6 +3,32 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.17]
+
+### Fixed
+
+- **Write-skip disclosure names the real gate (#2650).** Lockfile basename denies,
+  extensionless paths, and extension allowlist misses each get a distinct skip note
+  instead of always blaming the extension allowlist.
+
+## [0.6.16]
+
+### Fixed
+
+- **Write-mode allowlist isolates the Clojure data-notation extension** on its own `case` arm with `spellchecker:disable-line` so hygiene spell-check does not treat that extension as the English word "end". A disable-line comment cannot sit after a line-continuation `\` inside the multi-line pattern list without breaking bash parsing.
+
+- **Write mode denies known lockfile basenames** even when the extension is otherwise
+  allowlisted (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, …),
+  so generated dependency graphs stay report-only under `typos_format_write_changes`.
+
+- **Write mode honors an explicit extension allowlist before `--write-changes` (#2650).** The
+  read-only scan stays language-agnostic (any edited file). Opt-in write mode no longer rewrites
+  unknown extensions, extensionless paths, or fixture/lock/binary-adjacent types — those stay
+  report-only even when `typos_format_write_changes` is true. `--write-changes` emits nothing for
+  a correction it applies, so an unbounded write path was unbounded blast radius; the allowlist is
+  defense in depth on top of `--force-exclude`. Denied paths still surface findings, with a note
+  that write was skipped for the extension.
+
 ## [0.6.15]
 
 ### Changed
