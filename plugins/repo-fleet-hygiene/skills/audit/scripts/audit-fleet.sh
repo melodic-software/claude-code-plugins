@@ -1663,7 +1663,7 @@ analyze_repo() {
   local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short
-  local repo_pr_rows="" repo_pr_available=false protected=false
+  local repo_pr_rows="" repo_pr_available=false protected=false protection_reason=""
   local remote_inventory_failed=false
   local gql_owner="" gql_name="" gql_owner_esc="" gql_name_esc="" gql_query="" gql_page_rows=""
   local gql_page_start=0 gql_page_end=0 gql_alias_i=0 gql_bi=0 gql_branch_esc=""
@@ -2231,6 +2231,32 @@ analyze_repo() {
         emit_finding HIGH merged-local-branch "$canonical :: $branch" \
           "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url)" \
           "Candidate per-repository branch-audit handoff" "Run /repo-hygiene:clean git in $canonical"
+      else
+        # Protected AND exact-OID merged. Without this arm the evidence is computed
+        # and then discarded: neither branch above fires, so the strongest merge
+        # evidence the collector has produces no finding at all. The weaker
+        # merged-pr-tip-drift below carries no protection guard and DOES emit, so
+        # silence here reads as "nothing merged" rather than "merged but protected".
+        # Reported, never a cleanup candidate -- the protection rule is unchanged
+        # and this kind is deliberately absent from branch_action_kind().
+        # The default branch cannot reach here: pr_match is populated only under
+        # [[ "$branch" != "$default_branch" ]] at the collection guard above, and is
+        # reset every iteration, so a default branch never enters this block. Only
+        # the current-branch and main-worktree protections are reachable.
+        protection_reason="branch is protected"
+        if [[ "$is_main" == "true" ]]; then
+          protection_reason="attached to the main worktree"
+        elif [[ "$branch" == "$current_branch" ]]; then
+          protection_reason="current branch of the canonical checkout"
+        fi
+        # HIGH, matching merged-local-branch and merged-worktree: the evidence is the
+        # same successful MERGED PR with an exact headRefOid match. The confidence
+        # model separates evidence strength from disposition, so protection belongs in
+        # the disposition, not in a downgraded tier.
+        emit_finding HIGH merged-protected-branch "$canonical :: $branch" \
+          "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url); $protection_reason" \
+          "Informational only; protected branches are never branch-cleanup candidates" \
+          "Switch off this branch in $canonical, then rerun to reclassify it"
       fi
     elif [[ -n "$pr_any" && "$branch" != "$default_branch" ]]; then
       IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
