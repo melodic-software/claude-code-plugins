@@ -14,7 +14,11 @@ conforming to the contract's `ecosystem.schema.json`. Command keys are **opaque 
 - `build-cmd` — build/compile verification; `null` when the ecosystem has no build step
 - `test-cmd` — test command; `null` when no test framework is wired
 - `check-cmd` — lint/format check, no file modification; `null` when lint does not apply
-- `fix-cmd` — auto-fix; `null` when the toolchain has no fix mode
+- `fix-cmd` — **format-only** auto-fix (whitespace / import layout / style); `null` when absent.
+  Must not apply semantic/code-changing lint autofixes. `/toolchain:lint --fix` runs this key.
+- `code-fix-cmd` — **code-changing** auto-fix (lint autofixes that rewrite logic, delete unused
+  imports, apply safe/unsafe code edits); `null` when absent. `/toolchain:lint --code-fix` runs
+  this key behind that skill's confirmation / `--yes` gate — never bare `--fix`.
 
 Plus `globs` (required — classify changed files), and optional `enabled` (default `true`; a consumer
 sets `false` to disable an ecosystem without deleting its file), `anchor`, `project-discovery`,

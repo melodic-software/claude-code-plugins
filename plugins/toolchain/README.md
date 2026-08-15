@@ -8,7 +8,7 @@ defaults. Three skills, one concern: mechanical verification of changed code.
 | Skill | What it does |
 |---|---|
 | `/toolchain:check` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status; resolves each ecosystem's commands through the shared four-rung ladder. Also the reference skill other plugins compose for ecosystem detection and command resolution. |
-| `/toolchain:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in, `--fix` mode where linters support it; also owns the `yaml` and `cross-cutting` lint surfaces. |
+| `/toolchain:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in; `--fix` is format-only, `--code-fix` runs semantic lint autofixes behind a confirmation / `--yes` gate; also owns the `yaml` and `cross-cutting` lint surfaces. |
 | `/toolchain:setup` | Configure the plugin for a repo. `check` (read-only, default) reports which ecosystems are configured and each one's resolved command surface, validating the tracked files against the contract schema; `apply` interviews + infers + writes the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/toolchain:check` and `/toolchain:lint` resolve first. Re-runnable. |
 
 ## Works in any repo

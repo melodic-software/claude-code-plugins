@@ -41,7 +41,11 @@
     },
     "fix-cmd": {
       "type": ["string", "null"],
-      "description": "Auto-fix command. Null when the toolchain has no fix mode."
+      "description": "Format-only auto-fix command (whitespace, import layout, style). Must not apply semantic/code-changing lint autofixes. Null when the toolchain has no format-fix mode. Code-changing autofixes belong in code-fix-cmd."
+    },
+    "code-fix-cmd": {
+      "type": ["string", "null"],
+      "description": "Code-changing auto-fix command (lint autofixes that rewrite logic, delete unused imports, apply safe/unsafe code edits). Null when absent. Invoked only by /toolchain:lint --code-fix behind that skill's confirmation / --yes gate — never by bare --fix."
     },
     "opt-in": {
       "type": "string",

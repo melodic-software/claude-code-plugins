@@ -16,14 +16,14 @@
     },
     {
       "id": 2,
-      "name": "fix-mode-parsed-and-auto-corrects",
-      "prompt": "/toolchain:lint dotnet --fix",
-      "expected_output": "Parses the --fix flag as fix mode and the dotnet filter, runs the ecosystem's fix-cmd to auto-correct where the linter supports it, and notes which ecosystems were auto-fixed versus which have no auto-fix (fix capability derives from a non-null fix-cmd in the config).",
+      "name": "fix-mode-is-format-only",
+      "prompt": "/toolchain:lint python --fix",
+      "expected_output": "Parses --fix as format-only fix mode and python as the ecosystem filter, runs the resolved fix-cmd (ruff format) without running code-fix-cmd (ruff check --fix), and notes which ecosystems were format-fixed versus which have no fix-cmd.",
       "files": [],
       "expectations": [
-        "Parses --fix as fix mode (auto-correct) rather than check mode, and dotnet as the ecosystem filter",
-        "Runs the resolved fix-cmd to auto-correct where the linter supports it",
-        "Reports which ecosystems were auto-fixed vs which are check-only (no non-null fix-cmd)"
+        "Parses --fix as format-only fix mode (not code-changing) and python as the ecosystem filter",
+        "Runs the resolved fix-cmd only — does NOT run code-fix-cmd / ruff check --fix / golangci-lint --fix / biome check --write",
+        "Reports which ecosystems were format-fixed vs which are check-only (no non-null fix-cmd)"
       ]
     },
     {
@@ -60,6 +60,31 @@
         "Falls back to the branch diff before concluding there is nothing to lint",
         "Reports 'No changes found' and suggests `/toolchain:lint all` or `/toolchain:lint <ecosystem>` when both detection paths are empty and no filter was given",
         "Does not silently run every ecosystem when no changes and no filter are present"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "code-fix-requires-confirmation-or-yes",
+      "prompt": "/toolchain:lint --code-fix — non-interactive session, a few Python and Go files changed.",
+      "expected_output": "Parses --code-fix, emits a code-fix plan listing each ecosystem's code-fix-cmd and scoped file counts, and STOPS without mutating because the session is non-interactive and --yes is absent. Does not run format-only fix-cmd under this flag.",
+      "files": [],
+      "expectations": [
+        "Parses --code-fix as code-changing fix mode (distinct from --fix)",
+        "Emits a code-fix plan (ecosystems, commands, scoped file counts) before any mutation",
+        "In a non-interactive session without --yes, STOPS after the plan and mutates nothing",
+        "Does not run fix-cmd / format-only commands under --code-fix"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "code-fix-file-cap-stops-without-all-files",
+      "prompt": "/toolchain:lint --code-fix --yes — more than 40 changed Python files in scope.",
+      "expected_output": "Even with --yes, when the scoped file count exceeds the default file-cap of 40 and --all-files is absent, emits the plan, reports file-cap exceeded, and mutates nothing.",
+      "files": [],
+      "expectations": [
+        "Counts scoped files for ecosystems with a non-null code-fix-cmd",
+        "When the count exceeds 40 without --all-files, reports file-cap exceeded and STOPS without mutating",
+        "--yes alone does not bypass the file-cap; --all-files is required for over-cap applies"
       ]
     }
   ]
