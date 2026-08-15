@@ -1,7 +1,7 @@
 # Ingest deferred-with-trigger decisions
 
 This document owns the deferred-with-trigger records that outlived the
-`docsite-digest` contract-slice Brief (the Brief governed `map-corpus` authoring;
+`docpage-digest` contract-slice Brief (the Brief governed `map-corpus` authoring;
 the slice pruned after the skill shipped). None of these is actionable until its
 named trigger fires. Re-check each trigger — and re-measure item 3's cost —
 before treating an item as actionable.

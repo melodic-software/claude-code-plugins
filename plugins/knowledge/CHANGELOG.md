@@ -10,7 +10,7 @@ only after that version increases.
 
 - **Owner doc for ingest deferred-with-trigger decisions**
   (`reference/ingest-deferred-decisions.md`): the five records that outlived the
-  `docsite-digest` Brief — rung-3/`firecrawl` seam (user-reserved), repo-tree enumeration,
+  `docpage-digest` Brief — rung-3/`firecrawl` seam (user-reserved), repo-tree enumeration,
   `docpage-digest` rename cost, shared ingest-slice retrofit of sibling skills, and cross-type
   routing — each with its named trigger. `map-corpus` keeps today's stop/non-goal behavior and
   points at the owner doc for the durable records. Closes #2707. No behavior, schema, gate, exit
