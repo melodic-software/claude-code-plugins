@@ -246,6 +246,9 @@ typos_write_lockfile_denied() {
 
 typos_write_ext_allowed() {
   case "$1" in
+  *.edn) # spellchecker:disable-line
+    return 0
+    ;;
   *.md | *.mdc | *.mdx | *.markdown | *.txt | *.rst | *.adoc | *.asciidoc | *.org | \
   *.py | *.pyi | *.rb | *.go | *.rs | *.java | *.kt | *.kts | *.scala | *.swift | \
   *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.vue | *.svelte | \
@@ -255,7 +258,7 @@ typos_write_ext_allowed() {
   *.xml | *.yaml | *.yml | *.toml | *.json | *.jsonc | \
   *.sql | *.graphql | *.graphqls | *.proto | \
   *.lua | *.r | *.R | *.pl | *.pm | *.php | *.ex | *.exs | *.erl | *.hrl | \
-  *.hs | *.elm | *.clj | *.cljs | *.edn | *.lisp | *.el | \
+  *.hs | *.elm | *.clj | *.cljs | *.lisp | *.el | \
   *.tf | *.hcl | *.nix | *.cmake | *.mk | \
   *.tex | *.bib | *.pod | *.rdoc)
     return 0
