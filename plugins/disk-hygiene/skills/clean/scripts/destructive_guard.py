@@ -1431,9 +1431,10 @@ def _bash_denial_guidance(authority: str | None) -> str:
         f'"{_display_path(_engine_script_path())}", plus the argument-free '
         f'read-only kill-switch probe "{_display_path(_probe_script_path())}", '
         f"plus literal-form read-only supporting commands ({supporting}; find "
-        "without -delete/-exec/-ok/-fprint side-effect primaries; bare names "
-        "only when they resolve to trusted system binaries, or absolute paths "
-        "under those directories) — "
+        "without -delete/-exec/-ok/-fprint side-effect primaries; [ only as a "
+        "complete [ ... ] expression with the closing ] bookend; every head, "
+        "[ included, only when it resolves to a trusted system binary — a bare "
+        "name via PATH lookup, or an absolute path under those directories) — "
         "all of them using the hook's absolute Python interpreter "
         f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
         "commands are denied because shell functions and aliases can replace them."

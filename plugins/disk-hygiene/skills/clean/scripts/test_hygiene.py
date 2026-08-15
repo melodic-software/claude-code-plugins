@@ -4277,6 +4277,15 @@ class GuardTests(unittest.TestCase):
             # These posix roots do not exist on Windows, where trust is anchored
             # to the resolved Git installation and %SystemRoot% instead.
             allowed.extend(["/bin/ls /tmp/example", "/usr/bin/ls -la /tmp/example"])
+        if shutil.which("[") is not None:
+            # `[` is a real binary in coreutils and in Git for Windows, so the
+            # hardened identity check clears it and the well-formed bookend
+            # expression is allowed. Where the host ships `[` only as a shell
+            # builtin the shape is unprovable and denied instead — that policy
+            # is asserted deterministically in
+            # `test_bracket_test_is_not_trusted_on_name_alone`, which mocks the
+            # identity gate rather than depending on the host.
+            allowed.extend(["[ -d /tmp/example ]", "[ -f /tmp/example ]"])
         for command in allowed:
             with self.subTest(command=command):
                 result = self.run_guard(command)
