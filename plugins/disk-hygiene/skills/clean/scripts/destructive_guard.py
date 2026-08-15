@@ -1014,8 +1014,21 @@ _POWERSHELL_NEW_ITEM_FORCE = re.compile(
 # File redirects still match: `2>out.txt`, `> out.txt`, `1>file`, and a command
 # that discards one stream while redirecting another (`... 2>$null > out.txt`),
 # whose second `>` has no `$null` after it.
+# Append (`>>`) is NOT covered here: `(?![=>&])` rejects the first `>` of the
+# pair and the lookbehind rejects the second, so `>>` is invisible — see
+# `_POWERSHELL_APPEND_REDIRECT` (#2675).
 _POWERSHELL_OUTPUT_REDIRECT = re.compile(
     r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
+# File append (`>>`, `2>>file`, `*>>file`). Matched separately rather than by
+# widening the single-`>` lookahead, which is load-bearing for the stream-merge
+# and `$null`-discard exclusions above. Exclude `>> $null` the same way
+# guardrails' `ps::write_bypass` excludes the `$null` discard — case-
+# insensitively, horizontal whitespace only, and with a real token terminator
+# after `$null` (whitespace, `;`, `|`, `)`, `}`, or end-of-string) so
+# punctuation continuations like `>>$null/out.txt` stay flagged.
+_POWERSHELL_APPEND_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>>(?![^\S\n]*\$null(?=[\s;|)}]|$))"
 )
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path
@@ -1072,7 +1085,9 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             enabled,
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
-    if _POWERSHELL_OUTPUT_REDIRECT.search(command):
+    if _POWERSHELL_OUTPUT_REDIRECT.search(
+        command
+    ) or _POWERSHELL_APPEND_REDIRECT.search(command):
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",
