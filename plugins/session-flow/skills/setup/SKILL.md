@@ -58,8 +58,8 @@ and note that re-enabling restores the FAIL semantics.
 ## `apply`
 
 No write path. Run `check`, then for each FAIL offer the remediation: install the missing tool, or route
-observer reconfiguration through Claude Code's native flow. Never write `pluginConfigs`, mutate user
-settings, or edit the installed plugin cache.
+observer reconfiguration through Claude Code's native flow.
+Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 
 Reconfiguring the observer's `userConfig` keys has exactly two routes, and only the first works on an
 installed plugin:

@@ -133,8 +133,8 @@ give, rather than writing a dangling entry.
    Both commands default to `-s user` — pass the scope `claude plugin list` reports for this
    plugin, and run from that project's directory for a `project`/`local` scope. Defaulting
    instead uninstalls a separate user-scope record while the effective install stays in place,
-   so the reinstall lands at a scope that does not load. This skill never writes user settings
-   or `pluginConfigs`.
+   so the reinstall lands at a scope that does not load —
+   this skill never writes user settings or `pluginConfigs`.
 
 Re-running `apply` after everything is already set changes nothing and reports "already configured".
 

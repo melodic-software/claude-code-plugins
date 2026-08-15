@@ -154,7 +154,8 @@ Every write names the file and the exact change before making it, and preserves 
 - Run an audit — that is `/claude-config:audit`, `/claude-config:audit-automation-gaps`,
   `/claude-config:audit-permission-grants`, `/claude-config:audit-instructions`, and
   `/claude-config:audit-pass`.
-- Install system packages, write Claude Code settings or `pluginConfigs`, or touch the plugin cache.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Install system packages.
 - Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries.
 - Download anything — `check` makes no network call; the audit skills' own doc/marketplace fetches are
   theirs, not setup's.

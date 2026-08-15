@@ -105,8 +105,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Run the formatter or linter — editing any `.ps1`, `.psm1`, or `.psd1` file exercises the
   hook end-to-end. The `check` pwsh probes are read-only capability checks; they never format,
   lint, or mutate any file.
-- Write anything: not the repository (including `PSScriptAnalyzerSettings.psd1`), not Claude
-  Code user settings, not `pluginConfigs`, not the plugin cache. The `pwsh` runtime and the
-  PSScriptAnalyzer module are resolved from the environment, never installed, so remediation is
-  guidance only.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository,
+  including `PSScriptAnalyzerSettings.psd1` — the `pwsh` runtime and the PSScriptAnalyzer module
+  are resolved from the environment, never installed, so remediation is guidance only.
 - Download tools during `check` beyond the read-only presence and version probes.

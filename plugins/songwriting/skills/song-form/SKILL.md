@@ -18,8 +18,9 @@ The architecture layer: how sections are identified, contrasted, balanced, and r
 serves the song. Covers form selection, hook/title placement, repetition and repainting, verse
 division of labor (box model), verse development, and bridges.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
-at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 

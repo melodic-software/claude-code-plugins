@@ -64,7 +64,7 @@ nothing and reports "already configured".
 
 ## What this skill does NOT do
 
-- Write anything other than the one explicitly invoked `apply install-cli` global npm install;
-  it never edits project files, settings, or the plugin cache.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor project files — the
+  one explicitly invoked `apply install-cli` global npm install is the only write it performs.
 - Provision browsers, run E2E flows, or take screenshots — that is `/playwright:playwright`.
 - Run or wrap the maintainer update flow (`/playwright:playwright update`).

@@ -105,7 +105,6 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter — editing any `.github/workflows/*.yml` or `*.yaml` file exercises the hook
   end-to-end.
-- Write anything: not the repository, not Claude Code user settings, not `pluginConfigs`, not
-  the plugin cache. Every prerequisite is a `PATH` binary or the native toggle, so remediation
-  is guidance only.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository —
+  every prerequisite is a `PATH` binary or the native toggle, so remediation is guidance only.
 - Download or execute tools during `check` beyond the read-only `command -v` presence probes.

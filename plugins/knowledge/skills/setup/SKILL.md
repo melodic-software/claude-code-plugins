@@ -110,5 +110,5 @@ not this one — do not claim it this session.
 ## Boundaries
 
 - Do not run an ingestion pipeline — provisioning dependencies is not the same as running one.
-- Do not write Claude Code settings or `pluginConfigs`.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Do not invent organization-specific paths or environment-variable prefixes.

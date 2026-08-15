@@ -97,6 +97,6 @@ and lock steps are idempotent — and reports "already provisioned".
 
 - Run `sync`, `update`, `cleanup`, or `status` — those stay on the router skill
   (`/kindle-dedrm:manage`); `check` here is the read-only state report, `apply` is first-time provisioning.
-- Write Claude Code user settings, `pluginConfigs`, the plugin cache, or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the plugin data directory.
 - Send any script, key, or extracted file off the user's machine — personal-use scope only.
 - Auto-uninstall a wrong Kindle for PC version or run the cached auto-update installer.

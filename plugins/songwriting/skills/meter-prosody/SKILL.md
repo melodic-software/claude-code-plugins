@@ -22,8 +22,9 @@ The sound-and-motion layer: whether the number, placement, and stress of syllabl
 stability of each section — support the meaning and emotion. Covers scansion, prosody, phrasing,
 stable/unstable analysis, and fitting lyric to melody.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
-at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 

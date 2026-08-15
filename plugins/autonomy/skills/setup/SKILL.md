@@ -456,7 +456,9 @@ surface recorded in two `surfaces` maps resolving as ambiguous — are catalogue
 - Wire capability slices that have not shipped yet — each lands with its own work package and
   extends this skill (the runner charter execution pack is the next such slice).
 - Estimate, impute, or backfill the two human-attested return fields — ever.
-- Mutate platform settings, user settings, or `pluginConfigs`.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
+  contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+  repository). Nor platform settings.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or
   defaults; it never guesses silently.
 - Recommend or privilege any observability vendor — sink classes only; the deployment picks

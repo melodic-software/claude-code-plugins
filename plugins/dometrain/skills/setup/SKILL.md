@@ -134,7 +134,9 @@ to detect the collision by comparing MCP tool-name prefixes — a true collision
 ## Boundaries
 
 - Do not read, echo, log, copy, or persist the API key.
-- Do not edit Claude Code settings or `pluginConfigs`.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
+  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  marketplace repository).
 - Do not call a Dometrain tool during setup — resolution via tool inventory / `ToolSearch` is
   sufficient and spends no quota.
 - Do not claim to have read `/mcp` connection status — no tool exposes it to a model turn.

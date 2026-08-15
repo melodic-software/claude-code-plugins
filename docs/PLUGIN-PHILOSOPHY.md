@@ -434,6 +434,26 @@ must not write into the installed plugin cache, mutate Claude Code user settings
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
 configuration surface.
 
+**How a setup skill states what it will not write.** That prohibition is stated inline in every
+`setup` skill rather than cited in place of the words, for the reason the routing line above gives:
+an installed plugin has no path to this file. One fixed sentence carries it, in whatever boundaries
+list the skill already keeps, naming the three surfaces in this order and no other:
+
+```text
+Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+```
+
+A skill whose boundaries list is phrased in the imperative prefixes a `Do not` to that sentence,
+lowercasing only its first letter and changing nothing else in it. Nothing is ever folded into the three-item list: a plugin that also
+refuses a surface of its own — its plugin data directory, a consumer's tracked file, machine-local
+state, the hook scripts — names that surface in a following sentence in the same bullet, and a
+plugin that has a single narrow permitted write names *that* in a following sentence too. Keeping
+the list contiguous and word-for-word is what makes a change to the forbidden set one greppable
+sweep across the fleet instead of thirty judgement calls. The provenance naming stays once per
+skill, in the fixed form given above: a skill that already names this section elsewhere adds no
+second naming here, and a skill that names it nowhere else carries the parenthetical on this
+sentence so every setup skill points home exactly once.
+
 `apply` is owed wherever the plugin owns a **writable artifact**, and only there. The test is
 ownership plus permission, not location: an artifact whose schema this plugin defines and documents
 *and* which this contract permits setup to write — its tracked project config, or a machine-scope

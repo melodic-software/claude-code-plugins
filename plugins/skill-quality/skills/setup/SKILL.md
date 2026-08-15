@@ -59,6 +59,6 @@ and reports "already configured".
 
 ## What this skill does NOT do
 
-- Write Claude Code user settings, `pluginConfigs`, or the plugin cache.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Persist the `CHECK_SKILL_SKILLS_ROOT` environment override.
 - Perform the full skill-quality audit, or invent organization-specific paths, IDs, or env-var prefixes.
