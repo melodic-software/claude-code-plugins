@@ -1230,6 +1230,23 @@ run_pwsh "#2217: PS python -c read-only os.path.normpath (allowed)" \
 run_pwsh "#2217: PS python script run, open( in an arg, no -c (allowed)" \
   "python build.py --path \"open('x','w')\"" 0
 
+# --- #2663: PowerShell classifier is sourced only on the PowerShell lane -------
+# The ~41 KB ps-command.sh must not be parsed on every Bash PreToolUse. Trace the
+# Bash lane and assert the source is absent; then pin that the PowerShell lane
+# still loads it and still blocks a write with no unbound-ps:: error on stderr.
+bash_trace=$(bash -x "$HOOK" <<<"$(command_json 'git status')" 2>&1 >/dev/null) || true
+assert_absent "#2663: Bash lane does not source ps-command.sh" \
+  "$bash_trace" "ps-command.sh"
+assert_absent "#2663: Bash lane never defines a ps:: symbol via source" \
+  "$bash_trace" "lib/powershell"
+pwsh_trace_err=$(bash -x "$HOOK" <<<"$(pwsh_command_json 'Set-Content -Path f.txt -Value x')" 2>&1 >/dev/null) || true
+assert_contains "#2663: PowerShell lane sources ps-command.sh" \
+  "$pwsh_trace_err" "ps-command.sh"
+assert_absent "#2663: PowerShell lane has no unbound ps:: on stderr" \
+  "$pwsh_trace_err" "command not found"
+run_pwsh "#2663: PowerShell write still blocked after lazy source" \
+  "Set-Content -Path f.txt -Value x" 2
+
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 nul_rc=0
 bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?

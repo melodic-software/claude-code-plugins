@@ -37,14 +37,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_HOOK_BYPASS"
 
-# Bundled PowerShell-command classifier — this guard is matched on both the Bash
-# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
-# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
-# when it is unset).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-# shellcheck source=../lib/powershell/ps-command.sh
-source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
-
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -995,7 +987,15 @@ block_bypass() {
 # and skip the Bash-specific scans. SCOPE: this closes the write-GATE bypass;
 # secret-pattern and hardcoded-path CONTENT scanning of PowerShell writes stays
 # on the Write|Edit-matched guards (deferred to A2b).
+#
+# The PowerShell classifier (~41 KB) is sourced only on this lane (#2663) —
+# every ps:: call lives inside this branch, and Bash tool calls must not pay
+# the parse tax. Resolved under the plugin root (CC sets CLAUDE_PLUGIN_ROOT;
+# the BASH_SOURCE fallback keeps the contract tests working when it is unset).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+  # shellcheck source=../lib/powershell/ps-command.sh
+  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
   if ps::write_bypass "$COMMAND"; then
     block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
   fi

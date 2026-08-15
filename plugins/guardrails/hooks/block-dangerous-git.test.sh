@@ -736,8 +736,10 @@ pwsh_command_json_cwd() {
     '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d}'
 }
 run_pwsh() {
-  local label="$1" command="$2" expected="$3" rc
-  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json_cwd "$command" "$REPO_SHA1")" >/dev/null 2>&1)
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  local rc
+  (cd "$REPO_SHA1" && env "$@" bash "$HOOK" <<<"$(pwsh_command_json_cwd "$command" "$REPO_SHA1")" >/dev/null 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
@@ -883,6 +885,58 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
   "& 'git' reset --hard" 2
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
+
+# --- #2662: fail-closed headlines must not assert a git command is present -----
+# The sink is possibly-git (iex / computed call / computed launcher can fire with
+# no git token). Assert the softened headline on both the no-git-token path and a
+# genuine unparsable-git path.
+pwsh_stderr() {
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json_cwd "$1" "$REPO_SHA1")" 2>&1 >/dev/null)
+}
+# shellcheck disable=SC2016
+iex_rc=0
+iex_out="$(pwsh_stderr 'Invoke-Expression $cmd')" || iex_rc=$?
+assert_exit "PS: iex with no git token still fail-closes (#2662)" 2 "$iex_rc"
+assert_contains "PS msg #2662: iex headline omits 'git command' claim" \
+  "$iex_out" "this PowerShell command cannot be parsed with confidence and could reach git"
+assert_absent "PS msg #2662: iex headline does not claim a git command exists" \
+  "$iex_out" "PowerShell 'git' command"
+assert_absent "PS msg #2662: iex headline does not say 'PowerShell git command'" \
+  "$iex_out" "PowerShell git command"
+assert_contains "PS msg #2662: iex trigger still names dynamic invocation" \
+  "$iex_out" "dynamic invocation"
+stop_out="$(pwsh_stderr 'git --% reset --hard')"
+assert_contains "PS msg #2662: genuine unparsable-git path keeps cannot-parse claim" \
+  "$stop_out" "cannot be parsed with confidence"
+assert_contains "PS msg #2662: genuine unparsable-git path names could-reach-git" \
+  "$stop_out" "could reach git"
+
+# --- #2664: sink-shape allow-list tokens narrow the PS fail-closed branch ------
+# Distinct from destructive-form tokens so an existing allow value cannot silently
+# open the sink. Matching shape allows; unrelated form token does not.
+# shellcheck disable=SC2016
+run_pwsh "PS #2664: sink-shape allow opens iex fail-closed (allowed)" \
+  'Invoke-Expression $cmd' 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+# shellcheck disable=SC2016
+run_pwsh "PS #2664: unrelated form token does not open iex sink (still blocked)" \
+  'Invoke-Expression $cmd' 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard
+# shellcheck disable=SC2016
+run_pwsh "PS #2664: all seven form tokens still leave iex blocked" \
+  'Invoke-Expression $cmd' 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force
+run_pwsh "PS #2664: sink-shape allow for special-construct opens --% path" \
+  "git --% reset --hard" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS #2664: wrong sink-shape token does not open --% path (still blocked)" \
+  "git --% reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+# Parsed dangerous forms still need their own tokens — sink-shape allow is not a
+# backdoor for reset --hard once the command IS tokenizable.
+run_pwsh "PS #2664: sink-shape allow does not waive a parsable reset --hard" \
+  "git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
 
 malformed_rc=0
 (cd "$REPO_SHA1" && bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1) || malformed_rc=$?

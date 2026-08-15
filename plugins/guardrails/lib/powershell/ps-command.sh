@@ -545,10 +545,13 @@ ps::print_sink_trigger_line() {
   esac
 }
 
-# Shell-agnostic block text for a PowerShell git command the guard cannot parse
-# with confidence. Printed to stderr by the caller before it exits 2.
+# Shell-agnostic block text for a PowerShell command the guard cannot parse with
+# confidence. The sink is gated by ps::might_invoke_git (possibly-git, not is-git),
+# so the headline must not claim a git command is present — iex / a computed call
+# / a computed launcher can reach here with no git token at all (#2662).
+# Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_block_message() {
-  echo "BLOCKED: this PowerShell git command cannot be parsed with confidence — blocked (fail-closed)." >&2
+  echo "BLOCKED: this PowerShell command cannot be parsed with confidence — blocked (fail-closed)." >&2
   ps::print_sink_trigger_line
   echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
   echo "  @'" >&2
@@ -558,15 +561,18 @@ ps::print_unparsable_block_message() {
   echo "If this is a false positive, set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
 }
 
-# Shell-agnostic block text for a PowerShell git command block-dangerous-git
-# cannot parse with confidence. That guard also owns destructive non-commit forms,
-# so its message names them rather than the commit form. Printed to stderr by the
-# caller before it exits 2.
+# Shell-agnostic block text for a PowerShell command block-dangerous-git cannot
+# parse with confidence and that could reach git. That guard also owns destructive
+# non-commit forms, so its message names them rather than the commit form. The
+# headline does not assert that a git command is present — the sink is possibly-git
+# (#2662). Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_git_block_message() {
-  echo "BLOCKED: this PowerShell 'git' command cannot be parsed with confidence — blocked (fail-closed)." >&2
-  echo "A git command the guard cannot faithfully tokenize could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
+  echo "BLOCKED: this PowerShell command cannot be parsed with confidence and could reach git — blocked (fail-closed)." >&2
+  echo "A command the guard cannot faithfully tokenize could hide a destructive git form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
   ps::print_sink_trigger_line
-  echo "If this is a false positive, set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+  # Sink-shape allow tokens (ps-unparsable-<trigger>) are distinct from destructive
+  # form tokens so an existing allow-list value cannot silently open this branch (#2664).
+  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, or ps-unparsable-herestring-unbalanced), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
