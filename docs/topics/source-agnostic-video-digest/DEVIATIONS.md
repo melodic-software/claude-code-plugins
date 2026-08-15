@@ -28,6 +28,17 @@ matches 116 third-party rows under `node_modules` once deps are installed. Equiv
 corrected form: `git grep -n -e '@ts-ignore' -e '@ts-expect-error' -- 'plugins/knowledge/skills/*/extraction'`
 → 0 rows (tracked source only). Later phases use the `git grep` form.
 
+## 2026-08-15 — Phase 1 remediation: dispatch seam lives in registry.js, not acquire.js
+
+PLAN Phase 1 wrote "`acquire.js` routes source-id + acquisition through the registry/adapter".
+The review round found the resulting `acquire.js → registry → youtube.js → acquire.js` static
+cycle to be an initialization hazard (empirically verified: entry-order-dependent TDZ throw),
+held together only by an unstated nothing-dereferences-adapter-at-module-eval invariant. Fix:
+`extractVideoId` moved into the YouTube adapter (its URL grammar) and the `acquireMedia`
+dispatch moved into `adapters/registry.js`; `acquire.js` no longer imports the registry, the
+graph is acyclic, and the registry consistency check runs at plain module init. Same intent
+(all acquisition routes through the adapter seam), sharper seam location. Landed `5020fd4a`.
+
 ## 2026-08-15 — Phase 0: `@satisfies` standardization had no applicable sites
 
 The only contract-bearing `@type` object literal in either tree is `utils.js:111` (Node stdlib

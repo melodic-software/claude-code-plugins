@@ -98,7 +98,7 @@ the conformance suite itself is untyped; (3) too-few-parameters accepted silentl
 - [x] `git grep -n -e '@ts-ignore' -e '@ts-expect-error' -- 'plugins/knowledge/skills/*/extraction'` → 0 rows (git-grep form per DEVIATIONS.md — the raw grep matches node_modules)
 - [x] Both lanes' vitest suites exit 0 (no runtime change)
 
-### Phase 1: Adapter contract, registry, YouTube adapter (behavior-preserving) [TODO]
+### Phase 1: Adapter contract, registry, YouTube adapter (behavior-preserving) [DONE]
 
 Review: architecture
 Review: security
@@ -108,7 +108,7 @@ adapter seam with observably identical behavior.
 
 **Pre-flight consumer check (FIRST item — the result envelope is a contract migration):**
 
-- [ ] Inventory every producer/consumer of acquisition metadata and result shape before
+- [x] Inventory every producer/consumer of acquisition metadata and result shape before
   defining the envelope: `run-watch.js`, `run-transcript.js`, `preflight-metadata.js` +
   `queue-claim.js` (queue lane), `watch-state.js` (state + resume prompts),
   `post-bootstrap-slice.js` / `snapshot-bootstrap.js`, `export-sheet-frame-index.js`,
@@ -117,63 +117,63 @@ adapter seam with observably identical behavior.
 
 **Contract (`extraction/adapters/adapter-contract.js`):**
 
-- [ ] 5 required methods: `matchUrl(url)` (claim + canonicalization; no I/O);
+- [x] 5 required methods: `matchUrl(url)` (claim + canonicalization; no I/O);
   `extractSliceKey(url, metadata)` (signature fixed even though both sources need only `url`);
   `acquire(...)`; `harvestLinks(metadata)`; `acceptForEnqueue(url)`.
-- [ ] `acquire` specified executably: inputs = canonical URL + resolved slice dir + options
+- [x] `acquire` specified executably: inputs = canonical URL + resolved slice dir + options
   (auth/throttle context supplied by the shared driver); required outputs = media path(s),
   caption path(s), metadata object — never specified by yt-dlp invocation. Shared call sites
   that drive it: `acquisition/acquire.js` via `acquire-with-retry.js` (the generic spawn
   wrapper stays shared machinery).
-- [ ] Declared attributes: `hosts` (registry keys); `extractorArgs` (string | null) **and**
+- [x] Declared attributes: `hosts` (registry keys); `extractorArgs` (string | null) **and**
   `comments` capability — BOTH `--write-comments` and `--extractor-args` at
   `build-yt-dlp-args.js:113-115` become adapter-declared, neither pushed unconditionally;
   `captionClass`; `errorPatterns` table; `transcriptStrategy` default; capabilities object
   (closed by default); reserved-unimplemented content-claim capability.
-- [ ] **Result envelope defined in the contract file** (T6): a collection of 0..N entry
+- [x] **Result envelope defined in the contract file** (T6): a collection of 0..N entry
   results + a shared metadata object; arity is a property of the result, never the adapter; a
   convenience accessor may collapse at a call site, the contract never does; open metadata
   namespace with reserved `source:`-prefixed keys for source-specific fields; transcript
   travels as a replayable file path. 0-entry results are well-formed (metadata-only), never
   null, never a throw.
-- [ ] Error taxonomy (T11) defined here: exactly **four** types — `UnsupportedSourceError`
+- [x] Error taxonomy (T11) defined here: exactly **four** types — `UnsupportedSourceError`
   (dispatch-level, deliberately OUTSIDE the adapter error hierarchy), retryable source error,
   fatal source error, login-required. Degradation detail (e.g. 429-syndication) is **metadata
   on the retryable type**, never a fifth type. Concrete identifier names implementer's
   discretion.
-- [ ] `validateAdapter` + factory; contract stability posture declared in-file (private,
+- [x] `validateAdapter` + factory; contract stability posture declared in-file (private,
   versioned with the plugin); construction performs no network/filesystem I/O (cheap pure
   normalization permitted).
 
 **Registry (`extraction/adapters/registry.js`):**
 
-- [ ] Static host-keyed map of **statically-imported** module references — never a computed
+- [x] Static host-keyed map of **statically-imported** module references — never a computed
   dynamic import in any spelling (template, variable, concatenation, helper-mediated). The
   course-digest resolver shape (`config.js:44-51`, CWE-829/22) must not be replicated.
-- [ ] Unknown host fails closed with the supported-source list; regex evaluated only after
+- [x] Unknown host fails closed with the supported-source list; regex evaluated only after
   owned-host selection; subdomain handling defined and tested.
 
 **YouTube adapter (`extraction/adapters/youtube.js`):**
 
-- [ ] `extractVideoId` (from `acquire.js:116-138`) behind `matchUrl` / `extractSliceKey`
+- [x] `extractVideoId` (from `acquire.js:116-138`) behind `matchUrl` / `extractSliceKey`
   (URL-authoritative, closing the redirect divergence).
-- [ ] Preflight acceptance: the **whole** YouTube-shaped pattern set at
+- [x] Preflight acceptance: the **whole** YouTube-shaped pattern set at
   `preflight-metadata.js:58-63` and `:226-227` moves behind `acceptForEnqueue` /
   `errorPatterns` — not just the `Incomplete YouTube ID` line — so none of it applies YouTube
   semantics to X.
-- [ ] Link harvest incl. pinned comment; `extractorArgs =
+- [x] Link harvest incl. pinned comment; `extractorArgs =
   "youtube:max_comments=20,all,top;comment_sort=top"`; `comments` capability true;
   `errorPatterns` from `YOUTUBE_BOT_CHALLENGE_PATTERNS` (`acquire-yt-dlp-auth.js:8`).
 
 **Shared rewiring:**
 
-- [ ] `acquire.js` routes source-id + acquisition through the registry/adapter
-- [ ] `build-yt-dlp-args.js:113-115` — comment flags + extractor-args from adapter declarations
-- [ ] `preflight-metadata.js` stage-13 delegates to `acceptForEnqueue`
-- [ ] `harvest-links.js` delegates to adapter `harvestLinks`
-- [ ] `run-watch.js:95,105` — slice key from `extractSliceKey`; slug FORMAT stays in shared
+- [x] `acquire.js` routes source-id + acquisition through the registry/adapter
+- [x] `build-yt-dlp-args.js:113-115` — comment flags + extractor-args from adapter declarations
+- [x] `preflight-metadata.js` stage-13 delegates to `acceptForEnqueue`
+- [x] `harvest-links.js` delegates to adapter `harvestLinks`
+- [x] `run-watch.js:95,105` — slice key from `extractSliceKey`; slug FORMAT stays in shared
   `deriveVideoSlug`
-- [ ] Error classification: adapter `errorPatterns` consumed by the classification predicates
+- [x] Error classification: adapter `errorPatterns` consumed by the classification predicates
   in `spawn-yt-dlp-with-auth-fallback.js` (`:49` `isYoutubeBotChallengeError`, `:60`
   `isCookieProfileRetryableError` — the design's ":54 single site" citation names the spawn
   call; the predicates at :49/:60 are the actual seam, recorded here as a design-artifact
@@ -183,14 +183,14 @@ adapter seam with observably identical behavior.
 
 **Sanity Check:**
 
-- [ ] Conformance-style unit test asserts every registry value is a statically-imported module
+- [x] Conformance-style unit test asserts every registry value is a statically-imported module
   object (no thenable/specifier strings) AND `git grep -n "import(" -- plugins/knowledge/skills/youtube-digest/extraction/adapters` → 0 rows
-- [ ] Unknown-host unit test: dispatch of `https://vimeo.com/1` throws the dispatch-level
+- [x] Unknown-host unit test: dispatch of `https://vimeo.com/1` throws the dispatch-level
   unsupported-source error listing supported sources; exit non-zero via CLI wrapper test
-- [ ] Envelope tests: 0, 1, and N entries constructed and consumed through both `watch` and
+- [x] Envelope tests: 0, 1, and N entries constructed and consumed through both `watch` and
   `transcript` code paths (fixture-driven, offline)
-- [ ] vitest exit 0; `npx tsc --noEmit` exit 0
-- [ ] One-time evidence (NOT a merge gate): manual run `transcript <known yt-url>` produces a
+- [x] vitest exit 0; `npx tsc --noEmit` exit 0
+- [x] One-time evidence (NOT a merge gate): manual run `transcript <known yt-url>` produces a
   slice layout-identical to a pre-change run; diff summary saved to
   `.work/source-agnostic-video-digest/evidence/phase1/yt-parity.md`
 
