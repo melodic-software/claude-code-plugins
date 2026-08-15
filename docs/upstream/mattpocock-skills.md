@@ -71,7 +71,7 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   pretrained "leading words" as compact behavior anchors; prompt the positive — prohibition
   drags the banned behavior into context). Not double-tracked: this is the same territory as
   the deliberate deferral already recorded at
-  `docs/topics/interview-batch-rounds/PLAN.md:43-44` (the skill-quality
+  `docs/topics/interview-batch-rounds/PLAN.md:43-44` (slice carried by PR #1400; the skill-quality
   negation/negative-space port deferred from that session's gap scan) — this record
   cross-links that deferral rather than opening a second ledger entry. Trigger: a
   mattpocock/skills release whose changeset names `writing-for-agents`.

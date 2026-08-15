@@ -81,6 +81,16 @@ Empirically observed during the bar-rollout window.
 <!-- markdown-discipline-ignore-line -->
 We pivoted from the 2026-05-01 incident layout.
 
+<!-- markdown-discipline-ignore -->
+First line of a wrapped paragraph with no noise,
+was renamed to something on its second line —
+paragraph scope must cover every line to the blank.
+
+<!-- markdown-discipline-ignore -->
+Marked paragraph followed directly by a heading.
+## Heading closes the marker scope
+We pivoted from the heading-scope layout.
+
 Path-scoped to `docs/**` per the loader.
 EOF
 
@@ -117,6 +127,8 @@ assert_not_contains "exempt section suppressed" "$clean_out" "Finding shape: cit
 opt_out="$(bash "$DETECT" "$OPTOUT")"
 assert_not_contains "opt-out citation suppressed" "$opt_out" "bar-rollout"
 assert_not_contains "opt-out line suppressed" "$opt_out" "2026-05-01 incident"
+assert_not_contains "opt-out paragraph scope covers wrapped lines" "$opt_out" "was renamed to something on its second"
+assert_contains "heading ends marker scope even without a blank" "$opt_out" "heading-scope layout"
 assert_contains "scope-meta still detected" "$opt_out" "Finding shape: scope-meta"
 
 # --- 5. Backtick-wrapped slash-command roster detected ------------------------------
@@ -127,6 +139,18 @@ cat >"$BT_FIXTURE" <<'EOF'
 EOF
 bt_out="$(bash "$DETECT" "$BT_FIXTURE")"
 assert_contains "backtick enum-list detected" "$bt_out" "Finding shape: enum-list"
+
+# --- 5b. CHANGELOG.md skipped by basename (exempt per SKILL.md hard rules) ----------
+
+CL_FIXTURE="$TEST_TMPDIR/CHANGELOG.md"
+cat >"$CL_FIXTURE" <<'EOF'
+# Changelog
+
+Was renamed to something. Empirically observed. `.work/some-slice/PLAN.md` cited.
+EOF
+cl_out="$(bash "$DETECT" "$CL_FIXTURE")"
+assert_not_contains "CHANGELOG.md emits no findings" "$cl_out" "Finding shape:"
+assert_not_contains "CHANGELOG.md not counted as audited" "$cl_out" "Summary file: $CL_FIXTURE"
 
 # --- 6. Directory target expands to its .md files ------------------------------------
 

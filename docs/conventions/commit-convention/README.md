@@ -101,7 +101,7 @@ Contract points:
   fail-closed broken-file contract applies; a key it omits still falls back per key to the markdown H2.
 
   **Both V1 reasons for shipping no well-known search are engaged, not overridden by fiat** (#163434
-  is the demanding consumer; design: `docs/topics/commit-convention-well-known-path/`). V1 recorded
+  is the demanding consumer; design: `docs/topics/commit-convention-well-known-path/`, PR #1185). V1 recorded
   (i) "no consumer demanding it yet" — now void. And (ii) a search list "adds probe order and
   shadowing questions" and "keeps every path choice in the consuming repo's hands." V2 answers (ii)
   narrowly: it is a single fixed default path, **not** a search list, so probe order is the bounded

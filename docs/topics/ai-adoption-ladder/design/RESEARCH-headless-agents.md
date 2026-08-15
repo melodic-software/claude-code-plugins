@@ -53,7 +53,7 @@ By mid-2026 every major vendor ships a **converging two-tier headless shape**: (
 
 ## Project fit
 
-Destination is `.work/ai-adoption-ladder/` in `melodic-software/claude-code-plugins` — a strategy workspace (sibling `RESEARCH-product-surface.md` exists). The user's global conventions demand primary-source grounding, explicit flagging of unverified claims, and resisting solution-shape bias — honored here: the Cherny quartet is flagged as unverified rather than laundered in, and the framework synthesis (below) enumerates candidate abstraction seams rather than prescribing one shape. Findings feed a repo-agnostic, tool-agnostic autonomous-runner design.
+A strategy-workspace deliverable for `melodic-software/claude-code-plugins` (sibling `RESEARCH-product-surface.md` exists). The user's global conventions demand primary-source grounding, explicit flagging of unverified claims, and resisting solution-shape bias — honored here: the Cherny quartet is flagged as unverified rather than laundered in, and the framework synthesis (below) enumerates candidate abstraction seams rather than prescribing one shape. Findings feed a repo-agnostic, tool-agnostic autonomous-runner design.
 
 ## Synthesis — ladder mapping & framework abstraction
 

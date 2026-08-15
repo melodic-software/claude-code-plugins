@@ -35,8 +35,9 @@ same binding the consumer does:
 [`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md)
 "Resolution (the contract's five-rung order, earlier wins)", which
 [`SKILL.md`](../../../plugins/review/skills/fanout/SKILL.md) "Shared inputs" names as what
-`review:fanout` resolves through. The two texts state different rung counts — `SKILL.md` inlines the
-rungs it operates on — and the non-interactive rule below is what makes them coincide. Naming the
+`review:fanout` resolves through. `SKILL.md` itself does not restate the ladder — it points at
+`topic-docs.md` and warns against assuming its shape, so a producer and the consumer read one text
+rather than two that have to be reconciled. Naming the
 binding by its repo path is the point of this section: `review:fanout` reaches it through a
 `${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside `review` can expand, and it is the same
 document either way.

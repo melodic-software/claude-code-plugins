@@ -54,7 +54,7 @@ Across every vendor the trigger surface converges on **four recurring shapes wea
 
 ## Project fit
 
-Destination `.work/ai-adoption-ladder/` in `melodic-software/claude-code-plugins` — a strategy workspace; siblings `RESEARCH-headless-agents.md`, `RESEARCH-product-surface.md` set the format followed here. The user's global conventions (primary-source grounding, explicit unverified-claim flagging, resist solution-shape bias, machine/vendor-agnostic posture) are honored: vendor names are treated as evidence for a neutral contract, not vocabulary; the Discord absence and Claude-Tag-initiates-work claims are flagged as gaps rather than laundered; the synthesis enumerates the abstraction seams rather than prescribing one product's shape.
+A strategy-workspace deliverable for `melodic-software/claude-code-plugins`; siblings `RESEARCH-headless-agents.md`, `RESEARCH-product-surface.md` set the format followed here. The user's global conventions (primary-source grounding, explicit unverified-claim flagging, resist solution-shape bias, machine/vendor-agnostic posture) are honored: vendor names are treated as evidence for a neutral contract, not vocabulary; the Discord absence and Claude-Tag-initiates-work claims are flagged as gaps rather than laundered; the synthesis enumerates the abstraction seams rather than prescribing one product's shape.
 
 ## Synthesis — trigger concepts, adapter contract, entitlement floor
 
