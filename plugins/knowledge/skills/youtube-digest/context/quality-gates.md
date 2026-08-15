@@ -29,7 +29,7 @@ Detected from `key-frames/vision-plan.md` (backtick class tag). Floors apply to 
 
 ## Phase gates (ordered)
 
-This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the `/knowledge:youtube-digest` skill's "Output contract" table — that is the single authoritative enumeration; do not restate staging here.
+This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the "Output contract" table in `output-contract.md` — that is the single authoritative enumeration; do not restate staging here.
 
 | Phase | Blocking artifacts | Verify script |
 | --- | --- | --- |

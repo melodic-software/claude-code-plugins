@@ -1,6 +1,18 @@
-# YouTube watch queue
+# Watch queue
 
-Epic-level durable queue for batching public YouTube URLs before `/knowledge:youtube-digest watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
+Epic-level durable queue for batching public video URLs before `/knowledge:youtube-digest watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
+
+**One queue, every source.** The on-disk epic directory stays the literal `youtube-watch` (a stable storage-format identifier, not a source claim), and there is one `claims/` namespace. Source is **never a directory level** — it lives in slice metadata (`watch.json` `sourceUrl`). A mixed YouTube + X batch shares this one queue and these claim stubs; nothing about a consumer's existing `.work/` tree changes.
+
+- [Artifacts](#artifacts)
+- [Table columns](#table-columns)
+- [Skill actions](#skill-actions)
+- [Claim protocol (every dequeue)](#claim-protocol-every-dequeue)
+- [Queue row lifecycle](#queue-row-lifecycle)
+- [Materialize `QUEUE.md`](#materialize-queuemd)
+- [Companion primary sources (optional at queue)](#companion-primary-sources-optional-at-queue)
+- [Preflight (every `queue` add)](#preflight-every-queue-add)
+- [Evolution breadcrumbs (do not pre-implement)](#evolution-breadcrumbs-do-not-pre-implement)
 
 ## Artifacts
 
@@ -17,8 +29,8 @@ Per-video work stays under `.work/<watch-epic>/<video-slug>/` (`watch.json`, sli
 | Column | Meaning |
 | --- | --- |
 | `#` | 1-based row index (stable after insert; do not renumber on complete) |
-| `URL` | Canonical YouTube URL |
-| `video-id` | From `extractVideoId` — dedupe key |
+| `URL` | Canonical source URL (canonicalized by the source layer before it is written) |
+| `video-id` | The source's slice key — dedupe key. YouTube: the 11-char video id. X: the status id (`display_id`). See `../reference/sources/`. |
 | `title` | Video title from the preflight probe (escaped + 60-char capped) — so the row is legible without opening the URL |
 | `channel` | `Display Name (@handle)` from the preflight probe |
 | `slug` | Filled after first bootstrap (`derive-video-slug.js`); may be pre-filled at queue time when companion brief materialized |
@@ -46,6 +58,8 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json` — not in 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js claim <n> [--video-id <id>]
 ```
+
+Exit code `2` = row already taken. For FIFO `watch`, try the next `pending` row; for `watch <n>`, stop with a clear message rather than bootstrapping duplicate work.
 
 1. Set row `#n` → `status: in_progress` in `QUEUE.md`.
 2. Read URL from row; bootstrap:
@@ -106,11 +120,21 @@ Row `status` and `notes` in `QUEUE.md` are the epic-level record when a slug com
 
 ## Materialize `QUEUE.md`
 
-On first `queue` action:
+On first `queue` action (canonical epic dir: `youtube-watch`):
 
 1. `mkdir -p .work/<watch-epic>/claims`
 2. Copy `templates/queue.md` → `.work/<watch-epic>/QUEUE.md` if missing
-3. Append new rows with next `#` index
+3. Preflight each URL (below), then append rows with the next `#` index — **do not renumber existing rows**
+
+Paths here are relative to the resolved work root, not always the repo root — see `output-contract.md`.
+
+## Companion primary sources (optional at queue)
+
+When the operator supplies companion URL(s) with queue intent, record them before watch. **SSOT:** `companion-primary-sources.md`. Template: `templates/companion-source-brief.md`.
+
+1. After preflight `enqueue`, derive `video-slug` from `displayTitle` + the slice key.
+2. Write `.work/<watch-epic>/<video-slug>/source/companion-sources.md` (section fan-out table + integration checklist).
+3. Pre-fill `slug` on the `QUEUE.md` row; set `notes` → `companion — source/companion-sources.md`.
 
 ## Preflight (every `queue` add)
 
@@ -127,7 +151,9 @@ Emits a JSON array (one entry per URL). Per entry use `action` to decide:
 | `enqueue` | `ok` | Append the row; fill `title`/`channel` from `displayTitle`/`displayChannel`; `notes` stays empty |
 | `enqueue` | `transient` | Append the row (link is real, just blocked this session — bot-check/auth/network); copy `note` into `notes` |
 | `reject` | `unavailable` | Do **not** enqueue (removed / private / 404); report to the user |
-| `reject` | `invalid-url` | Do **not** enqueue (not a YouTube video URL); report to the user |
+| `reject` | `invalid-url` | Do **not** enqueue (no supported source claims the URL); report to the user with the supported-source list |
+
+<!-- RECONCILE: Phase 1 moves URL acceptance behind the source layer's `acceptForEnqueue`, so the whole YouTube-shaped pattern set at `preflight-metadata.js:58-63` / `:226-227` stops applying YouTube semantics to X. Confirm the `action`/`status` values above survive that move unchanged. -->
 
 `displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped — paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.
 
