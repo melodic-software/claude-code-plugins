@@ -999,9 +999,20 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
-# Exclude stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
-# streams and never designates a file. File redirects like `2>out.txt` still match.
-_POWERSHELL_OUTPUT_REDIRECT = re.compile(r"(?<![<>])>(?![=>&])")
+# Exclude the two redirect forms that cannot name a file:
+#   - stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
+#     streams and never designates a file;
+#   - the `$null` discard (`2>$null`, `*>$null`, `>$null`): PowerShell's
+#     /dev/null. Spelled as guardrails' `ps::write_bypass` spells it — a `>`
+#     whose target is `$null` — and case-insensitively, because PowerShell
+#     variable names are. Only horizontal whitespace is skipped, so a trailing
+#     `>` cannot borrow a `$null` from the next line.
+# File redirects still match: `2>out.txt`, `> out.txt`, `1>file`, and a command
+# that discards one stream while redirecting another (`... 2>$null > out.txt`),
+# whose second `>` has no `$null` after it.
+_POWERSHELL_OUTPUT_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?![\w-]))"
+)
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path
 # (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its

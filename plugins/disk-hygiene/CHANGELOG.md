@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.2]
+
+### Fixed
+
+- **PowerShell `$null` discards (`2>$null`, `*>$null`, `>$null`) are no longer flagged as
+  file-overwriting redirection (#2615).** The stream-merge exclusion released in 0.17.11
+  closed only the `>&` form; the character after `>` in a discard is `$`, so every
+  `2>$null` — PowerShell's `/dev/null`, the standard way to silence a noisy read-only
+  command — kept prompting. `_POWERSHELL_OUTPUT_REDIRECT` now also excludes a `>` whose
+  target is `$null`, spelled as guardrails' `ps::write_bypass` spells the same exclusion
+  and matched case-insensitively (PowerShell variable names are). Only horizontal
+  whitespace is skipped, so a trailing `>` cannot borrow a `$null` from the next line.
+  Real redirection still prompts: `2>out.txt`, `> out.txt`, `1>file`, `'data' > file`, a
+  non-`$null` variable target (`2>$nullish`), and a command that discards one stream while
+  redirecting another (`... 2>$null > out.txt`).
+
 ## [0.20.1]
 
 ### Fixed

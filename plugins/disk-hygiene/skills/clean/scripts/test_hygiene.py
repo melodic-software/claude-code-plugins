@@ -5550,6 +5550,14 @@ class GuardTests(unittest.TestCase):
             "New-Item C:/tmp/file.txt -ItemType File -Force",
             "'data' > C:/tmp/file.txt",
             "Get-ChildItem C:/tmp 2>out.txt",
+            "Get-ChildItem C:/tmp > out.txt",
+            "Get-ChildItem C:/tmp 1>file",
+            # Discarding one stream does not license redirecting another: the
+            # second `>` has no `$null` after it, so the verdict still stands.
+            "Get-ChildItem C:/tmp 2>$null > out.txt",
+            "Get-ChildItem C:/tmp 2>&1 > out.txt",
+            # `$nullish` is an ordinary variable, not the null device.
+            "Get-ChildItem C:/tmp 2>$nullish",
         ):
             result = self.run_guard_powershell(command)
             assert result is not None, command
@@ -5567,6 +5575,25 @@ class GuardTests(unittest.TestCase):
             "Get-ChildItem C:/tmp 1>&2",
             "Get-ChildItem C:/tmp *>&1",
             "Get-ChildItem C:/tmp 2>&1 | Select-Object -First 1",
+        ):
+            self.assertIsNone(self.run_guard_powershell(command), command)
+
+    def test_powershell_null_discards_are_not_file_redirects(self) -> None:
+        """#2615 follow-up: `2>$null` discards output; it writes no file.
+
+        The patch proposed on #2615 excluded only a following `&`, so every
+        `$null` discard kept prompting — the character after `>` is `$`.
+        """
+        for command in (
+            "gh issue list --repo melodic-software/x --state open 2>$null",
+            "chezmoi managed | Select-String -Pattern claude 2>$null",
+            "Get-ChildItem C:/tmp 2>$null",
+            "Get-ChildItem C:/tmp *>$null",
+            "Get-ChildItem C:/tmp >$null",
+            "Get-ChildItem C:/tmp 2> $null",
+            "Get-ChildItem C:/tmp 2>$NULL",
+            "Get-ChildItem C:/tmp 2>$null; git status --short",
+            "Get-ChildItem C:/tmp 2>$null | Select-Object -First 1",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
