@@ -19,8 +19,6 @@ readonly SCRIPT_DIR
 readonly SCRIPT="$SCRIPT_DIR/prune-otel-store.sh"
 readonly LIFECYCLE="$SCRIPT_DIR/prune-collector-lifecycle.sh"
 
-FAILED=0
-CASE_NUM=0
 # Inline test helpers — self-contained, no external test lib (ships with the plugin).
 FAILED=0
 CASE_NUM=0

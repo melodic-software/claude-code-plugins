@@ -236,7 +236,7 @@ def read_bundle(binary: Path) -> tuple[str | None, dict[str, Any]]:
 def detect_container(data: bytes) -> str:
     if data[:2] == b"MZ":
         return "PE"
-    if data[:4] in (b"\x7fELF",):
+    if data[:4] == b"\x7fELF":
         return "ELF"
     if data[:4] in (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
         return "Mach-O"
@@ -706,9 +706,11 @@ def scan_disk(root: Path) -> dict[str, Any]:
         out["enabled_plugins"] = {"total_entries": 0, "enabled": [], "disabled": []}
         out["enabled_plugins_note"] = "no enabledPlugins map in settings.json"
 
-    known = _load_json(root / "plugins" / "known_marketplaces.json") or {}
+    known = _load_json(root / "plugins" / "known_marketplaces.json")
+    if not isinstance(known, dict):
+        known = {}
     marketplaces: dict[str, Any] = {}
-    for name, meta in known.items() if isinstance(known, dict) else []:
+    for name, meta in known.items():
         loc = (meta or {}).get("installLocation")
         marketplaces[name] = {
             "install_location": loc,
