@@ -31,6 +31,8 @@ export const YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
  * @typedef {Object} YtDlpSourceOptions
  * @property {boolean} [writeComments] - push `--write-comments` (comments capability)
  * @property {string|null} [extractorArgs] - push `--extractor-args <value>` when non-null
+ * @property {string|null} [allowedExtractors] - push `--use-extractors <value>` when
+ *   non-null: refuses any delegated foreign URL without fetching it (SSRF guard)
  * @property {string} [subLangs] - override `--sub-langs` (default {@link YT_DLP_SUB_LANGS});
  *   sources whose subtitle keys are raw track languages (e.g. `und`) declare their own selector
  * @property {boolean} [omitAutoSubs] - skip `--write-auto-subs` (sources whose
@@ -134,6 +136,9 @@ export function buildYtDlpArgs(
   }
   if (source.extractorArgs) {
     args.push("--extractor-args", source.extractorArgs);
+  }
+  if (source.allowedExtractors) {
+    args.push("--use-extractors", source.allowedExtractors);
   }
 
   const includeCaptions = mode === "full" || mode === "transcript" || mode === "captions-only";

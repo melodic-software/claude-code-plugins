@@ -331,6 +331,11 @@ export function primaryEntry(envelope) {
  * @property {string} id - stable source identifier (e.g. "youtube")
  * @property {readonly string[]} hosts - owned hosts; the registry's keys
  * @property {string|null} extractorArgs - acquisition extractor args, or null
+ * @property {string|null} allowedExtractors - acquisition extractor allow-list
+ *   for this source's URLs (`--use-extractors` value), or null for no
+ *   restriction. A source whose upstream extractor can delegate to foreign
+ *   URLs MUST declare one so the delegation is refused without any fetch
+ *   (SSRF guard); every probe/acquire/preflight invocation consumes it.
  * @property {string} captionClass - declared caption provenance class; reserved
  *   for the shared caption-selection ladder, whose consumer lands with the
  *   transcript-strategy seam (no shared consumer reads it yet)
@@ -419,6 +424,9 @@ export function validateAdapter(spec) {
   }
   if (record.extractorArgs !== null && typeof record.extractorArgs !== "string") {
     violations.push('attribute "extractorArgs" must be a string or null');
+  }
+  if (record.allowedExtractors !== null && typeof record.allowedExtractors !== "string") {
+    violations.push('attribute "allowedExtractors" must be a string or null');
   }
   if (typeof record.captionClass !== "string" || record.captionClass.length === 0) {
     violations.push('attribute "captionClass" must be a non-empty string');

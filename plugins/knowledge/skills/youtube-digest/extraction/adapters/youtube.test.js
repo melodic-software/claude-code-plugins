@@ -25,6 +25,7 @@ describe("youtube adapter declarations", () => {
     expect(adapter.id).toBe("youtube");
     expect([...adapter.hosts]).toEqual(["youtube.com", "youtu.be"]);
     expect(adapter.extractorArgs).toBe("youtube:max_comments=20,all,top;comment_sort=top");
+    expect(adapter.allowedExtractors).toBeNull();
     expect(adapter.captionClass).toBeTruthy();
     expect(adapter.transcriptStrategy).toBe("captions");
   });

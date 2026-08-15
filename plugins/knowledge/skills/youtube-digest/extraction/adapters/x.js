@@ -5,10 +5,15 @@
  * post-text link harvest, composed from the shared machinery in `acquisition/`.
  *
  * Acquisition is two-phase by design: a metadata/captions probe (never media)
- * runs first so the provenance guard can inspect extractor identity BEFORE any
- * media byte is fetched — a delegated foreign result (yt-dlp/yt-dlp#9715) is
- * blocked, never followed. Media downloads only after the probe proves the
- * post itself carries twitter-extracted video.
+ * runs first, and every yt-dlp invocation carries the adapter's extractor
+ * allow-list (`--use-extractors`), so a delegated foreign URL from a link post
+ * (yt-dlp/yt-dlp#9715) is refused by yt-dlp itself WITHOUT any fetch — the
+ * refusal is parsed from stderr and the post resolves as a well-formed 0-media
+ * result with the blocked link recorded. The info-JSON extractor check remains
+ * as defense-in-depth: a foreign info JSON on disk means the allow-list failed
+ * and the acquisition fails rather than digesting foreign media. Media
+ * downloads only after the probe proves the post itself carries
+ * twitter-extracted video.
  */
 
 import fs from "node:fs/promises";
@@ -46,6 +51,37 @@ import { createAcquisitionEnvelope, createSourceAdapter } from "./adapter-contra
 export const X_EXTRACTOR_NAME = "twitter";
 
 /**
+ * yt-dlp extractor allow-list for X URLs: the twitter IE family only
+ * (twitter, twitter:amplify, twitter:broadcast, twitter:card,
+ * twitter:shortener, twitter:spaces — verified against `--list-extractors`).
+ * Any delegated foreign URL is refused without a fetch.
+ */
+export const X_ALLOWED_EXTRACTORS = "twitter.*";
+
+/**
+ * Exact refusal yt-dlp emits when the allow-list rejects a URL (verified
+ * empirically against yt-dlp 2026.07.04; note there is no colon before the
+ * URL). For a link post, the refused URL is the post's outbound link.
+ */
+const DELEGATION_REFUSAL_PATTERN = /^ERROR: No suitable extractor found for URL (?<url>\S+)$/m;
+
+/**
+ * Parse a blocked-delegation refusal out of acquisition stderr: present only
+ * when yt-dlp refused a DELEGATED (non-X) URL — a refusal of an X URL itself
+ * would mean the allow-list is misconfigured and is never treated as a
+ * link-post result.
+ *
+ * @param {string} stderr
+ * @returns {string|null} the refused outbound URL
+ */
+export function parseDelegationRefusal(stderr) {
+  const match = DELEGATION_REFUSAL_PATTERN.exec(stderr);
+  const refusedUrl = match?.groups?.url;
+  if (!refusedUrl) return null;
+  return parseXStatusUrl(refusedUrl) ? null : refusedUrl;
+}
+
+/**
  * Exact warning yt-dlp's twitter extractor emits when a 429 silently degrades
  * to the syndication endpoint (losing `*_count` metadata and collapsing
  * multi-media posts to one entry).
@@ -74,14 +110,17 @@ export const X_FATAL_PATTERNS = Object.freeze([
  * Login-required = EXACTLY the three documented `raise_login_required` cases
  * in yt-dlp's twitter extractor; only these gate cookie fallback:
  * NSFW/age-restricted; protected account (the cookie account must follow the
- * author); any `not authorized` API error message.
+ * author); any `not authorized` API error message. Each pattern is anchored to
+ * a `[twitter]`-tagged ERROR line so attacker-influenced text elsewhere on
+ * stderr (e.g. a hostile URL echoed in a refusal line) can never classify as
+ * login-required and trigger cookie-bearing retries.
  *
  * @type {readonly RegExp[]}
  */
 export const X_LOGIN_REQUIRED_PATTERNS = Object.freeze([
-  /NSFW tweet requires authentication/,
-  /You are not authorized to view this protected tweet/,
-  /not authorized/i,
+  /^ERROR:\s*\[twitter\][^\n]*NSFW tweet requires authentication/im,
+  /^ERROR:\s*\[twitter\][^\n]*You are not authorized to view this protected tweet/im,
+  /^ERROR:\s*\[twitter\][^\n]*\bnot authorized\b/im,
 ]);
 
 /**
@@ -102,14 +141,20 @@ const X_SUB_LANGS = "en.*,und,-live_chat";
 /** Literal marker of X's word-timing caption tags (kept verbatim on disk). */
 const X_WORD_TIMING_TAG_MARKER = "<X-word-ms";
 
+/** Backup suffix (never `.vtt`/`.srt`) holding tagged originals until cleanup succeeds. */
+const TAGGED_CAPTION_BACKUP_SUFFIX = ".tagged-original";
+
 const X_OWNED_HOSTS = Object.freeze(["x.com", "twitter.com"]);
 
 /**
  * Mirror of yt-dlp TwitterIE `_VALID_URL` path grammar:
- * `(?:(?:i/web|[^/]+)/status|statuses)/(?P<id>\d+)(?:/(?:video|photo)/(?P<index>\d+))?`.
+ * `(?:(?:i/web|[^/]+)/status|statuses)/(?P<id>\d+)(?:/(?:video|photo)/(?P<index>\d+))?`
+ * — bounded beyond it: snowflakes are <= 19 digits (25 allowed for slack), the
+ * media index <= 3 digits, so unbounded digit strings never reach BigInt
+ * decoding, slice-key paths, or parseInt round-trips.
  */
 const X_STATUS_PATH_PATTERN =
-  /^\/(?:(?<handle>i\/web|[^/]+)\/status|statuses)\/(?<statusId>\d+)(?:\/(?:video|photo)\/(?<mediaIndex>\d+))?\/?$/;
+  /^\/(?:(?<handle>i\/web|[^/]+)\/status|statuses)\/(?<statusId>\d{1,25})(?:\/(?:video|photo)\/(?<mediaIndex>\d{1,3}))?\/?$/;
 
 const X_HANDLE_PATTERN = /^[A-Za-z0-9_]{1,20}$/;
 
@@ -183,7 +228,7 @@ export function parseXStatusUrl(url) {
  */
 export function canonicalXStatusUrl(parts) {
   const owner = parts.handle ?? "i/web";
-  const indexSuffix = parts.mediaIndex ? `/video/${parts.mediaIndex}` : "";
+  const indexSuffix = parts.mediaIndex !== null ? `/video/${parts.mediaIndex}` : "";
   return `https://x.com/${owner}/status/${parts.statusId}${indexSuffix}`;
 }
 
@@ -195,7 +240,7 @@ export function canonicalXStatusUrl(parts) {
  * @returns {number|null}
  */
 export function snowflakeTimestampMs(id) {
-  if (typeof id !== "string" || !/^\d+$/.test(id)) {
+  if (typeof id !== "string" || !/^\d{1,25}$/.test(id)) {
     return null;
   }
   const value = BigInt(id);
@@ -555,13 +600,46 @@ export async function acquireXMedia(url, context) {
       return spawnYtDlpWithAuthFallback(spawn, buildArgs, { cwd: workDir, source });
     });
 
-  // Pass 1 — metadata + captions probe. Never media: the provenance guard must
-  // see extractor identity before anything is followed.
+  // Pass 1 — metadata + captions probe. Never media; the extractor allow-list
+  // rides on every pass, so a delegated foreign URL is refused unfetched.
   const probe = await runPass("transcript");
+  const probeStderr = probe.stderr ?? "";
   if (!probe.success) {
+    // Link post: the allow-list refused the post's delegated outbound URL
+    // without fetching it (yt-dlp writes no info JSON for an intermediate url
+    // result, so no post payload exists). The post resolves as a well-formed
+    // 0-media result with the blocked link recorded — unless the response was
+    // also rate-limit degraded, which stays a retryable failure.
+    const refusedUrl = parseDelegationRefusal(probeStderr);
+    if (refusedUrl) {
+      const degradation = detectSyndicationDegradation({
+        stderr: probeStderr,
+        postInfo: null,
+        entryCount: 0,
+      });
+      if (degradation) {
+        return failX(
+          `${X_DEGRADED_ACQUISITION_PREFIX} (rate-limited syndication fallback is a partial response, retry later): ${JSON.stringify(degradation)}`,
+        );
+      }
+      const envelope = createAcquisitionEnvelope({
+        entries: [],
+        metadata: buildXPostMetadata({
+          statusId,
+          postInfo: null,
+          aliasing: null,
+          blockedDelegations: [{ url: refusedUrl, extractor: "refused-before-fetch" }],
+        }),
+        workDir,
+        acquireMetrics: { stagedAcquire: true, probeFirst: true, blockedDelegationCount: 1 },
+      });
+      return /** @type {AcquireOutcome} */ (
+        ok(envelope, "acquire-x-media", { label: statusId }, Date.now() - started)
+      );
+    }
     return failX(spawnFailureDetail(probe) || "yt-dlp metadata/captions probe failed");
   }
-  let stderrLog = probe.stderr ?? "";
+  let stderrLog = probeStderr;
   let files = await listFiles(workDir);
 
   let inspected = await inspectInfoFiles(files, readFile);
@@ -569,17 +647,33 @@ export async function acquireXMedia(url, context) {
     return failX(`Invalid info JSON: ${inspected.parseErrors.join("; ")}`);
   }
 
-  /** @type {BlockedDelegation[]} */
-  const blockedDelegations = inspected.foreign.map((entry) => ({
-    url: String(entry.info.webpage_url ?? entry.info.original_url ?? ""),
-    extractor: String(entry.info.extractor ?? "unknown"),
-  }));
+  // Defense-in-depth provenance guard: a foreign info JSON on disk means the
+  // extractor allow-list failed to refuse a delegation — never digest it.
+  if (inspected.foreign.length > 0) {
+    const foreignSummary = inspected.foreign
+      .map(
+        (entry) =>
+          `${String(entry.info.extractor ?? "unknown")}: ${String(entry.info.webpage_url ?? entry.info.original_url ?? entry.path)}`,
+      )
+      .join("; ");
+    return failX(
+      `Provenance violation: non-twitter extractor result(s) present despite the extractor allow-list — refusing to digest foreign media (${foreignSummary})`,
+    );
+  }
 
   const postInfo =
     inspected.twitterPlaylist?.info ??
     inspected.twitterVideos[0]?.info ??
     inspected.twitterMetadataOnly?.info ??
     null;
+
+  // A successful spawn that wrote no twitter payload is a laundered failure
+  // (rate-limited, blocked, or tampered response) — never a durable 0-result.
+  if (!postInfo) {
+    return failX(
+      "yt-dlp wrote no info JSON for the post (rate-limited, blocked, or tampered response)",
+    );
+  }
 
   /** @param {number} entryCount */
   const degradationFailure = (entryCount) => {
@@ -612,22 +706,40 @@ export async function acquireXMedia(url, context) {
     }
   }
   if (taggedVtts.length > 0) {
+    // Originals move aside (yt-dlp only re-downloads absent subtitles) and are
+    // unlinked ONLY after the cleanup pass succeeds and produced output; a
+    // failed cleanup fails the acquisition instead of silently losing captions.
     for (const filePath of taggedVtts) {
+      await writeFile(
+        `${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`,
+        String(await readFile(filePath)),
+        "utf8",
+      );
       await removeFile(filePath);
     }
     await sleep(resolveAcquirePhaseGapMs());
     const cleanupPass = await runPass("captions-only", { convertSubs: "srt" });
     stderrLog += `\n${cleanupPass.stderr ?? ""}`;
-    if (cleanupPass.success) {
-      files = await listFiles(workDir);
-      for (const srtPath of files.filter((entry) => entry.endsWith(".srt"))) {
-        await writeFile(srtPath.replace(/\.srt$/, ".vtt"), convertSrtToVtt(String(await readFile(srtPath))), "utf8");
-      }
-      files = await listFiles(workDir);
-      captionCleanup = "converted";
-    } else {
-      captionCleanup = `cleanup pass failed: ${spawnFailureDetail(cleanupPass)}`;
+    files = await listFiles(workDir);
+    const srtPaths = files.filter((entry) => entry.endsWith(".srt"));
+    if (!cleanupPass.success || srtPaths.length === 0) {
+      const detail = cleanupPass.success
+        ? "cleanup pass produced no .srt output"
+        : spawnFailureDetail(cleanupPass);
+      return failX(`Caption cleanup failed after word-timing tags were detected: ${detail}`);
     }
+    for (const srtPath of srtPaths) {
+      await writeFile(
+        srtPath.replace(/\.srt$/, ".vtt"),
+        convertSrtToVtt(String(await readFile(srtPath))),
+        "utf8",
+      );
+    }
+    for (const filePath of taggedVtts) {
+      await removeFile(`${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`);
+    }
+    files = await listFiles(workDir);
+    captionCleanup = "converted";
     inspected = await inspectInfoFiles(files, readFile);
     if (inspected.parseErrors.length > 0) {
       return failX(`Invalid info JSON: ${inspected.parseErrors.join("; ")}`);
@@ -677,7 +789,7 @@ export async function acquireXMedia(url, context) {
     };
   });
 
-  const metadata = buildXPostMetadata({ statusId, postInfo, aliasing, blockedDelegations });
+  const metadata = buildXPostMetadata({ statusId, postInfo, aliasing, blockedDelegations: [] });
   const envelope = createAcquisitionEnvelope({
     entries,
     metadata,
@@ -687,7 +799,6 @@ export async function acquireXMedia(url, context) {
       probeFirst: true,
       ...(mediaPassMs !== null ? { mediaPassMs } : {}),
       captionCleanup,
-      blockedDelegationCount: blockedDelegations.length,
     },
   });
   return /** @type {AcquireOutcome} */ (
@@ -699,6 +810,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   id: "x",
   hosts: [...X_OWNED_HOSTS],
   extractorArgs: null,
+  allowedExtractors: X_ALLOWED_EXTRACTORS,
   captionClass: "platform-asr",
   errorPatterns: {
     retryable: [...X_RETRYABLE_PATTERNS],
@@ -741,7 +853,10 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
     const displayId = /** @type {Record<string, unknown>} */ (metadata)["source:displayId"];
     const fallback =
       typeof displayId === "string" && displayId ? displayId : metadata.id;
-    return typeof fallback === "string" && /^[A-Za-z0-9_-]+$/.test(fallback) ? fallback : null;
+    // Path-safe AND length-bounded — the key becomes an on-disk directory segment.
+    return typeof fallback === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(fallback)
+      ? fallback
+      : null;
   },
 
   /**

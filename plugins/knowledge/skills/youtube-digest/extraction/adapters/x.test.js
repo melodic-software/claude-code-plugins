@@ -19,10 +19,15 @@ import {
   convertSrtToVtt,
   detectSnowflakeAliasing,
   detectSyndicationDegradation,
+  parseDelegationRefusal,
   parseXStatusUrl,
   snowflakeTimestampMs,
+  X_ALLOWED_EXTRACTORS,
   X_SYNDICATION_DEGRADATION_WARNING,
 } from "./x.js";
+
+const REFUSED_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+const REFUSAL_STDERR = `ERROR: No suitable extractor found for URL ${REFUSED_URL}`;
 
 const TWID = "1720000000000000000";
 const STATUS_URL = `https://x.com/someuser/status/${TWID}`;
@@ -133,6 +138,9 @@ describeSourceAdapterContract(adapter, {
     "https://x.com/someuser",
     "https://x.com/i/spaces/1YqKDqWqdPLxV",
     "https://x.com/someuser/status/not-a-status-id",
+    // Bounded grammar: a 26-digit "status id" exceeds any snowflake and is refused.
+    `https://x.com/someuser/status/${"9".repeat(26)}`,
+    `https://x.com/someuser/status/${TWID}/video/1000`,
     "https://example.com/someuser/status/1720000000000000000",
     "https://notx.com/someuser/status/1720000000000000000",
     "https://x.com.evil.example/someuser/status/1720000000000000000",
@@ -147,6 +155,11 @@ describe("x adapter declarations", () => {
     expect(adapter.extractorArgs).toBeNull();
     expect(adapter.captionClass).toBe("platform-asr");
     expect(adapter.transcriptStrategy).toBe("captions+repair");
+  });
+
+  it("declares the twitter-family extractor allow-list (SSRF guard) consumed by shared machinery", () => {
+    expect(adapter.allowedExtractors).toBe("twitter.*");
+    expect(adapterSourceDeclarations(adapter).allowedExtractors).toBe("twitter.*");
   });
 
   it("declares comments and browser-cookie-fallback OFF (cookies file is the only auth route)", () => {
@@ -174,6 +187,8 @@ describe("x canonicalization (adapter-level, T10 (ii))", () => {
   it("preserves the pinned media index and normalizes /photo/<n> to /video/<n>", () => {
     expect(adapter.matchUrl(`${STATUS_URL}/video/2`)?.canonicalUrl).toBe(`${STATUS_URL}/video/2`);
     expect(adapter.matchUrl(`${STATUS_URL}/photo/2`)?.canonicalUrl).toBe(`${STATUS_URL}/video/2`);
+    // Index 0 is falsy but pinned — it must survive canonicalization.
+    expect(adapter.matchUrl(`${STATUS_URL}/video/0`)?.canonicalUrl).toBe(`${STATUS_URL}/video/0`);
   });
 
   it("canonicalizes handle-less forms to i/web", () => {
@@ -289,6 +304,18 @@ describe("x error-pattern taxonomy", () => {
     }
   });
 
+  it("an attacker-influenced URL echoed on stderr can never classify as login-required", () => {
+    // The refusal/unsupported line carries a URL the post author chose; the
+    // login-required patterns are anchored to [twitter]-tagged ERROR lines, so
+    // these classify fatal (the Unsupported URL pattern), never login-required.
+    for (const detail of [
+      "ERROR: [generic] Unsupported URL: https://evil.example/not-authorized-content",
+      "ERROR: Unsupported URL: https://evil.example/NSFW%20tweet%20requires%20authentication",
+    ]) {
+      expect(classifyErrorDetail(adapter.errorPatterns, detail)).toBe("fatal");
+    }
+  });
+
   it("classifies the syndication warning and the adapter's degraded failure as retryable", () => {
     expect(
       classifyErrorDetail(
@@ -400,9 +427,11 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(probeArgs).toContain("--write-subs");
     expect(probeArgs).not.toContain("--write-auto-subs");
     expect(probeArgs[probeArgs.indexOf("--sub-langs") + 1]).toBe("en.*,und,-live_chat");
+    expect(probeArgs[probeArgs.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
     expect(probeArgs.at(-1)).toBe(STATUS_URL);
     expect(mediaArgs).toContain("-f");
     expect(mediaArgs).not.toContain("--skip-download");
+    expect(mediaArgs[mediaArgs.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
     expect(mediaArgs.at(-1)).toBe(STATUS_URL);
   });
 
@@ -477,8 +506,41 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(probeArgs.at(-1)).toBe(pinnedUrl);
   });
 
-  it("provenance guard: a non-twitter result is a blocked delegation, never followed", async () => {
-    const foreignUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  it("link post: the allow-list refuses the delegated URL unfetched; post resolves as a 0-result", async () => {
+    const { deps, spawn } = createFixtureDeps(workDir, [
+      { success: false, stderr: REFUSAL_STDERR },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+
+    // Well-formed 0-video result — the refusal blocks the foreign fetch, it
+    // does not error the post; the media pass never runs.
+    expect(result.success).toBe(true);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    const envelope = result.data;
+    expect(envelope.entries).toHaveLength(0);
+    expect(envelope.metadata.id).toBe(TWID);
+    expect(envelope.metadata["source:blockedDelegations"]).toEqual([
+      { url: REFUSED_URL, extractor: "refused-before-fetch" },
+    ]);
+
+    // Blocked link lands in harvested links (provenance).
+    const links = harvestMetadataLinks(envelope.metadata, adapter);
+    expect(links.map((link) => link.url)).toContain(REFUSED_URL);
+  });
+
+  it("a refusal of an X status URL itself is never treated as a link post", async () => {
+    expect(parseDelegationRefusal(REFUSAL_STDERR)).toBe(REFUSED_URL);
+    expect(
+      parseDelegationRefusal(`ERROR: No suitable extractor found for URL ${STATUS_URL}`),
+    ).toBeNull();
+    const { deps } = createFixtureDeps(workDir, [
+      { success: false, stderr: `ERROR: No suitable extractor found for URL ${STATUS_URL}` },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+    expect(result.success).toBe(false);
+  });
+
+  it("defense-in-depth provenance guard: a foreign info JSON fails the acquisition, never digested", async () => {
     const { deps, spawn } = createFixtureDeps(workDir, [
       {
         addFiles: {
@@ -486,7 +548,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
             extractor: "youtube",
             extractor_key: "Youtube",
             id: "dQw4w9WgXcQ",
-            webpage_url: foreignUrl,
+            webpage_url: REFUSED_URL,
             formats: [{ format_id: "22" }],
           }),
         },
@@ -494,20 +556,17 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
 
-    // Well-formed 0-video result — the guard blocks foreign media, it does not
-    // error the post; the media pass never runs.
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     expect(spawn).toHaveBeenCalledTimes(1);
-    const envelope = result.data;
-    expect(envelope.entries).toHaveLength(0);
-    expect(envelope.metadata.id).toBe(TWID);
-    expect(envelope.metadata["source:blockedDelegations"]).toEqual([
-      { url: foreignUrl, extractor: "youtube" },
-    ]);
+    expect(result.error).toContain("Provenance violation");
+    expect(result.error).toContain(REFUSED_URL);
+  });
 
-    // Blocked link lands in harvested links (provenance).
-    const links = harvestMetadataLinks(envelope.metadata, adapter);
-    expect(links.map((link) => link.url)).toContain(foreignUrl);
+  it("a successful spawn that wrote no info JSON is a hard failure, never a durable 0-result", async () => {
+    const { deps } = createFixtureDeps(workDir, [{}]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("no info JSON");
   });
 
   it("0 videos, no link: well-formed metadata-only result", async () => {
@@ -531,24 +590,17 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     const cases = [
       {
         name: "blocked-delegation",
-        addFiles: {
-          "dQw4w9WgXcQ.info.json": JSON.stringify({
-            extractor: "youtube",
-            id: "dQw4w9WgXcQ",
-            webpage_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            formats: [{ format_id: "22" }],
-          }),
-        },
-        expectedLink: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        pass: { success: false, stderr: REFUSAL_STDERR },
+        expectedLink: REFUSED_URL,
       },
       {
         name: "no-link",
-        addFiles: { [`${TWID}.info.json`]: twitterInfoJson({ id: TWID, formats: [] }) },
+        pass: { addFiles: { [`${TWID}.info.json`]: twitterInfoJson({ id: TWID, formats: [] }) } },
         expectedLink: "https://example.com/paper",
       },
     ];
     for (const testCase of cases) {
-      const { deps } = createFixtureDeps(workDir, [{ addFiles: testCase.addFiles }]);
+      const { deps } = createFixtureDeps(workDir, [testCase.pass]);
       const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
       expect(result.success, testCase.name).toBe(true);
 
@@ -643,6 +695,24 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(rebuilt).not.toContain("<X-word-ms");
     expect(result.data.acquireMetrics?.captionCleanup).toBe("converted");
   });
+
+  it("a failed caption cleanup pass fails the acquisition — captions are never silently lost", async () => {
+    const { deps, files } = createFixtureDeps(workDir, [
+      {
+        addFiles: {
+          [`${MEDIA_ID}.info.json`]: twitterInfoJson(),
+          [`${MEDIA_ID}.en.vtt`]: TAGGED_VTT,
+        },
+      },
+      { success: false, stderr: "ERROR: network" },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Caption cleanup failed");
+    // The tagged original survives as a backup until cleanup succeeds.
+    expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
+  });
 });
 
 describe("canonicalization reaches every entry path by construction", () => {
@@ -685,6 +755,7 @@ describe("canonicalization reaches every entry path by construction", () => {
     expect(result.videoId).toBe(TWID);
     const args = spawn.mock.calls[0][1];
     expect(args.at(-1)).toBe(STATUS_URL);
+    expect(args[args.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
     expect(result.title).toBe("Fixture Post");
   });
 
@@ -694,5 +765,23 @@ describe("canonicalization reaches every entry path by construction", () => {
     expect(result.ok).toBe(false);
     expect(result.status).toBe("invalid-url");
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("queue entry: stderr-derived note/reason are markdown-escaped (no table injection)", async () => {
+    const spawn = vi.fn(async () => ({
+      success: false,
+      code: 1,
+      signal: null,
+      stdout: "",
+      stderr: "ERROR: transient thing | with pipes | in it",
+      timedOut: false,
+    }));
+    const result = await preflightVideo(RAW_URL, { spawn, env: {} });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("transient");
+    expect(result.note).toContain("\\|");
+    expect(result.reason).toContain("\\|");
+    expect(result.note).not.toMatch(/[^\\]\|/);
   });
 });

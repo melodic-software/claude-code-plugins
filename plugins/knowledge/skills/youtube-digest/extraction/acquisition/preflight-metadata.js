@@ -151,14 +151,17 @@ export function classifyPreflightFailure(detail, errorPatterns) {
  * Build the yt-dlp argument list for a metadata-only preflight probe.
  *
  * @param {string} url
- * @param {{ env?: NodeJS.ProcessEnv, authOverride?: import('./build-yt-dlp-args.js').YtDlpAuthOverride }} [options]
+ * @param {{ env?: NodeJS.ProcessEnv, authOverride?: import('./build-yt-dlp-args.js').YtDlpAuthOverride, source?: import('./build-yt-dlp-args.js').YtDlpSourceOptions }} [options]
  * @returns {string[]}
  */
-export function buildPreflightArgs(url, { env = process.env, authOverride = {} } = {}) {
+export function buildPreflightArgs(url, { env = process.env, authOverride = {}, source = {} } = {}) {
   return [
     "--skip-download",
     "--no-warnings",
     "--no-playlist",
+    // Same SSRF guard as acquisition: a source-declared extractor allow-list
+    // refuses delegated foreign URLs without fetching them.
+    ...(source.allowedExtractors ? ["--use-extractors", source.allowedExtractors] : []),
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
     ...resolveYtDlpAuthArgs(env, authOverride),
@@ -185,7 +188,7 @@ function summarizeDetail(detail) {
  * @property {'ok'|'unavailable'|'transient'|'invalid-url'} status
  * @property {'enqueue'|'reject'} action
  * @property {string} note - markdown-safe notes cell value (empty for clean ok rows)
- * @property {string} reason - short human reason (failures only)
+ * @property {string} reason - short human reason, markdown-escaped (failures only)
  * @property {string} title - raw title
  * @property {string} channel - raw channel display name
  * @property {string} handle - raw channel handle, leading at-sign included
@@ -216,8 +219,10 @@ export async function preflightVideo(url, deps = {}) {
     ok: false,
     status: "invalid-url",
     action: "reject",
-    note,
-    reason,
+    // Escaped at construction: both cells can carry URL- or stderr-derived
+    // text, which must never break the markdown queue table it lands in.
+    note: escapeTableCell(note),
+    reason: escapeTableCell(reason),
     title: "",
     channel: "",
     handle: "",
@@ -246,14 +251,23 @@ export async function preflightVideo(url, deps = {}) {
   const videoId = decision.key ?? adapter.extractSliceKey(url, null);
 
   // Probe the claim's canonical URL so the queue entry path gets adapter-level
-  // canonicalization by construction, same as acquisition dispatch.
-  const probeUrl = adapter.matchUrl(url)?.canonicalUrl ?? url;
+  // canonicalization by construction, same as acquisition dispatch. A null
+  // claim fails closed, mirroring registry dispatch — never probe a raw URL
+  // the adapter did not positively claim.
+  const claim = adapter.matchUrl(url);
+  if (!claim) {
+    return rejectInvalid(
+      "not claimed by source adapter",
+      "the owning adapter declined to claim this URL",
+    );
+  }
+  const sourceDeclarations = adapterSourceDeclarations(adapter);
   const buildArgs = (
     /** @type {import('./build-yt-dlp-args.js').YtDlpAuthOverride} */ authOverride = {},
-  ) => buildPreflightArgs(probeUrl, { env, authOverride });
+  ) => buildPreflightArgs(claim.canonicalUrl, { env, authOverride, source: sourceDeclarations });
   const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
     env,
-    source: adapterSourceDeclarations(adapter),
+    source: sourceDeclarations,
   });
 
   if (result.success) {
@@ -276,7 +290,7 @@ export async function preflightVideo(url, deps = {}) {
 
   const detail = spawnFailureDetail(result);
   const status = classifyPreflightFailure(detail, adapter.errorPatterns);
-  const reason = summarizeDetail(detail);
+  const reason = escapeTableCell(summarizeDetail(detail));
   return {
     url,
     videoId,

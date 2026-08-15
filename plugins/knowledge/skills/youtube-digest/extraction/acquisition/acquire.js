@@ -43,6 +43,7 @@ export function adapterSourceDeclarations(adapter) {
   return {
     writeComments: adapter.capabilities.comments === true,
     extractorArgs: adapter.extractorArgs,
+    allowedExtractors: adapter.allowedExtractors,
     errorPatterns: adapter.errorPatterns,
     allowBrowserCookieProfileFallback: adapter.capabilities.browserCookieFallback === true,
   };

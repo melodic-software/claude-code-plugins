@@ -19,6 +19,7 @@ function validSpec() {
     id: "stub",
     hosts: ["stub.example"],
     extractorArgs: null,
+    allowedExtractors: null,
     captionClass: "platform-asr",
     errorPatterns: { retryable: [], fatal: [/gone/i], loginRequired: [/log in/i] },
     transcriptStrategy: "captions",
@@ -182,6 +183,10 @@ describe("validateAdapter", () => {
     const badExtractor = validSpec();
     badExtractor.extractorArgs = 42;
     expect(validateAdapter(badExtractor).some((v) => v.includes("extractorArgs"))).toBe(true);
+
+    const badAllowList = validSpec();
+    badAllowList.allowedExtractors = 42;
+    expect(validateAdapter(badAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);
 
     const badStrategy = validSpec();
     badStrategy.transcriptStrategy = "telepathy";

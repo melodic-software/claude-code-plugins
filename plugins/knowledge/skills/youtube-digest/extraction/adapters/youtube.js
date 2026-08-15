@@ -81,6 +81,9 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   id: "youtube",
   hosts: ["youtube.com", "youtu.be"],
   extractorArgs: YOUTUBE_EXTRACTOR_ARGS,
+  // The youtube extractor resolves claimed URLs in-family (no foreign
+  // url_result delegation on the single-video path), so no allow-list yet.
+  allowedExtractors: null,
   captionClass: "manual-and-auto",
   errorPatterns: {
     retryable: [],
