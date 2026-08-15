@@ -3,7 +3,7 @@
 How the `improve` skill resolves the destination for its durable per-topic artifact.
 
 Implements the topic-docs convention:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
 The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
 no-project-root fallback, non-interactive/forked mode. This document records only this plugin's
 deltas.

@@ -71,8 +71,8 @@ found, neither write happens (step 1). The order is what makes the per-write for
    nothing in the environment to find**. The designation lives in a config file that destination-side
    discovery never reaches, so both signals come back empty together.
 
-   **On the permissive branch this producer writes nothing at all** — not the guard's `.gitignore`,
-   and not the findings file. The guard's half is the
+   **On the permissive branch this producer writes nothing at all — with one exception, below.** Not
+   the guard's `.gitignore`, and not the findings file. The guard's half is the
    [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
    second invalid case, which owns the rule and why; nothing is re-derived here. The findings file
    follows for the same undecidability applied to this skill's own contract: the destination may be
@@ -83,6 +83,12 @@ found, neither write happens (step 1). The order is what makes the per-write for
    Report the resolved destination, say that no checkout could be shown to govern it and the findings
    were therefore not persisted, and stop. A refusal a human can act on is the correct end of this
    branch; it is not a silent skip.
+
+   **The exception is the contract's `${CLAUDE_PLUGIN_DATA}` fallback**, which the rung order takes
+   when there is no project root at all. That surface is outside every checkout **by construction**,
+   so no tracked deletion can hide there and the refusal has nothing to protect — write, and announce
+   the absolute path as the contract requires. Refusing it would strand the one destination a
+   headless run on a rootless directory is *supposed* to use.
 
    Two cases the signals resolve rather than defer: a **bare** repository with no worktree puts no
    `.git` in any ancestor and reports none, so it reaches this branch and the run refuses. That

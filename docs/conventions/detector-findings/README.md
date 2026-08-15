@@ -59,10 +59,14 @@ What the binding leaves to a producer — consequences, not a second statement o
   stop the guard from healing into a consumer's root `.gitignore` and from writing at a root no
   checkout is detected as governing. Skipping it **where a checkout governs the destination** commits
   findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
-  that the guard does not run — and a producer bound to leave tracked content unmodified **withholds
-  the findings file there as well**, because that destination may itself be an index-tracked deletion
-  in the checkout the detection missed, where writing it modifies tracked content rather than
-  creating an untracked path. Report the resolved destination and persist nothing.
+  that the guard does not run. **The artifact write is not automatically safe there either**:
+  recreating a path that is an *index-tracked deletion* in a missed checkout modifies tracked state
+  rather than creating an untracked one (measured), so "it lands untracked" is not universally true.
+  But a blanket refusal is the wrong correction — it would refuse the `${CLAUDE_PLUGIN_DATA}`
+  fallback the convention routes non-interactive runs to, which sits outside every checkout **by
+  construction** and cannot be a tracked deletion. The rule follows that distinction: write where the
+  destination is that plugin-data surface, and where it is a resolved root no checkout could be shown
+  to govern, report the resolved destination and persist nothing.
 
 ## Boundary
 

@@ -4,7 +4,7 @@ How `/review:quality-gate` and `/review:fanout` resolve where review
 reports land in a consuming repo. Both skills read this one document; neither bakes its own paths.
 
 Implements the topic-docs convention:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
 The contract owns the tier table, concern-file schema, slug spec, and lifecycle; this document binds
 this plugin's artifacts to it.
 

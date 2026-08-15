@@ -3,7 +3,7 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.2]
+## [0.3.3]
 
 ### Changed
 
@@ -102,11 +102,14 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   run at all.** There is no repository to keep the write out of, and its create-when-absent rule
   would otherwise write straight over a `.gitignore` that is absent from disk but tracked in the
   undiscovered checkout, modifying committed content it could not even hide, since a tracked file is
-  exempt from its own pattern. **The findings file is withheld on that branch too**: the same
-  undecidability applies to it, since its destination may be an index-tracked deletion in the
-  undetected checkout, where writing produces a modified tracked file rather than a new untracked one
-  (measured). The run reports the resolved destination and that nothing was persisted, rather than
-  writing where it cannot rule that out. With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
+  exempt from its own pattern. **The findings file is withheld on that branch too**, with one
+  exception: the same undecidability applies to it, since its destination may be an index-tracked
+  deletion in the undetected checkout, where writing produces a modified tracked file rather than a
+  new untracked one (measured). The run reports the resolved destination and that nothing was
+  persisted, rather than writing where it cannot rule that out. The exception is the contract's
+  `${CLAUDE_PLUGIN_DATA}` fallback for a rootless directory — outside every checkout by
+  construction, so no tracked deletion can hide there and refusing it would strand the one
+  destination a headless run on such a directory is meant to use. With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
   worktree, where a memory root outside the worktree (a layout the `review:fanout` `fix` action
   supports explicitly) makes the probe fatal with exit 128 and every write a refusal. "The path is
   tracked space" and "the probe could not evaluate the path" are reported as the different states

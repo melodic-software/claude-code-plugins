@@ -316,9 +316,10 @@ are not optional: the destination comes from the contract's **whole** rung order
 **each** write this phase makes — the findings file and the self-ignore guard's `.gitignore` — is
 proven outside tracked space before **that** write is made, against the checkout that governs the
 destination rather than the invoking worktree, with the guard's own write proven before the guard
-heals rather than reported afterwards, and with **nothing written at all** where no governing
-checkout can be found, since an undetected checkout may hold the destination as a tracked deletion
-that a write would modify rather than create (a memory root inside tracked space leaves `git status`
+heals rather than reported afterwards, and with **nothing written at all** where a resolved root has
+no governing checkout — since an undetected checkout may hold that destination as a tracked deletion
+a write would modify rather than create — while the contract's `${CLAUDE_PLUGIN_DATA}` fallback is
+written normally, being outside every checkout by construction (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
 class** selects the contract rule and the rule decides `Tier`, never the finding's prose, with

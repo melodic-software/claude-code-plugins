@@ -14,7 +14,7 @@ withholds the findings file there too — that destination may be an index-track
 deletion in the checkout the detection missed, where writing modifies tracked
 content instead of creating an untracked path (measured). No producer-owned field
 rule, coexistence obligation, or enforceability verdict changes, so this is a
-patch. (#2680)
+patch. (#2680, #2756 follow-through on #2715)
 
 ## 2.0.0 — 2026-08-15
 

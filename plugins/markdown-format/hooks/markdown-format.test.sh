@@ -888,6 +888,18 @@ if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext |
 else
   fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
 fi
+# #2740: notice must not claim a session-long skip latch, and must carry the
+# probed PATH so a PATH-layer miss (nvm prefix, cloud harness env) is diagnosable.
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
+  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+  (.systemMessage | contains("PATH probed:")) and
+  ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
+' >/dev/null 2>&1; then
+  ok "missing markdownlint notice: notice-only latch + PATH diagnostic"
+else
+  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
+fi
 if [[ ! -e "$NPX_MARKER" ]]; then ok "missing markdownlint never invokes npx"; else fail "missing markdownlint invoked npx"; fi
 
 # --- Missing jq: visible advisory, no malformed parsing ---------------------

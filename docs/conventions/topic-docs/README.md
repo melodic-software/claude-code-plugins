@@ -40,7 +40,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/` | Never committed | session handoffs; review reports; running-retro ledgers — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -420,10 +420,13 @@ cite it rather than redefining it.
   deletion in the undetected checkout, in which case writing it produces
   a tracked modification rather than a new untracked file. A surface
   whose artifact must not modify tracked content therefore refuses the
-  artifact write too, rather than skipping only the guard. A surface
-  that can tolerate an untracked path being staged by a later
-  `git add -A` may proceed — the two outcomes differ in what they
-  protect, and only the first is absolute.
+  artifact write too, rather than skipping only the guard. **One
+  destination is exempt and it is the common one**: the
+  `${CLAUDE_PLUGIN_DATA}` fallback above is outside every checkout by
+  construction, so it cannot be a tracked deletion and needs no refusal —
+  which is why this rule is a discrimination between destinations rather
+  than a blanket stop. What it refuses is a *resolved root* no checkout
+  could be shown to govern.
 - No plugin ever edits the consumer's root `.gitignore`.
 
 ## Slug and filename spec
