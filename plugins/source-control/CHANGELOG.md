@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.3]
+
+### Changed
+
+- **Docs:** `/worktree create` and `/worktree cleanup` now document `git worktree repair`
+  (#2765). `context/create.md` adds a cross-drive / move-unavailable caveat with the
+  unlock → copy → `repair` → re-lock sequence (helper-created worktrees are locked).
+  `context/cleanup.md` Step 5 names `repair` alongside `prune` and states the
+  distinction. Docs-only; no behavior change.
+
 ## [0.54.2]
 
 ### Fixed

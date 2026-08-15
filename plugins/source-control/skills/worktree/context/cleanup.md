@@ -143,6 +143,8 @@ git worktree prune   # clears admin metadata for working trees now missing
 test -d <path> && echo "HUSK REMAINS: <path>" || echo "removed: <path>"   # PowerShell: Test-Path <path>
 ```
 
+`prune` and `repair` are complementary — do not confuse them. `git worktree prune` discards admin metadata for a worktree whose directory is genuinely gone. `git worktree repair` re-points metadata when the directory still exists but was moved by something other than `git worktree move` (see [create.md](create.md) directory-renaming caveats). A *moved* worktree can look prunable to this step; if the directory landed elsewhere and should stay registered, repair it (`git help worktree`) rather than pruning its registration away.
+
 Report honestly — never count a husk as removed:
 
 - **Fully removed** — directory gone AND metadata pruned.
