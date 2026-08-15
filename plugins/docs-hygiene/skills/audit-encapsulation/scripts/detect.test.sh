@@ -232,10 +232,10 @@ out="$(cd "$prose_repo" && bash "$SCRIPT" 2>/dev/null)"
 assert_exit "multi-root prose list → exit 0 (no false span)" 0 "$?"
 assert_silent "multi-root prose list emits nothing" "$out"
 
-# --help documents candidate semantics and relative-path limitation
+# --help documents candidate semantics and relative-path coverage (#2716 closed).
 help_out="$(bash "$SCRIPT" --help 2>&1)"
 assert_contains "--help says candidates exist" "$help_out" "candidates exist"
-assert_contains "--help discloses relative-path gap" "$help_out" "#2716"
+assert_contains "--help names relative forms" "$help_out" "relative forms"
 assert_contains "--help warns against hard-gate" "$help_out" "hard-gate CI"
 
 # Honest summary keys under --apply-filters on a candidate hit
@@ -247,6 +247,100 @@ assert_exit "candidate hit → exit 1" 1 "$code"
 assert_contains "summary uses candidates key" "$err" "candidates=1"
 assert_contains "summary uses mech-filtered key" "$err" "mech-filtered=0"
 assert_not_contains "summary does not say illegal=" "$err" "illegal="
+
+# --- Relative-path cites (#2716) ---
+
+# Bare plugin-relative `skills/<x>/<subdir>/` (disk-hygiene README shape).
+bare_skills_repo="$(fixture_repo "plugins/disk-hygiene/README.md" \
+  "see [safety](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence)")"
+out="$(cd "$bare_skills_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "bare skills/ private-subdir cite → exit 1" 1 "$?"
+assert_contains "bare skills/ violation emitted" "$out" "skills/clean/reference/"
+
+# Heading-anchor form of bare skills/ must flag (not only the subdir slash form).
+bare_anchor_repo="$(fixture_repo "plugins/demo/README.md" \
+  "see skills/clean/SKILL.md#standalone-git-checkout-evidence")"
+out="$(cd "$bare_anchor_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "bare skills/ SKILL.md#anchor cite → exit 1" 1 "$?"
+assert_contains "bare skills/ anchor emitted" "$out" "skills/clean/SKILL.md#"
+
+# `../`-prefixed path that still contains a `skills/` segment (claude-config
+# cross-plugin shape removed in #2703).
+dotdot_skills_repo="$(fixture_repo "plugins/claude-config/skills/audit/SKILL.md" \
+  "see ../../../../claude-memory/skills/audit/reference/criteria.md")"
+# Keep an in-scope non-skills surface so the default run is not exit-2.
+mkdir -p "$dotdot_skills_repo/.claude/rules"
+printf 'clean\n' >"$dotdot_skills_repo/.claude/rules/clean.md"
+out="$(cd "$dotdot_skills_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "../.../skills/ private cite → exit 1" 1 "$?"
+assert_contains "../.../skills/ cite emitted via skills/ segment" "$out" "skills/audit/reference/"
+
+# Same-name cross-plugin ../.../skills/<name>/ must stay a candidate under
+# --apply-filters (not vacated as self-citation by leaf name alone).
+err="$(cd "$dotdot_skills_repo" && bash "$SCRIPT" --apply-filters 2>&1 >/dev/null)"
+code=$?
+assert_exit "cross-plugin same-leaf skills/ cite stays candidate" 1 "$code"
+assert_contains "cross-plugin same-leaf summary keeps candidate" "$err" "candidates=1"
+
+# Sibling-skill relative cite with no `skills/` segment in the text —
+# resolution pass must catch it.
+sibling_repo="$(mktemp -d)"
+git init --quiet "$sibling_repo"
+FIXTURE_REPOS+=("$sibling_repo")
+(
+  cd "$sibling_repo" || exit 1
+  mkdir -p plugins/demo/skills/alpha plugins/demo/skills/beta/reference
+  printf 'see ../beta/reference/notes.md\n' >plugins/demo/skills/alpha/SKILL.md
+  printf 'notes\n' >plugins/demo/skills/beta/reference/notes.md
+  mkdir -p .claude/rules
+  printf 'clean\n' >.claude/rules/clean.md
+)
+out="$(cd "$sibling_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "sibling ../skill/reference cite → exit 1" 1 "$?"
+assert_contains "sibling relative cite emitted" "$out" "../beta/reference/"
+
+# Same-skill `../reference/deep/` from an actions/ file is self-citation under
+# --apply-filters (resolution lands in the citing skill). Assert raw>0 so a
+# silent miss cannot vacate the filter check.
+self_rel_repo="$(mktemp -d)"
+git init --quiet "$self_rel_repo"
+FIXTURE_REPOS+=("$self_rel_repo")
+(
+  cd "$self_rel_repo" || exit 1
+  mkdir -p plugins/demo/skills/alpha/actions
+  mkdir -p plugins/demo/skills/alpha/reference/deep
+  printf 'see ../reference/deep/notes.md\n' >plugins/demo/skills/alpha/actions/step.md
+  printf 'notes\n' >plugins/demo/skills/alpha/reference/deep/notes.md
+  mkdir -p .claude/rules
+  printf 'clean\n' >.claude/rules/clean.md
+)
+raw_out="$(cd "$self_rel_repo" && bash "$SCRIPT" 2>/dev/null)"
+raw_code=$?
+assert_exit "same-skill ../reference/deep/ raw → exit 1" 1 "$raw_code"
+assert_contains "same-skill relative cite raw-emitted" "$raw_out" "../reference/deep/"
+err="$(cd "$self_rel_repo" && bash "$SCRIPT" --apply-filters 2>&1 >/dev/null)"
+code=$?
+assert_exit "same-skill ../reference/ filtered → exit 0" 0 "$code"
+assert_contains "summary counts same-skill relative as mech-filtered" "$err" \
+  "raw=1 mech-filtered=1 candidates=0"
+
+# Bare skills/ scripts/ entry cite stays carved out.
+bare_scripts_repo="$(fixture_repo "plugins/demo/README.md" \
+  "run skills/alpha/scripts/foo.sh")"
+out="$(cd "$bare_scripts_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "bare skills/ scripts/ cite → exit 0 (carve-out)" 0 "$?"
+assert_silent "bare skills/ scripts/ cite emits nothing" "$out"
+
+# Plugin README bare skills/ cite is NOT self-citation (README is external).
+readme_bare_repo="$(fixture_repo "plugins/demo/README.md" \
+  "see skills/alpha/reference/notes.md")"
+# Add the skill so a mistaken self-filter could fire if it keyed only on text.
+mkdir -p "$readme_bare_repo/plugins/demo/skills/alpha/reference"
+printf 'x\n' >"$readme_bare_repo/plugins/demo/skills/alpha/reference/notes.md"
+out="$(cd "$readme_bare_repo" && bash "$SCRIPT" --apply-filters 2>/dev/null)"
+code=$?
+assert_exit "plugin README bare skills/ cite stays candidate" 1 "$code"
+assert_contains "README bare skills/ hit emitted under filters" "$out" "skills/alpha/reference/"
 
 if [[ "$FAILED" -ne 0 ]]; then
   exit 1

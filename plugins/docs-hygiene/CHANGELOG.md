@@ -1,5 +1,18 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.3]
+
+### Fixed
+
+- **audit-encapsulation detect:** relative-path cites into skill-private surfaces
+  are no longer invisible. The detector matches bare `skills/<x>/...` (plugin
+  README short links, including heading anchors) and `../`-prefixed cites whose
+  lexical resolution lands on a private skill surface (sibling-skill links that
+  never spell `skills/` in the cite text). Scripts/ carve-out and self-citation
+  filtering cover the relative forms; scripts/ carve-out matches citation text
+  only (not the citing file path). Regression fixtures pin both shapes so a
+  future pattern regression cannot return a silent empty again (#2716).
+
 ## [0.14.2]
 
 ### Fixed
