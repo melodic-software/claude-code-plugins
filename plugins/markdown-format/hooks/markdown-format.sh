@@ -493,9 +493,18 @@ else
   # Never invoke a package runner here: hooks must not download or execute an
   # unpinned package as a side effect of editing a file. Degrade visibly on
   # both channels, once per session.
+  #
+  # Wording is load-bearing (#2740): only the NOTICE latches (skip-notices/
+  # marker via hook::notice_once). The binary probe re-runs on every Markdown
+  # edit and recovers silently mid-session when the tool becomes resolvable —
+  # there is no skip latch. Saying "skipped for this session" made operators
+  # and agents stop retrying. The trailing PATH line is the probe diagnostic
+  # (what this hook process actually searched); do not widen the probe to
+  # nvm/rbenv layout guesses — that is a separate environment/bootstrap fix.
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped until it is resolvable (re-checked on every Markdown edit; this notice shows once per session). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools."
+      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools.
+PATH probed: ${PATH:-<unset>}"
   fi
   emit_tel "skipped" '[]'
   exit 0
