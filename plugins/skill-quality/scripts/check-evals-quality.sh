@@ -263,17 +263,24 @@ while IFS="$US" read -r kind a b c; do
       c="$(strip_trailing_punct "$c")"
       [[ -z "$c" ]] && continue
       # Skip URL leftovers (https://example.com/docs/a.md → example.com/docs/a.md)
-      # and other host-shaped first segments. Dotfiles like .claude/... stay in
-      # scope (leading-dot first segment is not a domain).
+      # and host-shaped first segments. A bare "has a dot" test is too wide —
+      # versioned dirs like v1.2/schema/config.json are fixture paths, not hosts.
+      # Require a DNS-like label ending in an alphabetic TLD-ish final segment.
+      # Dotfiles like .claude/... stay in scope (leading-dot first segment fails
+      # the hostname pattern).
       first="${c%%/*}"
-      if [[ "$c" == *"://"* || ( "$first" == *.* && "$first" != .* ) ]]; then
+      if [[ "$c" == *"://"* ]] ||
+        [[ "$first" =~ ^[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*[.][A-Za-z]{2,}$ ]]; then
         continue
       fi
       evals_dir="$(dirname "$a")"
       skill_dir="$(dirname "$evals_dir")"
-      if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
-        warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
-      elif [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
+      # PROSE tokens come from PROSE_PATH_RE, which has no leading-/ or drive
+      # alternative — absolute-looking prose is scanned without the leading /
+      # and falls through to the existence check. Only `../` traversal is
+      # reachable as an escape here; keep that gate before the -e test.
+      if [[ "/$c/" == *"/../"* ]] ||
+        { [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; }; then
         warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
       fi
       ;;

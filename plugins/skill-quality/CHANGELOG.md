@@ -15,6 +15,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   directory — the dodge that let compress evals 3/8/10 clear the gate while naming
   unreachable paths. Opt out with `narration: true` (schema field added) or declare
   a real fixture in `files`. Branch-like tokens and bare filenames stay out of scope.
+  Host-shaped skips require a DNS-like first segment ending in an alphabetic label
+  (so `v1.2/schema/config.json` stays in scope); the PROSE escape gate keeps only
+  the reachable `../` check before the existence WARN.
 
 ## [0.15.10]
 

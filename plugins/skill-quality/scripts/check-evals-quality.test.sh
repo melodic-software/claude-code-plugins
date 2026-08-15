@@ -328,6 +328,26 @@ else
   fail "Q4 must not warn on branch names, bare filenames, or URLs (rc=$rc): $out"
 fi
 
+# 9g. Q4: a dotted directory that is not a hostname (v1.2/...) must still WARN
+#     when unresolved — the host skip must not treat every "first.segment"
+#     with a dot as a URL leftover.
+f="$(make_evals prose-dotted-dir '{
+  "skill_name": "prose-dotted-dir",
+  "evals": [
+    {"id": 1, "name": "versioned-path", "prompt": "Load v1.2/schema/config.json and validate it.",
+     "files": [],
+     "expected_output": "The skill does NOT invent a fixture for the named versioned path."}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'path-shaped token "v1.2/schema/config.json".*files is empty.*(Q4)' <<<"$out" &&
+  grep -q 'case versioned-path (id=1)' <<<"$out"; then
+  pass "Q4: unresolved dotted-directory prose paths WARN"
+else
+  fail "Q4 should warn on v1.2/... prose paths (rc=$rc): $out"
+fi
+
 # 10. Q5: a case carrying BOTH expectations and assertions WARNs (exit 0).
 f="$(make_evals both-fields '{
   "skill_name": "both-fields",
