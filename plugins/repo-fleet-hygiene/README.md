@@ -8,6 +8,9 @@ owners or reimplement their cleanup decisions.
 The currently shipped audit reports:
 
 - local branches whose matching GitHub pull request is merged;
+- remote-tracking heads that still exist on origin after a GitHub merge (where
+  `delete_branch_on_merge` is not enabled or was blocked — enabling that setting is complementary,
+  not a substitute for this visibility, and this plugin never changes repository settings);
 - merged-PR, missing, prunable, or administratively mismatched worktree registrations; and
 - GitHub repositories whose configured remote resolves to a different owner or name.
 

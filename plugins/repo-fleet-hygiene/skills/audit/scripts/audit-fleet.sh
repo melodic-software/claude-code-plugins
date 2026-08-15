@@ -187,6 +187,14 @@ git_probe_allowed() {
       [[ "$6" == "refs/heads/" ]] && return 0
       [[ "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
       ;;
+    ls-remote)
+      # Read-only live remote probe: prove a named head still exists upstream without fetch/prune.
+      remote="${5:-}"
+      ref="${6:-}"
+      [[ $# -eq 6 && "$4" == "--heads" && -n "$remote" && "$remote" != -* &&
+        ! "$remote" =~ [[:cntrl:][:space:]] && "$ref" == refs/heads/* &&
+        ! "$ref" =~ [[:cntrl:][:space:]] ]]
+      ;;
     merge-base)
       ref="${6:-}"
       [[ $# -eq 6 && "$4" == "--is-ancestor" && -n "${5:-}" && "${5:-}" != -* &&
@@ -1808,6 +1816,17 @@ analyze_repo() {
         [[ "$branch" =~ [[:cntrl:]] ]] && continue
         GQL_BRANCHES+=("$branch")
       done
+      # Remote-only heads (local already deleted) still need exact headRefName GraphQL rows
+      # for merged-remote-branch classification.
+      for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
+        [[ -n "$remote_branch_short" && "$remote_branch_short" != "$default_branch" ]] || continue
+        [[ "$remote_branch_short" =~ [[:cntrl:]] ]] && continue
+        already=false
+        for existing in "${GQL_BRANCHES[@]:-}"; do
+          [[ "$existing" == "$remote_branch_short" ]] && { already=true; break; }
+        done
+        [[ "$already" == "true" ]] || GQL_BRANCHES+=("$remote_branch_short")
+      done
       repo_pr_available=true
       repo_pr_rows=""
       gql_page_start=0
@@ -1922,6 +1941,60 @@ analyze_repo() {
       fi
     fi
   done
+
+  # Merged remote branches that still exist on the remote are a distinct class from local cleanup:
+  # delete_branch_on_merge was off (or blocked), so the head ref remains on origin after merge.
+  # Match GraphQL merged-PR rows against the REMOTE tip (not the local tip). This also catches
+  # remote-only heads (local already deleted). A last-fetched remote-tracking tip alone is not
+  # live proof — after merge-and-auto-delete without a pruning fetch the cached ref can linger —
+  # so HIGH requires ls-remote to confirm the head still exists at the matched tip. When
+  # ls-remote fails, report the cached observation at MEDIUM. Empty ls-remote means the remote
+  # head is gone; emit nothing. Enabling GitHub delete_branch_on_merge is complementary and is
+  # never a substitute for this visibility; this collector never changes that setting.
+  if [[ "$repo_pr_available" == "true" && "$remote_inventory_failed" == "false" && -n "$canonical_remote" ]]; then
+    for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
+      remote_branch_short="${REMOTE_BRANCH_NAMES[$ri]}"
+      remote_tip="${REMOTE_BRANCH_TIPS[$ri]}"
+      [[ -n "$remote_branch_short" && -n "$remote_tip" ]] || continue
+      [[ "$remote_branch_short" == "$default_branch" ]] && continue
+      pr_match=""
+      while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
+        [[ -n "$pr_num" ]] || continue
+        [[ "$pr_branch" == "$remote_branch_short" ]] || continue
+        if [[ "$pr_oid" == "$remote_tip" ]]; then
+          pr_match="$pr_num|$pr_oid|$pr_merged|$pr_url"
+          break
+        fi
+      done <<<"$repo_pr_rows"
+      if [[ -n "$pr_match" ]]; then
+        IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
+        live_out=""
+        live_status=0
+        live_out="$(run_git_probe -C "$canonical" ls-remote --heads "$canonical_remote" \
+          "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
+        live_oid=""
+        if [[ "$live_status" -eq 0 && -n "$live_out" ]]; then
+          live_oid="${live_out%%[[:space:]]*}"
+          live_oid="${live_oid%%$'\t'*}"
+        fi
+        if [[ "$live_status" -eq 0 && -n "$live_oid" && "$live_oid" == "$remote_tip" ]]; then
+          emit_finding HIGH merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
+            "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); ls-remote confirmed refs/heads/$remote_branch_short still at $live_oid (delete_branch_on_merge not enabled or blocked for this repository)" \
+            "Optional remote-branch deletion preview; separate from local branch/worktree cleanup" \
+            "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
+        elif [[ "$live_status" -eq 0 ]]; then
+          # Empty or tip-mismatched ls-remote: remote head is gone or moved; do not blame
+          # delete_branch_on_merge on a stale local remote-tracking observation.
+          :
+        else
+          emit_finding MEDIUM merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
+            "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); current remote existence could not be verified (ls-remote failed) — may be a stale local remote-tracking observation after a prune-less fetch" \
+            "Optional remote-branch deletion preview; separate from local branch/worktree cleanup" \
+            "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Re-verify with ls-remote or a pruning fetch before acting. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
+        fi
+      fi
+    done
+  fi
 
   REPOS_AUDITED=$((REPOS_AUDITED + 1))
   mark_repo_counted

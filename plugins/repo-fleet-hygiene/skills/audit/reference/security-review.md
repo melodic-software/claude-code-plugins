@@ -15,6 +15,13 @@ admits only `query` documents with exact `headRefName` / `first:1` / `states:[ME
 fixed `--jq` flatten; `mutation`/`subscription` and REST `pr list` are rejected. Branch names
 transmitted are exactly the non-default local branches under audit for the operator's own resolved
 repository identity — not a silent gate that leaves branches unverdicted.
+Re-checked 2026-08-15 for #2607 (`merged-remote-branch`): reuses the same aliased GraphQL
+merged-PR evidence, also querying remote-only head names from the local remote-tracking inventory.
+Live HIGH confidence additionally requires allowlisted `git ls-remote --heads <remote>
+refs/heads/<branch>` (read-only; empty result suppresses the finding; probe failure demotes to
+MEDIUM). No new API endpoints, no mutation allowlist entries (`git push` remains rejected), and no
+org-admin repository-settings writes — `delete_branch_on_merge` is named in evidence/handoff prose
+only.
 
 ## Decision
 
