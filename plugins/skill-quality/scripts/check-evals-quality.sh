@@ -29,11 +29,17 @@
 #       whitespace-only `expected_output` standing as a case's sole
 #       criterion. Non-empty object/array items pass — item shape is
 #       skill-author-defined
-#   Q4. A `files` fixture entry that resolves to no file or directory
-#       relative to the skill dir or the evals dir, or that escapes those
-#       roots via an absolute path or a `..` component (FAIL — a case
-#       whose fixtures cannot be found under the documented roots cannot
-#       be exercised from the tree)
+#   Q4. Fixture reachability (FAIL for declared `files` entries; WARN for
+#       prose-only paths). A `files` entry that resolves to no file or
+#       directory relative to the skill dir or the evals dir, or that
+#       escapes those roots via an absolute path or a `..` component,
+#       FAILs — a case whose declared fixtures cannot be found under the
+#       documented roots cannot be exercised from the tree. Separately,
+#       when `files` is empty/absent and the case is not marked
+#       `narration: true`, path-shaped tokens (dir/…/file.ext) in
+#       `prompt`/`expected_output` that resolve to nothing under those
+#       roots WARN — otherwise `files: []` plus a path named only in
+#       prose silently dodges the declared-fixture check
 #   Q5. A case carrying BOTH `expectations` and `assertions` (WARN — the
 #       schema treats them as equivalent alternatives; carrying both makes
 #       the grading contract ambiguous. Pick one)
@@ -65,7 +71,9 @@
 # and, as a fallback, the evals dir itself. Entries naming files the eval
 # RUNNER must synthesize (consumer-repo state like `.claude/<config>.md`)
 # should still ship a fixture copy at one of those roots so the case stays
-# exercisable from the tree.
+# exercisable from the tree. Prose-path tokens use the same roots; cases
+# that intentionally name fictional consumer-repo paths without shipping
+# fixtures must set `narration: true` so the gap is explicit.
 set -uo pipefail
 
 # The header range is derived from the comment block itself, so adding
@@ -105,6 +113,11 @@ VAGUE_RE='^(the )?(output|response|result|it) (is|looks|seems) (good|correct|rig
 # Deliberately lenient (matches inside longer words/phrases): under-warning
 # beats noise for an advisory check.
 NEGATIVE_RE='refus|declin|must not|does not|doesn.t|never|reject|block|anti-pattern|antipattern|not |guardrail|instead of|rather than|without'
+# Q4 prose-path tokens: require at least one directory component and a
+# file extension so branch names (feat/foo) and slash-separated enums
+# (ours/theirs) stay silent. Bare filenames (CLAUDE.md) are also out of
+# scope — too common as narration without being a fixture claim.
+PROSE_PATH_RE='(?:\./)?(?:[A-Za-z0-9_.@+-]+/)+[A-Za-z0-9_.@+-]+\.(?:md|json|ts|tsx|js|jsx|mjs|cjs|py|sh|bash|zsh|yml|yaml|toml|txt|html|htm|css|scss|rs|go|java|rb|php|c|h|cpp|hpp|cc|cs|sql|xml|svg|png|jpg|jpeg|gif|webp|pdf|lock|env|cfg|ini|conf)'
 
 FAILED=0
 WARNINGS=0
@@ -129,6 +142,11 @@ JQ_PROG='
   input_filename as $f |
   def items: ((.expectations // []) + (.assertions // []));
   def caseref: if .name then "case \(.name) (id=\(.id))" else "case id=\(.id)" end;
+  # Path-shaped tokens in prompt/expected_output. scan/g keeps every
+  # non-overlapping match; trailing sentence punctuation is stripped in bash.
+  def prose_paths:
+    ((.prompt // "") + "\n" + (.expected_output // "")) as $t
+    | [$t | scan($prose_path)] | unique[];
   (.evals // []) as $cases |
   # Q1: duplicate ids (int 1 and string "1" collide by design — an id pair
   # distinguishable only by JSON type is still ambiguous to a grader).
@@ -151,9 +169,15 @@ JQ_PROG='
     | select((.expected_output // "") | (length > 0) and (gsub("[[:space:]]"; "") == ""))
     | caseref as $c
     | "FAIL" + $u + "\($f): \($c): whitespace-only expected_output is the sole grading criterion — it cannot be graded (Q3)"),
-  # Q4: fixture entries, resolved by bash.
+  # Q4: declared fixture entries, resolved by bash.
   ($cases[] | caseref as $c | .files[]?
     | "FILE" + $u + "\($f)" + $u + "\($c)" + $u + "\(.)"),
+  # Q4: prose-only path claims when files is empty/absent and the case is
+  # not an explicit narration scenario. Resolved by bash against the same
+  # roots as FILE entries.
+  ($cases[] | select((.files // []) | length == 0) | select(.narration != true)
+    | caseref as $c | prose_paths as $p
+    | "PROSE" + $u + "\($f)" + $u + "\($c)" + $u + "\($p)"),
   # Q5: both field names on one case.
   ($cases[] | select(.expectations != null and .assertions != null) | caseref as $c
     | "WARN" + $u + "\($f): \($c): carries BOTH expectations and assertions — the fields are equivalent alternatives; pick one (Q5)"),
@@ -185,7 +209,8 @@ JQ_PROG='
 # JSON string content, so fields with spaces/tabs survive the bash read.
 US=$'\x1f'
 LINT_OUT="$(jq -r --arg u "$US" --arg vague "$VAGUE_RE" --arg neg "$NEGATIVE_RE" \
-  --argjson min "$EXPECTED_OUTPUT_MIN" "$JQ_PROG" "$@" 2>&1)"
+  --arg prose_path "$PROSE_PATH_RE" --argjson min "$EXPECTED_OUTPUT_MIN" \
+  "$JQ_PROG" "$@" 2>&1)"
 JQ_RC=$?
 LINT_OUT="$(printf '%s' "$LINT_OUT" | tr -d '\r')"
 
@@ -193,6 +218,21 @@ if [[ $JQ_RC -ne 0 ]]; then
   printf 'Error: jq failed (unparsable JSON or internal error) — run schema validation on the input first:\n%s\n' "$LINT_OUT" >&2
   exit 2
 fi
+
+# Strip trailing sentence punctuation often glued to a prose path token
+# ("...overview.md.") without treating an interior dot as trailing.
+# Avoid `[[ =~ [[:class:]] ]]` — bash can terminate the compound command at
+# the inner `[[`, which corrupts the rest of the script's parse.
+strip_trailing_punct() {
+  local s="$1"
+  while true; do
+    case "$s" in
+      *[[:punct:]]) s="${s%?}" ;;
+      *) break ;;
+    esac
+  done
+  printf '%s' "$s"
+}
 
 while IFS="$US" read -r kind a b c; do
   [[ -z "$kind" ]] && continue
@@ -213,6 +253,28 @@ while IFS="$US" read -r kind a b c; do
         if [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
           err "$a: $b: files entry \"$c\" not found under $skill_dir/ or $evals_dir/ — a case whose fixtures cannot be found cannot be exercised (Q4)"
         fi
+      fi
+      ;;
+    PROSE)
+      # a=file, b=caseref, c=path-shaped token from prompt/expected_output.
+      # Same roots as FILE; WARN (not FAIL) so narration-heavy corpora stay
+      # green while the silent files:[] dodge is no longer invisible. Set
+      # narration: true to opt out, or declare the path in files.
+      c="$(strip_trailing_punct "$c")"
+      [[ -z "$c" ]] && continue
+      # Skip URL leftovers (https://example.com/docs/a.md → example.com/docs/a.md)
+      # and other host-shaped first segments. Dotfiles like .claude/... stay in
+      # scope (leading-dot first segment is not a domain).
+      first="${c%%/*}"
+      if [[ "$c" == *"://"* || ( "$first" == *.* && "$first" != .* ) ]]; then
+        continue
+      fi
+      evals_dir="$(dirname "$a")"
+      skill_dir="$(dirname "$evals_dir")"
+      if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
+        warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
+      elif [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
+        warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
       fi
       ;;
     *) err "internal: unrecognized lint line kind '$kind'" ;;

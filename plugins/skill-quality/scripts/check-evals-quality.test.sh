@@ -44,10 +44,10 @@ CLEAN='{
     {
       "id": 1,
       "name": "happy-path",
-      "prompt": "Do the thing to src/app.js.",
-      "expected_output": "The change is applied to src/app.js only, and the resulting diff is surfaced to the user.",
+      "prompt": "Do the thing to the named target file.",
+      "expected_output": "The change is applied to the named target only, and the resulting diff is surfaced to the user.",
       "expectations": [
-        "Only src/app.js is modified",
+        "Only the named target file is modified",
         "The resulting diff is shown before the turn ends"
       ]
     },
@@ -250,6 +250,82 @@ if [[ $rc -eq 1 ]] && [[ "$(grep -c 'escapes the documented fixture roots.*(Q4)'
   pass "Q4: absolute and ..-traversal entries FAIL without an existence probe"
 else
   fail "Q4 should reject escaping entries before the -e test (rc=$rc): $out"
+fi
+
+# 9c. Q4: empty files:[] with a path-shaped token only in prose WARNs — the
+#     silent dodge that previously cleared the gate with 0 findings.
+f="$(make_evals prose-missing '{
+  "skill_name": "prose-missing",
+  "evals": [
+    {"id": 1, "name": "names-missing-doc", "prompt": "Compress docs/reference/api-lifecycle.md — it is terse.",
+     "files": [],
+     "expected_output": "The skill does NOT invent a fixture; it audits the named path as specified."}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'path-shaped token "docs/reference/api-lifecycle.md".*files is empty.*(Q4)' <<<"$out" &&
+  grep -q 'case names-missing-doc (id=1)' <<<"$out"; then
+  pass "Q4: empty files:[] with an unresolved prose path WARNs"
+else
+  fail "Q4 should warn on prose-only unresolved paths with empty files (rc=$rc): $out"
+fi
+
+# 9d. Q4: narration: true opts out — intentional fictional consumer-repo paths
+#     must self-declare so the gap is explicit rather than silent.
+f="$(make_evals prose-narration '{
+  "skill_name": "prose-narration",
+  "evals": [
+    {"id": 1, "prompt": "Compress docs/architecture/overview.md. It is long.",
+     "files": [], "narration": true,
+     "expected_output": "The skill does NOT require a shipped fixture for this narration-only scenario."}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '(Q4)' <<<"$out"; then
+  pass "Q4: narration: true silences prose-path warnings"
+else
+  fail "Q4 should stay silent when narration: true (rc=$rc): $out"
+fi
+
+# 9e. Q4: a prose path that resolves under the skill dir stays silent even
+#     with empty files (reachable-as-specified without a files declaration).
+mkdir -p "$TMP/prose-resolves/docs/reference"
+printf 'doc\n' >"$TMP/prose-resolves/docs/reference/exists.md"
+f="$(make_evals prose-resolves '{
+  "skill_name": "prose-resolves",
+  "evals": [
+    {"id": 1, "prompt": "Read docs/reference/exists.md and summarize it.",
+     "files": [],
+     "expected_output": "The skill does NOT need files[] when the prose path already resolves under the skill dir."}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '(Q4)' <<<"$out"; then
+  pass "Q4: resolving prose paths with empty files stay silent"
+else
+  fail "Q4 must not warn when a prose path resolves (rc=$rc): $out"
+fi
+
+# 9f. Q4: branch-like slash tokens and bare filenames are not path-shaped —
+#     they must not WARN (feat/foo, CLAUDE.md, ours/theirs). URLs must not
+#     WARN either (https://example.com/a/b.md is not a fixture claim).
+f="$(make_evals prose-not-path '{
+  "skill_name": "prose-not-path",
+  "evals": [
+    {"id": 1, "prompt": "Commit on feat/payment-retry; touch CLAUDE.md; keep ours/theirs distinct; see https://example.com/docs/guide.md.",
+     "files": [],
+     "expected_output": "The skill does NOT treat branch names, bare filenames, or URLs as fixture claims."}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '(Q4)' <<<"$out"; then
+  pass "Q4: non-fixture slash tokens, bare filenames, and URLs stay silent"
+else
+  fail "Q4 must not warn on branch names, bare filenames, or URLs (rc=$rc): $out"
 fi
 
 # 10. Q5: a case carrying BOTH expectations and assertions WARNs (exit 0).

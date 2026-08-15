@@ -214,7 +214,8 @@ silent skip or a coerced-to-zero budget.
 - `check-evals-quality.sh` resolves each case's `files` entries relative to the skill directory
   first, then the evals directory. An entry that is prose (environment description) rather than a
   real path FAILs Q4 — describe environment state in the case's `prompt` parenthetical instead,
-  or ship a fixture.
+  or ship a fixture. When `files` is empty/absent, path-shaped tokens in `prompt`/`expected_output`
+  that resolve nowhere WARN under the same Q4 roots unless the case sets `narration: true`.
 - `listing-budget` never asserts a resolved live value (context window and `skillListingBudgetFraction`
   are both consumer settings this static check cannot observe) — it reports against a documented,
   overridable default and always exits 0. A clean report is a signal to investigate against `/doctor`

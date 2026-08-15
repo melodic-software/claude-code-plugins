@@ -55,6 +55,10 @@
           "items": { "type": "string", "minLength": 1 },
           "description": "Optional list of fixture file paths required by this case."
         },
+        "narration": {
+          "type": "boolean",
+          "description": "When true, the case intentionally names fictional or consumer-repo paths in prompt/expected_output without shipping fixtures under the skill or evals directory. Opt out of the eval-quality Q4 prose-path warning that otherwise fires when files is empty and those paths do not resolve."
+        },
         "assertions": {
           "type": "array",
           "description": "Optional list of objectively-verifiable assertions (skill-creator upstream field name). Items are skill-author-defined; schema does not constrain shape."
