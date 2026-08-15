@@ -59,20 +59,45 @@ binds every implementing engine surface, which states its taxonomy row and fail-
 rather than claiming exemption. A consumer that treats *configured* as *working* is itself the
 false-green defect.
 
-## Decision 2 — declared beats detected; detection proposes, interactively only
+## Decision 2 — declared narrows and fills; a ran-and-negative probe caps every declaration
 
-A tracked declaration wins over any probe result; detection fills gaps and proposes declarations,
-never silently overrides one; divergence surfaces as a finding. Proposing is interactive-only —
-non-interactive and forked contexts are barred from ask-and-persist rungs, so at routine runtime
-the resolution reports and never persists. Per-rung ownership is part of the contract: connector
-entitlement for `prod`/`product`/`org`/`ext` binds at the org rung, a lower rung never asserts a
-prerequisite a higher rung owns, and security axes accept no repo-local value at all. Prose
-(CLAUDE.md, AGENTS.md, README) is an inference source for proposals into non-security keys, never
-runtime authority, and is never parsed by the deterministic resolver.
+A declaration is evidence of intent; a probe is evidence of fact. The precedence is directional,
+never flat — the title's "declared over detected" names the default (intent narrows and fills
+where no contradicting fact exists); it never licenses intent to outrank a fact. Normatively:
 
-The alternative — detection overriding stale declarations — was rejected against both fleet
-ladders and external consensus; staleness is handled by divergence findings, not by inverting
-precedence.
+- **A declaration may narrow or disable.** A declared-absent or disabled surface is out of
+  consideration whatever a probe finds; detection fills gaps and proposes declarations, never
+  silently overrides one.
+- **A probe that ran and returned negative caps every declaration.** Where a tracked declaration
+  asserts a prerequisite and the current per-surface probe shows it missing — a required CLI
+  removed, an entitlement revoked, an MCP server gone — the identity resolves to the negative
+  verdict: a positive verdict never survives the capability's disappearance on evidence of
+  intent alone. That would be the healthy-while-dead class the liveness-assertion Core contract
+  exists to prevent. The contradiction is simultaneously emitted as a **finding** — someone's
+  tracked configuration is now wrong, and the moment of detection is the one moment the drift is
+  visible — routed per that contract's two limbs (fail loud, or publish to a channel an agent
+  reads; `docs/conventions/liveness-assertion/README.md` owns the definitions): in a gate
+  context the resolver's non-zero exit is the loud limb; in a report context the divergence
+  finding in the emitted resolution is the agent-readable one; the interactive `apply` path
+  additionally proposes correcting the declaration.
+- **A probe that could not run is not a probe that returned negative.** The two states never
+  collapse. Where no probe can execute — an uncommitted layer on a scheduled run, or a surface
+  whose probe can confirm but not deny (relocatable CI configuration is the canonical case) —
+  the declaration stands and the verdict is qualified, with the unprobeable state named in
+  provenance.
+
+Proposing is interactive-only — non-interactive and forked contexts are barred from
+ask-and-persist rungs, so at routine runtime the resolution reports and never persists. Per-rung
+ownership is part of the contract: connector entitlement for `prod`/`product`/`org`/`ext` binds
+at the org rung, a lower rung never asserts a prerequisite a higher rung owns, and security axes
+accept no repo-local value at all. Prose (CLAUDE.md, AGENTS.md, README) is an inference source
+for proposals into non-security keys, never runtime authority, and is never parsed by the
+deterministic resolver.
+
+Two flat rules were rejected. "Declared wins, always" lets a stale positive declaration keep a
+routine admitted after the capability disappeared — fail-open through the back door. "Detected
+wins, always" would silently rewrite human-ratified intent and erase deliberate narrowing;
+staleness is handled by divergence findings, not by either inversion.
 
 ## Decision 3 — compose the owning consumer surfaces; no new prober, no cached profile
 
@@ -122,8 +147,10 @@ would be the precise agent-writable bypass the classification obligation forbids
 - Detection can never widen autonomy: declarations are human-ratified, enablement is
   narrowing-only, admission stays fail-closed on its own inputs. The cost is accepted friction —
   a genuinely capable repo still needs a human to ratify what detection proposes.
-- Stale declarations are possible by design (declared wins); the mitigation is divergence
-  findings at every recompute, not auto-correction.
+- A stale **positive** declaration cannot sustain a positive verdict: a ran-and-negative probe
+  caps it, and the contradiction surfaces as a finding at the first recompute. A stale
+  **narrowing** declaration (a disabled surface that has since reappeared) persists until a
+  human acts on its divergence finding — narrowing staleness costs availability, never safety.
 - The generated emission adds a drift gate to CI; the leaves remain the only authored home for
   per-class facts.
 - Final naming is deliberately not settled here: the verdict tokens, the deferred-class marker,
