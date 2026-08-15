@@ -29,4 +29,21 @@ public class DiscriminatingTests
     [Fact]
     public void Renders_Verbatim_Path() =>
         Assert.Contains(@"C:\temp", PathRenderer.Render("temp"));
+
+    [Fact]
+    public void Transport_Receives_And_Confirms()
+    {
+        // NSubstitute chain plus a same-line real assertion — the strip is
+        // bounded to the chain and must not eat the assertion after it
+        var transport = Substitute.For<ITransport>();
+        var ok = Sender.Ping(transport);
+        transport.Received(1).Send("ping"); Assert.True(ok);
+    }
+
+    [Fact]
+    public void Fib_Recurrence_Holds()
+    {
+        // same callee, different arguments — not a recomputed expectation
+        Assert.Equal(Fib.Of(9) + Fib.Of(8), Fib.Of(10));
+    }
 }

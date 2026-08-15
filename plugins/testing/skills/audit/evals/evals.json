@@ -20,6 +20,7 @@
       "expected_output": "Runs the detector; on zero findings reports a clean result WITH the denominator (how many test files and blocks were actually examined), and never presents a scan that examined nothing as a clean bill.",
       "files": ["evals/fixtures/negative/discriminating-js.test.js", "evals/fixtures/negative/test_discriminating_py.py", "evals/fixtures/negative/DiscriminatingTests.cs"],
       "expectations": [
+        "Output runs the bundled cant-fail-scan.sh detector rather than reading and judging the test files directly",
         "Output reports zero findings without inventing any",
         "Output states the denominator — how many test files and test blocks the scan examined",
         "Output distinguishes a clean scan from a scan that examined nothing"

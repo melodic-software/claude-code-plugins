@@ -60,26 +60,32 @@ CANT_FAIL_SCAN_ROOT="$TMP_ROOT/a-file" bash "$SCAN" >/dev/null 2>&1 || rc=$?
 assert_exit "root that is a file refuses (exit 2)" 2 "$rc"
 
 # --- positive fixtures: every rule fires, per ecosystem ------------------------
+# Location is repo-relative (the fixtures sit inside this repo), so the
+# assertions anchor on the path SUFFIX plus the detail, never the full prefix.
 rc=0
 out="$(CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" 2>&1)" || rc=$?
 assert_exit "positive report completes (exit 0 — advisory)" 0 "$rc"
-assert_contains "js zero-assertion fires in cant-fail-js.test.js" "$out" "[testing/audit/rule-zero-assertion] cant-fail-js.test.js:5"
-assert_contains "js recomputed-expectation fires" "$out" "[testing/audit/rule-recomputed-expectation] cant-fail-js.test.js:10"
-assert_contains "js mock-only-oracle fires" "$out" "[testing/audit/rule-mock-only-oracle] cant-fail-js.test.js:17"
-assert_contains "py zero-assertion fires in test_cant_fail_py.py" "$out" "[testing/audit/rule-zero-assertion] test_cant_fail_py.py:7"
-assert_contains "py recomputed-expectation fires" "$out" "[testing/audit/rule-recomputed-expectation] test_cant_fail_py.py:12"
-assert_contains "py mock-only-oracle fires" "$out" "[testing/audit/rule-mock-only-oracle] test_cant_fail_py.py:15"
-assert_contains "cs zero-assertion fires in CantFailTests.cs" "$out" "[testing/audit/rule-zero-assertion] CantFailTests.cs:8"
-assert_contains "cs recomputed-expectation fires" "$out" "[testing/audit/rule-recomputed-expectation] CantFailTests.cs:17"
-assert_contains "cs mock-only-oracle fires" "$out" "[testing/audit/rule-mock-only-oracle] CantFailTests.cs:21"
+assert_contains "zero-assertion rule id emitted" "$out" "[testing/audit/rule-zero-assertion]"
+assert_contains "recomputed-expectation rule id emitted" "$out" "[testing/audit/rule-recomputed-expectation]"
+assert_contains "mock-only-oracle rule id emitted" "$out" "[testing/audit/rule-mock-only-oracle]"
+assert_contains "js string-shadowed tautology fires in cant-fail-js.test.js" "$out" "cant-fail-js.test.js:8: expect(double(2)) compared to itself"
+assert_contains "js zero-assertion fires" "$out" "cant-fail-js.test.js:11: test 'adds numbers' has 0 assertion tokens"
+assert_contains "js recomputed-expectation fires" "$out" "cant-fail-js.test.js:16: expect(formatUser({id:1})) compared to itself"
+assert_contains "js mock-only-oracle fires" "$out" "cant-fail-js.test.js:23: test 'notifies the mailer': 1 mock-interaction assertion(s)"
+assert_contains "py zero-assertion fires in test_cant_fail_py.py" "$out" "test_cant_fail_py.py:7: test 'test_add_runs' has 0 assertion tokens"
+assert_contains "py recomputed-expectation fires" "$out" "test_cant_fail_py.py:12: assert add(2,3) == add(2,3)"
+assert_contains "py mock-only-oracle fires" "$out" "test_cant_fail_py.py:15: test 'test_notify_calls_mailer': 1 mock-interaction assertion(s)"
+assert_contains "cs zero-assertion fires in CantFailTests.cs" "$out" "CantFailTests.cs:8: test 'Charge_Runs' has 0 assertion tokens"
+assert_contains "cs recomputed-expectation fires" "$out" "CantFailTests.cs:17: Assert.Equal(Format.User(1), Format.User(1))"
+assert_contains "cs mock-only-oracle fires" "$out" "CantFailTests.cs:21: test 'Notify_Calls_Mailer': 1 mock-interaction assertion(s)"
 
 n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "10" ]]; then pass "positive fixtures yield exactly 10 findings"; else fail "positive fixtures yield exactly 10 findings" "got $n"; fi
+if [[ "$n" == "11" ]]; then pass "positive fixtures yield exactly 11 findings"; else fail "positive fixtures yield exactly 11 findings" "got $n"; fi
 
 rc=0
 n="$(CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --count 2>/dev/null)" || rc=$?
 assert_exit "--count completes" 0 "$rc"
-if [[ "$n" == "10" ]]; then pass "--count reports 10"; else fail "--count reports 10" "got $n"; fi
+if [[ "$n" == "11" ]]; then pass "--count reports 11"; else fail "--count reports 11" "got $n"; fi
 
 rc=0
 CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --check >/dev/null 2>&1 || rc=$?
@@ -89,9 +95,13 @@ assert_exit "--check on positive fixtures fails (exit 1)" 1 "$rc"
 rc=0
 out="$(CANT_FAIL_SCAN_ROOT="$FIX/negative" bash "$SCAN" --check 2>&1)" || rc=$?
 assert_exit "--check on negative fixtures passes (exit 0)" 0 "$rc"
-assert_not_contains "negative fixtures yield zero findings (discriminating-js.test.js, test_discriminating_py.py, DiscriminatingTests.cs)" "$out" "finding ["
-assert_contains "negative run parsed real blocks (not a scan of nothing)" "$out" "test files: 3 examined of 3 enumerated"
+assert_not_contains "negative fixtures yield zero findings (discriminating-js.test.js, discriminating-ava.test.js, test_discriminating_py.py, DiscriminatingTests.cs)" "$out" "finding ["
+assert_contains "negative run parsed real blocks (not a scan of nothing)" "$out" "test files: 4 examined of 4 enumerated"
+assert_contains "negative run parsed every runnable block (a parser silently dropping blocks would show here)" "$out" "test blocks parsed: 19;"
 assert_contains "negative run passes loudly" "$out" "PASS: no gating findings"
+rc=0
+CANT_FAIL_SCAN_ROOT="$FIX/negative" bash "$SCAN" --check --strict >/dev/null 2>&1 || rc=$?
+assert_exit "--check --strict on negative fixtures still passes (mock-plus-value tests are not mock-only)" 0 "$rc"
 
 # --- sanity fixture: the issue's settlement shape -----------------------------
 rc=0
@@ -176,6 +186,24 @@ out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" 2>&1)" || rc=$?
 assert_exit "report over an empty tree completes" 0 "$rc"
 assert_contains "an empty scan is named a scan of nothing" "$out" "NOTHING TO AUDIT"
 assert_not_contains "an empty scan is not a clean bill" "$out" "No can't-fail tests found."
+
+# the gate refuses a scan of nothing — a wrong root and a healthy suite must
+# not share exit 0
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" --check 2>&1)" || rc=$?
+assert_exit "--check over 0 examined test files fails closed (exit 2)" 2 "$rc"
+assert_contains "empty-gate refusal says why" "$out" "0 test files were examined"
+assert_not_contains "empty gate never prints PASS" "$out" "PASS:"
+
+# Location is repo-relative even when the scan root narrows to a subdirectory
+SUBREPO="$TMP_ROOT/subrepo"
+mkdir -p "$SUBREPO/sub"
+git -C "$TMP_ROOT" init -q -b sub-branch subrepo
+printf 'test("v", () => { run(); });\n' >"$SUBREPO/sub/vacuous.test.js"
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$SUBREPO/sub" bash "$SCAN" 2>&1)" || rc=$?
+assert_exit "subdir-root scan completes" 0 "$rc"
+assert_contains "Location keeps the repo prefix under a subdir scan root" "$out" "sub/vacuous.test.js:1:"
 
 # --- CRLF input ---------------------------------------------------------------
 CRLF="$TMP_ROOT/crlf"

@@ -39,4 +39,25 @@ describe('add', () => {
     expect(add(20, 22))
       .toBe(42);
   });
+
+  // same callee, different arguments — a comparator degraded to function names
+  // alone would wrongly call this recomputed
+  test('fibonacci recurrence', () => {
+    expect(fib(10)).toBe(fib(9) + fib(8));
+  });
+
+  // regex literals: braces and slashes inside a regex are data, not code —
+  // neither may corrupt brace counting or read as a line comment
+  test('strips braces via regex', () => {
+    const cleaned = 'a}b}'.replace(/}/g, '');
+    expect(cleaned).toBe('ab');
+    expect('a/b/c'.split(/\//)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+// a skipped SUITE — nothing inside runs, so nothing inside is judged
+describe.skip('unfinished suite', () => {
+  test('pending work', () => {
+    add(0, 0);
+  });
 });
