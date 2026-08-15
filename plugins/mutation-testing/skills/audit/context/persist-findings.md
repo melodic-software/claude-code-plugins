@@ -21,7 +21,8 @@ obligations are the ones a mutation run is most likely to skip, so they are name
 here: run the **whole** rung order rather than its last rung; take the **non-interactive collapse**
 for the rungs that confirm or ask, since a headless detector cannot answer; and honor the
 **self-ignore guard**, including the invalid-root rule that keeps it out of a consumer's root
-`.gitignore`.
+`.gitignore` — with the one carve-out named in "Prove the destination is outside tracked space",
+where no checkout governs the destination and the guard has nothing to guard.
 
 File name: `${TS}-mutation-survivors.md`, with `TS="$(date -u +%Y%m%dT%H%M%SZ)"` — colon-free and
 Windows-safe, so lexical sort equals chronological sort.
@@ -38,8 +39,10 @@ the self-ignore guard heals it — and the property to prove is that git picks u
 proven before that write is made**, which is the strongest form available and not the same as proving
 both up front: on a fresh root the guard's file is exactly what makes the findings file's probe pass,
 so that probe cannot precede the guard. "At most" is load-bearing — where step 1 finds no governing
-checkout the guard does not run and the findings file is the only write. The order is what makes the
-per-write form hold:
+checkout the guard does not run and the findings file is the only write. That write is still proven,
+by step 1 itself rather than by a probe: two independent signals agreeing that no checkout governs
+the path *is* the proof that none can track it, which is why step 1 needs both and why steps 2–5 have
+nothing left to ask there. The order is what makes the per-write form hold:
 
 0. **Make the resolved root a physical path first.** `cd` to its nearest existing ancestor, take
    `pwd -P`, and re-append the components below it. A lexical walk over a path whose ancestor is a
