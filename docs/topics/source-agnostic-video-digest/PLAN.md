@@ -255,24 +255,24 @@ Review: security
   public status; media + `.vtt` + `sourceUrl` recorded to
   `.work/source-agnostic-video-digest/evidence/phase2/x-live-probe.md`
 
-### Phase 3: Transcript strategy seam [TODO]
+### Phase 3: Transcript strategy seam [DONE]
 
 `transcriptStrategy` = `captions` | `captions+repair` | `asr`; per-source default declared by
 the adapter, pipeline-overridable.
 
-- [ ] YouTube default `captions` — behavior unchanged for every existing user.
-- [ ] `acquisition/select-caption.js` (shared ladder — editable, T12): consumes the adapter's
+- [x] YouTube default `captions` — behavior unchanged for every existing user.
+- [x] `acquisition/select-caption.js` (shared ladder — editable, T12): consumes the adapter's
   declared `captionClass`; fixes X `.en.vtt` → `manual-en` misclassification; stage 2 stays
   shared.
-- [ ] **Selection rule (binding):** X caption-present → `captions+repair`; X caption-absent →
+- [x] **Selection rule (binding):** X caption-present → `captions+repair`; X caption-absent →
   `asr` **whenever the ASR capability is available**; capability absent → explicit degradation
   (digest without transcript, degradation stated in a named provenance field), never silent.
-- [ ] `captions+repair`: proper-noun repair over platform VTT; lexicon = post text
+- [x] `captions+repair`: proper-noun repair over platform VTT; lexicon = post text
   (`description`) + harvested links.
-- [ ] ASR rung: faster-whisper large-v3, `batch_size=8`; optional closed-by-default
+- [x] ASR rung: faster-whisper large-v3, `batch_size=8`; optional closed-by-default
   capability; delivery = documented optional prerequisite + runtime detection, no
   auto-install.
-- [ ] **T5 probes — write a dated stub row here BEFORE running each; fill outcome after.**
+- [x] **T5 probes — write a dated stub row here BEFORE running each; fill outcome after.**
   Evidence: `.work/source-agnostic-video-digest/evidence/phase3/`.
   - `[T5-ASR-ENTITY]` input: one known X clip with technical proper nouns; expected output:
     side-by-side entity transcription (X ASR vs faster-whisper); pass criterion: decision-grade
@@ -291,12 +291,12 @@ the adapter, pipeline-overridable.
 
 **Sanity Check:**
 
-- [ ] Fixture: X `.en.vtt` classifies per declared class; YouTube classification tests
+- [x] Fixture: X `.en.vtt` classifies per declared class; YouTube classification tests
   unchanged and green
-- [ ] Fixture: strategy resolution — per-source default; explicit pipeline override wins;
+- [x] Fixture: strategy resolution — per-source default; explicit pipeline override wins;
   caption-absent + capability-available selects `asr`; capability-absent exits 0 with the
   named provenance degradation field set
-- [ ] Three probe rows present with dated stub + outcome (grep `T5-ASR-` in this file → 3
+- [x] Three probe rows present with dated stub + outcome (grep `T5-ASR-` in this file → 3
   rows with `outcome:` filled)
 
 ### Phase 4: Conformance suite + fixtures [TODO]
