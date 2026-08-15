@@ -250,6 +250,154 @@ run_pwsh "PS: non-git scriptblock (allowed)" "Get-Process | Where-Object { \$_.C
 run_pwsh "PS: read-only git with scriptblock (allowed — #1415)" \
   "git fetch origin 2>&1 | ForEach-Object { \$_ | Select-Object -Last 5 }" 0
 run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
+
+# --- ps::git_command_is_readonly — the `readonly-ok` sink scope (SECURITY) -----
+# This guard is the ONLY caller that passes `readonly-ok`, so it is the only place
+# a wrongly-classified subcommand is observable. Every case below carries a SINK
+# TRIGGER (`& { … }`, a `{}` pipeline, or `()` grouping): without one the command
+# takes the Bash-parser path and never reaches ps::git_command_is_readonly at all,
+# which would make the assertion vacuous.
+#
+# The classifier is a blocklist, so a subcommand it omits classifies as READ-ONLY
+# and the whole guard skips. `git clean -fdx` and `git restore .` destroy
+# uncommitted work irrecoverably and were both omitted — hence one case per
+# mutating subcommand, so an accidental deletion from the alternation fails here.
+run_pwsh "PS: git clean -fdx in scriptblock (destructive, blocked)" "& { git clean -fdx }" 2
+run_pwsh "PS: git clean -fdx in a pipeline (destructive, blocked)" \
+  "git clean -fdx | ForEach-Object { \$_ }" 2
+run_pwsh "PS: git restore . in scriptblock (destructive, blocked)" "& { git restore . }" 2
+run_pwsh "PS: git restore . in grouping (destructive, blocked)" "(git restore .)" 2
+run_pwsh "PS: git add (index write, blocked)" "& { git add -A }" 2
+run_pwsh "PS: git apply (working-tree write, blocked)" "& { git apply fix.diff }" 2
+run_pwsh "PS: git bisect (moves HEAD, blocked)" "& { git bisect start }" 2
+run_pwsh "PS: git branch -D (ref delete, blocked)" "& { git branch -D feature }" 2
+run_pwsh "PS: git checkout-index -f (worktree overwrite, blocked)" "& { git checkout-index -a -f }" 2
+run_pwsh "PS: git config --unset (config write, blocked)" "& { git config --unset core.hookspath }" 2
+run_pwsh "PS: git filter-branch (history rewrite, blocked)" "& { git filter-branch --all }" 2
+run_pwsh "PS: git gc --prune=now (object destruction, blocked)" "& { git gc --prune=now }" 2
+run_pwsh "PS: git maintenance run (gc under another name, blocked)" \
+  "& { git maintenance run --task=incremental-repack }" 2
+run_pwsh "PS: git merge-file (overwrites operand, blocked)" "& { git merge-file a.txt base.txt b.txt }" 2
+run_pwsh "PS: git mv (worktree+index move, blocked)" "& { git mv old.txt new.txt }" 2
+run_pwsh "PS: git prune (object destruction, blocked)" "& { git prune --expire=now }" 2
+run_pwsh "PS: git pull (merges into the worktree, blocked)" "& { git pull --rebase }" 2
+run_pwsh "PS: git read-tree -u (index+worktree write, blocked)" "& { git read-tree -m -u HEAD }" 2
+run_pwsh "PS: git reflog expire (destroys the recovery path, blocked)" \
+  "& { git reflog expire --expire=now --all }" 2
+run_pwsh "PS: git remote remove (remote config write, blocked)" "& { git remote remove origin }" 2
+run_pwsh "PS: git repack -a -d (drops packs, blocked)" "& { git repack -a -d }" 2
+run_pwsh "PS: git replace (rewrites object reads, blocked)" "& { git replace --delete abc1234 }" 2
+run_pwsh "PS: git rerere forget (resolution-cache write, blocked)" "& { git rerere forget src/a.txt }" 2
+run_pwsh "PS: git rm -f (tracked-file delete, blocked)" "& { git rm -f secrets.txt }" 2
+run_pwsh "PS: git sparse-checkout set (removes worktree files, blocked)" \
+  "& { git sparse-checkout set docs }" 2
+run_pwsh "PS: git submodule deinit -f (discards submodule work, blocked)" \
+  "& { git submodule deinit -f . }" 2
+run_pwsh "PS: git subtree split (merges and commits, blocked)" "& { git subtree split --prefix=lib }" 2
+run_pwsh "PS: git switch -f (checkout's replacement, blocked)" "& { git switch -f main }" 2
+run_pwsh "PS: git symbolic-ref (repoints HEAD, blocked)" \
+  "& { git symbolic-ref HEAD refs/heads/other }" 2
+run_pwsh "PS: git update-index (index write, blocked)" "& { git update-index --force-remove a.txt }" 2
+run_pwsh "PS: git update-ref -d (ref delete, blocked)" "& { git update-ref -d refs/heads/main }" 2
+
+# Hyphenated siblings that the `-`-excluding boundary keeps from riding on an
+# already-listed token, so each needs its own entry and its own case: `commit-graph`
+# is not `commit`, `merge-index`/`merge-one-file` are not `merge`, `fast-import` is
+# not `import`, `update-server-info` is not `update-ref`, and
+# `credential-cache`/`credential-store` are not `credential`.
+run_pwsh "PS: git commit-graph write (admin-state write, not 'commit', blocked)" \
+  "& { git commit-graph write --reachable }" 2
+run_pwsh "PS: git fast-import (bulk ref force-update, blocked)" "& { git fast-import --force }" 2
+run_pwsh "PS: git merge-index (worktree write, not 'merge', blocked)" \
+  "& { git merge-index myprog -a }" 2
+run_pwsh "PS: git merge-one-file (worktree write, not 'merge', blocked)" \
+  "& { git merge-one-file }" 2
+run_pwsh "PS: git mergetool (writes resolved files, blocked)" "& { git mergetool --tool=vimdiff }" 2
+run_pwsh "PS: git multi-pack-index (object-store admin write, blocked)" \
+  "& { git multi-pack-index write }" 2
+run_pwsh "PS: git update-server-info (admin-state write, blocked)" \
+  "& { git update-server-info -f }" 2
+run_pwsh "PS: git credential-store (writes credentials to disk, not 'credential', blocked)" \
+  "& { git credential-store store }" 2
+run_pwsh "PS: git credential-cache (manages the cache daemon, not 'credential', blocked)" \
+  "& { git credential-cache exit }" 2
+
+# GUI commit frontends. `git help -a` calls citool the "Graphical alternative to
+# git-commit", so a commit made through either inherits the session environment —
+# including a disabled hook manager — and must not ride the readonly-ok path.
+run_pwsh "PS: git citool (graphical git-commit, blocked)" "& { git citool }" 2
+run_pwsh "PS: git gui (commit frontend, blocked)" "& { git gui }" 2
+# Foreign-SCM bridges: dual-mode, and the mutating mode rewrites history and publishes.
+run_pwsh "PS: git svn dcommit (rewrites history + publishes, blocked)" "& { git svn dcommit }" 2
+run_pwsh "PS: git p4 submit (publishes to Perforce, blocked)" "& { git p4 submit }" 2
+run_pwsh "PS: git cvsexportcommit (publishes to CVS, blocked)" "& { git cvsexportcommit -c HEAD }" 2
+
+# SYNONYMS AND PLUMBING BENEATH A LISTED PORCELAIN. Listing the porcelain alone
+# leaves the identical mutation reachable under another spelling — and `send-pack`
+# is the sharpest case for THIS guard: it is what `push` calls, and it does NOT
+# run the pre-push hook, so omitting it left a hook bypass wide open.
+run_pwsh "PS: git stage (documented synonym of add, blocked)" "& { git stage -A }" 2
+run_pwsh "PS: git send-pack (push plumbing, skips pre-push hook, blocked)" \
+  "& { git send-pack origin +refs/heads/main:refs/heads/main --force }" 2
+run_pwsh "PS: git http-push (publishes over DAV, blocked)" \
+  "& { git http-push https://example.invalid/r main }" 2
+run_pwsh "PS: git receive-pack (updates refs in the receiving repo, blocked)" \
+  "& { git receive-pack . }" 2
+run_pwsh "PS: git quiltimport (creates commits from a patch series, blocked)" \
+  "& { git quiltimport }" 2
+run_pwsh "PS: git prune-packed (object-store admin write, not 'prune', blocked)" \
+  "& { git prune-packed }" 2
+run_pwsh "PS: git credential (credential-store write, blocked)" "& { git credential reject }" 2
+run_pwsh "PS: git interpret-trailers --in-place (rewrites the file, blocked)" \
+  "& { git interpret-trailers --in-place msg.txt }" 2
+# Widely-installed third-party subcommands invoked through the git dispatcher.
+run_pwsh "PS: git filter-repo (history rewrite, blocked)" "& { git filter-repo --force }" 2
+run_pwsh "PS: git lfs prune (destroys local LFS objects, blocked)" "& { git lfs prune }" 2
+run_pwsh "PS: git annex drop (destroys file content, blocked)" "& { git annex drop f.bin }" 2
+
+# The #1415 read-only allowance must SURVIVE the widening — over-blocking routine
+# read-only work is the friction class this narrowing exists to prevent. The
+# hyphen cases are the load-bearing ones: the boundary class excludes `-`, so a
+# hyphenated sibling or option must never match a listed token.
+run_pwsh "PS: git log in scriptblock (read-only, allowed)" "& { git log --oneline -5 }" 0
+run_pwsh "PS: git status in scriptblock (read-only, allowed)" "& { git status --porcelain }" 0
+run_pwsh "PS: git rev-list in scriptblock (read-only, allowed)" "& { git rev-list --count HEAD }" 0
+run_pwsh "PS: git merge-base (hyphen sibling of merge, allowed)" \
+  "& { git merge-base --is-ancestor HEAD origin/main }" 0
+run_pwsh "PS: git fetch --prune (hyphen option, not the prune subcommand, allowed)" \
+  "& { git fetch --prune }" 0
+run_pwsh "PS: git ls-remote (hyphen sibling of remote, allowed)" \
+  "& { git ls-remote --heads origin }" 0
+run_pwsh "PS: git log --no-merges (hyphen option, allowed)" "& { git log --no-merges }" 0
+run_pwsh "PS: git describe --tags (hyphen option, allowed)" "& { git describe --tags }" 0
+run_pwsh "PS: git diff in scriptblock (read-only, allowed)" "& { git diff --stat }" 0
+run_pwsh "PS: git show in scriptblock (read-only, allowed)" "& { git show HEAD }" 0
+run_pwsh "PS: git blame in scriptblock (read-only, allowed)" "& { git blame README.md }" 0
+run_pwsh "PS: git rev-parse in scriptblock (read-only, allowed)" \
+  "& { git rev-parse --show-toplevel }" 0
+run_pwsh "PS: git archive (artifact producer, allowed)" "& { git archive --format=tar HEAD }" 0
+run_pwsh "PS: git format-patch (artifact producer, allowed)" "& { git format-patch -1 }" 0
+run_pwsh "PS: git clone (cannot destroy existing work, allowed)" \
+  "& { git clone https://example.invalid/x }" 0
+run_pwsh "PS: git fsck (interrogator, allowed)" "& { git fsck }" 0
+run_pwsh "PS: git cat-file (interrogator, allowed)" "& { git cat-file -p HEAD }" 0
+run_pwsh "PS: git write-tree (create-only plumbing, allowed)" "& { git write-tree }" 0
+run_pwsh "PS: git pack-refs (lossless representation rewrite, allowed)" "& { git pack-refs --all }" 0
+run_pwsh "PS: git commit-tree (create-only plumbing, not 'commit-graph', allowed)" \
+  "& { git commit-tree -p HEAD -m x abc1234 }" 0
+run_pwsh "PS: git bundle create (artifact producer, allowed)" \
+  "& { git bundle create out.bundle HEAD }" 0
+run_pwsh "PS: git ls-tree (interrogator, allowed)" "& { git ls-tree -r HEAD }" 0
+run_pwsh "PS: git shortlog (interrogator, allowed)" "& { git shortlog -sn }" 0
+# `--staged` must NOT match the newly-listed `stage`: the trailing `d` is
+# alphanumeric, so the token boundary refuses to close. Without this the `stage`
+# addition would silently over-block one of the most common read-only diffs.
+run_pwsh "PS: git diff --staged ('staged' is not 'stage', allowed)" "& { git diff --staged }" 0
+run_pwsh "PS: git fast-export (exports, does not mutate, allowed)" "& { git fast-export --all }" 0
+run_pwsh "PS: git merge-tree (create-only plumbing, allowed)" \
+  "& { git merge-tree --write-tree main HEAD }" 0
+run_pwsh "PS: git count-objects (interrogator, allowed)" "& { git count-objects -v }" 0
+run_pwsh "PS: git for-each-ref (interrogator, allowed)" "& { git for-each-ref refs/heads }" 0
 # Dynamic-invocation regressions: iex / string-literal call run an opaque string,
 # so a construct-free form must still route to the fail-closed sink (it otherwise
 # reached the Bash parser, which sees `iex`, not git, and passed).
