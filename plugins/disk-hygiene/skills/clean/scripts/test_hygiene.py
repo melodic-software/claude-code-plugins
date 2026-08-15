@@ -13,6 +13,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import types
@@ -4386,8 +4387,22 @@ class GuardTests(unittest.TestCase):
                     "no trusted absolute ls on this host "
                     f"(which={located!r}, resolved={resolved})"
                 )
+        # Prefer an MSYS spelling when the native path has spaces ("Program
+        # Files"): unquoted space-bearing heads fail `_literal_shell_words`.
+        if any(ch in absolute_head for ch in " \t"):
+            for candidate in ("/usr/bin/ls", "/bin/ls"):
+                if guard._trusted_system_readonly_head(candidate):
+                    absolute_head = candidate
+                    break
+        head_for_command = (
+            f'"{absolute_head}"'
+            if any(ch in absolute_head for ch in " \t")
+            else absolute_head
+        )
         self.assertTrue(
-            guard.is_exact_readonly_supporting_command(f"{absolute_head} /tmp/example"),
+            guard.is_exact_readonly_supporting_command(
+                f"{head_for_command} /tmp/example"
+            ),
             absolute_head,
         )
         self.assertTrue(guard._trusted_system_readonly_head(absolute_head))
@@ -6255,9 +6270,22 @@ class GuardTests(unittest.TestCase):
 
     def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
         out_file = Path(self._cfg.name) / "telemetry-deny.json"
-        sink = Path(self._cfg.name) / "telemetry-sink.sh"
-        sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
-        sink.chmod(0o755)
+        # Windows cannot exec a #!/bin/sh sink via CreateProcess; use a .cmd that
+        # forwards stdin through this interpreter (HOOK_TELEMETRY_SINK is argv0).
+        if os.name == "nt":
+            sink = Path(self._cfg.name) / "telemetry-sink.cmd"
+            py = os.fspath(Path(sys.executable).resolve())
+            sink.write_text(
+                "@echo off\r\n"
+                f"\"{py}\" -c "
+                f"\"import sys; open(r'{out_file}', 'w', encoding='utf-8')"
+                f".write(sys.stdin.read())\"\r\n",
+                encoding="utf-8",
+            )
+        else:
+            sink = Path(self._cfg.name) / "telemetry-sink.sh"
+            sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
+            sink.chmod(0o755)
         with mock.patch.dict(
             os.environ,
             {
@@ -6278,9 +6306,20 @@ class GuardTests(unittest.TestCase):
 
     def test_engine_gate_irrelevant_emits_no_telemetry(self) -> None:
         out_file = Path(self._cfg.name) / "telemetry-skip.json"
-        sink = Path(self._cfg.name) / "telemetry-skip-sink.sh"
-        sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
-        sink.chmod(0o755)
+        if os.name == "nt":
+            sink = Path(self._cfg.name) / "telemetry-skip-sink.cmd"
+            py = os.fspath(Path(sys.executable).resolve())
+            sink.write_text(
+                "@echo off\r\n"
+                f"\"{py}\" -c "
+                f"\"import sys; open(r'{out_file}', 'w', encoding='utf-8')"
+                f".write(sys.stdin.read())\"\r\n",
+                encoding="utf-8",
+            )
+        else:
+            sink = Path(self._cfg.name) / "telemetry-skip-sink.sh"
+            sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
+            sink.chmod(0o755)
         with mock.patch.dict(
             os.environ,
             {
