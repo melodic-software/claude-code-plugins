@@ -34,8 +34,8 @@ project-discovery: ["go.mod"]
 build-cmd: "go build ./..."
 test-cmd: "go test ./..."
 check-cmd: "golangci-lint run ./..."
-fix-cmd: "gofmt -w <files>" # format-only; golangci-lint --fix is code-changing
-code-fix-cmd: "golangci-lint run --fix <files>" # substitute only *.go paths, one package directory per invoke
+fix-cmd: "gofmt -w <files>" # format-only; agent substitutes only *.go from <files> (never go.mod/go.sum)
+code-fix-cmd: "golangci-lint run --fix <files>" # *.go only; invoke once per package directory (see lint SKILL.md)
 opt-in: ".golangci.yml, .golangci.yaml, .golangci.toml, or .golangci.json present (walked from the changed file up to the repo root) — otherwise golangci-lint applies its own unconfigured \"standard\" linter preset unconditionally"
 install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/"
 gates:
