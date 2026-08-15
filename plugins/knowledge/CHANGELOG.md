@@ -26,9 +26,9 @@ only after that version increases.
 - **Owner doc for the tracked citation shape** (`reference/citation-shape.md`): URL + retrieval
   date (ISO 8601, UTC) + `sha256:<hex64>` over raw snapshot bytes, with inline and structured
   forms, an optional node-id sub-resource anchor, and a drift rule (new fetch = new citation;
-  never edit a hash in place). Pays down the Brief-captured debt `map-corpus` recorded ("that
-  citation shape still needs an owner doc before a second skill emits it") — the skill's
-  cite-never-copy gotcha now points at the owner doc instead of naming the debt.
+  never edit a hash in place). Pays down the debt `map-corpus` recorded ("that citation shape still
+  needs an owner doc before a second skill emits it") — the skill's cite-never-copy gotcha now
+  points at the owner doc instead of naming the debt.
 
 ## [0.12.0]
 
