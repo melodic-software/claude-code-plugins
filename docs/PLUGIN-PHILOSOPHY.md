@@ -352,6 +352,30 @@ is closed. Setup must be:
 - safe for existing files, preserving unrelated user content; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
 
+**How a setup skill states the contract.** An installed plugin cannot read this repository, so a
+`setup` skill states the contract inline, in operable form, rather than citing it in place of the
+words. Two normalized sentences carry it: a purpose line saying the skill is check-centric and what
+`check` inspects versus what `apply` resolves, and an action-routing line saying that no argument or
+`check` runs the check, that `apply` runs the check first and then this plugin's own apply target,
+and that the actions are non-interactive when the action is given. The per-plugin halves — what this
+plugin inspects, what its `apply` writes — are the only parts that legitimately vary; the framing
+around them stays word-for-word across the fleet so it greps as one unit. Each setup skill names
+this section once, for provenance only, in the fleet's fixed form:
+
+```text
+per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository)
+```
+
+The parenthetical never replaces the inline words and no skill instruction depends on reading this
+file at runtime — an installed plugin has no path to it. A plugin whose routing genuinely differs (a
+check-only carve-out, a destructive-collision guard, an interview when the arguments are incomplete)
+states that difference *after* the normalized sentence rather than rewording it, so a verb-set change
+here stays a single greppable sweep across every setup skill. Byte-identity is a normalization
+target, never a CI gate — [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md)
+"Implementers restate the rules; they do not share a source" already settles that the shared text
+stays unhoisted and unregistered, and the fleet conformance audit tracks the skills still carrying
+the older pathless wording.
+
 Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
 follows install granularity: a plugin installs and is configured as a unit, and its configuration
 surface — tracked project files, external prerequisites, `userConfig` — is plugin-scoped and

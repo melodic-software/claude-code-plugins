@@ -7,11 +7,13 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration and no `userConfig` — it
-recommends `@playwright/cli`'s own defaults — so the only tunable prerequisite is the CLI
-binary itself. `apply` is guidance-and-verify with exactly one write path: the explicitly
-invoked `apply install-cli` global npm install described below.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration and no
+`userConfig` — it recommends `@playwright/cli`'s own defaults — so the only tunable
+prerequisite is the CLI binary itself. `apply` is guidance-and-verify with exactly one
+write path: the explicitly invoked `apply install-cli` global npm install described
+below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding; `apply install-cli` additionally authorizes the global

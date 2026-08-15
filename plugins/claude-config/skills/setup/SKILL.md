@@ -7,7 +7,8 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup per the uniform contract: `check` inspects and reports, `apply` resolves. This plugin declares no
+Setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in
+the marketplace repository): `check` inspects and reports, `apply` resolves. This plugin declares no
 `userConfig`, and has two setup concerns:
 
 - the external command-line tools its bundled scripts require — here `apply` is guidance-and-verify

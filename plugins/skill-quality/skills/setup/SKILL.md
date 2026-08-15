@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` resolves and verifies the skills root,
-`apply` resolves what it found. `skills_root` is a personal `userConfig` scalar owned by Claude Code's
-native configuration surface — Claude Code prompts for it when the plugin is enabled, stores
-non-sensitive options in user settings, and ignores project/local `pluginConfigs` entries on current
-releases (≥ 2.1.207). This skill never writes it; `apply` verifies and routes.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` resolves and verifies the
+skills root, `apply` resolves what it found. `skills_root` is a personal `userConfig` scalar owned by
+Claude Code's native configuration surface — Claude Code prompts for it when the plugin is enabled,
+stores non-sensitive options in user settings, and ignores project/local `pluginConfigs` entries on
+current releases (≥ 2.1.207). This skill never writes it; `apply` verifies and routes.
 
 Official contract (verified 2026-07-18):
 <https://code.claude.com/docs/en/plugins-reference#user-configuration>.

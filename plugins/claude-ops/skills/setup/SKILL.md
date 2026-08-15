@@ -7,12 +7,13 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports the effective personal
-path options, `apply` resolves what it found. `registry_dir` and `skill_usage_dir` are personal
-`userConfig` scalars owned by Claude Code's native configuration surface — Claude Code prompts for them
-when the plugin is enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs`
-entries in project and local settings on current releases (≥ 2.1.207). This skill never writes them;
-`apply` verifies and routes.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports the
+effective personal path options, `apply` resolves what it found. `registry_dir` and `skill_usage_dir`
+are personal `userConfig` scalars owned by Claude Code's native configuration surface — Claude Code
+prompts for them when the plugin is enabled, stores non-sensitive options in user settings, and ignores
+`pluginConfigs` entries in project and local settings on current releases (≥ 2.1.207). This skill never
+writes them; `apply` verifies and routes.
 
 Official contract (verified 2026-07-18):
 <https://code.claude.com/docs/en/plugins-reference#user-configuration>.

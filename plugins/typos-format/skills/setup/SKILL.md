@@ -7,15 +7,16 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — rules come from the
-repository's own typos config, and the only tunables are the native `userConfig` options
-(the on/off toggle and the write-mode switch). Unlike
-sibling formatter plugins (Ruff, markdownlint-cli2), typos has no per-repo dependency-manager
-install path — it is a standalone Rust binary installed at the machine level (cargo, Homebrew,
-Conda, pacman, or a pre-built binary), never as a project dependency. `apply` is therefore
-guidance-only: it never installs anything, matching the hook's own PATH-only resolution and the
-plugin philosophy's never-download-silently rule.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — rules come from
+the repository's own typos config, and the only tunables are the native `userConfig` options
+(the on/off toggle and the write-mode switch). Unlike sibling formatter plugins (Ruff,
+markdownlint-cli2), typos has no per-repo dependency-manager install path — it is a standalone
+Rust binary installed at the machine level (cargo, Homebrew, Conda, pacman, or a pre-built
+binary), never as a project dependency. `apply` is therefore guidance-only: it never installs
+anything, matching the hook's own PATH-only resolution and the plugin philosophy's
+never-download-silently rule.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 prints remediation guidance for each FAIL. Both are non-interactive — never prompt when the

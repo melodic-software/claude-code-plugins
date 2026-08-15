@@ -7,10 +7,11 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — targets and modes arrive as
-`/disk-hygiene:clean` arguments, and the only tunable is the native `userConfig` toggle —
-so `apply` is pure guidance and writes nothing.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — targets
+and modes arrive as `/disk-hygiene:clean` arguments, and the only tunable is the native
+`userConfig` toggle — so `apply` is pure guidance and writes nothing.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 points at each remediation. Both are non-interactive — never prompt when the action is given.

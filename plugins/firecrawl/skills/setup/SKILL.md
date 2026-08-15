@@ -7,13 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin is **lazy-install by design** — the main skill treats `firecrawl-cli`
-as an escalation option installed when first needed and flags its own absence in its status
-line — so a missing CLI is an INFO here, not a failure. This plugin owns no consumer-project
-configuration and no `userConfig`; auth is an OS-environment concern. So `apply` is pure
-guidance-and-verify with **no write path**: it installs nothing, writes no environment
-variables, and defers to the main skill's own documented install flow.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin is **lazy-install by design** — the main skill treats
+`firecrawl-cli` as an escalation option installed when first needed and flags its own
+absence in its status line — so a missing CLI is an INFO here, not a failure. This plugin
+owns no consumer-project configuration and no `userConfig`; auth is an OS-environment
+concern. So `apply` is pure guidance-and-verify with **no write path**: it installs nothing,
+writes no environment variables, and defers to the main skill's own documented install flow.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding. Both are non-interactive — never prompt when the

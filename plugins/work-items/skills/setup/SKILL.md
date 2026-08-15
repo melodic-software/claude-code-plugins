@@ -20,11 +20,13 @@ empty skeleton and stops there, because that bind is usually reached as a detour
 reporting "no binding" — the operator came to do something else, and should not be walked through a
 per-item interview to get there.
 
-`check` inspects read-only and reports a PASS/FAIL/INFO table; `apply` binds the provider, writes or
-reshapes the schedule, and offers the role remap, then re-runs `check`. No argument or `check` runs the
-check; `apply` runs the check first, then the bind-and-write flow; `apply --seed-schedule` additionally
-opts in to the candidate-inference-and-interview pass. Idempotent: re-running reads the
-on-disk files and offers updates rather than overwriting blind. The schedule file is a plain tracked
+Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects read-only and
+reports a PASS/FAIL/INFO table; `apply` binds the provider, writes or reshapes the schedule, and
+offers the role remap, then re-runs `check`. No argument or `check` runs the check; `apply` runs the
+check first, then the bind-and-write flow; `apply --seed-schedule` additionally opts in to the
+candidate-inference-and-interview pass. Idempotent: re-running reads the on-disk files and offers
+updates rather than overwriting blind. The schedule file is a plain tracked
 JSON file the skill reads and writes directly (Read / Write / `jq`) — it is not a tracker record, so it
 does not route through the work-item-tracker seam; only operations on the work items themselves (labels,
 item lookups, edits) go through the bound provider.

@@ -7,10 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Verify and provision the first-time DeDRM setup. `check` inspects prerequisites and current state
-read-only; `apply` runs the provisioning walkthrough (the router skill's workflow reference), then re-runs `check`.
-No argument or `check` runs the check; `apply` runs the check first, then provisioning; `apply download`
-runs only the gated artifact-download subaction. This plugin has no repo- or consumer-scoped
+Verify and provision the first-time DeDRM setup, per the uniform setup contract
+(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository).
+`check` inspects prerequisites and current state read-only; `apply` runs the provisioning walkthrough
+(the router skill's workflow reference), then re-runs `check`. No argument or `check` runs the check;
+`apply` runs the check first, then provisioning; `apply download` runs only the gated
+artifact-download subaction. This plugin has no repo- or consumer-scoped
 configuration and no `userConfig` scalars/toggles — setup writes no Claude Code user settings, no
 `pluginConfigs`, and nothing into the plugin cache or plugin data directory; it provisions the user's
 machine (installs, firewall rule, ICACLS lock, extracted keys) and every mutation has a compensating
