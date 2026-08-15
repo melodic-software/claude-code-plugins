@@ -107,7 +107,8 @@ audit_file() {
   files_audited=$((files_audited + 1))
 
   local t1=0 t2=0 t3=0
-  local in_exempt=0 current_section="" prev_line="" line_num=0 shapes shape tier excerpt
+  local in_exempt=0 current_section="" line_num=0 shapes shape tier excerpt
+  local in_ignored_para=0 skip_next=0
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
@@ -120,8 +121,23 @@ audit_file() {
         in_exempt=0
       fi
     fi
-    if [[ $in_exempt -eq 1 ]] || audit_noise_line_skipped "$prev_line" "$line"; then
-      prev_line="$line"
+    # Opt-out markers per SKILL.md: the -line form covers the next line; the
+    # bare form covers the next paragraph (through the next blank line).
+    # Marker lines themselves never flag. Order matters: -line first, since
+    # the bare pattern is a substring of it.
+    if [[ "$line" == *'markdown-discipline-ignore-line'* ]]; then
+      skip_next=1
+      continue
+    fi
+    if [[ "$line" == *'markdown-discipline-ignore'* ]]; then
+      in_ignored_para=1
+      continue
+    fi
+    if [[ -z "${line//[[:space:]]/}" ]]; then
+      in_ignored_para=0
+    fi
+    if [[ $in_exempt -eq 1 || $in_ignored_para -eq 1 || $skip_next -eq 1 ]]; then
+      skip_next=0
       continue
     fi
     shapes="$(audit_noise_detect_shapes "$line" || true)"
@@ -143,7 +159,6 @@ audit_file() {
         esac
       done <<<"$shapes"
     fi
-    prev_line="$line"
   done <"$file"
 
   printf 'Summary file: %s | T1=%s T2=%s T3=%s\n' "$file" "$t1" "$t2" "$t3"

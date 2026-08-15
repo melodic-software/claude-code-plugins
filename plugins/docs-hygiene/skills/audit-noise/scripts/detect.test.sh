@@ -81,6 +81,11 @@ Empirically observed during the bar-rollout window.
 <!-- markdown-discipline-ignore-line -->
 We pivoted from the 2026-05-01 incident layout.
 
+<!-- markdown-discipline-ignore -->
+First line of a wrapped paragraph with no noise,
+was renamed to something on its second line —
+paragraph scope must cover every line to the blank.
+
 Path-scoped to `docs/**` per the loader.
 EOF
 
@@ -117,6 +122,7 @@ assert_not_contains "exempt section suppressed" "$clean_out" "Finding shape: cit
 opt_out="$(bash "$DETECT" "$OPTOUT")"
 assert_not_contains "opt-out citation suppressed" "$opt_out" "bar-rollout"
 assert_not_contains "opt-out line suppressed" "$opt_out" "2026-05-01 incident"
+assert_not_contains "opt-out paragraph scope covers wrapped lines" "$opt_out" "was renamed to something on its second"
 assert_contains "scope-meta still detected" "$opt_out" "Finding shape: scope-meta"
 
 # --- 5. Backtick-wrapped slash-command roster detected ------------------------------

@@ -67,13 +67,6 @@ audit_noise_line_has_ghost_ref() {
   return 1
 }
 
-audit_noise_line_skipped() {
-  local prev="$1" line="$2"
-  [[ "$prev" == *'markdown-discipline-ignore'* ]] && return 0
-  [[ "$line" == *'markdown-discipline-ignore'* ]] && return 0
-  return 1
-}
-
 # Emit zero or more shape names (one per line on stdout).
 audit_noise_detect_shapes() {
   local line="$1"

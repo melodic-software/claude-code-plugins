@@ -66,7 +66,16 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 
 ## Auto-detect default
 
-1. Empty arg AND clean tree → friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
+1. Empty arg AND clean tree → OFFER the repo-wide audit instead of silently no-opping; run only on
+   the user's confirmation. The offer carries prescribed defaults (overridable): corpus = all
+   tracked `.md` minus `**/evals/fixtures/**` and `CHANGELOG.md`; slice-scoped files (contract and
+   memory tiers) sectioned separately in the report; scan via a chunked `detect.sh` pass; on a
+   large corpus, judge only scanner-flagged files, fanning out a small number of concurrent
+   subagents with one fresh-context verification pass over the merged verdicts; report first —
+   treatments are applied only after the report is reviewed (report-vs-fix-as-you-go is the
+   author's call, and report-first is the accuracy-preferred default because repeating shapes get
+   one corpus-wide treatment decision). Unattended (no human to confirm), surface the offer as
+   blocked and stop — never launch the repo-wide run on silence.
 2. Empty arg AND uncommitted `.md` files → batch audit over those files
 3. Single file path → single-file audit
 4. Directory path → batch audit (filenames sorted lexically for deterministic output)

@@ -1,5 +1,24 @@
 # Changelog — docs-hygiene plugin
 
+## [0.12.0]
+
+### Fixed
+
+- **audit-noise:** `detect.sh` now honors the documented scope of the opt-out markers.
+  `<!-- markdown-discipline-ignore -->` suppresses the whole next paragraph (through the next blank
+  line) instead of only the next line, and `<!-- markdown-discipline-ignore-line -->` is
+  distinguished from the bare form. Found when repo-wide-run markers on multi-line paragraphs
+  failed to suppress their wrapped lines.
+
+### Changed
+
+- **audit-noise:** the clean-tree default is no longer a silent no-op. With no target and a clean
+  tree the skill now offers a confirmation-gated repo-wide audit with prescribed defaults
+  (fixture/changelog exclusions, slice sectioning, chunked scan, flagged-files-only judgment
+  fan-out with a fresh-context verification pass, report-first order). Unattended runs surface the
+  offer as blocked instead of launching. Shaped by the first repo-wide run (2026-08-15: 1027 files,
+  55 scanner candidates, 37 verified findings).
+
 ## [0.11.3]
 
 ### Changed
