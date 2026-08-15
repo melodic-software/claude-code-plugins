@@ -33,6 +33,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   Operators reading `.work/reviews/<branch-slug>/` will now see records from interactive applies
   where previously only headless runs produced them.
 
+  **Migration — records written by 0.19.0 and earlier are honored.** Those carry
+  `source-findings:` as a bare scalar repo-relative path, and they persist across the upgrade
+  because the findings directory is gitignored local state. The reader treats a scalar as a
+  one-entry sequence and compares by base name, so a legacy record still retires its file. Without
+  that tolerance the legacy record would subtract nothing and its already-applied findings would be
+  re-injected on the next `fix` — the exact harm the ledger exists to prevent. No operator action
+  is required.
+
 ## [0.19.0]
 
 ### Added

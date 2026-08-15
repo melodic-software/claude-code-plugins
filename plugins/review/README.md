@@ -33,7 +33,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
   reviewer agents, the project's own per-concern review criteria docs, and optional
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
-  a persisted findings file — the only mutating mode).
+  the merged set of persisted findings — the only mutating mode).
 - **`/review:code-review`** — CI code-review lane command for
   `melodic-software/ci-workflows` `claude-review.yml` (correctness /
   maintainability; security scoped out when a security lane exists).

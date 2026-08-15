@@ -261,12 +261,13 @@
       "id": 22,
       "name": "fix-pass-headless-yes-applies-and-logs",
       "prompt": "[Scenario: a non-interactive session (claude -p) with a current-branch findings file; the operator passes the explicit headless opt-in flag.] /review:fanout fix --yes",
-      "expected_output": "In a non-interactive session with --yes, fix-pass applies the fixes and then writes a durable applied-plan record into the branch findings directory that the fix-pass locator skips on the next run.",
+      "expected_output": "In a non-interactive session with --yes, fix-pass applies the fixes and then writes a durable applied-plan record into the branch findings directory that Step 1's candidate pass skips on the next run.",
       "files": [],
       "expectations": [
         "Treats --yes as the explicit headless opt-in and applies the fixes (correctness via sequential scope-fenced fix, cleanup via /simplify)",
         "Writes a durable applied-plan record capturing what was classified, applied, and surfaced",
-        "The record's frontmatter type is NOT review-findings (e.g. fix-pass-record), so Step 1's locator skips it and never re-consumes it as findings",
+        "The record's frontmatter type is NOT review-findings (e.g. fix-pass-record), so Step 1's candidate pass skips it and never re-consumes it as findings",
+        "The record's source-findings is a YAML block sequence naming the consumed file, not a bare scalar path",
         "The --yes / -y flag routes to fix mode and does not trip the 'Unknown action' diagnostic"
       ]
     },
@@ -291,7 +292,7 @@
       "expectations": [
         "The classification plan counts findings from BOTH files, not only the newer one",
         "The plan header names both consumed files, one line per file, with each file's tier reported rather than one tier winning",
-        "The ## Unparsed appendices of both files are unioned by concatenation, and the ## Surfaces lines of both are reported with each producer attributed",
+        "The ## Unparsed appendices of both files are unioned by concatenation, and the plan emits a 'Surfaces (union)' line carrying both files' ran / returned-no-result surfaces with each producer attributed",
         "Neither file is skipped for lacking review:fanout provenance — conformance to the findings-file shape is the whole admission test"
       ]
     },
@@ -304,7 +305,19 @@
       "expectations": [
         "The plan header names ONLY file B; file A appears nowhere in the consumed set",
         "The subtraction reads source-findings from the fix-pass-record rather than bounding the set by timestamp",
-        "Findings already applied from A are not re-injected into the plan"
+        "The record this run writes names only B in source-findings"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "fix-pass-tolerates-legacy-scalar-source-findings",
+      "prompt": "[Scenario: the branch findings directory holds findings file A and a fix-pass-record written by an older plugin version whose source-findings is a bare scalar repo-relative path to A, plus a newer conforming file B.] /review:fanout fix",
+      "expected_output": "The legacy scalar source-findings is read as a one-entry sequence and compared by base name, so A is still subtracted and the merge set is B only.",
+      "files": [],
+      "expectations": [
+        "File A is subtracted from the merge set even though the record's source-findings is a scalar rather than a block sequence",
+        "The scalar's repo-relative path is compared by its base name, not matched literally against the candidate file name",
+        "Findings from A are not re-injected — a legacy record is honored rather than silently ignored"
       ]
     },
     {
@@ -322,13 +335,14 @@
     {
       "id": 27,
       "name": "fix-pass-dedup-is-presence-only",
-      "prompt": "[Scenario: two conforming findings files for the current branch; one reports a defect at foo.ts:42 and the other a DIFFERENT defect at foo.ts:44, and both report an identically-worded finding at bar.ts:10.] /review:fanout fix",
-      "expected_output": "Only the byte-identical Location-plus-Finding pair collapses; the two nearby but distinct defects both survive as separate rows, each keeping its own Action.",
+      "prompt": "[Scenario: two conforming findings files for the current branch, each ranking its own findings from 1; one reports a defect at foo.ts:42 and the other a DIFFERENT defect at foo.ts:44, and both report an identically-worded finding at bar.ts:10 that one rates CRITICAL/high and the other MAJOR/medium.] /review:fanout fix",
+      "expected_output": "Only the byte-identical Location-plus-Finding pair collapses — taking MAX tier and MAX confidence and retaining both Actions — while the two nearby but distinct defects survive as separate rows, and the merged table is renumbered from 1.",
       "files": [],
       "expectations": [
         "The foo.ts:42 and foo.ts:44 rows BOTH survive as distinct rows — no line-proximity bucket merges them",
-        "The two identical bar.ts:10 rows collapse into one row naming both producers in Surface(s)",
-        "Each surviving row keeps its own Action, so neither producer's remediation is discarded"
+        "The two identical bar.ts:10 rows collapse into one row naming both producers in Surface(s), carrying the CRITICAL tier and high confidence",
+        "The collapsed row retains both distinct Actions rather than dropping one producer's remediation",
+        "Rank is renumbered from 1 across the merged table — the plan does not contain two rank-1 rows"
       ]
     }
   ]

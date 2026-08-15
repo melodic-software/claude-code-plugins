@@ -74,7 +74,7 @@ tier: <small|medium|large>
 Ran: [...]. Returned no result: [...] (with cause when known).
 ```
 
-`tier`, the `## By dimension` breakdown, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required — they keep the report honest about coverage and never silently drop a finding. The breakdown exists because a merged rank can mask one dimension failing badly while the others pass; the fix action parses only `## Findings` and `## Unparsed`, so the breakdown is presentation-additive.
+`tier`, the `## By dimension` breakdown, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required — they keep the report honest about coverage and never silently drop a finding. The breakdown exists because a merged rank can mask one dimension failing badly while the others pass; the fix action parses `## Findings`, `## Unparsed`, `## Surfaces`, and `tier:` — unioning the last two across producers — but not the breakdown, so the breakdown alone is presentation-additive.
 
 **Cell-escaping rule (required — the fix action parses this table):** inside `Finding` and `Action` cells, escape literal `|` as `\|` and replace newlines with spaces. Reviewer text routinely contains pipes (TypeScript unions, shell pipelines); unescaped, a row splits into phantom columns and the fix action misreads it.
 
