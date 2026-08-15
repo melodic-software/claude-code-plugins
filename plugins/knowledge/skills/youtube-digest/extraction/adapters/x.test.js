@@ -38,10 +38,12 @@ const CLEAN_VTT = `WEBVTT
 hello from x
 `;
 
+// Real live tag shape (probed 2026-08-15): one tag per cue wrapping the text,
+// with per-word ms durations and inclusive character ranges as attributes.
 const TAGGED_VTT = `WEBVTT
 
 00:00:00.000 --> 00:00:02.000
-<X-word-ms-0-480 character_ranges="0,4">hello</X-word-ms-0-480> <X-word-ms-480-900 character_ranges="6,9">from</X-word-ms-480-900> x
+<X-word-ms ms=380,319,260 index=1 character_ranges=0-4,6-9,11-11>hello from x</X-word-ms>
 `;
 
 const CLEANUP_SRT = `1
