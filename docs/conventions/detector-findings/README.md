@@ -35,23 +35,24 @@ same binding the consumer does:
 [`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md)
 "Resolution (the contract's five-rung order, earlier wins)", which
 [`SKILL.md`](../../../plugins/review/skills/fanout/SKILL.md) "Shared inputs" names as what
-`review:fanout` resolves through. Naming that file by its repo path is the point of this section:
-`review:fanout` reaches it through a `${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside
-`review` can expand, and it is the same document either way. Nothing it carries is restated here.
+`review:fanout` resolves through. The two texts state different rung counts — `SKILL.md` inlines the
+rungs it operates on — and the non-interactive rule below is what makes them coincide. Naming the
+binding by its repo path is the point of this section: `review:fanout` reaches it through a
+`${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside `review` can expand, and it is the same
+document either way.
 
-What it leaves to the producer:
+What the binding leaves to a producer — consequences, not a second statement of its rules:
 
 - **Run the rung order, not only its last rung.** Writing to the documented default when a higher
   rung resolved puts the file somewhere the `fix` action never scans, and nothing reports the miss —
   the configured `memory_dir` and the `CLAUDE.md`-declared location are exactly the cases that fail
   silently.
-- **Take the non-interactive collapse.** A detector cannot answer a question, so the rungs that
-  confirm with the user or ask-and-persist are settled by the
-  [topic-docs convention](../topic-docs/README.md)'s non-interactive rule — contract-owned, which is
-  why the bindings cite rather than redefine it. A producer that instead invents an answer resolves
-  to a directory the consumer never reaches.
-- **The directory never proves ownership.** The branch-slug mapping is lossy, so what proves a file
-  is this branch's is its own `branch:` frontmatter.
+- **Take the non-interactive collapse.** A producer that cannot ask the user or persist config — a
+  headless detector cannot — resolves the rungs that confirm or ask through the
+  [topic-docs convention](../topic-docs/README.md) "Non-interactive / forked mode". Inventing an
+  answer to those rungs instead resolves to a directory the consumer never reaches.
+- **The directory never proves ownership.** What proves a file is this branch's is its own `branch:`
+  frontmatter, never the directory it sits in — the binding's slug rule says why.
 - **The self-ignore guard is owed, not re-derived** — including the convention's invalid-root rule,
   which stops the guard from healing into a consumer's root `.gitignore`. Skipping it commits
   findings that are meant to stay checkout-local.

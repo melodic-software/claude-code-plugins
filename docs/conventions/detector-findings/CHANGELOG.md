@@ -24,10 +24,11 @@ produces the evidence to harden against.
 - **Destination bound to the consumer's own binding**: a producer resolves through
   `plugins/review/reference/topic-docs.md` "Resolution" — what `SKILL.md` "Shared inputs" names as
   what `review:fanout` resolves through — named by its repo path because that plugin reaches it
-  through a `${CLAUDE_PLUGIN_ROOT}`-relative pointer no other plugin can expand. Nothing it carries
-  is restated. Stated instead is only what it leaves to a producer: run the whole rung order rather
-  than its default, take the contract's non-interactive collapse rather than inventing an answer,
-  match on `branch:` frontmatter rather than the directory, and owe the self-ignore guard.
+  through a `${CLAUDE_PLUGIN_ROOT}`-relative pointer no other plugin can expand. The binding's rules
+  are cited rather than restated; what the doc states is only what the binding leaves to a producer —
+  run the whole rung order rather than its default, take the contract's "Non-interactive / forked
+  mode" rule rather than inventing an answer to a rung that asks, match on `branch:` frontmatter
+  rather than the directory, and owe the self-ignore guard.
 - Four producer-owned fields fixed: machine-computed `Tier` in the owner's vocabulary; `Confidence`
   `high`-or-omitted and **never `low`**, which ranks below absent; repo-relative `file:line`
   `Location`; producer-side cell escaping. `Confidence` is confidence-of-realness, never confidence
