@@ -6270,16 +6270,20 @@ class GuardTests(unittest.TestCase):
 
     def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
         out_file = Path(self._cfg.name) / "telemetry-deny.json"
-        # Windows cannot exec a #!/bin/sh sink via CreateProcess; use a .cmd that
-        # forwards stdin through this interpreter (HOOK_TELEMETRY_SINK is argv0).
+        # Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
+        # runs a sibling .py keeps quoting simple and inherits stdin.
+        sink_py = Path(self._cfg.name) / "telemetry_sink.py"
+        sink_py.write_text(
+            "import sys\n"
+            f"from pathlib import Path\n"
+            f"Path(r'{out_file}').write_text(sys.stdin.read(), encoding='utf-8')\n",
+            encoding="utf-8",
+        )
         if os.name == "nt":
             sink = Path(self._cfg.name) / "telemetry-sink.cmd"
             py = os.fspath(Path(sys.executable).resolve())
             sink.write_text(
-                "@echo off\r\n"
-                f"\"{py}\" -c "
-                f"\"import sys; open(r'{out_file}', 'w', encoding='utf-8')"
-                f".write(sys.stdin.read())\"\r\n",
+                f"@echo off\r\n\"{py}\" \"{sink_py}\"\r\n",
                 encoding="utf-8",
             )
         else:
@@ -6295,25 +6299,39 @@ class GuardTests(unittest.TestCase):
             clear=False,
         ):
             self.run_guard_tool("rm -rf /tmp/foo", "Bash", enabled=False)
-        deadline = time.perf_counter() + 2.0
-        while time.perf_counter() < deadline and not out_file.exists():
+        # Fire-and-forget sink: wait for non-empty content, not mere existence
+        # (open('w') creates an empty file before write completes).
+        deadline = time.perf_counter() + 5.0
+        body = ""
+        while time.perf_counter() < deadline:
+            if out_file.exists():
+                try:
+                    body = out_file.read_text(encoding="utf-8").strip()
+                except OSError:
+                    body = ""
+                if body:
+                    break
             time.sleep(0.05)
-        self.assertTrue(out_file.exists())
-        envelope = json.loads(out_file.read_text(encoding="utf-8").strip())
+        self.assertTrue(body, f"timed out waiting for telemetry at {out_file}")
+        envelope = json.loads(body)
         self.assertEqual("destructive-guard", envelope["hook"])
         self.assertEqual("blocked", envelope["status"])
         self.assertEqual("deny", envelope["data"]["decision"])
 
     def test_engine_gate_irrelevant_emits_no_telemetry(self) -> None:
         out_file = Path(self._cfg.name) / "telemetry-skip.json"
+        sink_py = Path(self._cfg.name) / "telemetry_skip_sink.py"
+        sink_py.write_text(
+            "import sys\n"
+            f"from pathlib import Path\n"
+            f"Path(r'{out_file}').write_text(sys.stdin.read(), encoding='utf-8')\n",
+            encoding="utf-8",
+        )
         if os.name == "nt":
             sink = Path(self._cfg.name) / "telemetry-skip-sink.cmd"
             py = os.fspath(Path(sys.executable).resolve())
             sink.write_text(
-                "@echo off\r\n"
-                f"\"{py}\" -c "
-                f"\"import sys; open(r'{out_file}', 'w', encoding='utf-8')"
-                f".write(sys.stdin.read())\"\r\n",
+                f"@echo off\r\n\"{py}\" \"{sink_py}\"\r\n",
                 encoding="utf-8",
             )
         else:
