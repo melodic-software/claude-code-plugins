@@ -3,6 +3,40 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.7]
+
+### Fixed
+
+- **Re-landed the belt's read-only allowlist and session-honest docstring, and anchored
+  its trust check (#2618, #2691).** PR #2641 merged from a tree predating PR #2639 and its
+  squash merge reverted #2639 wholesale; CI stayed green because the revert removed the
+  tests with the code. `resolve_mode()` again documents that a skill-frontmatter
+  `PreToolUse` hook stays armed for the rest of the session rather than only while cleanup
+  is the active work, and the read-only supporting Bash allowlist (`ls`, `test`, `stat`,
+  `du`, `pwd`, `basename`, `dirname`, `find`, `file`, `[`) is restored — `find` gated by
+  the full GNU/BSD side-effect primary set, everything else still deny-by-default.
+- **Recycle Bin deletion spellings are recognized on the PowerShell belt (#2595).**
+  `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` and
+  `Shell.Application` `NameSpace(10)`/`NameSpace(0xa)` with `MoveHere`/`InvokeVerb` now
+  prompt like `Remove-Item`. The skill's own manual-handoff lane recommends Recycle Bin
+  removal, so these were the one deletion route the belt never saw.
+
+### Security
+
+- **Trusted-binary matching is anchored to a resolved installation root, not a path
+  substring (#2618).** `_TRUSTED_READONLY_BIN_SUBSTRINGS_NT` matched fragments such as
+  `/git/usr/bin/` and `/windows/system32/` anywhere in a path, so a repository-controlled
+  `D:/anyrepo/git/usr/bin/find` was trusted and a planted binary carrying an allowlisted
+  basename was hard-`allow`ed, bypassing even the user's own permission prompt. Trust now
+  derives from independently located Git installation roots and from `%SystemRoot%`,
+  compared as an anchored case-insensitive path prefix; an unresolvable root contributes
+  no trusted directories.
+- **`[` must clear the same executable-identity check as every other head (#2618).** The
+  `[ ... ]` branch returned before the trusted-binary check, so `[` was trusted on name
+  alone — the shell-function-shadowing exposure the guard itself cites to deny bare
+  `python`/`python3`. It is now allowed only where a real `[` binary resolves under a
+  trusted root, and denied where that cannot be proven.
+
 ## [0.20.6]
 
 ### Fixed
@@ -18,6 +52,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `safety-model.md` pointers. Guard-code recovery remains in the sibling lane.
 
 ## [0.20.5]
+
 
 ### Fixed
 
