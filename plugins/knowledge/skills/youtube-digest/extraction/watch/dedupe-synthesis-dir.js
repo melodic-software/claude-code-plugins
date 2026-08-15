@@ -31,7 +31,7 @@ export function dedupeSynthesisDir(synthesisDir) {
   for (const file of files) {
     const hash = hashFile(path.join(absDir, file));
     if (!byHash.has(hash)) byHash.set(hash, []);
-    byHash.get(hash).push(file);
+    /** @type {string[]} */ (byHash.get(hash)).push(file);
   }
 
   const kept = [];

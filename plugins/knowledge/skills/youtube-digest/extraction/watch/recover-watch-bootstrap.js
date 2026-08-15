@@ -50,7 +50,7 @@ function parseTimestampFromFileName(file) {
 
 /**
  * @param {string} framesDir
- * @returns {import('@melodic/video-digestion/frames/models.js').FrameCandidate[]}
+ * @returns {import('@melodic/video-digestion/frames/models').FrameCandidate[]}
  */
 function loadFramesFromDir(framesDir) {
   const files = fs
@@ -79,7 +79,7 @@ function listExistingSheetFiles(contactSheetsDir) {
  * @param {string} contactSheetsDir
  * @param {string[]} sheetFiles
  * @param {import('../watching/models.js').SelectedFrame[][]} batches
- * @returns {import('@melodic/video-digestion/frames/models.js').ContactSheet[]}
+ * @returns {import('@melodic/video-digestion/frames/models').ContactSheet[]}
  */
 function loadExistingContactSheets(contactSheetsDir, sheetFiles, batches) {
   return sheetFiles.map((file, index) => {

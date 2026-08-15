@@ -124,7 +124,7 @@ export function densityAtTimestamp(timestampSec, windows) {
 /**
  * Score a frame by densification windows and base scene priority.
  *
- * @param {import('@melodic/video-digestion/frames/models.js').FrameCandidate} frame
+ * @param {import('@melodic/video-digestion/frames/models').FrameCandidate} frame
  * @param {number} index - Ordinal position in unique frame list
  * @param {DensificationWindow[]} windows
  * @returns {number}

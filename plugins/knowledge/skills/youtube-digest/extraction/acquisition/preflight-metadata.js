@@ -194,7 +194,7 @@ function summarizeDetail(detail) {
  * @property {string} reason - short human reason (failures only)
  * @property {string} title - raw title
  * @property {string} channel - raw channel display name
- * @property {string} handle - raw channel @handle
+ * @property {string} handle - raw channel handle, leading at-sign included
  * @property {string} displayTitle - escaped + truncated title cell
  * @property {string} displayChannel - escaped channel cell
  */

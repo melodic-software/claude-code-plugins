@@ -15,7 +15,7 @@ const DRIVER_WATCH_URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
 
 /**
  * @param {object} overrides
- * @returns {import('@melodic/video-digestion/shared/process.js').SpawnResult}
+ * @returns {import('@melodic/video-digestion/shared/process').SpawnResult}
  */
 function spawnResult(overrides) {
   return {

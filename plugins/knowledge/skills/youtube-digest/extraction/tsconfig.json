@@ -6,10 +6,12 @@
     "moduleResolution": "NodeNext",
     "types": ["node"],
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
+    "strict": false,
+    "strictNullChecks": true,
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["**/*.js", "**/*.ts"],
+  "include": ["**/*.js", "**/*.mjs", "**/*.ts"],
   "exclude": ["node_modules", "vendor", "**/*.test.js", "vitest.config.ts"]
 }

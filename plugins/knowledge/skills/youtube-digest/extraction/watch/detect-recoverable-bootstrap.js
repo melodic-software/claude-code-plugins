@@ -16,7 +16,7 @@ import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
 
 /**
- * @param {string} workDir
+ * @param {string|undefined} workDir
  * @returns {boolean}
  */
 function workDirComplete(workDir) {

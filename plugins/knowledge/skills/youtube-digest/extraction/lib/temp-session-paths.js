@@ -26,8 +26,8 @@ function resolveTmpRoot(dir) {
 /**
  * Strip accidental prefixes before an embedded `{tmp}` token.
  *
- * @param {string} value
- * @returns {string}
+ * @param {string|undefined} value
+ * @returns {string|undefined}
  */
 export function normalizePortableTempPath(value) {
   if (!value) return value;

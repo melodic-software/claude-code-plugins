@@ -14,10 +14,10 @@ import { serializeTempSession } from "../lib/temp-session-paths.js";
 
 /**
  * @typedef {Object} TempSessionPaths
- * @property {string} workDir
- * @property {string} framesDir
- * @property {string} contactSheetsDir
- * @property {string} acquiredAt
+ * @property {string} [workDir]
+ * @property {string} [framesDir]
+ * @property {string} [contactSheetsDir]
+ * @property {string} [acquiredAt]
  */
 
 /**

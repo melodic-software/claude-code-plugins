@@ -10,7 +10,7 @@ import {
 } from "./acquire-retry-policy.js";
 
 /**
- * @typedef {import('@melodic/video-digestion/shared/process.js').SpawnResult} SpawnResult
+ * @typedef {import('@melodic/video-digestion/shared/process').SpawnResult} SpawnResult
  */
 
 /**
@@ -30,6 +30,7 @@ export function spawnFailureDetail(result) {
  * @param {object} [options]
  * @param {number} [options.maxAttempts]
  * @param {(ms: number) => Promise<void>} [options.sleep]
+ * @param {string} [options.cwd] - forwarded to spawn along with any other extra option
  * @returns {Promise<SpawnResult>}
  */
 export async function spawnWithAcquireRetry(spawn, command, args, options = {}) {

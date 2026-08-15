@@ -2,7 +2,7 @@
  * Merge frame candidates by file name, preferring entries with timestamps.
  */
 
-/** @typedef {import('@melodic/video-digestion/frames/models.js').FrameCandidate} FrameCandidate */
+/** @typedef {import('@melodic/video-digestion/frames/models').FrameCandidate} FrameCandidate */
 
 /**
  * @param {FrameCandidate[]} frames

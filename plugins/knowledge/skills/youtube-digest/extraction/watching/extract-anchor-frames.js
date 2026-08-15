@@ -13,7 +13,7 @@ import {
 
 const REMOTE_VIDEO_INPUT = /^https?:\/\//i;
 
-/** @typedef {import('@melodic/video-digestion/frames/models.js').FrameCandidate} FrameCandidate */
+/** @typedef {import('@melodic/video-digestion/frames/models').FrameCandidate} FrameCandidate */
 
 const DEFAULT_SCALE_FILTER = "1280:-1";
 

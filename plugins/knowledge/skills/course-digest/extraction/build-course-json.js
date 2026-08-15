@@ -37,6 +37,29 @@ const { values: args } = parseArgs({
   strict: false,
 });
 
+/**
+ * @typedef {Object} ScrapedLesson
+ * @property {number} position
+ * @property {string} title
+ * @property {string} duration
+ * @property {string} lectureId
+ * @property {string} slug
+ * @property {string} status
+ * @property {boolean} hasTranscript
+ * @property {boolean} hasScreenshots
+ * @property {boolean} hasDownload
+ * @property {boolean} hasVideo
+ * @property {Record<string, unknown>} providerResources
+ */
+
+/**
+ * @typedef {Object} ScrapedModule
+ * @property {number} position
+ * @property {string} title
+ * @property {string} slug
+ * @property {ScrapedLesson[]} lessons
+ */
+
 function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
   function isSkippedModuleHeading(text, el) {
     if (text.includes("COMPLETE") || text.includes("Community")) return true;
@@ -54,7 +77,9 @@ function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
   const durationPattern = new RegExp(sources.duration);
 
   const allElements = Array.from(document.querySelectorAll('h2, h3, a[href*="/lectures/"]'));
+  /** @type {ScrapedModule[]} */
   const modules = [];
+  /** @type {ScrapedModule | null} */
   let currentModule = null;
   let modulePosition = 0;
   const headingEl = document.querySelector("h2");
@@ -82,7 +107,7 @@ function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
       };
       modules.push(currentModule);
     } else if (el.tagName === "A" && currentModule) {
-      const lectureId = el.href?.match(lectureIdPattern)?.[1];
+      const lectureId = /** @type {HTMLAnchorElement} */ (el).href?.match(lectureIdPattern)?.[1];
       const h3 = el.querySelector("h3");
       if (lectureId && h3 && !currentModule.lessons.some((l) => l.lectureId === lectureId)) {
         const fullText = el.textContent.trim();
@@ -136,8 +161,8 @@ async function main() {
     process.exit(1);
   }
 
-  const courseUrl = args["course-url"];
-  const outputDir = resolve(args["output-dir"]);
+  const courseUrl = /** @type {string} */ (args["course-url"]);
+  const outputDir = resolve(/** @type {string} */ (args["output-dir"]));
   const authStatePath = resolveAuthStatePath("teachable");
 
   mkdirSync(outputDir, { recursive: true });

@@ -80,7 +80,7 @@ export function parseRunArgs(argv) {
  * and the child's own default/fallback applies.
  *
  * @param {NodeJS.ProcessEnv} baseEnv
- * @param {RunArgs} [flags]
+ * @param {Partial<RunArgs>} [flags]
  * @returns {NodeJS.ProcessEnv}
  */
 export function buildChildEnv(baseEnv, flags = {}) {

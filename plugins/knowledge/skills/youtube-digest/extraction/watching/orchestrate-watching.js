@@ -39,7 +39,7 @@ import {
 /**
  * Assign approximate timestamps to frames by ordinal position and video duration hint.
  *
- * @param {import('@melodic/video-digestion/frames/models.js').FrameCandidate[]} frames
+ * @param {import('@melodic/video-digestion/frames/models').FrameCandidate[]} frames
  * @param {number} [durationSec=0]
  */
 export function assignFrameTimestamps(frames, durationSec = 0) {
@@ -63,7 +63,7 @@ export function assignFrameTimestamps(frames, durationSec = 0) {
  * @param {typeof createContactSheet} [deps.createContactSheet]
  * @param {typeof probeVideoDuration} [deps.probeVideoDuration]
  * @param {typeof extractAnchorFrames} [deps.extractAnchorFrames]
- * @param {import('@melodic/video-digestion/shared/logger.js').PipelineLogger} [deps.log]
+ * @param {import('@melodic/video-digestion/shared/logger').PipelineLogger} [deps.log]
  * @returns {Promise<WatchingSelectionState>}
  */
 export async function orchestrateWatching(
@@ -144,7 +144,7 @@ export async function orchestrateWatching(
   log.info("watching: pass-2 starting (contact sheets + interleave)");
 
   const batches = batchFramesForContactSheets(selection.selected, contactSheetBatchSize);
-  /** @type {import('@melodic/video-digestion/frames/models.js').ContactSheet[]} */
+  /** @type {import('@melodic/video-digestion/frames/models').ContactSheet[]} */
   const contactSheets = [];
 
   for (let i = 0; i < batches.length; i++) {

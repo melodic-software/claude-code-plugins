@@ -206,6 +206,10 @@ async function runAcquirePass(deps, url, workDir, { mode, sleepSubtitlesSec }) {
  * @param {string} url
  * @param {string} workDir
  * @param {string} videoId
+ * @returns {Promise<
+ *   {ok: true, files: string[], artifacts: MediaArtifacts, acquireMetrics: object} |
+ *   {ok: false, error: string, acquireMetrics: object}
+ * >}
  */
 async function acquireFullStaged(deps, url, workDir, videoId) {
   const { sleep = sleepMs } = deps;
@@ -259,6 +263,11 @@ async function acquireFullStaged(deps, url, workDir, videoId) {
   };
 }
 
+/**
+ * @param {string} url
+ * @param {{workDir: string, mode?: AcquisitionMode}} options
+ * @param {Partial<AcquireDeps>} [deps]
+ */
 export async function acquireYouTubeMedia(url, { workDir, mode = "full" }, deps = {}) {
   const started = Date.now();
   const mergedDeps = { ...DEFAULT_DEPS, ...deps };

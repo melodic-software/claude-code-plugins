@@ -50,9 +50,13 @@ import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
  * @property {number} [frameSelection.softCap]
  * @property {boolean} [frameSelection.overCap]
  * @property {number} [frameSelection.candidateCount]
+ * @property {number} [frameSelection.targetMinFrames]
+ * @property {boolean} [frameSelection.highVolume]
  * @property {object} [artifactPaths]
  * @property {string} [artifactPaths.selectionPath]
  * @property {string} [artifactPaths.coveragePlanPath]
+ * @property {number} [artifactPaths.frameCount]
+ * @property {number} [artifactPaths.contactSheetCount]
  * @property {object} [tempSession]
  * @property {string} [tempSession.workDir]
  * @property {string} [tempSession.framesDir]
@@ -287,6 +291,7 @@ const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
  * @param {object} [io]
  * @param {typeof fs.readFile} [io.readFile]
  * @param {typeof fs.writeFile} [io.writeFile]
+ * @param {typeof fs.mkdir} [io.mkdir]
  * @returns {Promise<number>} 0 on success or no-op skip, 1 on error
  */
 export async function runMarkPhase(sliceDir, phase, { readFile, writeFile, mkdir } = {}) {

@@ -1,8 +1,8 @@
 /**
  * Domain models for the watching capability slice.
  *
- * @typedef {import('@melodic/video-digestion/frames/models.js').FrameCandidate} FrameCandidate
- * @typedef {import('@melodic/video-digestion/frames/models.js').ContactSheet} ContactSheet
+ * @typedef {import('@melodic/video-digestion/frames/models').FrameCandidate} FrameCandidate
+ * @typedef {import('@melodic/video-digestion/frames/models').ContactSheet} ContactSheet
  */
 
 /**

@@ -76,7 +76,7 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
  * @param {AcquisitionMode} [options.mode='full'] - transcript mode skips video download
  * @param {string} options.outputTemplate - yt-dlp -o template (includes ext placeholders)
  * @param {string} options.workDir - OS temp working directory for downloads
- * @param {number} [options.sleepSubtitlesSec] - override --sleep-subtitles
+ * @param {number|string} [options.sleepSubtitlesSec] - override --sleep-subtitles
  * @param {NodeJS.ProcessEnv} [options.env] - env for auth flags (defaults to process.env)
  * @param {YtDlpAuthOverride} [options.authOverride] - per-invocation cookie override
  * @returns {string[]}

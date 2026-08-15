@@ -26,7 +26,7 @@ export const MAX_ATTACHMENT_BYTES = 500 * 1024 * 1024;
  * partial — a previously-fetched attachment at `destPath` survives a failed
  * retry, preserving the old buffered implementation's idempotency.
  *
- * @param {ReadableStream} webStream
+ * @param {ReadableStream<Uint8Array>} webStream
  * @param {string} destPath
  * @param {number} maxBytes
  * @returns {Promise<void>}
@@ -45,7 +45,11 @@ async function streamToFileWithCap(webStream, destPath, maxBytes) {
   });
   const partialPath = `${destPath}.partial`;
   try {
-    await pipeline(Readable.fromWeb(webStream), cap, fs.createWriteStream(partialPath));
+    await pipeline(
+      Readable.fromWeb(/** @type {import('node:stream/web').ReadableStream} */ (webStream)),
+      cap,
+      fs.createWriteStream(partialPath),
+    );
     fs.renameSync(partialPath, destPath);
   } catch (error) {
     fs.rmSync(partialPath, { force: true });

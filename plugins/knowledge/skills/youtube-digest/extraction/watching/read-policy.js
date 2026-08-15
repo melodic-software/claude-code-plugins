@@ -61,7 +61,7 @@ export function resolveReadResolution(timestampSec, windows, forceTextDense = fa
 /**
  * Apply read policy to a scored frame candidate.
  *
- * @param {import('@melodic/video-digestion/frames/models.js').FrameCandidate} frame
+ * @param {import('@melodic/video-digestion/frames/models').FrameCandidate} frame
  * @param {number} priorityScore
  * @param {DensificationWindow[]} windows
  * @returns {SelectedFrame}

@@ -11,7 +11,7 @@ import {
 } from "./acquire-yt-dlp-auth.js";
 
 /**
- * @typedef {import('@melodic/video-digestion/shared/process.js').SpawnResult} SpawnResult
+ * @typedef {import('@melodic/video-digestion/shared/process').SpawnResult} SpawnResult
  */
 
 /**
