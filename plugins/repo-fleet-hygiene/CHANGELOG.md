@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Fixed
+
+- **Restore aliased GraphQL merge evidence, per-repository rollup, and fleet action plans after
+  the #2633 squash regression.** The bare-repo merge accidentally replaced the collector with a
+  pre-GraphQL script, dropping `MERGED_PR_GRAPHQL_*`, rollup/`--apply-plan`, and related tests
+  while the changelog still documented 0.17.0/0.18.0 behavior. Re-integrates those surfaces with
+  `#2602` bare-repo classification and `#2598` discovery-skip degradation.
+
 ## [0.18.2]
 
 ### Added
