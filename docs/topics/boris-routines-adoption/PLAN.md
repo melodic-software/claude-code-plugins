@@ -374,7 +374,9 @@ gap, and Pattern C would close it without touching fanout."
 
 - [ ] **ADR-0004 incumbent evidence** (first work item): `path:line` proving no existing surface
       persists mutation survivors into the findings schema. Starting point: `V1` §C.5 and the
-      mutation-testing read-only clause.
+      mutation-testing read-only clause. **Inline the `path:line` evidence into the phase's issue and
+      PR body** — do not cite the `.work/` file. It is gitignored, so a delegated worker, a fresh
+      session, or a second machine cannot open it, and the ADR-0004 record is a durable obligation.
 - [ ] Add a persist step emitting the schema verbatim from `default-mode.md:50-79`, **opt-in behind a
       flag** — the default path stays report-and-stop.
 - [ ] **Amend the skill's own invariant, and the grounds its leaf name was accepted on.**
@@ -456,7 +458,9 @@ Every row derives its guardrail class **through the mapping rules at `routines.m
 hand — that is the phase's whole discipline.
 
 - [ ] **Existing-row sweep (FIRST work item).** Per candidate class, record "no row" or the existing
-      row's identity. Two already exist and would otherwise be duplicated:
+      row's identity. The sweep runs against `routines.md` itself, not against the gitignored research
+      record — this phase is routed to a sub-agent worker, which cannot read `.work/`. Two rows
+      already exist and would otherwise be duplicated:
       `routines.md:192` `dead-code-sweep` (`not-a-routine`) and `:195` `coverage-mutation-watch`
       (`not-a-routine`). A match becomes an **amendment** item with its own derivation, never a
       second row. ADR-0004's incumbent gate applies to rows here, not only to detectors.
@@ -533,7 +537,9 @@ modeling produces inform-human findings with no apply path.
       `plugins/dotnet-test/` that does not exist. **Record the boundary against `mutation-testing`
       explicitly**, since §N3's evidence is about *repair*, not detection: static AST detection of
       tests that cannot fail (cheap, no execution) versus dynamic proof that tests do not detect
-      change (expensive). They are complements, not rivals.
+      change (expensive). They are complements, not rivals. **Inline every `path:line` above into the
+      issue and PR body** rather than citing the gitignored `.work/` record — this phase routes part
+      of its work to a sub-agent that cannot read it.
 - [ ] **Leaf verb is `audit`, joining the registered owner set** — not `scan`. Nine plugins already
       say `audit` for exactly this contract (read-only findings report). The registry's own header
       states a new plugin joining an accepted collision "has to be argued on its own merits"; the
@@ -606,12 +612,19 @@ Independent of Phases 1-7 — it can run on any track.
 
 - [ ] Create `docs/topics/routine-capability-detection/` and run `/planning:interview` then
       `/planning:plan` against it.
+- [ ] **This creates a second contract slice, red-lined by the same gate as this one** — it matches no
+      grandfather line and cannot be exempted. Phase 10 does not absorb it: the promoted topic owes
+      its **own** graduation-and-prune before its own merge, which is the convention's ordinary
+      per-slice lifecycle rather than a special case. Its PLAN must carry a terminal phase of the same
+      shape.
 - [ ] Inputs it inherits, not re-derives: the catalog's axes and mapping rules (`routines.md:88-146`);
       the three-layer config cascade (`docs/conventions/config-cascade/`); the deterministic-gate
       preference (`PLUGIN-PHILOSOPHY.md:664-666`).
-- [ ] **Sanity Check:** `ls docs/topics/routine-capability-detection/PLAN.md` exits 0 and its
+- [ ] **Sanity Check:** `ls docs/topics/routine-capability-detection/PLAN.md` exits 0, and
       `awk '/^## Brief/{f=1;next} f&&NF{found=1;exit} END{exit !found}' docs/topics/routine-capability-detection/PLAN.md`
       exits 0 (the `## Brief` carries content).
+- [ ] **Sanity Check:** that PLAN carries a terminal graduate-and-prune phase —
+      `grep -qi "check-contract-slice-prune" docs/topics/routine-capability-detection/PLAN.md`.
 
 ---
 
@@ -674,6 +687,12 @@ Consequences the earlier drafts missed:
       bodies and the graduated ADR, rather than pointing at a checkout-local artifact.
 - [ ] File the remaining phases as tracker issues carrying their own inlined incumbent evidence, per
       the handoff's decomposition action.
+- [ ] **Name what carries the plan after the slice is gone.** Under shape (a) the durable carriers are
+      exactly three: the graduated ADR (the coexistence decision and its rejected alternatives), the
+      per-phase tracker issues (each phase's work items, sanity checks, and inlined `path:line`
+      evidence), and this PR's body (the whole plan, for provenance). Nothing load-bearing may be left
+      pointing only at `docs/topics/boris-routines-adoption/` or at `.work/` — both are unreachable
+      after merge, the first because it is deleted and the second because it was never pushed.
 - [ ] Paste the approved PLAN.md into the PR description inside a `<details>` block (PR bodies cap
       near 64 KB — paste the contract, reference the rest).
 - [ ] A final commit deletes `docs/topics/boris-routines-adoption/`. The deletion itself is what
