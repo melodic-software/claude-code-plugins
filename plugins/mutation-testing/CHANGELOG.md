@@ -51,7 +51,6 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   and graded surfaces a reader meets first were wrong while the reference they consult last was
   right.
 
-
 ## [0.3.1]
 
 ### Fixed
