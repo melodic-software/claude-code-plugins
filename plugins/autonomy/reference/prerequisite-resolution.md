@@ -142,7 +142,7 @@ presence-gated with a documented fallback per
 | Concern | Seam | Fallback when absent |
 |---|---|---|
 | Ecosystems | Toolchain seam (when the `toolchain` plugin is installed), reading *resolved* consumer state **with resolution-rung provenance** — consume only consumer-authored or repo-inferred rungs; an ecosystem present but `enabled: false` is not configured; uncommitted user-global and `.local.yaml` layers report unresolvable; **reject the seam's bundled-default rung** as repository evidence | Inference from the repo's own build files; never another plugin's bundled defaults |
-| MCP enablement | Config-audit surface (when that plugin is installed) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
+| MCP enablement | Config-audit surface (when the sibling config-audit plugin is installed; marketplace id in README — this `reference/` surface may not name vendors) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
 | Tracker | Work-item tracker seam — `.work-item-tracker.json` plus the bound adapter's `capabilities.json` (when the `work-items` plugin is installed) | Treat tracker-dependent prerequisites as unestablished (`unknown`) |
 | Substrates, schedulers, observability | Autonomy setup skill's own discovery slices | Same plugin — no gate |
 | Configured-surface enumeration | Each surface's own presence in the repo | Never by reading the config-cascade registry table (a conformance ledger, not a runtime inventory) |
