@@ -40,7 +40,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/` | Never committed | session handoffs; review reports; running-retro ledgers — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -425,9 +425,10 @@ a `<STAGE>-<scope>.md` sidecar.
    pasted into the PR description inside `<details>` blocks (bodies cap
    near 64 KB — paste the contract, reference the rest). When the
    contract exceeds the cap, paste the summary and verification digest in
-   the body and **name the pruning commit** (or the PR number plus the
-   path) for everything else — a pointer without a followable ref is not a
-   preservation.
+   the body and **name the pre-prune commit SHA** (Contents API form in
+   step 5) plus where durable outcomes graduated — under squash-merge the
+   SHA form is best-effort; the graduation targets are the load-bearing
+   record.
 3. Before merge, durable outcomes graduate: architectural decisions and
    specs through the **knowledge-vault seam** (default: history-preserving
    `git mv` into `docs/adr/` / `docs/specs/`; remote vault backends
@@ -436,23 +437,36 @@ a `<STAGE>-<scope>.md` sidecar.
 4. A final commit prunes the contract slice `<contract_dir>/<slug>/`
    (default `docs/topics/`), leaving context pointers (the PR body and
    the promoted-doc / tracker locations) in its place.
-5. **Retrieving a pruned slice after merge.** The task branch is deleted on
-   merge and GitHub's three-dot PR diff drops pruned files, so
-   `docs/topics/<slug>/…` on `main` will not resolve. The pruned content
-   remains reachable through the merge commit **immediately before** the
-   pruning commit:
+5. **Retrieving a pruned slice after merge (best-effort).** Squash-merge
+   collapses the task branch into one new commit on `main` and carries
+   none of its ancestry; the head branch is deleted on merge. GitHub's
+   three-dot PR diff also drops pruned files, so `docs/topics/<slug>/…`
+   on `main` will not resolve. Local `git show <pre-prune-sha>:<path>`
+   fails from a fresh clone until that object is fetched (for example
+   via `git fetch origin refs/pull/<N>/head` when permitted — typically
+   the machine that wrote the pointer already has it). The Contents API
+   form `?ref=<pruning-commit>^` fails for a different reason: it is a
+   remote lookup, and the squash commit's parent never contained the
+   slice, so naming the parent of the pruning/squash commit is not a
+   recovery path regardless of local checkout state.
+
+   While GitHub retains the unreachable object, the Contents API can still
+   resolve a **pre-prune commit SHA** (the last commit that still
+   contained the slice — name that SHA in the PR body before merge):
 
    ```bash
-   # pruning commit = the merge commit whose message prunes the slice
-   gh api "repos/{owner}/{repo}/contents/docs/topics/<slug>/PLAN.md?ref=<pruning-commit>^" --jq .size
+   # pre-prune commit = last commit on the task branch that still held the slice
+   gh api "repos/{owner}/{repo}/contents/docs/topics/<slug>/PLAN.md?ref=<pre-prune-commit>" --jq .size
    ```
 
-   Given only a merged PR number, list its commits and take the pruning
-   commit from that list; use `<sha>^` as `ref`. `git fetch origin
-   refs/pull/<N>/head` may be denied by a consumer permission layer — the
-   Contents API form above works after the branch is gone. Step 2's
-   "reference the rest" pointer should name that pruning commit (or the PR
-   number plus path) so the reference is followable without archaeology.
+   That retention is an implementation detail with no promised lifetime —
+   convenience, not a recovery guarantee. The load-bearing record is
+   where durable outcomes graduated (ADR / specs via the vault seam,
+   tracker items via the work-item seam); the PR body must name those
+   locations. Given only a merged PR number, list its commits and take
+   the pre-prune SHA from that list. `git fetch origin refs/pull/<N>/head`
+   may be denied by a consumer permission layer — the Contents API form
+   above is the followable best-effort pointer after the branch is gone.
 6. Enforcement: a required check that the net PR diff
    (`git diff --name-only base...head`) contains no path under the
    resolved `<contract_dir>/**` (default `docs/topics/**`). GitHub's PR

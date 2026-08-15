@@ -1133,10 +1133,10 @@ else
   failures=$((failures + 1))
 fi
 
-# Bare path ≡ --root (#2599).
+# Bare path ≡ --root (#2599). Scope attributes bare paths to the root count (#2710).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/root" >"$ladder_out" 2>&1 &&
   grep -Fq "Repo: $TMP/root/acme/root-repo" "$ladder_out" &&
-  grep -Fq "Scope: command line (1 --root/--repo argument(s))" "$ladder_out"; then
+  grep -Fq "Scope: command line (1 --root/bare-path)" "$ladder_out"; then
   printf 'PASS: bare path is accepted as --root\n'
 else
   printf 'FAIL: bare path is accepted as --root\n' >&2
@@ -1225,11 +1225,30 @@ else
 fi
 # Scope provenance is computed, not asserted: this run's scope came from a CLI --root, so the header
 # must say so rather than printing the old fixed "current-project scope" literal that contradicted
-# the run's own inputs two lines later.
-if grep -Fq "Scope: command line (1 --root/--repo argument(s))" "$ladder_out"; then
+# the run's own inputs two lines later. --root and --repo counts stay distinct (#2710).
+if grep -Fq "Scope: command line (1 --root/bare-path)" "$ladder_out"; then
   printf 'PASS: header attributes scope to the command line when --root supplied it\n'
 else
   printf 'FAIL: header attributes scope to the command line when --root supplied it\n' >&2
+  failures=$((failures + 1))
+fi
+# --repo-only and mixed CLI scope must not collapse into one ambiguous --root/--repo total (#2710).
+# Use a separate capture file so later assertions against the wt-root ladder_out stay intact.
+scope_out="$TMP/scope-provenance.out"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --repo "$TMP/discovered-a" >"$scope_out" 2>&1
+if grep -Fq "Scope: command line (1 --repo)" "$scope_out"; then
+  printf 'PASS: header attributes --repo-only scope without a root segment\n'
+else
+  printf 'FAIL: header attributes --repo-only scope without a root segment\n' >&2
+  failures=$((failures + 1))
+fi
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --repo "$TMP/discovered-a" --root "$TMP/emptyroot" >"$scope_out" 2>&1
+if grep -Fq "Scope: command line (1 --repo, 1 --root/bare-path)" "$scope_out"; then
+  printf 'PASS: header lists --repo and --root counts distinctly when both are supplied\n'
+else
+  printf 'FAIL: header lists --repo and --root counts distinctly when both are supplied\n' >&2
   failures=$((failures + 1))
 fi
 assert_not_contains_file() {

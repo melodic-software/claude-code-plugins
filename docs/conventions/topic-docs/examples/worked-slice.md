@@ -47,9 +47,11 @@ about to disappear from the diff.
 2. Two follow-ups (rate-limit tuning, mobile client migration) become
    tracker items through the work-items seam; the open question
    ("do we need per-device revocation?") files as a decision item.
-3. The prune commit deletes `docs/topics/auth-token-refresh/`, and its
-   message plus the PR body point at: the PR description (plan +
-   verification), `docs/adr/0042`, and the tracker items.
+3. The prune commit deletes `docs/topics/auth-token-refresh/`. The PR
+   body names the graduation targets (`docs/adr/0042`, the tracker
+   items) as the load-bearing record, and may also name the pre-prune
+   commit SHA for a best-effort Contents API recovery of the disposed
+   slice.
 4. The required check confirms the net PR diff contains no
    `docs/topics/**` path. Merge.
 

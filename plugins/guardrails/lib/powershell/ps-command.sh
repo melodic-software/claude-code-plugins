@@ -225,6 +225,50 @@ ps::call_target_is_bare_computed() {
   [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\(] ]]
 }
 
+# True (0) when a bare computed *variable* call carries a positional write
+# shape that the named-parameter probes miss. Set-Content/Add-Content take
+# Path+Value positionally (`& $w f.txt x`); Out-File commonly takes pipeline
+# input plus a path (`$data | & $w out.txt`). Count *leading* non-flag tokens
+# after the target (stop at the first dash-flag) so `& $py script.py` (one
+# positional) and `& $python -m unittest discover` (flag-first) stay allowed
+# while two leading positionals still fail closed. A pipeline into the call
+# needs only one leading positional — the content arrives via `|`.
+# Subexpression targets (`& ('Set-'+'Content') …`) already trip
+# `ps::has_special_constructs` via `()` and do not need this probe.
+ps::computed_call_has_positional_write_signal() {
+  local lc="$1" rest="" tok count=0 piped=0
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  local re_pipe='^(.*)[.\&][[:space:]]*\$'
+  lc="${lc//\`/}"
+  lc="${lc,,}"
+  [[ "$lc" =~ $re_var ]] || return 1
+  rest="${BASH_REMATCH[4]}"
+  if [[ "$lc" =~ $re_pipe ]]; then
+    [[ "${BASH_REMATCH[1]}" == *'|'* ]] && piped=1
+  fi
+  # Truncate at statement / pipeline continuations so trailing clauses do not
+  # inflate the positional count.
+  rest="${rest%%[\;\|\&]*}"
+  # Drop redirect operands (`> f`, `2> err`) — those are covered by the
+  # redirect probe; they are not Path+Value positionals.
+  rest=$(printf '%s' "$rest" | sed -E 's/[0-9*]*>+[^[:space:]]*//g; s/[0-9*]*<+[^[:space:]]*//g')
+  # shellcheck disable=SC2086 # intentional word-split on PowerShell tokens
+  for tok in $rest; do
+    [[ -z "$tok" ]] && continue
+    if [[ "$tok" == -* ]]; then
+      break
+    fi
+    count=$((count + 1))
+  done
+  if (( count >= 2 )); then
+    return 0
+  fi
+  if (( piped == 1 && count >= 1 )); then
+    return 0
+  fi
+  return 1
+}
+
 # True (0) when the call/dot-source target is a DOUBLE-quoted string that
 # INTERPOLATES a variable or subexpression — `& "$tool" …`, `& "$(Get-Tool)" …`,
 # `& "C:\tools\$ver\x.exe" …`. Grounded in PowerShell `about_Quoting_Rules`:
@@ -482,10 +526,11 @@ ps::might_write_via_python3() {
   # target (so the launcher/token tests miss it) and it is not a launcher, so match
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
-  # matched. ps::write_bypass catches only an UNQUOTED `& $`/`& (`; this closes the
-  # quoted-interpolated form for the python-write lane — which is why this lane
-  # takes only the interpolating-string half of the shared call-target predicate
-  # and not the bare-computed half.
+# matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
+# write indicator or special construct (#2722); this closes the
+# quoted-interpolated form for the python-write lane — which is why this lane
+# takes only the interpolating-string half of the shared call-target predicate
+# and not the bare-computed half.
   ps::call_target_is_interpolating_string "$recovered" && return 0
   # Must name a python interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])(pypy|python|py)[0-9]*([.][0-9]+)*([.]exe)?([^[:alnum:]_.]|$) ]] || return 1
@@ -989,7 +1034,10 @@ ps::print_unparsable_git_block_message() {
 #     scoped to match the Bash guard, which allows `<tool> ... > out` (the
 #     producer is the tool, not a content author);
 #   - iex / invoke-expression, whose run string is opaque here — fail closed,
-#     mirroring the git guards' sink.
+#     mirroring the git guards' sink;
+#   - a call/dot-source of a COMPUTED target (`& ('Set-'+'Content') …`,
+#     `& $w -Value …`, `& $w > f`) when a write indicator or special construct
+#     is also present — not the bare `& $tool …` / `. $PROFILE` residual (#2722).
 # Backticks are deleted before matching so an escape-obfuscated name (`Set``-Content`)
 # resolves to its real form.
 #
@@ -997,7 +1045,7 @@ ps::print_unparsable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head lcq q="\"'"
+  local cmd="$1" scan lcs seg lc head lcq q="\"'" gate blanked_gate
   ps::blank_herestrings "$cmd"
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
@@ -1013,12 +1061,27 @@ ps::write_bypass() {
   fi
   # A call/dot-source of a COMPUTED target — `& ('Set-'+'Content') …`, `& $w …`
   # — evaluates an expression into the command name; it cannot be proven
-  # non-writer, so it fails closed like iex (review round 5). Mirrors
-  # ps::might_invoke_git's treatment of the same shape on the git side. Both
-  # this and the quoted-writer check above accept a statement/block separator
+  # non-writer, so it fails closed like iex WHEN a write signal is also present
+  # (review round 5, narrowed in #2722). Mirrors the git lane: ps::might_invoke_git's
+  # computed-target probe only runs after ps::has_special_constructs (or another
+  # sink trigger) has already routed the command. A construct-free `& $tool …` /
+  # `. $PROFILE` with no redirect and no -Value is the same deferred
+  # variable-command-word residual has_dynamic_invocation documents for git.
+  # Both this and the quoted-writer check above accept a statement/block separator
   # boundary (`;& …`), not only whitespace (review round 6).
-  if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\(\$] ]]; then
-    return 0
+  if ps::call_target_is_bare_computed "$lcq"; then
+    blanked_gate=$(ps::blank_quoted_spans "$lcq")
+    # fd-dup merges (`2>&1`) are plumbing, not file writes — strip before the
+    # redirect probe so `& $tool 2>&1` does not look like a producer redirect.
+    # Redirect / -va* probes run on quote-blanked text so a quoted `>` or
+    # `-value` substring in message text is not a write signal (#2722 review).
+    gate=$(printf '%s' "$blanked_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    if ps::has_special_constructs "$blanked_gate" ||
+      [[ "$gate" == *'>'* ]] ||
+      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
+      ps::computed_call_has_positional_write_signal "$blanked_gate"; then
+      return 0
+    fi
   fi
 
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")

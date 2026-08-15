@@ -1,5 +1,24 @@
 # Changelog — topic-docs convention
 
+## 2.4.4 — 2026-08-15
+
+Docs-only: the Memory, concern-scoped tier row now names `.work/running-retros/`
+alongside `.work/handoffs/` and `.work/reviews/`, matching the reserved
+first-level names and the session-flow implementer row already in this contract.
+The schema `memory_dir` description lists the same three concern directories.
+(`docs-hygiene` `/audit-noise` bare-root ghost-ref exemption tracks this roster.)
+(#2730)
+
+## 2.4.3 — 2026-08-15
+
+Docs-only: the prune recovery pointer no longer pretends squash-merge
+preserves branch ancestry. Step 5 now prescribes the Contents API form
+`?ref=<pre-prune-commit>` (no `^`), states that unreachable-object
+retention is best-effort with no promised lifetime, and makes the
+graduation targets (ADR / specs / tracker items) the load-bearing
+record. Step 2's "reference the rest" pointer names that pre-prune SHA
+plus those targets. (#2699)
+
 ## 2.4.2 — 2026-08-12
 
 Docs-only: the contract-slice lifecycle now documents how to retrieve a
