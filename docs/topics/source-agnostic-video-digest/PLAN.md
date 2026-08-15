@@ -73,24 +73,30 @@ rung 4 (inference), surfaced not persisted:
 
 ## Plan
 
-### Phase 0: Switch the type lane on [TODO]
+### Phase 0: Switch the type lane on [DONE]
 
 Step zero, before any contract work (T3 blocking precondition; user-directed).
+Landed `aaa62cc7` (2026-08-15); strict-tier posture + `@satisfies` no-op recorded in
+`DEVIATIONS.md`. Checker holes for Phase 4 grew to four: (1) `noImplicitAny` off — adapter
+methods need explicit parameter annotations; (2) `**/*.test.js` excluded from the type lane, so
+the conformance suite itself is untyped; (3) too-few-parameters accepted silently;
+(4) interpolated `import()` resolves to `any`.
 
-- [ ] `course-digest/extraction/tsconfig.json:9` — `"checkJs": false` → `true`
-- [ ] `youtube-digest/extraction/tsconfig.json:9` — `"checkJs": false` → `true`
-- [ ] Fix every surfaced diagnostic at root cause. **Zero suppressions** (`@ts-ignore` /
+- [x] `course-digest/extraction/tsconfig.json:9` — `"checkJs": false` → `true`
+- [x] `youtube-digest/extraction/tsconfig.json:9` — `"checkJs": false` → `true`
+- [x] Fix every surfaced diagnostic at root cause. **Zero suppressions** (`@ts-ignore` /
   `@ts-expect-error` require explicit user approval + recorded justification; target: none).
-- [ ] Standardize contract-bearing annotations on `@satisfies`.
-- [ ] Known checker holes recorded for Phase 4 to cover at runtime: too-few-parameters
+- [x] Standardize contract-bearing annotations on `@satisfies`. (No applicable sites — lands
+  with Phase 1 contract authorship; DEVIATIONS.md.)
+- [x] Known checker holes recorded for Phase 4 to cover at runtime: too-few-parameters
   accepted silently; interpolated `import()` resolves to `any`.
 
 **Sanity Check:**
 
-- [ ] `grep -rn '"checkJs": true' plugins/knowledge/skills/*/extraction/tsconfig.json` → 2 rows
-- [ ] `npx tsc --noEmit` exit 0 in both extraction dirs
-- [ ] `grep -rn -e '@ts-ignore' -e '@ts-expect-error' plugins/knowledge/skills/*/extraction --include='*.js' --include='*.mjs'` → 0 rows
-- [ ] Both lanes' vitest suites exit 0 (no runtime change)
+- [x] `grep -rn '"checkJs": true' plugins/knowledge/skills/*/extraction/tsconfig.json` → 2 rows
+- [x] `npx tsc --noEmit` exit 0 in both extraction dirs
+- [x] `git grep -n -e '@ts-ignore' -e '@ts-expect-error' -- 'plugins/knowledge/skills/*/extraction'` → 0 rows (git-grep form per DEVIATIONS.md — the raw grep matches node_modules)
+- [x] Both lanes' vitest suites exit 0 (no runtime change)
 
 ### Phase 1: Adapter contract, registry, YouTube adapter (behavior-preserving) [TODO]
 
