@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.3]
+
+### Fixed
+
+- **security-review.md no longer names deleted REST-era `MERGED_PR_BATCH_LIMIT` /
+  `MERGED_PR_HEAD_LIMIT` constants (#2709).** The live GraphQL collector constants
+  (`MERGED_PR_GRAPHQL_ALIAS_PAGE`, `MERGED_PR_GRAPHQL_JQ`) are documented instead,
+  with historical wording for the retired names so an auditor is not sent looking
+  for symbols that do not exist.
+
 ## [0.22.2]
 
 ### Fixed

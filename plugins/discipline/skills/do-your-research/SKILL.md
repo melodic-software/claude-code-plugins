@@ -85,7 +85,7 @@ and in the sibling fan-out below; neither skill owns one direction.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - a claim asserted without a fetched source, or flagged "known" /
   "obvious" / "from memory";

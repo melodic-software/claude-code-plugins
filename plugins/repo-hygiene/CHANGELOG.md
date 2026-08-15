@@ -3,6 +3,17 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4]
+
+### Changed
+
+- **`skills/clean/reference/ecosystems.md` is now a pointer, not teaching tables.** A repo-wide
+  derivability audit (#2695) spot-tested it: a fresh-context agent reproduced the full tier
+  membership, protected classes, and the "no `dotnet clean`" rationale from `cleanup-config.md`
+  and the `clean-*.sh` script comments alone — the tables were a drift surface (the header already
+  called them illustrative). The file now points at `cleanup-config.md` and the action scripts;
+  `cleanup-config.md`'s cross-reference was updated to match.
+
 ## [0.10.3]
 
 ### Changed

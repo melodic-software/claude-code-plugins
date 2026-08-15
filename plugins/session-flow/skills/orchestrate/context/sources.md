@@ -118,10 +118,17 @@ which way it broke.
   limit reached`, and the error tells Claude not to retry. Spawning succeeds again when the running
   count drops below the limit" (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+), plus the depth
   limit above. "A fork can't spawn further forks."
-  Two riders on the concurrency limit, both new since the 2026-07-29 read: "Sessions with
+  Three riders on the concurrency limit (first two new since the 2026-07-29 read; third new since
+  the 2026-08-10 read, verified 2026-08-15): "Sessions with
   [ultracode](https://code.claude.com/docs/en/model-config#adjust-effort-level) active are exempt:
-  the limit isn't enforced there", and an in-session `/subtask` fork "takes a slot while it runs and
-  is never blocked by the limit."
+  the limit isn't enforced there", an in-session `/subtask` fork "takes a slot while it runs and
+  is never blocked by the limit", and "Resuming a subagent that already finished takes a fresh slot
+  without checking the limit, so resumes can push the running count past it."
+  Also verified 2026-08-15: these Agent-tool caps do not govern other spawn surfaces — "Agents that
+  other features run, such as workflow agents and agent team teammates, follow their own limits
+  instead" (sub-agents page). Changelog v2.1.232 (2026-08-13): subagent forking is now on by
+  default, and non-teammate agent spawns in interactive sessions run in the background by default —
+  postdates the captures above; fold into the next full re-verify.
   **Superseded:** this entry previously recorded a third cap — "at most 200 subagents per session"
   via `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (v2.1.212+), read 2026-07-29. Week 32 removed it:
   "The 200-subagent-per-session cap is removed, so long-running sessions no longer refuse new
@@ -230,7 +237,15 @@ Part-sourced, part authoring convention — the boundary is called out per facto
   "wide fan-out."** A run is flagged `Large workflow` "When a workflow schedules more than 25
   agents, or its projected token total passes 1.5 million" (min-version 2.1.203); the `/config`
   size guideline sets the agent count Claude aims for (`small` "Fewer than 5 agents", `medium`
-  "Fewer than 15 agents", `large` "Fewer than 50 agents"), and the runtime caps a run at up to 16
-  concurrent / 1,000 total agents. *(verbatim, verified 2026-08-10)* — these concrete numbers are
+  "Fewer than 15 agents", `large` "Fewer than 50 agents"), and the runtime caps a run at "Up to 16
+  concurrent agents, fewer when Claude Code has fewer CPUs available, including inside a
+  CPU-limited container" / 1,000 total agents — the concurrency bound is CPU-dependent with no
+  env-var override. *(re-verified 2026-08-15; the 2026-08-10 capture lacked the CPU clause)*
+  Empirical, unpinned datum: a 4-CPU cloud container bound a run at 2 concurrent (observed
+  2026-08-15; the exact formula is not documented — the page commits only to "fewer when ... fewer
+  CPUs available"). Riders on the 25-agent Large-workflow threshold (verified 2026-08-15): a
+  user-chosen size guideline's agent count replaces the 25 threshold (built-in default keeps 25);
+  ultracode sessions don't show the warning; the default size guideline is `medium` on v2.1.219+.
+  These concrete numbers are
   version-pinned and stay in this sources file, NOT the model-/tool-agnostic brief, which speaks of
   a "wide fan-out" abstractly. — <https://code.claude.com/docs/en/workflows>

@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.6]
+
+### Fixed
+
+- **Re-landed tidiness-first reporting and corrected the belt's documented posture (#2590,
+  #2618).** PR #2639 and then #2641 squash-merged from stale bases and silently reverted the
+  prior markdown fixes (#2691). Reports are again ordered by tier and evidence strength — never
+  by byte size — with empty directories as first-class findings; `provenance` and `risk` return
+  to the plan schema; preview and apply lead with tidiness. The skill and safety-model docs now
+  state that skill-frontmatter `PreToolUse` hooks stay armed for the rest of the session, drop
+  the false exec-form claim (shell form since 0.17.9 / #2568), name the long-path Recycle Bin
+  hard-stop, declare relocation out of scope, and thin Gotchas harness duplication into
+  `safety-model.md` pointers. Guard-code recovery remains in the sibling lane.
+
 ## [0.20.5]
 
 ### Fixed

@@ -3,6 +3,23 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.17]
+
+### Changed
+
+- **Skip notice no longer claims session-long semantics or misdirects the fix.** A plugin-quality
+  audit root-caused a cloud-session outage: hook processes inherit Claude Code's own environment
+  (per the hooks reference), not the interactive shell's profile, so an nvm-provisioned global
+  markdownlint-cli2 was visible to the Bash tool but invisible to every hook probe — while the old
+  notice said "skipped for this session. Install it explicitly", implying a cached negative (none
+  exists; the probe re-runs per edit and recovers silently) and telling the user to redo an install
+  they had already done. The notice now states the re-check semantics and the environment
+  inheritance, and points at a repo-local `npm i -D` install as the reliable route (the
+  `node_modules/.bin` probe is filesystem-based and PATH-independent). Known residual, recorded:
+  `resolve_repo_markdownlint` checks only the repo root's `node_modules/.bin`, so monorepo
+  workspace-level installs are still invisible; sibling formatters that probe `command -v` share
+  the PATH-layer failure mode (fleet-wide sweep candidate).
+
 ## [0.11.16]
 
 ### Changed

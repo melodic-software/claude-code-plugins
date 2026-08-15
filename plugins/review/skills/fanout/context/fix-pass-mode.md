@@ -21,7 +21,7 @@ Then build the set in two passes:
 
    A name is not an identity: names carry only second resolution and a producer-chosen topic, so a later producer can write an entirely different file under a name an old record already names. Subtracting on the name alone would silently skip that file's genuinely new findings — the hidden-findings failure this mode exists to close, re-created inside it.
 
-   The name-alone clause is the whole of the legacy tolerance. It covers a pre-0.20.0 bare scalar `source-findings:` (a single repo-relative path — compare by its base name) and any other entry written without a digest; silently failing to match one would re-admit an already-applied file and re-inject findings the required post-fix re-review resolved.
+   The name-alone clause is the whole of the legacy tolerance. It covers a pre-0.20.0 bare scalar `source-findings:` (a single repo-relative path — compare by its base name) and any other entry written without a digest; silently failing to match one would re-admit a file this action already consumed — re-injecting findings the required post-fix re-review resolved, or re-surfacing rows an operator has already dispositioned, since a recorded file may have been purely surfaced.
 
    **The strictly-older test is what keeps that fallback from becoming permanent.** Honor a digest-less entry only when the candidate's `date:` is **strictly older than the record's own `date:`**. Equal does NOT subtract — the candidate stays. Compare the declared dates, never the files' modification times: these files sit in a gitignored memory tier that a second checkout, a synced worktree, or a backup restore rewrites wholesale, and mtime would silently invert there while the declared instants survive the copy. It also keeps this step free of `stat`, whose format flag differs between GNU and BSD userland.
 
@@ -29,7 +29,7 @@ Then build the set in two passes:
 
    **Normalize before comparing.** Convert both values to UTC and compare as instants. A value is readable only if it is a full ISO-8601 date-time carrying an explicit UTC designator (`Z`) or a numeric offset (`+02:00`); convert an offset form rather than rejecting it. A date-only value, a naked local time with no designator, or anything unparsable is UNREADABLE — not "equal", not "older". **Do not shortcut this with a string comparison:** it holds only when both sides are already the canonical second-resolution `Z` form, and fractional seconds invert it (`2026-08-15T04:45:01.123Z` sorts before `2026-08-15T04:45:01Z` while being the later instant).
 
-   Without the test the fallback is unbounded, and not in the rare way it might appear: **nothing requires a producer to put a timestamp in its file name at all.** The admission test is `type:`, `branch:`, and a parseable table, so a conforming detector may write one fixed name it overwrites every run. A single pre-0.20.0 record naming that file would then subtract every future version of it, silently and forever, since a subtracted file is never consumed and so never re-recorded with a digest. A candidate produced after the record was written cannot be the file that record consumed; admitting it costs at worst a re-application, which is recoverable (a no-op or a visible conflict — see "An apply that terminates abnormally" below), where a silent retirement is not.
+   Without the test the fallback is unbounded, and not in the rare way it might appear: **nothing requires a producer to put a timestamp in its file name at all.** The admission test is `type:`, `branch:`, and a parseable table, so a conforming detector may write one fixed name it overwrites every run. A single pre-0.20.0 record naming that file would then subtract every future version of it, silently and forever, since a subtracted file is never consumed and so never re-recorded with a digest. A candidate produced after the record was written cannot be the file that record consumed; admitting it costs at worst a re-application or a re-surfacing, both recoverable (a no-op, a visible conflict, or a repeated report — see "A pass that terminates abnormally" below), where a silent retirement is not.
 
    **A candidate whose `date:` is missing, empty, or unreadable fails the test and STAYS in the set** — same for a record whose own `date:` is unreadable. `date:` is required of `review:fanout`'s writer but is not part of the admission test, so a minimally conforming producer may omit it, and this step must decide that case rather than guess an ordering. It fails toward keeping the candidate for the reason the whole step is built on: re-admitting an applied file is recoverable and dropping an unapplied one is not. The cost is bounded to one extra pass — that candidate is then consumed and re-recorded WITH a digest, after which the digest match governs and `date:` is never consulted for it again.
 
@@ -80,6 +80,7 @@ Classification rules:
 
 - **Classify by finding CONTENT first.** Tier is a signal, not the determinant — a SUGGESTION can be a minor correctness fix; content wins when they disagree.
 - **Ambiguous → correctness (fail-safe).** `/simplify` is cleanup-only; a correctness finding routed there would be silently NOT fixed — dropping exactly the finding that matters most.
+- **Off-site remediation → surface-only, whatever the class.** A finding whose remediation lies outside its `Location`'s file — the `Action` names a different file, or the producing detector's contract declares the rule off-site — cannot be scope-fenced, and Step 4's fence is the whole of what bounds an unattended apply. Route it to surface-only so Step 3's counts state what will actually be applied; the class still describes what the finding IS, and only its route changes. Naming the remediation target is the producer's obligation under the detector-findings contract (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>), which is what makes the condition readable here at all.
 - **`## Unparsed` entries → surface to the user** for manual handling; they cannot be auto-classified.
 
 ## Step 3: Plan + confirmation gate
@@ -93,21 +94,29 @@ Fix-pass plan — consumed <S> findings file(s), <N> findings after merge
 - Surfaces (union) — ran: [...]; returned no result: [...] (with cause when known)
 - Cleanup-class (<n>) → /simplify
 - Correctness-class (<m>) → sequential scope-fenced fix
-- Surface-only (<k>, need human judgment / unparsed)
+- Surface-only (<k>, off-site remediation / need human judgment / unparsed)
 ```
 
-The header names the consumed **set**, one line per file — an operator who cannot see which producers contributed cannot tell a two-producer merge from a one-producer shadow, which is the condition this whole step exists to make visible. The `Surfaces (union)` line is the coverage half of the same guarantee: it is where Step 2's union is actually printed, and without it a surface that ran and returned nothing disappears between the merge and the report.
+The header names the consumed **set**, one line per file — an operator who cannot see which producers contributed cannot tell a two-producer merge from a one-producer shadow, which is the condition this whole step exists to make visible. The `Surfaces (union)` line is the coverage half of the same guarantee: it is where Step 2's union is actually printed, and without it a surface that ran and returned nothing disappears between the merge and the report. **The correctness count is what Step 4 will attempt**, so a row Step 2 routed to surface-only is counted there and never here — a plan that promised a fix Step 4 then declined would be the same dishonesty in the other direction.
 
 Then gate on the session context and the `--yes` / `-y` flag (SKILL.md "Arguments"). Every side-effect path is explicitly gated — the gate never self-downgrades unattended:
 
 | Session | `--yes` | Gate |
 |---|---|---|
-| Interactive | absent | Confirm with the user; on consent apply, then write the consumption record (Step 5). Honor scope narrowing ("only the correctness ones"). A declined gate applies nothing and writes no record. |
-| Interactive | present | Skip the confirmation prompt, apply, then write the consumption record (Step 5). |
+| Interactive | absent | Confirm with the user; on consent run the pass, then write the consumption record (Step 5). Honor scope narrowing ("only the correctness ones"). A declined gate runs nothing and writes no record. |
+| Interactive | present | Skip the confirmation prompt, run the pass, then write the consumption record (Step 5). |
 | Non-interactive (`CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop) | absent | **STOP after the plan — mutate nothing, write no record.** The plan IS the report: an operator reviews what would have been applied, then re-runs with `--yes`. Fail-safe default — forgetting the flag pauses a lane for one cycle; the reverse mistake mutates a tree unconfirmed. |
-| Non-interactive | present | Apply, then write the consumption record (Step 5). |
+| Non-interactive | present | Run the pass, then write the consumption record (Step 5). |
 
-**Every path that applies writes the record; the one path that applies nothing writes none.** The record is what marks its inputs consumed, so an apply that skipped it would leave those findings in the next merge set and re-inject remediations the required post-fix re-review has already resolved.
+**The record's trigger is a CONSENTED gate followed by a pass that ran to completion — never "the tree changed".** The earlier rule keyed it to application, and that conflated two different states: a gate the operator **declined**, and a pass that **ran to completion and surfaced every row**. Only the first is what the no-record rule was for — the operator consented to nothing, so a record would retire files the action never opened, a worse silent drop than any it prevents. The same holds for the non-interactive STOP, which never reaches a consented gate. Neither writes a record. An empty merge set never reaches this step at all (Step 1 STOPs), so no record can name zero files.
+
+**A completed pass that applied nothing still writes one**, and that case is not hypothetical: Step 2 routes every off-site row to surface-only, and a detector whose remediation is off-site **by construction** — a mutation-survivor producer, whose `Location` is the mutated node while the assertion belongs in the covering test — emits a file whose applied count is zero on every run. Keying the record to application would leave that file permanently unretirable: never subtracted, re-merged and re-surfaced every run, forever. That is the unbounded-noise failure Step 1 exists to prevent, arriving through the ledger instead of through the scan.
+
+Step 5's "**Consumption is per FILE, not per row**" is the rule this follows, and it is **extended rather than merely applied**: its wording covered a *partly* surfaced file, which presupposes something was applied. Retirement is safe at zero for the same reason it is safe at "partly" — every row that did not land is rendered individually in the record's "Not applied" table with the producer that emitted it, and re-running that producer is the recovery route, which does not depend on any sibling row having been applied.
+
+**A consumed file with zero ROWS is retired on a different ground, and it is the ordinary case rather than a degenerate one.** A detector that examined its surface and found nothing writes a coverage-only file — the `## Findings` header with no data rows, `## Surfaces` carrying the whole payload. The "Not applied" table renders `(none)` there, so the recoverability argument above is vacuous for it. What retires it is that it carries **coverage, not findings**: there is no row to recover, its coverage is already unioned into this pass's report, and the next run of that producer states its own coverage afresh.
+
+**The trade, stated rather than presented as pure gain.** Retiring a purely-surfaced file makes re-running its producer the only route back, and for some producers that is expensive — a mutation re-audit, not a re-read. Today those files linger and re-surface, which is a crude form of persistence that happens to keep the rows in view. This trades it for a clean ledger, and the trade is sound only because the "Not applied" table preserves every row's location, content, reason and producer: what is retired is the file, never the information in it.
 
 The `fix` argument opts INTO fix mode; `--yes` is the separate, explicit consent to mutate a tree with no human watching. A non-interactive session with no `--yes` is never consent.
 
@@ -121,7 +130,7 @@ Apply one finding at a time — concurrent fixes risk silent overwrite (last wri
 
 - Each fix is scope-fenced to its finding's `Location` — touch only that file for that finding.
 - **NEVER route correctness findings to `/simplify`.**
-- **Surface instead of auto-applying** when a fix is low-confidence, needs architectural judgment, or has high blast radius. Auto-apply only clear, contained, high-confidence fixes.
+- **Surface instead of auto-applying** when a fix is low-confidence, needs architectural judgment, has high blast radius, or **its remediation lies outside the finding's `Location`** (Step 2). Auto-apply only clear, contained, high-confidence fixes. The fourth trigger is not a special case of the first three: an off-site row can be high-confidence, mechanically contained, and low blast radius, and without the trigger a fixer meeting one has no disposition at all — the fence forbids the edit the `Action` names, and nothing else authorizes surfacing.
 - After each fix, re-read the touched region to confirm the edit landed as intended.
 
 ### Cleanup-class → optional in-session `/simplify`
@@ -139,9 +148,9 @@ Invoke the `/simplify` skill when available in the session; otherwise apply the 
 - Correctness-class: `<m>` → `<applied>` fixed (list with file:line).
 - Not applied: every row that did not land — surfaced, operator-narrowed, or unparsed — listed with the consumed file it came from, never as a bare count. Same rows as the record's "Not applied" table below; the operator recovers a row by re-running the producer that column names.
 
-### Consumption record (EVERY apply path)
+### Consumption record (EVERY consented path)
 
-Whenever the action applied anything, ALSO persist the applied plan as a durable record. It serves two purposes: an after-the-fact review surface for an apply nobody watched, and — the load-bearing one — the ledger Step 1 subtracts by. Run the self-ignore guard (a fix-first session may be the first memory-tier write, so the guard is not headless-only), then stage the record OUTSIDE the findings directory, digest it, and move it in under a name that carries that digest:
+Whenever the gate consented and the pass ran to completion — whether it applied every row, some, or none — ALSO persist the plan as a durable record. It serves two purposes: an after-the-fact review surface for a pass nobody watched, and — the load-bearing one — the ledger Step 1 subtracts by. Run the self-ignore guard (a fix-first session may be the first memory-tier write, so the guard is not headless-only), then stage the record OUTSIDE the findings directory, digest it, and move it in under a name that carries that digest:
 
 ```bash
 TS="$(date -u +%Y%m%dT%H%M%SZ)"                       # colon-free, Windows-safe
@@ -153,7 +162,7 @@ mv "$TMP" "<findings-location>/${TS}-fix-pass-applied-${D}.md"
 
 The suffix is the digest of **the staged file's own bytes, frontmatter included** — not of any consumed file; the consumed files' digests go inside `source-findings:` below. Hash the file, never a mental extract of it: `sha256sum "$TMP"` as written is the whole rule.
 
-**The digest suffix is what keeps two applies from becoming one record.** `<UTC-timestamp>-fix-pass-applied.md` is not a unique name: the timestamp has second resolution and the topic is a fixed literal, so two applies on this branch finishing in the same UTC second — a retried headless `--yes` run, or two automation triggers firing close together — write the same path and the second silently clobbers the first. A lost record is a set of files never subtracted, re-injecting on the next run exactly the already-applied findings this record exists to retire. A content digest beats a random nonce here because the one case that still collides is two byte-identical records, which name the same consumed set and the same applied rows, so the overwrite is a no-op rather than a loss. Staging through `mktemp` rather than through the plain name inside the findings directory is what keeps the collision out of the staging path too.
+**The digest suffix is what keeps two passes from becoming one record.** `<UTC-timestamp>-fix-pass-applied.md` is not a unique name: the timestamp has second resolution and the topic is a fixed literal, so two passes on this branch finishing in the same UTC second — a retried headless `--yes` run, or two automation triggers firing close together, and two zero-applied passes collide exactly as two applying ones do — write the same path and the second silently clobbers the first. A lost record is a set of files never subtracted, re-admitting on the next run exactly the findings this record exists to retire. A content digest beats a random nonce here because the one case that still collides is two byte-identical records, which name the same consumed set and the same applied rows, so the overwrite is a no-op rather than a loss. Staging through `mktemp` rather than through the plain name inside the findings directory is what keeps the collision out of the staging path too.
 
 ```markdown
 ---
@@ -167,12 +176,12 @@ source-findings:
     sha256: 0f9e8d7c6b5a
 ---
 
-## Applied fix-pass plan
+## Consumed fix-pass plan
 
 - Consumed (<S> files): <file-name list, matching the `name:` values in source-findings>
 - Surfaces (union): ran <[...]>; returned no result <[...]>
-- Cleanup-class (<n>) → /simplify: <what changed>
-- Correctness-class (<m>): <applied file:line list>
+- Cleanup-class (<n>) → /simplify: <what changed, or `(none)`>
+- Correctness-class (<m>): <applied file:line list, or `(none)`>
 
 ## Not applied — recover by re-running the source producer
 
@@ -197,11 +206,11 @@ A writer emitting a bare scalar, or a sequence of bare names, under-matches: Ste
 
 The `type: fix-pass-record` marker is deliberately NOT `review-findings`, so Step 1's candidate pass skips this record and never re-consumes it as findings (the same frontmatter fence that already skips `quality-gate` reports). The record lands in the gitignored memory-tier findings dir, so it is checkout-local durable for the operator who ran the lane, not a committed artifact — local and reversible.
 
-**Consumption is per FILE, not per row.** A file whose rows were partly surfaced rather than applied (Step 4), or narrowed by the operator ("only the correctness ones"), is still marked consumed in full. Every such row is rendered individually in the record's **"Not applied"** table above, with the file name it came from — that attribution is what makes the row recoverable, so it is required, not decorative, and a class-level count never discharges it.
+**Consumption is per FILE, not per row — including a file NONE of whose rows were applied.** A file whose rows were surfaced rather than applied (Step 4), or narrowed by the operator ("only the correctness ones"), is still marked consumed in full, and that holds when the surfaced fraction is all of them. The zero-applied case is stated explicitly because "partly surfaced" does not reach it, and it is the ordinary case for a producer whose remediation is off-site by construction rather than a degenerate one. Every such row is rendered individually in the record's **"Not applied"** table above, with the file name it came from — that attribution is what makes the row recoverable, so it is required, not decorative, and a class-level count never discharges it.
 
 **Recovery re-runs the row's OWN producer, not necessarily this skill.** Re-running `/review:fanout` re-fans-out fanout's reviewers, which regenerates fanout's rows and nothing else; a row that came from a script detector or another skill returns only when THAT producer runs again. The "Not applied" table's `Source file` column is what tells the operator which one to re-run. Either way the regenerated findings land as a NEW file and enter the next merge set as a fresh candidate — deferred rows never survive inside the consumed file.
 
-**An apply that terminates abnormally writes NO record.** A partial apply is the one case where file-granular consumption would retire rows that were never reached, and re-consuming an already-applied fix is recoverable (the fix is a no-op or a visible conflict) while a silently retired one is not. The next run therefore re-admits the whole set; the required post-fix re-review is what reconciles it.
+**A pass that terminates abnormally writes NO record.** Two cases now qualify, and both retire rows that were never reached: a partial apply, and a purely-surfaced pass that dies partway through rendering the "Not applied" table — that table is the only route back to a surfaced row, so a row it never reached is unrecoverable in exactly the way an unapplied fix is not. Re-consuming an already-applied fix is recoverable (a no-op or a visible conflict) and re-surfacing a row costs a repeat of a report, while a silently retired row is neither. The next run therefore re-admits the whole set; the required post-fix re-review is what reconciles it.
 
 Follow-up: after correctness-class fixes, re-run the review — the fixer confirming its own fix resolved a finding is the producer verifying its own work, and a fresh review pass re-fans-out to reviewers that did NOT apply the fix. Treat that re-review as **required** for correctness-class findings, not merely suggested; cleanup-class fixes are mechanical and behavior-preserving, so their `/simplify` verification stands on its own. Either way, run the project's build/test verification before committing — the fix action does NOT run builds or tests.
 

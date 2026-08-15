@@ -17,6 +17,14 @@ another *document* is duplication — the sibling `/docs-hygiene:extract-ssot`
 owns that axis. A document that only restates the *code/config/structure* is
 what this skill audits.
 
+**Before applying any factor, check the file is a document at all.** A file a
+component consumes or copies at runtime — a checklist template a skill
+instructs agents to copy and tick, an eval fixture, a scaffold — is a
+functional artifact, not documentation: it has no claims to derive, so the
+four factors do not apply. Record it `out-of-scope: functional artifact` and
+give it no verdict. The test: is this file an INPUT a tool or skill consumes,
+rather than prose a reader learns from?
+
 ## Factor 1 — Derivable?
 
 Classify each load-bearing claim in the document by where its truth actually
@@ -131,9 +139,10 @@ and the fix is a fresh set of eyes — a context that never saw the document.
 1. Spawn a **fresh-context, non-fork subagent** (e.g. an `Explore` agent). It
    must NOT be shown the document and must NOT be spawned as the Agent tool's
    `fork` subagent type for uncontaminated spot-tests — official docs describe
-   that fork as inheriting the parent conversation (contested at runtime in
-   #1258). A skill's own `context: fork` frontmatter is documented as starting
-   blank, with no access to the conversation.
+   that fork as inheriting the parent conversation (contested at runtime by an
+   internal melodic-software tracker issue, #1258 there). A skill's own
+   `context: fork` frontmatter is documented as starting blank, with no access
+   to the conversation.
 2. Give it the questions the document answers — or ask it to produce the
    document's key conclusions — using **only** native repository exploration.
 3. Compare its output to the document:
@@ -147,11 +156,18 @@ Gate the spot-test by stakes: skip it for an obviously trivial derivable file
 (a verbatim config restatement, an auto-generated index); run it whenever being
 wrong about the deletion would cost a reader something real.
 
+For a `convert-to-pointer` verdict — spot-tested or not — verify the
+recommended pointer target exists before the verdict ships: one `ls` (or URL
+check) per anchor, recorded in the rationale. A pointer at a nonexistent
+anchor is worse than the doc it replaces.
+
 ## Worked examples
 
 | Document | Factors | Verdict |
 |---|---|---|
 | A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
+| An empty root `CLAUDE.md` whose `git log` shows it was deliberately emptied as an instruction-baseline reset, with the decision recorded in the commit | The emptiness IS a recorded decision (Factor 4 "decisions" class) — check `git log` before grading an empty/near-empty file | `keep-owns-facts`, not `delete` |
+| A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes — not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |
 | A doc explaining *why* the retry count is 3 (rate limit, past incident, breaker invariant) | Bare value derivable, but owns rationale + constraint + cross-cutting invariant | `keep-owns-facts` |
 | An onboarding tutorial whose individual steps are each derivable but whose curated ordering teaches a newcomer the system | Steps derivable; human re-derivation cost high (curation is the value) | keep / `convert-to-pointer` (human-facing, higher bar) |

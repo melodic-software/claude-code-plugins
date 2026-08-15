@@ -1,5 +1,22 @@
 # Changelog — session-flow plugin
 
+## [0.23.6]
+
+### Changed
+
+- **`orchestrate`: harness-claim corrections from a plugin-quality audit.** (1) "A fork is a leaf,
+  never an intermediate tier" overreached the docs — the sub-agents page states only "A fork can't
+  spawn further forks", and its depth-limit carve-out implies a below-limit fork holds a working
+  Agent tool; the sentence now carries the narrow documented claim with citation. (2) The cap
+  inventory said two env-var caps remain, but workflow agents and agent-team teammates "follow
+  their own limits instead" — including the CPU-dependent, non-overridable workflow concurrency
+  bound that actually bound an 88-agent evidence run at 2 concurrent on a 4-CPU container; the
+  tiered-delegation section and `sources.md` now carry the current quotes (re-verified
+  2026-08-15), the third concurrency rider (resumed subagents take a fresh slot), the
+  Large-workflow threshold riders, and the v2.1.232 fork-default note. (3) The `${CLAUDE_EFFORT}`
+  priming addendum now self-detects the direct-read fallback (a literal placeholder means the
+  substitution never ran) instead of degrading silently.
+
 ## [0.23.5]
 
 ### Changed

@@ -3,20 +3,66 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.1]
+## [0.3.1]
 
 ### Fixed
 
-- **`principles/reference/tooling.md` no longer names `--since` for Stryker4s.** That flag belongs to
-  Stryker.NET only. Stryker4s has no git-diff scoping switch (re-verified against the Stryker4s
-  configuration options list on 2026-08-15); the table now says `none` so Phase 2 does not invent a
-  flag and fall back to a whole-project run. StrykerJS was already correct as `--incremental` (with
-  `--incrementalFile` noted).
+- **`principles/reference/tooling.md` no longer names `--since` for Stryker4s (#2749).** That flag
+  belongs to Stryker.NET only. Stryker4s has no git-diff scoping switch (re-verified against the
+  Stryker4s configuration options list on 2026-08-15); the table now says `none` so Phase 2 does
+  not invent a flag and fall back to a whole-project run. StrykerJS was already correct as
+  `--incremental` (with `--incrementalFile` noted). When the flag is `none`, Phase 2 uses the
+  manual protocol unless the tool can express Phase 1's changed-line scope — a file-level
+  `mutate`/path selector alone is not enough.
 - **Same table gains a Write-regime setting column** for Phase 0 of `/mutation-testing:audit`: the
   per-tool key to read (`inPlace` for StrykerJS) or `none — …` when the regime is a constant
   (Stryker.NET, Stryker4s, Infection by option enumeration; PIT's documented in-memory guarantee;
-  mutmut's ≤2.x / ≥3.0.0 execution-model boundary). Evidence classes stay separated per row rather
-  than blended into one cross-tool claim.
+  mutmut's ≤2.x / ≥3.0.0 execution-model boundary). The column resolves the full three-way regime
+  Phase 0 needs (out-of-tree / in-tree whole-file / in-tree per-mutant), not only out-of-tree vs
+  in-tree. Evidence classes stay separated per row rather than blended into one cross-tool claim.
+
+## [0.3.0]
+
+### Added
+
+- **Every persisted row leads its `Finding` cell with the rule id and the threshold that fired
+  (#2681).** The Phase 4 verdict class now selects a named contract rule —
+  `mutation-testing/audit/rule-survivor-productive`, `-unclassified`, `-arid`, `-equivalent` — and
+  the rule, not this skill, decides the tier. Severity becomes auditable from the emitted file alone:
+  a reader checks the row against its crosswalk entry with no return trip here. The id is written in
+  full every time; the contract defines no short form, because an emitted id is resolved against a
+  crosswalk row by exact match. It is **not** the `check:` value this skill's suppression proposals
+  use — that keys to the mutation operator, deliberately finer, because a suppression retires per
+  mutant while a rule classifies a disposition.
+- **Declined candidates are reported as counts per rule id** in the returned-no-result limb of
+  `## Surfaces`, so an equivalent or arid survivor is visible as coverage and readable as a trend
+  across runs. Per-mutant equivalence rationale stays in the Phase 5 report to the human, where an
+  argument belongs; the findings file carries the artifact.
+
+### Changed
+
+- **Phase 4's evidence bar now binds BOTH withholding verdicts, not only equivalence (#2681).** Arid
+  and equivalent are the two classes that withhold a survivor, and only equivalence had to cite
+  anything; an arid call could be asserted from inspection. Arid now requires a complete proposed
+  suppression entry — all five keys, id derived — whose `reason` names the specific behavior the
+  suite deliberately does not assert on, and a withholding verdict of either kind that cannot cite
+  its evidence is reported *unclassified*, which emits. Aridity was the easier label to reach for
+  precisely because its bar was a judgment about value rather than about observable behavior.
+- **The bar sits at classification, so one survivor has ONE disposition.** Placing it at persist time
+  would have split a single run in two: Phase 5 reports before Phase 6 persists, so the report would
+  say "arid" while the findings file said "unclassified" for the same mutant, with nothing to explain
+  the contradiction to an operator reading both. At classification, Phase 5 and Phase 6 speak from
+  one verdict — and the bar binds a bare run too, which is where an unevidenced withholding claim is
+  read by a human rather than by an apply relay.
+- **The tier argument moved to the contract's crosswalk and is no longer stated here.** Why a
+  productive survivor is IMPORTANT rather than CRITICAL is a rule-to-tier argument every consumer of
+  the rule needs, and it was stated in two places. This spoke keeps the one part a mutation run owns:
+  which Phase 4 class maps to which rule.
+- **The off-site remediation is a declared property, not a routed limitation.** The consumer now has
+  a disposition for a row whose fix belongs in another file (`review` 0.21.0), so this producer names
+  the covering test in `Action` and the consumer surfaces the row to a human. A surfaced mutation row
+  is the intended end of the route.
+
 
 ## [0.2.0]
 

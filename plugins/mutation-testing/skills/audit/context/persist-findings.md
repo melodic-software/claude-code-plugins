@@ -5,16 +5,9 @@ The mechanics of `--persist-findings` (SKILL.md "Phase 6 — Persist (opt-in)").
 **Read the producer contract before the first write** —
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
-obligations, and what a minimal producer may omit. The **self-ignore guard is not its rule to own** —
-the contract passes it through from the
-[topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards", which
-defines the artifact, the trigger, the once-per-session cadence, and the invalid-root case; the
-contract states the consequence for a producer and explicitly does not restate it. This file adds
-only what a mutation run decides for itself, and cites those owners for the rest.
-
-**Precedence, as this file's own posture rather than a rule either owner claims:** where this file
-and an owner doc disagree, the owner wins and this file is the defect. Neither owner asserts that
-over its adopters, so it is stated here as a choice, not reported as theirs.
+obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what a
+mutation run decides for itself, and cites the contract for the rest. Where the two disagree, the
+contract wins and this file is the defect.
 
 **If the contract cannot be fetched, do not write.** Report that the destination and the guard could
 not be resolved from their owner, and stop. Inventing a destination is the one failure the contract's
@@ -28,8 +21,7 @@ obligations are the ones a mutation run is most likely to skip, so they are name
 here: run the **whole** rung order rather than its last rung; take the **non-interactive collapse**
 for the rungs that confirm or ask, since a headless detector cannot answer; and honor the
 **self-ignore guard**, including the invalid-root rule that keeps it out of a consumer's root
-`.gitignore` — with the one carve-out named in "Prove the destination is outside tracked space",
-where no checkout governs the destination and the guard has nothing to guard.
+`.gitignore`.
 
 File name: `${TS}-mutation-survivors.md`, with `TS="$(date -u +%Y%m%dT%H%M%SZ)"` — colon-free and
 Windows-safe, so lexical sort equals chronological sort.
@@ -41,15 +33,11 @@ handed to the merge set — the same defect as writing into a file another produ
 
 ## Prove the destination is outside tracked space before writing to it
 
-This phase makes at most **two** writes — the findings file always, and that root's `.gitignore` when
-the self-ignore guard heals it — and the property to prove is that git picks up neither. **Each is
-proven before that write is made**, which is the strongest form available and not the same as proving
-both up front: on a fresh root the guard's file is exactly what makes the findings file's probe pass,
-so that probe cannot precede the guard. "At most" is load-bearing — where step 1 finds no governing
-checkout the guard does not run and the findings file is the only write. That write is still proven,
-by step 1 itself rather than by a probe: two independent signals agreeing that no checkout governs
-the path *is* the proof that none can track it, which is why step 1 needs both and why steps 2–5 have
-nothing left to ask there. The order is what makes the per-write form hold:
+This phase makes **two** writes — the findings file and, when the self-ignore guard heals a root, that
+root's `.gitignore` — and the property to prove is that git picks up neither. **Each is proven before
+that write is made**, which is the strongest form available and not the same as proving both up
+front: on a fresh root the guard's file is exactly what makes the findings file's probe pass, so that
+probe cannot precede the guard. The order is what makes the per-write form hold:
 
 0. **Make the resolved root a physical path first.** `cd` to its nearest existing ancestor, take
    `pwd -P`, and re-append the components below it. A lexical walk over a path whose ancestor is a
@@ -64,10 +52,8 @@ nothing left to ask there. The order is what makes the per-write form hold:
      run under the **ambient** environment. A toplevel it reports is a governing checkout even when
      the walk found none.
 
-   **No checkout governs the path only when both come back empty.** That is the permissive branch,
-   and on it exactly **one** write happens — the findings file. The self-ignore guard does not run
-   there at all, for the reason given below. Either signal alone is fail-open in a state the other
-   sees: the walk cannot see a working
+   **No checkout governs the path only when both come back empty**; then, and only then, both writes
+   proceed. Either signal alone is fail-open in a state the other sees: the walk cannot see a working
    tree designated by `GIT_WORK_TREE`/`GIT_DIR`, where nothing in the path has a `.git` at all yet git
    reports tracked files there; `rev-parse` cannot tell "no repository" from a missing directory, a
    dangling `gitdir:`, or a discovery limit, all of which are exit 128. They do not fail on the same
@@ -106,16 +92,7 @@ nothing left to ask there. The order is what makes the per-write form hold:
 2. **Reject a root-equivalent `memory_dir`** — the contract's invalid-root rule, judged against `T`
    rather than the invoking worktree, since a root that is *another* checkout's toplevel would heal
    into *that* repo's root `.gitignore`.
-3. **Prove the guard's write before the guard makes it**, with the probe addressed to `T` in the
-   command itself:
-
-   ```sh
-   # T came from the walk — clear the variables that would redirect git elsewhere
-   env -u GIT_DIR -u GIT_WORK_TREE git -C T ls-files -- <the resolved root>
-   # T came from rev-parse THROUGH those variables — keep them, they are what names T
-   git -C T ls-files -- <the resolved root>
-   ```
-
+3. **Prove the guard's write before the guard makes it:** `git -C T ls-files -- <the resolved root>`.
    **Exit 0 with empty output** proceeds; **exit 0 with any output** means the root holds tracked
    files — a source directory, where healing `*` rewrites the ignore semantics of files the consumer
    owns — and refuses; **any other exit** means the probe did not evaluate the path and also refuses,
@@ -139,20 +116,9 @@ nothing left to ask there. The order is what makes the per-write form hold:
    [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
    owns where that guard may heal; what is stated here is only how this producer discharges it before
    its own writes.
-4. **Create the memory root**, then **run the self-ignore guard only if step 1 found a governing
-   checkout**, then create the destination directory. Steps 2–4 do not apply on the permissive
-   branch: with no checkout there is no root-equivalence to judge, no index to query, and no guard to
-   run — go straight from step 1 to the findings-file write.
-5. **Prove the findings file**, addressed the same way step 3 is:
-
-   ```sh
-   # T from the walk
-   env -u GIT_DIR -u GIT_WORK_TREE git -C T check-ignore -q -- <the exact intended file path>
-   # T from rev-parse through the environment
-   git -C T check-ignore -q -- <the exact intended file path>
-   ```
-
-   **Write only on exit 0.**
+4. **Create the memory root**, **run the self-ignore guard**, then create the destination directory.
+5. **Prove the findings file:** `git -C T check-ignore -q -- <the exact intended file path>`, and
+   **write only on exit 0.**
 
 **Why step 1 needs the walk as well as `rev-parse`, and trusts neither alone.** `rev-parse` fails
 identically — exit 128 — for "there is no repository", for "that directory does not exist", and for a
@@ -174,14 +140,12 @@ consumer supports. Anchoring to the checkout that governs also answers the case 
 cannot see at all: an external root that sits inside *another* checkout, whose tracked space is just
 as real.
 
-**`git -C` is not by itself an anchor**, which is why steps 3 and 5 carry `env -u` in the command
-rather than a note beside it. `GIT_DIR` and `GIT_WORK_TREE` are honored ahead of `-C` — an absolute
-`GIT_DIR` is not relativized against the `-C` target — so with either set, `git -C T` answers about a
-different repository entirely. The asymmetry with step 1 is deliberate and must not be tidied away:
-steps 3 and 5 ask *what does `T` think of this path*, so a foreign `GIT_DIR` corrupts the answer,
-while step 1 asks *does any checkout govern this path at all*, and an environment-designated working
-tree is one of the states it exists to detect. Stripping the variables there would blind the signal
-added to see them.
+**`git -C` is not by itself an anchor.** `GIT_DIR` and `GIT_WORK_TREE` override it: with either set,
+`git -C T` answers about a different repository entirely. Run each checkout's probes under the
+environment that actually addresses it — the ambient one for a checkout `rev-parse` found *through*
+those variables, and with them cleared for a checkout the walk found on disk. Do not simply strip
+them: an environment-designated working tree is a real tree that really picks writes up, which is the
+whole reason step 1 asks `rev-parse` under the ambient environment rather than a scrubbed one.
 
 **Three outcomes at step 5, and three distinct reports.** Exit 0 writes. Exit 1 means *the
 destination is tracked space*, and is reported as that. Any other exit means *the probe did not
@@ -223,9 +187,10 @@ it rather than leaving it behind unannounced.
   is what keeps two survivors in one file two rows rather than one merged gist.
 - **`Surface(s)`** is `mutation-testing:audit` — the contract's self-naming obligation, so a collapsed
   row stays legible about who contributed it.
-- **`Finding`** states the mutation and the outcome: the operator, the before → after fragment, and
-  that the covering tests still passed. Neither `Finding` nor `Action` carries the Phase 4 reviewer's
-  reasoning — the row is the artifact, not the argument for it.
+- **`Finding`** leads with the rule id and what fired it, then states the mutation and the outcome:
+  the operator, the before → after fragment, and that the covering tests still passed. Neither
+  `Finding` nor `Action` carries the Phase 4 reviewer's reasoning — the row is the artifact, not the
+  argument for it.
 - **`Action` names the covering test file.** Phase 1 already selected and cached the covering tests,
   so this producer *knows* the path, and withholding it is pure information loss. Write the `Action`
   as the assertion to add **and** the file to add it to.
@@ -239,52 +204,69 @@ never carry a `Location` forward from a previous run — a fabricated row at a r
 a fix to code that has nothing to do with the finding, and it is indistinguishable from a real one to
 everything downstream.
 
-### Known limitation — the remediation site is not the finding site
+### The remediation site is not the finding site, and that is declared
 
-`Location` is the mutated node, while the missing assertion belongs in the test that covered it, a
-different file. A consumer that fences each remediation to its finding's `Location` therefore cannot
-reach this producer's target, and naming the target in `Action` prose makes that conflict explicit
-rather than resolving it — a prose cell is not a fence input. **Do not work around it here:** never
-retarget `Location` at the test file to make the fence fit (it would destroy the row's identity and
-its cross-producer dedup key), and never invent a column the shape does not define.
+`Location` is the mutated node, while the missing assertion belongs in the test that covered it — a
+different file. Every rule this producer emits under is therefore **off-site**, which the contract's
+crosswalk declares in its auto-applicable cell and the consumer reads as its instruction to surface
+the row rather than apply it. Naming the target in `Action` is the producer half of that contract,
+not a workaround.
 
-This pilot surfaced the gap; the disposition is routed to the findings-crosswalk work
-(`melodic-software/claude-code-plugins#2681`), which owns it. Until that lands, treat a
-mutation-survivor row as one a human dispositions.
+**Do not engineer around it:** never retarget `Location` at the test file to make a fence fit — it
+would destroy the row's identity and its cross-producer collapse key — and never invent a column the
+shape does not define. A surfaced mutation row reaching a human is the intended end of the route.
 
-## Tier and Confidence are computed from the verdict class
+## Tier and Confidence come from the rule, and the rule from the verdict class
 
-Phase 4 assigns every survivor exactly one class, and the class alone decides the row. Nothing in the
-finding's prose does:
+Phase 4 assigns every survivor exactly one class, and the class alone selects the rule. Nothing in
+the finding's prose does. **The rule then decides the tier, the disposition, and the
+auto-applicability — all of them in the contract's crosswalk, which is where the argument for each
+lives.** This table is the whole selection map, and it is the one part a mutation run owns:
 
-| Phase 4 class | Row | `Tier` |
-|---|---|---|
-| **Productive** | emitted | IMPORTANT |
-| **Unclassified** — equivalence claimed with no demonstration | emitted | IMPORTANT |
-| **Arid** | **none** | — |
-| **Equivalent** | **none** | — |
+| Phase 4 class | Rule id |
+|---|---|
+| **Productive** | `mutation-testing/audit/rule-survivor-productive` |
+| **Unclassified** | `mutation-testing/audit/rule-survivor-unclassified` |
+| **Arid** | `mutation-testing/audit/rule-survivor-arid` |
+| **Equivalent** | `mutation-testing/audit/rule-survivor-equivalent` |
 
-- **Productive is IMPORTANT, not CRITICAL.** The tiers are decided by test, first match winning, and
-  CRITICAL's test has three limbs — a concrete input, a caller, or a subsequent otherwise-correct
-  change that the defect makes produce a wrong result. A survivor satisfies none of them: it
-  demonstrates that *the suite* fails to detect a change, not that any input, caller, or future edit
-  produces a wrong result. The third limb is the near miss and still fails, because the defect it
-  needs is one in the source, and a survivor is evidence about the tests. IMPORTANT's test then
-  matches in the survivor's own words — behavior no test covers.
-- **Unclassified ranks with productive, not below it.** Reaching for "equivalent" is the standard way
-  this technique manufactures false confidence (see Gotchas), so ranking an undemonstrated
-  equivalence claim beneath a demonstrated gap would let the claim bury the finding.
-- **Arid emits no row** — not because it is unimportant, but because its only remediation is a
-  suppression entry this skill proposes and never writes unprompted, accepted by the user per
-  "Remediation — delegated". Handing it to an apply relay would launder that consent gate. Phase 5
-  still shows every arid survivor and its proposed entry to the human, so the human loses nothing.
-- **Equivalent emits no row.** It is not a defect; emitting it would manufacture a finding.
+**The class alone is the key because the evidence bar is already in it.** Both withholding classes
+reach this phase having met their demonstration requirement, because SKILL.md "Phase 4" applies that
+requirement at classification and reports a claim that cannot meet it as *unclassified* — so no
+survivor arrives here labelled arid or equivalent without its evidence. That placement is deliberate
+and load-bearing for the contract's fail-safe criterion: Phase 5 reports and Phase 6 persists from
+one classification, so a survivor has **one** disposition rather than one in the report and another
+in the findings file, and the bar binds a bare run too, which is where an unevidenced withholding
+claim is read by a human.
 
-**The map is deliberately flat.** Every emitted row makes the same claim — behavior no test covers —
-so every emitted row carries the same tier. Manufacturing a spread would mean re-deriving tier from
-the finding's prose, which is exactly what a class-keyed map exists to prevent. Where the consuming
-project defines its own severity vocabulary, the contract's precedence rule binds this producer too:
-map to the project's tiers, with the baseline value above as the fallback.
+**Write the id in full.** The contract defines one form and no short one, because the crosswalk is a
+cross-producer registry and an emitted id is resolved against a row by exact match. This is **not**
+the `check:` value a suppression uses — that keys to the mutation operator (see "Remediation —
+delegated"), deliberately finer, because a suppression retires per mutant while a rule classifies a
+disposition.
+
+**Every emitted row leads its `Finding` cell with the rule id and the threshold that fired** — for
+this producer the threshold is the mutant's executed state and the class Phase 4 assigned, in the
+run's own values (the operator, the surviving state, the covering tests that passed). Reading the row
+against its crosswalk entry is then the whole severity audit, with no return trip to this skill.
+
+Two consequences the crosswalk states that a run must actually carry out:
+
+- **A DEMONSTRATED arid or equivalent verdict emits no row** — and only a demonstrated one. Arid's
+  only remediation is a suppression entry this skill proposes and never writes unprompted, accepted
+  by the user per "Remediation — delegated"; Phase 5 still shows every arid survivor and its proposed
+  entry to the human, so nothing is lost. Equivalent is not a defect. Those two are reported as
+  declined-candidate counts, below; an undemonstrated one is not declined at all and emits under the
+  rule the next bullet names.
+- **An unevidenced withholding claim never reaches this phase as a withholding class.** Phase 4 owns
+  that bar for both classes and reports a claim it cannot meet as *unclassified*, which maps to
+  `mutation-testing/audit/rule-survivor-unclassified` and emits at IMPORTANT. Do not re-apply the bar
+  here and do not soften it: reaching for a withholding label is the standard way this technique
+  manufactures false confidence (see Gotchas), and the requirement is what stops the claim from
+  burying the finding.
+
+Where the consuming project defines its own severity vocabulary, the contract's precedence rule binds
+this producer too: map to the project's tiers, with the crosswalk's value as the fallback.
 
 **`Confidence` is `high` on every emitted row.** Phase 3 executed the mutant and recorded its state,
 so each row cites an executed mutant, and the contract's omission branch — for a producer that fired
@@ -324,10 +306,21 @@ files mutated, mutants generated, survivors, suppressed, and anything a cap drop
 run goes in that section's returned-no-result limb with its cause. Keep the section's stated line
 form; only the values are this producer's to choose.
 
+**Declined candidates go in the returned-no-result limb as counts per rule id** — `2 declined
+(mutation-testing/audit/rule-survivor-equivalent), 1 declined
+(mutation-testing/audit/rule-survivor-arid)` — never as per-mutant rationales. The
+contract's "A candidate that is not a finding" owns why: a count is what a trend across runs can be
+read from, and a section carrying one line per surface stops being that the moment it carries an
+argument per mutant. **Only a demonstrated verdict is counted here** — an undemonstrated arid or
+equivalence claim is a row, not a decline, so counting it would report a candidate as declined while
+it sits in the findings table. The rationale for each withholding judgment, of either kind, goes in
+the Phase 5 report to the human, which is where an argument belongs; the file carries the artifact.
+
 Omit `tier:` — a mutation run has no lifecycle-tier analogue, and the consumer renders an absent one
 as unstated rather than guessing. Omit `## By dimension` — there is one dimension. Omit
 `## Unparsed` — nothing goes unparsed here: every survivor is a structured record from Phase 3, and a
-survivor whose equivalence claim lacked evidence is a row, not raw text.
+survivor whose withholding claim lacked its evidence, arid or equivalent, is a row rather than raw
+text.
 
 ## Re-running
 
@@ -339,8 +332,8 @@ and never read the consumer's ledger to decide what to write.
 
 Tracked source is byte-identical to the Phase 0 snapshot on three limbs, none of them assumed:
 Phase 3 verified restoration against that snapshot, nothing in this phase edits tracked source, and
-each write this phase made — the findings file, and the guard's `.gitignore` where a governing
-checkout was found — was proven outside tracked space before that write was made. The first limb is why this phase can describe a tree at all — a
+each of this phase's two writes — the findings file and the guard's `.gitignore` — was proven outside
+tracked space before that write was made. The first limb is why this phase can describe a tree at all — a
 run whose restoration did not verify ends in failure at Phase 3 and never reaches here, so a findings file
 never claims `Location`s against source left mutated. The third is
 not traded for a findings file either: a destination that cannot be proven outside tracked space is
