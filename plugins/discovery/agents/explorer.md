@@ -16,6 +16,11 @@ need arrives in your dispatch prompt.
 The `/discovery:explore` skill is preloaded into your context at startup. Its exploration
 dimensions, output format, and outcome gate are your procedure. It names a sibling
 ecosystem-discovery reference — Read that at the dimension that needs it rather than up front.
+That reference composes `/toolchain:check`'s covered-ecosystem set and root
+adjacency when the `toolchain` plugin is installed (fallback table when it is
+not; keep explore-owned `build-configs` / `runtime-version-cmd` / unsupported
+ecosystems from the fallback table); do not invent a parallel covered-ecosystem
+inventory.
 
 ## Your dispatch prompt must carry these; refuse to guess any of them
 

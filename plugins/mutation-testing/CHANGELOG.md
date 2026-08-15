@@ -3,7 +3,7 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.1]
+## [0.3.2]
 
 ### Fixed
 
@@ -27,6 +27,24 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 - **A two-hop pointer now names each owner directly.** The node-kind vocabulary is enumerated in the
   `principles` skill's `scaling-and-suppression.md`; `context/suppression.md` owns the rule that a
   survivor fitting none is not arid. Phase 4 previously attributed both to the latter.
+
+## [0.3.1]
+
+### Fixed
+
+- **`principles/reference/tooling.md` no longer names `--since` for Stryker4s (#2749).** That flag
+  belongs to Stryker.NET only. Stryker4s has no git-diff scoping switch (re-verified against the
+  Stryker4s configuration options list on 2026-08-15); the table now says `none` so Phase 2 does
+  not invent a flag and fall back to a whole-project run. StrykerJS was already correct as
+  `--incremental` (with `--incrementalFile` noted). When the flag is `none`, Phase 2 uses the
+  manual protocol unless the tool can express Phase 1's changed-line scope — a file-level
+  `mutate`/path selector alone is not enough.
+- **Same table gains a Write-regime setting column** for Phase 0 of `/mutation-testing:audit`: the
+  per-tool key to read (`inPlace` for StrykerJS) or `none — …` when the regime is a constant
+  (Stryker.NET, Stryker4s, Infection by option enumeration; PIT's documented in-memory guarantee;
+  mutmut's ≤2.x / ≥3.0.0 execution-model boundary). The column resolves the full three-way regime
+  Phase 0 needs (out-of-tree / in-tree whole-file / in-tree per-mutant), not only out-of-tree vs
+  in-tree. Evidence classes stay separated per row rather than blended into one cross-tool claim.
 
 ## [0.3.0]
 
