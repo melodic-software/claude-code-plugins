@@ -1,12 +1,12 @@
 ---
-description: "Run diff-scoped mutation analysis and report surviving mutants — the code under test is always restored, tracked source is never modified, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: 'run mutation testing', 'are my tests actually checking this', 'mutation score for this change', 'my coverage is high but I do not trust it', 'audit test quality', 'persist the surviving mutants for the fix pass', after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (also write the survivors as a findings file the review fix pass consumes)."
+description: "Run diff-scoped mutation analysis and report surviving mutants — the code under test is restored and the restoration verified — tracked source is either byte-identical at the end or the run fails naming what it could not restore, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: 'run mutation testing', 'are my tests actually checking this', 'mutation score for this change', 'my coverage is high but I do not trust it', 'audit test quality', 'persist the surviving mutants for the fix pass', after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (also write the survivors as a findings file the review fix pass consumes)."
 argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: test
-  summary: Report surviving mutants on the diff without touching tracked source, survivors triaged
+  summary: Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged
 ---
 
 ## Pre-computed context
@@ -37,16 +37,16 @@ Arguments: `$ARGUMENTS`
 Three properties, stated first because everything below depends on them:
 
 1. **Read-only with respect to tracked source.** A mutant is applied, measured, and reverted.
-   Every revert is verified against the Phase 0 snapshot, so a run **either** ends with tracked
-   source byte-identical to tracked source at the start **or** ends in failure naming what it could
-   not restore — never in a reported outcome over edited source. The first revert that cannot be
-   verified is that failure: no later phase runs and nothing is persisted
-   ([Phase 3](#phase-3--execute)). Per the
+   Restoration is verified against the Phase 0 snapshot at the earliest point the configured write
+   regime permits, so a run **either** ends with tracked source byte-identical to tracked source at
+   the start **or** ends in failure naming what it could not restore — never in a reported outcome
+   over edited source. The first tracked path that cannot be confirmed restored is that failure: no
+   later phase runs and nothing is persisted ([Phase 3](#phase-3--execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
    (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its two writes — the findings file,
    and the self-ignore guard's own `.gitignore` when it heals a root — are each **proven outside
-   tracked space before either is made**, never in tracked source and never in a file another
+   tracked space before that write is made**, never in tracked source and never in a file another
    producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
@@ -74,6 +74,14 @@ stale.
 check compares against, and the rest of this skill refers to it by that name. It is taken before the
 first mutant is applied and never re-taken: a snapshot refreshed mid-run would absorb the very
 difference it exists to detect.
+
+**Resolve the write regime here too**, because it decides which restoration gate
+[Phase 3](#phase-3--execute) can run: does the configured tool write mutants out of tree, rewrite the
+working file whole once, or apply and revert it per mutant? Read the project's own config for it —
+the out-of-tree default of most tools is user-changeable, so the tool's reputation is not the answer.
+State the resolved regime in the scope report. Refuse when the regime is in-tree per mutant and the
+tool offers neither per-mutant observability nor interrupt safety: the gate that regime requires
+cannot be run, and a check that cannot run is not a check.
 
 ## Phase 1 — Scope
 
@@ -115,46 +123,64 @@ skill's `tooling.md`: prefer statement/block removal, then relational-operator i
 ## Phase 3 — Execute
 
 For each mutant: apply, run the cached covering tests, record the state
-(killed / survived / no-coverage / timeout / invalid), revert, **verify the revert**.
+(killed / survived / no-coverage / timeout / invalid), revert. **Where the mutant was written to
+tracked source, verify the revert** — which regime below says when that is.
 
 **This phase is a deterministic gate and is deliberately not delegated.** The tests' pass/fail *is*
 the verdict; there is no judgment to bias and no independence to buy. Spending a subagent here would
 be delegation cost with nothing bought — the narrow exemption the fresh-eyes rule states for
 mechanical judgments.
 
-Revert must be guaranteed on every exit path — pass, fail, error, or interrupt. Apply the mutation
-as a patch reverted in a trap or `finally`, never as an edit depending on a later step to clean up.
-**The verification below runs on those paths too.** A trap fires outside the loop, so the loop's own
-comparison never sees a crashed or interrupted run; the trap's revert is followed by the same
-comparison, and a trap-path revert whose comparison does not match — or cannot be made — is a failed
-restore reported as one. A revert that merely *ran* is not a revert that *worked*, and the crash path
-is where that difference is most likely to bite.
-
 **Verify restoration against the Phase 0 snapshot, not against a clean tree.** Phase 0 rejects a
 dirty *target* but permits unrelated dirty files elsewhere, so an unconditional "tree is clean" probe
 would report a restoration failure on a repo that merely has unrelated work in progress — and, worse,
 would teach the reader to ignore that line. Compare the after-state against that snapshot: equality
-is success, any difference in a mutated path is a failed restore.
+is success, and any difference in a **tracked** path is a failed restore. Tracked, not merely
+mutated — a run that leaves an adjacent tracked file modified has broken the same invariant, and
+untracked scratch output is not tracked source and does not trip it.
 
-**How often to compare depends on who owns the mutant loop, and both answers are mandatory.**
+**When that comparison can run depends on where the mutant is written — a property of the configured
+tool that Phase 0 resolves from the project's config, never from the tool's reputation.** One axis,
+three regimes:
 
-- **This skill owns the loop** (`tool: manual`, and any path where this skill applies and reverts):
-  compare **after every revert, inside the loop** — a failed restore means the trap itself failed, so
-  the next mutant would be applied on top of unrestored source, every verdict after that describes a
-  tree nobody wrote, and an end-of-loop comparison cannot even say which mutant broke it.
-- **The configured tool owns the loop** ([Phase 2](#phase-2--generate)'s diff-scoped delegation —
-  the tool applies, runs, and reverts internally and returns only results): this skill cannot
-  interpose, so it compares **once, when the tool returns**, and that comparison is required rather
-  than a nicety. Say what it cannot do instead of pretending otherwise: it cannot name the mutant
-  that broke the restore and it cannot stop the tool mid-run, so its report says the run is
-  unattributable as well as failed. Never treat the tool's own exit status as the restoration
-  verdict — a harness that reverts by writing the file back reports success for a write it never
-  re-read.
+- **Out-of-tree** — every established tool in its default configuration: the mutant goes to a
+  sandbox, a temporary file, or memory, and tracked source is only ever read. There is no revert to
+  verify because there was no write. The gate is a **Phase 0 precondition that the out-of-tree mode
+  is actually in effect** — the setting is user-changeable, so read it — plus **one end-of-run
+  comparison** as a backstop against crash paths no tool documents. Where a tool has no in-place
+  option at all, that precondition is a constant rather than a check.
+- **In-tree, whole-file** — a tool that rewrites the working file once and restores it itself. One
+  write and one tool-owned restore, so an **end-of-run comparison** is right and sufficient. Run it
+  in a `finally`, not on the return path: "end of run" here means **however the run ends**, including
+  a tool that is killed and never returns. This is the regime with a real in-tree write and a restore
+  nobody controls, so an abnormal exit is exactly when the comparison matters most — and it is the
+  one path where a missing check would be silent rather than loud. Phase 0 says plainly that the
+  restore is best-effort: signal coverage is undocumented, and a second interrupt can abort it
+  mid-move.
+- **In-tree, per mutant** — `tool: manual`, and any tool that applies and reverts the working file
+  once per mutant. This is the only regime where pile-on is real, and the in-loop rule applies in
+  full: **compare after every revert**, because a failed revert means the trap itself failed, the
+  next mutant lands on unrestored source, and every verdict after that describes a tree nobody wrote.
+  Guarantee the revert on every exit path — apply as a patch reverted in a trap or `finally`, never
+  an edit depending on a later step — and run the comparison on those paths too: a trap fires outside
+  the loop, so the loop's own comparison never sees a crashed run, and a revert that merely *ran* is
+  not a revert that *worked*. Where such a tool offers neither per-mutant observability nor interrupt
+  safety, Phase 0 **refuses** rather than gates: a check that cannot run is not a check.
 
-**The first failed restore ends the run.** It is terminal, not a finding reported beside the others:
+**Do not go hunting for a per-mutant revert on the first two regimes.** Under mutant schemata — the
+architecture the established tools use — every mutant is written once and selected at run time by an
+environment variable or switch, so there is no Nth write and no Nth revert to observe, and the
+per-mutant hooks those tools expose report a *result*, not a filesystem event. An end-of-run
+comparison loses nothing there: the in-loop check buys localisation and pile-on prevention across
+many write/revert cycles, and where there was one write neither exists. Never substitute the tool's
+own exit status for the comparison — a harness that restores by writing the file back reports success
+for a write it never re-read.
 
-- Apply no further mutants — binding on the skill-owned loop; on the tool-owned one the run is
-  already over, which is precisely why the remaining two are what carry the rule there.
+**The first failed restore ends the run**, identically in all three regimes. Only *when* the
+comparison can run varies. It is terminal, not a finding reported beside the others:
+
+- Apply no further mutants — which bites only where mutants are applied one at a time; the remaining
+  two carry the rule everywhere else.
 - Enter no later phase — no triage, no ranked report, and **no findings file, `--persist-findings`
   or not**.
 - Return a **failure** verdict naming every unrestored path and the recovery command. The failure is
@@ -247,11 +273,11 @@ Report the covered-code score as the headline and the plain mutation score besid
 answers "are my tests weak", the second mixes that with "do I have tests at all".
 
 Then stop, unless `--persist-findings` was passed. Remediation is delegated. This phase is reached
-only by a run whose reverts all verified; a failed restore ended it at Phase 3.
+only by a run whose restoration Phase 3 verified; a failed restore ended it there.
 
 ## Phase 6 — Persist (opt-in)
 
-Runs **only** under `--persist-findings`, and only on a run whose every revert Phase 3 verified.
+Runs **only** under `--persist-findings`, and only on a run whose restoration Phase 3 verified.
 Without the flag this phase does not exist and Phase 5 is the end of the run; without a verified
 restoration there is no Phase 5 either, because the run already ended in failure. The flag is not the
 only gate, and treating it as one is the defect: it decides whether *conforming* findings are
@@ -270,8 +296,8 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-**both** of the phase's writes — the findings file and the self-ignore guard's `.gitignore` — are
-proven outside tracked space before **either** is made, against the checkout that governs the
+**each** of the phase's two writes — the findings file and the self-ignore guard's `.gitignore` — is
+proven outside tracked space before **that** write is made, against the checkout that governs the
 destination rather than the invoking worktree, and with the guard's own write proven before the guard
 heals rather than reported afterwards (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
@@ -283,7 +309,7 @@ nothing, while a run that examined **none** writes nothing at all; and an existi
 overwritten.
 
 Persisting does not trade away the property in "The contract this skill holds": this phase is
-reachable only from a run whose every revert verified, and a destination that cannot be proven
+reachable only from a run whose restoration verified, and a destination that cannot be proven
 outside tracked space is not written to at all.
 
 **Known limitation, routed not solved.** A mutation finding's remediation lands in the covering test,
