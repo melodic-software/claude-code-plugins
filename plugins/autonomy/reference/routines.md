@@ -140,6 +140,10 @@ class on the catalog's axes, then apply the rules below.
 
 ### Access to prerequisites
 
+Which routine identities can run against a given repository — and why — is owned by
+[routine prerequisite resolution](prerequisite-resolution.md); this section states only the
+catalog consequence when a prerequisite is missing.
+
 - `repo` — the [`L2` unattended floor](guardrails/isolation-ladder.md#unattended-floor)
   applies; no connector prerequisite.
 - `prod`, `product`, `org`, `ext` — a connector is a prerequisite, with the entitlement

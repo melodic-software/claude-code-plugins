@@ -3,6 +3,24 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **Routine prerequisite resolution contract** (`reference/prerequisite-resolution.md`, #2717).
+  Owns the per-repo, per-scheduling-surface question the catalog's Access-to-prerequisites
+  section left unanswered: which routine identities can run here, and why. Grain is one
+  resolution per routine identity on its bound surface; candidate set is `v1` only, with
+  `join:` rows reporting under the `deferred-class` marker (not a verdict) and `not-a-routine`
+  rows out of domain. Verdicts are fail-closed — `supported` / `conditional` / `unsupported` /
+  `unknown` — with `unknown` first-class and a positive verdict required to be reachable.
+  Declared narrows and fills; a probe that ran and returned negative caps every declaration
+  (contradiction emitted as a finding). Composes owning seams (toolchain, `claude-config`,
+  tracker, setup slices) presence-gated; never admission data; recomputes at every consumption;
+  scheduled runs read committed surfaces only. One pointer in `routines.md` §Access to
+  prerequisites; one README bullet. Implementation (leaf sections, generated emission, resolver,
+  setup slice) remains in follow-on issues.
+
 ## [0.17.0]
 
 ### Added
