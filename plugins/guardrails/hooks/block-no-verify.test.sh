@@ -253,7 +253,7 @@ run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
 
 # --- ps::git_command_is_readonly — the `readonly-ok` sink scope (SECURITY) -----
 # This guard is the ONLY caller that passes `readonly-ok`, so it is the only place
-# a mis-classified subcommand is observable. Every case below carries a SINK
+# a wrongly-classified subcommand is observable. Every case below carries a SINK
 # TRIGGER (`& { … }`, a `{}` pipeline, or `()` grouping): without one the command
 # takes the Bash-parser path and never reaches ps::git_command_is_readonly at all,
 # which would make the assertion vacuous.
