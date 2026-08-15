@@ -69,8 +69,9 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box) — there is no API.
-Either edit **Default** in place or add a new environment named e.g. **Melodic** so Default stays
-pristine:
+Edit **Default** in place — the paste-once rollout settles on one account-wide Default rather
+than a separate named environment (see
+[One environment per account?](../prompts/cloud-bootstrap-rollout.md#one-environment-per-account)):
 
 - **Network access**: **Custom**, with **Also include default list of common package managers**
   checked, plus these hosts: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
