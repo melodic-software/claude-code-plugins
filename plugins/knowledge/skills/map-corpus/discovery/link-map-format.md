@@ -14,9 +14,9 @@ of what it saw. An agent classifies; it does not get to choose what needs classi
    user says so), snapshot it into the slice under `discovery/`.
 2. **Rung 2 — sitemap**: fetch the site's sitemap (`sitemap.xml`, `sitemap.md`, or a
    robots.txt-declared location), snapshot likewise.
-3. **Rung 3 — in-page link extraction: NOT IN V1.** Deferred question Q19 (Brief): reaching it
+3. **Rung 3 — in-page link extraction: NOT IN V1.** Deferred and USER-RESERVED: reaching it
    requires either a presence-gated `/firecrawl:firecrawl map` seam or a recorded reason to
-   reimplement — USER-RESERVED. The trigger is the first corpus whose seeds resolve neither an
+   reimplement. The trigger is the first corpus whose seeds resolve neither an
    `llms.txt` nor a sitemap. Until then a corpus with neither artifact stops loudly at discovery.
 
 Fetching is the skill's job (WebFetch/curl per the skill's own text, channel recorded); parsing
@@ -91,7 +91,8 @@ nobody parsed.
 - `rows` — exactly one row per distinct URL across seeds + every discovery output. Each row:
   - `url` — normalized URL.
   - `rungs` — non-empty subset of `seed` | `llms-txt` | `sitemap-xml` | `sitemap-md`, the
-    provenance of every appearance. (`in-page` joins this enum only when Q19 is decided.)
+    provenance of every appearance. (`in-page` joins this enum only when the deferred rung-3
+    decision above is made.)
   - `classification` — exactly one of:
     - `in-corpus` — fetched, snapshotted, node-extracted, inventoried, queued for digestion.
     - `companion` — same corpus context but a different ingest type (e.g. a repo, a video);
@@ -111,12 +112,13 @@ same recorded deferral as the repo-tree enumeration rung). Checks:
 1. All inputs parse (duplicate JSON keys rejected at any depth); unknown or missing keys rejected
    in the link map, its rows, AND each discovery output; schema literals exact; seeds and row
    URLs must be in normalized form. Failures name the file/row; exit 2 for unusable input.
-2. **Classification coverage** (Brief criterion 2): every URL in every discovery output and every
-   seed has exactly one row; every row's URL traces back to at least one discovery output or the
-   seed list (no phantom rows); every row carries a valid classification and non-empty reason;
+2. **Classification coverage** — this gate's reason to exist: every URL in every discovery output
+   and every seed has exactly one row; every row's URL traces back to at least one discovery
+   output or the seed list (no phantom rows); every row carries a valid classification and
+   non-empty reason;
    every row's `rungs` match where the URL actually appeared, exactly.
 3. **Bounds**: `in-corpus` row count ≤ `bounds.max_resources`, else a named failure — the
-   bound-breach stop that forces the run back to the user (Brief criterion 6).
+   bound-breach stop that forces the run back to the user.
 4. A clean run prints what it exercised (files, row/URL counts, per-classification tally).
 
 Exit codes: 0 pass; 1 named check failures; 2 unusable input; 3 internal gate bug.

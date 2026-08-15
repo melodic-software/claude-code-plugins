@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.12.2]
+
+### Changed
+
+- **`map-corpus` states its own deferred decisions instead of pointing outside itself.** The skill
+  cited an authoring-time planning document by label, which no consumer ever receives — an
+  unresolvable reference on a shipped surface. Each site is now self-contained: the deferred rung-3
+  decision states its own fork (a presence-gated `/firecrawl:firecrawl map` seam versus a recorded
+  reimplementation), its user-reserved arbiter, and its trigger; the deferred repo-tree enumeration
+  rung states its trigger; the opaque `Q19` label is dropped from `SKILL.md`,
+  `discovery/link-map-format.md`, `discovery/check_linkmap.py`, and the eval set; and the
+  whole-snapshot hash in `extraction/node-manifest-format.md` now points at
+  `reference/citation-shape.md`, its actual owner. No behavior, schema, gate, exit code, or
+  argument changes.
+
 ## [0.12.1]
 
 ### Added

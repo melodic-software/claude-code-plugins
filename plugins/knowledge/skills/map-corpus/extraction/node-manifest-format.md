@@ -14,8 +14,8 @@ agent chose to enumerate.
    machine paths, locale-dependent text, or unordered collections enter the output. The snapshot is
    recorded by basename only.
 3. **Self-verifying spans.** `content_sha256` is SHA-256 over the raw snapshot bytes
-   `[start_byte, end_byte)`. `snapshot.sha256` is SHA-256 over the whole snapshot as fetched (the
-   Brief's captured content-hash assumption).
+   `[start_byte, end_byte)`. `snapshot.sha256` is SHA-256 over the whole snapshot as fetched — the
+   hash the tracked citation shape carries (`${CLAUDE_PLUGIN_ROOT}/reference/citation-shape.md`).
 4. **Document order.** `nodes` is ordered by `start_byte`; `index` is the 0-based position.
 5. **Fail loudly.** Empty snapshot, unreadable file, unknown extension, non-UTF-8 BOM, CR-only
    line endings, or a partition self-check failure exits non-zero with a message. The extractor
