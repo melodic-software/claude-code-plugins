@@ -10,9 +10,12 @@ argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]
 Verify and manage the audit's optional Git-format configuration. Setup owns only this file; it never
 edits Claude Code settings, `pluginConfigs`, Git remotes, branches, worktrees, or the installed plugin.
 
-The config is optional — with none, the audit runs against the current project by default — so its
-absence is a reported INFO, never a FAIL. `check` inspects read-only; `apply` creates or updates the
-file, then re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then
+The config file itself is optional to *create*, but a no-argument `/repo-fleet-hygiene:audit` now
+requires scope from somewhere: CLI bare path / `--root` / `--repo`, or `fleet.root` / `fleet.repo`
+entries in a consumed config. Absence of every config on the ladder is therefore INFO for `check`
+(nothing to validate yet) and a hard failure for a subsequent no-argument audit — not a silent
+default to the current project. `check` inspects read-only; `apply` creates or updates the file,
+then re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then
 the write. All non-interactive: when the arguments fully specify the change, `apply` proceeds without
 prompting.
 

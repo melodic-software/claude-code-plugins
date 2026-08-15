@@ -32,10 +32,16 @@ Audit the current project repository (zero configuration):
 /repo-fleet-hygiene:audit
 ```
 
-Audit one or more repository-tree roots:
+With no CLI scope, the audit uses `fleet.root` / `fleet.repo` from the consumed config. With
+neither CLI nor config scope, it stops and names how to set scope — it does not treat the session
+project directory as an implicit `--repo`.
+
+Audit one or more repository-tree roots (flag or bare path; drive roots are allowed):
 
 ```text
 /repo-fleet-hygiene:audit --root <repo-root>/github.com --root <other-root>/internal
+/repo-fleet-hygiene:audit D:
+/repo-fleet-hygiene:audit ~/src
 ```
 
 Audit exact repositories without recursive discovery:

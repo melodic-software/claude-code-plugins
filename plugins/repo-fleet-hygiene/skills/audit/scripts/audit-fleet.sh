@@ -6,7 +6,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: audit-fleet.sh [--root DIR]... [--repo DIR]... [--config FILE]
+Usage: audit-fleet.sh [DIR]... [--root DIR]... [--repo DIR]... [--config FILE]
                       [--canonical github.com/owner/repo=PATH]...
                       [--max-depth 1..12] [--project-dir DIR]
                       [--detail] [--plan-file PATH]
@@ -14,6 +14,9 @@ Usage: audit-fleet.sh [--root DIR]... [--repo DIR]... [--config FILE]
 
 Read-only. Discovers repositories, resolves optional canonical checkouts, and
 reports confidence-tiered branch, worktree, and GitHub-identity findings.
+
+A bare DIR is equivalent to --root DIR. Windows drive letters like D: are
+normalized to D:/ so discovery starts at the drive root, not "cwd on D:".
 
 Default human output is a per-repository rollup (counts by finding kind,
 collapsed targets, and an explicit CLEAN / N candidates / BLOCKED verdict)
@@ -26,13 +29,26 @@ the path; otherwise a temp file is used and named in the report).
 dry-run approval artifact (branches before worktrees). It performs no
 mutation; re-derive OIDs at real execution time.
 
---project-dir supplies the session's project directory, used for the
-project-scoped config rung and as the target when no scope is given. It is
-passed in rather than read from the environment, which does not carry it.
-An empty value means "no project directory": the project config rung is
-skipped, and a run with no other scope stops rather than falling back to the
-current working directory.
+When no CLI scope is given, config-supplied fleet.root / fleet.repo is the
+machine-wide default. With neither CLI nor config scope, the run stops and
+names how to set scope — it does not audit the session project directory.
+
+--project-dir supplies the session's project directory for the project-scoped
+config rung only (not as an implicit audit target). It is passed in rather
+than read from the environment, which does not carry it. An empty value means
+"no project directory": the project config rung is skipped.
 EOF
+}
+
+# Windows drive-letter alone (D:) means "cwd on that drive" in shells; a fleet
+# discovery root means the volume root. Append / so -d and discovery agree.
+normalize_discovery_root() {
+  local p="$1"
+  if [[ "$p" =~ ^[A-Za-z]:$ ]]; then
+    printf '%s/' "$p"
+  else
+    printf '%s' "$p"
+  fi
 }
 
 fail() {
@@ -351,7 +367,7 @@ while [[ $# -gt 0 ]]; do
   # contributed nothing. A CLI typo stops the run, as everywhere else in this grammar.
   --root)
     [[ $# -ge 2 && -n "$2" ]] || fail "--root requires a directory"
-    ROOT_ARGS+=("$2")
+    ROOT_ARGS+=("$(normalize_discovery_root "$2")")
     shift 2
     ;;
   --repo)
@@ -408,7 +424,19 @@ while [[ $# -gt 0 ]]; do
     usage
     exit 0
     ;;
-  *) fail "unknown argument: $1" ;;
+  -*)
+    # Reject unknown dashed tokens; that is the injection boundary. Bare paths
+    # (including drive roots) are accepted below as --root equivalents (#2599).
+    fail "unknown argument: $1"
+    ;;
+  *)
+    # Bare positional path ≡ --root. An empty value is rejected rather than
+    # accepted-and-skipped so the header cannot claim a scope that contributed
+    # nothing.
+    [[ -n "$1" ]] || fail "bare path requires a directory"
+    ROOT_ARGS+=("$(normalize_discovery_root "$1")")
+    shift
+    ;;
   esac
 done
 
@@ -607,46 +635,28 @@ is_acked() {
   return 1
 }
 
-IMPLICIT_SCOPE=false
 UNRESOLVED_SCOPE=false
-SCOPE_FALLBACK_NOTE="so the audit fell back to this session's project directory as an exact repository target"
+SCOPE_FALLBACK_NOTE="so no repository scope resolved"
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
-  # No scope AND no project directory. $PWD is an agent session's incidental working directory, not
-  # a chosen scope, so falling back to it would audit wherever the shell happened to sit and report
-  # that as the project. Defer the rejection until reject_target is defined below, so the operator
-  # gets the same scope remedies the chosen-nothing case already earns.
-  if [[ -z "$PROJECT_DIR" ]]; then
-    UNRESOLVED_SCOPE=true
-    SCOPE_FALLBACK_NOTE="and no project directory was available, so no repository scope resolved"
-  fi
-  REPO_ARGS+=("$PROJECT_DIR")
-  # The implicit current-project default is CLI-equivalent, not config-sourced: it is appended
-  # after CLI_REPO_COUNT was captured, so count it there or the zero-configuration audit from a
-  # non-Git directory would degrade to a stale-config-entry (with an empty source) instead of
-  # hard-failing like the explicit-path case it stands in for. It carries its own origin so a
-  # rejection can name the remedies: the operator never chose this path, so the bare path in a
-  # CLI-shaped error tells them nothing about how to supply a scope.
-  CLI_REPO_COUNT=$((CLI_REPO_COUNT + 1))
-  IMPLICIT_SCOPE=true
+  # No CLI and no config-supplied fleet.root/fleet.repo. A fleet tool's no-argument form is
+  # machine-wide config scope when present; without it, refuse the old project-directory-as-exact
+  # --repo default rather than auditing an unintended tree (#2599).
+  UNRESOLVED_SCOPE=true
 fi
 
 # Scope provenance: which rung actually supplied the audited roots/repos. This is a different
 # question from which config FILE was consumed, and the header used to answer it with a fixed
 # literal that could contradict the run's own inputs two lines later. Config-supplied scope is
 # ADDITIVE to any CLI-supplied scope, so both contributions are named rather than one masking the
-# other.
-if [[ "$IMPLICIT_SCOPE" == "true" ]]; then
-  SCOPE_PROVENANCE="project directory (no --root, --repo, or config-supplied scope)"
-else
-  cli_scope_count=$((CLI_ROOT_COUNT + CLI_REPO_COUNT))
-  config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
-  SCOPE_PROVENANCE=""
-  [[ "$cli_scope_count" -gt 0 ]] &&
-    SCOPE_PROVENANCE="command line ($cli_scope_count --root/--repo argument(s))"
-  if [[ "$config_scope_count" -gt 0 ]]; then
-    [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
-    SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
-  fi
+# other. Bare positional paths count as command-line --root equivalents.
+cli_scope_count=$((CLI_ROOT_COUNT + CLI_REPO_COUNT))
+config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
+SCOPE_PROVENANCE=""
+[[ "$cli_scope_count" -gt 0 ]] &&
+  SCOPE_PROVENANCE="command line ($cli_scope_count --root/--repo argument(s))"
+if [[ "$config_scope_count" -gt 0 ]]; then
+  [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
+  SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
 fi
 
 path_key() {
@@ -799,19 +809,20 @@ reject_target() {
     if [[ -n "$CONFIG_FILE" ]]; then
       cat >&2 <<EOF
 
-No --root or --repo was given, and the consumed config ($CONFIG_SOURCE: $CONFIG_FILE) carries no
-fleet.root or fleet.repo entries, $SCOPE_FALLBACK_NOTE. Add scope to that config:
+No bare path, --root, or --repo was given, and the consumed config ($CONFIG_SOURCE: $CONFIG_FILE)
+carries no fleet.root or fleet.repo entries, $SCOPE_FALLBACK_NOTE. Add scope to that config:
 
   git config --file "$CONFIG_FILE" --add fleet.root <dir>   bounded recursive repository discovery
   git config --file "$CONFIG_FILE" --add fleet.repo <dir>   one exact repository or worktree
 
-Or pass --root <dir> / --repo <dir> for a one-off scope.
+Or pass a bare path / --root <dir> / --repo <dir> for a one-off scope.
 EOF
     else
       cat >&2 <<EOF
 
-No --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give it a scope instead:
+No bare path, --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give it a scope instead:
 
+  <dir>            bare path — same as --root (drive roots like D: are allowed)
   --root <dir>     bounded recursive repository discovery
   --repo <dir>     one exact repository or worktree
   --config <file>  a Git-format fleet config listing fleet.root / fleet.repo entries
@@ -825,7 +836,7 @@ EOF
 
 if [[ "$UNRESOLVED_SCOPE" == "true" ]]; then
   reject_target default \
-    "no scope resolved: no --root or --repo, no config-supplied scope, and no project directory (pass --project-dir, or supply a scope directly)"
+    "no scope resolved: no bare path, --root, or --repo, and no config-supplied fleet.root/fleet.repo"
 fi
 
 # main_worktree <dir>: the repository-of-record checkout for <dir>, or non-zero when the porcelain
@@ -932,13 +943,7 @@ repo_index=0
 for repo in "${REPO_ARGS[@]:-}"; do
   if [[ -n "$repo" ]]; then
     if [[ "$repo_index" -lt "$CLI_REPO_COUNT" ]]; then
-      # IMPLICIT_SCOPE is set only when no --root and no --repo were given, so the sole CLI-counted
-      # entry in that case is the implicit default and no explicit target can be mislabelled.
-      if [[ "$IMPLICIT_SCOPE" == "true" ]]; then
-        add_target "$repo" default
-      else
-        add_target "$repo" cli
-      fi
+      add_target "$repo" cli
     else
       add_target "$repo" config
     fi
@@ -995,6 +1000,23 @@ for root in "${ROOT_ARGS[@]:-}"; do
     root_index=$((root_index + 1))
     continue
   fi
+  # discover_repositories deliberately skips symlinks (-L). Accepting a symlink root here would
+  # record ROOT_LABELS and exit "0 repositories" even when the target tree is full of repos (#2599).
+  # Non-readable/non-executable directories are the same false-empty class.
+  if [[ -L "$root" ]]; then
+    [[ "$root_index" -ge "$CLI_ROOT_COUNT" ]] || fail "discovery root is a symlink (refused): $root"
+    STALE_CONFIG_PATHS+=("$root")
+    STALE_CONFIG_REASONS+=("configured fleet.root path is a symlink; discovery refuses symlinked roots")
+    root_index=$((root_index + 1))
+    continue
+  fi
+  if [[ ! -r "$root" || ! -x "$root" ]]; then
+    [[ "$root_index" -ge "$CLI_ROOT_COUNT" ]] || fail "discovery root is not traversable: $root"
+    STALE_CONFIG_PATHS+=("$root")
+    STALE_CONFIG_REASONS+=("configured fleet.root path is not readable/executable")
+    root_index=$((root_index + 1))
+    continue
+  fi
   root_index=$((root_index + 1))
   # Per-root visibility: attribute newly discovered repositories to this root so a root that
   # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
@@ -1006,9 +1028,11 @@ for root in "${ROOT_ARGS[@]:-}"; do
 done
 
 # An all-stale config (every entry deleted since the last run) must still produce a report whose
-# stale-config-entry findings tell the user what to remediate -- hard-fail only when there is
-# neither a target to audit nor a stale entry to report.
-if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 ]]; then
+# stale-config-entry findings tell the user what to remediate. A discovery root that exists but
+# contains no repositories is a valid empty audit ("0 repositories found"), not an error — the
+# operator named that tree (#2599). Hard-fail only when nothing was ever in scope: no roots walked,
+# no repos, and no stale/skip/bare-live entry to report.
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 && ${#ROOT_LABELS[@]} -eq 0 ]]; then
   fail "no Git working trees found in the requested scope"
 fi
 
