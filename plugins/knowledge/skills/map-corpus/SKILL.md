@@ -93,12 +93,14 @@ Seeds come in two kinds, told apart by their normalized path:
   decision — a presence-gated `/firecrawl:firecrawl map` seam with a documented in-skill fallback,
   versus a recorded reason this skill reimplements in-page extraction (a bare unguarded
   cross-plugin reference is barred, and `dependencies` are reserved for hard requires). This stop
-  IS that decision's trigger: report it and ask, never crawl unasked.
+  IS that decision's trigger: report it and ask, never crawl unasked. Full deferred-with-trigger
+  record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §1.
 - **Resource seed** (non-root path, e.g. a raw repo file URL) — itself a corpus resource: a
   link-map row with rung `seed`, no discovery at its origin. Human-enumerated resource seeds are
   the V1 ingress for repository files; a repo-tree enumeration rung (`git ls-tree` / tree API) is
   deferred, and its trigger is the first corpus whose repository half is too large to enumerate by
-  hand. **V1 requires at least one origin seed** — the link-map gate needs a discovery basis;
+  hand (full record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §2).
+  **V1 requires at least one origin seed** — the link-map gate needs a discovery basis;
   a resource-seeds-ONLY corpus is outside V1 mapper scope (recorded deferral in
   `discovery/link-map-format.md`): route those URLs to direct `/knowledge:docpage-digest` runs.
   **GitHub blob URLs:** seed the `raw.githubusercontent.com` form — a `blob` URL snapshots the
@@ -181,10 +183,15 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
 ## What this skill does NOT do
 
 - **Does not digest.** Verdicts and evidence tokens, yes; digests are `docpage-digest`'s job.
-- **Does not crawl in-page links.** Discovery is rungs 1–2; rung 3 is user-reserved (see Phase 1).
+  Renaming `docpage-digest` is deliberately out of scope here — see
+  `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §3.
+- **Does not crawl in-page links.** Discovery is rungs 1–2; rung 3 is user-reserved (see Phase 1;
+  `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §1).
 - **Does not commit or graduate.** The slice is untracked and self-ignoring.
 - **Does not route non-web ingest types.** A YouTube/course/book URL discovered in the corpus
-  is classified `companion` for the interview, never dispatched to sibling pipelines.
+  is classified `companion` for the interview, never dispatched to sibling pipelines
+  (cross-type routing and a shared ingest-slice contract are deferred —
+  `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §4–§5).
 
 ## Gotchas
 
