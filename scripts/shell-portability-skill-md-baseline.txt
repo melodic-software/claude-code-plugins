@@ -1,0 +1,52 @@
+# Grandfathered skill-markdown debt for scripts/check-shell-portability.sh
+# (#2704). Widening the gate onto plugins/*/skills/**/*.md newly surfaces
+# today's measured hits — mostly Windows path prose (`C:\Users\…`,
+# `HKCU\SOFTWARE\…`) that collide with the bare `\\b`/`\\s`/`\\w` token class,
+# intentional regex documentation in docs-hygiene rename-references, and a
+# handful of markdown-structure false positives (inline backticks / fenced
+# PowerShell `-Profile` joined across records by the shell quote tracker).
+# That is backlog, not a flag day: CI-facing modes (--all and <base-ref>) skip
+# these paths so NEW and CHANGED skill markdown is gated first; --paths never
+# consults this list (it is the audit tool that measured the debt).
+#
+# Each line is one exact repo-relative path, matched by full-string EQUALITY
+# (not prefix). An entry is a standing promise the debt is tracked; the gate
+# fails on a STALE entry (file missing, outside the scannable skill-md set, or
+# no longer carrying an unexcused hit), so the list can only shrink. Do NOT add
+# a path here to dodge the gate on NEW work — fix the construct, add a
+# `portability-ok: <reason>` site annotation, or a whole-file
+# `portability-scope: <reason>` declaration.
+
+plugins/claude-config/skills/audit-permission-grants/reference/criteria.md
+plugins/claude-config/skills/audit/reference/audit-checklist.md
+plugins/claude-config/skills/audit/SKILL.md
+plugins/claude-memory/skills/stateless/reference/official-guidance.md
+plugins/claude-memory/skills/stateless/SKILL.md
+plugins/claude-ops/skills/observability/context/data-sources.md
+plugins/claude-ops/skills/observability/context/operator-setup-retention.md
+plugins/claude-ops/skills/plugins/context/scope-semantics.md
+plugins/discovery/skills/explore/reference/ecosystem-discovery.md
+plugins/disk-hygiene/skills/clean/reference/safety-model.md
+plugins/disk-hygiene/skills/setup/SKILL.md
+plugins/docs-hygiene/skills/rename-references/context/apply.md
+plugins/docs-hygiene/skills/rename-references/context/audit.md
+plugins/docs-hygiene/skills/rename-references/context/audit-modes.md
+plugins/docs-hygiene/skills/rename-references/context/patterns.md
+plugins/docs-hygiene/skills/rename-references/context/triage.md
+plugins/docs-hygiene/skills/rename-references/SKILL.md
+plugins/education/skills/quiz-me/SKILL.md
+plugins/kindle-dedrm/skills/manage/references/troubleshooting.md
+plugins/kindle-dedrm/skills/manage/references/workflow.md
+plugins/knowledge/skills/course-digest/reference/adapters/discovery-checklist.md
+plugins/knowledge/skills/course-digest/reference/adapters/dometrain.md
+plugins/machine-health/skills/audit/README.md
+plugins/machine-health/skills/audit/references/shared/discovery-guide.md
+plugins/machine-health/skills/audit/references/shared/testing.md
+plugins/machine-health/skills/audit/references/windows/check-catalog.md
+plugins/machine-health/skills/audit/references/windows/elevation-matrix.md
+plugins/machine-health/skills/audit/references/windows/remediation-policy.md
+plugins/playwright/skills/playwright/reference/snapshots-and-refs.md
+plugins/skill-quality/skills/check/reference/fresh-eyes-declarations.md
+plugins/source-control/skills/setup/SKILL.md
+plugins/toolchain/skills/check/context/powershell.md
+plugins/work-items/skills/scan-todos/SKILL.md

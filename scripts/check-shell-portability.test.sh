@@ -1501,21 +1501,27 @@ else
 fi
 
 # =============================================================================
-# Scope resolution: --all excludes vendor/, non-.sh files stay out of scope
+# Scope resolution: --all excludes vendor/evals; skill .md is in scope (#2704)
 # =============================================================================
 
 fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/vendor"
+mkdir -p "$fx/scripts" "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
+  "$fx/plugins/alpha/skills/demo/context"
 cp "$SCRIPT" "$fx/scripts/"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/gate.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/vendor/upstream.sh"
-printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md" # non-.sh stays out of scope
+printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md" # non-skill .md stays out
+printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
+printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/context/run.md"
+printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/evals/adversarial.md"
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1)"
 rc=$?
 if [[ "$rc" -ne 0 ]] &&
   echo "$out" | grep -q 'gate.sh' &&
-  ! echo "$out" | grep -qE 'vendor/|notes\.md'; then
-  ok "--all scans gate.sh but excludes vendor/ and non-.sh files"
+  echo "$out" | grep -q 'SKILL\.md' &&
+  echo "$out" | grep -q 'context/run\.md' &&
+  ! echo "$out" | grep -qE 'vendor/|notes\.md|evals/'; then
+  ok "--all scans .sh and skill .md but excludes vendor/, evals/, and non-skill .md"
 else
   fail "--all exclusion set wrong (rc=$rc): $out"
 fi
@@ -1528,6 +1534,101 @@ if (cd "$fx" && SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/
   ok "an empty tree passes"
 else
   fail "an empty tree should pass"
+fi
+rm -rf "$fx"
+
+# --- diff-mode gates a changed skill markdown file (#2704) -----------------
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo/context"
+cp "$SCRIPT" "$fx/scripts/"
+out="$(
+  cd "$fx" &&
+    git init -q &&
+    git config user.email test@example.com &&
+    git config user.name test &&
+    git commit -q --allow-empty -m base &&
+    base="$(git rev-parse HEAD)" &&
+    printf '%s\n' 'stat -c %Y "$f"' >'plugins/alpha/skills/demo/context/mtime.md' &&
+    git add -A >/dev/null 2>&1 &&
+    git commit -q -m add-skill-md &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list 'stat[[:space:]]+-c')" bash scripts/check-shell-portability.sh "$base" 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'mtime\.md'; then
+  ok "diff-mode gates a changed skill markdown file (#2704)"
+else
+  fail "diff-mode should flag changed skill .md (rc=$rc): $out"
+fi
+rm -rf "$fx"
+
+# --- skill-md baseline grandfathers backlog; --paths still sees it (#2704) -
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo"
+cp "$SCRIPT" "$fx/scripts/"
+printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
+printf '%s\n' 'plugins/alpha/skills/demo/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
+)"
+rc=$?
+if [[ "$rc" -eq 0 ]] && echo "$out" | grep -q 'No unexcused'; then
+  ok "skill-md baseline grandfathers a known hit under --all"
+else
+  fail "baselined skill .md should pass --all (rc=$rc): $out"
+fi
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --paths \
+      plugins/alpha/skills/demo/SKILL.md 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'PORTABILITY:.*SKILL\.md'; then
+  ok "--paths ignores the skill-md baseline (audit mode)"
+else
+  fail "--paths should still flag a baselined file (rc=$rc): $out"
+fi
+# Stale: clean up the file but leave the baseline entry.
+printf '%s\n' 'echo clean' >"$fx/plugins/alpha/skills/demo/SKILL.md"
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'STALE BASELINE'; then
+  ok "a cleaned-up skill-md baseline entry fails as stale"
+else
+  fail "stale baseline entry should fail (rc=$rc): $out"
+fi
+# Stale: missing file under --all.
+rm -f "$fx/plugins/alpha/skills/demo/SKILL.md"
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q "names a missing file"; then
+  ok "a missing skill-md baseline entry fails as stale under --all"
+else
+  fail "missing baseline entry should fail under --all (rc=$rc): $out"
+fi
+# Restore a hot file, then move it under vendor/ (outside scannable set).
+mkdir -p "$fx/plugins/alpha/skills/demo"
+printf '%s\n' 'word-boundary \\b token' >"$fx/plugins/alpha/skills/demo/SKILL.md"
+mkdir -p "$fx/plugins/alpha/skills/demo/vendor"
+mv "$fx/plugins/alpha/skills/demo/SKILL.md" "$fx/plugins/alpha/skills/demo/vendor/SKILL.md"
+# Baseline still names the old (now missing) path — covered above. Point the
+# baseline at the vendor path to exercise the outside-scannable branch.
+printf '%s\n' 'plugins/alpha/skills/demo/vendor/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'outside the scannable skill-md set'; then
+  ok "a vendor/-moved skill-md baseline entry fails as outside-scannable"
+else
+  fail "outside-scannable baseline entry should fail (rc=$rc): $out"
 fi
 rm -rf "$fx"
 
