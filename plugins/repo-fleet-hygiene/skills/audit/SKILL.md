@@ -116,11 +116,11 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still reported, never suppressed; acks
    never touch non-404/403 failures or successful-response evidence.
 3. **Merged branch:** one aliased `gh api graphql` query per repository page of local branches
-   (up to 100 `headRefName` aliases per call, `first:1`, `states:[MERGED]`). GraphQL's
-   `headRefName` argument is an **exact** match — never the search API's prefix-matching `head:`
-   qualifier, so `feature/auth` and `feature/auth-v2` never conflate. Measured rate cost stays 1
-   per call (nodeCount equals the alias count); that stays well under GitHub's documented
-   500,000-node ceiling and 5,000-point/hour primary limit. This retires the REST
+   (up to `MERGED_PR_GRAPHQL_ALIAS_PAGE` `headRefName` aliases per call, `first:1`,
+   `states:[MERGED]`). GraphQL's `headRefName` argument is an **exact** match — never the search
+   API's prefix-matching `head:` qualifier, so `feature/auth` and `feature/auth-v2` never conflate.
+   Measured rate cost stays 1 per call (nodeCount equals the alias count); that stays well under
+   GitHub's documented 500,000-node ceiling and 5,000-point/hour primary limit. This retires the REST
    `merged-pr-window-truncated` disclosure and the privacy-gated per-branch `--head` fallback:
    every non-default local branch the operator asked about is queried by exact name, including
    heads GitHub auto-deleted and a later fetch pruned. Fail closed when `gh`/GraphQL is
