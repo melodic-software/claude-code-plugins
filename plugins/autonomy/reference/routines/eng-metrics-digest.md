@@ -42,6 +42,25 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 
 Derived row: `C1`.
 
+## Prerequisites
+
+Per-identity needs under
+[routine prerequisite resolution](../prerequisite-resolution.md). Axes derive through the
+catalog mapping rules; the isolation floor and `executor_class` merge cap are cited from the
+guardrail slice, never re-derived. Resolution verdicts use `supported` | `conditional` |
+`unsupported` | `unknown`.
+
+Single-posture identity: `eng-metrics-digest` (bare class token).
+
+| Axis | Value |
+|---|---|
+| Access class | `repo` |
+| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| Repo needs | repository activity signals; CI-config presence (ownerless repo-file probe); tracker binding via the work-item tracker seam — the digest collates all three; absence of any one is `unknown` or `unsupported` per probe outcome |
+
 ## Admission and escalation
 
 Admission disposition and fan-out caps for the derived class come from the

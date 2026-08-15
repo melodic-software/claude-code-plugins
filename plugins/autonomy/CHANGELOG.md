@@ -3,6 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **Per-identity prerequisite sections on every `v1` routine leaf** (#2718). Each of the ten
+  leaves under `reference/routines/` gains a `## Prerequisites` section owning Access class,
+  isolation floor, connector entitlements (and which rung owns each), `executor_class` merge
+  cap, and repo needs — derived through the Phase 1 vocabulary in
+  `prerequisite-resolution.md`, with floors and the merge cap cited from the guardrail slice
+  rather than re-derived. Posture-divergent classes (`dependency-update-wave`,
+  `doc-freshness-sweep`, `ci-health-review`) show distinct prerequisite sets per identity.
+  Verdict tokens are `supported` | `conditional` | `unsupported` | `unknown`.
+
 ## [0.18.0]
 
 ### Added
