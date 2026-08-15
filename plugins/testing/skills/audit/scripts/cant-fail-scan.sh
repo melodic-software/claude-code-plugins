@@ -42,9 +42,11 @@
 #                completed scan (advisory), 2 on an environment/scan gap
 #   --check      gate mode, fail closed: exit 1 when a gating rule fired
 #                (zero-assertion / recomputed-expectation; --strict adds
-#                mock-only-oracle), exit 2 when the scan could not fully read
-#                its inputs (unreadable files, walk errors) or could not run,
-#                exit 0 only for a fully read, finding-free scan
+#                mock-only-oracle), exit 2 when the scan could not run, could
+#                not fully read its inputs (unreadable files, walk errors), or
+#                examined 0 test files (a wrong or empty root and a healthy
+#                suite must not share an exit code), exit 0 only for a fully
+#                read, finding-free scan that examined at least one test file
 #   --findings   emit a findings file conforming to the detector-findings
 #                contract on stdout (coverage block on stderr); the caller
 #                resolves the destination per the contract
@@ -71,8 +73,9 @@ cant-fail-scan.sh — detect tests that cannot fail.
 Usage: cant-fail-scan.sh [--check [--strict] | --findings | --count | --help]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
-  --check     exit 1 when a gating rule fired, 2 when inputs could not be fully read or the
-              scan could not run, 0 only for a fully read finding-free scan (fail closed)
+  --check     exit 1 when a gating rule fired, 2 when the scan could not run, could not fully
+              read its inputs, or examined 0 test files, 0 only for a fully read finding-free
+              scan of at least one test file (fail closed)
   --strict    with --check: mock-only-oracle findings gate too (advisory otherwise)
   --findings  emit a detector-findings-conforming findings file on stdout; coverage on stderr;
               refuses (exit 2) when no test file was examined or no branch is checked out
@@ -148,6 +151,13 @@ fi
 WALK_ERR="$(mktemp)"
 trap 'rm -f "$WALK_ERR"' EXIT
 
+# Location values are REPO-relative, not scan-root-relative: the fix action
+# fences each remediation to Location, so a subdirectory scan root must not
+# shorten the path. git's own prefix avoids any path-format reconciliation
+# (drive-letter vs POSIX) a toplevel string comparison would need. Outside a
+# repository the prefix is empty and Location degrades to root-relative.
+REPO_PREFIX="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
+
 # --- Walk ---------------------------------------------------------------------
 # Pruned: VCS/dependency/build trees, memory tiers, and evals/fixtures corpora
 # (a detector's fixture corpus is deliberately defective test code; scanning it
@@ -191,7 +201,7 @@ x_cf3=0
 scan_one() {
   # scan_one <lang> <file>
   local lang="$1" file="$2" rel kind slug line detail
-  rel="${file#"$ROOT"/}"
+  rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
     unreadable=$((unreadable + 1))
     printf 'unreadable: %s\n' "$rel" >>"$WALK_ERR"
@@ -326,6 +336,14 @@ emit_findings_file() {
     printf 'ERROR: --findings refused — 0 test files were examined, so there is no coverage to persist and a findings file would assert a scan that never ran.\n' >&2
     exit 2
   fi
+  if [[ "$blocks" -eq 0 && "$walk_errors" -gt 0 ]]; then
+    # Dead-engine guard: files were enumerated but nothing parsed and errors
+    # occurred. Emitting here would hand the consumer a conforming file that
+    # asserts zero findings from a scan that read nothing — a caller that
+    # redirects stdout and drops the exit code would persist that lie.
+    printf 'ERROR: --findings refused — 0 test blocks were parsed and %d error line(s) occurred; the scan did not actually read its inputs.\n' "$walk_errors" >&2
+    exit 2
+  fi
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf -- '---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n## Findings\n\n' "$ts" "$branch"
   printf '| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n'
@@ -377,8 +395,12 @@ case "$mode" in
       printf '\nFAIL: %d gating finding(s).\n' "$gating"
       exit 1
     fi
+    if [[ "$examined" -eq 0 ]]; then
+      printf '\nFAIL (closed): 0 test files were examined — a scan of nothing is not a clean gate. A wrong or empty scan root and a healthy suite must not share an exit code; point the gate at a tree that contains test files.\n'
+      exit 2
+    fi
     if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
-      printf '\nFAIL (closed): 0 gating findings, but %d input(s) could not be read and %d error line(s) occurred — an unread input is not a clean one.\n' \
+      printf '\nFAIL (closed): 0 gating findings, but %d unreadable test file(s) and %d walk/read/engine error line(s) — an input the scan could not fully read is never a clean one.\n' \
         "$unreadable" "$walk_errors"
       exit 2
     fi

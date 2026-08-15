@@ -27,6 +27,9 @@ BEGIN {
   file_mock = 0
   prev_raw = ""
   FATAL = 0
+  sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only
+  sr_depth = 0
+  last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
 
   # Two-argument equality helpers for the recomputed-expectation rule; one
   # combined case-sensitive list, matched by substring lookup, so a language
@@ -35,7 +38,9 @@ BEGIN {
   TAUT_FUNCS = "assert.equal|assert.strictEqual|assert.deepEqual|assert.deepStrictEqual|assertEqual|assertEquals|assertAlmostEqual|Assert.Equal|Assert.StrictEqual|Assert.Same|Assert.AreEqual|Assert.AreSame"
 
   if (LANG_ID == "js") {
-    ANY_ERE = "expect[[:space:]]*\\(|[Aa]ssert|[Ss]hould|[Vv]erify|[Tt]hrows|rejects|resolves|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate|fail[[:space:]]*\\("
+    # The trailing t.<method> alternative is the AVA / node-tap vocabulary —
+    # those runners assert through the test-context object, not expect/assert.
+    ANY_ERE = "expect[[:space:]]*\\(|[Aa]ssert|[Ss]hould|[Vv]erify|[Tt]hrows|rejects|resolves|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate|fail[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])t[[:space:]]*\\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)"
     MOCKA_ERE = "toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast|sinon\\.assert|calledOnce|calledTwice|calledThrice|calledWith|callCount"
     MOCKC_ERE = "jest\\.(mock|fn|spyOn)|vi\\.(mock|fn|spyOn)|sinon\\.(stub|spy|fake|mock)|createMock|\\.mockReturnValue|\\.mockResolvedValue|\\.mockImplementation"
     # Full mock-interaction chains, removed before deciding whether a real
@@ -45,18 +50,25 @@ BEGIN {
     STRIP_ERE = "expect[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)[[:space:]]*(\\.[[:space:]]*not)?[[:space:]]*\\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|sinon\\.assert\\.[A-Za-z]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)"
     TEST_START_ERE = "(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\\.[[:space:]]*(only|concurrent|failing|sequential))*[[:space:]]*(\\.[[:space:]]*each[[:space:]]*\\([^)]*\\)[[:space:]]*)?\\("
     TEST_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xit|xtest)[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\\.[[:space:]]*(skip|todo)"
+    SUITE_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\\.[[:space:]]*skip)[[:space:]]*\\("
   } else if (LANG_ID == "py") {
     ANY_ERE = "[Aa]ssert|\\.raises|\\.warns|self\\.fail|[Ee]xpect|[Vv]erify|[Ss]hould|[Cc]heck|[Ee]nsure|[Vv]alidate"
     MOCKA_ERE = "assert_called|assert_any_call|assert_has_calls|assert_not_called|assert_awaited|call_count|mock_calls|\\.called([^A-Za-z0-9_]|$)"
     MOCKC_ERE = "MagicMock|AsyncMock|Mock\\(|create_autospec|patch\\(|patch\\.object|mocker\\."
-    STRIP_ERE = "\\.assert_(called|any_call|has_calls|not_called|awaited)[a-z_]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|assert[[:space:]][^\\n]*(call_count|mock_calls|\\.called)[^\\n]*"
+    # Second alternative: an assert statement WHOSE SUBJECT is a mock property.
+    # The property tokens carry word-boundary guards so a real attribute that
+    # merely contains one (result.called_back) is never stripped.
+    STRIP_ERE = "\\.assert_(called|any_call|has_calls|not_called|awaited)[a-z_]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|assert[[:space:]][^\\n]*([^A-Za-z0-9_](call_count|mock_calls)([^A-Za-z0-9_]|$)|\\.called([^A-Za-z0-9_]|$))[^\\n]*"
     TEST_START_ERE = "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+test[A-Za-z0-9_]*[[:space:]]*\\("
     SKIP_DECOR_ERE = "^[[:space:]]*@[[:space:]]*(pytest[[:space:]]*\\.[[:space:]]*mark[[:space:]]*\\.[[:space:]]*)?skip(if)?([^A-Za-z0-9_]|$)|^[[:space:]]*@[[:space:]]*unittest[[:space:]]*\\.[[:space:]]*skip"
   } else if (LANG_ID == "cs") {
     ANY_ERE = "[Aa]ssert|\\.Should|Should\\.|[Ee]xpect|Verify|Received|MustHaveHappened|MustNotHaveHappened|Throws|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate"
     MOCKA_ERE = "\\.Verify[[:space:]]*\\(|\\.VerifyAll|\\.VerifyNoOtherCalls|\\.Received|\\.DidNotReceive|MustHaveHappened|MustNotHaveHappened"
     MOCKC_ERE = "new[[:space:]]+Mock<|Mock\\.Of<|Substitute\\.For<|A\\.Fake<"
-    STRIP_ERE = "\\.[[:space:]]*Verify(All|NoOtherCalls)?(<[^<>]*>)?[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|\\.[[:space:]]*Received[^\\n]*|\\.DidNotReceive[^\\n]*|MustHaveHappened[A-Za-z]*[^\\n]*|MustNotHaveHappened[A-Za-z]*[^\\n]*"
+    # Each mock-interaction chain is stripped as a BOUNDED expression — the
+    # Received/DidNotReceive forms include one chained call — never to end of
+    # line, so a same-line real assertion after the chain survives the strip.
+    STRIP_ERE = "\\.[[:space:]]*Verify(All|NoOtherCalls)?(<[^<>]*>)?[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|\\.[[:space:]]*Received[[:space:]]*(\\([^()]*\\))?(\\.[A-Za-z_]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\))?|\\.[[:space:]]*DidNotReceive[[:space:]]*(\\(\\))?(\\.[A-Za-z_]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\))?|MustHaveHappened[A-Za-z]*[[:space:]]*(\\([^()]*\\))?|MustNotHaveHappened[A-Za-z]*[[:space:]]*(\\([^()]*\\))?"
     ATTR_ERE = "^[[:space:]]*\\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)"
     ATTR_ANY_ERE = "^[[:space:]]*\\["
     ATTR_SKIP_ERE = "Skip[[:space:]]*=|Ignore"
@@ -76,26 +88,54 @@ BEGIN {
 # template literals, triple quotes, verbatim strings) are file-scoped globals.
 # ---------------------------------------------------------------------------
 
-function mask_js(s,    out, i, c, c2, n) {
+function mask_js(s,    out, i, c, c2, n, inclass) {
   out = ""; n = length(s); i = 1
+  last_sig = ""  # per line: a regex literal cannot span lines, nor can the operator before it
   while (i <= n) {
     c = substr(s, i, 1); c2 = substr(s, i, 2)
     if (S_bc) { if (c2 == "*/") { S_bc = 0; out = out "  "; i += 2 } else { out = out " "; i++ }; continue }
     if (S_tpl) {
       if (c == "\\") { out = out "  "; i += 2; continue }
-      if (c == "`") { S_tpl = 0; out = out " "; i++; continue }
+      if (c == "`") { S_tpl = 0; out = out " "; i++; last_sig = "`"; continue }
       out = out " "; i++; continue
     }
     if (S_str) {
       if (c == "\\") { out = out "  "; i += 2; continue }
-      if (c == S_q) S_str = 0
+      if (c == S_q) { S_str = 0; last_sig = c }
       out = out " "; i++; continue
     }
     if (c2 == "//") { while (i <= n) { out = out " "; i++ }; continue }
     if (c2 == "/*") { S_bc = 1; out = out "  "; i += 2; continue }
     if (c == "'" || c == "\"") { S_str = 1; S_q = c; out = out " "; i++; continue }
     if (c == "`") { S_tpl = 1; out = out " "; i++; continue }
+    if (c == "/") {
+      # Regex literal, decided by what precedes it: after an operator or opening
+      # delimiter a '/' cannot be division. Mask through the closing '/', where
+      # '/' inside a [...] class is literal and '\' escapes; flags follow. An
+      # unterminated candidate masks to end of line — a string-ish context
+      # either way. Wrongly reading division as a regex would mask real code,
+      # so the trigger set stays narrow (no '>', no keyword heuristics).
+      if (last_sig == "" || index("(,=:[!&?;{|", last_sig) > 0) {
+        out = out " "; i++
+        inclass = 0
+        while (i <= n) {
+          c = substr(s, i, 1)
+          if (c == "\\") { out = out "  "; i += 2; continue }
+          if (c == "[") inclass = 1
+          else if (c == "]") inclass = 0
+          else if (c == "/" && !inclass) {
+            out = out " "; i++
+            while (i <= n && substr(s, i, 1) ~ /[a-z]/) { out = out " "; i++ }
+            break
+          }
+          out = out " "; i++
+        }
+        last_sig = "/"
+        continue
+      }
+    }
     out = out c; i++
+    if (c != " " && c != "\t") last_sig = c
   }
   S_str = 0  # ' and " never span lines
   return out
@@ -276,9 +316,11 @@ function emit(kind, slug, line, detail) {
 
 function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, names, i, p, fn, expr) {
   tkind = (raw_line ~ EXEMPT_ERE || prev_raw ~ EXEMPT_ERE) ? "X" : "F"
-  # expect(A).toBe(A) family
+  # expect(A).toBe(A) family. The masked match position indexes into the RAW
+  # line — masking is length-preserving, so the columns align, and an earlier
+  # "expect" inside a string cannot shadow the real call site.
   if (LANG_ID == "js" && match(masked_line, /expect[[:space:]]*\(/) > 0) {
-    p = index(raw_line, "expect")
+    p = RSTART
     if (p > 0) {
       m = p + 6
       while (substr(raw_line, m, 1) ~ /[[:space:]]/) m++
@@ -350,7 +392,7 @@ function eval_block(    blk, stripped, mocka_n, kind) {
     gsub(STRIP_ERE, "", stripped)
     if (stripped !~ ANY_ERE) {
       mocka_n = count_matches(blk, MOCKA_ERE)
-      emit(kind, "mock-only-oracle", block_line, "test '" block_name "': all " mocka_n " assertion(s) are mock-interaction assertions")
+      emit(kind, "mock-only-oracle", block_line, "test '" block_name "': " mocka_n " mock-interaction assertion(s), no assertion on a real collaborator detected")
     }
   }
 }
@@ -399,14 +441,27 @@ function cs_method_name(s,    t) {
       append_block(masked, raw)
       depth += brace_delta(masked)
       if (depth <= 0) close_block()
-    } else if (masked ~ TEST_START_ERE && masked !~ TEST_SKIP_ERE) {
-      match(masked, TEST_START_ERE)
-      open_block(FNR, first_quoted(substr(raw, RSTART)))
-      append_block(masked, raw)
-      depth = brace_delta(substr(masked, RSTART))
-      if (depth <= 0) close_block()
+      taut_scan(raw, masked)
+    } else if (sr) {
+      # inside a skipped suite: consume braces until the suite closes; open
+      # nothing and judge nothing — a test that does not run is not judged
+      sr_depth += brace_delta(masked)
+      if (sr_depth <= 0) sr = 0
+    } else if (masked ~ SUITE_SKIP_ERE) {
+      match(masked, SUITE_SKIP_ERE)
+      sr = 1
+      sr_depth = brace_delta(substr(masked, RSTART))
+      if (sr_depth <= 0) sr = 0
+    } else {
+      if (masked ~ TEST_START_ERE && masked !~ TEST_SKIP_ERE) {
+        match(masked, TEST_START_ERE)
+        open_block(FNR, first_quoted(substr(raw, RSTART)))
+        append_block(masked, raw)
+        depth = brace_delta(substr(masked, RSTART))
+        if (depth <= 0) close_block()
+      }
+      taut_scan(raw, masked)
     }
-    taut_scan(raw, masked)
   } else if (LANG_ID == "py") {
     if (in_test && masked !~ /^[[:space:]]*$/ && indent_of(raw) <= def_indent) close_block()
     if (!in_test) {

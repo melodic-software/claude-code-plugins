@@ -20,8 +20,10 @@ All notable changes to the `testing` plugin are documented here. Format follows
   incumbent for the skip-vacating shape there. Detection bias errs toward not firing (generous
   assertion tokens, string/comment masking, skipped tests unjudged), guarded by a negative fixture
   that must produce zero findings. `--check` is the fail-closed gate mode: exit 1 on a gating
-  finding, exit 2 when inputs could not be fully read (an unread input is never a clean one),
-  exit 0 only for a fully read clean scan — the liveness-assertion contract's fail-loud limb.
+  finding, exit 2 when inputs could not be fully read or when 0 test files were examined (an
+  unread input is never a clean one, and a wrong or empty scan root must not share exit 0 with a
+  healthy suite), exit 0 only for a fully read clean scan of at least one test file — the
+  liveness-assertion contract's fail-loud limb.
   `--persist-findings` (explicit override; bare invocation stays read-only per the `audit` verb
   contract) writes a detector-findings-conforming file — `Tier` looked up flat per rule
   (IMPORTANT), `Confidence` high or omitted (never low), root-relative `Location`, cell escaping,

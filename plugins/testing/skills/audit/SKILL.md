@@ -73,9 +73,10 @@ The machine-checkable gate the [liveness-assertion contract](https://raw.githubu
 
 - exit **1** — a gating rule fired (`zero-assertion`, `recomputed-expectation`; `--strict` adds
   `mock-only-oracle`).
-- exit **2** — the scan could not run or could not fully read its inputs (unresolved root,
-  unreadable test files, walk errors). **An unread input is never a clean one.**
-- exit **0** — only a fully read, finding-free scan.
+- exit **2** — the scan could not run, could not fully read its inputs (unresolved root, unreadable
+  test files, walk errors), or examined **0 test files** — a wrong or empty scan root and a healthy
+  suite must not share an exit code. **An unread input is never a clean one.**
+- exit **0** — only a fully read, finding-free scan of at least one test file.
 
 ## Persisting findings (`--persist-findings`)
 
@@ -92,7 +93,7 @@ consumes:
    the **non-interactive collapse** where this context cannot ask or persist config, and honor the
    **self-ignore guard** including its invalid-root rule.
 3. Generate the content with `cant-fail-scan.sh --findings` (it computes `branch:` verbatim from git,
-   `date:` at write time, per-rule `Tier`/`Confidence`, root-relative `Location`, cell escaping, and
+   `date:` at write time, per-rule `Tier`/`Confidence`, repo-relative `Location`, cell escaping, and
    the `## Surfaces` coverage line; it omits `tier:`, `## By dimension`, and `## Unparsed` — no
    analogue, omit rather than fabricate). Write it to
    `<resolved-dir>/${TS}-cant-fail-tests.md` with `TS="$(date -u +%Y%m%dT%H%M%SZ)"`.
@@ -125,9 +126,10 @@ line above it, or inside the body — the same recorded-decision shape as the re
   named `checkout()` is suppressed by the `check` token. That is the chosen direction; do not
   tighten the token list to chase recall at precision's expense.
 - **`recomputed-expectation` v1 is the decidable core** — textually identical actual/expected on one
-  line (chains spanning lines are deliberately not matched). `x = f(a); assert x == f(a)` is the
-  same defect and is not yet detected.
-- **Tests inside a skipped suite (`describe.skip`) are still judged** — block-level skip detection is
-  per-test v1. Annotate or unskip.
+  line (chains spanning lines are deliberately not matched, and only the first `expect` per line is
+  examined). `x = f(a); assert x == f(a)` is the same defect and is not yet detected.
+- **Skips are honored at both levels** — test-level (`it.skip`/`x`-prefixed/`@skip`/`[Fact(Skip=…)]`)
+  and suite-level (`xdescribe`/`describe.skip`/`context.skip`/`suite.skip`): a test that does not
+  run is not judged.
 - **Fixture corpora under `evals/fixtures/` are pruned** — a detector's planted-defect fixtures are
   not the consumer's defects. Point `$CANT_FAIL_SCAN_ROOT` at one explicitly to scan it.
