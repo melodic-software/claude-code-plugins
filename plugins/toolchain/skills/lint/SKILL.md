@@ -117,7 +117,6 @@ For ecosystem-specific gotchas, reference `/toolchain:check` — its `context/<e
 
 **Go `*.go` filter for format/code-fix:** ecosystem `globs` include `go.mod` / `go.sum`, but `gofmt -w` and `golangci-lint run --fix` reject non-source inputs (`gofmt` exits 2 on `go.mod`; `golangci-lint` requires named files in one directory). When substituting `<files>` into Go `format-cmd` / `code-fix-cmd`, drop every non-`.go` path first. For `golangci-lint run --fix`, further partition the remaining `.go` paths by parent directory and invoke once per directory (never pass a multi-directory file list in one process). If filtering leaves zero `.go` files, skip that Go format/code-fix command and report the skip rather than invoking the tool on module metadata alone.
 
-
 Per-project walking (ecosystems with `project-discovery`):
 
 - python: walk each `pyproject.toml` directory and run check/fix from there
