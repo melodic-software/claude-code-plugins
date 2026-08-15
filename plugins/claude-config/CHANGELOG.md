@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.3]
+
+### Fixed
+
+- **`audit-pass`: non-git refusal narrative no longer cites a missing state-key rung.** The gate
+  still refuses a non-git target (non-zero, before Phase 0, naming the path and the cost). The
+  justifying list dropped the stale claim that §3 / `lib/state-key.sh` has no no-git fallback — the
+  shared keyer already has a `nonrepo/` rung — and now argues from the four remaining losses: no
+  HEAD baseline, no Class 3 worktree derivation, unevaluable `git status --porcelain` assertion 2.1,
+  and (decisive) no tracked team layer so suppression can never persist. Eval 30's expected output
+  and "do not invent fallbacks" expectation track the same four-reason framing. (#2729)
+
 ## [0.38.2]
 
 ### Changed

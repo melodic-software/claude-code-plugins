@@ -90,10 +90,8 @@ Parse `$ARGUMENTS`:
   cannot say which path it refused is barely better than a silent one. The fallback is for the message;
   it never becomes a target.
   Requiring only "the active project root" let a non-git directory through into a contract with no
-  branch for it, and the run then went quiet in five places rather than one:
+  branch for it, and the run then went quiet in four places rather than one:
 
-  - the state key (§3) has a no-**remote** fallback and no no-**git** one, and "canonicalized repo
-    root" is undefined without a repository;
   - the scan baseline is *the target's HEAD commit and the run's state digest*, and HEAD does not
     exist;
   - Class 3 exclusion derives worktrees from `git worktree list`, and unlike Class 1 it is given no
@@ -107,7 +105,7 @@ Parse `$ARGUMENTS`:
 
   **The refusal says that cost out loud** rather than reading as an arbitrary restriction, and it names
   the suppression consequence in particular. Refusing closes a target class deliberately; it is not a
-  side effect. The alternative — specifying all five branches — was considered and rejected, because
+  side effect. The alternative — specifying all four branches — was considered and rejected, because
   the last of them obliges the contract to promise a capability it can never deliver on that class.
   A non-git directory is audited by opening it as a repository, or by the delegated skills directly.
 - **`--fix`** — the explicit mutation override. Absent, the pass writes nothing into the target.
