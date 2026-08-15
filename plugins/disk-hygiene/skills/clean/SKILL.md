@@ -37,6 +37,11 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
+`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, and one target
+directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
+`--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, and
+`--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
+by the user.
 `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
 engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
@@ -68,6 +73,9 @@ target; scan those without the flag.
   `/source-control:worktree status`/`cleanup` (if installed), run from the checkout's own main
   repository — those actions manage the current repository's worktrees and take no target path. The
   engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
+  A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the
+  only exception, and it never applies to linked worktrees whose common Git directory is outside the
+  approved checkout.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
@@ -292,7 +300,7 @@ After an affirmative answer in this interactive session, run only:
 ```
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
-skill-frontmatter belt blocks those bypasses and forces one final permission prompt for the exact engine
+skill-scoped hook blocks those bypasses and forces one final permission prompt for the exact engine
 apply command; confirm it only when it matches the tier and paths just approved. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a
 token.
@@ -311,7 +319,8 @@ engine plan:
 
 1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
    `{"version": 1, "paths": ["relative/exact.tmp"]}` (snapshot-relative, exact, non-overlapping,
-   never globs), then run the engine's deterministic revalidation immediately before deletion:
+   never globs). For an ordinary path, run the engine's deterministic revalidation immediately
+   before deletion:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
@@ -326,6 +335,54 @@ engine plan:
    Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
    evidence is still absent — that evidence is report-level, outside the engine's checks.
 
+   A standalone Git checkout can reach `clear` only through an additional, explicit evidence file.
+   Never use this for a linked worktree, a tracked subdirectory, or non-Git VCS. After the operator
+   has approved that exact checkout in `handoff-paths.json`, write
+   `<run-dir>/vcs-evidence.json`:
+
+   ```json
+   {
+     "version": 1,
+     "repositories": [
+       {
+         "path": "relative/checkout",
+         "remote": "origin",
+         "stash_copies": ["/absolute/path/to/independent/checkout"]
+       }
+     ]
+   }
+   ```
+
+   Include one entry for every live `.git` marker at or below the approved checkout. `path` is
+   snapshot-relative; `remote` is the configured GitHub remote whose repository must contain every
+   local branch-head SHA (plus detached `HEAD`, when applicable), or `null` only for a genuinely
+   unborn repository with no local heads. `stash_copies` contains independent absolute checkout
+   roots outside every approved deletion path; use `[]` when there are no stashes. Then run:
+
+   ```text
+   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+     --snapshot "<run-dir>/snapshot.json" --paths "<run-dir>/handoff-paths.json" \
+     --vcs-evidence "<run-dir>/vcs-evidence.json" --data-root "${CLAUDE_PLUGIN_DATA}"
+   ```
+
+   This mode remains read-only. It re-runs
+   `git status --porcelain=v1 --untracked-files=all --ignored=matching` (with submodule dirtiness
+   enabled), resolves every local head, confirms each SHA through
+   `gh api repos/<owner>/<repo>/commits/<sha>`, enumerates every live stash, and requires each stash
+   SHA in at least one declared independent checkout's own stash list whose `--git-common-dir` is
+   not the candidate's Git store. Only `github.com` remotes are supported; another provider,
+   missing/failed `git` or `gh`, a repository-set mismatch, external common Git metadata,
+   dirty/untracked/ignored content, an unconfirmed head, a linked-worktree "stash copy", or a
+   non-duplicated stash leaves the categorical VCS protections in place and returns `contested`.
+
+   The exception is deliberately limited to the Git-specific reasons: `vcs-tracked-content`,
+   `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the scan's opaque `.git` truncation.
+   Every other protected name, mount/link/reparse check, identity/descendant check, handle check, and
+   consumer protection remains categorical. The emitted `vcs_evidence.gates` object records all four
+   required gates: empty porcelain status; all local heads present on the configured remote; all
+   stashes duplicated elsewhere (or none); and the exact approved path supplied by the existing
+   operator-confirmation lane.
+
    **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
    path's check ages while every later path is still being walked and probed, so its `clear`
    is already stale at emission — and staler after each intervening deletion. Pair each
@@ -333,12 +390,7 @@ engine plan:
    next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
    time: delete immediately, and re-run handoff-verify after any delay or interruption.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
-   which was used. On Windows, Recycle Bin handoff is via
-   `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` with
-   `SendToRecycleBin`, or `Shell.Application` `NameSpace(10)`/`0xa` `MoveHere`/`InvokeVerb` —
-   never `Remove-Item` (always permanent). The PowerShell belt requires a final permission
-   prompt for those Recycle Bin spellings just as it does for `Remove-Item`. That reversibility
-   is conditional, not guaranteed: bin size caps, a
+   which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
 3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
@@ -382,22 +434,14 @@ sparse files, hard links, compression, and delayed allocation affect it.
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. A small
-  literal-form read-only supporting allowlist (`ls`, `test`/`[`, `stat`, `du`, `pwd`, `basename`,
-  `dirname`, `file`, and `find` without side-effect primaries) is permitted for cleanup inspection
-  when the executable is a trusted system binary: bare names only if `PATH` resolution lands under
-  directories such as `/bin` or `/usr/bin`, and absolute paths under those same directories. Relative
-  path-qualified forms and shadowed PATH entries fail closed. Everything else stays denied. Only
-  literal-word bundled scan, preview, handoff-verify, and
-  apply shapes using the hook runtime's same absolute executable pass as engine calls. Shell
-  expansions, globs, splitting/escape forms, operators, redirections, aliases, and exported
-  functions fail closed. Engine containment remains the deletion authority — the allowlist is not.
+- The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
+  research uses non-Bash read-only tools; only literal-word bundled scan, preview, handoff-verify, and
+  apply shapes using the hook runtime's same absolute executable pass. Shell expansions, globs,
+  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
   that receives the data root by plugin-hook substitution and defers instantly on any command not
   referencing the engine; and this skill's frontmatter belt, which adds the deny-by-default Bash and
-  deletion-spelling PowerShell discipline for the **rest of the session** after the skill is invoked
-  (Claude Code keeps skill-frontmatter `PreToolUse` hooks registered session-wide — there is no
-  harness-level "skill is active" window for hooks; #2618). Both resolve the kill switch
+  deletion-spelling PowerShell discipline while cleanup is the active work. Both resolve the kill switch
   the same single way — reading `disk_hygiene_enabled` from user-scope `pluginConfigs` in
   `settings.json`, located from the `${CLAUDE_PLUGIN_ROOT}` both receive — so both honor a configured
   `false`, register unconditionally, and fail closed to enabled when the value is absent or unreadable.
@@ -443,12 +487,9 @@ sparse files, hard links, compression, and delayed allocation affect it.
   (`CLAUDE_TOOL_NAME` does not exist).
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
-  into a final human permission prompt — including the Recycle Bin paths this skill prefers
-  (`Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` with
-  `SendToRecycleBin`, and `Shell.Application` `NameSpace(10)`/`0xa` `MoveHere`/`InvokeVerb`).
-  It is a raised bar, not a fail-closed lane — some adjacent mutation spellings remain unflagged
-  (`reference/safety-model.md`); the engine's own containment and the Bash lane remain the
-  deletion authority.
+  into a final human permission prompt. It is a raised bar, not a fail-closed lane — move, rename,
+  overwrite, and volume-format spellings are not flagged at all (`reference/safety-model.md`); the
+  engine's own containment and the Bash lane remain the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

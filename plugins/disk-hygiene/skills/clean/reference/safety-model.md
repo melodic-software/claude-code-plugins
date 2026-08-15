@@ -30,7 +30,9 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
   — but as a known-large root it is routed through the large-target scan gate below (bound or
   confirm), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
-  registry/profile hive, VCS metadata or tracked file;
+  registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
+  verifier may classify a whole standalone Git checkout `clear` under the complete evidence bundle
+  below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
@@ -121,6 +123,42 @@ it exists exactly where `execution-platform-unsupported` blocks the engine lane 
 deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
 per item, under the final human permission prompt the PowerShell guard raises.
 
+### Standalone Git checkout evidence
+
+VCS protection remains categorical in preview, apply, and every handoff verification that does not
+explicitly supply `--vcs-evidence`. The evidence mode can relax only
+`vcs-tracked-content`, `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the opaque scan
+boundary at that `.git` marker. It does so only when all four live gates pass for every repository
+marker within the one approved checkout:
+
+1. `git status --porcelain=v1 --untracked-files=all --ignored=matching --ignore-submodules=none`
+   exits successfully and emits nothing — including gitignored-but-present paths (`.env`, local
+   databases, IDE state) that ordinary porcelain status would omit.
+2. Every `refs/heads/*` tip, plus a detached `HEAD` when present, is confirmed by exact SHA through
+   the configured `github.com` remote's `gh api repos/<owner>/<repo>/commits/<sha>` endpoint. An
+   unborn repository with no local heads satisfies this gate vacuously; a missing remote is accepted
+   only in that case.
+3. Every SHA emitted by `git stash list --format=%H` also appears in the stash list of at least one
+   declared independent checkout outside all approved deletion paths; no stashes satisfies the gate.
+4. The checkout is one exact path in the existing human-approved `handoff-paths.json`. The evidence
+   option adds no approval surface and creates no token.
+
+The engine discovers `.git` markers from live descendants and requires their repository-root set to
+equal the evidence file exactly. `git rev-parse --show-toplevel` must bind each marker to the declared
+root, and `--git-common-dir` must resolve inside the approved checkout; this rejects linked
+worktrees. Stash-copy paths must be absolute, non-link checkout roots, independent of the candidate
+and every path approved in the same handoff, and must resolve a `--git-common-dir` distinct from
+(and not nested under) the source repository's common Git directory — a linked worktree of the
+candidate shares stash refs and is not an independent backup. Only GitHub.com is implemented:
+unsupported providers, missing tools, timeouts, diagnostics, malformed output, set mismatches,
+dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
+categorical reasons.
+
+Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
+link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
+deletion remains a per-path manual handoff under the existing final permission prompt, and the
+verdict still expires immediately.
+
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
 | `clear` | Every check passed against live state at emission time | Delete this exact path immediately — verify one path per deletion, never one batch for all (earlier checks age while later paths are probed) |
@@ -136,14 +174,8 @@ any delay or interruption means re-running handoff-verify. Managed-state exclusi
 always was in the manual lane — model judgment plus human review of the audit report — because
 snapshot entries carry no owner claim for the engine to check.
 
-The skill-frontmatter Bash belt accepts complete literal words for the four declared
-engine command shapes, the argument-free kill-switch probe, and a small read-only
-supporting allowlist (`ls`, `test`/`[`, `stat`, `du`, `pwd`, `basename`, `dirname`,
-`file`, and `find` without `-delete`/`-exec`/`-ok`/`-fprint` side-effect primaries)
-when the executable identity is a trusted system binary (bare names only after
-`PATH` resolution into `/bin`, `/usr/bin`, and siblings; absolute paths under those
-directories; relative `./ls`-style forms denied).
-It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
+The skill-scoped Bash guard accepts only complete literal words in the four declared engine command
+shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
 is accepted only when it matches the plugin data directory the guard derives from
@@ -182,10 +214,7 @@ a real marketplace install.
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
 known deletion spellings and .NET Delete calls resolve against the `disk_hygiene_enabled` kill
-switch — including the Recycle Bin paths the manual handoff prefers
-(`Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory`, and
-`Shell.Application` `NameSpace(10)` / `0xa` with `MoveHere` or `InvokeVerb`). When the guard sees
-execution enabled they are downgraded to a final human permission prompt;
+switch. When the guard sees execution enabled they are downgraded to a final human permission prompt;
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
@@ -204,7 +233,7 @@ TODO(#387): extend the flagged set to those spellings.
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
 `hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher
+**skill-scoped belt** (the clean skill's frontmatter hook, shell form through the same launcher
 since 0.17.9) — and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
@@ -225,10 +254,8 @@ resolves `false` (audit-only mode), `false` is guard-enforced — denied outrigh
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
-the **skill-frontmatter belt** (`powershell_decision`) — denied outright in audit-only — for the **rest of
-the session after the skill is invoked**. Claude Code registers skill-frontmatter `PreToolUse` hooks
-session-wide (not only while cleanup is the active work); there is no harness-level skill-active window
-for hooks (#2618). An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
+the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
+skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees** — every Bash engine `apply`, and on
 PowerShell only the flagged spellings above — so an unreadable toggle never silently disables the
 guard.

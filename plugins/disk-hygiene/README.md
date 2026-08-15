@@ -20,20 +20,20 @@ unvalidated tree.
   via `--root-children` with an explicit child selection), user shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
-  predicates cannot be disabled by policy.
+  predicates cannot be disabled by policy. The sole VCS exception is a read-only manual-handoff
+  evidence mode for an entire standalone Git checkout: it requires empty porcelain status, every
+  local head SHA confirmed through the checkout's GitHub remote, every stash SHA present in an
+  independent checkout (or no stashes), and the existing exact-path operator approval. Without all
+  four, categorical protection remains.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
 - Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
   A dry-run result is evidence for the report, never authorization for this engine to remove it.
-- The skill-frontmatter guard is a fail-closed allowlist. It permits canonical bundled scan/preview
-  calls made from literal shell words, a small read-only supporting set for cleanup inspection
-  (`ls`, `test`/`[`, `stat`, `du`, `pwd`, `basename`, `dirname`, `file`, and read-only `find`
-  shapes) when those heads resolve to trusted system binaries (or are absolute paths under
-  trusted system directories), returns `ask` for the one canonical apply shape, and denies
+- The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
+  calls made from literal shell words, returns `ask` for the one canonical apply shape, and denies
   every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
-  filename, redirection, and operator syntax is rejected before argument parsing. Engine
-  containment remains the deletion authority.
+  filename, redirection, and operator syntax is rejected before argument parsing.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
   directory non-empty and therefore skipped. After captured children are removed, a directory is
   reopened with `O_NOFOLLOW`, checked empty through its descriptor, and matched by device, inode, and
@@ -66,15 +66,16 @@ at preview. Backups remain the recovery boundary for user data.
   registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
-  authority; and the skill-frontmatter **belt** registered when `/disk-hygiene:clean` is invoked,
-  which adds the deny-by-default Bash and deletion-spelling PowerShell discipline for the **rest of
-  the session** (Claude Code keeps skill-frontmatter `PreToolUse` hooks armed session-wide after
-  invocation — not only while cleanup is the active work; #2618). Both
+  authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
+  deny-by-default Bash and deletion-spelling PowerShell discipline during active cleanup work. Both
   surfaces resolve the kill switch by reading `disk_hygiene_enabled` from user-scope `pluginConfigs`
   in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only from user/managed/`--settings`
   scope since Claude Code 2.1.207, so a repo cannot forge it), register unconditionally, and fail
   closed to enabled — the earlier bare-`${user_config.*}` argument that dropped the engine gate on a
-  default install is gone (since 0.9.0). PreToolUse
+  default install is gone (since 0.9.0). Hook-lifetime caveat: docs
+  scope a skill hook to the component's lifetime, but session-long firing of the belt has been
+  observed on at least one Claude Code build (producer-reported; see issue #1105) — if unrelated
+  commands are denied after a clean run ends, start a new session and see that issue. PreToolUse
   hooks also fire inside subagents, so fanned-out workers run under the same guards. The plugin
   never downloads a runtime.
 - **A silent engine-gate launch/runtime failure is now surfaced (since 0.9.5, #1416).** A `Stop`-event
@@ -91,6 +92,9 @@ at preview. Backups remain the recovery boundary for user data.
   the detector still emits a `systemMessage` even though the guard cannot run (#1504).
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
+- `gh` with authenticated access to the configured `github.com` remote is additionally required only
+  when the operator invokes standalone-checkout VCS evidence mode. Other hosting providers remain
+  protected; no generic network or `git ls-remote` fallback is treated as provider proof.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
   exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
   `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
@@ -177,7 +181,9 @@ hand-cleaning the zone.
 - Use `/source-control:worktree status`/`cleanup` (if installed) for git worktree checkouts such as a
   `.worktrees/` tree — run those actions from the checkout's own main repository, as they manage the
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
-  metadata but does not manage worktree lifecycle.
+  metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
+  handoff's optional VCS evidence mode can return `clear` only after all four proof gates in the
+  [safety model](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence) pass.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
@@ -198,8 +204,8 @@ hand-cleaning the zone.
   mode. Both guard surfaces resolve the toggle by reading `disk_hygiene_enabled` from user-scope
   `pluginConfigs` in `settings.json` (not the process environment). A configured `false` denies Bash
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
-  PowerShell deletion spellings are denied outright by the skill-frontmatter belt for the rest of the
-  session after `/disk-hygiene:clean` is invoked (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
+  PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
+  is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
   `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
   it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
   the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
@@ -213,8 +219,8 @@ hand-cleaning the zone.
   split registration). Its blast radius is bounded by design: a fixed launch string authored in the
   plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
   reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
-  not referencing the engine, and no new capability beyond what the skill-frontmatter deployment already
-  did once registered for the session. Known costs, accepted: one launcher shell plus one Python launch per
+  not referencing the engine, and no new capability beyond what the skill-scoped deployment already
+  did during active cleanup. Known costs, accepted: one launcher shell plus one Python launch per
   Bash/PowerShell call, and on a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call — the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
@@ -257,14 +263,19 @@ hand-cleaning the zone.
   exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
-  for the degraded-mode detail). No credentials. Policy comes from an explicit invocation
+  for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout
+  evidence delegates one exact commit lookup per local head to the already-authenticated `gh` CLI.
+  Policy comes from an explicit invocation
   argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
   `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
   cannot widen the destructive surface.
 - **Isolation:** bundled assets resolve from `${CLAUDE_PLUGIN_ROOT}`; generated state belongs under
   `${CLAUDE_PLUGIN_DATA}`. The audited target is read, then mutated only through the gated lane.
-- **Egress:** none. `git` and `lsof` are local read-only subprocesses.
+- **Egress:** none in the ordinary audit/preview/apply paths. Opt-in standalone-checkout evidence
+  invokes `gh api` against `github.com` only, using owner/repository coordinates parsed from the
+  checkout's configured remote and an exact locally observed SHA. Unsupported hosts fail closed.
+  `git` and `lsof` remain local read-only subprocesses.
 - **Provenance:** Melodic Software, MIT. No vendored code.
 
 Security review result: **accept** for the declared local code-execution surface. Any later network,

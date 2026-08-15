@@ -89,9 +89,7 @@ class HygieneTests(unittest.TestCase):
     def setUp(self) -> None:
         # Keep every load_policy(None) call independent of the developer
         # machine's real standing policy files.
-        patcher = mock.patch.object(
-            hygiene, "standing_policy_paths", return_value=[]
-        )
+        patcher = mock.patch.object(hygiene, "standing_policy_paths", return_value=[])
         self.addCleanup(patcher.stop)
         patcher.start()
 
@@ -146,7 +144,9 @@ class HygieneTests(unittest.TestCase):
             ("failed-write.tmp", "common-temp-file"),
             ("FAILED-WRITE.TMP", "common-temp-file"),
         ):
-            matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
+            matched = {
+                hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+            }
             self.assertIn(expected, matched, name)
 
     def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
@@ -180,7 +180,9 @@ class HygieneTests(unittest.TestCase):
             "settings.json.tmp.4",
             ".claude.json.tmp.9552.9bfba4e83eaa",
         ):
-            matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
+            matched = {
+                hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+            }
             self.assertIn("atomic-write-staging-remnant", matched, name)
         # The producer-specific hint still fires alongside it: it carries a
         # narrower reason, and a class hint does not replace that.
@@ -397,7 +399,9 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(["OneDrive - Contoso"], snapshot["truncated_paths"])
             # Truncation must not look like emptiness: null + not-walked, never 0.
             self.assertIsNone(entries["OneDrive - Contoso"]["logical_size"])
-            self.assertIn("not-walked", entries["OneDrive - Contoso"]["size_qualifiers"])
+            self.assertIn(
+                "not-walked", entries["OneDrive - Contoso"]["size_qualifiers"]
+            )
             self.assertIn("not-walked", snapshot["target_identity"]["size_qualifiers"])
 
     def test_truncated_directory_logical_size_is_unknown_not_zero(self) -> None:
@@ -423,7 +427,9 @@ class HygieneTests(unittest.TestCase):
                 snapshot["target_reclaimable_local_bytes"],
             )
 
-    def test_hard_linked_names_are_qualified_and_excluded_from_reclaimable(self) -> None:
+    def test_hard_linked_names_are_qualified_and_excluded_from_reclaimable(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
             root.mkdir()
@@ -442,7 +448,8 @@ class HygieneTests(unittest.TestCase):
             # Both names carry the full logical size, but reclaimable must not
             # double-count — deleting one name frees nothing while the other lives.
             self.assertEqual(
-                entries["bun.exe"]["logical_size"] + entries["bunx.exe"]["logical_size"],
+                entries["bun.exe"]["logical_size"]
+                + entries["bunx.exe"]["logical_size"],
                 snapshot["target_logical_bytes"],
             )
             self.assertEqual(0, snapshot["target_reclaimable_local_bytes"])
@@ -497,7 +504,9 @@ class HygieneTests(unittest.TestCase):
             # allocated_size is null where the platform has no cheap signal
             # (Windows), and a non-negative int where st_blocks exists.
             allocated = data["allocated_size"]
-            self.assertTrue(allocated is None or (isinstance(allocated, int) and allocated >= 0))
+            self.assertTrue(
+                allocated is None or (isinstance(allocated, int) and allocated >= 0)
+            )
 
     def test_reparse_in_any_target_component_is_rejected(self) -> None:
         target = Path("root") / "junction" / "child"
@@ -573,9 +582,7 @@ class HygieneTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "target"
             target.mkdir()
-            self.assertIn(
-                "target-root", hygiene.hard_protection(target, target, set())
-            )
+            self.assertIn("target-root", hygiene.hard_protection(target, target, set()))
 
     def test_hard_protection_reasons_about_volume_root_purpose(self) -> None:
         # The cited hard_protection branch is now reasoned, not structural: a
@@ -878,7 +885,9 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("OS-managed roots", payload["error"])
             self.assertFalse((data_root / "snapshot.json").exists())
 
-    def _os_managed_volume_root_patches(self, target: Path | None = None) -> list[object]:
+    def _os_managed_volume_root_patches(
+        self, target: Path | None = None
+    ) -> list[object]:
         def is_target(path: Path) -> bool:
             if target is None:
                 return True
@@ -887,7 +896,9 @@ class HygieneTests(unittest.TestCase):
             except OSError:
                 return False
 
-        def mount_state(path: Path, *args: object, **kwargs: object) -> tuple[bool, None]:
+        def mount_state(
+            path: Path, *args: object, **kwargs: object
+        ) -> tuple[bool, None]:
             return (is_target(path), None)
 
         return [
@@ -947,7 +958,9 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual("root-children-selection-required", payload["status"])
             admitted = {item["name"] for item in payload["admitted_children"]}
             self.assertEqual({"builds", "tmp"}, admitted)
-            skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
             self.assertEqual("not-a-directory", skipped["orphan.tmp"])
             self.assertEqual("hidden", skipped[".hidden"])
             self.assertEqual("os-owned", skipped["Windows"])
@@ -1066,9 +1079,7 @@ class HygieneTests(unittest.TestCase):
                 mock.patch.object(hygiene, "is_volume_root", return_value=True),
                 mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
                 mock.patch.object(hygiene, "os_key", return_value="linux"),
-                mock.patch.object(
-                    hygiene, "mount_state", return_value=(False, None)
-                ),
+                mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
                 mock.patch.object(hygiene, "system_roots", return_value=[]),
                 mock.patch.object(
                     hygiene, "linux_mount_points", return_value=(set(), None)
@@ -1083,7 +1094,9 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(5, code)
             admitted = {item["name"] for item in payload["admitted_children"]}
             self.assertEqual({"builds"}, admitted)
-            skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
             for name in ("tmp", "home", "opt", "srv", "root"):
                 self.assertEqual("os-owned", skipped[name])
 
@@ -1189,9 +1202,7 @@ class HygieneTests(unittest.TestCase):
                     return False
 
             with (
-                mock.patch.object(
-                    hygiene, "is_volume_root", side_effect=is_target
-                ),
+                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
                 mock.patch.object(
                     hygiene,
                     "is_os_managed_target",
@@ -1739,7 +1750,6 @@ class HygieneTests(unittest.TestCase):
             self.assertFalse((root / "candidate").exists())
             self.assertEqual("work product", untouched.read_text(encoding="utf-8"))
 
-
     def test_scan_max_depth_truncates_and_preview_blocks_planning(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -2043,9 +2053,7 @@ class HygieneTests(unittest.TestCase):
         # samefile raises when a path is missing; a home that cannot be stat'd
         # must be no match, never a crash.
         with (
-            mock.patch.object(
-                hygiene, "user_home", return_value=Path("/home/missing")
-            ),
+            mock.patch.object(hygiene, "user_home", return_value=Path("/home/missing")),
             mock.patch("os.path.samefile", side_effect=FileNotFoundError),
         ):
             self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
@@ -2083,9 +2091,7 @@ class VersionFloorTests(unittest.TestCase):
             mock.patch.object(hygiene.sys, "version_info", below),
             redirect_stdout(stdout),
         ):
-            hygiene.main(
-                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
-            )
+            hygiene.main(["scan", "--target", "irrelevant", "--output", "irrelevant"])
         payload = json.loads(stdout.getvalue())
         self.assertIn(floor, payload["error"])
 
@@ -2175,9 +2181,7 @@ class StandingPolicyTests(unittest.TestCase):
                 project, {"additional_hints": [self.hint("shared-id", "proj-*")]}
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
-                with self.assertRaisesRegex(
-                    hygiene.HygieneError, "already exists"
-                ):
+                with self.assertRaisesRegex(hygiene.HygieneError, "already exists"):
                     hygiene.load_policy(None, project)
 
     def test_standing_layers_cannot_weaken_protections(self) -> None:
@@ -2195,22 +2199,15 @@ class StandingPolicyTests(unittest.TestCase):
         def explode(_project_dir):
             raise AssertionError("validation must not touch standing policy")
 
-        with mock.patch.object(
-            hygiene, "standing_policy_paths", side_effect=explode
-        ):
+        with mock.patch.object(hygiene, "standing_policy_paths", side_effect=explode):
             names = hygiene.baseline_protected_names()
         self.assertIn("NTUSER.DAT", names)
 
     def test_baseline_ships_agent_leak_signatures(self) -> None:
-        with mock.patch.object(
-            hygiene, "standing_policy_paths", return_value=[]
-        ):
+        with mock.patch.object(hygiene, "standing_policy_paths", return_value=[]):
             policy = hygiene.load_policy(None)
         matched = {
-            name: [
-                hint["id"]
-                for hint in hygiene.matching_hints(name, name, policy)
-            ]
+            name: [hint["id"] for hint in hygiene.matching_hints(name, name, policy)]
             for name in (
                 ".claude.json.tmp.25020.a926d229fa70",
                 "temp_git_clone_1234",
@@ -2222,9 +2219,7 @@ class StandingPolicyTests(unittest.TestCase):
             matched[".claude.json.tmp.25020.a926d229fa70"],
         )
         self.assertIn("agent-temp-git-scratch", matched["temp_git_clone_1234"])
-        self.assertIn(
-            "pulumi-writability-probe", matched[".pulumi-write-test-42"]
-        )
+        self.assertIn("pulumi-writability-probe", matched[".pulumi-write-test-42"])
 
 
 class OsAutocleanAdvisoryTests(unittest.TestCase):
@@ -2379,9 +2374,7 @@ class LeastObservableEnginePathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "held-dir"
             directory.mkdir()
-            state, captured = self.posix_handle_probe(
-                directory, self.lsof_result(1)
-            )
+            state, captured = self.posix_handle_probe(directory, self.lsof_result(1))
         self.assertEqual(("clear", None), state)
         self.assertEqual(["+D", str(directory)], captured["command"][-2:])
 
@@ -2509,9 +2502,7 @@ class LeastObservableEnginePathTests(unittest.TestCase):
             target = (Path(temporary) / "target").resolve()
             nested = target / "vendored"
             (nested / ".hg").mkdir(parents=True)
-            repositories, errors = hygiene.discover_current_repositories(
-                target, target
-            )
+            repositories, errors = hygiene.discover_current_repositories(target, target)
             self.assertIn(nested, repositories)
             self.assertIn(
                 f"{nested}: non-Git VCS state is not independently verified", errors
@@ -2536,9 +2527,7 @@ class LeastObservableEnginePathTests(unittest.TestCase):
             target = (Path(temporary) / "target").resolve()
             nested = target / "vendored"
             (nested / ".SVN").mkdir(parents=True)
-            repositories, errors = hygiene.discover_current_repositories(
-                target, target
-            )
+            repositories, errors = hygiene.discover_current_repositories(target, target)
             self.assertIn(nested, repositories)
             self.assertIn(
                 f"{nested}: non-Git VCS state is not independently verified", errors
@@ -2692,6 +2681,450 @@ class HandoffVerifyTests(unittest.TestCase):
             mock.patch.object(hygiene, "tracked_blocker", return_value=None),
         )
 
+    @staticmethod
+    def create_checkout(root: Path) -> Path:
+        checkout = root / "checkout"
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+        subprocess.run(
+            ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(checkout), "config", "user.name", "Test"],
+            check=True,
+        )
+        (checkout / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(checkout), "add", "tracked.txt"], check=True)
+        subprocess.run(
+            ["git", "-C", str(checkout), "commit", "-qm", "fixture"], check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/example/project.git",
+            ],
+            check=True,
+        )
+        return checkout
+
+    @staticmethod
+    def vcs_configuration(*, stash_copies: list[str] | None = None):
+        return {
+            "checkout": {
+                "path": "checkout",
+                "remote": "origin",
+                "stash_copies": stash_copies or [],
+            }
+        }
+
+    def test_git_evidence_probes_disable_optional_locks(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, "", "")
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value="/usr/bin/git"),
+            mock.patch.object(hygiene.subprocess, "run", return_value=completed) as run,
+        ):
+            hygiene.run_git(Path("/checkout"), "status", "--porcelain=v1")
+
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual("0", environment["GIT_OPTIONAL_LOCKS"])
+
+    def test_remote_head_uses_declared_url_before_git_rewrites(self) -> None:
+        sha = "a" * 40
+        declared = subprocess.CompletedProcess(
+            [], 0, "https://github.com/example/project.git\n", ""
+        )
+        confirmed = subprocess.CompletedProcess([], 0, f"{sha}\n", "")
+        with (
+            mock.patch.object(hygiene, "run_git", return_value=declared) as run_git,
+            mock.patch.object(hygiene.shutil, "which", return_value="/usr/bin/gh"),
+            mock.patch.object(hygiene.subprocess, "run", return_value=confirmed),
+        ):
+            result, _detail = hygiene.verify_github_remote_head(
+                Path("/checkout"), "origin", sha
+            )
+
+        self.assertTrue(result)
+        run_git.assert_called_once_with(
+            Path("/checkout"), "config", "--get", "remote.origin.url"
+        )
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_checkout_clears_only_when_every_vcs_evidence_gate_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_checkout(target)
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            confirmed: list[str] = []
+
+            def confirm(_repo: Path, remote: str, sha: str):
+                confirmed.append(sha)
+                return True, {
+                    "sha": sha,
+                    "remote": remote,
+                    "repository": "example/project",
+                }
+
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene, "verify_github_remote_head", side_effect=confirm
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["checkout"], self.vcs_configuration()
+                )
+
+            verdict = result["verdicts"][0]
+            self.assertEqual("clear", verdict["verdict"])
+            self.assertTrue(checkout.exists(), "handoff-verify must remain read-only")
+            self.assertTrue(confirmed)
+            self.assertEqual("verified", verdict["vcs_evidence"]["status"])
+            self.assertEqual(
+                {
+                    "all-local-heads-on-remote",
+                    "all-stashes-duplicated",
+                    "exact-path-operator-approval",
+                    "git-status-porcelain-empty",
+                },
+                {
+                    name
+                    for name, gate in verdict["vcs_evidence"]["gates"].items()
+                    if gate["status"] == "passed"
+                },
+            )
+            self.assertNotIn("vcs-tracked-content", verdict["reasons"])
+            self.assertNotIn("vcs-metadata", verdict["reasons"])
+            self.assertNotIn("baseline-protected-name", verdict["reasons"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_checkout_without_evidence_remains_categorically_contested(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            self.create_checkout(target)
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            with mock.patch.object(
+                hygiene, "handle_state", return_value=("clear", None)
+            ):
+                result = hygiene.handoff_verify(snapshot, ["checkout"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("truncated-not-inventoried", verdict["reasons"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_dirty_checkout_fails_the_status_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_checkout(target)
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            (checkout / "tracked.txt").write_text("changed\n", encoding="utf-8")
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "verify_github_remote_head",
+                    return_value=(
+                        True,
+                        {
+                            "sha": "a" * 40,
+                            "remote": "origin",
+                            "repository": "example/project",
+                        },
+                    ),
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["checkout"], self.vcs_configuration()
+                )
+            verdict = result["verdicts"][0]
+            self.assertNotEqual("clear", verdict["verdict"])
+            self.assertEqual(
+                "failed",
+                verdict["vcs_evidence"]["gates"]["git-status-porcelain-empty"][
+                    "status"
+                ],
+            )
+            self.assertIn("vcs-evidence-status-not-clean", verdict["reasons"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_gitignored_file_fails_the_status_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_checkout(target)
+            (checkout / ".gitignore").write_text(".env\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(checkout), "add", ".gitignore"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(checkout), "commit", "-qm", "ignore env"],
+                check=True,
+            )
+            (checkout / ".env").write_text("SECRET=1\n", encoding="utf-8")
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "verify_github_remote_head",
+                    return_value=(
+                        True,
+                        {
+                            "sha": "a" * 40,
+                            "remote": "origin",
+                            "repository": "example/project",
+                        },
+                    ),
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["checkout"], self.vcs_configuration()
+                )
+            verdict = result["verdicts"][0]
+            self.assertNotEqual("clear", verdict["verdict"])
+            self.assertEqual(
+                "failed",
+                verdict["vcs_evidence"]["gates"]["git-status-porcelain-empty"][
+                    "status"
+                ],
+            )
+            self.assertIn("vcs-evidence-status-not-clean", verdict["reasons"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_unconfirmed_local_head_keeps_categorical_protection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            self.create_checkout(target)
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "verify_github_remote_head",
+                    return_value=(
+                        False,
+                        {"sha": "a" * 40, "error": "remote-head-unconfirmed"},
+                    ),
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["checkout"], self.vcs_configuration()
+                )
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertEqual(
+                "failed",
+                verdict["vcs_evidence"]["gates"]["all-local-heads-on-remote"]["status"],
+            )
+            self.assertIn("vcs-evidence-remote-head-unconfirmed", verdict["reasons"])
+            self.assertIn("vcs-tracked-content", verdict["reasons"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_every_local_branch_head_is_confirmed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_checkout(target)
+            original = subprocess.run(
+                ["git", "-C", str(checkout), "branch", "--show-current"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            subprocess.run(
+                ["git", "-C", str(checkout), "checkout", "-qb", "side"], check=True
+            )
+            (checkout / "side.txt").write_text("side\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(checkout), "add", "side.txt"], check=True)
+            subprocess.run(
+                ["git", "-C", str(checkout), "commit", "-qm", "side"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(checkout), "checkout", "-q", original], check=True
+            )
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            names: list[str] = []
+
+            def confirm(_repo: Path, remote: str, sha: str):
+                names.append(sha)
+                return True, {
+                    "sha": sha,
+                    "remote": remote,
+                    "repository": "example/project",
+                }
+
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene, "verify_github_remote_head", side_effect=confirm
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["checkout"], self.vcs_configuration()
+                )
+            self.assertEqual("clear", result["verdicts"][0]["verdict"])
+            self.assertEqual(2, len(set(names)))
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_stash_must_exist_in_an_independent_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_checkout(target)
+            (checkout / "tracked.txt").write_text("stashed\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(checkout), "stash", "push", "-qm", "fixture"],
+                check=True,
+            )
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            remote_ok = mock.patch.object(
+                hygiene,
+                "verify_github_remote_head",
+                return_value=(
+                    True,
+                    {
+                        "sha": "a" * 40,
+                        "remote": "origin",
+                        "repository": "example/project",
+                    },
+                ),
+            )
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                remote_ok,
+            ):
+                failed = hygiene.handoff_verify(
+                    snapshot, ["checkout"], self.vcs_configuration()
+                )
+            self.assertEqual("contested", failed["verdicts"][0]["verdict"])
+            self.assertIn(
+                "vcs-evidence-stash-not-duplicated",
+                failed["verdicts"][0]["reasons"],
+            )
+
+            duplicate = Path(temporary) / "duplicate"
+            shutil.copytree(checkout, duplicate)
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "verify_github_remote_head",
+                    return_value=(
+                        True,
+                        {
+                            "sha": "a" * 40,
+                            "remote": "origin",
+                            "repository": "example/project",
+                        },
+                    ),
+                ),
+            ):
+                passed = hygiene.handoff_verify(
+                    snapshot,
+                    ["checkout"],
+                    self.vcs_configuration(stash_copies=[str(duplicate)]),
+                )
+            self.assertEqual("clear", passed["verdicts"][0]["verdict"])
+            stash_gate = passed["verdicts"][0]["vcs_evidence"]["gates"][
+                "all-stashes-duplicated"
+            ]
+            self.assertEqual("passed", stash_gate["status"])
+            self.assertEqual(
+                [str(duplicate)], stash_gate["stashes"][0]["duplicated_at"]
+            )
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_linked_worktree_is_not_an_independent_stash_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_checkout(target)
+            (checkout / "tracked.txt").write_text("stashed\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(checkout), "stash", "push", "-qm", "fixture"],
+                check=True,
+            )
+            linked = Path(temporary) / "linked-wt"
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(checkout),
+                    "worktree",
+                    "add",
+                    "--detach",
+                    str(linked),
+                ],
+                check=True,
+            )
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "verify_github_remote_head",
+                    return_value=(
+                        True,
+                        {
+                            "sha": "a" * 40,
+                            "remote": "origin",
+                            "repository": "example/project",
+                        },
+                    ),
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot,
+                    ["checkout"],
+                    self.vcs_configuration(stash_copies=[str(linked)]),
+                )
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn(
+                "vcs-evidence-stash-copy-unverified",
+                verdict["reasons"],
+            )
+
     def test_clear_verdict_is_read_only_and_ignores_platform_blockers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -2726,7 +3159,11 @@ class HandoffVerifyTests(unittest.TestCase):
             with handle, vcs:
                 result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
             self.assertEqual(
-                {"path": "junk.tmp", "verdict": "gone", "reasons": ["no-longer-present"]},
+                {
+                    "path": "junk.tmp",
+                    "verdict": "gone",
+                    "reasons": ["no-longer-present"],
+                },
                 result["verdicts"][0],
             )
             self.assertEqual(1, result["not_clear"])
@@ -2778,9 +3215,7 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertEqual("contested", verdict["verdict"])
             # candidate_handle_state prefixes the relative path on Windows.
             reason = next(
-                value
-                for value in verdict["reasons"]
-                if value.startswith("live-handle")
+                value for value in verdict["reasons"] if value.startswith("live-handle")
             )
             self.assertIn("win32-error-32", reason)
 
@@ -2854,9 +3289,7 @@ class HandoffVerifyTests(unittest.TestCase):
             root.mkdir()
             (root / "junk.tmp").write_text("stale", encoding="utf-8")
             snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
-            with mock.patch.object(
-                hygiene, "same_object_identity", return_value=False
-            ):
+            with mock.patch.object(hygiene, "same_object_identity", return_value=False):
                 with self.assertRaisesRegex(hygiene.HygieneError, "replaced"):
                     hygiene.handoff_verify(snapshot, ["junk.tmp"])
 
@@ -2915,9 +3348,7 @@ class HandoffVerifyTests(unittest.TestCase):
             deep = root / "outer" / "inner"
             deep.mkdir(parents=True)
             (deep / "leaf.tmp").write_text("deep", encoding="utf-8")
-            snapshot = hygiene.scan_tree(
-                root.resolve(), hygiene.load_policy(None), 1
-            )
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None), 1)
             self.assertIn("outer", snapshot["truncated_paths"])
             handle, vcs = self.clear_probe_mocks()
             with handle, vcs:
@@ -3023,6 +3454,51 @@ class HandoffVerifyTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 with self.assertRaisesRegex(hygiene.HygieneError, message):
                     hygiene.validate_handoff_paths(payload, entries)
+
+    def test_validate_vcs_evidence_rejects_unapproved_or_ambiguous_sources(
+        self,
+    ) -> None:
+        cases = [
+            (
+                {
+                    "version": 1,
+                    "repositories": [
+                        {"path": "other", "remote": "origin", "stash_copies": []}
+                    ],
+                },
+                "outside approved",
+            ),
+            (
+                {
+                    "version": 1,
+                    "repositories": [
+                        {
+                            "path": "checkout",
+                            "remote": "--upload-pack=bad",
+                            "stash_copies": [],
+                        }
+                    ],
+                },
+                "literal name",
+            ),
+            (
+                {
+                    "version": 1,
+                    "repositories": [
+                        {
+                            "path": "checkout",
+                            "remote": "origin",
+                            "stash_copies": ["relative/copy"],
+                        }
+                    ],
+                },
+                "absolute paths",
+            ),
+        ]
+        for payload, message in cases:
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(hygiene.HygieneError, message):
+                    hygiene.validate_vcs_evidence(payload, ["checkout"])
 
     def test_handoff_verify_subcommand_exit_codes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3214,7 +3690,9 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
-    def test_guard_denies_bare_python_even_when_it_resolves_to_hook_runtime(self) -> None:
+    def test_guard_denies_bare_python_even_when_it_resolves_to_hook_runtime(
+        self,
+    ) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'python "{script}" scan --target t --output s'
         result = self.run_guard(command)
@@ -3304,7 +3782,9 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         scan = f'"{self.python_command()}" "{script}" scan --target t --output s'
         preview = f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
-        malformed = f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
+        malformed = (
+            f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
+        )
         self.assertEqual(
             "allow",
             self.run_guard(scan)["hookSpecificOutput"]["permissionDecision"],
@@ -3323,6 +3803,17 @@ class GuardTests(unittest.TestCase):
         command = (
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
+
+    def test_guard_allows_handoff_verify_vcs_evidence_shape(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-verify '
+            "--snapshot s --paths p --vcs-evidence e"
         )
         self.assertEqual(
             "allow",
@@ -3357,9 +3848,7 @@ class GuardTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(
                     "deny",
-                    self.run_guard(command)["hookSpecificOutput"][
-                        "permissionDecision"
-                    ],
+                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
                 )
 
     def test_guard_allows_exact_kill_switch_probe_invocation(self) -> None:
@@ -3496,7 +3985,9 @@ class GuardTests(unittest.TestCase):
         """Interpreter options must not slip the kill switch (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
         result = self.run_guard_engine_gate(
-            f'/usr/bin/python3 -B "{script}" apply --plan p --token t', "Bash", enabled=False
+            f'/usr/bin/python3 -B "{script}" apply --plan p --token t',
+            "Bash",
+            enabled=False,
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -3565,9 +4056,7 @@ class GuardTests(unittest.TestCase):
                 f'python3 "{stale}" apply --execute',
                 f'cd /elsewhere && python3 "{stale}" apply --execute',
             ):
-                self.assertTrue(
-                    current._engine_gate_relevant(command, "Bash"), command
-                )
+                self.assertTrue(current._engine_gate_relevant(command, "Bash"), command)
             # The install's own engine still gates, so the narrowing did not
             # merely move which copy is unguarded.
             self.assertTrue(
@@ -3623,114 +4112,6 @@ class GuardTests(unittest.TestCase):
         # arrived unexpanded leaves no disclosed route to the engine, and the
         # exact-path identity check denies every guess.
         self.assertIn(guard._display_path(guard._engine_script_path()), guidance)
-        for head in guard._READONLY_SUPPORTING_BASH_HEADS:
-            self.assertIn(head, guidance, head)
-        self.assertIn("[", guidance)
-
-    def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
-        """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied."""
-        allowed = (
-            "ls -la /tmp/example",
-            "ls -d /tmp/example",
-            "test -d /tmp/example",
-            "test -e /tmp/example",
-            "[ -d /tmp/example ]",
-            "[ -f /tmp/example ]",
-            "stat /tmp/example",
-            "du -sh /tmp/example",
-            "pwd",
-            "basename /tmp/example",
-            "dirname /tmp/example",
-            "find /tmp/example -type d -maxdepth 2",
-            "find /tmp/example -name example",
-            "file /tmp/example",
-            # Absolute trusted-system paths are safer than bare names (no PATH
-            # shadowing) and must be allowed when the basename is allowlisted.
-            "/bin/ls /tmp/example",
-            "/usr/bin/ls -la /tmp/example",
-        )
-        for command in allowed:
-            with self.subTest(command=command):
-                result = self.run_guard(command)
-                self.assertEqual(
-                    "allow",
-                    result["hookSpecificOutput"]["permissionDecision"],
-                    command,
-                )
-        denied = (
-            "find /tmp/example -delete",
-            "find /tmp/example -exec rm {} +",
-            "find /tmp/example -execdir rm -rf . ;",
-            "find /tmp/example -ok rm {} ;",
-            "find /tmp/example -fprint /tmp/out",
-            "find /tmp/example -fprintf /tmp/out %p",
-            "find /tmp/example -fls /tmp/out",
-            "command ls /tmp/example",
-            "ls /tmp/example; rm -rf /tmp/example",
-            "ls /tmp/example && rm -rf /tmp/example",
-            "ls $(pwd)",
-            "./ls /tmp/example",
-            "true",
-            "echo hello",
-            "[",
-            "[ ]",
-            "test",
-        )
-        for command in denied:
-            with self.subTest(command=command):
-                result = self.run_guard(command)
-                self.assertEqual(
-                    "deny",
-                    result["hookSpecificOutput"]["permissionDecision"],
-                    command,
-                )
-
-    def test_readonly_supporting_bare_name_resolves_to_trusted_path(self) -> None:
-        """Bare allowlisted names are allowed only when which() hits a trusted dir."""
-        located = shutil.which("ls")
-        self.assertIsNotNone(located)
-        resolved = Path(located).resolve()
-        self.assertTrue(
-            guard._path_under_trusted_readonly_bin(resolved),
-            f"test host must provide system ls; got {resolved}",
-        )
-        self.assertTrue(guard.is_exact_readonly_supporting_command("ls /tmp/example"))
-        self.assertTrue(guard._trusted_system_readonly_head("ls"))
-
-    def test_guard_denies_readonly_head_shadowed_on_path(self) -> None:
-        """A PATH entry that is not a trusted system binary cannot use the allowlist."""
-        with tempfile.TemporaryDirectory() as tmp:
-            shadow = Path(tmp) / "ls"
-            shadow.write_text("#!/bin/sh\necho shadowed\n")
-            shadow.chmod(0o755)
-            old_path = os.environ.get("PATH")
-            os.environ["PATH"] = f"{tmp}{os.pathsep}{old_path or ''}"
-            try:
-                self.assertFalse(
-                    guard.is_exact_readonly_supporting_command("ls /tmp/example")
-                )
-                self.assertFalse(guard._trusted_system_readonly_head("ls"))
-            finally:
-                if old_path is None:
-                    os.environ.pop("PATH", None)
-                else:
-                    os.environ["PATH"] = old_path
-
-    def test_readonly_supporting_absolute_untrusted_basename_denied(self) -> None:
-        """Allowlisted basename under an untrusted directory must not inherit approval."""
-        with tempfile.TemporaryDirectory() as tmp:
-            fake = Path(tmp) / "ls"
-            fake.write_text("#!/bin/sh\necho fake\n")
-            fake.chmod(0o755)
-            command = f"{fake.as_posix()} /tmp/example"
-            self.assertFalse(guard.is_exact_readonly_supporting_command(command))
-            self.assertFalse(guard._trusted_system_readonly_head(fake.as_posix()))
-            result = self.run_guard(command)
-            self.assertEqual(
-                "deny",
-                result["hookSpecificOutput"]["permissionDecision"],
-                command,
-            )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
         """The denial text and the grammar are one list, so they cannot drift."""
@@ -3843,9 +4224,7 @@ class GuardTests(unittest.TestCase):
                     f"cd {scripts} && ./hygiene.py apply --plan p --token t",
                     f"cd {scripts} && python3 hygiene.py apply",
                 ):
-                    result = self.run_guard_engine_gate(
-                        command, "Bash", enabled=False
-                    )
+                    result = self.run_guard_engine_gate(command, "Bash", enabled=False)
                     assert result is not None, command
                     self.assertEqual(
                         "deny",
@@ -3940,9 +4319,7 @@ class GuardTests(unittest.TestCase):
                 f'"{posix_alias}" apply --plan p --token t', "Bash", enabled=False
             )
             assert result is not None
-            self.assertEqual(
-                "deny", result["hookSpecificOutput"]["permissionDecision"]
-            )
+            self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
             os.unlink(alias)
 
     def test_engine_gate_catches_alias_beside_shell_operator(self) -> None:
@@ -3956,12 +4333,12 @@ class GuardTests(unittest.TestCase):
                 self.skipTest(f"hard links unavailable here: {exc}")
             posix_alias = str(alias).replace("\\", "/")
             result = self.run_guard_engine_gate(
-                f'"{posix_alias}" apply --plan p --token t && true', "Bash", enabled=False
+                f'"{posix_alias}" apply --plan p --token t && true',
+                "Bash",
+                enabled=False,
             )
             assert result is not None
-            self.assertEqual(
-                "deny", result["hookSpecificOutput"]["permissionDecision"]
-            )
+            self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
             os.unlink(alias)
 
     def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
@@ -4043,9 +4420,7 @@ class GuardTests(unittest.TestCase):
                     f'python3 "{posix}" --help && echo done',
                     f'python3 "{posix}" --help; echo done',
                 ):
-                    self.assertIsNone(
-                        self.run_guard_engine_gate(command), command
-                    )
+                    self.assertIsNone(self.run_guard_engine_gate(command), command)
 
     def test_engine_gate_catches_windows_equivalent_filename_aliases(self) -> None:
         """A spelling the FILESYSTEM resolves to the engine must gate (P1 r10).
@@ -4076,9 +4451,7 @@ class GuardTests(unittest.TestCase):
                     except (OSError, ValueError):
                         equivalent = False
                     command = f"cd {scripts} && python {alias} apply --plan p --token t"
-                    result = self.run_guard_engine_gate(
-                        command, "Bash", enabled=False
-                    )
+                    result = self.run_guard_engine_gate(command, "Bash", enabled=False)
                     if not equivalent:
                         continue
                     assert result is not None, command
@@ -4111,9 +4484,7 @@ class GuardTests(unittest.TestCase):
                     f"{posix}&&hygiene.py",
                     f'echo "{posix}"; hygiene.py apply',
                 ):
-                    result = self.run_guard_engine_gate(
-                        command, "Bash", enabled=False
-                    )
+                    result = self.run_guard_engine_gate(command, "Bash", enabled=False)
                     assert result is not None, command
                     self.assertEqual(
                         "deny",
@@ -4162,9 +4533,7 @@ class GuardTests(unittest.TestCase):
                 enabled=False,
             )
             assert result is not None
-            self.assertEqual(
-                "deny", result["hookSpecificOutput"]["permissionDecision"]
-            )
+            self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_engine_gate_catches_path_resolved_engine_after_env_wrapper(self) -> None:
         """env VAR=... hygiene.py must gate as the effective command (P1 r8)."""
@@ -4176,7 +4545,9 @@ class GuardTests(unittest.TestCase):
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
-    def test_engine_gate_catches_engine_after_wrapper_with_option_operands(self) -> None:
+    def test_engine_gate_catches_engine_after_wrapper_with_option_operands(
+        self,
+    ) -> None:
         """Wrapper option operands must not hide the bare engine name (P1 r9)."""
         result = self.run_guard_engine_gate(
             "env -i PATH=/usr/bin nice -n 10 hygiene.py apply --plan p --token t",
@@ -4200,7 +4571,9 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
-        embedded = self.run_guard_engine_gate('bash -c "python3 hygiene.py scan --target t --output s"')
+        embedded = self.run_guard_engine_gate(
+            'bash -c "python3 hygiene.py scan --target t --output s"'
+        )
         assert embedded is not None
         self.assertEqual("deny", embedded["hookSpecificOutput"]["permissionDecision"])
 
@@ -4210,14 +4583,10 @@ class GuardTests(unittest.TestCase):
             f'& python "{script}" scan --target t --output s', "PowerShell"
         )
         assert powershell is not None
-        self.assertEqual(
-            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("deny", powershell["hookSpecificOutput"]["permissionDecision"])
         malformed = self.run_guard_engine_gate(f'python3 "{script}" apply --oops')
         assert malformed is not None
-        self.assertEqual(
-            "deny", malformed["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("deny", malformed["hookSpecificOutput"]["permissionDecision"])
 
     def test_engine_gate_fails_closed_on_engine_when_disabled(self) -> None:
         """Engine-referencing Bash under audit-only mode must deny, never defer.
@@ -4237,9 +4606,7 @@ class GuardTests(unittest.TestCase):
     def run_guard_powershell(self, command: str) -> dict[str, object] | None:
         return self._invoke_guard(command, tool_name="PowerShell", enabled=True)
 
-    def run_guard_powershell_disabled(
-        self, command: str
-    ) -> dict[str, object] | None:
+    def run_guard_powershell_disabled(self, command: str) -> dict[str, object] | None:
         return self._invoke_guard(command, tool_name="PowerShell", enabled=False)
 
     def test_guard_scan_accepts_only_hook_authorized_data_root(self) -> None:
@@ -4287,9 +4654,7 @@ class GuardTests(unittest.TestCase):
             ):
                 self.assertEqual(0, guard.main())
             result = json.loads(stdout.getvalue())
-            self.assertEqual(
-                "deny", result["hookSpecificOutput"]["permissionDecision"]
-            )
+            self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def run_guard_hook_argv(
         self, command: str, authorized: str | None
@@ -4347,9 +4712,7 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             authorized = str(Path(temporary).resolve() / "plugin-data")
             other = str(Path(temporary).resolve() / "elsewhere")
-            base = (
-                f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
-            )
+            base = f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
             self.assertEqual(
                 "allow",
                 self.run_guard_hook_argv(
@@ -4372,7 +4735,7 @@ class GuardTests(unittest.TestCase):
             other = str(Path(temporary).resolve() / "elsewhere")
             base = (
                 f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-                f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+                f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
             )
             self.assertEqual(
                 "ask",
@@ -4392,12 +4755,8 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             target = str(Path(temporary).resolve())
             base = f'"{self.python_command()}" "{script}" scan --target t --output s'
-            result = self.run_guard_hook_argv(
-                f'{base} --data-root "{target}"', None
-            )
-            self.assertEqual(
-                "deny", result["hookSpecificOutput"]["permissionDecision"]
-            )
+            result = self.run_guard_hook_argv(f'{base} --data-root "{target}"', None)
+            self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
             self.assertIn(
                 "--authorized-data-root",
                 result["hookSpecificOutput"]["permissionDecisionReason"],
@@ -4455,7 +4814,8 @@ class GuardTests(unittest.TestCase):
 
     def test_argv_authorized_data_root_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
-            "/data", guard._argv_authorized_data_root(["--authorized-data-root", "/data"])
+            "/data",
+            guard._argv_authorized_data_root(["--authorized-data-root", "/data"]),
         )
         self.assertEqual(
             "/data", guard._argv_authorized_data_root(["--authorized-data-root=/data"])
@@ -4498,9 +4858,7 @@ class GuardTests(unittest.TestCase):
 
     def test_resolve_authorized_data_root_derives_from_plugin_root(self) -> None:
         script = str(SCRIPT_DIR / "destructive_guard.py")
-        plugin_root = os.fspath(
-            Path("/x/plugins/cache/acme/disk-hygiene/0.4.8")
-        )
+        plugin_root = os.fspath(Path("/x/plugins/cache/acme/disk-hygiene/0.4.8"))
         derived = os.fspath(Path("/x/plugins/data/disk-hygiene-acme"))
         environment = {
             key: value
@@ -4516,7 +4874,13 @@ class GuardTests(unittest.TestCase):
             with mock.patch.object(
                 guard.sys,
                 "argv",
-                [script, "--authorized-data-root", "/direct", "--plugin-root", plugin_root],
+                [
+                    script,
+                    "--authorized-data-root",
+                    "/direct",
+                    "--plugin-root",
+                    plugin_root,
+                ],
             ):
                 self.assertEqual("/direct", guard.resolve_authorized_data_root())
             # An unresolvable plugin-root layout yields no authority, then env.
@@ -4539,9 +4903,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
             guard._plugin_data_root_from_root(
-                os.fspath(
-                    Path("/x/plugins/cache/melodic-software/disk-hygiene/0.4.8")
-                )
+                os.fspath(Path("/x/plugins/cache/melodic-software/disk-hygiene/0.4.8"))
             ),
         )
         # A directly-linked local install omits the <version> leaf; the name is
@@ -4575,11 +4937,15 @@ class GuardTests(unittest.TestCase):
     def test_argv_flag_value_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
             "false",
-            guard._argv_flag_value(["--disk-hygiene-enabled", "false"], "--disk-hygiene-enabled"),
+            guard._argv_flag_value(
+                ["--disk-hygiene-enabled", "false"], "--disk-hygiene-enabled"
+            ),
         )
         self.assertEqual(
             "false",
-            guard._argv_flag_value(["--disk-hygiene-enabled=false"], "--disk-hygiene-enabled"),
+            guard._argv_flag_value(
+                ["--disk-hygiene-enabled=false"], "--disk-hygiene-enabled"
+            ),
         )
         self.assertIsNone(
             guard._argv_flag_value(["--other", "false"], "--disk-hygiene-enabled")
@@ -4617,7 +4983,9 @@ class GuardTests(unittest.TestCase):
         on an `args:` line) is what issue #2568 had to unwind: it raises the
         moment the hook moves to shell form.
         """
-        lines = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8").splitlines()
+        lines = (
+            (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8").splitlines()
+        )
         frontmatter = lines[1 : lines.index("---", 1)]
         start = next(
             index
@@ -4991,9 +5359,7 @@ class GuardTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     "allow",
-                    self.run_guard(command)["hookSpecificOutput"][
-                        "permissionDecision"
-                    ],
+                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
                 )
 
     def test_guard_apply_accepts_optional_authorized_data_root(self) -> None:
@@ -5002,7 +5368,7 @@ class GuardTests(unittest.TestCase):
             authorized = str(Path(temporary).resolve() / "plugin-data")
             command = (
                 f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-                f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r '
+                f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r "
                 f'--data-root "{authorized}"'
             )
             with mock.patch.dict(
@@ -5010,9 +5376,7 @@ class GuardTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     "ask",
-                    self.run_guard(command)["hookSpecificOutput"][
-                        "permissionDecision"
-                    ],
+                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
                 )
 
     def test_powershell_engine_invocation_is_denied(self) -> None:
@@ -5040,10 +5404,6 @@ class GuardTests(unittest.TestCase):
             "C:\\Windows\\System32\\robocopy.exe C:\\src C:\\dst /MIR",
             "& 'C:/Windows/System32/robocopy.exe' C:/src C:/dst /PURGE",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
-            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($path,'OnlyErrorDialogs','SendToRecycleBin')",
-            "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
-            "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(10).MoveHere($path)",
-            "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
             "Move-Item C:/tmp/old C:/tmp/new",
             "Rename-Item C:/tmp/old C:/tmp/new",
             "Set-Content C:/tmp/file.txt 'overwrite'",
@@ -5071,7 +5431,9 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
-    def test_powershell_bare_name_mentions_defer_but_engine_identity_denies(self) -> None:
+    def test_powershell_bare_name_mentions_defer_but_engine_identity_denies(
+        self,
+    ) -> None:
         """F6 (#1112): mentions defer via the invocation classifier; a command
         whose argument IS the bundled engine still denies — verb names prove
         nothing under alias/function shadowing (review round on this PR)."""
@@ -5126,9 +5488,6 @@ class GuardTests(unittest.TestCase):
             "$item.Delete()",
             "robocopy C:/src C:/dst /MIR",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
-            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($path,'OnlyErrorDialogs','SendToRecycleBin')",
-            "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
-            "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
         ):
             result = self.run_guard_powershell_disabled(command)
             assert result is not None, command
@@ -5137,46 +5496,6 @@ class GuardTests(unittest.TestCase):
                 result["hookSpecificOutput"]["permissionDecision"],
                 command,
             )
-
-    def test_powershell_recycle_bin_preferred_spellings_force_final_prompt(self) -> None:
-        """#2595: the skill's preferred Recycle Bin paths must prompt like Remove-Item."""
-        for command in (
-            "Add-Type -AssemblyName Microsoft.VisualBasic; "
-            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory("
-            "$path,'OnlyErrorDialogs','SendToRecycleBin')",
-            "Add-Type -AssemblyName Microsoft.VisualBasic; "
-            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
-            "$path,'OnlyErrorDialogs','SendToRecycleBin')",
-            "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
-            "$shell = New-Object -ComObject Shell.Application; "
-            "$shell.NameSpace(10).MoveHere($path)",
-            "$shell = New-Object -ComObject Shell.Application; "
-            "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
-        ):
-            result = self.run_guard_powershell(command)
-            assert result is not None, command
-            self.assertEqual(
-                "ask",
-                result["hookSpecificOutput"]["permissionDecision"],
-                command,
-            )
-            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
-            self.assertRegex(
-                reason,
-                r"(FileSystem|Recycle Bin|NameSpace\(10\))",
-                command,
-            )
-
-    def test_powershell_shell_app_without_bin_action_defers(self) -> None:
-        """Listing the bin is not a deletion spelling; MoveHere/InvokeVerb is required."""
-        for command in (
-            "(New-Object -ComObject Shell.Application).NameSpace(10).Items()",
-            "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(10)",
-            # MoveHere against a non-bin namespace is outside this Recycle Bin rule;
-            # Move-Item remains the catch-all for rename/move cmdlets.
-            "(New-Object -ComObject Shell.Application).NameSpace('C:\\tmp').MoveHere($path)",
-        ):
-            self.assertIsNone(self.run_guard_powershell(command), command)
 
     def test_kill_switch_blocks_every_lane_when_configured_false(self) -> None:
         """A configured ``disk_hygiene_enabled=false`` in user settings must block
@@ -5190,12 +5509,10 @@ class GuardTests(unittest.TestCase):
             enabled=False,
         )
         assert powershell is not None
-        self.assertEqual(
-            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("deny", powershell["hookSpecificOutput"]["permissionDecision"])
         apply_command = (
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
         bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
         assert bash is not None
@@ -5208,7 +5525,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
@@ -5217,7 +5534,7 @@ class GuardTests(unittest.TestCase):
     def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
         out_file = Path(self._cfg.name) / "telemetry-deny.json"
         sink = Path(self._cfg.name) / "telemetry-sink.sh"
-        sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+        sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
         sink.chmod(0o755)
         with mock.patch.dict(
             os.environ,
@@ -5240,7 +5557,7 @@ class GuardTests(unittest.TestCase):
     def test_engine_gate_irrelevant_emits_no_telemetry(self) -> None:
         out_file = Path(self._cfg.name) / "telemetry-skip.json"
         sink = Path(self._cfg.name) / "telemetry-skip-sink.sh"
-        sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+        sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
         sink.chmod(0o755)
         with mock.patch.dict(
             os.environ,
@@ -5336,14 +5653,13 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
         targets = [
             "resolve_mode",
             "resolve_disk_hygiene_enabled",
             "resolve_authorized_data_root",
             "is_exact_kill_switch_probe",
-            "is_exact_readonly_supporting_command",
             "classify_exact_engine_command",
         ]
         for target in targets:
@@ -5371,7 +5687,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
         with mock.patch.object(
             guard,
@@ -5404,9 +5720,7 @@ class GuardTests(unittest.TestCase):
     def test_keyboard_interrupt_mid_decision_denies_at_exit_2_never_1(self) -> None:
         """A ``KeyboardInterrupt`` (or any BaseException) mid-decision is not a
         deliberate, reasoned allow — it must deny too, not propagate."""
-        with mock.patch.object(
-            guard, "_decide", side_effect=KeyboardInterrupt
-        ):
+        with mock.patch.object(guard, "_decide", side_effect=KeyboardInterrupt):
             exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
         self.assertEqual(2, exit_code)
         self.assertNotEqual(1, exit_code)
@@ -5480,9 +5794,7 @@ class GuardTests(unittest.TestCase):
             hook.get("timeout")
             for entry in config["hooks"]["PreToolUse"]
             for hook in entry.get("hooks", [])
-            if any(
-                "destructive_guard.py" in token for token in self._hook_argv(hook)
-            )
+            if any("destructive_guard.py" in token for token in self._hook_argv(hook))
         ]
         self.assertEqual([guard._DECLARED_HOOK_TIMEOUT_SECONDS], declared)
 

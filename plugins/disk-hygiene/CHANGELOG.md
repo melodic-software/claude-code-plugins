@@ -3,6 +3,28 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **A strictly evidence-gated manual path for provably redundant standalone Git checkouts
+  (#2596).** `handoff-verify` accepts an optional `--vcs-evidence` file and remains read-only.
+  Without that option, and in preview/apply unconditionally, VCS metadata and tracked content stay
+  categorically protected. With it, the verifier relaxes only the Git-specific blockers and `.git`
+  scan boundary after all four gates pass live: porcelain status is empty (including untracked,
+  gitignored-but-present, and submodule dirtiness via `--ignored=matching`); every local branch tip
+  plus a detached `HEAD` is confirmed by exact SHA through `gh api` against the checkout's
+  configured `github.com` remote; every stash SHA appears in an independent declared checkout's
+  stash list (or there are no stashes); and the checkout is bound to the existing exact-path
+  operator-approval file. The live `.git` repository set must exactly match the evidence map, every
+  common Git directory must remain inside the approved checkout (rejecting linked worktrees), and
+  stash copies must sit outside every approved deletion path with a `--git-common-dir` distinct from
+  the candidate's Git store (so a linked worktree of the same repository cannot count as a backup).
+  Any missing tool, unsupported provider, dirty tree, unconfirmed head, unmatched stash,
+  malformed output, timeout, or set/boundary mismatch retains the categorical reasons and returns
+  `contested`; every non-Git protection remains untouched. The Bash guard admits only the exact
+  read-only `--vcs-evidence <file>` handoff shape.
+
 ## [0.19.1]
 
 ### Fixed
