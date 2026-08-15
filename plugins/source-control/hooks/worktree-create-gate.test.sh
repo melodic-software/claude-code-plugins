@@ -97,6 +97,25 @@ assert_not_contains "an unexpanded placeholder is not used as a directory" "$OUT
 assert_contains "an unexpanded placeholder falls through to the data dir" "$OUT" "worktrees"
 
 # --------------------------------------------------------------------------
+# The plugin option rides the FALLBACK rung: a repository carrying the
+# melodic.worktreeroot git config key wins over it (#2610/#2612). This is the
+# hook-level proof that the option is passed as --fallback-root, not --root —
+# both spellings place identically when the key is absent, so only a keyed
+# repository discriminates.
+# --------------------------------------------------------------------------
+
+REPO_KEYED="$(mkrepo)"
+KEY_ROOT="$TEST_TMPDIR_NATIVE/gate-key-root"
+git -C "$REPO_KEYED" config melodic.worktreeroot "$KEY_ROOT"
+OUT="$(payload "feat/gate-keyed" "$REPO_KEYED" |
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
+STATUS=$?
+assert_exit "a keyed repository creates the worktree" 0 "$STATUS"
+assert_contains "melodic.worktreeroot wins over the plugin option" "$OUT" "gate-key-root"
+assert_not_contains "the plugin option's root is not used when the key is set" \
+  "$OUT" "external-root"
+
+# --------------------------------------------------------------------------
 # Refusals — every one fails the creation rather than falling through
 # --------------------------------------------------------------------------
 

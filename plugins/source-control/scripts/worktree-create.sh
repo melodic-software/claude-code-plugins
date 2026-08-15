@@ -17,14 +17,23 @@
 #     calls this same helper.
 # The flag CLI is the stable seam both consumers share.
 #
-# Root-resolution contract: a configured root (--root/--root-file) wins; absent one,
-# the plugin data directory supplied via --data-root-file yields <data-dir>/worktrees;
-# absent both, the helper refuses (exit 3). It never falls back to Claude Code's
-# in-repo `.claude/worktrees/`, whose nested placement is what the nesting
-# invariant forbids. That claim is owned, measured and dated in exactly one place
-# and is not restated here: skills/worktree/SKILL.md § "The nesting invariant,
-# verified". The data dir is never read from the environment — see the resolution
-# block.
+# Root-resolution contract, most specific first (#2610/#2612):
+#   1. an explicit --root/--root-file — a per-invocation caller decision;
+#   2. the `melodic.worktreeroot` git config key, read from the TARGET repository
+#      with includes on, so git's own includeIf machinery supplies per-identity
+#      and per-repository answers (reference/worktree-root-convention.md is the
+#      convention's owner doc);
+#   3. --fallback-root/--fallback-root-file — the machine-global worktree_root
+#      plugin option, which only this plugin can read and therefore ranks below
+#      the key every consumer can read;
+#   4. the plugin data directory supplied via --data-root-file, yielding
+#      <data-dir>/worktrees;
+#   5. absent all of those, the helper refuses (exit 3).
+# It never falls back to Claude Code's in-repo `.claude/worktrees/`, whose nested
+# placement is what the nesting invariant forbids. That claim is owned, measured
+# and dated in exactly one place and is not restated here:
+# skills/worktree/SKILL.md § "The nesting invariant, verified". The data dir is
+# never read from the environment — see the resolution block.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -44,8 +53,16 @@ usage() {
 $PROG — shared worktree-creation helper.
 
 Usage:
-  $PROG --name <name> (--root <dir> | --root-file <path>) [--data-root-file <path>]
-        [--base-ref fresh|head] [--repo-dir <dir>]
+  $PROG --name <name> [--root <dir> | --root-file <path>]
+        [--fallback-root <dir> | --fallback-root-file <path>]
+        [--data-root-file <path>] [--base-ref fresh|head] [--repo-dir <dir>]
+
+Root resolution, most specific first:
+  --root/--root-file (explicit, per invocation), then the melodic.worktreeroot
+  git config key read from the target repository (includes on, --type=path,
+  last value wins — includeIf supplies per-identity/per-repo answers), then
+  --fallback-root/--fallback-root-file (the machine-global plugin option), then
+  --data-root-file (<data-dir>/worktrees). Absent all: refuse (exit 3).
 
 Options:
   --name <name>       Branch/worktree name (e.g. feat/my-feature). Required.
@@ -58,12 +75,28 @@ Options:
                       so exits 3 and 4 can precede it.
   --root <dir>        External worktree root, passed directly as a process
                       argument (e.g. from a hook or CLI caller — no shell
-                      re-quoting of the value happens on that path). An empty
-                      value or an unexpanded \${user_config.*} token falls
-                      through to --data-root-file — never to the in-repo
+                      re-quoting of the value happens on that path). Wins over
+                      every configured source: an explicit per-invocation choice
+                      outranks per-repo config. An empty value or an unexpanded
+                      \${user_config.*} token falls through to the config key /
+                      fallback / data-root rungs — never to the in-repo
                       .claude/worktrees/ default, whose nested placement the
                       nesting invariant forbids (skills/worktree/SKILL.md).
                       Mutually exclusive with --root-file.
+  --fallback-root <dir>
+                      The machine-global worktree_root PLUGIN OPTION, consulted
+                      only when neither an explicit --root/--root-file nor the
+                      melodic.worktreeroot git config key yields a value. Ranks
+                      below the key deliberately: the key is per-repo/per-identity
+                      capable and readable by every consumer, while the plugin
+                      option is machine-wide and plugin-only (#2612). Same
+                      unset/empty/unexpanded-token handling as --root. Mutually
+                      exclusive with --fallback-root-file.
+  --fallback-root-file <path>
+                      Read the fallback root from <path> — the same byte-verbatim
+                      file channel as --root-file, for a caller that cannot place
+                      the raw-substituted \${user_config.worktree_root} value in
+                      shell source safely. Mutually exclusive with --fallback-root.
   --data-root-file <path>
                       Read the plugin's data directory from <path>, used as the
                       root ONLY when no --root/--root-file value is configured
@@ -114,6 +147,10 @@ root=""
 root_given=0
 root_file=""
 root_file_given=0
+fallback_root=""
+fallback_root_given=0
+fallback_root_file=""
+fallback_root_file_given=0
 data_root_file=""
 data_root_file_given=0
 base_ref=""
@@ -134,6 +171,8 @@ while [[ $# -gt 0 ]]; do
     --name) need_value "$@"; name="$2"; shift 2 ;;
     --root) need_value "$@"; root="$2"; root_given=1; shift 2 ;;
     --root-file) need_value "$@"; root_file="$2"; root_file_given=1; shift 2 ;;
+    --fallback-root) need_value "$@"; fallback_root="$2"; fallback_root_given=1; shift 2 ;;
+    --fallback-root-file) need_value "$@"; fallback_root_file="$2"; fallback_root_file_given=1; shift 2 ;;
     --data-root-file) need_value "$@"; data_root_file="$2"; data_root_file_given=1; shift 2 ;;
     --base-ref) need_value "$@"; base_ref="$2"; shift 2 ;;
     --repo-dir) need_value "$@"; repo_dir="$2"; shift 2 ;;
@@ -152,6 +191,10 @@ fi
 # treating the empty one as absent would silently pick the other.
 if (( root_given && root_file_given )); then
   printf '%s: --root and --root-file are mutually exclusive\n' "$PROG" >&2
+  exit 2
+fi
+if (( fallback_root_given && fallback_root_file_given )); then
+  printf '%s: --fallback-root and --fallback-root-file are mutually exclusive\n' "$PROG" >&2
   exit 2
 fi
 
@@ -208,6 +251,10 @@ if (( root_file_given )); then
   read_path_file --root-file "$root_file"
   root="$PATH_FILE_VALUE"
 fi
+if (( fallback_root_file_given )); then
+  read_path_file --fallback-root-file "$fallback_root_file"
+  fallback_root="$PATH_FILE_VALUE"
+fi
 
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and
 # each '/'-separated segment contains only letters, digits, dots, underscores,
@@ -226,43 +273,62 @@ fi
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
-# Unconfigured root: detected here, resolved after the repository is known below.
-# Treat an empty value or an unexpanded ${user_config.*} token (what Claude Code
-# leaves when the key is unset) as unset.
+# root_is_unset <value> — an empty value or an unexpanded ${user_config.*}
+# token (what Claude Code leaves when the key is unset) counts as unset. Shared
+# by the explicit root and the fallback root so the two channels cannot drift.
 #
 # SC2016: the single-quoted ${user_config token is matched literally on purpose —
 # we are detecting the UNexpanded placeholder, so expansion here would be a bug.
-root_unset=0
 # shellcheck disable=SC2016
-if [[ -z "$root" || "$root" == *'${user_config'* ]]; then
+root_is_unset() {
+  [[ -z "$1" || "$1" == *'${user_config'* ]]
+}
+
+# canonicalize_root <value> <source-label> — apply the two Windows-path guards
+# every root source must pass through, whichever rung supplied it, into the
+# global CANONICAL_ROOT. A global, not an echo: the drive-relative refusal must
+# terminate the SCRIPT, and an exit inside a $( ) capture kills only the subshell.
+#
+# 1. Canonicalize a Windows backslash root to the forward-slash grammar git
+#    emits. On a Windows shell `\` is a path separator `git worktree add`
+#    resolves, but the containment guard below cannot: the ancestor walk splits
+#    on `/`, so an all-backslash `${probe%/*}` never changes (parent == probe),
+#    the loop breaks on its first iteration, and the whole guard block is
+#    skipped — a backslash root then sails through and git lands the checkout
+#    inside the repo/.git. Swapping `\`→`/` up front routes a backslash root
+#    through the SAME anchor + normalize_path + walk as a forward-slash root
+#    (one code path, not a parallel one). Gated to Windows shells via $OSTYPE —
+#    off-Windows `\` is a legal filename byte and must be left untouched.
+#    (cygpath is intentionally avoided: it resolves relative paths against the
+#    CWD, not $toplevel, and rewrites MSYS `/tmp` paths — both diverge from this
+#    helper's contract; a pure separator swap defers all resolution to the
+#    existing machinery.)
+# 2. Reject drive-relative roots (`C:foo` with no separator after the colon).
+#    Git for Windows resolves them against the drive's per-directory CWD, which
+#    bypasses the containment ancestor walk (#962).
+canonicalize_root() {
+  local value="$1" source="$2"
+  if [[ "$value" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
+    local bslash="\\" fwd="/"
+    value="${value//"$bslash"/"$fwd"}"
+  fi
+  if [[ "$value" =~ ^[A-Za-z]:[^/] ]]; then
+    printf '%s: %s %q is drive-relative; use an absolute path (e.g. C:/worktrees)\n' \
+      "$PROG" "$source" "$value" >&2
+    exit 2
+  fi
+  CANONICAL_ROOT="$value"
+}
+
+# Unconfigured root: detected here, resolved after the repository is known below
+# (the melodic.worktreeroot rung needs the repository, and the data-dir rung
+# stays last).
+root_unset=0
+if root_is_unset "$root"; then
   root_unset=1
-fi
-
-# Canonicalize a Windows backslash root to the forward-slash grammar git emits.
-# On a Windows shell `\` is a path separator `git worktree add` resolves, but the
-# containment guard below cannot: the ancestor walk splits on `/`, so an
-# all-backslash `${probe%/*}` never changes (parent == probe), the loop breaks on
-# its first iteration, and the whole guard block is skipped — a backslash root
-# then sails through and git lands the checkout inside the repo/.git. Swapping
-# `\`→`/` up front routes a backslash root through the SAME anchor + normalize_path
-# + walk as a forward-slash root (one code path, not a parallel one). Gated to
-# Windows shells via $OSTYPE — off-Windows `\` is a legal filename byte and must
-# be left untouched. (cygpath is intentionally avoided: it resolves relative paths
-# against the CWD, not $toplevel, and rewrites MSYS `/tmp` paths — both diverge
-# from this helper's contract; a pure separator swap defers all resolution to the
-# existing machinery.)
-if [[ "$root" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
-  bslash="\\"
-  fwd="/"
-  root="${root//"$bslash"/"$fwd"}"
-fi
-
-# Reject drive-relative roots (`C:foo` with no separator after the colon). Git for
-# Windows resolves them against the drive's per-directory CWD, which bypasses the
-# containment ancestor walk (#962).
-if [[ "$root" =~ ^[A-Za-z]:[^/] ]]; then
-  printf '%s: --root %q is drive-relative; pass an absolute path (e.g. C:/worktrees)\n' "$PROG" "$root" >&2
-  exit 2
+else
+  canonicalize_root "$root" --root
+  root="$CANONICAL_ROOT"
 fi
 
 # Resolve the source repository top level.
@@ -276,8 +342,48 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   exit 4
 fi
 
-# Resolve the unconfigured-root fallback: the plugin's own data directory,
-# delivered by the caller through --data-root-file.
+# Rung 2 (#2610): the `melodic.worktreeroot` git config key — the machine truth
+# for worktree placement, readable by anything that can run `git config --get`,
+# and the layer where git's own includeIf machinery supplies per-identity and
+# per-repository answers (#2612). Owner doc: reference/worktree-root-convention.md.
+#
+# Three reading rules, each load-bearing:
+#   * Read from $toplevel — the TARGET repository — so an includeIf condition
+#     evaluates against that repository's gitdir, never this process's CWD.
+#   * NO scope flag. git-config(1): includes default OFF "when a specific file
+#     is given (e.g., using --file, --global, etc)" and ON when searching all
+#     files. A scoped read silently skips every includeIf, which is the
+#     per-identity layer working by accident or not at all.
+#   * The dubious-ownership gate is the successful `rev-parse --show-toplevel`
+#     above: under dubious ownership (safe.directory) that resolution FAILS
+#     (exit 4 above), so this read can never mistake the global default for the
+#     repository's answer — the silent rc=0 fallback the convention doc warns
+#     about.
+# `--get-all | tail -n 1` is deliberate: the key is multi-valued last-wins, so
+# an includeIf-supplied value APPENDS after the plain default and wins, matching
+# the ghq.root / wt.basedir precedent. `--type=path` expands a leading `~`.
+# `tr -d '\r'` guards the CRLF a Windows git.exe emits under an MSYS shell.
+if (( root_unset )); then
+  config_root="$(git -C "$toplevel" config --get-all --type=path melodic.worktreeroot 2>/dev/null | tail -n 1 | tr -d '\r')"
+  if [[ -n "$config_root" ]]; then
+    canonicalize_root "$config_root" "melodic.worktreeroot"
+    root="$CANONICAL_ROOT"
+    root_unset=0
+    printf '%s: worktree root resolved from the melodic.worktreeroot git config key\n' "$PROG" >&2
+  fi
+fi
+
+# Rung 3: the machine-global plugin option, handed over as --fallback-root or
+# --fallback-root-file. Below the git key on purpose: the key is per-repo capable
+# and readable by every consumer; the option is machine-wide and plugin-only.
+if (( root_unset )) && ! root_is_unset "$fallback_root"; then
+  canonicalize_root "$fallback_root" --fallback-root
+  root="$CANONICAL_ROOT"
+  root_unset=0
+fi
+
+# Rung 4: the plugin's own data directory, delivered by the caller through
+# --data-root-file.
 #
 # The value cannot be read from the environment here. In a general Bash-tool
 # subprocess — which is what every caller of this helper runs in — CLAUDE_PLUGIN_DATA
@@ -317,9 +423,15 @@ if (( root_unset )); then
     cat >&2 <<EOF
 $PROG: no worktree root available — refusing to create a worktree.
 
-Set the source-control plugin's \`worktree_root\` directory key to an external
-root (a path OUTSIDE every repository), then retry. Run the worktree setup
-skill, or configure it via \`/plugin\`.
+Set the \`melodic.worktreeroot\` git config key to an external root (a path
+OUTSIDE every repository), then retry:
+
+  git config --global melodic.worktreeroot <root>
+
+Any tool that can run \`git config --get\` can honor that key; the
+source-control plugin's \`worktree_root\` option (via \`/plugin\`) also works but
+only this plugin can read it. Convention and per-identity layering:
+reference/worktree-root-convention.md.
 
 Not falling back to the in-repo .claude/worktrees/ default: a worktree nested
 inside a checkout can pick up that checkout's path-scoped rules as well as its
@@ -531,9 +643,9 @@ $PROG: worktree target is $location — refusing to create a worktree.
   target:   $worktree_path
 $detail
 
-Set the source-control plugin's \`worktree_root\` directory key to an external
-root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
-then retry.
+Point the \`melodic.worktreeroot\` git config key (or the plugin's
+\`worktree_root\` option) at an external root — a path OUTSIDE every repository,
+on the same drive as the repo on Windows — then retry.
 
 Not creating inside a checkout or a git directory: from there a worktree can
 pick up the enclosing checkout's path-scoped rules as well as its own, and a
