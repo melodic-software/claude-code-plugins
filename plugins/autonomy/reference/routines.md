@@ -217,7 +217,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | tech-debt-sweep | hybrid: DET recipes (no agent session); AGT sweep is the routine | WI | repo | C1 (WI); prioritization disposition human-gated | v1 |
 | dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | C3 (liveness not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat the build); per-item escalation to C4 on a published surface | join: proven recurring manual pattern |
 | clone-trend-gate | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
-| cant-fail-test-repair | hybrid: DET detect (no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable — a test that now fails may be right or wrong) | join: proven recurring manual pattern |
+| cant-fail-test-repair | hybrid: DET detect (built: the `testing:audit` script detector; no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable — a test that now fails may be right or wrong) | join: proven recurring manual pattern |
 | stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | C4 (a flag definition is a configuration surface; composes above the C3 the direct-change rule alone would give); disposition human-gated | join: proven recurring manual pattern |
 | formal-logic-modeling | AGT | R | repo | C1 | join: a stated invariant or specification artifact exists to model against |
 | layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
@@ -314,7 +314,10 @@ commentary, and a leaf that contradicts one is non-conforming.
   `repo` access class alone would give is not the operative floor.
 - **`cant-fail-test-repair` — repair, not pruning.** A test that cannot fail is a coverage claim that
   is false; deleting it removes the false claim and the coverage together. The class repairs the
-  assertion.
+  assertion. The detect portion is built — the `testing:audit` script detector — and carries the
+  no-agent-session property per the portion-split mapping rule; the repair judgment, the routine
+  itself, is not, so the join trigger stays open and the class gains no leaf. A detector proves
+  detection, never the repair pattern `v1` requires.
 
 ### v1 leaves
 
