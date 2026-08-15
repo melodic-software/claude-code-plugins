@@ -608,7 +608,7 @@ jobs:
           fetch-depth: 0
       - name: Test the fleet finding-kind test-coverage detector
         run: bash scripts/check-fleet-finding-test-coverage.test.sh
-      - name: Check every emitted fleet finding kind has a Finding: assertion
+      - name: "Check every emitted fleet finding kind has a Finding: assertion"
         run: scripts/check-fleet-finding-test-coverage.sh --check
 
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
