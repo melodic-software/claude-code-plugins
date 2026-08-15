@@ -1089,45 +1089,49 @@ _NT_SYSTEM_TRUSTED_BIN_SUBDIRS = (
 )
 
 
-def _nt_git_installation_root() -> Path | None:
-    """Resolve the Git-for-Windows installation root from the ``git`` executable.
+def _nt_known_git_installation_roots() -> tuple[Path, ...]:
+    """Git-for-Windows roots from independently trusted install locations.
 
-    ``shutil.which`` may land on ``<root>/cmd/git.exe``, ``<root>/bin/git.exe``,
-    or ``<root>/mingw64/bin/git.exe`` depending on how PATH is composed, so the
-    launcher directory is peeled back to the installation root. Returns ``None``
-    when ``git`` cannot be located or resolved — the caller then trusts NOTHING
-    from a Git tree rather than falling back to a permissive match.
+    Never derived from ``PATH`` / ``shutil.which("git")``: a project-controlled
+    directory ahead on ``PATH`` can plant ``cmd/git.exe`` and poison the trusted
+    root, recreating the arbitrary-executable bypass the anchored-prefix change
+    closed. Only well-known installer destinations under ``ProgramFiles``,
+    ``ProgramFiles(x86)``, and ``LocalAppData\\Programs`` contribute roots, and
+    only when that directory actually exists.
     """
-    located = shutil.which("git")
-    if not located:
-        return None
-    try:
-        resolved = Path(located).resolve()
-    except OSError:
-        return None
-    parent = resolved.parent
-    if parent.name.casefold() in {"cmd", "bin"}:
-        parent = parent.parent
-    if parent.name.casefold() in {"mingw64", "mingw32", "usr"}:
-        parent = parent.parent
-    return parent
+    candidates: list[tuple[str, tuple[str, ...]]] = [
+        ("ProgramFiles", ("Git",)),
+        ("ProgramFiles(x86)", ("Git",)),
+        ("LocalAppData", ("Programs", "Git")),
+    ]
+    roots: list[Path] = []
+    for key, rel in candidates:
+        base = os.environ.get(key)
+        if not base:
+            continue
+        try:
+            candidate = Path(base).joinpath(*rel).resolve()
+        except OSError:
+            continue
+        if candidate.is_dir():
+            roots.append(candidate)
+    return tuple(roots)
 
 
 @functools.lru_cache(maxsize=1)
 def _nt_trusted_readonly_bin_roots() -> tuple[Path, ...]:
     """Resolved absolute directories on Windows whose contents the belt trusts.
 
-    Built from real installation roots — the located ``git`` executable and
+    Built from independently located Git installation roots and
     ``%SystemRoot%`` — because a SUBSTRING match on a path fragment such as
     ``/git/usr/bin/`` is satisfied by any repository-controlled directory that
     merely spells that fragment (``D:/anyrepo/git/usr/bin/find``), which would
     hard-``allow`` a planted binary carrying an allowlisted basename. Anchoring
     to the resolved root removes that bypass; an unresolvable root contributes
-    NO trusted directories.
+    NO trusted directories. Git roots are never taken from ``PATH``.
     """
     roots: list[Path] = []
-    git_root = _nt_git_installation_root()
-    if git_root is not None:
+    for git_root in _nt_known_git_installation_roots():
         roots.extend(git_root.joinpath(*parts) for parts in _NT_GIT_TRUSTED_BIN_SUBDIRS)
     system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT")
     if system_root:
@@ -1173,32 +1177,76 @@ def _path_under_trusted_readonly_bin(path: Path) -> bool:
 def _trusted_system_readonly_head(head: str) -> bool:
     """True when ``head`` is a trusted-system executable for the allowlist.
 
-    - Bare names: resolve with ``shutil.which`` (ignores shell functions), then
-      require the real path under a trusted prefix. Shadowed PATH entries and
-      failed resolution fail closed — same rationale as denying bare
-      ``python``/``python3``.
-    - Absolute paths: require the real path (symlink-resolved) under a trusted
-      prefix. Relative path-qualified forms are denied.
+    Absolute paths only: require the real path (symlink-resolved) under a
+    trusted prefix. Bare names are denied — ``shutil.which`` finds the system
+    binary while Bash still executes an exported function of the same name
+    first (``BASH_FUNC_ls%%``), so a which()-based identity check cannot prove
+    what the shell will run. Relative path-qualified forms are denied.
+
+    On Windows, Git Bash spells system tools as MSYS paths (``/usr/bin/ls``).
+    Native ``Path.resolve`` would map those onto the current drive, so they are
+    reinterpreted against the known Git installation roots instead.
     """
     if not head:
         return False
-    if "/" in head or "\\" in head:
-        candidate = Path(head)
-        if not candidate.is_absolute():
+    if "/" not in head and "\\" not in head:
+        return False
+    candidate = Path(head)
+    if not candidate.is_absolute():
+        return False
+    if os.name == "nt" and head.startswith("/") and not head.startswith("//"):
+        # MSYS absolute path: /usr/bin/ls → <GitRoot>/usr/bin/ls[.exe]
+        rel_parts = tuple(part for part in head.split("/") if part)
+        if not rel_parts:
             return False
-        try:
-            resolved = candidate.resolve()
-        except OSError:
-            return False
-        return _path_under_trusted_readonly_bin(resolved)
-    located = shutil.which(head)
-    if not located:
+        for git_root in _nt_known_git_installation_roots():
+            mapped = git_root.joinpath(*rel_parts)
+            for variant in (mapped, mapped.with_suffix(".exe"), mapped.with_suffix(".EXE")):
+                try:
+                    resolved = variant.resolve()
+                except OSError:
+                    continue
+                if _path_under_trusted_readonly_bin(resolved):
+                    return True
         return False
     try:
-        resolved = Path(located).resolve()
+        resolved = candidate.resolve()
     except OSError:
         return False
     return _path_under_trusted_readonly_bin(resolved)
+
+
+def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
+    """Parse ``/usr/bin/[ ... ]`` (absolute ``[``) into ``(head, interior_words)``.
+
+    Bare ``[ ... ]`` is intentionally not accepted: a shell function named ``[``
+    shadows the binary the same way a function shadows bare ``ls``.
+    ``_literal_shell_words`` rejects ``[``/``]`` as metacharacters, so this
+    path is parsed with the same bookend rules as the bare form, then the
+    absolute head is identity-checked separately.
+    """
+    text = command.strip()
+    space = text.find(" ")
+    if space < 0:
+        return None
+    head = text[:space]
+    if not head.endswith("["):
+        return None
+    if "/" not in head and "\\" not in head:
+        return None
+    rest = text[space + 1 :]
+    # ``/usr/bin/[`` receives ``]`` as its own final argv word.
+    if rest != "]" and not rest.endswith(" ]"):
+        return None
+    interior = "" if rest == "]" else rest[:-1].strip()
+    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+        return None
+    if not interior:
+        return head, []
+    words = _literal_shell_words(interior)
+    if words is None:
+        return None
+    return head, words
 
 
 def is_exact_readonly_supporting_command(command: str) -> bool:
@@ -1207,19 +1255,16 @@ def is_exact_readonly_supporting_command(command: str) -> bool:
     The belt remains deny-by-default; this opens only the small inspection set
     needed after the skill-frontmatter hook stays armed for the rest of the
     session (#2618). Engine containment is still the deletion authority.
-    Bare names and absolute trusted paths both require executable identity under
-    a trusted system directory before they are allowed.
+    Heads must be absolute paths under a trusted system directory — bare names
+    are denied because exported shell functions shadow them.
     """
-    bracket_words = _parse_bracket_test_words(command)
-    if bracket_words is not None:
-        # ``[`` requires a non-empty expression and a closing ``]`` bookend, AND
-        # the same trusted-executable identity every other head must prove. The
-        # guard denies bare ``python``/``python3`` because a shell function or
-        # alias can replace them; ``[`` is no different, so it is not trusted on
-        # name alone. Where ``[`` resolves to no trusted system binary (it is
-        # commonly only a shell builtin), the shape is unprovable and therefore
-        # denied — non-Bash read-only tools remain available for inspection.
-        return bool(bracket_words) and _trusted_system_readonly_head("[")
+    absolute_bracket = _absolute_bracket_test_words(command)
+    if absolute_bracket is not None:
+        head, bracket_words = absolute_bracket
+        return bool(bracket_words) and _trusted_system_readonly_head(head)
+    # Bare ``[ ... ]`` is never allowlisted (function-shadowable bookend).
+    if _parse_bracket_test_words(command) is not None:
+        return False
     tokens = _literal_shell_words(command)
     if tokens is None or not tokens:
         return False
@@ -1431,10 +1476,11 @@ def _bash_denial_guidance(authority: str | None) -> str:
         f'"{_display_path(_engine_script_path())}", plus the argument-free '
         f'read-only kill-switch probe "{_display_path(_probe_script_path())}", '
         f"plus literal-form read-only supporting commands ({supporting}; find "
-        "without -delete/-exec/-ok/-fprint side-effect primaries; [ only as a "
-        "complete [ ... ] expression with the closing ] bookend; every head, "
-        "[ included, only when it resolves to a trusted system binary — a bare "
-        "name via PATH lookup, or an absolute path under those directories) — "
+        "without -delete/-exec/-ok/-fprint side-effect primaries; [ only as an "
+        "absolute-path complete /usr/bin/[ ... ] expression with the closing ] "
+        "bookend; every head, [ included, only as an absolute path under a "
+        "trusted system directory — bare names are denied because exported "
+        "shell functions shadow them) — "
         "all of them using the hook's absolute Python interpreter "
         f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
         "commands are denied because shell functions and aliases can replace them."

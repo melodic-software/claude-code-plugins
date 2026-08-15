@@ -13,8 +13,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   tests with the code. `resolve_mode()` again documents that a skill-frontmatter
   `PreToolUse` hook stays armed for the rest of the session rather than only while cleanup
   is the active work, and the read-only supporting Bash allowlist (`ls`, `test`, `stat`,
-  `du`, `pwd`, `basename`, `dirname`, `find`, `file`, `[`) is restored — `find` gated by
-  the full GNU/BSD side-effect primary set, everything else still deny-by-default.
+  `du`, `pwd`, `basename`, `dirname`, `find`, `file`, `[`) is restored as absolute paths
+  under trusted system directories — `find` gated by the full GNU/BSD side-effect primary
+  set, everything else still deny-by-default.
 - **Recycle Bin deletion spellings are recognized on the PowerShell belt (#2595).**
   `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` and
   `Shell.Application` `NameSpace(10)`/`NameSpace(0xa)` with `MoveHere`/`InvokeVerb` now
@@ -28,14 +29,18 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `/git/usr/bin/` and `/windows/system32/` anywhere in a path, so a repository-controlled
   `D:/anyrepo/git/usr/bin/find` was trusted and a planted binary carrying an allowlisted
   basename was hard-`allow`ed, bypassing even the user's own permission prompt. Trust now
-  derives from independently located Git installation roots and from `%SystemRoot%`,
-  compared as an anchored case-insensitive path prefix; an unresolvable root contributes
-  no trusted directories.
+  derives from independently located Git installation roots (`ProgramFiles`,
+  `ProgramFiles(x86)`, `LocalAppData\\Programs`) and from `%SystemRoot%`, compared as an
+  anchored case-insensitive path prefix — never from a `PATH`-selected `git.exe`.
 - **`[` must clear the same executable-identity check as every other head (#2618).** The
   `[ ... ]` branch returned before the trusted-binary check, so `[` was trusted on name
   alone — the shell-function-shadowing exposure the guard itself cites to deny bare
-  `python`/`python3`. It is now allowed only where a real `[` binary resolves under a
-  trusted root, and denied where that cannot be proven.
+  `python`/`python3`. It is now allowed only as an absolute trusted `/usr/bin/[ ... ]`
+  form.
+- **Bare allowlisted heads are denied (#2618).** `shutil.which("ls")` finds the system
+  binary while Bash still executes an exported `BASH_FUNC_ls%%` first; only absolute
+  paths under trusted system directories (MSYS `/usr/bin/...` mapped through the known
+  Git root on Windows) can hard-`allow`.
 
 ## [0.20.6]
 

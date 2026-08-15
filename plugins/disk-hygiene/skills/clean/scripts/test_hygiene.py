@@ -4254,38 +4254,54 @@ class GuardTests(unittest.TestCase):
         for head in guard._READONLY_SUPPORTING_BASH_HEADS:
             self.assertIn(head, guidance, head)
         self.assertIn("[", guidance)
+        self.assertIn("absolute path", guidance)
+        self.assertIn("bare names are denied", guidance)
 
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
-        """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied."""
-        allowed = [
-            "ls -la /tmp/example",
-            "ls -d /tmp/example",
-            "test -d /tmp/example",
-            "test -e /tmp/example",
-            "stat /tmp/example",
-            "du -sh /tmp/example",
-            "pwd",
-            "basename /tmp/example",
-            "dirname /tmp/example",
-            "find /tmp/example -type d -maxdepth 2",
-            "find /tmp/example -name example",
-            "file /tmp/example",
-        ]
-        if os.name != "nt":
-            # Absolute trusted-system paths are safer than bare names (no PATH
-            # shadowing) and must be allowed when the basename is allowlisted.
-            # These posix roots do not exist on Windows, where trust is anchored
-            # to the resolved Git installation and %SystemRoot% instead.
-            allowed.extend(["/bin/ls /tmp/example", "/usr/bin/ls -la /tmp/example"])
-        if shutil.which("[") is not None:
-            # `[` is a real binary in coreutils and in Git for Windows, so the
-            # hardened identity check clears it and the well-formed bookend
-            # expression is allowed. Where the host ships `[` only as a shell
-            # builtin the shape is unprovable and denied instead — that policy
-            # is asserted deterministically in
-            # `test_bracket_test_is_not_trusted_on_name_alone`, which mocks the
-            # identity gate rather than depending on the host.
-            allowed.extend(["[ -d /tmp/example ]", "[ -f /tmp/example ]"])
+        """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.
+
+        Bare names are denied (exported shell functions shadow them); only
+        absolute paths under trusted system directories are allowlisted.
+        """
+        # Prefer /usr/bin on every runner; fall back to /bin when a binary is
+        # absent from /usr/bin (minimal images). Skip a head entirely when
+        # neither exists so the suite stays green on stripped hosts.
+        def abs_head(name: str) -> str | None:
+            for prefix in ("/usr/bin/", "/bin/"):
+                candidate = prefix + name
+                if Path(candidate).is_file():
+                    return candidate
+            return None
+
+        allowed: list[str] = []
+        for name, suffix in (
+            ("ls", " -la /tmp/example"),
+            ("ls", " -d /tmp/example"),
+            ("test", " -d /tmp/example"),
+            ("test", " -e /tmp/example"),
+            ("stat", " /tmp/example"),
+            ("du", " -sh /tmp/example"),
+            ("pwd", ""),
+            ("basename", " /tmp/example"),
+            ("dirname", " /tmp/example"),
+            ("find", " /tmp/example -type d -maxdepth 2"),
+            ("find", " /tmp/example -name example"),
+        ):
+            head = abs_head(name)
+            if head is not None:
+                allowed.append(head + suffix)
+        file_head = abs_head("file")
+        if file_head is not None:
+            # Optional utility: absent on some minimal Linux images (#2706 review).
+            allowed.append(file_head + " /tmp/example")
+        bracket_head = abs_head("[")
+        if bracket_head is not None:
+            allowed.extend(
+                [
+                    f"{bracket_head} -d /tmp/example ]",
+                    f"{bracket_head} -f /tmp/example ]",
+                ]
+            )
         for command in allowed:
             with self.subTest(command=command):
                 result = self.run_guard(command)
@@ -4295,9 +4311,16 @@ class GuardTests(unittest.TestCase):
                     command,
                 )
         denied = (
+            # Bare names are function-shadowable and must not hard-allow.
+            "ls -la /tmp/example",
+            "pwd",
+            "file /tmp/example",
+            "[ -d /tmp/example ]",
+            "[ -f /tmp/example ]",
             # Every GNU/BSD find primary that writes or executes. A literal
             # allowlist cannot prove an -exec payload harmless.
             "find /tmp/example -delete",
+            "/usr/bin/find /tmp/example -delete",
             "find /tmp/example -exec rm {} +",
             "find /tmp/example -execdir rm -rf . ;",
             "find /tmp/example -ok rm {} ;",
@@ -4336,8 +4359,8 @@ class GuardTests(unittest.TestCase):
                     command,
                 )
 
-    def test_readonly_supporting_bare_name_resolves_to_trusted_path(self) -> None:
-        """Bare allowlisted names are allowed only when which() hits a trusted dir."""
+    def test_readonly_supporting_bare_name_is_denied_as_shadowable(self) -> None:
+        """Bare allowlisted names are denied: which() cannot prove Bash will run that binary."""
         located = shutil.which("ls")
         self.assertIsNotNone(located)
         resolved = Path(located).resolve()
@@ -4345,37 +4368,33 @@ class GuardTests(unittest.TestCase):
             guard._path_under_trusted_readonly_bin(resolved),
             f"test host must provide system ls; got {resolved}",
         )
-        self.assertTrue(guard.is_exact_readonly_supporting_command("ls /tmp/example"))
-        self.assertTrue(guard._trusted_system_readonly_head("ls"))
+        # Absolute path to the same binary is allowed; the bare name is not.
+        self.assertTrue(
+            guard.is_exact_readonly_supporting_command(f"{resolved.as_posix()} /tmp/example")
+        )
+        self.assertTrue(guard._trusted_system_readonly_head(resolved.as_posix()))
+        self.assertFalse(guard.is_exact_readonly_supporting_command("ls /tmp/example"))
+        self.assertFalse(guard._trusted_system_readonly_head("ls"))
 
     def test_guard_denies_readonly_head_shadowed_on_path(self) -> None:
-        """A PATH entry that is not a trusted system binary cannot use the allowlist.
+        """A non-absolute head cannot use the allowlist (PATH / function shadowing).
 
-        ``shutil.which`` is driven directly rather than by prepending a scratch
-        directory to ``PATH``: on Windows an extension-less scratch ``ls`` does
-        not satisfy ``PATHEXT``, so a PATH-based fixture silently resolves to the
-        real system binary and the assertion proves nothing. Mocking the lookup
-        makes the property under test — a resolution landing OUTSIDE a trusted
-        system directory fails closed — deterministic on every runner.
+        Bare names are denied outright so a ``BASH_FUNC_*`` export cannot win
+        hard-``allow`` against a which()-resolved system binary. Absolute paths
+        outside a trusted directory still fail closed.
         """
+        self.assertFalse(guard._trusted_system_readonly_head("ls"))
+        self.assertFalse(guard.is_exact_readonly_supporting_command("ls /tmp/example"))
         with tempfile.TemporaryDirectory() as tmp:
             shadow = Path(tmp).resolve() / "ls"
             shadow.write_text("#!/bin/sh\necho shadowed\n")
             shadow.chmod(0o755)
-            with mock.patch.object(
-                guard.shutil, "which", return_value=str(shadow)
-            ) as located:
-                self.assertFalse(guard._trusted_system_readonly_head("ls"))
-                self.assertFalse(
-                    guard.is_exact_readonly_supporting_command("ls /tmp/example")
+            self.assertFalse(guard._trusted_system_readonly_head(shadow.as_posix()))
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command(
+                    f"{shadow.as_posix()} /tmp/example"
                 )
-            located.assert_called_with("ls")
-            # A which() that resolves to nothing at all also fails closed.
-            with mock.patch.object(guard.shutil, "which", return_value=None):
-                self.assertFalse(guard._trusted_system_readonly_head("ls"))
-                self.assertFalse(
-                    guard.is_exact_readonly_supporting_command("ls /tmp/example")
-                )
+            )
 
     def test_readonly_supporting_absolute_untrusted_basename_denied(self) -> None:
         """Allowlisted basename under an untrusted directory must not inherit approval."""
@@ -4471,43 +4490,84 @@ class GuardTests(unittest.TestCase):
         """An unresolvable installation root contributes NO trusted directories."""
         guard._nt_trusted_readonly_bin_roots.cache_clear()
         try:
-            with (
-                mock.patch.object(guard.shutil, "which", return_value=None),
-                mock.patch.dict(guard.os.environ, {}, clear=True),
-            ):
+            with mock.patch.dict(guard.os.environ, {}, clear=True):
                 self.assertEqual((), guard._nt_trusted_readonly_bin_roots())
         finally:
             guard._nt_trusted_readonly_bin_roots.cache_clear()
 
-    def test_bracket_test_is_not_trusted_on_name_alone(self) -> None:
-        """#2618 hardening 2: ``[`` must clear the same executable-identity check.
+    def test_nt_git_roots_ignore_path_selected_git(self) -> None:
+        """#2706 review: a PATH-planted git.exe must not become the trusted root."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            planted = base / "repo" / "cmd"
+            planted.mkdir(parents=True)
+            planted_git = planted / "git.exe"
+            planted_git.write_text("fake")
+            # which() returning a planted binary must not matter: known roots come
+            # only from ProgramFiles / LocalAppData installer locations.
+            # Do not mock os.name here — pathlib.Path selects WindowsPath when
+            # os.name is ``nt``, which cannot be instantiated on a POSIX runner.
+            guard._nt_trusted_readonly_bin_roots.cache_clear()
+            try:
+                with (
+                    mock.patch.object(
+                        guard.shutil, "which", return_value=str(planted_git)
+                    ),
+                    mock.patch.dict(
+                        guard.os.environ,
+                        {
+                            "ProgramFiles": str(base / "empty-pf"),
+                            "ProgramFiles(x86)": str(base / "empty-pf86"),
+                            "LocalAppData": str(base / "empty-local"),
+                            "SystemRoot": "",
+                            "SYSTEMROOT": "",
+                        },
+                        clear=False,
+                    ),
+                ):
+                    self.assertEqual((), guard._nt_known_git_installation_roots())
+                    self.assertEqual((), guard._nt_trusted_readonly_bin_roots())
+            finally:
+                guard._nt_trusted_readonly_bin_roots.cache_clear()
 
-        The recovered #2639 design returned from the ``[ ... ]`` branch BEFORE
-        the trusted-binary check, so ``[`` was trusted on its name alone. That
-        is precisely the shell-function-shadowing argument the guard itself uses
-        to justify denying bare ``python``/``python3``; it is applied
-        consistently here. Where ``[`` resolves to no trusted system binary the
-        shape is unprovable and therefore denied.
+    def test_bracket_test_is_not_trusted_on_name_alone(self) -> None:
+        """#2618 hardening 2 + #2706: bare ``[`` is denied; absolute ``[`` clears identity.
+
+        Bare ``[ ... ]`` is function-shadowable. Only an absolute trusted
+        ``/usr/bin/[ ... ]`` form can hard-allow, and only when the identity
+        gate passes.
         """
-        command = "[ -d /tmp/example ]"
-        # The parse still succeeds — only the identity gate decides the verdict.
+        bare = "[ -d /tmp/example ]"
         self.assertEqual(
-            ["-d", "/tmp/example"], guard._parse_bracket_test_words(command)
+            ["-d", "/tmp/example"], guard._parse_bracket_test_words(bare)
         )
+        self.assertFalse(guard.is_exact_readonly_supporting_command(bare))
+
+        absolute = "/usr/bin/[ -d /tmp/example ]"
+        parsed = guard._absolute_bracket_test_words(absolute)
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual("/usr/bin/[", parsed[0])
+        self.assertEqual(["-d", "/tmp/example"], parsed[1])
         with mock.patch.object(
             guard, "_trusted_system_readonly_head", return_value=False
         ) as untrusted:
-            self.assertFalse(guard.is_exact_readonly_supporting_command(command))
-        untrusted.assert_called_with("[")
+            self.assertFalse(guard.is_exact_readonly_supporting_command(absolute))
+        untrusted.assert_called_with("/usr/bin/[")
         with mock.patch.object(
             guard, "_trusted_system_readonly_head", return_value=True
         ):
-            self.assertTrue(guard.is_exact_readonly_supporting_command(command))
-            # An empty or unbalanced expression stays denied regardless of trust.
-            self.assertFalse(guard.is_exact_readonly_supporting_command("[ ]"))
-            self.assertFalse(guard.is_exact_readonly_supporting_command("["))
+            self.assertTrue(guard.is_exact_readonly_supporting_command(absolute))
             self.assertFalse(
-                guard.is_exact_readonly_supporting_command("[ -d $(pwd) ]")
+                guard.is_exact_readonly_supporting_command("/usr/bin/[ ]")
+            )
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command("/usr/bin/[")
+            )
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command(
+                    "/usr/bin/[ -d $(pwd) ]"
+                )
             )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
