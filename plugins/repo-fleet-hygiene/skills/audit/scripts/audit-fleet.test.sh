@@ -1837,6 +1837,30 @@ else
   printf 'FAIL: symlink discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$symlink_out")" >&2
   failures=$((failures + 1))
 fi
+
+# Intermediate symlink/junction dirs under --root are skipped without descending, but must be
+# disclosed (#2711). Linux symlinks are the portable fixture; Windows junctions take the same
+# -d/-L arm under Git Bash.
+sym_mid_root="$TMP/sym-mid-root"
+sym_mid_hidden="$TMP/sym-mid-hidden"
+mkdir -p "$sym_mid_root/keep" "$sym_mid_hidden/buried-repo/.git"
+ln -s "$sym_mid_hidden" "$sym_mid_root/via-link"
+sym_mid_out="$TMP/sym-mid-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1; then
+  if grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
+    grep -Fq "Target: $sym_mid_root/via-link" "$sym_mid_out" &&
+    grep -Fq "Windows directory junctions" "$sym_mid_out" &&
+    grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
+    ! grep -Fq "buried-repo" "$sym_mid_out"; then
+    printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
+  else
+    printf 'FAIL: intermediate symlink under --root is disclosed without descending\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
+  failures=$((failures + 1))
+fi
 # Unreadable/non-executable roots are the same false-empty class.
 unreadable_root="$TMP/unreadable-root"
 mkdir -p "$unreadable_root"

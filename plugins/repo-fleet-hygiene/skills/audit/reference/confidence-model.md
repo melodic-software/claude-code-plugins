@@ -62,6 +62,7 @@ failure rather than a discovery.
 | `local-ancestry-unavailable` | `git merge-base --is-ancestor` failed with an error status | `UNKNOWN` | Do not infer local ancestry |
 | `stale-config-entry` | A config-sourced `fleet.root`/`fleet.repo` path is missing or not a Git working tree | `UNKNOWN` | Entry skipped, rest of the fleet still audited; correct or remove the entry |
 | `discovery-skip` | A path discovered under `--root` is unreadable or not a Git working tree despite a `.git` marker | `UNKNOWN` | Path skipped, rest of the fleet still audited; inspect unexpected `.git` markers |
+| `discovery-symlink-skip` | An intermediate directory under `--root` is a symbolic link (or a Windows directory junction, which tests as a symlink under Git Bash) | `UNKNOWN` | Path skipped without descending; rest of the fleet still audited. Pass an explicit `--root`/`--repo` for the link target if that tree should be in scope |
 
 ## What the tiers depend on
 
