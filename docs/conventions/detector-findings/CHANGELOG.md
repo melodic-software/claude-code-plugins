@@ -4,6 +4,15 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.0.1 — 2026-08-15
+
+Patch: no rule changes, one statement corrected to match the rule it was already describing.
+
+- **The producer-registry row stated the aridity bar without its node-kind half**, in the same file
+  as the crosswalk row that states it fully — so one document described one bar two ways, with
+  nothing to catch the divergence: `scripts/check-detector-findings-crosswalk.sh` validates the
+  crosswalk table and does not read the Adopters table. The row now matches the rule.
+
 ## 2.0.0 — 2026-08-15
 
 The crosswalk phase, written from what the pilot ran into. **Major** under this contract's own rule:

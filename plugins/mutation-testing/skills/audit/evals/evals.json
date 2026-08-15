@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Seven mutants survived. Which ones matter?",
-      "expected_output": "Delegates the productive / arid / equivalent classification to a fresh-context (non-fork) subagent rather than judging in the authoring context, naming this as the self-grade bias class. Hands over the artifact (mutated line, surrounding code, covering tests), not the reasoning that produced the mutants. Prefers a cross-vendor advisor for the equivalence call when one is installed, with the same-vendor fresh-context subagent as the stated fallback. Reports any WITHHOLDING claim that cannot cite its evidence as unclassified rather than as the class claimed — equivalence without a differential demonstration, and aridity without a complete proposed suppression entry whose reason names the behavior the suite deliberately does not assert on.",
+      "expected_output": "Delegates the productive / arid / equivalent classification to a fresh-context (non-fork) subagent rather than judging in the authoring context, naming this as the self-grade bias class. Hands over the artifact (mutated line, surrounding code, covering tests), not the reasoning that produced the mutants. Prefers a cross-vendor advisor for the equivalence call when one is installed, with the same-vendor fresh-context subagent as the stated fallback. Reports any WITHHOLDING claim that cannot cite its evidence as unclassified rather than as the class claimed — equivalence without a differential demonstration, and aridity without a complete proposed suppression entry whose `claim` binds a node kind from the closed enumerated vocabulary AND whose `reason` names the behavior the suite deliberately does not assert on. Free prose in `claim` fails the test even when the entry is otherwise complete and the reason is good: a survivor fitting no node kind is not arid.",
       "files": []
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "id": 11,
-      "prompt": "Three mutants survived with --persist-findings on: one productive, one arid, one you called equivalent but could not demonstrate. What lands in the file?",
+      "prompt": "Three mutants survived with --persist-findings on: one productive, one arid with a complete proposed suppression entry whose claim names a node kind from the vocabulary, one you called equivalent but could not demonstrate. What lands in the file?",
       "expected_output": "Emits exactly two rows -- the productive survivor and the undemonstrated-equivalence survivor, both IMPORTANT, both `Confidence: high`. Names the class-keyed map as the source of the tier and does not re-derive severity from the finding's wording. Explains that productive is IMPORTANT rather than CRITICAL because a survivor proves the suite is blind, not that the source produces a wrong result, and that the unclassified survivor ranks WITH productive rather than below it so an undemonstrated equivalence claim cannot bury a real gap. Emits NO row for the DEMONSTRATED arid survivor, because its only remediation is a suppression entry the user must accept and handing that to an apply relay would launder the consent gate -- while still showing it to the human in the Phase 5 report; an aridity claim with no complete proposed suppression entry is unclassified instead and emits. Never emits `Confidence: low`, which ranks below omitting the field.",
       "files": []
     },

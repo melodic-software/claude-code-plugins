@@ -3,6 +3,31 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Fixed
+
+- **Eval case 3 now grades the node-kind bar it was supposed to grade (#2681).** 0.3.0 added the
+  requirement that an arid verdict's proposed suppression entry bind a node kind from the closed
+  vocabulary, but case 3's expected output asked only for "a complete entry whose reason names the
+  behavior". A five-key entry carrying `claim: arid(logging noise here)` — free prose, no `kind=` —
+  satisfies that wording while both Phase 4 and `context/suppression.md` reject it, so the eval
+  passed an implementation the contract fails. It now requires the `claim` to bind a node kind and
+  says outright that free prose fails even when the entry is otherwise complete.
+- **Eval case 11's prompt and expectation disagreed, and the PROMPT was wrong.** It said "one arid"
+  unqualified while the expectation asserted no row for the *demonstrated* arid survivor and exactly
+  two rows — so an implementation reading the prompt correctly answers three rows and fails the
+  rubric. The prompt already qualified the equivalent survivor's evidence status and not the arid
+  one; that asymmetry is the defect. Qualifying the prompt keeps the expectation grading the
+  contract, where patching the expectation would have made the suite agree with whatever shipped.
+- **The aridity bar is stated one way rather than two.** 0.3.0 tightened it in Phase 4 and the
+  crosswalk row but left the weaker form in the Gotchas bullet, which flatly called the bar a
+  judgment about value where Phase 4 now says **otherwise** a judgment about value — the membership
+  test being what makes it checkable. The bullet carries the same qualifier.
+- **A two-hop pointer now names each owner directly.** The node-kind vocabulary is enumerated in the
+  `principles` skill's `scaling-and-suppression.md`; `context/suppression.md` owns the rule that a
+  survivor fitting none is not arid. Phase 4 previously attributed both to the latter.
+
 ## [0.3.0]
 
 ### Added

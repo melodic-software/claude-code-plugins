@@ -220,9 +220,11 @@ either from inspection alone is exactly where this technique manufactures false 
 
 - **Equivalent** requires the demonstration: what was run, what was identical, and under which inputs.
 - **Arid** requires a complete proposed suppression entry — all five keys, id derived from them —
-  whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the enumerated vocabulary
-  ([`context/suppression.md`](context/suppression.md), which already rules that **a survivor fitting
-  no node kind is not arid**), and whose `reason` names the specific behavior the suite deliberately
+  whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the vocabulary enumerated in
+  the `principles` skill's
+  [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The node-kind
+  vocabulary" — the rule that **a survivor fitting no node kind is not arid** is
+  [`context/suppression.md`](context/suppression.md)'s — and whose `reason` names the behavior the suite deliberately
   does not assert on. "Killing this would not improve the suite" is a conclusion, not the evidence
   for one. Aridity is the easier label to reach for, because its bar is otherwise a judgment about
   value rather than about observable behavior — the node-kind membership test is what makes it
@@ -376,9 +378,9 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   that one is not.
 - **Reaching for a withholding label is the standard way this technique manufactures false
   confidence.** "Equivalent" is the convenient explanation for any survivor whose test is hard to
-  write, and "arid" is the easier of the two to reach for because its bar is a judgment about value
-  rather than about observable behavior. Require the demonstration for either; report the claim as
-  unclassified when none exists.
+  write, and "arid" is the easier of the two to reach for because its bar is **otherwise** a judgment
+  about value rather than about observable behavior — the node-kind membership test is what makes it
+  checkable. Require the demonstration for either; report the claim as unclassified when none exists.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
   failure mode of resolving only the documented default on a repo that configured its own memory
