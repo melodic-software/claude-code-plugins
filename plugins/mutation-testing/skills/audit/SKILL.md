@@ -44,11 +44,10 @@ Three properties, stated first because everything below depends on them:
    later phase runs and nothing is persisted ([Phase 3](#phase-3--execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
-   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its two writes — the findings file,
-   and the self-ignore guard's own `.gitignore` when a governing checkout is found and the guard
-   heals that root — are each **proven outside
-   tracked space before that write is made**, never in tracked source and never in a file another
-   producer owns.
+   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes — the findings file, and
+   the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
+   that root — are each **proven outside tracked space before that write is made**, never in tracked
+   source and never in a file another producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -202,7 +201,7 @@ Every surviving mutant is one of three things, and the difference is a judgment:
 |---|---|---|
 | **Productive** | A genuine gap — the behavior is unchecked | Hand to the test-authoring lane |
 | **Equivalent** | Semantically identical to the original; no test can kill it | **Not** a suppression — the check is wrong for that node |
-| **Arid** | Killable, but killing it would not improve the suite | Propose a suppression entry, with a reason |
+| **Arid** | Killable, but killing it would not improve the suite | Propose a complete suppression entry — its `claim` binding a node kind from the vocabulary, its `reason` naming the unasserted behavior. Without that, the verdict is *unclassified*, not arid |
 
 **This judgment is delegated to a fresh-context (non-fork) subagent, mandatorily.** It is the
 `self-grade` bias class: a context that generated the mutants and ran them is the weakest place to
@@ -221,9 +220,11 @@ either from inspection alone is exactly where this technique manufactures false 
 
 - **Equivalent** requires the demonstration: what was run, what was identical, and under which inputs.
 - **Arid** requires a complete proposed suppression entry — all five keys, id derived from them —
-  whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the enumerated vocabulary
-  ([`context/suppression.md`](context/suppression.md), which already rules that **a survivor fitting
-  no node kind is not arid**), and whose `reason` names the specific behavior the suite deliberately
+  whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the vocabulary enumerated in
+  the `principles` skill's
+  [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The node-kind
+  vocabulary" — that same section owns the rule that **a survivor fitting no node kind is not arid** —
+  and whose `reason` names the behavior the suite deliberately
   does not assert on. "Killing this would not improve the suite" is a conclusion, not the evidence
   for one. Aridity is the easier label to reach for, because its bar is otherwise a judgment about
   value rather than about observable behavior — the node-kind membership test is what makes it
@@ -313,13 +314,15 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-**each** write this phase makes — the findings file and the self-ignore guard's `.gitignore` — is
-proven outside tracked space before **that** write is made, against the checkout that governs the
-destination rather than the invoking worktree, with the guard's own write proven before the guard
-heals rather than reported afterwards, and with **nothing written at all** where a resolved root has
-no governing checkout — since an undetected checkout may hold that destination as a tracked deletion
-a write would modify rather than create — while the contract's `${CLAUDE_PLUGIN_DATA}` fallback is
-written normally, being outside every checkout by construction (a memory root inside tracked space leaves `git status`
+**each** write this phase makes — the findings file, and the self-ignore guard's `.gitignore` where a
+governing checkout was found — is proven outside tracked space before **that** write is made, against
+the checkout that governs the destination rather than the invoking worktree, with the guard's own
+write proven before the guard heals rather than reported afterwards, and with **nothing written at
+all** where a resolved root has no governing checkout — the guard's create-when-absent rule could
+land on a tracked-but-deleted `.gitignore` with no check having been possible, and the findings file
+on a tracked deletion it would modify rather than create — while the contract's
+`${CLAUDE_PLUGIN_DATA}` fallback is written normally, being outside every checkout by construction
+(a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
 class** selects the contract rule and the rule decides `Tier`, never the finding's prose, with
@@ -380,9 +383,9 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   that one is not.
 - **Reaching for a withholding label is the standard way this technique manufactures false
   confidence.** "Equivalent" is the convenient explanation for any survivor whose test is hard to
-  write, and "arid" is the easier of the two to reach for because its bar is a judgment about value
-  rather than about observable behavior. Require the demonstration for either; report the claim as
-  unclassified when none exists.
+  write, and "arid" is the easier of the two to reach for because its bar is **otherwise** a judgment
+  about value rather than about observable behavior — the node-kind membership test is what makes it
+  checkable. Require the demonstration for either; report the claim as unclassified when none exists.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
   failure mode of resolving only the documented default on a repo that configured its own memory
