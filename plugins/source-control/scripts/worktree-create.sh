@@ -80,6 +80,7 @@ windows_drive_letter() {
       return 0
     fi
     ;;
+  *) ;;
   esac
   return 1
 }
