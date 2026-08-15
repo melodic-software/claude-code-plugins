@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.2]
+
+### Fixed
+
+- **Worktree create enforces the same-drive-on-Windows invariant (#2764).**
+  `scripts/worktree-create.sh` now compares the repository and resolved worktree
+  path drive letters (path-shape gate: both sides must match `<letter>:/`, so
+  POSIX and UNC stay inert). An explicit or configured root on a different drive
+  (rungs 1–3: `--root` / `melodic.worktreeroot` / `--fallback-root`) is refused
+  with exit 3 and a remedy-first message. The unconfigured plugin-data-dir
+  default (rung 4) warns loudly and still creates — refusing would fail every
+  harness-driven `WorktreeCreate` on a cross-drive machine. Closes the gap where
+  the invariant was stated in `plugin.json` and the containment message but never
+  enforced; `git worktree move` cannot cross volumes (`rename()` / EXDEV).
+
 ## [0.54.1]
 
 ### Changed
