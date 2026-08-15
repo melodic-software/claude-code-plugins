@@ -56,6 +56,14 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 
 ## Step 1 — the shared environment (claude.ai UI, one time)
 
+> **Rollout direction (2026-08-15):** the fleet is moving to the paste-once layout in
+> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md) — a minimal stub in
+> each account's **Default** environment that fetches the shared script from the public
+> `melodic-software/standards` repo and then runs the checked-out repo's
+> `.claude/cloud-bootstrap.sh`. The inline script below remains the reference for what the
+> shared script installs. Pre-launch execution is also what makes marketplace plugins load at
+> turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box) — there is no API.
 Either edit **Default** in place or add a new environment named e.g. **Melodic** so Default stays

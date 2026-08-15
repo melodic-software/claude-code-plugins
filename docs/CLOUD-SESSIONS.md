@@ -205,7 +205,9 @@ enables; the session-start hook installs (see
   ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is
   already built, so the hook alone can never produce a session with plugins loaded. What the
   hook still buys is correct on-disk state for any process start that happens *after* it — a
-  resume served by a persisting container, and (the actual fix) the environment setup script
+  resume (confirmed 2026-08-15: stopping and resuming the same session restarted the process,
+  which re-read the registry and loaded the full catalog, plugin skills resolving from the
+  first post-resume turn), and (the fix for turn one) the environment setup script
   running this same bootstrap at cache-build time, before any session process launches: the
   guarded one-liner in the
   [setup-script lever above](#setup-script-vs-sessionstart-hook-decision-criteria), already
