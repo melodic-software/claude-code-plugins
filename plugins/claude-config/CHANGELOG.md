@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.2]
+
+### Changed
+
+- **`audit-pass`: the `<state-key>` scheme definition moved out to the repo convention.** The
+  canonical grammar and segment derivations now live in the `plugin-data-report-keying` convention
+  doc (encapsulation audit, Path A promotion — all six `extract-ssot verify` gates passed);
+  `reference/run-state-and-resumability.md` §3 defers to it and keeps only how this run obtains the
+  key. No dual-maintenance remains.
+
 ## [0.38.1]
 
 ### Fixed

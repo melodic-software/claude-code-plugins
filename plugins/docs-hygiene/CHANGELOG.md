@@ -13,6 +13,8 @@
   argument is the explicit opt-in that skips the confirmation and runs the repo-wide detect
   immediately. Eval cases 7–8 pin both behaviors.
 
+## [0.11.3]
+
 ### Changed
 
 - **rename-references:** Form 13 `/plugin configure` examples and eval fixtures now use the

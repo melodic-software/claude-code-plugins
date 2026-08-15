@@ -3,6 +3,15 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3]
+
+### Changed
+
+- **`audit`'s Windows check catalog no longer path-cites `disk-hygiene`'s private safety model.**
+  The live-scratchpad caveat is stated as an attribute of `disk-hygiene:clean`'s safety model in
+  prose (encapsulation audit, Path B). The README's `tests/` runner cite gains a
+  `TODO(audit-encapsulation)` marker pending the `scripts/` entry-surface relocation (#2702).
+
 ## [0.10.2]
 
 ### Fixed
