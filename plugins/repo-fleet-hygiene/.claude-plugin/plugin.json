@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "repo-fleet-hygiene",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "description": "Machine-wide Git/GitHub repository discovery, evidence rollup, and action-plan handoff to the per-repository cleanup owners. The current audit is read-only and confidence-tiered; this plugin never deletes branches or worktrees.",
   "author": {
     "name": "Melodic Software",
