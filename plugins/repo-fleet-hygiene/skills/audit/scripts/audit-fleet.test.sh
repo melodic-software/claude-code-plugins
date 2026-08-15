@@ -54,6 +54,19 @@ base="$(basename "$repo")"
 case "$cmd" in
 rev-parse)
   case "${1:-}" in
+  --git-dir)
+    # Gate for melodic.worktreeroot reads (#2606).
+    case "$base" in
+    discovered-a | canonical-a | repo-b | old-repo | wt-old | bad-discovered | bad-canonical | \
+      wt-fail | ref-fail | rref-fail | dup-a | new-clone | root-repo | discovered-c | \
+      canonical-c | gone-repo | lost-repo | net-repo | aaa-linked | bbb-linked | zzz-canonical | \
+      sub-wt | sep-wt | nested | husk | prefix-fail | wt-a | wt-mismatch | wt-status-fail | \
+      conform-canon | acme-conform-feature-ok | conform-sibling | not-the-layout | conform)
+      printf '%s/.git\n' "$repo"
+      ;;
+    *) exit 1 ;;
+    esac
+    ;;
   --show-toplevel)
     case "$base" in
     discovered-a) printf '%s\n' "$TEST_ROOT/discovered-a" ;;
@@ -91,6 +104,11 @@ rev-parse)
     wt-a) printf '%s\n' "$TEST_ROOT/wt-a" ;;
     wt-mismatch) printf '%s\n' "$TEST_ROOT/wt-mismatch" ;;
     wt-status-fail) printf '%s\n' "$TEST_ROOT/wt-status-fail" ;;
+    conform-canon) printf '%s\n' "$TEST_ROOT/conform-canon" ;;
+    acme-conform-feature-ok) printf '%s\n' "$TEST_ROOT/conform-root/acme-conform-feature-ok" ;;
+    conform-sibling) printf '%s\n' "$TEST_ROOT/ghq-flat/conform-sibling" ;;
+    not-the-layout) printf '%s\n' "$TEST_ROOT/conform-root/not-the-layout" ;;
+    conform) printf '%s\n' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -135,6 +153,7 @@ rev-parse)
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     wt-a | wt-mismatch | wt-status-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
+    conform-canon | acme-conform-feature-ok | conform-sibling | not-the-layout | conform) printf '%s\n' "$TEST_ROOT/conform-canon/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
     prefix-auth) printf '%s\n' "$TEST_ROOT/prefix-auth/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
@@ -149,6 +168,7 @@ remote)
   if [[ "${1:-}" == "get-url" && "${2:-}" == "origin" ]]; then
     case "$base" in
     discovered-a | canonical-a) printf '%s\n' 'https://github.com/acme/repo-a.git' ;;
+    conform-canon | acme-conform-feature-ok | conform-sibling | not-the-layout | conform) printf '%s\n' 'https://github.com/acme/conform.git' ;;
     repo-b) printf '%s\n' 'git@github.com:acme/repo-b.git' ;;
     old-repo) printf '%s\n' 'https://github.com/old/repo.git' ;;
     bad-discovered) printf '%s\n' 'https://github.com/acme/bad.git' ;;
@@ -192,6 +212,13 @@ worktree)
     # Linked worktrees for worktree-status-handoff: wt-a and wt-status-fail are reliable-admin
     # linked paths (status is no longer probed for reclaimability); wt-mismatch is admin-mismatched.
     printf 'worktree %s\0HEAD status-fail\0branch refs/heads/feature/status-fail\0\0' "$TEST_ROOT/wt-status-fail"
+    ;;
+  conform-canon)
+    printf 'worktree %s\0HEAD conf-main\0branch refs/heads/main\0\0' "$TEST_ROOT/conform-canon"
+    printf 'worktree %s\0HEAD conf-ok\0branch refs/heads/feature/ok\0\0' "$TEST_ROOT/conform-root/acme-conform-feature-ok"
+    printf 'worktree %s\0HEAD conf-flat\0branch refs/heads/feature/flat\0\0' "$TEST_ROOT/ghq-flat/conform-sibling"
+    printf 'worktree %s\0HEAD conf-wrong\0branch refs/heads/feature/wrong\0\0' "$TEST_ROOT/conform-root/not-the-layout"
+    printf 'worktree %s\0HEAD conf-tool\0branch refs/heads/feature/tool\0\0' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -259,6 +286,7 @@ branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
   repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo | prefix-auth) printf '%s\n' main ;;
+  conform-canon) printf '%s\n' main ;;
   aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
   sub-wt | sep-wt) printf '%s\n' main ;;
   esac
@@ -306,6 +334,9 @@ for-each-ref)
   gone-repo) printf 'main\tgone-main\0\n' ;;
   lost-repo) printf 'main\tlost-main\0\n' ;;
   net-repo) printf 'main\tnet-main\0\n' ;;
+  conform-canon)
+    printf 'main\tconf-main\0\nfeature/ok\tconf-ok\0\nfeature/flat\tconf-flat\0\nfeature/wrong\tconf-wrong\0\nfeature/tool\tconf-tool\0\n'
+    ;;
   aaa-linked | bbb-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
   # Exact headRefName: feature/auth must not inherit feature/auth-v2's merged PR (#2604).
   prefix-auth) printf 'main\tpa-main\0\nfeature/auth\tauth-tip\0\nfeature/auth-v2\tauth-v2-tip\0\n' ;;
@@ -337,7 +368,17 @@ log)
   *) printf '1\n' ;;
   esac
   ;;
-config) "$REAL_GIT" config "$@" ;;
+config)
+  if [[ "${1:-}" == "--get-all" && "${2:-}" == "--show-origin" && "${3:-}" == "--type=path" &&
+    "${4:-}" == "melodic.worktreeroot" ]]; then
+    if [[ -n "${MOCK_MELODIC_WORKTREE_ROOT:-}" ]]; then
+      printf 'file:%s/mock-gitconfig\t%s\n' "$TEST_ROOT" "$MOCK_MELODIC_WORKTREE_ROOT"
+      exit 0
+    fi
+    exit 1
+  fi
+  "$REAL_GIT" config "$@"
+  ;;
 *) exit 96 ;;
 esac
 EOF
@@ -472,6 +513,7 @@ api)
     fi
     ;;
   repos/acme/repo-a) printf 'acme/repo-a\tmain' ;;
+  repos/acme/conform) printf 'acme/conform\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
@@ -571,6 +613,11 @@ assert_not_contains "retired disposability-unverifiable" "Finding: worktree-disp
 assert_contains "worktree nested in its own repository is reported" "Finding: worktree-nested-in-repository"
 assert_contains "nested finding names the containing checkout" \
   "registered worktree root is inside the canonical checkout's own working tree ($TMP/canonical-a)"
+assert_contains "unset worktree root reports placement without asserting a convention" \
+  "Finding: worktree-root-unconfigured"
+assert_contains "fleet unconfigured rollup is present" "Target: fleet"
+assert_contains "header names worktree root unset" \
+  "Worktree root: unset (no melodic.worktreeroot git key and no source-control worktree_root"
 assert_contains "a registered path that is not a work-tree root is reported" "Finding: worktree-not-a-root"
 assert_contains "a failed root-ness probe is UNKNOWN, not a silent pass" \
   "Finding: worktree-root-unverifiable"
@@ -1182,6 +1229,118 @@ else
 fi
 assert_not_contains_file "no merged claim without GitHub evidence" "Finding: merged-local-branch" "$ladder_out"
 assert_not_contains_file "no merged-remote claim without GitHub evidence" "Finding: merged-remote-branch" "$ladder_out"
+
+# --- #2606 worktree-root conformance ------------------------------------------
+# Separate fixture so the main fleet run stays on the unset-root path. Configured
+# root comes from melodic.worktreeroot (mocked); linked worktrees cover conforming,
+# outside-root, wrong-layout, and Codex tool-owned.
+mkdir -p "$TMP/conform-root" \
+  "$TMP/conform-canon/.git" \
+  "$TMP/conform-root/acme-conform-feature-ok/.git" \
+  "$TMP/ghq-flat/conform-sibling/.git" \
+  "$TMP/conform-root/not-the-layout/.git" \
+  "$TMP/fake-home/.codex/worktrees/session1/conform/.git"
+
+conform_out="$TMP/conform-output.txt"
+MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$conform_out" 2>&1 || true
+
+assert_contains_file() {
+  local label="$1" pattern="$2" file="$3"
+  if ! grep -Fq -- "$pattern" "$file"; then
+    printf 'FAIL: %s (missing %s)\n' "$label" "$pattern" >&2
+    failures=$((failures + 1))
+  else
+    printf 'PASS: %s\n' "$label"
+  fi
+}
+assert_not_contains_in() {
+  local label="$1" pattern="$2" file="$3"
+  if grep -Fq -- "$pattern" "$file"; then
+    printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
+    failures=$((failures + 1))
+  else
+    printf 'PASS: %s\n' "$label"
+  fi
+}
+
+assert_contains_file "header names configured melodic worktree root" \
+  "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
+assert_contains_file "origin attribution uses --show-origin file: form" \
+  "origin: file:$TMP/mock-gitconfig" "$conform_out"
+assert_contains_file "outside-root finding for flat sibling" \
+  "Finding: worktree-outside-configured-root" "$conform_out"
+assert_contains_file "outside-root names expected location" \
+  "expected location $TMP/conform-root/acme-conform-feature-flat" "$conform_out"
+assert_contains_file "wrong-layout finding under root" \
+  "Finding: worktree-wrong-layout" "$conform_out"
+assert_contains_file "wrong-layout names expected path" \
+  "expected layout path $TMP/conform-root/acme-conform-feature-wrong" "$conform_out"
+assert_contains_file "tool-owned Codex worktree is distinguished" \
+  "Finding: worktree-tool-owned" "$conform_out"
+assert_contains_file "per-repo conformance rollup" \
+  "Finding: worktree-root-conformance" "$conform_out"
+assert_contains_file "fleet conformance summary" \
+  "Finding: worktree-root-conformance-summary" "$conform_out"
+assert_contains_file "fleet summary counts outside/wrong-layout" \
+  "of 4 linked worktrees are outside the configured root or wrong layout" "$conform_out"
+# Conforming path must not be flagged outside or wrong-layout.
+conform_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$conform_out" | grep -F 'Target: ' || true)"
+if [[ "$conform_outside_targets" == *acme-conform-feature-ok* ]]; then
+  printf 'FAIL: conforming worktree incorrectly flagged outside-root\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: conforming worktree is not flagged outside-root\n'
+fi
+assert_not_contains_in "configured-root run does not claim unconfigured" \
+  "Finding: worktree-root-unconfigured" "$conform_out"
+
+# Fallback to source-control pluginConfigs when melodic key is absent.
+mkdir -p "$TMP/settings-home/.claude"
+cat >"$TMP/settings-home/.claude/settings.json" <<EOF
+{
+  "pluginConfigs": {
+    "source-control@melodic-software": {
+      "options": {
+        "worktree_root": "$TMP/conform-root"
+      }
+    }
+  }
+}
+EOF
+plugin_out="$TMP/plugin-config-output.txt"
+unset MOCK_MELODIC_WORKTREE_ROOT
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" \
+  HOME="$TMP/settings-home" CLAUDE_CONFIG_DIR="$TMP/settings-home/.claude" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$plugin_out" 2>&1 || true
+assert_contains_file "pluginConfigs worktree_root is used when melodic key unset" \
+  "source: source-control:worktree_root" "$plugin_out"
+assert_contains_file "pluginConfigs origin names settings.json" \
+  "settings.json" "$plugin_out"
+
+# Convention-git allowlist: only the fixed melodic.worktreeroot shape is admitted.
+# shellcheck source=audit-fleet.sh
+source "$SCRIPT"
+conv_ok=true
+run_convention_git -C "$TMP/conform-canon" rev-parse --git-dir >/dev/null 2>&1 || conv_ok=false
+conv_rejected=true
+run_convention_git -C "$TMP/conform-canon" config --get melodic.worktreeroot >/dev/null 2>&1 && conv_rejected=false
+run_convention_git -C "$TMP/conform-canon" config --get-all user.name >/dev/null 2>&1 && conv_rejected=false
+if [[ "$conv_ok" != "true" || "$conv_rejected" != "true" ]]; then
+  printf 'FAIL: convention git allowlist admitted a forbidden probe or rejected the gate\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: convention git allowlist admits gate+melodic read and rejects other config\n'
+fi
+if MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
+  run_convention_git -C "$TMP/conform-canon" config --get-all --show-origin --type=path melodic.worktreeroot |
+  grep -Fq "$TMP/conform-root"; then
+  printf 'PASS: convention git returns mocked melodic.worktreeroot\n'
+else
+  printf 'FAIL: convention git did not return mocked melodic.worktreeroot\n' >&2
+  failures=$((failures + 1))
+fi
 
 # The tier table is the contract a consumer tiers decisions on, and it silently fell to covering
 # half the emitted kinds. Assert set equality in BOTH directions instead: a new emit_finding kind
