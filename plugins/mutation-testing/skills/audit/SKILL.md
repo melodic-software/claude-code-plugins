@@ -223,8 +223,8 @@ either from inspection alone is exactly where this technique manufactures false 
   whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the vocabulary enumerated in
   the `principles` skill's
   [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The node-kind
-  vocabulary" — the rule that **a survivor fitting no node kind is not arid** is
-  [`context/suppression.md`](context/suppression.md)'s — and whose `reason` names the behavior the suite deliberately
+  vocabulary" — that same section owns the rule that **a survivor fitting no node kind is not arid** —
+  and whose `reason` names the behavior the suite deliberately
   does not assert on. "Killing this would not improve the suite" is a conclusion, not the evidence
   for one. Aridity is the easier label to reach for, because its bar is otherwise a judgment about
   value rather than about observable behavior — the node-kind membership test is what makes it

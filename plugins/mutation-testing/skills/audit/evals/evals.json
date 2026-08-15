@@ -63,7 +63,7 @@
     },
     {
       "id": 11,
-      "prompt": "Three mutants survived with --persist-findings on: one productive, one arid with a complete proposed suppression entry whose claim names a node kind from the vocabulary, one you called equivalent but could not demonstrate. What lands in the file?",
+      "prompt": "Three mutants survived with --persist-findings on: one productive, one arid with a complete proposed suppression entry whose claim names a node kind from the vocabulary and whose reason names the specific behavior the suite leaves unasserted, one you called equivalent but could not demonstrate. What lands in the file?",
       "expected_output": "Emits exactly two rows -- the productive survivor and the undemonstrated-equivalence survivor, both IMPORTANT, both `Confidence: high`. Names the class-keyed map as the source of the tier and does not re-derive severity from the finding's wording. Explains that productive is IMPORTANT rather than CRITICAL because a survivor proves the suite is blind, not that the source produces a wrong result, and that the unclassified survivor ranks WITH productive rather than below it so an undemonstrated equivalence claim cannot bury a real gap. Emits NO row for the DEMONSTRATED arid survivor, because its only remediation is a suppression entry the user must accept and handing that to an apply relay would launder the consent gate -- while still showing it to the human in the Phase 5 report; an aridity claim with no complete proposed suppression entry binding a node kind is unclassified instead and emits. Never emits `Confidence: low`, which ranks below omitting the field.",
       "files": []
     },
