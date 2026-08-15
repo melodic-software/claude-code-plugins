@@ -41,9 +41,11 @@ audit_noise_convention_roots_pattern() {
 # the whole line, so a convention token cannot mask a concrete ghost ref
 # sharing its line. Angle-bracket slot variables (root followed by '<') are
 # schema placeholders and never match the candidate pattern; the reserved
-# concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/) are
-# exempt only in bare form — a concrete child under them flags. Configured
-# non-default roots from the concern file scan alongside the defaults.
+# concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/,
+# <memory_dir>/running-retros/ — reserved first-level names under the memory
+# root per docs/conventions/topic-docs/) are exempt only in bare form — a
+# concrete child under them flags. Configured non-default roots from the
+# concern file scan alongside the defaults.
 audit_noise_line_has_ghost_ref() {
   local rest="$1" path root seg after roots
   # Retired locations: stale even in placeholder form.
@@ -57,7 +59,7 @@ audit_noise_line_has_ghost_ref() {
     seg="${BASH_REMATCH[2]}"
     after="${rest#*"$path"}"
     if [[ "$root" != 'docs/topics' && "$root" != "${AUDIT_NOISE_CONTRACT_ROOT:-docs/topics}" ]] &&
-      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' ]] &&
+      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' ]] &&
       [[ ! "$after" =~ ^[A-Za-z0-9._-] ]]; then
       rest="$after"
       continue

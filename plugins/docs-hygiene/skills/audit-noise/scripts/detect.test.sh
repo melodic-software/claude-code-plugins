@@ -62,9 +62,9 @@ cat >"$CLEAN" <<'EOF'
 
 Plain prose with no noise shapes. The schema uses .work/<slug>/PLAN.md as a
 slot-variable example, which is not a ghost ref. Contract slices land in
-docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/ and review
-reports in .work/reviews/<branch-slug>/; .claude/topic-docs.yaml is the tracked
-concern file.
+docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/, review
+reports in .work/reviews/<branch-slug>/, and running-retro ledgers in
+.work/running-retros/; .claude/topic-docs.yaml is the tracked concern file.
 
 ## Cross-references
 
@@ -260,9 +260,19 @@ cat >"$BARE_ROOT" <<'EOF'
 # Bare-root fixture
 
 .work/reviews/ is self-ignoring
+.work/running-retros/ holds session ledgers
 EOF
 bare_out="$(bash "$DETECT" "$BARE_ROOT")"
 assert_not_contains "bare concern root is not a ghost ref" "$bare_out" "Finding shape: ghost-ref"
+
+RUNNING_RETRO_CHILD="$TEST_TMPDIR/running-retro-child.md"
+cat >"$RUNNING_RETRO_CHILD" <<'EOF'
+# Running-retro child fixture
+
+Ledger kept at .work/running-retros/20260101T000000Z-running-retro-auth.md for posterity.
+EOF
+rr_out="$(bash "$DETECT" "$RUNNING_RETRO_CHILD")"
+assert_contains "concrete child under .work/running-retros/ is a ghost ref" "$rr_out" "Finding shape: ghost-ref"
 
 PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
 cat >"$PLACEHOLDER" <<'EOF'
@@ -287,11 +297,13 @@ cat >"$CONFIGURED" <<'EOF'
 
 Plan kept at product/topics/foo/PLAN.md and notes at .scratch/foo/EXPLORE.md.
 .scratch/reviews/ is self-ignoring
+.scratch/running-retros/ holds session ledgers
 EOF
 conf_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
 assert_contains "configured contract root flags concrete slices" "$conf_out" "product/topics/foo/"
 assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
 assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
+assert_not_contains "configured bare running-retros root stays exempt" "$conf_out" ".scratch/running-retros/"
 
 # A quoted memory_dir with an interior '#' and a trailing comment: the old
 # hand-rolled `${val%%#*}`-first strip truncated this to `.scratch` (dropping
