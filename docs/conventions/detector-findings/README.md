@@ -54,9 +54,13 @@ What the binding leaves to a producer — consequences, not a second statement o
   answer to those rungs instead resolves to a directory the consumer never reaches.
 - **The directory never proves ownership.** What proves a file is this branch's is its own `branch:`
   frontmatter, never the directory it sits in — the binding's slug rule says why.
-- **The self-ignore guard is owed, not re-derived** — including the convention's invalid-root rule,
-  which stops the guard from healing into a consumer's root `.gitignore`. Skipping it commits
-  findings that are meant to stay checkout-local.
+- **The self-ignore guard is owed, not re-derived** — including the convention's invalid cases, which
+  stop the guard from healing into a consumer's root `.gitignore` and from writing at a root no
+  checkout is detected as governing. Skipping it **where a checkout governs the destination** commits
+  findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
+  that the guard does not run, and the exposure is different in kind: the findings file lands as an
+  **untracked** path in any checkout the detection missed — reachable by a later `git add -A`, not
+  committed by this producer's action. Reachable, not automatic.
 
 ## Boundary
 

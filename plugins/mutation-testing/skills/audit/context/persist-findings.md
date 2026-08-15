@@ -81,16 +81,9 @@ nothing left to ask there. The order is what makes the per-write form hold:
    nothing in the environment to find**. The designation lives in a config file that destination-side
    discovery never reaches, so both signals come back empty together.
 
-   **On the permissive branch, do not run the self-ignore guard at all.** Where no checkout governs
-   the path there is no repository to keep the write out of, so the guard has no work to do — and the
-   only circumstance in which its file would have mattered is the one where this discovery was wrong.
-   Skipping it is what keeps that case harmless. The guard's rule is *create when absent*, and a
-   `.gitignore` that is absent from disk but **tracked** in an undiscovered checkout — routine after
-   an `rm` or an interrupted checkout — would be created straight over the consumer's committed
-   content. A tracked file is exempt from its own pattern, so it could not even hide itself: the
-   result is a modified tracked file, which is precisely what "never in tracked source" forbids. Step
-   3 is what refuses a root holding tracked files, and step 3 never ran here, so the guard would be
-   writing with its only protection absent.
+   **On the permissive branch the self-ignore guard does not run** — the
+   [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
+   second invalid case, which owns both the rule and why. Nothing is re-derived here.
 
    What remains on that branch is the findings file alone, written into a directory nothing was found
    to govern. If discovery *was* wrong, it shows up in the undiscovered checkout as an untracked

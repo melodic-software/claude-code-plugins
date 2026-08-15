@@ -389,7 +389,32 @@ cite it rather than redefining it.
   session, matching the committed-tier guard's scope. A root-equivalent
   `memory_dir` (`.`, empty, or resolving to the repo root) is **invalid**
   — stop and surface it; healing there would write `*` into the
-  consumer's root `.gitignore`, which the next rule forbids.
+  consumer's root `.gitignore`, which the next rule forbids. A root that
+  **no checkout is detected as governing** is the second invalid case:
+  the guard does **not** run there. Two outcomes bind it — (A) a
+  memory-tier write is never picked up by a checkout that governs the
+  destination, and (B) no plugin ever modifies content tracked in any
+  checkout. The guard is the *means* to A wherever a governing checkout
+  is found; where none is detected it buys nothing toward A, and its
+  create-when-absent rule can violate B. **"Not detected" is a detection
+  claim and never a claim that none exists** — the branch is entered
+  precisely where detection can be wrong.
+  The rule is blanket because the producer cannot make it conditional:
+  a `.gitignore` absent from disk is either untracked in some undetected
+  checkout (where creating it would be harmless, even mitigating) or
+  tracked there (where creating it overwrites committed content and
+  cannot hide the change, a tracked file being exempt from its own
+  pattern). **Telling those apart requires querying a checkout, and this
+  branch is defined by having found none** — so the index check that
+  would decide it is exactly the check that cannot run. The costs are
+  unequal: guessing "untracked" and being wrong modifies content
+  committed in a repository the producer cannot see, while guessing
+  "tracked" and being wrong forgoes a mitigation for a harm that is
+  reachable rather than automatic. An undecidable test with asymmetric
+  outcomes yields *do not write*. This is not a rare path: the
+  no-project-root fallback above routes non-interactive runs to
+  `${CLAUDE_PLUGIN_DATA}` by default, and non-interactive is the normal
+  condition for forked subagents, dispatched workers, and headless runs.
 - No plugin ever edits the consumer's root `.gitignore`.
 
 ## Slug and filename spec
