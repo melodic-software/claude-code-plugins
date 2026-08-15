@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.1]
+
+### Changed
+
+- **setup:** Two articles dropped from the local-overlay fixture's prose comment
+  (`.claude/source-control.local.md`) by the repo-wide `/docs-hygiene:compress` pass —
+  semantic-diff verified (0 semantic loss). No behavior change.
+
 ## [0.54.0]
 
 ### Added

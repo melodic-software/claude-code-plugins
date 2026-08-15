@@ -82,6 +82,59 @@
         "Output does NOT silently delete the recap paragraph as if it were flavor that the semantic-diff pass would allow",
         "Output routes the dedup to a manual editorial pass or to /extract-ssot rather than handling it as ordinary compression"
       ]
+    },
+    {
+      "id": 7,
+      "name": "repo-wide-interview-fallback",
+      "prompt": "/compress",
+      "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining at any step exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then interviews on scope/concurrency with prescribed defaults (all COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded). No file is compressed before the final confirmation.",
+      "files": [],
+      "expectations": [
+        "Empty target + clean tree in an interactive session produces an AskUserQuestion offer, not an immediate no-op exit",
+        "Declining the offer (or any later step) exits with the friendly no-op message rather than proceeding",
+        "The mechanical audit runs BEFORE any compression and its inline output is bounded (aggregates + top-20 rows; full table to a file, never every row inline)",
+        "The interview presents prescribed defaults: all COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded",
+        "No file is edited before the user's explicit final confirmation",
+        "Per-file hard rules (semantic-diff dispatch, revert pass, markdownlint, <3% rule) still apply to the confirmed run"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "signal-6-density-skip",
+      "prompt": "Run /compress audit against docs/reference/api-lifecycle.md — a reference doc written tersely by an agent, with plain prose, no code fences, and no 'Prose compression discipline' citation.",
+      "expected_output": "The audit's signal 6 fires: no signal 1-4 matches, and the file's flavor-token density (the compress template's LATITUDE tokens per kilo-word) is below 5/kw, so the file classifies SKIP with expected yield <= 3% and a reason citing the density value and the disciplined-by-authorship baseline (9/9 reverted at 0.02-0.4%) — it does NOT fall through to signal 5's COMPRESS verbose-prose baseline.",
+      "files": [],
+      "expectations": [
+        "A low-flavor-density file with no signal 1-4 match classifies SKIP, not COMPRESS",
+        "The reason cites flavor-token density (N/kw < 5) and the disciplined-by-authorship empirical baseline",
+        "Signal 6 is computed as a gate on signal 5's fallback — the verbose-prose baseline is not applied to a file signal 6 catches",
+        "No file is modified (audit is read-only)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "fixture-path-skip-in-enumerated-sweep",
+      "prompt": "Compress plugins/docs-hygiene/skills/compress/ — the whole directory, everything markdown under it.",
+      "expected_output": "The directory target enumerates recursively, so target-validation gate 5 applies: every enumerated path under evals/fixtures/ skips with reason=fixture and is never edited (fixture verbosity is deliberate test input; compressing it corrupts the eval), while non-fixture markdown proceeds through the normal per-file pipeline. Gate 5 is scoped to the mutating action on ENUMERATED targets only — the empty-arg uncommitted-.md batch, directory expansion, and the repo-wide interview sweep — while an explicitly-named single fixture file (as in eval 1) and the read-only audit action (as in eval 2) bypass it.",
+      "files": [],
+      "expectations": [
+        "Enumerated paths under evals/fixtures/ are skipped with reason=fixture before any dispatch",
+        "No fixture file is edited by the sweep",
+        "Non-fixture markdown in the directory is processed normally, not skipped",
+        "Output reflects the gate's scoping: it applies to enumerated mutating sweeps, not to an explicitly-named single fixture file or to the read-only audit action"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "fixture-skip-in-uncommitted-batch",
+      "prompt": "/docs-hygiene:compress (invoked with no target; the working tree has two uncommitted .md files: docs/notes/draft.md and plugins/docs-hygiene/skills/compress/evals/fixtures/verbose-onboarding-snippet.md, the latter touched by a formatter)",
+      "expected_output": "The empty-arg + uncommitted-.md batch enumerates its targets from git status, so target-validation gate 5 applies to it exactly as to directory expansion and the interview sweep: the fixture file skips with reason=fixture and is never edited, while docs/notes/draft.md proceeds through the normal per-file pipeline. The user never named the fixture file, so the explicit-naming bypass does not apply.",
+      "files": [],
+      "expectations": [
+        "The uncommitted fixture file is skipped with reason=fixture, not compressed",
+        "The non-fixture uncommitted file is processed normally",
+        "Output does not treat an uncommitted edit to a fixture as intentional naming — the bypass is only for a target path the user typed"
+      ]
     }
   ]
 }
