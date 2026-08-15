@@ -1,7 +1,7 @@
 ---
 description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
-argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>]"
+argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
@@ -19,8 +19,10 @@ classification, and routing. It does **not** own cleanup execution.
 
 Never run or suggest running inline from this skill: `git fetch`, `git worktree prune`,
 `git worktree repair`, `git worktree remove`, `git branch -d/-D`, `git remote set-url`, or any
-filesystem deletion. The bundled script has no mutation mode. A report may name a command/tool as a
-future handoff, but the receiving per-repository tool or human owns its preview and confirmation gate.
+filesystem deletion. The bundled script has no mutation mode — `--apply-plan` is a read-only
+dry-run approval artifact over a prior plan file. A report may name a command/tool as a future
+handoff; the fleet action plan lists those invocations once per repository behind one confirmation
+gate, and the receiving per-repository tool or human still owns actual preview/execution.
 
 ## Input resolution
 
@@ -34,11 +36,17 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung
   and the no-scope fallback target.
+- `--detail`: emit collapsed per-target evidence after the rollup (default is rollup + action plan
+  only).
+- `--plan-file <path>`: write the machine-readable action-plan JSON to this path (otherwise a temp
+  file is created and named in the report).
+- `--apply-plan <path>`: standalone read-only mode — render the ordered dry-run approval artifact
+  for a previously written plan (cannot combine with discovery flags).
 
-Always pass `--project-dir "${CLAUDE_PROJECT_DIR}"`. That variable is substituted in this markdown
-content and in `allowed-tools` Bash rules, but it is **not** present in the Bash tool's environment,
-so the script cannot read it for itself — passing it in is what makes the project rung below
-reachable at all.
+Always pass `--project-dir "${CLAUDE_PROJECT_DIR}"` on audit runs (not on `--apply-plan`). That
+variable is substituted in this markdown content and in `allowed-tools` Bash rules, but it is
+**not** present in the Bash tool's environment, so the script cannot read it for itself — passing
+it in is what makes the project rung below reachable at all.
 
 If neither `--root` nor `--repo` is present, the script uses the project directory as an exact
 `--repo` target — not as a discovery root, so nothing beneath it is searched. A project directory
@@ -130,23 +138,29 @@ read-only enforcement model and its threat assumptions:
 
 ## Presentation
 
-Return the script's repository sections and finish with five grouped lists:
+Default output is screen-scale:
 
-1. `HIGH — candidate handoffs`
-2. `MEDIUM — manual review`
-3. `LOW — informational only`
-4. `UNKNOWN — evidence gaps`
-5. `ACKNOWLEDGED — configured known-inaccessible identities` (present the group only when non-empty)
+1. Fleet header (config, scope, discovery counts).
+2. **Repository rollup** — one row per repository with `CLEAN` / `N candidates` /
+   `BLOCKED (evidence gap)`, plus counts by finding kind. Fleet-level findings (stale config,
+   duplicate checkouts) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
+3. **Fleet action plan** — recommended skill invocations **once per repository** (not once per
+   finding), ordered so branch cleanups precede worktree cleanups, behind **one** confirmation gate.
+4. Path to the machine-readable action-plan JSON (and the `--apply-plan` dry-run invocation).
 
-`ACKNOWLEDGED` is a prominence demotion, not a fifth confidence tier: the evidence stays exactly as
-weak as the `UNKNOWN` it came from, and the finding is still reported. Never present it as stronger
-evidence than an `UNKNOWN`, and never treat the group's emptiness as a clean signal.
+Pass `--detail` when the operator needs evidence: targets are collapsed (one entry per path/branch
+carrying every applicable finding), never duplicated across confidence groups. Never collapse
+same-named branches across repositories.
 
-For each candidate, keep repository, canonical path, exact branch/worktree/remote target, PR/API
-evidence, and handoff. Never collapse same-named branches across repositories.
+`ACKNOWLEDGED` remains a prominence demotion, not a fifth confidence tier: the evidence stays exactly
+as weak as the `UNKNOWN` it came from. A rollup `CLEAN` verdict means no actionable cleanup-plan
+candidates (the kinds that produce skill invocations) and no UNKNOWN evidence gap for that
+repository — not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
+(for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
+`N candidates` when the action plan correctly lists `Actions: none`.
 
-If the report has no findings, say what was actually checked and list any skipped/unknown evidence;
-do not turn "no verified finding" into "fleet is clean".
+When acting on a fleet report, prefer the action plan / `--apply-plan` dry-run over driving
+per-repository skills by hand.
 
 ## Graceful degradation
 

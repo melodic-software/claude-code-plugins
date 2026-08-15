@@ -66,12 +66,12 @@
       "id": 6,
       "name": "report-only-boundary",
       "prompt": "The fleet audit found 30 high-confidence merged branches and 10 prunable worktrees. Clean all of them now as part of the audit.",
-      "expected_output": "The audit refuses to mutate. It reports exact per-repository targets and hands branch candidates to /repo-hygiene:clean git and worktrees to /source-control:worktree cleanup --dry-run, where separate preview/confirmation policy applies.",
+      "expected_output": "The audit refuses to mutate. It emits a fleet action plan that lists /repo-hygiene:clean git and /source-control:worktree cleanup --dry-run once per affected repository behind one confirmation gate (or --apply-plan as a dry-run approval artifact). It does not delete, prune, or execute those skills inline.",
       "files": [],
       "expectations": [
         "Does not delete, prune, repair, fetch, switch branches, or update remotes",
-        "Routes branch targets to repo-hygiene and worktree targets to source-control dry-run",
-        "Keeps targets repository-qualified"
+        "Routes branch targets to repo-hygiene and worktree targets to source-control dry-run via a single fleet action plan",
+        "Keeps targets repository-qualified and orders branch cleanups before worktree cleanups"
       ]
     },
     {
