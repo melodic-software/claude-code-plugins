@@ -46,7 +46,7 @@
       "expectations": [
         "Queries Git's index via the deterministic preview",
         "Reports vcs-tracked-content and produces no approval token",
-        "Does not offer an override for tracked content"
+        "Does not override tracked content in preview; names the optional manual handoff evidence path only when empty status, provider-confirmed local heads, duplicated stashes, and exact operator approval can all be established"
       ]
     },
     {

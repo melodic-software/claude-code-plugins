@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import stat
@@ -27,6 +28,18 @@ SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
 VCS_NAMES = {".git", ".hg", ".svn"}
+GIT_METADATA_NAME = ".git"
+VCS_EVIDENCE_GATE_NAMES = (
+    "git-status-porcelain-empty",
+    "all-local-heads-on-remote",
+    "all-stashes-duplicated",
+    "exact-path-operator-approval",
+)
+GITHUB_REMOTE_RE = re.compile(
+    r"^(?:https?://|ssh://git@|git@)github\.com(?::|/)"
+    r"(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/?$",
+    re.IGNORECASE,
+)
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 FILE_ATTRIBUTE_HIDDEN = 0x2
 FILE_ATTRIBUTE_SYSTEM = 0x4
@@ -343,7 +356,9 @@ def system_roots(
     current_platform = platform_key or os_key()
     if current_platform == "windows":
         roots.extend(_windows_env_roots())
-        drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
+        drive_roots = (
+            windows_roots if windows_roots is not None else windows_drive_roots()
+        )
         for drive_root in drive_roots:
             roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
     elif current_platform == "macos":
@@ -945,12 +960,16 @@ def volume_root_os_owned_names(
             for name in (
                 WINDOWS_VOLUME_SYSTEM_NAMES
                 | WINDOWS_OS_ROOT_EXTRA_NAMES
-                | {Path(value).name for value in (
-                    os.environ.get("SystemRoot"),
-                    os.environ.get("ProgramFiles"),
-                    os.environ.get("ProgramFiles(x86)"),
-                    os.environ.get("ProgramData"),
-                ) if value}
+                | {
+                    Path(value).name
+                    for value in (
+                        os.environ.get("SystemRoot"),
+                        os.environ.get("ProgramFiles"),
+                        os.environ.get("ProgramFiles(x86)"),
+                        os.environ.get("ProgramData"),
+                    )
+                    if value
+                }
             )
         }
     if current == "macos":
@@ -1028,7 +1047,9 @@ def root_child_skip_reason(
     if name.startswith("."):
         return "hidden"
     folded = name.casefold()
-    owned = os_owned_names if os_owned_names is not None else volume_root_os_owned_names()
+    owned = (
+        os_owned_names if os_owned_names is not None else volume_root_os_owned_names()
+    )
     if folded in owned:
         return "os-owned"
     # Windows metadata / upgrade residue often uses a $-prefix outside the
@@ -1048,7 +1069,9 @@ def root_child_skip_reason(
     if mounted:
         return "nested-mount-point"
     for root in system_roots():
-        if path.absolute() == root.absolute() or is_within(path.absolute(), root.absolute()):
+        if path.absolute() == root.absolute() or is_within(
+            path.absolute(), root.absolute()
+        ):
             return "os-owned"
     return None
 
@@ -1113,9 +1136,7 @@ def normalize_root_child_selection(
             "a general clean-everything request is not selection"
         )
     sensitive = (
-        root_child_names_case_sensitive()
-        if case_sensitive is None
-        else case_sensitive
+        root_child_names_case_sensitive() if case_sensitive is None else case_sensitive
     )
     if sensitive:
         by_name = {item["name"]: item["name"] for item in admitted}
@@ -1181,9 +1202,7 @@ def scan_tree(
             # Root-children mode never walks the volume root as a whole: only
             # explicitly selected immediate directories are entered, and the
             # root's own files / excluded siblings are never inventoried.
-            child_key = (
-                child.name if root_children_sensitive else child.name.casefold()
-            )
+            child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
                 and depth == 1
@@ -1540,7 +1559,79 @@ def validate_handoff_paths(
     return normalized
 
 
-def current_descendants(root: Path, candidate: Path) -> set[str]:
+def validate_vcs_evidence(
+    payload: dict[str, Any], approved: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Validate proof-source locations; live commands establish every fact."""
+    if set(payload) != {"version", "repositories"}:
+        raise HygieneError("VCS evidence must contain exactly version/repositories")
+    if payload.get("version") != SCHEMA_VERSION:
+        raise HygieneError("VCS evidence version must be 1")
+    repositories = payload.get("repositories")
+    if not isinstance(repositories, list) or not repositories:
+        raise HygieneError("VCS evidence repositories must be a non-empty array")
+    approved_paths = [PurePosixPath(value) for value in approved]
+    normalized: dict[str, dict[str, Any]] = {}
+    for item in repositories:
+        if not isinstance(item, dict) or set(item) != {
+            "path",
+            "remote",
+            "stash_copies",
+        }:
+            raise HygieneError(
+                "each VCS evidence repository must contain exactly "
+                "path/remote/stash_copies"
+            )
+        relative = item["path"]
+        pure = PurePosixPath(relative) if isinstance(relative, str) else None
+        if (
+            pure is None
+            or not relative
+            or relative in {".", "/"}
+            or pure.is_absolute()
+            or ".." in pure.parts
+            or not any(path == pure or path in pure.parents for path in approved_paths)
+        ):
+            raise HygieneError(
+                f"VCS evidence repository is outside approved paths: {relative}"
+            )
+        if relative in normalized:
+            raise HygieneError(f"duplicate VCS evidence repository: {relative}")
+        remote = item["remote"]
+        if remote is not None and (
+            not isinstance(remote, str)
+            or not remote
+            or remote.startswith("-")
+            or any(character.isspace() for character in remote)
+        ):
+            raise HygieneError(
+                f"VCS evidence remote must be null or a literal name: {relative}"
+            )
+        copies = item["stash_copies"]
+        if (
+            not isinstance(copies, list)
+            or not all(
+                isinstance(value, str)
+                and value
+                and Path(value).expanduser().is_absolute()
+                for value in copies
+            )
+            or len(set(copies)) != len(copies)
+        ):
+            raise HygieneError(
+                f"stash_copies must be unique absolute paths: {relative}"
+            )
+        normalized[relative] = {
+            "path": relative,
+            "remote": remote,
+            "stash_copies": copies,
+        }
+    return normalized
+
+
+def current_descendants(
+    root: Path, candidate: Path, *, opaque_git_metadata: bool = False
+) -> set[str]:
     paths: set[str] = set()
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
@@ -1551,7 +1642,12 @@ def current_descendants(root: Path, candidate: Path) -> set[str]:
         mounted, error = mount_state(path, known_mounts)
         if error:
             raise HygieneError(error)
-        if is_linkish(path) or not path.is_dir() or mounted:
+        if (
+            is_linkish(path)
+            or not path.is_dir()
+            or mounted
+            or (opaque_git_metadata and path.name.casefold() == GIT_METADATA_NAME)
+        ):
             return
         with os.scandir(path) as iterator:
             children = [Path(entry.path) for entry in iterator]
@@ -1745,6 +1841,374 @@ def tracked_blocker(candidate: Path, target: Path) -> str | None:
     return None
 
 
+def run_git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    git = shutil.which("git")
+    if not git:
+        raise HygieneError("git-not-found")
+    environment = os.environ.copy()
+    # `git status` may otherwise refresh the index and write an optional
+    # lock/index update. Evidence collection is a read-only handoff operation.
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
+    return subprocess.run(
+        [git, "-C", str(repo), *arguments],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+        env=environment,
+    )
+
+
+def github_remote_repository(url: str) -> tuple[str, str] | None:
+    match = GITHUB_REMOTE_RE.fullmatch(url.strip())
+    if match is None:
+        return None
+    repository = match.group("repo")
+    if repository.casefold().endswith(".git"):
+        repository = repository[:-4]
+    if not repository:
+        return None
+    return match.group("owner"), repository
+
+
+def verify_github_remote_head(
+    repo: Path, remote: str, sha: str
+) -> tuple[bool, dict[str, str]]:
+    """Confirm one local head through the GitHub commits API, never by ref name."""
+    # Read the literal declaration rather than `git remote get-url`, which
+    # expands global `insteadOf` transport rewrites and can hide github.com.
+    remote_url = run_git(repo, "config", "--get", f"remote.{remote}.url")
+    if remote_url.returncode != 0 or not remote_url.stdout.strip():
+        return False, {"sha": sha, "error": "remote-url-unverified"}
+    coordinates = github_remote_repository(remote_url.stdout.strip())
+    if coordinates is None:
+        return False, {"sha": sha, "error": "remote-provider-unsupported"}
+    gh = shutil.which("gh")
+    if not gh:
+        return False, {"sha": sha, "error": "gh-not-found"}
+    owner, repository = coordinates
+    try:
+        checked = subprocess.run(
+            [
+                gh,
+                "api",
+                "--method",
+                "GET",
+                f"repos/{owner}/{repository}/commits/{sha}",
+                "--jq",
+                ".sha",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, {"sha": sha, "error": f"provider-query-failed: {exc}"}
+    confirmed = (
+        checked.returncode == 0 and checked.stdout.strip().casefold() == sha.casefold()
+    )
+    detail = {
+        "sha": sha,
+        "remote": remote,
+        "repository": f"{owner}/{repository}",
+    }
+    if not confirmed:
+        detail["error"] = "remote-head-unconfirmed"
+    return confirmed, detail
+
+
+def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
+    """Return every local branch head, plus a detached HEAD when present."""
+    branches = run_git(
+        repo, "for-each-ref", "--format=%(refname:short)%09%(objectname)", "refs/heads"
+    )
+    if branches.returncode != 0:
+        return [], "local-heads-unverified"
+    heads: list[dict[str, str]] = []
+    for line in branches.stdout.splitlines():
+        try:
+            name, sha = line.split("\t", 1)
+        except ValueError:
+            return [], "local-heads-unverified"
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+            return [], "local-heads-unverified"
+        heads.append({"name": name, "sha": sha.casefold()})
+    symbolic = run_git(repo, "symbolic-ref", "-q", "HEAD")
+    if symbolic.returncode not in {0, 1}:
+        return [], "local-heads-unverified"
+    if symbolic.returncode == 1:
+        detached = run_git(repo, "rev-parse", "--verify", "HEAD^{commit}")
+        sha = detached.stdout.strip()
+        if detached.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+            return [], "local-heads-unverified"
+        heads.append({"name": "HEAD", "sha": sha.casefold()})
+    unique = {(item["name"], item["sha"]): item for item in heads}
+    return sorted(unique.values(), key=lambda item: (item["name"], item["sha"])), None
+
+
+def stash_shas(repo: Path) -> tuple[list[str], str | None]:
+    stashes = run_git(repo, "stash", "list", "--format=%H")
+    if stashes.returncode != 0:
+        return [], "stashes-unverified"
+    result = [value.casefold() for value in stashes.stdout.splitlines() if value]
+    if not all(re.fullmatch(r"[0-9a-fA-F]{40,64}", value) for value in result):
+        return [], "stashes-unverified"
+    return result, None
+
+
+def verify_stash_copy(
+    source_candidate: Path,
+    copy_value: str,
+    approved_paths: list[Path],
+    source_common_dir: Path,
+) -> tuple[Path | None, set[str], str | None]:
+    copy_input = Path(copy_value).expanduser().absolute()
+    if has_linkish_component(copy_input):
+        return None, set(), "stash-copy-link-or-reparse"
+    try:
+        copy = copy_input.resolve(strict=True)
+    except OSError:
+        return None, set(), "stash-copy-unreadable"
+    if (
+        not copy.is_dir()
+        or is_within(copy, source_candidate)
+        or any(is_within(copy, approved) for approved in approved_paths)
+    ):
+        return None, set(), "stash-copy-not-independent"
+    top = run_git(copy, "rev-parse", "--show-toplevel")
+    if top.returncode != 0 or not top.stdout.strip():
+        return None, set(), "stash-copy-not-a-worktree"
+    try:
+        top_path = Path(top.stdout.strip()).resolve(strict=True)
+    except OSError:
+        return None, set(), "stash-copy-unreadable"
+    if top_path != copy:
+        return None, set(), "stash-copy-root-mismatch"
+    common = run_git(copy, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.returncode != 0 or not common.stdout.strip():
+        return None, set(), "stash-copy-unreadable"
+    try:
+        copy_common = Path(common.stdout.strip()).resolve(strict=True)
+    except OSError:
+        return None, set(), "stash-copy-unreadable"
+    # Linked worktrees share the source common dir (and therefore stash refs).
+    # Reject any copy whose Git storage is the source store or lives under the
+    # candidate about to be deleted.
+    if (
+        copy_common == source_common_dir
+        or is_within(copy_common, source_common_dir)
+        or is_within(source_common_dir, copy_common)
+        or is_within(copy_common, source_candidate)
+    ):
+        return None, set(), "stash-copy-not-independent"
+    stashes, error = stash_shas(copy)
+    return copy, set(stashes), error
+
+
+def checkout_repository_paths(current_paths: set[str], target: Path) -> set[Path]:
+    repositories: set[Path] = set()
+    for relative in current_paths:
+        pure = PurePosixPath(relative)
+        if pure.name.casefold() != GIT_METADATA_NAME:
+            continue
+        repository_relative = pure.parent
+        if str(repository_relative) == ".":
+            continue
+        repositories.add(
+            target.joinpath(*repository_relative.parts).resolve(strict=False)
+        )
+    return repositories
+
+
+def verify_vcs_checkout_evidence(
+    target: Path,
+    candidate: Path,
+    current_paths: set[str],
+    configurations: dict[str, dict[str, Any]],
+    approved: list[str],
+) -> dict[str, Any]:
+    """Verify the complete live evidence bundle before relaxing Git blockers."""
+    gates: dict[str, dict[str, Any]] = {
+        name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+    }
+    gates["exact-path-operator-approval"] = {
+        "status": "passed",
+        "source": "handoff-paths",
+        "path": candidate.relative_to(target).as_posix(),
+    }
+    blockers: set[str] = set()
+    live_repositories = checkout_repository_paths(current_paths, target)
+    configured_repositories = {
+        target.joinpath(*PurePosixPath(relative).parts).resolve(strict=False)
+        for relative in configurations
+    }
+    if (
+        not live_repositories
+        or live_repositories != configured_repositories
+        or any(not is_within(repo, candidate) for repo in live_repositories)
+    ):
+        blockers.add("vcs-evidence-repository-set-mismatch")
+
+    status_details: list[dict[str, Any]] = []
+    head_details: list[dict[str, Any]] = []
+    stash_details: list[dict[str, Any]] = []
+    status_passed = not blockers
+    heads_passed = not blockers
+    stashes_passed = not blockers
+    approved_paths = [
+        target.joinpath(*PurePosixPath(value).parts).resolve(strict=False)
+        for value in approved
+    ]
+    for repo in sorted(live_repositories & configured_repositories):
+        relative = repo.relative_to(target).as_posix()
+        config = configurations[relative]
+        repository_detail: dict[str, Any] = {"repository": relative}
+
+        top = run_git(repo, "rev-parse", "--show-toplevel")
+        common = run_git(
+            repo, "rev-parse", "--path-format=absolute", "--git-common-dir"
+        )
+        try:
+            top_path = Path(top.stdout.strip()).resolve(strict=True)
+            common_path = Path(common.stdout.strip()).resolve(strict=True)
+        except OSError:
+            top_path = Path()
+            common_path = Path()
+        if (
+            top.returncode != 0
+            or common.returncode != 0
+            or top_path != repo
+            or not is_within(common_path, candidate)
+        ):
+            blockers.add("vcs-evidence-git-boundary-unverified")
+            status_passed = heads_passed = stashes_passed = False
+            repository_detail["status"] = "git-boundary-unverified"
+            status_details.append(repository_detail)
+            continue
+
+        status = run_git(
+            repo,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignored=matching",
+            "--ignore-submodules=none",
+        )
+        clean = status.returncode == 0 and not status.stdout
+        repository_detail["status"] = "clean" if clean else "not-clean-or-unverified"
+        status_details.append(repository_detail)
+        if not clean:
+            status_passed = False
+            blockers.add("vcs-evidence-status-not-clean")
+
+        heads, head_error = local_head_shas(repo)
+        if head_error:
+            heads_passed = False
+            blockers.add("vcs-evidence-local-heads-unverified")
+        elif heads and config["remote"] is None:
+            heads_passed = False
+            blockers.add("vcs-evidence-remote-not-declared")
+        else:
+            for head in heads:
+                confirmed, detail = verify_github_remote_head(
+                    repo, config["remote"], head["sha"]
+                )
+                detail["repository_path"] = relative
+                detail["local_head"] = head["name"]
+                head_details.append(detail)
+                if not confirmed:
+                    heads_passed = False
+                    blockers.add("vcs-evidence-remote-head-unconfirmed")
+
+        stashes, stash_error = stash_shas(repo)
+        if stash_error:
+            stashes_passed = False
+            blockers.add("vcs-evidence-stashes-unverified")
+            continue
+        copy_stashes: dict[str, set[str]] = {}
+        for copy_value in config["stash_copies"]:
+            try:
+                copy, copy_values, copy_error = verify_stash_copy(
+                    candidate, copy_value, approved_paths, common_path
+                )
+            except (OSError, subprocess.SubprocessError, HygieneError):
+                copy, copy_values, copy_error = None, set(), "stash-copy-unverified"
+            if copy_error:
+                stashes_passed = False
+                blockers.add("vcs-evidence-stash-copy-unverified")
+                continue
+            assert copy is not None
+            copy_stashes[str(copy)] = copy_values
+        for sha in stashes:
+            duplicated_at = sorted(
+                path for path, values in copy_stashes.items() if sha in values
+            )
+            stash_details.append(
+                {
+                    "repository_path": relative,
+                    "sha": sha,
+                    "duplicated_at": duplicated_at,
+                }
+            )
+            if not duplicated_at:
+                stashes_passed = False
+                blockers.add("vcs-evidence-stash-not-duplicated")
+
+    gates["git-status-porcelain-empty"] = {
+        "status": "passed" if status_passed else "failed",
+        "repositories": status_details,
+    }
+    gates["all-local-heads-on-remote"] = {
+        "status": "passed" if heads_passed else "failed",
+        "heads": head_details,
+    }
+    gates["all-stashes-duplicated"] = {
+        "status": "passed" if stashes_passed else "failed",
+        "stashes": stash_details,
+    }
+    verified = not blockers and all(
+        gates[name]["status"] == "passed" for name in VCS_EVIDENCE_GATE_NAMES
+    )
+    return {
+        "status": "verified" if verified else "failed",
+        "gates": gates,
+        "blockers": sorted(blockers),
+        "repositories": sorted(
+            repo.relative_to(target).as_posix() for repo in live_repositories
+        ),
+    }
+
+
+def evidence_adjusted_protections(
+    protections: Iterable[str],
+    path: Path,
+    target: Path,
+    repository_paths: Iterable[Path],
+    exact_names: set[str],
+) -> list[str]:
+    """Relax only Git-marker protections, never another protected-name class."""
+    adjusted = set(protections)
+    metadata_roots = [repo / GIT_METADATA_NAME for repo in repository_paths]
+    if not any(is_within(path, metadata) for metadata in metadata_roots):
+        return sorted(adjusted)
+    adjusted.discard("vcs-metadata")
+    current = path
+    non_git_protected_name = False
+    while is_within(current, target):
+        if current.name.casefold() != GIT_METADATA_NAME and has_protected_name(
+            current, exact_names
+        ):
+            non_git_protected_name = True
+            break
+        if current == target:
+            break
+        current = current.parent
+    if not non_git_protected_name:
+        adjusted.discard("baseline-protected-name")
+    return sorted(adjusted)
+
+
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
@@ -1907,9 +2371,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
     truncated_paths = {
-        value
-        for value in snapshot.get("truncated_paths", [])
-        if isinstance(value, str)
+        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
     }
     exact_names = baseline_exact_names | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
@@ -2031,7 +2493,11 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, Any]:
+def handoff_verify(
+    snapshot: dict[str, Any],
+    approved: list[str],
+    vcs_evidence: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Re-run per-path revalidation for the manual handoff lane, read-only.
 
     Deterministically reruns the engine's identity/reparse/protection/VCS/
@@ -2046,9 +2512,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
     truncated_paths = {
-        value
-        for value in snapshot.get("truncated_paths", [])
-        if isinstance(value, str)
+        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
     }
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
@@ -2056,6 +2520,16 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         path = target.joinpath(*PurePosixPath(relative).parts)
         drifted: set[str] = set()
         contested: set[str] = set()
+        evidence_result: dict[str, Any] | None = None
+        candidate_pure = PurePosixPath(relative)
+        candidate_evidence = {
+            repository: config
+            for repository, config in (vcs_evidence or {}).items()
+            if (
+                (repository_pure := PurePosixPath(repository)) == candidate_pure
+                or candidate_pure in repository_pure.parents
+            )
+        }
         try:
             path.lstat()
         except FileNotFoundError:
@@ -2081,10 +2555,24 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 }
             )
             continue
-        contested.update(hard_protection(path, target, exact_names, known_mounts))
+        candidate_protections = hard_protection(path, target, exact_names, known_mounts)
         truncated = overlaps_truncated(relative, truncated_paths)
+        overlapping_truncations = {
+            name
+            for name in truncated_paths
+            if name == relative
+            or name.startswith(relative + "/")
+            or relative.startswith(name + "/")
+        }
+        configured_git_truncations = {
+            (PurePosixPath(repository) / GIT_METADATA_NAME).as_posix()
+            for repository in candidate_evidence
+        }
+        evidence_inventory_eligible = bool(candidate_evidence) and not (
+            overlapping_truncations - configured_git_truncations
+        )
         expected_paths = subtree_names(relative, entries)
-        if truncated:
+        if truncated and not evidence_inventory_eligible:
             # A truncated path has no captured descendant set, so no live walk
             # can prove anything about it — never clear (same rationale as the
             # preview short-circuit).
@@ -2092,7 +2580,11 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             current_paths = expected_paths
         else:
             try:
-                current_paths = current_descendants(target, path)
+                current_paths = current_descendants(
+                    target,
+                    path,
+                    opaque_git_metadata=bool(candidate_evidence),
+                )
             # On failure, treat the live set as unknown rather than empty
             # (preview's choice): an unreadable subtree is contested, not
             # provably drifted — "changed" cannot be claimed without a read.
@@ -2102,6 +2594,57 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             except (OSError, HygieneError):
                 current_paths = expected_paths
                 contested.add("filesystem-state-unverified")
+        if candidate_evidence and evidence_inventory_eligible:
+            try:
+                evidence_result = verify_vcs_checkout_evidence(
+                    target,
+                    path,
+                    current_paths,
+                    candidate_evidence,
+                    approved,
+                )
+            except (OSError, subprocess.SubprocessError, HygieneError) as exc:
+                evidence_result = {
+                    "status": "failed",
+                    "gates": {
+                        name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+                    },
+                    "blockers": ["vcs-evidence-state-unverified"],
+                    "error": str(exc),
+                }
+            contested.update(evidence_result["blockers"])
+        elif candidate_evidence:
+            evidence_result = {
+                "status": "failed",
+                "gates": {
+                    name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+                },
+                "blockers": ["vcs-evidence-non-git-truncation"],
+            }
+            contested.update(evidence_result["blockers"])
+        evidence_verified = (
+            evidence_result is not None and evidence_result["status"] == "verified"
+        )
+        repository_paths = [
+            target.joinpath(*PurePosixPath(value).parts)
+            for value in (evidence_result or {}).get("repositories", [])
+        ]
+        if evidence_verified:
+            candidate_protections = evidence_adjusted_protections(
+                candidate_protections,
+                path,
+                target,
+                repository_paths,
+                exact_names,
+            )
+            git_metadata_truncations = {
+                (repo / GIT_METADATA_NAME).relative_to(target).as_posix()
+                for repo in repository_paths
+            }
+            truncated = bool(overlapping_truncations - git_metadata_truncations)
+        if truncated:
+            contested.add("truncated-not-inventoried")
+        contested.update(candidate_protections)
         if current_paths != expected_paths:
             drifted.add("changed-since-scan")
         for name in expected_paths:
@@ -2120,15 +2663,34 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             except OSError:
                 contested.add("filesystem-state-unverified")
             else:
-                if not same_stat_identity(info, entry):
+                metadata_entry = any(
+                    current == repo / GIT_METADATA_NAME for repo in repository_paths
+                )
+                identity_matches = (
+                    same_object_identity(info, entry)
+                    if candidate_evidence
+                    and metadata_entry
+                    and entry.get("kind") == "directory"
+                    else same_stat_identity(info, entry)
+                )
+                if not identity_matches:
                     drifted.add("changed-since-scan")
-            contested.update(
-                hard_protection(current, target, exact_names, known_mounts)
+            current_protections = hard_protection(
+                current, target, exact_names, known_mounts
             )
+            if evidence_verified:
+                current_protections = evidence_adjusted_protections(
+                    current_protections,
+                    current,
+                    target,
+                    repository_paths,
+                    exact_names,
+                )
+            contested.update(current_protections)
             relative_current = current.relative_to(target).as_posix()
             if any(glob_matches(relative_current, pattern) for pattern in globs):
                 contested.add("consumer-protected-path")
-        if not truncated:
+        if not truncated or evidence_inventory_eligible:
             # A hung git (TimeoutExpired) must degrade to this one path's
             # contested verdict, not abort the whole run with no verdicts —
             # the subcommand promises a verdict per approved path.
@@ -2136,15 +2698,13 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 vcs = tracked_blocker(path, target)
             except (OSError, subprocess.SubprocessError):
                 vcs = "vcs-state-unverified"
-            if vcs:
+            if vcs and not (evidence_verified and vcs == "vcs-tracked-content"):
                 contested.add(vcs)
             # Same degradation rule as the VCS probe: a probe that fails to
             # LAUNCH (lsof vanishing after which(), a ctypes load error) is
             # this path's contested verdict, not a whole-run abort.
             try:
-                state, detail = candidate_handle_state(
-                    target, path, expected_paths
-                )
+                state, detail = candidate_handle_state(target, path, expected_paths)
             except (OSError, subprocess.SubprocessError):
                 state, detail = "unverified", "handle-probe-failed"
             if state == "open":
@@ -2156,13 +2716,14 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                     "handle-state-unverified" + (f": {detail}" if detail else "")
                 )
         verdict = "drifted" if drifted else "contested" if contested else "clear"
-        verdicts.append(
-            {
-                "path": relative,
-                "verdict": verdict,
-                "reasons": sorted(drifted) + sorted(contested),
-            }
-        )
+        item = {
+            "path": relative,
+            "verdict": verdict,
+            "reasons": sorted(drifted) + sorted(contested),
+        }
+        if evidence_result is not None:
+            item["vcs_evidence"] = evidence_result
+        verdicts.append(item)
     clear = sum(1 for item in verdicts if item["verdict"] == "clear")
     return {
         "status": "handoff-verify-complete",
@@ -2481,6 +3042,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("--snapshot", required=True)
     verify.add_argument("--paths", required=True)
+    verify.add_argument("--vcs-evidence")
     verify.add_argument("--data-root")
     return parser
 
@@ -2514,9 +3076,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--root-child requires --root-children")
             if root_children_mode:
                 if not is_volume_root(target):
-                    raise HygieneError(
-                        "--root-children requires a volume-root target"
-                    )
+                    raise HygieneError("--root-children requires a volume-root target")
                 if not is_os_managed_target(target):
                     raise HygieneError(
                         "--root-children is only valid for an OS-managed volume root; "
@@ -2711,7 +3271,12 @@ def main(argv: list[str] | None = None) -> int:
             approved = validate_handoff_paths(
                 load_json(Path(args.paths)), entry_map(snapshot)
             )
-            result = handoff_verify(snapshot, approved)
+            vcs_evidence = (
+                validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
+                if args.vcs_evidence
+                else None
+            )
+            result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if result["not_clear"] else 0)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
