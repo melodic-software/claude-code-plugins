@@ -85,8 +85,12 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
 the hook exits `0` and reports a once-per-session notice to both Claude
-(`additionalContext`) and you (`systemMessage`). It never falls back to `npx`,
-installs a package, or performs a network request during a hook run.
+(`additionalContext`) and you (`systemMessage`). Only the notice latches —
+the binary probe re-runs on every Markdown edit and recovers mid-session when
+the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
+`PATH probed:` line naming the PATH the hook process actually searched. The
+hook never falls back to `npx`, installs a package, or performs a network
+request during a hook run.
 
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
