@@ -79,17 +79,16 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" transcript
 
 1. **Acquire** — captions + info JSON (`--skip-download`)
 2. **Caption ladder** — per-source rungs; STOP and surface if exhausted (see the source spoke)
-3. **Clean** — dedup/repair pass appropriate to the selected rung's caption class
+3. **Transcribe** — strategy-driven: `captions` | `captions+repair` | `asr`. The source layer
+   declares the per-source default; `--transcript-strategy <value>` overrides it. When the
+   resolved strategy cannot run, the digest proceeds without a transcript and the reason is
+   recorded in the `transcriptDegradation` provenance field — never silently.
 4. **Parse** — WebVTT → `[M:SS]` paragraph `transcript.txt`
 5. **Write** — `.work/<watch-epic>/<video-slug>/transcript.txt` + `README.md` stub (journey
    template: `templates/readme-journey.md`)
 
-Per-source caption flags, rung order, and caption class: `reference/sources/youtube.md` /
-`reference/sources/x.md`.
-
-<!-- RECONCILE: Phase 3 makes step 3 strategy-driven (`captions` | `captions+repair` | `asr`) with
-the per-source default declared by the source layer and pipeline-overridable. Confirm the step
-wording once the strategy seam lands. -->
+Per-source caption flags, rung order, caption class, and strategy default:
+`reference/sources/youtube.md` / `reference/sources/x.md`.
 
 ## Queue action
 
@@ -145,16 +144,17 @@ read it before starting. Diagram: `context/workflow.md`.
 **Phase markers.** After each phase, `watch/watch-state.js mark-phase <slice-dir> <phase>`
 (idempotent). Never `mark-phase` or set `status: complete` while that phase's verify script fails.
 
-**A 0-video source result** (an X post with no video) skips phases 1, 3, 4, and 5 and produces a
-text-only digest with populated provenance — see `reference/sources/x.md`.
+**A 0-video source result** (an X post with no video) is well-formed, not a failure: it enqueues
+at preflight, skips phases 1, 3, 4, and 5, and produces a text-only digest. How much provenance
+it carries depends on which 0-case it is — see `reference/sources/x.md`.
 
 ## Resume action
 
-<!-- RECONCILE: the `resume <video-slug>` argument name (frontmatter `argument-hint`, the action
-router, and the handoff-ritual message below) is source-neutral in fact but named for YouTube — an
-X status with no video still resolves to a slug. Left as-is deliberately: this phase must keep the
-skill functional as `youtube-digest`, and renaming a user-facing argument is Phase 5 (naming
-hygiene) or Phase 7 (rename) territory, neither of which has inventoried it. Decide there. -->
+<!-- RECONCILE(P5-naming): the `resume <video-slug>` argument name (frontmatter `argument-hint`,
+the action router, and the handoff-ritual message below) is source-neutral in fact but named for
+YouTube — an X status with no video still resolves to a slug. Waits on Phase 5 (naming hygiene) to
+decide whether to rename the user-facing argument; Phase 7 (rename) is the fallback owner. Neither
+has inventoried it. -->
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<video-slug>"
@@ -208,8 +208,9 @@ Verify before starting (stop and route to the fix path on failure):
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node
 dependencies; the media binaries are OS-level installs via your platform's package manager.
 
-<!-- RECONCILE: Phase 3's ASR rung adds an optional, closed-by-default faster-whisper prerequisite
-(never auto-installed). Add a row here if it ships default-visible. -->
+<!-- RECONCILE(P3-probes): the ASR rung's optional, closed-by-default faster-whisper prerequisite
+(never auto-installed) gets a row here only if probe `[T5-ASR-TIMESTAMPS]` leaves `asr` default-on
+for caption-absent entries. Waits on that probe. -->
 
 ## Eval fixtures
 

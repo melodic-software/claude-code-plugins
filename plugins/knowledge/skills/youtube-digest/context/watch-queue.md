@@ -153,7 +153,15 @@ Emits a JSON array (one entry per URL). Per entry use `action` to decide:
 | `reject` | `unavailable` | Do **not** enqueue (removed / private / 404); report to the user |
 | `reject` | `invalid-url` | Do **not** enqueue (no supported source claims the URL); report to the user with the supported-source list |
 
-<!-- RECONCILE: Phase 1 moves URL acceptance behind the source layer's `acceptForEnqueue`, so the whole YouTube-shaped pattern set at `preflight-metadata.js:58-63` / `:226-227` stops applying YouTube semantics to X. Confirm the `action`/`status` values above survive that move unchanged. -->
+URL acceptance and failure classification are the **owning source adapter's** (`acceptForEnqueue`
+and its declared error patterns), so no YouTube-shaped assumption reaches an X URL. Only a *fatal*
+classification rejects; everything else — bot-check, auth, network, unclassified — enqueues as
+`transient`.
+
+**A 0-video X post enqueues.** Sources declaring media-optional results have preflight pass
+`--ignore-no-formats-error`, so a post with no video reports metadata instead of erroring and
+takes the `enqueue` / `ok` row like any other. Its `title` / `channel` cells may be blank for a
+link post, whose text is not recoverable — see `../reference/sources/x.md`.
 
 `displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped — paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.
 

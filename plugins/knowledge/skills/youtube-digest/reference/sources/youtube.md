@@ -9,15 +9,16 @@ the shared pipeline lives in the hub and `../../context/watch-pipeline.md`.
 | --- | --- |
 | Watch page | `https://www.youtube.com/watch?v=<id>` |
 | Short link | `https://youtu.be/<id>` |
-| Shorts / embed / live | `https://www.youtube.com/{shorts,embed,live}/<id>` |
+| Path-prefixed | `https://www.youtube.com/{shorts,embed,live,v}/<id>` |
 
-Slice key = the 11-character video id, derived from the URL rather than from post-redirect
-metadata. One id → one slice; the id is also the `QUEUE.md` dedupe key.
+Owned hosts are `youtube.com` and `youtu.be`. Host matching is suffix-aware, so `www.`, `m.`, and
+`music.` subdomains all resolve here, while lookalikes (`notyoutube.com`,
+`youtube.com.evil.example`) do not.
 
-<!-- RECONCILE: Phase 1 moves id extraction from `acquisition/acquire.js` behind the YouTube
-adapter's `matchUrl` / `extractSliceKey`, and moves the whole preflight acceptance pattern set
-from `preflight-metadata.js` behind `acceptForEnqueue`. Confirm the accepted-shape list above
-against the landed adapter, including subdomain handling. -->
+Slice key = the 11-character video id (`[\w-]{11}`), derived from the URL rather than from
+post-redirect metadata; metadata `id` is a fallback only when the URL yields none. One id → one
+slice; the id is also the `QUEUE.md` dedupe key. Canonicalization is identity — every claimed
+variant is acquired verbatim.
 
 ## Acquisition
 
@@ -32,15 +33,13 @@ the caption ladder below deliberately falls through to them.
 
 **Caption ladder** — manual EN → auto EN → auto-translate EN → STOP and surface if exhausted.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
-platform-manual-preferred.
+`manual-and-auto`. Declared transcript strategy: `captions`.
 
-**Comments and extractor args** are YouTube capabilities, not pipeline defaults: comment harvest
-is on (the pinned comment feeds link harvest) with
-`youtube:max_comments=20,all,top;comment_sort=top`.
-
-<!-- RECONCILE: Phase 1 makes both `--write-comments` and `--extractor-args`
-adapter-declared rather than unconditionally pushed at `build-yt-dlp-args.js:113-115`. Confirm the
-declared `extractorArgs` string and `comments` capability against the landed YouTube adapter. -->
+**Comments and extractor args** are adapter-declared capabilities, not pipeline defaults — both
+flags are pushed only because this adapter declares them. Comment harvest is on (the pinned
+comment feeds link harvest) with `--extractor-args youtube:max_comments=20,all,top;comment_sort=top`.
+No extractor allow-list is declared: the youtube extractor resolves claimed URLs in-family, with
+no foreign delegation on the single-video path.
 
 ## Auth and throttle overrides
 
@@ -77,18 +76,19 @@ classified, acquisition iterates browser cookie profiles before giving up. Recov
 
 ## Failure patterns
 
-| Pattern | Class | Response |
-| --- | --- | --- |
-| Bot / sign-in challenge ("Sign in to confirm you're not a bot") | login-required | cookie fallback: cookies file, then browser profiles |
-| HTTP 429 | retryable | backoff + honor the concurrency cap; see `../../context/gotchas.md` |
-| Removed / private / 404 at preflight | fatal | `reject` / `unavailable` — never enqueued |
-| Not a YouTube video URL | fatal | `reject` / `invalid-url` |
+| Pattern | Class | Declared by | Response |
+| --- | --- | --- | --- |
+| Bot / sign-in challenge ("Sign in to confirm you're not a bot") | login-required | adapter | cookie fallback: cookies file, then browser profiles |
+| Removed / private / 404 at preflight | fatal | adapter | `reject` / `unavailable` — never enqueued |
+| Not a YouTube video URL | queue-lane rejection (not an error class) | adapter (`acceptForEnqueue`) | `reject` / `invalid-url` |
+| Unsupported host | unsupported-source | registry, before any adapter | `reject` / `invalid-url`, listing the supported sources |
+| HTTP 429 / 503 / connection reset / timeout | retryable | **shared retry policy**, not this adapter | backoff + honor the concurrency cap; see `../../context/gotchas.md` |
 
-<!-- RECONCILE: Phase 1 sources these from the adapter's `errorPatterns` table, seeded from
-`YOUTUBE_BOT_CHALLENGE_PATTERNS` (`acquire-yt-dlp-auth.js:8`), and consumed by the classification
-predicates in `spawn-yt-dlp-with-auth-fallback.js`. Confirm the four rows map onto the landed
-four-type taxonomy (retryable / fatal / login-required, plus dispatch-level unsupported-source),
-and that cookie fallback fires on login-required classification only. -->
+The last row is the one to read carefully: this adapter declares **no** retryable patterns of its
+own. Transport-level retry is shared machinery applied to every source, so a 429 never reaches
+adapter classification. Cookie fallback fires on a login-required classification only, and only
+because this adapter declares the browser-cookie-fallback capability — an explicit cookies-file or
+cookies-from-browser setting suppresses the profile loop entirely.
 
 ## Prerequisite floor
 

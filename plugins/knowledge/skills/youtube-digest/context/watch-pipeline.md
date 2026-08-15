@@ -299,5 +299,9 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watching/r
 Metadata-only link harvest:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" harvesting/run-harvest.js "<info-json-path>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" harvesting/run-harvest.js "<info-json-path>" [--url "<source-url>"]
 ```
+
+The owning source adapter is resolved from `--url` when given, else from the info JSON's
+`webpage_url`. Pass `--url` whenever the info JSON carries no `webpage_url` — without either, the
+command fails closed with the supported-source list rather than guessing a source.

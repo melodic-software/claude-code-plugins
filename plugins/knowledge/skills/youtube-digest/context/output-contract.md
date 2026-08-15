@@ -48,9 +48,11 @@ this skill's content as `${user_config.library_dir}`:
 The `setup-deps.mjs` install step is exempt — it installs node dependencies into
 `${CLAUDE_PLUGIN_DATA}`, not the work root.
 
-<!-- RECONCILE: Phase 5 renames the extraction env-var namespace off the `YOUTUBE_`-prefixed
-names (with a compatibility read). The forwarded variable is named generically above for that
-reason; confirm the landed name and whether any operator-facing surface needs to state it. -->
+<!-- RECONCILE(P5-env): the extraction env-var namespace is still `YOUTUBE_`-prefixed
+(`YOUTUBE_YT_DLP_COOKIES_FILE`, `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER`,
+`YOUTUBE_YT_DLP_JS_RUNTIMES`, `YOUTUBE_ACQUIRE_PHASE_GAP_SEC`). Phase 5 renames it with a
+compatibility read; the forwarded variable is named generically above for that reason. Waits on
+P5 to settle the landed names and whether any operator-facing surface must state them. -->
 
 **Scope of the seam.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
@@ -166,7 +168,15 @@ slice is graded on the source, research, and recommendations lanes alone.
 | `media/frames/`, `media/contact-sheets/` | (OS temp) | **never in repo** | — | OS temp only |
 | `*.vtt`, `video.*` | (OS temp) | no | SOURCE | OS temp — regenerable |
 
-<!-- RECONCILE: Phase 1 records the source URL in `run-state/watch.json` (`sourceUrl`) as the only
-place source identity lives — source is never a directory level. Phase 2 adds X provenance fields
-(blocked delegation, aliasing flag) and Phase 3 adds the named transcript-degradation field.
-Confirm whether any of those warrant their own rows here. -->
+**Source identity and provenance add no rows to this table** — every landed field rides inside an
+artifact already listed:
+
+- `sourceUrl` — a `run-state/watch.json` field, and the only place source identity lives. Source
+  is never a directory level.
+- `transcriptDegradation` — recorded in the `run-state/watch.json` phase map (transcript phase)
+  and echoed on CLI output.
+- X blocked delegations — the refused outbound link is harvested, so it lands in
+  `source/harvested-links.json`; the acquire phase detail carries the count.
+- X snowflake-aliasing flag (`source:snowflakeAliasing`) — acquisition-envelope only. **No slice
+  artifact persists it**, so it is unreadable after the run. Whether that is acceptable or a gap
+  worth a row is a live question, not a settled one.
