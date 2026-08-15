@@ -4360,19 +4360,37 @@ class GuardTests(unittest.TestCase):
                 )
 
     def test_readonly_supporting_bare_name_is_denied_as_shadowable(self) -> None:
-        """Bare allowlisted names are denied: which() cannot prove Bash will run that binary."""
+        """Bare allowlisted names are denied: which() cannot prove Bash will run that binary.
+
+        Absolute trusted forms remain allowlisted. On Windows, ``Path.is_absolute``
+        rejects POSIX-style heads and ``which("ls")`` often returns an ``.exe``
+        path — both are why this assertion previously encoded a Linux-only
+        expectation and went red (or never ran) on NT (#2774). Build the
+        absolute head with the same trust rules the guard uses.
+        """
         located = shutil.which("ls")
         self.assertIsNotNone(located)
+        assert located is not None
         resolved = Path(located).resolve()
+        absolute_head = resolved.as_posix()
+        # Prefer a form the allowlist actually accepts on this host. On Linux
+        # that is the resolved system path; on Windows it may need an MSYS
+        # spelling once Git roots are present, or an .exe-stripped native path.
+        if not guard._trusted_system_readonly_head(absolute_head):
+            for candidate in ("/usr/bin/ls", "/bin/ls"):
+                if guard._trusted_system_readonly_head(candidate):
+                    absolute_head = candidate
+                    break
+            else:
+                self.skipTest(
+                    "no trusted absolute ls on this host "
+                    f"(which={located!r}, resolved={resolved})"
+                )
         self.assertTrue(
-            guard._path_under_trusted_readonly_bin(resolved),
-            f"test host must provide system ls; got {resolved}",
+            guard.is_exact_readonly_supporting_command(f"{absolute_head} /tmp/example"),
+            absolute_head,
         )
-        # Absolute path to the same binary is allowed; the bare name is not.
-        self.assertTrue(
-            guard.is_exact_readonly_supporting_command(f"{resolved.as_posix()} /tmp/example")
-        )
-        self.assertTrue(guard._trusted_system_readonly_head(resolved.as_posix()))
+        self.assertTrue(guard._trusted_system_readonly_head(absolute_head))
         self.assertFalse(guard.is_exact_readonly_supporting_command("ls /tmp/example"))
         self.assertFalse(guard._trusted_system_readonly_head("ls"))
 
@@ -4504,7 +4522,7 @@ class GuardTests(unittest.TestCase):
             planted_git = planted / "git.exe"
             planted_git.write_text("fake")
             # which() returning a planted binary must not matter: known roots come
-            # only from ProgramFiles / LocalAppData installer locations.
+            # only from ProgramFiles / ProgramFiles(x86) machine installers.
             # Do not mock os.name here — pathlib.Path selects WindowsPath when
             # os.name is ``nt``, which cannot be instantiated on a POSIX runner.
             guard._nt_trusted_readonly_bin_roots.cache_clear()
@@ -4518,17 +4536,152 @@ class GuardTests(unittest.TestCase):
                         {
                             "ProgramFiles": str(base / "empty-pf"),
                             "ProgramFiles(x86)": str(base / "empty-pf86"),
-                            "LocalAppData": str(base / "empty-local"),
+                            "LocalAppData": str(base / "Programs" / "Git"),
                             "SystemRoot": "",
                             "SYSTEMROOT": "",
                         },
                         clear=False,
                     ),
                 ):
+                    # Even with a user-writable LocalAppData\\Programs\\Git tree
+                    # present, known roots stay empty (#2774).
+                    (base / "Programs" / "Git").mkdir(parents=True)
                     self.assertEqual((), guard._nt_known_git_installation_roots())
                     self.assertEqual((), guard._nt_trusted_readonly_bin_roots())
             finally:
                 guard._nt_trusted_readonly_bin_roots.cache_clear()
+
+    def test_nt_git_roots_exclude_user_writable_localappdata(self) -> None:
+        """#2774: %LOCALAPPDATA%\\Programs\\Git must not contribute trusted roots."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            user_git = base / "Local" / "Programs" / "Git"
+            user_bin = user_git / "usr" / "bin"
+            user_bin.mkdir(parents=True)
+            (user_bin / "ls.exe").write_text("fake")
+            guard._nt_trusted_readonly_bin_roots.cache_clear()
+            try:
+                with mock.patch.dict(
+                    guard.os.environ,
+                    {
+                        "ProgramFiles": str(base / "empty-pf"),
+                        "ProgramFiles(x86)": str(base / "empty-pf86"),
+                        "LocalAppData": str(base / "Local"),
+                        "SystemRoot": "",
+                        "SYSTEMROOT": "",
+                    },
+                    clear=False,
+                ):
+                    self.assertEqual((), guard._nt_known_git_installation_roots())
+            finally:
+                guard._nt_trusted_readonly_bin_roots.cache_clear()
+
+    def test_readonly_supporting_basename_strips_windows_extensions(self) -> None:
+        """#2774 A2: ls.EXE / find.exe must match the allowlisted basenames."""
+        with mock.patch.object(guard.os, "name", "nt"):
+            self.assertEqual(
+                "ls",
+                guard._readonly_supporting_basename(r"C:/Program Files/Git/usr/bin/ls.EXE"),
+            )
+            self.assertEqual(
+                "find",
+                guard._readonly_supporting_basename("/usr/bin/find.exe"),
+            )
+            self.assertEqual("ls", guard._readonly_supporting_basename("ls"))
+        with mock.patch.object(guard.os, "name", "posix"):
+            # Off Windows, .exe is a literal basename character — leave it.
+            self.assertEqual("ls.EXE", guard._readonly_supporting_basename("ls.EXE"))
+
+    def test_msys_posix_head_is_mapped_before_is_absolute_gate(self) -> None:
+        """#2774 A1: /usr/bin/ls must reach MSYS mapping on Windows-native Python.
+
+        Path.is_absolute() is False for POSIX-style heads on nt, so the old
+        order (absolute gate first) made the allowlist inert.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            git_root = base / "Git"
+            bin_dir = git_root / "usr" / "bin"
+            bin_dir.mkdir(parents=True)
+            ls_exe = bin_dir / "ls.exe"
+            ls_exe.write_text("fake")
+            guard._nt_trusted_readonly_bin_roots.cache_clear()
+            try:
+                with (
+                    mock.patch.object(guard.os, "name", "nt"),
+                    mock.patch.object(
+                        guard,
+                        "_nt_known_git_installation_roots",
+                        return_value=(git_root,),
+                    ),
+                    mock.patch.object(
+                        guard,
+                        "_nt_trusted_readonly_bin_roots",
+                        return_value=(bin_dir,),
+                    ),
+                ):
+                    self.assertTrue(
+                        guard._trusted_system_readonly_head("/usr/bin/ls"),
+                        "MSYS /usr/bin/ls must map through the Git root",
+                    )
+                    self.assertEqual(
+                        "ls",
+                        guard._readonly_supporting_basename("/usr/bin/ls.exe"),
+                    )
+                    # Basename strip + MSYS map together accept the allowlisted form.
+                    with mock.patch.object(
+                        guard,
+                        "_readonly_supporting_basename",
+                        wraps=guard._readonly_supporting_basename,
+                    ):
+                        self.assertTrue(
+                            guard.is_exact_readonly_supporting_command(
+                                "/usr/bin/ls -la /tmp/example"
+                            )
+                        )
+            finally:
+                guard._nt_trusted_readonly_bin_roots.cache_clear()
+
+    def test_engine_gate_asks_not_allows_readonly_supporting_commands(self) -> None:
+        """#2774 C: engine-gate must not hard-allow an allowlisted inspection command.
+
+        The plugin-level gate runs in every consumer session. An allowlisted
+        command that also names the engine path used to hard-``allow`` (and
+        bypass the user's prompt). `ask` preserves the prompt; belt mode still
+        hard-allows. A command that does not name the engine is deferred with
+        no output — that is not this defect.
+        """
+        head = None
+        for candidate in ("/usr/bin/ls", "/bin/ls"):
+            if Path(candidate).is_file() and guard._trusted_system_readonly_head(candidate):
+                head = candidate
+                break
+        if head is None:
+            self.skipTest("no trusted absolute ls on this host")
+        engine = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        command = f"{head} -la {engine}"
+        self.assertTrue(
+            guard._engine_gate_relevant(command, "Bash"),
+            "fixture must name the engine so the gate acts",
+        )
+        self.assertTrue(
+            guard.is_exact_readonly_supporting_command(command),
+            "fixture must remain allowlisted",
+        )
+        belt = self.run_guard(command)
+        self.assertEqual(
+            "allow",
+            belt["hookSpecificOutput"]["permissionDecision"],
+            "belt mode still hard-allows trusted inspection",
+        )
+        gated = self.run_guard_engine_gate(command)
+        self.assertIsNotNone(gated)
+        assert gated is not None
+        self.assertEqual(
+            "ask",
+            gated["hookSpecificOutput"]["permissionDecision"],
+            "engine-gate must ask, not allow, for readonly supporting commands",
+        )
 
     def test_bracket_test_is_not_trusted_on_name_alone(self) -> None:
         """#2618 hardening 2 + #2706: bare ``[`` is denied; absolute ``[`` clears identity.

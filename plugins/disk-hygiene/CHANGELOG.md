@@ -3,6 +3,29 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.8]
+
+### Fixed
+
+- **Windows read-only Bash allowlist was inert — 0 commands accepted (#2774).** Two
+  compounding defects: (A1) MSYS path reinterpretation ran *after* `Path.is_absolute()`,
+  which is False for POSIX-style heads on Windows-native Python, so `/usr/bin/ls` never
+  reached the Git-root mapping; (A2) `_readonly_supporting_basename` did not strip
+  `.exe`/`.EXE`, so real Git-for-Windows binaries never matched the allowlist. Move the
+  MSYS branch ahead of the absolute gate and strip Windows executable extensions.
+- **Engine-gate hard-`allow` leak for allowlisted inspection commands (#2774).** In
+  `--mode engine-gate`, an allowlisted command that also names the engine path emitted
+  `permissionDecision: "allow"`, bypassing the user's prompt in every consumer session.
+  Downgrade that path to `ask`; belt mode still hard-allows.
+- **Exclude user-writable `%LOCALAPPDATA%\\Programs\\Git` from NT trust roots (#2774)**
+  and reword the trust-root comments so they no longer claim independence from
+  environment-derived input.
+
+### Changed
+
+- **CI:** add a focused `disk-hygiene-guard-windows` lane (`windows-2025`, GuardTests
+  only) so NT trust/MSYS/basename branches cannot regress silently on Linux-only CI.
+
 ## [0.20.7]
 
 ### Fixed

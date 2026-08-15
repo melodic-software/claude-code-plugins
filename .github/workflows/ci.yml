@@ -311,6 +311,30 @@ jobs:
       - name: Run shared lib tests on Windows
         run: bash lib/hook-utils.test.sh
 
+  # #2774: the disk-hygiene read-only Bash allowlist is NT-specific (MSYS path
+  # mapping, .exe basename stripping, ProgramFiles trust roots). Linux CI cannot
+  # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
+  # POSIX — which is how an inert Windows allowlist shipped green. Keep this
+  # job SMALL: GuardTests only, not the full hygiene suite.
+  disk-hygiene-guard-windows:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Run disk-hygiene GuardTests on Windows
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene.GuardTests
+
   hook-utils-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1178,6 +1202,7 @@ jobs:
       - hygiene
       - hook-utils-sync
       - hook-utils-windows
+      - disk-hygiene-guard-windows
       - parse-concern-value-sync
       - resolve-convention-pattern-sync
       - standards-contract-sync
