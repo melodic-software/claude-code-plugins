@@ -2660,7 +2660,7 @@ else
     done
   done
 fi
-printf 'Handoff: approve this plan once, then drive the listed skills (or pass the plan to --apply-plan)\n'
+printf 'Handoff: approve this plan once, then run /repo-fleet-hygiene:apply --plan-file <path> (or --apply-plan for a read-only preview)\n'
 
 # --- Machine-readable plan artifact ----------------------------------------
 if [[ -z "$PLAN_FILE" ]]; then

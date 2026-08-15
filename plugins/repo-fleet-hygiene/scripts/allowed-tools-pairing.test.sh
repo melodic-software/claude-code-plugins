@@ -24,7 +24,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(audit)
+SKILLS=(audit apply)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a

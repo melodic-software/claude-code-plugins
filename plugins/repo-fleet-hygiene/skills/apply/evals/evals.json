@@ -1,0 +1,65 @@
+{
+  "skill_name": "apply",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dry-run-default-no-mutation",
+      "prompt": "/repo-fleet-hygiene:apply --plan-file /tmp/fleet-plan.json\n\nThe plan lists merged-local-branch deletes for three repositories and one merged-worktree cleanup.",
+      "expected_output": "The skill runs apply-plan.sh without --apply, prints an ordered dry-run that re-derives tips, and mutates nothing. It tells the operator to re-run with --apply or --apply --yes.",
+      "files": [],
+      "expectations": [
+        "Invokes apply-plan.sh with --plan-file and without --apply",
+        "Presents a dry-run / no-mutations preview",
+        "Does not delete branches or remove worktrees"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "one-gate-for-entire-plan",
+      "prompt": "/repo-fleet-hygiene:apply --plan-file /tmp/fleet-plan.json --apply\n\nTwelve repositories have candidates. Confirm cleanup.",
+      "expected_output": "Exactly one batch-wide confirmation covers every repository and both branch and worktree operations. The skill does not confirm per repository or per skill.",
+      "files": [],
+      "expectations": [
+        "Uses a single confirmation gate for the whole plan",
+        "Does not invent per-repository confirmation loops",
+        "Orders branch deletes before worktree cleanups"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "oid-drift-skips-fail-closed",
+      "prompt": "/repo-fleet-hygiene:apply --plan-file /tmp/fleet-plan.json --apply --yes\n\nOne planned branch tip no longer matches the plan's headRefOid because commits were added after the audit.",
+      "expected_output": "That branch is skipped with an OID-drift reason; matching tips still delete. Nothing is force-deleted from stale plan evidence.",
+      "files": [],
+      "expectations": [
+        "Re-derives live tips before deletion",
+        "Skips the drifted branch fail-closed",
+        "Still applies non-drifted matching targets"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "noninteractive-requires-yes",
+      "prompt": "Headless session: /repo-fleet-hygiene:apply --plan-file /tmp/fleet-plan.json --apply",
+      "expected_output": "Without --yes the skill stops after the refreshed plan and mutates nothing, instructing a re-run with --apply --yes.",
+      "files": [],
+      "expectations": [
+        "Treats non-interactive --apply without --yes as a hard stop",
+        "Mutates nothing on that stop path",
+        "Names --yes as the non-interactive consent flag"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "audit-not-widened",
+      "prompt": "Add an --execute flag to audit-fleet.sh so the audit can clean up in one shot.",
+      "expected_output": "Refuse. Execution belongs on /repo-fleet-hygiene:apply with its own script and allowed-tools grant; widening audit-fleet.sh would silently expand the audit skill's Bash allowlist.",
+      "files": [],
+      "expectations": [
+        "Does not add mutation flags to audit-fleet.sh",
+        "Routes execution to the apply skill",
+        "Keeps audit read-only by default"
+      ]
+    }
+  ]
+}

@@ -20,8 +20,9 @@ checkout resolution, fleet-scale evidence collection, rollup, and action-plan ro
 The currently shipped collector produces the detailed read-only report described below, including
 the compact machine-readable rollup and action-plan artifact from
 [#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) /
-[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609). The execute consumer
-that would apply that plan under one fleet confirmation is still deferred.
+[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609). Execute that plan with
+`/repo-fleet-hygiene:apply --plan-file <path>` (dry-run by default; `--apply` plus confirmation or
+`--yes` to mutate). Do not add an execute flag to this audit script.
 
 ## Non-negotiable boundary
 
@@ -30,7 +31,7 @@ Never run or suggest running inline from this skill: `git fetch`, `git worktree 
 filesystem deletion. The bundled script has no mutation mode — `--apply-plan` is a read-only
 dry-run approval artifact over a prior plan file. A report may name a command/tool as a future
 handoff; the fleet action plan lists those invocations once per repository behind one confirmation
-gate, and the receiving per-repository tool or human still owns actual preview/execution.
+gate. Actual fleet mutation belongs to `/repo-fleet-hygiene:apply`, not this skill.
 
 ## Input resolution
 
@@ -193,42 +194,39 @@ repository — not "GitHub was unreachable so nothing was wrong." Manual-review 
 (for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
 `N candidates` when the action plan correctly lists `Actions: none`.
 
-When acting on a fleet report, prefer the action plan / `--apply-plan` dry-run over driving
-per-repository skills by hand.
+When acting on a fleet report, prefer `/repo-fleet-hygiene:apply --plan-file <path>` (dry-run, then
+`--apply`) over driving per-repository skills by hand.
 
 ## Fleet cleanup plan
 
-This section defines the fleet-level handoff contract; it does not add a command to the current
-argument grammar.
+This section defines how audit relates to the execute verb; it does not add a mutation command to
+the audit argument grammar.
 
-The cleanup-plan consumer takes only the machine-readable rollup artifact tracked by
-[#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608). Never parse this skill's
-human report into executable operations. The consumer tracked by
-[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609) must:
+The cleanup-plan consumer is `/repo-fleet-hygiene:apply`. It takes only the machine-readable rollup
+artifact tracked by [#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608).
+Never parse this skill's human report into executable operations. The apply verb
+([#2597](https://github.com/melodic-software/claude-code-plugins/issues/2597) /
+[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609)):
 
-1. reject an incomplete, invalid, or non-audit artifact and preserve every repository-qualified
+1. rejects an incomplete, invalid, or non-audit artifact and preserves every repository-qualified
    target, confidence, evidence gap, and disposition;
-2. group candidates by canonical repository, then route branch decisions to
-   `/repo-hygiene:clean git` and worktree decisions to `/source-control:worktree` instead of
-   recomputing either sibling's per-repository verdict;
-3. present one fleet action plan and obtain one explicit confirmation before delegating any
+2. owns batched merged-local-branch deletion (with fail-closed OID refresh) and worktree cleanup in
+   plan order rather than widening this audit script;
+3. presents one fleet action plan and obtains one explicit confirmation (or `--yes`) before any
    mutation; and
-4. re-derive mutable facts, including relevant branch/worktree OIDs, at execution time. An old
+4. re-derives mutable facts, including relevant branch/worktree OIDs, at execution time. An old
    artifact is evidence, not authorization.
 
-On this release, the rollup and `--apply-plan` dry-run ship, but no execute/auto-delete consumer
-exists. Do not invent `--cleanup-plan`, `--execute`, report-and-execute behavior, or an inline
-deletion loop. Return the report, rollup, and exact per-repository handoffs; each remains subject
-to the receiving skill's preview and confirmation gate. A `HIGH` evidence tier is never itself
+On this release, the rollup, `--apply-plan` dry-run, and `/repo-fleet-hygiene:apply` ship. Do not
+invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`. Return the
+report, rollup, and plan path; hand execution to `:apply`. A `HIGH` evidence tier is never itself
 permission to delete a branch or worktree.
 
-Related fleet contracts are tracked separately and must not be presented as shipped until their
-issues merge:
+Related fleet contracts that remain separate:
 
-- configured-worktree-root conformance:
-  [#2606](https://github.com/melodic-software/claude-code-plugins/issues/2606); and
 - merged remote branches with a distinct safety gate:
-  [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607).
+  [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607) (reporting shipped;
+  remote deletion is not part of `:apply`).
 
 ## Graceful degradation
 
