@@ -82,6 +82,46 @@
         "Output does NOT silently delete the recap paragraph as if it were flavor that the semantic-diff pass would allow",
         "Output routes the dedup to a manual editorial pass or to /extract-ssot rather than handling it as ordinary compression"
       ]
+    },
+    {
+      "id": 7,
+      "name": "repo-wide-interview-fallback",
+      "prompt": "/compress",
+      "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining at any step exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then interviews on scope/concurrency with prescribed defaults (all COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded). No file is compressed before the final confirmation.",
+      "files": [],
+      "expectations": [
+        "Empty target + clean tree in an interactive session produces an AskUserQuestion offer, not an immediate no-op exit",
+        "Declining the offer (or any later step) exits with the friendly no-op message rather than proceeding",
+        "The mechanical audit runs BEFORE any compression and its inline output is bounded (aggregates + top-20 rows; full table to a file, never every row inline)",
+        "The interview presents prescribed defaults: all COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded",
+        "No file is edited before the user's explicit final confirmation",
+        "Per-file hard rules (semantic-diff dispatch, revert pass, markdownlint, <3% rule) still apply to the confirmed run"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "signal-6-density-skip",
+      "prompt": "Run /compress audit against docs/reference/api-lifecycle.md — a reference doc written tersely by an agent, with plain prose, no code fences, and no 'Prose compression discipline' citation.",
+      "expected_output": "The audit's signal 6 fires: no signal 1-4 matches, and the file's flavor-token density (the compress template's LATITUDE tokens per kilo-word) is below 5/kw, so the file classifies SKIP with expected yield <= 3% and a reason citing the density value and the disciplined-by-authorship baseline (9/9 reverted at 0.02-0.4%) — it does NOT fall through to signal 5's COMPRESS verbose-prose baseline.",
+      "files": [],
+      "expectations": [
+        "A low-flavor-density file with no signal 1-4 match classifies SKIP, not COMPRESS",
+        "The reason cites flavor-token density (N/kw < 5) and the disciplined-by-authorship empirical baseline",
+        "Signal 6 is computed as a gate on signal 5's fallback — the verbose-prose baseline is not applied to a file signal 6 catches",
+        "No file is modified (audit is read-only)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "fixture-path-skip",
+      "prompt": "Compress plugins/docs-hygiene/skills/compress/evals/fixtures/verbose-onboarding-snippet.md — it reads as very wordy.",
+      "expected_output": "Target-validation gate 5 rejects the path: it is under an evals/fixtures/ directory, so the target skips with reason=fixture and is never edited. The run explains that fixture verbosity is deliberate test input and compressing it corrupts the eval, rather than running the compression pipeline on it.",
+      "files": [],
+      "expectations": [
+        "A path under evals/fixtures/ is skipped with reason=fixture before any dispatch",
+        "The fixture file is not edited",
+        "Output explains fixture verbosity is deliberate test input, not flavor to remove"
+      ]
     }
   ]
 }

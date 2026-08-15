@@ -12,12 +12,16 @@
   branch of the pre-existing recheck trigger for consistently under-yielding signal-5 files.
 - **compress:** Target-validation gate 5 — paths under `evals/fixtures/` skip with
   `reason=fixture`. Fixture verbosity is deliberate test input; compressing it corrupts the eval.
+- **compress:** Eval scenarios 7-9 covering the three new branches: the interview fallback
+  (offer, decline-exits-no-op, bounded audit output, no edit before confirmation), a signal-6
+  density SKIP, and a fixture-path skip (review finding on #2700).
 
 ### Changed
 
 - **compress:** Empty-target + clean-tree invocations in interactive sessions now fall back to a
-  confirmation-gated repo-wide interview — offer, free mechanical audit (SKIP/COMPRESS/UNCERTAIN
-  table sorted by expected yield descending), scope/concurrency interview with prescribed defaults
+  confirmation-gated repo-wide interview — offer, free mechanical audit (aggregates + a
+  deterministic top-20 excerpt inline; full per-file table lexically sorted to a file, per the
+  determinism hard rule), scope/concurrency interview with prescribed defaults
   (all COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files
   excluded) — instead of dead-ending at the friendly no-op. Non-interactive contexts (subagent,
   headless/CI) keep the no-op. Entry path only; per-file hard rules (semantic-diff dispatch,
