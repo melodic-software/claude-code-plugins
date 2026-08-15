@@ -44,10 +44,10 @@ Three properties, stated first because everything below depends on them:
    later phase runs and nothing is persisted ([Phase 3](#phase-3--execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
-   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes — the findings file, and
-   the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
-   that root — are each **proven outside tracked space before that write is made**, never in tracked
-   source and never in a file another producer owns.
+   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its two writes — the findings file,
+   and the self-ignore guard's own `.gitignore` when it heals a root — are each **proven outside
+   tracked space before that write is made**, never in tracked source and never in a file another
+   producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -214,10 +214,25 @@ set up (invoked per its own documentation), falling back to the same-vendor fres
 Equivalence is formally undecidable, so the risk is a correlated blind spot rather than a lapse of
 attention, and that is the case the top rung of the ladder exists for.
 
-**An equivalence verdict must cite evidence.** "No test can detect this" asserted from inspection
-alone is exactly where this technique manufactures false confidence. Require the demonstration: what
-was run, what was identical, and under which inputs. A verdict that cannot cite one is reported as
-*unclassified*, not as equivalent.
+**Every verdict that WITHHOLDS a survivor must cite evidence, and a verdict that cannot is reported
+as *unclassified*.** Equivalent and arid are the two that withhold, so the rule binds both — asserting
+either from inspection alone is exactly where this technique manufactures false confidence:
+
+- **Equivalent** requires the demonstration: what was run, what was identical, and under which inputs.
+- **Arid** requires a complete proposed suppression entry — all five keys, id derived from them —
+  whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the enumerated vocabulary
+  ([`context/suppression.md`](context/suppression.md), which already rules that **a survivor fitting
+  no node kind is not arid**), and whose `reason` names the specific behavior the suite deliberately
+  does not assert on. "Killing this would not improve the suite" is a conclusion, not the evidence
+  for one. Aridity is the easier label to reach for, because its bar is otherwise a judgment about
+  value rather than about observable behavior — the node-kind membership test is what makes it
+  checkable rather than rhetorical.
+
+**This bar lives here, at classification, rather than at persist time, so one survivor has ONE
+disposition.** Phase 5 reports and Phase 6 persists from the same classification, so an operator
+reading the report and then the findings file cannot be shown "arid" in one and "unclassified" in the
+other. It also means the bar binds a bare run, not only `--persist-findings` — the human-facing
+report is exactly where an unevidenced withholding claim does its damage.
 
 ## Phase 5 — Report
 
@@ -261,7 +276,8 @@ Not examined this run: <n> entries whose anchored nodes fell outside the scope a
 user to accept>
 
 ### Unclassified
-<survivors whose equivalence claim could not cite evidence>
+<survivors whose withholding claim could not cite evidence — arid or equivalent, named with which
+was claimed and what was missing>
 ```
 
 The two suppression sections are obligations of the finding-suppression contract, not report
@@ -296,16 +312,14 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-**each** write this phase makes — the findings file, and the self-ignore guard's `.gitignore` where a
-governing checkout was found — is proven outside tracked space before **that** write is made, against
-the checkout that governs the destination rather than the invoking worktree, with the guard's own
-write proven before the guard heals rather than reported afterwards, and with the guard **not run at
-all** where no governing checkout was found, since there its create-when-absent rule could land on a
-tracked-but-deleted `.gitignore` with no check having been possible (a memory root inside tracked space leaves `git status`
+**each** of the phase's two writes — the findings file and the self-ignore guard's `.gitignore` — is
+proven outside tracked space before **that** write is made, against the checkout that governs the
+destination rather than the invoking worktree, and with the guard's own write proven before the guard
+heals rather than reported afterwards (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
-consumer supports and a worktree-anchored probe could only ever refuse); `Tier` and `Confidence` are
-computed from the Phase 4 **verdict class** and never from the
-finding's prose, with `Confidence: low` never emitted; every cell describes a mutant this run
+consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
+class** selects the contract rule and the rule decides `Tier`, never the finding's prose, with
+`Confidence: low` never emitted; every cell describes a mutant this run
 actually executed, never an illustrative one; a run that examined mutants writes even when it found
 nothing, while a run that examined **none** writes nothing at all; and an existing path is never
 overwritten.
@@ -314,10 +328,10 @@ Persisting does not trade away the property in "The contract this skill holds": 
 reachable only from a run whose restoration verified, and a destination that cannot be proven
 outside tracked space is not written to at all.
 
-**Known limitation, routed not solved.** A mutation finding's remediation lands in the covering test,
-not at its `Location`, so a consumer that fences each fix to `Location` cannot reach the target. The
-spoke records why this producer neither retargets `Location` nor invents a column; the disposition
-belongs to `melodic-software/claude-code-plugins#2681`.
+**This producer's remediation is off-site** — the missing assertion belongs in the covering test, not
+at the mutated node the row's `Location` names. Every emitted row names that target in `Action`, and
+the consumer surfaces such a row to a human rather than auto-applying it. The spoke records why
+`Location` is never retargeted and no column is invented.
 
 ## Remediation — delegated
 
@@ -360,9 +374,11 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   by a cap. **A run cut short by a failed restore is not this case** — it reports failure, not a
   partial result ([Phase 3](#phase-3--execute)). A partial report describes a tree that is intact;
   that one is not.
-- **Reaching for "equivalent" is the standard way this technique manufactures false confidence.**
-  It is the convenient explanation for any survivor whose test is hard to write. Require the
-  demonstration; report the claim as unclassified when none exists.
+- **Reaching for a withholding label is the standard way this technique manufactures false
+  confidence.** "Equivalent" is the convenient explanation for any survivor whose test is hard to
+  write, and "arid" is the easier of the two to reach for because its bar is a judgment about value
+  rather than about observable behavior. Require the demonstration for either; report the claim as
+  unclassified when none exists.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
   failure mode of resolving only the documented default on a repo that configured its own memory
