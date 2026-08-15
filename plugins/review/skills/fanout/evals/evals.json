@@ -312,12 +312,13 @@
     {
       "id": 28,
       "name": "fix-pass-tolerates-legacy-scalar-source-findings",
-      "prompt": "[Scenario: the branch findings directory holds findings file A and a fix-pass-record written by an older plugin version whose source-findings is a bare scalar repo-relative path to A, plus a newer conforming file B.] /review:fanout fix",
-      "expected_output": "The legacy scalar source-findings carries no digest, so it matches by name alone: A is still subtracted and the merge set is B only.",
+      "prompt": "[Scenario: the branch findings directory holds findings file A, whose date: is strictly older than the record's date:, and a fix-pass-record written by an older plugin version whose source-findings is a bare scalar repo-relative path to A, plus a newer conforming file B.] /review:fanout fix",
+      "expected_output": "The legacy scalar source-findings carries no digest, so it matches by name alone; A's date: is strictly older than the record's, so the entry is honored and A is subtracted, leaving the merge set as B only.",
       "files": [],
       "expectations": [
         "File A is subtracted from the merge set even though the record's source-findings is a scalar rather than a block sequence",
         "The entry is matched by name ALONE because it carries no sha256 digest — the digest half of the match is required only of entries that have one",
+        "The subtraction is justified by A's date: being STRICTLY OLDER than the record's date:, not merely by the name matching",
         "The scalar's repo-relative path is compared by its base name, not matched literally against the candidate file name",
         "Findings from A are not re-injected — a legacy record is honored rather than silently ignored"
       ]
@@ -342,11 +343,24 @@
       "expected_output": "The legacy entry matches by name but the candidate's date: is newer than the record's, so the entry is not honored: the rewritten file enters the merge set and its new findings are planned rather than silently retired forever.",
       "files": [],
       "expectations": [
-        "The candidate is NOT subtracted — a digest-less entry is honored only when the candidate's date: is not newer than the record's date:",
+        "The candidate is NOT subtracted — a digest-less entry is honored only when the candidate's date: is STRICTLY OLDER than the record's date:",
         "The comparison uses the two frontmatter date: values, NOT filesystem modification times, which a copied or restored findings directory would rewrite",
         "The comparison is made against the record, not assumed from the file name — a producer is never required to put a timestamp in its file name, so a fixed-name file must still be reachable",
         "The detector's new findings appear in the plan rather than being permanently skipped by a single stale legacy record",
         "The run's own record names the file WITH its sha256 digest, so the name-alone fallback does not apply to it again"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "fix-pass-legacy-entry-equal-date-keeps-candidate",
+      "prompt": "[Scenario: a conforming detector writes one fixed file name and derives its date: from the commit under review rather than from the moment of writing, so the value never changes between runs. A pre-0.20.0 fix-pass-record for this exact branch names that file as a bare scalar with no digest, and the record's own date: happens to equal the candidate's.] /review:fanout fix",
+      "expected_output": "Equal dates do not subtract: the digest-less entry is honored only for a candidate strictly older than the record, so the rewritten file stays in the merge set and its new findings are planned.",
+      "files": [],
+      "expectations": [
+        "The candidate STAYS in the merge set on equal dates — the test subtracts only on a STRICTLY OLDER candidate",
+        "The reasoning acknowledges date: is producer-declared, so a constant or subject-derived date: makes equality the normal state rather than a coincidence",
+        "The tiebreak fails OPEN, consistent with the unreadable-date: and missing-digest rules — re-application is recoverable, silent retirement is not",
+        "A constant-date: producer is therefore never permanently retired by a single stale legacy record"
       ]
     },
     {

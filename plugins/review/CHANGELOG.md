@@ -49,7 +49,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   hygiene against a producer losing its OWN findings — the fix action's correctness no longer
   depends on any producer choosing a collision-free name.
 - **The coverage fields are required of `fanout`'s own writer, not of every producer.** The
-  findings-file shape called `tier`, `## By dimension`, `## Unparsed` and `## Surfaces` required
+  findings-file shape called `date`, `tier`, `## By dimension`, `## Unparsed` and `## Surfaces` required
   unconditionally, while the `fix` action's admission test is only `type:`, `branch:` and a parseable
   `## Findings` table — so a detector omitting them was conforming to one half of the contract and
   non-conforming to the other, and a producer author got a different answer depending on which file
@@ -87,15 +87,28 @@ All notable changes to the `review` plugin are documented here. Format follows
   still retires its file. Without that tolerance the legacy record would subtract nothing and its
   already-applied findings would be re-injected on the next `fix` — the exact harm the ledger exists
   to prevent. The fallback is bounded twice: an entry that has a digest never degrades to name-alone,
-  and a digest-less entry is honored only when the candidate's `date:` is not newer than the record's
-  `date:` — declared frontmatter instants on both sides, never filesystem modification times, which a
-  copied or restored findings directory rewrites. That second bound matters because nothing requires
-  a producer to put a timestamp in its file name — a detector may write one fixed name it overwrites
-  every run, and without the check a single stale legacy record would retire every future version of
-  that file silently and forever. A candidate with no readable `date:` fails the test and stays in
-  the set, failing toward a recoverable re-application rather than an unrecoverable silent drop. No
-  operator action is required; pre-0.20.0 records may simply be deleted, being gitignored local
-  state.
+  and a digest-less entry is honored only when the candidate's `date:` is STRICTLY OLDER than the
+  record's `date:` — declared frontmatter instants on both sides, never filesystem modification
+  times, which a copied or restored findings directory rewrites. That second bound matters because
+  nothing requires a producer to put a timestamp in its file name — a detector may write one fixed
+  name it overwrites every run, and without the check a single stale legacy record would retire every
+  future version of that file silently and forever. Equal dates keep the candidate, as does an
+  unreadable or absent one: `date:` is producer-DECLARED, so a detector deriving it from the commit
+  under review or a template constant makes equality the normal state, and subtracting on equal would
+  reintroduce that permanent retirement through the tiebreak. Every branch of the comparison fails
+  open, because re-application is recoverable and silent retirement is not. No operator action is
+  required; pre-0.20.0 records may simply be deleted, being gitignored local state.
+- **The findings-file shape now states what `date:` MEANS.** It was a bare `date: <ISO-8601 UTC>`
+  with no semantics, which was harmless while nothing read it and is not now that the legacy path
+  depends on it. `review:fanout`'s writer MUST stamp the instant the file is written — not the commit
+  date, not a scan date, not a constant — and the file name must end in `.md`, which is what makes it
+  visible to the consumer's scan at all. Both bind fanout's own writer; the consumer still assumes
+  neither, which is why the comparison subtracts only on a strictly older candidate.
+- **The empty-set STOP now prints where it looked.** It reported no unconsumed findings without
+  naming the resolved directory or the rung that resolved it, so a wrong-directory resolution and a
+  genuinely empty directory produced an identical clean stop — the one failure the step cannot detect
+  was also the one an operator could not see. It now prints the searched path and its rung, and on a
+  non-interactive run says that the rungs which ask or persist were skipped.
 
 ## [0.19.0]
 
