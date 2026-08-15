@@ -279,7 +279,10 @@ the cache). Start a cloud session on this repo in the new environment and ask Cl
    from [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) and re-verify.
 6. Python: in a claude-code-proxy or medley session, `uv python install 3.14` — if the download
    is `403`-blocked (release assets ride the GitHub proxy's repository scope), fall back to the
-   VM's system Python for tooling or add the astral-sh host to a Custom allowlist.
+   VM's system Python for tooling or add the astral-sh host to a Custom allowlist. This repo's
+   SessionStart hook installs from `.github/requirements-ci.txt` with `--require-hashes`; that
+   pin list includes cp311 wheels so the cloud VM's system Python 3.11 can satisfy `pyyaml`
+   (CI itself uses 3.14).
 
 ## Findings
 

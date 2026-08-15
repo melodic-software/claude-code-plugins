@@ -16,11 +16,12 @@ pytest==9.1.1 \
 # pyyaml reads the skill/agent frontmatter surface for the hook-exec-form gate
 # (#2569): YAML has no jq, and a hand-rolled walk lost three review rounds to
 # spellings it had not anticipated. Unlike the pure-Python pins above this is a
-# C-extension wheel, so its hashes are ABI-specific — the cp314 set below covers
-# the CI interpreter (3.14) on Linux x64 plus the platforms the fleet develops
-# on. scripts/check-hook-exec-form.sh reads this pin directly and borrows the
-# same version through `uv run --with` when a local python lacks the module, so
-# a developer never has to match this list by hand.
+# C-extension wheel, so its hashes are ABI-specific — the cp314 set covers the
+# CI interpreter (3.14) on Linux x64 plus the platforms the fleet develops on;
+# the cp311 set covers the cloud VM system Python (3.11) and the same fleet
+# platforms (#2654). scripts/check-hook-exec-form.sh reads this pin directly
+# and borrows the same version through `uv run --with` when a local python
+# lacks the module, so a developer never has to match this list by hand.
 pyyaml==6.0.3 \
     --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5 \
     --hash=sha256:5190d403f121660ce8d1d2c1bb2ef1bd05b5f68533fc5c2ea899bd15f4399b35 \
@@ -29,7 +30,15 @@ pyyaml==6.0.3 \
     --hash=sha256:8d1fab6bb153a416f9aeb4b8763bc0f22a5586065f86f7664fc23339fc1c1fac \
     --hash=sha256:34d5fcd24b8445fadc33f9cf348c1047101756fd760b4dacb5c3e99755703310 \
     --hash=sha256:4a2e8cebe2ff6ab7d1050ecd59c25d4c8bd7e6f400f5f82b96557ac0abafd0ac \
-    --hash=sha256:93dda82c9c22deb0a405ea4dc5f2d0cda384168e466364dec6255b293923b2f3
+    --hash=sha256:93dda82c9c22deb0a405ea4dc5f2d0cda384168e466364dec6255b293923b2f3 \
+    --hash=sha256:b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d \
+    --hash=sha256:37503bfbfc9d2c40b344d06b2199cf0e96e97957ab1c1b546fd4f87e53e5d3e4 \
+    --hash=sha256:10892704fc220243f5305762e276552a0395f7beb4dbf9b14ec8fd43b57f126c \
+    --hash=sha256:1d37d57ad971609cf3c53ba6a7e365e40660e3be0e5175fa9f2365a379d6095a \
+    --hash=sha256:44edc647873928551a01e7a563d7452ccdebee747728c1080d881d68af7b997e \
+    --hash=sha256:652cb6edd41e718550aad172851962662ff2681490a8a711af6a4d288dd96824 \
+    --hash=sha256:9f3bfb4965eb874431221a3ff3fdcddc7e74e3b07799e0e84ca4a0f867d449bf \
+    --hash=sha256:8098f252adfa6c80ab48096053f512f2321f0b998f98150cea9bd23d83e1467b
 ruff==0.16.2 \
     --hash=sha256:20e66910f2c37cc753f9ef6580c914a621b80c4fa3549d3e3521e29d0f5bfc3f \
     --hash=sha256:335c621622c4650330be50842561c6586ac6971bb8ab5407fe34dcc9efb16bbe \
