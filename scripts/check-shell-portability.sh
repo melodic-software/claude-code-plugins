@@ -1769,18 +1769,20 @@ done
 # file that still carries at least one unexcused hit when scanned. A missing
 # file or a cleaned-up file must leave the list — same shrink-only contract as
 # scripts/orphaned-fixtures-baseline.txt / hook-userconfig-argv-allowlist.txt.
+#
+# All three stale branches share changed-file scoping: --all re-proves the
+# whole list; diff mode only re-proves entries in this run's file set. Missing
+# targets are never in that set (diff excludes deletions), so a deleted
+# baseline path is caught on the next `--all` rather than red-lining unrelated
+# PRs — same blast-radius contract as the cleaned-up / out-of-set branches.
 if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
   for entry in "${baseline_entries[@]}"; do
-    if [[ ! -f "$entry" ]]; then
-      echo "STALE BASELINE: $BASELINE: '$entry' names a missing file — remove it" >&2
-      violations=$((violations + 1))
-      continue
-    fi
-    # --all visits every scannable file, so absence from baseline_still_hot
-    # means the file scanned clean. Diff mode only sees changed files: an
-    # untouched baseline entry is not re-proven here (changed-file scoping),
-    # and is checked the next time it is edited or via --all.
     if [[ "$mode" == "--all" || -n "${files_in_scope[$entry]:-}" ]]; then
+      if [[ ! -f "$entry" ]]; then
+        echo "STALE BASELINE: $BASELINE: '$entry' names a missing file — remove it" >&2
+        violations=$((violations + 1))
+        continue
+      fi
       if [[ -z "${baseline_still_hot[$entry]:-}" ]]; then
         # Confirm scannable rather than trusting set membership alone: a
         # baseline entry that is_scannable rejected (vendor/evals) must still

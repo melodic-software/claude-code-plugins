@@ -1600,6 +1600,36 @@ if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'STALE BASELINE'; then
 else
   fail "stale baseline entry should fail (rc=$rc): $out"
 fi
+# Stale: missing file under --all.
+rm -f "$fx/plugins/alpha/skills/demo/SKILL.md"
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q "names a missing file"; then
+  ok "a missing skill-md baseline entry fails as stale under --all"
+else
+  fail "missing baseline entry should fail under --all (rc=$rc): $out"
+fi
+# Restore a hot file, then move it under vendor/ (outside scannable set).
+mkdir -p "$fx/plugins/alpha/skills/demo"
+printf '%s\n' 'word-boundary \\b token' >"$fx/plugins/alpha/skills/demo/SKILL.md"
+mkdir -p "$fx/plugins/alpha/skills/demo/vendor"
+mv "$fx/plugins/alpha/skills/demo/SKILL.md" "$fx/plugins/alpha/skills/demo/vendor/SKILL.md"
+# Baseline still names the old (now missing) path — covered above. Point the
+# baseline at the vendor path to exercise the outside-scannable branch.
+printf '%s\n' 'plugins/alpha/skills/demo/vendor/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
+out="$(
+  cd "$fx" &&
+    SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'outside the scannable skill-md set'; then
+  ok "a vendor/-moved skill-md baseline entry fails as outside-scannable"
+else
+  fail "outside-scannable baseline entry should fail (rc=$rc): $out"
+fi
 rm -rf "$fx"
 
 # --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
