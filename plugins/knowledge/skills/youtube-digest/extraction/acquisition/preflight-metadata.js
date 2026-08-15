@@ -245,9 +245,12 @@ export async function preflightVideo(url, deps = {}) {
   }
   const videoId = decision.key ?? adapter.extractSliceKey(url, null);
 
+  // Probe the claim's canonical URL so the queue entry path gets adapter-level
+  // canonicalization by construction, same as acquisition dispatch.
+  const probeUrl = adapter.matchUrl(url)?.canonicalUrl ?? url;
   const buildArgs = (
     /** @type {import('./build-yt-dlp-args.js').YtDlpAuthOverride} */ authOverride = {},
-  ) => buildPreflightArgs(url, { env, authOverride });
+  ) => buildPreflightArgs(probeUrl, { env, authOverride });
   const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
     env,
     source: adapterSourceDeclarations(adapter),

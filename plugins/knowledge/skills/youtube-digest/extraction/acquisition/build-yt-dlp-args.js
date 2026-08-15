@@ -31,6 +31,13 @@ export const YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
  * @typedef {Object} YtDlpSourceOptions
  * @property {boolean} [writeComments] - push `--write-comments` (comments capability)
  * @property {string|null} [extractorArgs] - push `--extractor-args <value>` when non-null
+ * @property {string} [subLangs] - override `--sub-langs` (default {@link YT_DLP_SUB_LANGS});
+ *   sources whose subtitle keys are raw track languages (e.g. `und`) declare their own selector
+ * @property {boolean} [omitAutoSubs] - skip `--write-auto-subs` (sources whose
+ *   automatic-caption channel is never populated)
+ * @property {boolean} [ignoreNoFormatsError] - push `--ignore-no-formats-error` so a
+ *   0-media post resolves as a metadata-only result instead of a fatal spawn
+ * @property {string} [convertSubs] - push `--convert-subs <format>` (caption cleanup pass)
  */
 
 /**
@@ -131,16 +138,18 @@ export function buildYtDlpArgs(
 
   const includeCaptions = mode === "full" || mode === "transcript" || mode === "captions-only";
   if (includeCaptions) {
-    args.push(
-      "--sleep-subtitles",
-      String(sleepSubtitlesSec),
-      "--write-subs",
-      "--write-auto-subs",
-      "--sub-langs",
-      YT_DLP_SUB_LANGS,
-      "--sub-format",
-      YT_DLP_SUB_FORMAT,
-    );
+    args.push("--sleep-subtitles", String(sleepSubtitlesSec), "--write-subs");
+    if (!source.omitAutoSubs) {
+      args.push("--write-auto-subs");
+    }
+    args.push("--sub-langs", source.subLangs ?? YT_DLP_SUB_LANGS, "--sub-format", YT_DLP_SUB_FORMAT);
+    if (source.convertSubs) {
+      args.push("--convert-subs", source.convertSubs);
+    }
+  }
+
+  if (source.ignoreNoFormatsError) {
+    args.push("--ignore-no-formats-error");
   }
 
   if (mode === "transcript" || mode === "captions-only") {

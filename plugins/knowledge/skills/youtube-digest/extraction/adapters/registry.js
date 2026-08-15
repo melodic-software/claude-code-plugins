@@ -17,6 +17,7 @@
  */
 
 import { UnsupportedSourceError } from "./adapter-contract.js";
+import * as xModule from "./x.js";
 import * as youtubeModule from "./youtube.js";
 
 /** @import { AcquireOutcome, SourceAdapter } from './adapter-contract.js' */
@@ -25,11 +26,13 @@ import * as youtubeModule from "./youtube.js";
  * Host → statically-imported adapter module. Keys must mirror each adapter's
  * declared `hosts` (verified below at module init).
  *
- * @type {Readonly<Record<string, typeof youtubeModule>>}
+ * @type {Readonly<Record<string, typeof youtubeModule | typeof xModule>>}
  */
 export const SOURCE_MODULES = Object.freeze({
   "youtube.com": youtubeModule,
   "youtu.be": youtubeModule,
+  "x.com": xModule,
+  "twitter.com": xModule,
 });
 
 // Init-time consistency check (pure, no I/O): every registry key is declared
