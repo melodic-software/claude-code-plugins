@@ -58,7 +58,6 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ## [0.20.5]
 
-
 ### Fixed
 
 - **PowerShell `>>` append redirection is flagged like `>` (#2675).** `_POWERSHELL_OUTPUT_REDIRECT`
