@@ -157,7 +157,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    command fails or emits malformed/partial output, discard it, emit `UNKNOWN`, stop local
    branch/worktree classification, and do not count that repository as successfully audited; an
    empty/failed inventory never means no branches are attached.
-5. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
+6. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
    cleanup candidates. A merged worktree is routed to worktree dry-run first. `merged-remote-branch`
    is independent of local attachment — it describes the remote ref.
 

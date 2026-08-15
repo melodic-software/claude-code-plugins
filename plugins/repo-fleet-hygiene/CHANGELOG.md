@@ -38,7 +38,6 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   without a pruning fetch. The collector now runs allowlisted `git ls-remote --heads` before HIGH;
   probe failure demotes to MEDIUM (cached observation); empty ls-remote emits no finding.
 
-
 ## [0.19.2]
 
 ### Changed
