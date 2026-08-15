@@ -370,7 +370,7 @@
       "expected_output": "The not-newer test cannot be evaluated without the candidate's date:, so the digest-less entry is not honored and the candidate stays in the merge set — failing toward re-admission rather than toward a silent drop.",
       "files": [],
       "expectations": [
-        "The candidate STAYS in the merge set — a missing, empty, or unparseable date: fails the not-newer test rather than defaulting to 'not newer' and subtracting",
+        "The candidate STAYS in the merge set — a missing, empty, or unparsable date: fails the not-newer test rather than defaulting to 'not newer' and subtracting",
         "The file is not skipped for lacking date: — date: is required of review:fanout's own writer but is not part of the admission test (type:, branch:, parseable table)",
         "The direction is justified as fail-safe: re-admitting an already-applied file is recoverable, silently dropping an unapplied one is not",
         "After this run consumes it, the new record names it WITH a digest, so the digest match governs on the next run and date: is never consulted for it again"
