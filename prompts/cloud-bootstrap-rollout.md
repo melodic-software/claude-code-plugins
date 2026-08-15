@@ -48,13 +48,13 @@ committed bootstrap from .claude/hooks/session-start.sh to
 pre-launch, and the repo's SessionStart hook per session).
 
 Do this:
-1. Where the component runs the checked-out repo's bootstrap, prefer
-   .claude/cloud-bootstrap.sh when present and fall back to
-   .claude/hooks/session-start.sh, both invoked best-effort (|| true) with
+1. Where the component runs the checked-out repo's bootstrap, invoke
+   .claude/cloud-bootstrap.sh when present — and only that path, no
+   session-start.sh fallback — best-effort (|| true) with
    CLAUDE_CODE_REMOTE=true and with CLAUDE_PROJECT_DIR set to the checkout
-   root, so the component serves migrated and unmigrated repos alike during
-   the rollout and repo scripts never have to guess their root from their own
-   path.
+   root, so repo scripts never have to guess their root from their own path.
+   A repo without the file is a clean no-op: it simply has not migrated yet,
+   and its sessions rely on their SessionStart hook until it does.
 2. Update the component README (division of labor, account stub if it is
    reproduced there) to match, and restate the rebuild rule: a merged
    component change reaches an environment only on its next cache rebuild —
@@ -110,11 +110,12 @@ docs/CLOUD-SESSIONS.md §"Plugins in sessions on this repo"): Claude Code builds
 its plugin/command/skill registry at process start and never re-reads it, so
 anything a SessionStart hook installs is invisible to the session that ran the
 hook. Our account environments fetch the standards cloud-environment component
-at cache build; after cloning, it runs the repo's committed bootstrap
-(preferring .claude/cloud-bootstrap.sh, falling back to
-.claude/hooks/session-start.sh) with CLAUDE_CODE_REMOTE=true BEFORE the
-session process launches — that pre-launch call is what makes plugins live at
-turn one. The SessionStart hook stays registered and runs the same script per
+at cache build; after cloning, it runs the repo's committed
+.claude/cloud-bootstrap.sh (that exact path only — no session-start.sh
+fallback) with CLAUDE_CODE_REMOTE=true BEFORE the session process launches —
+that pre-launch call is what makes plugins live at turn one, so this migration
+is what switches it on for this repo. The SessionStart hook stays registered
+and runs the same script per
 session start/resume as drift repair (the environment cache can be ~7 days
 stale); its plugin installs go live at the next resume.
 

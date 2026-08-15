@@ -62,10 +62,11 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 > [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md). Fleet repos are
 > renaming their committed bootstrap from `.claude/hooks/session-start.sh` to
 > `.claude/cloud-bootstrap.sh` (one script, two callers — the environment's cache build
-> pre-launch, and the SessionStart hook per session), so the standards `cloud-environment`
-> component must invoke the new path where present and fall back to the old one. Pre-launch
-> execution is what makes marketplace plugins load at turn one (see
-> [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+> pre-launch, and the SessionStart hook per session). The standards `cloud-environment`
+> component invokes **only** the new path — no legacy fallback, by decision — so completing a
+> repo's migration is what turns on its pre-launch bootstrap; until then that repo's sessions
+> rely on the per-session hook alone. Pre-launch execution is what makes marketplace plugins
+> load at turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
 
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box) — there is no API.
