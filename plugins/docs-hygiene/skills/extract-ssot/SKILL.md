@@ -69,7 +69,7 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 
 | Argument | Action | Purpose |
 |----------|--------|---------|
-| *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster → resume the current phase; otherwise → `identify` |
+| *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster → resume the current phase; the invocation or conversation already names a scope → `identify`; otherwise → confirm scope with the user first (see "Bare invocation — confirm scope first") |
 | `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Refuses premature (<3 instances). Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
 | `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN`. OPTIONAL — does not gate `plan`/`execute`. See `actions/verify.md` |
 | `plan <cluster-name>` | Architect | Pre-step (Tier 0 grep): does an existing rule/doc already own the concept? If yes → consolidate-into-existing branch (extend the home + de-recap consumers, no new artifact). Else choose creation output type (rule vs skill); draft or extend SSOT body; sketch migration plan |
@@ -78,6 +78,32 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 | `unwind <ssot-name>` | Reverse | Re-introduce duplication per Sandi Metz wrong-abstraction recovery |
 
 One action per response; actions don't chain implicitly.
+
+## Bare invocation — confirm scope first
+
+A bare `/docs-hygiene:extract-ssot` with no working notes to resume, no
+argument, and no scope implied by the conversation does **not**
+auto-dispatch the exhaustive survey. Exhaustive `identify` sweeps every
+tracked markdown file and, at whole-repo scale, feeds a multi-agent
+verify/execute batch — a spend the user opts into, never a default.
+Ask one question with prescribed defaults, recommended option first:
+
+1. **Whole-repo exhaustive survey** (recommended for maintenance
+   sweeps) — runs under `context/orchestrated-mode.md` defaults; in the
+   same ask, confirm depth (roster only / verified roster / full
+   pipeline with wave commits).
+2. **Path- or glob-scoped exhaustive survey** — the user names one or
+   more directories / globs (e.g. `plugins/docs-hygiene/`, `docs/**/*.md`);
+   routes to exhaustive `identify` restricted to tracked markdown under
+   that pathspec (still a survey, not a single-cluster grep).
+3. **Targeted cluster** — the user names a semantic cluster; routes to
+   `identify <cluster-name>` (Tier 0 grep on that cluster only).
+4. **Not now.**
+
+Non-interactive sessions (no user to ask): proceed only when the
+invoking automation supplied an explicit scope or action argument;
+otherwise report the available options and stop rather than assuming
+whole-repo intent.
 
 ## Decision framework
 
@@ -169,6 +195,7 @@ Per-phase checklist: `context/execution-checklist.md`.
 - `context/anti-patterns.md` — 13-pattern taxonomy with mitigations
 - `context/execution-checklist.md` — per-phase checks for the `execute` action
 - `context/lessons.md` — append-only empirical lessons from batch executions; consumed by the `verify` action and `context/decision-framework.md`
+- `context/orchestrated-mode.md` — whole-repo batch defaults: worker tiering, static concurrency cap, rate-limit-guard consumption, wave-committed cadence
 - `actions/identify.md`, `actions/verify.md`, `actions/batch.md` — action bodies (private surface)
 - `/docs-hygiene:rename-references` — load-bearing 10-pattern sweep after any heading change (owns the syntactic-form set)
 - `/docs-hygiene:audit-encapsulation` — encapsulation detection + remediation (separate concern)
