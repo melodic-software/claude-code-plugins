@@ -162,6 +162,9 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     // Same SSRF guard as acquisition: a source-declared extractor allow-list
     // refuses delegated foreign URLs without fetching them.
     ...(source.allowedExtractors ? ["--use-extractors", source.allowedExtractors] : []),
+    // Sources declaring 0-media posts as well-formed (mediaOptional) keep them
+    // enqueueable: yt-dlp reports metadata instead of a no-formats error.
+    ...(source.ignoreNoFormatsError ? ["--ignore-no-formats-error"] : []),
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
     ...resolveYtDlpAuthArgs(env, authOverride),

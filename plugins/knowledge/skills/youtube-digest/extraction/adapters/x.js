@@ -104,6 +104,11 @@ export const X_FATAL_PATTERNS = Object.freeze([
   /No video could be found in this tweet/,
   /No video formats found/,
   /Unsupported URL:/,
+  // Pinned-index selections of a photo or an out-of-range slot are
+  // deterministic post-content facts (twitter.py's index-selected branch) —
+  // permanent, never transient.
+  /Media #\d+ is not a video/,
+  /Video #\d+ is unavailable/,
 ]);
 
 /**
@@ -124,11 +129,14 @@ export const X_LOGIN_REQUIRED_PATTERNS = Object.freeze([
 ]);
 
 /**
+ * The pattern table describes the SOURCE's stderr signatures only — never this
+ * adapter's own emitted failure messages (those are consumed by humans and
+ * run-state, not by spawn-level classification).
+ *
  * @type {readonly RegExp[]}
  */
 export const X_RETRYABLE_PATTERNS = Object.freeze([
   /Rate-limit exceeded; falling back to syndication endpoint/,
-  /X acquisition degraded/,
 ]);
 
 /**
@@ -301,21 +309,38 @@ export function detectSnowflakeAliasing(urlStatusId, resultId) {
 
 /**
  * Compound silent-429 detector. Either signal alone marks the acquisition
- * degraded (never success): the literal fallback warning, or a present post
+ * degraded (never success): the literal fallback warning, or a post-level
  * payload missing both repost and comment counts. `countsMissing` is only
- * evaluated when a twitter post payload exists (`postInfo` non-null) — a
- * blocked delegation has no post payload to judge.
+ * evaluated when a twitter post payload exists (`postInfo` non-null) AND it is
+ * a post-level payload (`countsAuthoritative`) — a media-entry dict standing
+ * in for the post is not judged on counts, and a blocked delegation has no
+ * payload at all.
+ *
+ * NOTE: a post that is PERMANENTLY missing counts would classify retryable on
+ * every attempt; if queue-level retry ever consumes adapter patterns, it needs
+ * an attempt cap so such posts cannot loop forever.
  *
  * @param {Object} params
  * @param {string} params.stderr - accumulated stderr across acquisition passes
  * @param {Record<string, unknown>|null} params.postInfo - the twitter post-level info JSON
  * @param {number} params.entryCount
+ * @param {boolean} [params.countsAuthoritative] - whether `postInfo` is a true
+ *   post-level payload (playlist or metadata-only info) rather than a
+ *   media-entry fallback (default true)
  * @returns {SyndicationDegradation|null} null when the response shows no degradation signal
  */
-export function detectSyndicationDegradation({ stderr, postInfo, entryCount }) {
+export function detectSyndicationDegradation({
+  stderr,
+  postInfo,
+  entryCount,
+  countsAuthoritative = true,
+}) {
   const warningSeen = stderr.includes(X_SYNDICATION_DEGRADATION_WARNING);
   const countsMissing =
-    postInfo !== null && postInfo.repost_count == null && postInfo.comment_count == null;
+    countsAuthoritative &&
+    postInfo !== null &&
+    postInfo.repost_count == null &&
+    postInfo.comment_count == null;
   if (!warningSeen && !countsMissing) {
     return null;
   }
@@ -362,7 +387,9 @@ export function convertSrtToVtt(srtText) {
  * @typedef {Object} InspectedInfoFiles
  * @property {ParsedInfoFile|null} twitterPlaylist - twitter playlist-level info (N-media posts)
  * @property {ParsedInfoFile[]} twitterVideos - twitter media entries (non-empty formats)
- * @property {ParsedInfoFile|null} twitterMetadataOnly - twitter post info without formats (0-media)
+ * @property {ParsedInfoFile[]} twitterMetadataOnly - twitter post info without formats
+ *   (0-media posts; an array because nothing structurally caps it at one, though a
+ *   single-post acquisition normally yields at most one)
  * @property {ParsedInfoFile[]} foreign - non-twitter results = blocked delegations
  * @property {string[]} parseErrors
  */
@@ -379,7 +406,7 @@ async function inspectInfoFiles(files, readFile) {
   const inspected = {
     twitterPlaylist: null,
     twitterVideos: [],
-    twitterMetadataOnly: null,
+    twitterMetadataOnly: [],
     foreign: [],
     parseErrors: [],
   };
@@ -409,7 +436,7 @@ async function inspectInfoFiles(files, readFile) {
     if (Array.isArray(info.formats) && info.formats.length > 0) {
       inspected.twitterVideos.push({ path: filePath, info });
     } else {
-      inspected.twitterMetadataOnly = { path: filePath, info };
+      inspected.twitterMetadataOnly.push({ path: filePath, info });
     }
   }
   return inspected;
@@ -575,11 +602,13 @@ export async function acquireXMedia(url, context) {
       fail(message, "acquire-x-media", { label: statusId }, Date.now() - started)
     );
 
+  // allowedExtractors and ignoreNoFormatsError arrive via the adapter's own
+  // declarations (allow-list attribute + mediaOptional capability), so every
+  // consumer — probe, media, preflight — carries them identically.
   const source = {
     ...adapterSourceDeclarations(adapter),
     subLangs: X_SUB_LANGS,
     omitAutoSubs: true,
-    ignoreNoFormatsError: true,
   };
   const outputTemplate = path.join(workDir, "%(id)s.%(ext)s");
 
@@ -642,45 +671,67 @@ export async function acquireXMedia(url, context) {
   let stderrLog = probeStderr;
   let files = await listFiles(workDir);
 
-  let inspected = await inspectInfoFiles(files, readFile);
-  if (inspected.parseErrors.length > 0) {
-    return failX(`Invalid info JSON: ${inspected.parseErrors.join("; ")}`);
-  }
+  /**
+   * Inspect the working directory and apply the two structural gates: info
+   * JSON must parse, and a foreign info JSON (allow-list failure) is a hard
+   * provenance violation, never digestible.
+   *
+   * @returns {Promise<{inspected: InspectedInfoFiles, failure: AcquireOutcome|null}>}
+   */
+  const inspectAndGate = async () => {
+    const inspected = await inspectInfoFiles(files, readFile);
+    if (inspected.parseErrors.length > 0) {
+      return { inspected, failure: failX(`Invalid info JSON: ${inspected.parseErrors.join("; ")}`) };
+    }
+    if (inspected.foreign.length > 0) {
+      const foreignSummary = inspected.foreign
+        .map(
+          (entry) =>
+            `${String(entry.info.extractor ?? "unknown")}: ${String(entry.info.webpage_url ?? entry.info.original_url ?? entry.path)}`,
+        )
+        .join("; ");
+      return {
+        inspected,
+        failure: failX(
+          `Provenance violation: non-twitter extractor result(s) present despite the extractor allow-list — refusing to digest foreign media (${foreignSummary})`,
+        ),
+      };
+    }
+    return { inspected, failure: null };
+  };
 
-  // Defense-in-depth provenance guard: a foreign info JSON on disk means the
-  // extractor allow-list failed to refuse a delegation — never digest it.
-  if (inspected.foreign.length > 0) {
-    const foreignSummary = inspected.foreign
-      .map(
-        (entry) =>
-          `${String(entry.info.extractor ?? "unknown")}: ${String(entry.info.webpage_url ?? entry.info.original_url ?? entry.path)}`,
-      )
-      .join("; ");
-    return failX(
-      `Provenance violation: non-twitter extractor result(s) present despite the extractor allow-list — refusing to digest foreign media (${foreignSummary})`,
-    );
-  }
+  /**
+   * Post-level payload: the playlist info or a metadata-only info are true
+   * post payloads; a media-entry dict is a stand-in whose counts are not
+   * judged by the degradation detector.
+   *
+   * @param {InspectedInfoFiles} inspected
+   * @returns {{ info: Record<string, unknown>, countsAuthoritative: boolean }|null}
+   */
+  const pickPostInfo = (inspected) => {
+    if (inspected.twitterPlaylist) {
+      return { info: inspected.twitterPlaylist.info, countsAuthoritative: true };
+    }
+    if (inspected.twitterVideos.length > 0) {
+      return { info: inspected.twitterVideos[0].info, countsAuthoritative: false };
+    }
+    if (inspected.twitterMetadataOnly.length > 0) {
+      return { info: inspected.twitterMetadataOnly[0].info, countsAuthoritative: true };
+    }
+    return null;
+  };
 
-  const postInfo =
-    inspected.twitterPlaylist?.info ??
-    inspected.twitterVideos[0]?.info ??
-    inspected.twitterMetadataOnly?.info ??
-    null;
-
-  // A successful spawn that wrote no twitter payload is a laundered failure
-  // (rate-limited, blocked, or tampered response) — never a durable 0-result.
-  if (!postInfo) {
-    return failX(
-      "yt-dlp wrote no info JSON for the post (rate-limited, blocked, or tampered response)",
-    );
-  }
-
-  /** @param {number} entryCount */
-  const degradationFailure = (entryCount) => {
+  /**
+   * @param {InspectedInfoFiles} inspected
+   * @param {{ info: Record<string, unknown>, countsAuthoritative: boolean }} post
+   * @returns {AcquireOutcome|null}
+   */
+  const degradationFailure = (inspected, post) => {
     const degradation = detectSyndicationDegradation({
       stderr: stderrLog,
-      postInfo,
-      entryCount,
+      postInfo: post.info,
+      entryCount: inspected.twitterVideos.length,
+      countsAuthoritative: post.countsAuthoritative,
     });
     if (!degradation) {
       return null;
@@ -690,7 +741,22 @@ export async function acquireXMedia(url, context) {
     );
   };
 
-  const probeDegradation = degradationFailure(inspected.twitterVideos.length);
+  let gated = await inspectAndGate();
+  if (gated.failure) {
+    return gated.failure;
+  }
+  let inspected = gated.inspected;
+
+  // A successful spawn that wrote no twitter payload is a laundered failure
+  // (rate-limited, blocked, or tampered response) — never a durable 0-result.
+  let post = pickPostInfo(inspected);
+  if (!post) {
+    return failX(
+      "yt-dlp wrote no info JSON for the post (rate-limited, blocked, or tampered response)",
+    );
+  }
+
+  const probeDegradation = degradationFailure(inspected, post);
   if (probeDegradation) {
     return probeDegradation;
   }
@@ -721,10 +787,17 @@ export async function acquireXMedia(url, context) {
     const cleanupPass = await runPass("captions-only", { convertSubs: "srt" });
     stderrLog += `\n${cleanupPass.stderr ?? ""}`;
     files = await listFiles(workDir);
-    const srtPaths = files.filter((entry) => entry.endsWith(".srt"));
+    // Only srt files belonging to the post's own media entries are eligible
+    // for conversion back to VTT — never any other file in the directory.
+    const mediaIds = new Set(inspected.twitterVideos.map((video) => String(video.info.id)));
+    const srtPaths = files.filter(
+      (entry) =>
+        entry.endsWith(".srt") &&
+        [...mediaIds].some((id) => path.basename(entry).startsWith(`${id}.`)),
+    );
     if (!cleanupPass.success || srtPaths.length === 0) {
       const detail = cleanupPass.success
-        ? "cleanup pass produced no .srt output"
+        ? "cleanup pass produced no .srt output for the post's media"
         : spawnFailureDetail(cleanupPass);
       return failX(`Caption cleanup failed after word-timing tags were detected: ${detail}`);
     }
@@ -740,17 +813,18 @@ export async function acquireXMedia(url, context) {
     }
     files = await listFiles(workDir);
     captionCleanup = "converted";
-    inspected = await inspectInfoFiles(files, readFile);
-    if (inspected.parseErrors.length > 0) {
-      return failX(`Invalid info JSON: ${inspected.parseErrors.join("; ")}`);
+    gated = await inspectAndGate();
+    if (gated.failure) {
+      return gated.failure;
     }
+    inspected = gated.inspected;
   }
 
   // Pass 2 — media, only in full mode and only when the post itself carries
-  // twitter-extracted video (a blocked delegation or 0-media post never
-  // reaches this pass).
+  // twitter-extracted video with a clean provenance record (structural gate;
+  // the foreign case has already hard-failed above).
   let mediaPassMs = null;
-  if (mode === "full" && inspected.twitterVideos.length > 0) {
+  if (mode === "full" && inspected.twitterVideos.length > 0 && inspected.foreign.length === 0) {
     await sleep(resolveAcquirePhaseGapMs());
     const mediaStarted = Date.now();
     const mediaPass = await runPass("video-only");
@@ -759,16 +833,25 @@ export async function acquireXMedia(url, context) {
     }
     stderrLog += `\n${mediaPass.stderr ?? ""}`;
     mediaPassMs = Date.now() - mediaStarted;
+    // The media pass re-writes info JSONs; re-derive the inspection so the
+    // final degradation check, ordering, and entry paths never read stale state.
     files = await listFiles(workDir);
+    gated = await inspectAndGate();
+    if (gated.failure) {
+      return gated.failure;
+    }
+    inspected = gated.inspected;
+    post = pickPostInfo(inspected) ?? post;
   }
 
-  const finalDegradation = degradationFailure(inspected.twitterVideos.length);
+  const finalDegradation = degradationFailure(inspected, post);
   if (finalDegradation) {
     return finalDegradation;
   }
 
+  const postInfo = post.info;
   const firstVideoId = inspected.twitterVideos[0]?.info.id;
-  const resultIdRaw = firstVideoId ?? postInfo?.id;
+  const resultIdRaw = firstVideoId ?? postInfo.id;
   const aliasingDelta = detectSnowflakeAliasing(
     statusId,
     typeof resultIdRaw === "string" ? resultIdRaw : null,
@@ -821,6 +904,10 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   capabilities: {
     comments: false,
     browserCookieFallback: false,
+    // A 0-media post is a well-formed metadata-only result (T6 D-A): every
+    // yt-dlp consumer — acquisition AND queue preflight — passes
+    // --ignore-no-formats-error so such posts report metadata instead of erroring.
+    mediaOptional: true,
   },
 
   /**
@@ -884,14 +971,28 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
           delegation && typeof delegation === "object"
             ? /** @type {Record<string, unknown>} */ (delegation).url
             : null;
-        if (typeof delegationUrl === "string" && delegationUrl) {
-          links.push({
-            url: delegationUrl,
-            source: "description",
-            timestampSec: null,
-            context: "blocked delegation: outbound link from a media-less post",
-          });
+        if (typeof delegationUrl !== "string" || !delegationUrl) {
+          continue;
         }
+        // Same invariant the text path enforces by its URL pattern: only
+        // parseable http(s) URLs enter the harvest (never javascript:, file:,
+        // or malformed strings from a stderr echo).
+        /** @type {URL} */
+        let parsed;
+        try {
+          parsed = new URL(delegationUrl);
+        } catch {
+          continue;
+        }
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+          continue;
+        }
+        links.push({
+          url: delegationUrl,
+          source: "description",
+          timestampSec: null,
+          context: "blocked delegation: outbound link from a media-less post",
+        });
       }
     }
     return deduplicateHarvestedLinks(links);

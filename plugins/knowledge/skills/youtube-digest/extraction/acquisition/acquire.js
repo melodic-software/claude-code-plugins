@@ -44,6 +44,7 @@ export function adapterSourceDeclarations(adapter) {
     writeComments: adapter.capabilities.comments === true,
     extractorArgs: adapter.extractorArgs,
     allowedExtractors: adapter.allowedExtractors,
+    ignoreNoFormatsError: adapter.capabilities.mediaOptional === true,
     errorPatterns: adapter.errorPatterns,
     allowBrowserCookieProfileFallback: adapter.capabilities.browserCookieFallback === true,
   };

@@ -35,6 +35,7 @@ const STATUS_URL = `https://x.com/someuser/status/${TWID}`;
 // lag) vs 3 days before (quote/retweet aliasing).
 const MEDIA_ID = String(BigInt(TWID) - (60_000n << 22n));
 const OLD_MEDIA_ID = String(BigInt(TWID) - (259_200_000n << 22n));
+const RETWEET_MEDIA_ID = String(BigInt(TWID) - (604_800_000n << 22n));
 const SECOND_MEDIA_ID = String(BigInt(MEDIA_ID) + (5_000n << 22n));
 
 const CLEAN_VTT = `WEBVTT
@@ -170,6 +171,11 @@ describe("x adapter declarations", () => {
     expect(declarations.allowBrowserCookieProfileFallback).toBe(false);
     expect(declarations.extractorArgs).toBeNull();
   });
+
+  it("declares mediaOptional: 0-media posts are well-formed for every yt-dlp consumer", () => {
+    expect(adapter.capabilities.mediaOptional).toBe(true);
+    expect(adapterSourceDeclarations(adapter).ignoreNoFormatsError).toBe(true);
+  });
 });
 
 describe("x canonicalization (adapter-level, T10 (ii))", () => {
@@ -274,11 +280,13 @@ describe("snowflake timestamps and quote/retweet aliasing", () => {
 });
 
 describe("x error-pattern taxonomy", () => {
-  it("maps the three observed X failures to fatal-source", () => {
+  it("maps the observed X post-content failures to fatal-source", () => {
     for (const detail of [
       `ERROR: [twitter] ${TWID}: No video could be found in this tweet`,
       `ERROR: [twitter] ${TWID}: No video formats found!`,
       "ERROR: Unsupported URL: https://example.com/article",
+      `ERROR: [twitter] ${TWID}: Media #2 is not a video`,
+      `ERROR: [twitter] ${TWID}: Video #5 is unavailable`,
     ]) {
       expect(classifyErrorDetail(adapter.errorPatterns, detail)).toBe("fatal");
     }
@@ -316,16 +324,18 @@ describe("x error-pattern taxonomy", () => {
     }
   });
 
-  it("classifies the syndication warning and the adapter's degraded failure as retryable", () => {
+  it("classifies the source's syndication warning as retryable (and ONLY source signatures)", () => {
     expect(
       classifyErrorDetail(
         adapter.errorPatterns,
         `WARNING: [twitter] ${TWID}: ${X_SYNDICATION_DEGRADATION_WARNING}`,
       ),
     ).toBe("retryable");
+    // The table describes the source's stderr, never this adapter's own
+    // emitted failure messages.
     expect(
       classifyErrorDetail(adapter.errorPatterns, "X acquisition degraded (rate-limited …)"),
-    ).toBe("retryable");
+    ).toBeNull();
   });
 
   it("cookie fallback gating: a login-required X failure never iterates browser profiles", async () => {
@@ -624,28 +634,37 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     }
   });
 
-  it("records quote/retweet aliasing in slice metadata", async () => {
-    const { deps } = createFixtureDeps(workDir, [
-      {
-        addFiles: {
-          [`${OLD_MEDIA_ID}.info.json`]: twitterInfoJson({ id: OLD_MEDIA_ID }),
-          [`${OLD_MEDIA_ID}.en.vtt`]: CLEAN_VTT,
+  // The four named identity fixtures: original post and link post (id === twid)
+  // are covered above; quote tweet and retweet are the two DISTINCT aliasing
+  // cases — media minted days before the URL's status id, at different scales.
+  for (const identityCase of [
+    { name: "quote tweet", mediaId: OLD_MEDIA_ID, expectedDeltaMs: 259_200_000 },
+    { name: "retweet", mediaId: RETWEET_MEDIA_ID, expectedDeltaMs: 604_800_000 },
+  ]) {
+    it(`records ${identityCase.name} aliasing in slice metadata`, async () => {
+      const { deps } = createFixtureDeps(workDir, [
+        {
+          addFiles: {
+            [`${identityCase.mediaId}.info.json`]: twitterInfoJson({ id: identityCase.mediaId }),
+            [`${identityCase.mediaId}.en.vtt`]: CLEAN_VTT,
+          },
         },
-      },
-      { addFiles: { [`${OLD_MEDIA_ID}.mp4`]: "binary" } },
-    ]);
-    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+        { addFiles: { [`${identityCase.mediaId}.mp4`]: "binary" } },
+      ]);
+      const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
 
-    expect(result.success).toBe(true);
-    const aliasing = result.data.metadata["source:snowflakeAliasing"];
-    expect(aliasing).toMatchObject({
-      urlStatusId: TWID,
-      resultId: OLD_MEDIA_ID,
-      aliasSuspected: true,
+      expect(result.success).toBe(true);
+      const aliasing = result.data.metadata["source:snowflakeAliasing"];
+      expect(aliasing).toMatchObject({
+        urlStatusId: TWID,
+        resultId: identityCase.mediaId,
+        deltaMs: identityCase.expectedDeltaMs,
+        aliasSuspected: true,
+      });
+      // The slice key stays the URL's status id — aliasing never moves the slice.
+      expect(adapter.extractSliceKey(STATUS_URL, result.data.metadata)).toBe(TWID);
     });
-    // The slice key stays the URL's status id — aliasing never moves the slice.
-    expect(adapter.extractSliceKey(STATUS_URL, result.data.metadata)).toBe(TWID);
-  });
+  }
 
   it("degraded 429 syndication acquisition fails retryable, never success, before any media pass", async () => {
     const { deps, spawn } = createFixtureDeps(workDir, [
@@ -664,7 +683,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.success).toBe(false);
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(result.error).toContain("X acquisition degraded");
-    expect(classifyErrorDetail(adapter.errorPatterns, String(result.error))).toBe("retryable");
+    expect(result.error).toContain("retry later");
   });
 
   it("cleans X word-timing caption tags via a --convert-subs srt pass", async () => {
@@ -756,6 +775,9 @@ describe("canonicalization reaches every entry path by construction", () => {
     const args = spawn.mock.calls[0][1];
     expect(args.at(-1)).toBe(STATUS_URL);
     expect(args[args.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
+    // mediaOptional: a valid 0-video X post survives the queue probe as
+    // metadata-only and enqueues (T6 D-A text-only digest downstream).
+    expect(args).toContain("--ignore-no-formats-error");
     expect(result.title).toBe("Fixture Post");
   });
 

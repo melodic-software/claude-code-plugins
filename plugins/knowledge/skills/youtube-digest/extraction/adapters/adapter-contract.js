@@ -269,7 +269,10 @@ export function primaryEntry(envelope) {
  * to find its output directory.
  *
  * @typedef {Object} AcquireContext
- * @property {string} workDir
+ * @property {string} workDir - staging directory; MUST be empty and exclusive
+ *   to this acquisition (adapters attribute every file found under it to this
+ *   post — a shared or pre-populated directory breaks provenance and entry
+ *   matching; production entry points mkdtemp a fresh one per run)
  * @property {'full'|'transcript'} mode - 'transcript' must not download media
  * @property {object} [deps] - adapter-specific injectable I/O (tests only)
  */
@@ -322,6 +325,9 @@ export function primaryEntry(envelope) {
  * @property {boolean} [browserCookieFallback] - the browser-cookie-profile
  *   fallback loop may iterate for this source; a cookies-file-only source
  *   declares false and must never iterate browser profiles
+ * @property {boolean} [mediaOptional] - a 0-media post/URL is a well-formed
+ *   metadata-only result for this source: acquisition and queue preflight pass
+ *   `--ignore-no-formats-error` so yt-dlp reports metadata instead of erroring
  * @property {boolean} [contentClaim] - RESERVED, UNIMPLEMENTED: content-shaped
  *   (non-host) URL claims. Declaring `true` is rejected until implemented.
  */
@@ -373,7 +379,12 @@ export const REQUIRED_METHOD_ARITY = Object.freeze({
 });
 
 const TRANSCRIPT_STRATEGIES = Object.freeze(["captions", "captions+repair", "asr"]);
-const KNOWN_CAPABILITIES = Object.freeze(["comments", "browserCookieFallback", "contentClaim"]);
+const KNOWN_CAPABILITIES = Object.freeze([
+  "comments",
+  "browserCookieFallback",
+  "mediaOptional",
+  "contentClaim",
+]);
 const ERROR_PATTERN_CLASSES = Object.freeze(["retryable", "fatal", "loginRequired"]);
 const HOST_KEY_PATTERN = /^[a-z0-9][a-z0-9.-]*$/;
 
