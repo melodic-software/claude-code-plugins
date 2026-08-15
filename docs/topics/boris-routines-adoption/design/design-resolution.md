@@ -71,7 +71,7 @@ the producer, which the owner doc will govern:
 | `Tier` | machine-computed from a declared rule/threshold, never derived from prose by an LLM |
 | `Confidence` | `high` when verified at the call site; **omitted** otherwise — never `low`, which ranks below absent |
 | `Location` | `file:line`, repo-relative — line-less findings bucket coarser and false-merge |
-| `Finding` / `Action` | cell-escaped: literal `|` as `\|`, newlines as spaces |
+| `Finding` / `Action` | cell-escaped — a literal pipe is written backslash-pipe, newlines become spaces |
 
 ## Threads deliberately not opened here
 

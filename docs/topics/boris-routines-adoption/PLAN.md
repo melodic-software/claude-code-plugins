@@ -248,6 +248,7 @@ P5 catalog rows ──> P6 predicate term ────────────�
 
 P8 capability detection ── promoted to its own topic; independent track
 P9 repo-scope plugin declaration ── blocked on spike #2660
+P10 graduate + prune the contract slice ── terminal; the gate FAILS today
 ```
 
 Three ordering constraints, each with a reason that is not obvious:
@@ -309,7 +310,10 @@ Closes Tier 0 item 1 and acceptance criterion 1. Shape in `design/design-resolut
       exact-`branch:` filter on both sides is what keeps that correct.
 - [ ] Version bump `plugins/review/.claude-plugin/plugin.json` (0.19.0 → 0.20.0) **and** the matching
       `plugins/review/CHANGELOG.md` entry in the same PR.
-- [ ] **Sanity Check:** `scripts/check-changelog-parity.sh` exits 0.
+- [ ] **Sanity Check:** `scripts/check-changelog-parity.sh --check-bump origin/main` exits 0. The bare
+      form exits 2 (usage), and plain `--check` asserts only the static invariant — `--check-bump` is
+      the mode that proves a `## [<version>]` entry was newly added, which is what six phases cite it
+      for.
 - [ ] **Sanity Check:** `scripts/check-changed-skills.sh origin/main` exits 0. Editing
       `context/fix-pass-mode.md` makes `fanout` a changed skill (`check-changed-skills.sh:52-56` maps
       **any** path under `plugins/<p>/skills/<s>/` to the skill dir), so the full static contract gate
@@ -342,7 +346,7 @@ Minimal owner doc for the cross-plugin concern, landed **before** the second ado
 P3's evidence should shape to P4.
 
 - [ ] Create `docs/conventions/detector-findings/README.md` + `CHANGELOG.md` (the majority sibling
-      shape — 13 of 20 convention directories carry a CHANGELOG).
+      shape — 12 of 20 convention directories carry a CHANGELOG).
 - [ ] Own the **multi-producer rule** here, not in a review-plugin context file:
       `PLUGIN-PHILOSOPHY.md:470` is "One owner doc per shared concern", and a rule binding three
       plugins cannot live inside one of them. Phase 1's file points here.
@@ -356,8 +360,8 @@ P3's evidence should shape to P4.
 - [ ] **Sanity Check:** `grep -c "detector-findings" docs/PLUGIN-PHILOSOPHY.md` ≥ 1.
 - [ ] **Sanity Check:** `grep -c "^| Rank | Tier | Confidence" docs/conventions/detector-findings/README.md`
       returns 0 (pointer-not-copy; the schema's owner is `default-mode.md`).
-- [ ] **Sanity Check:** this PR is merged to `main` before Phase 3 opens — Phase 3's raw-URL citation
-      does not resolve until it is.
+- [ ] **Sanity Check:** `gh pr view --json state -q .state` on this phase's PR returns `MERGED` before
+      Phase 3 opens — Phase 3's raw-URL citation does not resolve until it is.
 
 ---
 
@@ -375,7 +379,7 @@ gap, and Pattern C would close it without touching fanout."
       flag** — the default path stays report-and-stop.
 - [ ] **Amend the skill's own invariant, and the grounds its leaf name was accepted on.**
       `SKILL.md:37-38` says "the tree at the end of a run is byte-identical to the tree at the
-      start", and `scripts/skill-leaf-name-registry.txt:51-52` records that same sentence as the
+      start", and `scripts/skill-leaf-name-registry.txt:48-49` records that same sentence as the
       grounds for `mutation-testing` holding the `audit` leaf. Restate both as byte-identical **with
       respect to tracked source**; the flag writes only into the gitignored memory tier. The verb
       table permits this already — `PLUGIN-PHILOSOPHY.md:59`: "Mutation only behind an explicit user
@@ -435,9 +439,11 @@ Written from what Phase 3 observed. Must land before Phase 7 — the second dete
       record why three implementations are accepted and how drift is caught.
 - [ ] **Sanity Check:** `grep -c "finding-suppression" docs/conventions/detector-findings/README.md`
       ≥ 1 and `grep -c "REVIEW.md" .../README.md` ≥ 1.
-- [ ] **Sanity Check:** the crosswalk table exists and every row carries a test column —
-      `grep -c "^| .* | .* | .* |" .../README.md` matches the rule count, no row with an empty test
-      cell.
+- [ ] **Sanity Check:** no crosswalk row has an empty test cell —
+      `awk -F'|' '/^\| rule-/ { gsub(/ /,"",$4); if ($4=="") exit 1 }' docs/conventions/detector-findings/README.md`
+      exits 0, and the count of `^| rule-` rows equals the rule count. (A bare
+      `grep -c "^| .* | .* |"` also matches the header and separator rows, so it can never equal the
+      rule count.)
 - [ ] **Sanity Check:** `scripts/check-cross-plugin-source-drift.sh` exits 0, whichever branch of the
       shared-emitter decision was taken.
 
@@ -476,8 +482,9 @@ hand — that is the phase's whole discipline.
 - [ ] **Sanity Check:** `grep -n "388\|180 merged" plugins/autonomy/reference/routines.md` returns
       empty.
 - [ ] **Sanity Check:** every added row's `Derived row` value is reproducible by reading only
-      `routines.md:88-146` and the row's own axis cells — spot-checked against three rows by a
-      reviewer who did not author them.
+      `routines.md:88-146` and the row's own axis cells. **Declared human gate** — a reviewer who did
+      not author the rows re-derives three of them. No command self-clears it, so it is listed under
+      "User-approval gates" rather than posing as mechanical.
 
 ---
 
@@ -499,8 +506,12 @@ parity gate fails on both.
 - [ ] Reassert that no acceptance/merge-rate metric enters the predicate, in either role.
 - [ ] **Sanity Check:** `grep -c "reviewer burden\|reviewer-burden" plugins/autonomy/reference/guardrails/work-classes.md`
       ≥ 1, and the surrounding text contains both `deferred` and a named trigger.
-- [ ] **Sanity Check:** `grep -in "merge rate\|merge-rate\|acceptance rate" plugins/autonomy/reference/guardrails/work-classes.md`
-      returns only lines that forbid it, never lines using it as evidence.
+- [ ] **Sanity Check (two assertions, both mechanical):**
+      `grep -ci "never a promotion input\|no acceptance-rate\|not an efficacy signal" plugins/autonomy/reference/guardrails/work-classes.md`
+      ≥ 1, **and**
+      `grep -Eci "predicate .*(merge\|acceptance) rate\|(merge\|acceptance) rate .*(threshold\|>=)" plugins/autonomy/reference/guardrails/work-classes.md`
+      returns 0. Phrased as "returns only lines that forbid it", zero matches satisfies it vacuously —
+      which is today's state — so omitting this phase's reassertion entirely would have passed.
 
 ---
 
@@ -569,16 +580,16 @@ modeling produces inform-human findings with no apply path.
 - [ ] **Sanity Check:** `scripts/check-skill-leaf-names.sh --check` exits 0.
 - [ ] **Sanity Check:** `scripts/check-changed-skills.sh origin/main`, `scripts/check-orphaned-fixtures.sh`,
       `scripts/check-shell-portability.sh` all exit 0.
-- [ ] **Sanity Check:** `git ls-files -s plugins/testing/skills/audit/ | grep -c '^100644.*\.sh$'`
-      returns 0.
+- [ ] **Sanity Check:** `! git ls-files -s plugins/testing/skills/audit/ | grep -q '^100644.*\.sh$'`.
+      Written as `grep -c … returns 0` it inverts — `grep -c` exits 1 on a zero count, so the success
+      case fails the command and a mis-staged `.sh` passes.
 - [ ] **Sanity Check:** `wc -l plugins/testing/skills/audit/SKILL.md` < 500.
 - [ ] **Sanity Check:** `--check` against a fixture with one assertion-free test exits non-zero;
       against the negative fixture it exits 0.
 - [ ] **Sanity Check:** on a fixture containing one assertion-free test, the emitted findings file is
       consumed by `review:fanout fix`, whose plan lists that finding — the criterion's actual
       settlement, not a proxy.
-- [ ] **Sanity Check:** `grep -n "| v1 |" plugins/autonomy/reference/routines.md` does not include the
-      test-repair row.
+- [ ] **Sanity Check:** `! grep -q "^| can.t-fail-test-repair .*| v1 |" plugins/autonomy/reference/routines.md`.
 
 ---
 
@@ -599,7 +610,8 @@ Independent of Phases 1-7 — it can run on any track.
       the three-layer config cascade (`docs/conventions/config-cascade/`); the deterministic-gate
       preference (`PLUGIN-PHILOSOPHY.md:664-666`).
 - [ ] **Sanity Check:** `ls docs/topics/routine-capability-detection/PLAN.md` exits 0 and its
-      `## Brief` is non-empty.
+      `awk '/^## Brief/{f=1;next} f&&NF{found=1;exit} END{exit !found}' docs/topics/routine-capability-detection/PLAN.md`
+      exits 0 (the `## Brief` carries content).
 
 ---
 
@@ -614,9 +626,63 @@ untrusted declaration is ignored **silently**.
       usage, and browser selection is forbidden to the agent.
 - [ ] **Meanwhile, the documented fallback is the planned path**, not a contingency: components
       committed directly to `.claude/skills|agents|commands` are part of the clone and need no
-      marketplace fetch, trust step, or credentials. Phases 1-8 are unaffected either way.
+      marketplace fetch, trust step, or credentials. Phases 1-8 and 10 are unaffected either way.
 - [ ] **Sanity Check:** `gh issue view 2660 --json state,labels` shows the spike still open, or its
       resolution comment is quoted into this phase before any work item starts.
+
+---
+
+### Phase 10: Graduate the durable outcomes and prune the contract slice [TODO]
+
+**This gate fails right now, on this branch, against `origin/main`.** Executed 2026-08-15:
+
+```text
+$ bash scripts/check-contract-slice-prune.sh --check-diff origin/main
+Contract-slice prune gate FAILED — this change set leaves 2 path(s) under docs/topics/:
+  A  docs/topics/boris-routines-adoption/PLAN.md
+  A  docs/topics/boris-routines-adoption/design/design-resolution.md
+exit 1
+```
+
+`docs/topics/<slug>/` is **Contract tier** — `docs/conventions/topic-docs/README.md:43`, "Committed
+**on the task branch only**; pruned before merge". `scripts/contract-slice-baseline.txt` grandfathers
+eleven slugs that predate the gate and says in its own header that a new slice "matches no line and
+is red-lined rather than grandfathered… adding a line here in the same PR that adds the slice exempts
+nothing", because the baseline is read from the **base** revision.
+
+Consequences the earlier drafts missed:
+
+- **The PR for this branch cannot merge as it stands.** That is the handoff's next action after
+  planning, so this phase is not a tail item — it gates the very first merge.
+- **Phase 8 creates a second slice** (`docs/topics/routine-capability-detection/`) that is red-lined
+  the same way and owes its own graduation.
+- **`#### Mechanical work`'s per-phase `[TODO]`→`[DOING]`→`[DONE]` tag advancement puts the slice in
+  every phase PR's diff**, so under a phase-per-PR shape the gate fires every time — which is what
+  makes the branch-shape decision below structural rather than cosmetic.
+
+- [ ] **Graduate the coexistence decision to an ADR.** It passes all three admission tests: hard to
+      reverse (it changes a contract `default-mode.md:48` calls stable and other producers consume),
+      surprising without context (a future reader asks why the consumer merges rather than takes the
+      newest), and the result of a real trade-off (three named options, one chosen for stated
+      reasons). Write it when the decision crystallizes in Phase 1, not here — this phase moves an
+      already-written file.
+- [ ] **Graduate the ADR-0004 incumbent evidence out of the gitignored tree.** `git check-ignore -v
+      .work/` returns `.work/.gitignore:1:*`. Phases 3, 5, and 7 each open by citing
+      `V1-coverage-negatives.md` §C.5 / §N3, and two of those phases route to sub-agent workers that
+      **cannot open the file**; a fresh session or second machine cannot either. The ADR-0004 record
+      is a durable obligation, so the load-bearing `path:line` evidence is inlined into the phase
+      bodies and the graduated ADR, rather than pointing at a checkout-local artifact.
+- [ ] File the remaining phases as tracker issues carrying their own inlined incumbent evidence, per
+      the handoff's decomposition action.
+- [ ] Paste the approved PLAN.md into the PR description inside a `<details>` block (PR bodies cap
+      near 64 KB — paste the contract, reference the rest).
+- [ ] A final commit deletes `docs/topics/boris-routines-adoption/`. The deletion itself is what
+      passes the gate.
+- [ ] **Sanity Check:** `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0.
+- [ ] **Sanity Check:** `bash scripts/check-contract-slice-prune.sh --check` exits 0 — the stale guard
+      fails on a baseline entry whose slice no longer exists, so no orphan line is left behind.
+- [ ] **Sanity Check:** `ls docs/topics/boris-routines-adoption/ 2>/dev/null` returns non-zero, and the
+      PR body contains the pasted plan (`gh pr view --json body -q .body | grep -c "## Plan"` ≥ 1).
 
 ---
 
@@ -649,6 +715,20 @@ The two CRITICALs both attacked the same phase and both held:
    "Stage 3 Sonnet (semantic merge)" and `:66` orders "Minimize FALSE-MERGE over FALSE-SPLIT — a
    false merge silently drops a real issue". The fix action runs no LLM stage. Fixed by specifying
    presence-only matching and stating why it is deliberately narrower.
+
+A second fresh-context pass then reviewed the revision on the axes the first did not cover — Brief
+scope-item mapping, sanity-check executability, and convention reinvention. It returned 1 Critical, 7
+Important, 2 Suggestion, and its Critical was **executed, not argued**:
+`scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 1 on this branch today. That
+produced Phase 10 and the branch-shape question in `### Open questions`. Its other findings, each
+re-verified, repaired five sanity checks that could not pass as written — a bare
+`check-changelog-parity.sh` exits 2 on usage; a `grep -c … returns 0` check inverts its own exit
+code; a forbidden-metric grep passed vacuously on zero matches; two checks had no command at all —
+widened acceptance criterion 4's sweep from two files to the whole change set, bound the
+routine-delivery open question to `liveness-assertion`'s two-limb Core contract instead of deferring
+it by scope, and surfaced that the ADR-0004 evidence sits in a gitignored tree two delegated phases
+cannot read. Two citation drifts were corrected (12 not 13 convention CHANGELOGs; registry `:48-49`
+not `:51-52`).
 
 Also verified and fixed: `PLUGIN-PHILOSOPHY.md:471` is a **deadline**, not a licence to author the
 owner doc late, and the pilot phase is itself the second adopter — hence the stub-then-harden split.
@@ -695,9 +775,17 @@ Test-first applies as fixture-first: the failing fixture exists before the chang
   on. `--check` exit codes are asserted in the co-located `*.test.sh`.
 - **Phases 2, 4, 5, 6 (doc/contract):** the grep-shaped sanity checks above, plus a fresh-context
   reviewer re-deriving three Phase 5 rows from the mapping rules alone.
-- **Every phase:** `check-changelog-parity.sh` and `check-changed-skills.sh origin/main`. Only
-  `docs/topics/` is docs-only-allowlisted, so every phase touching `plugins/**` or `docs/conventions/`
-  runs the full suite; exec-bit and ShellCheck run repo-wide regardless.
+- **Every phase, three change-set-wide gates:** `scripts/check-changelog-parity.sh --check-bump origin/main`;
+  `scripts/check-changed-skills.sh origin/main`; and
+  `scripts/check-contract-slice-prune.sh --check-diff origin/main` — the last **fails today** against
+  this very branch (see Phase 10).
+- **Acceptance criterion 4 is change-set-wide, not per-file.** The criterion says "anywhere", so the
+  forbidden-metric sweep runs over the whole diff every phase —
+  `git diff origin/main | grep -Ein "merge rate|merge-rate|acceptance rate"` yields only forbidding
+  lines. Scoping it to `routines.md` and `work-classes.md`, as two phases originally did, left P3, P4,
+  and P7 uncovered, and each of those ships or governs a severity surface.
+- Only `docs/topics/` is docs-only-allowlisted, so every phase touching `plugins/**` or
+  `docs/conventions/` runs the full suite; exec-bit and ShellCheck run repo-wide regardless.
 
 ### Risks and mitigations
 
@@ -753,13 +841,32 @@ finish sequentially.
 | P7 | main-session + sub-agent for fixtures/evals | Skill authoring is judgment-heavy; fixture generation is mechanical volume |
 | P8 | own sub-topic | Promoted — own exploration need, own commit boundary, >300 LOC |
 | P9 | user-attended | Browser selection, account mutation, metered usage |
+| P10 | main-session | Graduation decides what becomes durable; the branch-shape question is the user's |
 
 ### Open questions
 
-- **Detector output has no delivery path in a cloud routine.** `.work/` is gitignored (`*`), a cloud
-  run's containment is the `claude/`-branch push rule, and "green status ≠ success" — so a scheduled
-  routine running any detector produces output no human sees. Detectors are **local-only this cycle**;
-  the trigger for revisiting is the first attempt to schedule one.
+- **BLOCKING, and the user's call: what branch shape carries a ten-phase plan past the contract-slice
+  prune gate?** The slice must be deleted before merge, and the per-phase tag advancement puts it in
+  every phase PR's diff, so "phase boundaries are PR boundaries" and "prune before merge" cannot both
+  hold as written. Two shapes:
+  - **(a) RECOMMENDED — graduate early, prune at this branch's merge, then run phases as independent
+    PRs.** This PR graduates the coexistence ADR plus the inlined incumbent evidence, files the
+    remaining phases as tracker issues, pastes the plan into its own body, and prunes the slice. Later
+    phases carry their contract in their issue and PR bodies, so no slice exists to red-line. Matches
+    the convention's own documented lifecycle and keeps PRs small.
+  - **(b) One long-lived branch, all ten phases as commits, a single merge with a terminal prune.**
+    Keeps PLAN.md live on disk the whole way and needs no issue decomposition, but yields one very
+    large PR and defers every gate to the end — which is how a silent-shadowing bug got this far in
+    the first place.
+- **Detector output has no delivery path in a cloud routine — and this is a conformance question, not
+  a scoping one.** `.work/` is gitignored (`*`), a cloud run's containment is the `claude/`-branch
+  push rule, and "green status ≠ success", so a scheduled routine running any detector produces
+  output nobody reads. `docs/conventions/liveness-assertion/README.md:56-65` requires every advisory
+  or gate surface to satisfy **at least one** of its two limbs — fail loud, or publish to an
+  agent-readable channel — and "deferred by scope" is neither. Each detector must therefore **name
+  the limb it satisfies**: Phase 7's `--check` mode is limb 1 (exits non-zero, blocks), which is the
+  cleanest answer and another reason that mode is not optional. A detector shipping report-only with
+  no reachable channel is non-conforming, whatever the cycle boundary says.
 - Whether Phase 3's persist flag should write when the run finds **zero** survivors. An empty
   conforming file is honest but adds a row-less file to the merge set. Settle inside Phase 3.
 - Whether `docs/conventions/detector-findings/` is the right convention name. Named at Phase 2
@@ -770,6 +877,12 @@ finish sequentially.
 
 #### User-approval gates
 
+- **The branch shape, (a) or (b) in `### Open questions`.** It is hard to reverse once phases start
+  landing, and it decides whether the plan survives on disk or in issue bodies. Nothing should be
+  implemented before it is answered.
+- **Phase 5's row re-derivation** — a reviewer who did not author the rows re-derives three of them
+  from `routines.md:88-146` alone. Declared human gate; no command clears it.
+- **Phase 9's spike state** — quoting #2660's resolution into the phase is a human read, not a check.
 - **The two scope reductions in `### Goal`** — Tier 1 three-to-one, and detection-rather-than-repair.
   Both drop Brief-listed scope; neither is a mechanical outcome.
 - **The per-unit close-out deviation** — batching rows and shipping stage-at-a-time restructures a
