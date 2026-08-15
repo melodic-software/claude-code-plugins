@@ -3,6 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1]
+
+### Changed
+
+- **`fanout`'s writer contract points at the detector-findings convention instead of stating the
+  producer rules itself (#2679).** 0.20.0 put the multi-producer rule in
+  `context/default-mode.md`, but that rule binds every component that writes a conforming findings
+  file — not just this plugin — and `docs/PLUGIN-PHILOSOPHY.md` "Convention registry" is one owner
+  doc per shared concern. The general rules (producer-owned fields, coexistence obligations,
+  minimal conformance) now live in `docs/conventions/detector-findings/`, cited by raw URL because a
+  plugin installs standalone and cannot resolve a repo-relative path. `default-mode.md` keeps only
+  what fanout's own writer does. No behavior change.
+
 ## [0.20.0]
 
 ### Changed
