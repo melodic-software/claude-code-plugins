@@ -114,8 +114,10 @@ Cache drift-control (if keep-as-derivation-cache): <the regeneration path or rec
 Batch / sweep aggregate at the end:
 
 ```text
-Audited <N> document(s): <d> delete, <p> convert-to-pointer, <c> keep-as-cache, <k> keep-owns-facts, <r> routed-to-sibling, <f> out-of-scope functional artifacts.
+Audited <N> document(s): <d> delete, <p> convert-to-pointer, <c> keep-as-cache, <k> keep-owns-facts, <f> out-of-scope functional artifacts; <r> of the verdicts also carry a route-to-sibling annotation.
 ```
+
+Route-to-sibling is an ANNOTATION on a verdict, never a fifth verdict class: a document whose verdict stands (usually a keep) but whose rationale routes material to a sibling — doc-to-doc duplication to `/docs-hygiene:extract-ssot`, line-level noise to `/docs-hygiene:audit-noise` — records that route in its rationale, and `<r>` counts the documents carrying one, so routed work is visible in the aggregate instead of vanishing into the keep bucket.
 
 Corpus-scale sweeps (more documents than one reply can carry): the per-document blocks live in the batch ledger files; the reply carries the aggregate line, the confirmed-actionable (`delete` / `convert-to-pointer`) subset, the provisional (cap-deferred) verdicts reported separately for visibility — never as part of the actionable subset — and the ledger file locations.
 
