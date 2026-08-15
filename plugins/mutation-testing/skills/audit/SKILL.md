@@ -44,10 +44,10 @@ Three properties, stated first because everything below depends on them:
    later phase runs and nothing is persisted ([Phase 3](#phase-3--execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
-   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its two writes — the findings file,
-   and the self-ignore guard's own `.gitignore` when it heals a root — are each **proven outside
-   tracked space before that write is made**, never in tracked source and never in a file another
-   producer owns.
+   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes — the findings file, and
+   the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
+   that root — are each **proven outside tracked space before that write is made**, never in tracked
+   source and never in a file another producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -296,10 +296,12 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-**each** of the phase's two writes — the findings file and the self-ignore guard's `.gitignore` — is
-proven outside tracked space before **that** write is made, against the checkout that governs the
-destination rather than the invoking worktree, and with the guard's own write proven before the guard
-heals rather than reported afterwards (a memory root inside tracked space leaves `git status`
+**each** write this phase makes — the findings file, and the self-ignore guard's `.gitignore` where a
+governing checkout was found — is proven outside tracked space before **that** write is made, against
+the checkout that governs the destination rather than the invoking worktree, with the guard's own
+write proven before the guard heals rather than reported afterwards, and with the guard **not run at
+all** where no governing checkout was found, since there its create-when-absent rule could land on a
+tracked-but-deleted `.gitignore` with no check having been possible (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); `Tier` and `Confidence` are
 computed from the Phase 4 **verdict class** and never from the

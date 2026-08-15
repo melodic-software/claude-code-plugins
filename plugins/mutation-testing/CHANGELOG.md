@@ -13,8 +13,10 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>).
   The destination, the self-ignore guard, and the producer-computed fields are resolved through that
   contract rather than restated. Bare invocation is unchanged: it reports and stops.
-- **Each of the phase's two writes is proven outside tracked space before that write is made** — the
-  findings file and the self-ignore guard's own `.gitignore`. Per-write rather than both up front,
+- **Each write this phase makes is proven outside tracked space before that write is made** — the
+  findings file, and the self-ignore guard's own `.gitignore` where a governing checkout was found
+  (where none was, the guard does not run and the findings file is the only write). Per-write rather
+  than both up front,
   because on a fresh root the guard's file is what makes the findings file's probe pass. The guard's
   write is proven *before the guard heals*, by requiring the resolved root to hold no tracked files, because writing `*` into a
   root that does would rewrite the ignore semantics of the consumer's own files; proving only the

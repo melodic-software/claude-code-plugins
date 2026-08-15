@@ -33,11 +33,13 @@ handed to the merge set — the same defect as writing into a file another produ
 
 ## Prove the destination is outside tracked space before writing to it
 
-This phase makes **two** writes — the findings file and, when the self-ignore guard heals a root, that
-root's `.gitignore` — and the property to prove is that git picks up neither. **Each is proven before
-that write is made**, which is the strongest form available and not the same as proving both up
-front: on a fresh root the guard's file is exactly what makes the findings file's probe pass, so that
-probe cannot precede the guard. The order is what makes the per-write form hold:
+This phase makes at most **two** writes — the findings file always, and that root's `.gitignore` when
+the self-ignore guard heals it — and the property to prove is that git picks up neither. **Each is
+proven before that write is made**, which is the strongest form available and not the same as proving
+both up front: on a fresh root the guard's file is exactly what makes the findings file's probe pass,
+so that probe cannot precede the guard. "At most" is load-bearing — where step 1 finds no governing
+checkout the guard does not run and the findings file is the only write. The order is what makes the
+per-write form hold:
 
 0. **Make the resolved root a physical path first.** `cd` to its nearest existing ancestor, take
    `pwd -P`, and re-append the components below it. A lexical walk over a path whose ancestor is a
@@ -52,8 +54,10 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
      run under the **ambient** environment. A toplevel it reports is a governing checkout even when
      the walk found none.
 
-   **No checkout governs the path only when both come back empty**; then, and only then, both writes
-   proceed. Either signal alone is fail-open in a state the other sees: the walk cannot see a working
+   **No checkout governs the path only when both come back empty.** That is the permissive branch,
+   and on it exactly **one** write happens — the findings file. The self-ignore guard does not run
+   there at all, for the reason given below. Either signal alone is fail-open in a state the other
+   sees: the walk cannot see a working
    tree designated by `GIT_WORK_TREE`/`GIT_DIR`, where nothing in the path has a `.git` at all yet git
    reports tracked files there; `rev-parse` cannot tell "no repository" from a missing directory, a
    dangling `gitdir:`, or a discovery limit, all of which are exit 128. They do not fail on the same
@@ -92,7 +96,16 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
 2. **Reject a root-equivalent `memory_dir`** — the contract's invalid-root rule, judged against `T`
    rather than the invoking worktree, since a root that is *another* checkout's toplevel would heal
    into *that* repo's root `.gitignore`.
-3. **Prove the guard's write before the guard makes it:** `git -C T ls-files -- <the resolved root>`.
+3. **Prove the guard's write before the guard makes it**, with the probe addressed to `T` in the
+   command itself:
+
+   ```sh
+   # T came from the walk — clear the variables that would redirect git elsewhere
+   env -u GIT_DIR -u GIT_WORK_TREE git -C T ls-files -- <the resolved root>
+   # T came from rev-parse THROUGH those variables — keep them, they are what names T
+   git -C T ls-files -- <the resolved root>
+   ```
+
    **Exit 0 with empty output** proceeds; **exit 0 with any output** means the root holds tracked
    files — a source directory, where healing `*` rewrites the ignore semantics of files the consumer
    owns — and refuses; **any other exit** means the probe did not evaluate the path and also refuses,
@@ -116,9 +129,20 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
    [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
    owns where that guard may heal; what is stated here is only how this producer discharges it before
    its own writes.
-4. **Create the memory root**, **run the self-ignore guard**, then create the destination directory.
-5. **Prove the findings file:** `git -C T check-ignore -q -- <the exact intended file path>`, and
-   **write only on exit 0.**
+4. **Create the memory root**, then **run the self-ignore guard only if step 1 found a governing
+   checkout**, then create the destination directory. Steps 2–4 do not apply on the permissive
+   branch: with no checkout there is no root-equivalence to judge, no index to query, and no guard to
+   run — go straight from step 1 to the findings-file write.
+5. **Prove the findings file**, addressed the same way step 3 is:
+
+   ```sh
+   # T from the walk
+   env -u GIT_DIR -u GIT_WORK_TREE git -C T check-ignore -q -- <the exact intended file path>
+   # T from rev-parse through the environment
+   git -C T check-ignore -q -- <the exact intended file path>
+   ```
+
+   **Write only on exit 0.**
 
 **Why step 1 needs the walk as well as `rev-parse`, and trusts neither alone.** `rev-parse` fails
 identically — exit 128 — for "there is no repository", for "that directory does not exist", and for a
@@ -140,12 +164,14 @@ consumer supports. Anchoring to the checkout that governs also answers the case 
 cannot see at all: an external root that sits inside *another* checkout, whose tracked space is just
 as real.
 
-**`git -C` is not by itself an anchor.** `GIT_DIR` and `GIT_WORK_TREE` override it: with either set,
-`git -C T` answers about a different repository entirely. Run each checkout's probes under the
-environment that actually addresses it — the ambient one for a checkout `rev-parse` found *through*
-those variables, and with them cleared for a checkout the walk found on disk. Do not simply strip
-them: an environment-designated working tree is a real tree that really picks writes up, which is the
-whole reason step 1 asks `rev-parse` under the ambient environment rather than a scrubbed one.
+**`git -C` is not by itself an anchor**, which is why steps 3 and 5 carry `env -u` in the command
+rather than a note beside it. `GIT_DIR` and `GIT_WORK_TREE` are honored ahead of `-C` — an absolute
+`GIT_DIR` is not relativized against the `-C` target — so with either set, `git -C T` answers about a
+different repository entirely. The asymmetry with step 1 is deliberate and must not be tidied away:
+steps 3 and 5 ask *what does `T` think of this path*, so a foreign `GIT_DIR` corrupts the answer,
+while step 1 asks *does any checkout govern this path at all*, and an environment-designated working
+tree is one of the states it exists to detect. Stripping the variables there would blind the signal
+added to see them.
 
 **Three outcomes at step 5, and three distinct reports.** Exit 0 writes. Exit 1 means *the
 destination is tracked space*, and is reported as that. Any other exit means *the probe did not
@@ -303,8 +329,8 @@ and never read the consumer's ledger to decide what to write.
 
 Tracked source is byte-identical to the Phase 0 snapshot on three limbs, none of them assumed:
 Phase 3 verified restoration against that snapshot, nothing in this phase edits tracked source, and
-each of this phase's two writes — the findings file and the guard's `.gitignore` — was proven outside
-tracked space before that write was made. The first limb is why this phase can describe a tree at all — a
+each write this phase made — the findings file, and the guard's `.gitignore` where a governing
+checkout was found — was proven outside tracked space before that write was made. The first limb is why this phase can describe a tree at all — a
 run whose restoration did not verify ends in failure at Phase 3 and never reaches here, so a findings file
 never claims `Location`s against source left mutated. The third is
 not traded for a findings file either: a destination that cannot be proven outside tracked space is
