@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.6]
+
+### Changed
+
+- **Nesting-invariant probe run recorded as inconclusive (#2768).**
+  `fixtures/nesting-invariant-probe.sh` was executed on Claude Code **2.1.232** with every
+  discriminator pinned (creation=`git worktree add`, launch=`cd`+`claude -p --settings`,
+  glob=`src/**`, parent rule committed, four placements). All four arms hit the script's
+  fixture-failure trap — zero `InstructionsLoaded` events because the CLI was
+  unauthenticated — which is **not** a null finding about the leak. README and SKILL.md
+  stamp refreshed; arm statuses remain disputed/untested. Probe now prints pinned
+  discriminators and surfaces `claude` stderr on a zero-event arm.
+
 ## [0.54.5]
 
 ### Fixed

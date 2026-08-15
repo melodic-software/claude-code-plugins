@@ -87,10 +87,13 @@ absence claim is not carried forward.
 
 ## `nesting-invariant-probe.sh` — the nesting invariant's disputed arm
 
-**Status: WRITTEN, NOT YET RUN.** Nothing below is claimed on this script's authority. It is the
-recheck *procedure* for the claim
-[`SKILL.md § The nesting invariant, verified`](../SKILL.md#the-nesting-invariant-verified) owns;
-running it is what would convert that section's disputed arm into a settled one.
+**Status: RUN 2026-08-15 on Claude Code 2.1.232 — INCONCLUSIVE (fixture failure).**
+All four arms executed the fixture setup. The `InstructionsLoaded` hook produced
+**zero trace events on every arm**. `claude -p` stderr was `Not logged in · Please
+run /login`. Per this section's own trap rule, that is a fixture failure — **not**
+evidence of absence and **not** a null finding about the leak. The dispute remains
+unadjudicable until an authenticated re-run produces a real trace (or a documented
+null from a firing hook).
 
 **Claim under test.** From a session inside a worktree nested in a checkout, a read matching a
 path-scoped rule's glob also loads the enclosing checkout's copy of that rule.
@@ -98,9 +101,35 @@ path-scoped rule's glob also loads the enclosing checkout's copy of that rule.
 **Why it is not settled.** Measured once on 2.1.224 and not reproduced on 2.1.227 — and **neither
 run recorded its fixture**, so the two results cannot be compared. That is the whole problem: the
 outcome depends on discriminators neither run disclosed, and a null result from a fixture that
-differs anywhere is not a refutation.
+differs anywhere is not a refutation. The 2026-08-15 run pinned the discriminators below but could
+not fire the instrument without CLI authentication.
 
-The discriminators this script pins, none of which the original runs recorded:
+### Pinned discriminators (2026-08-15 run)
+
+| Discriminator | Value pinned by this run |
+|---|---|
+| How the worktree was **created** | plain `git worktree add` (not `claude --worktree` / `EnterWorktree`) |
+| How the session was **launched** | `cd <worktree> && claude -p … --settings <file>` (bare cd into a git-worktree-add directory) |
+| The exact `paths:` glob **and its anchoring root** | `src/**`, anchored at each rule file's own repo root |
+| Whether the parent's rule file was **committed** | yes — committed in the parent checkout |
+| Hook registration | `InstructionsLoaded` exec (`args`-array) form via `claude -p --settings` |
+| Claude Code version | **2.1.232** |
+| Host | Linux (cloud agent); CLI present but unauthenticated |
+
+### Recorded outcome (2026-08-15)
+
+| Arm | Placement | Result |
+|---|---|---|
+| dot-nested | `<parent>/.claude/worktrees/wt` | **fixture failure** — no `InstructionsLoaded` trace events (CLI not logged in) |
+| plain-nested | `<parent>/plainsub/wt` | **fixture failure** — same |
+| external (control) | `<workdir>/external-root/wt` | **fixture failure** — same |
+| unrelated-nested | `<unrelated>/nested/wt` | **fixture failure** — same |
+
+No arm may be read as settling the leak claim. Re-run under an authenticated CLI; a real null
+(hook fired, parent rule absent from the trace) *is* a finding — zero events is not.
+
+**Why the original dispute was unadjudicable.** The outcome depends on discriminators neither run
+disclosed:
 
 | Discriminator | Why it changes the answer |
 |---|---|
@@ -124,7 +153,8 @@ Delivered with `claude -p --settings <file>`, because a project-scope hook in an
 
 **A trap the script guards.** Zero trace events means *the hook did not fire* — a fixture failure,
 not evidence of absence. The script says so rather than printing a null. Mistaking one for the other
-is the most likely way this dispute arose in the first place.
+is the most likely way this dispute arose in the first place. The 2026-08-15 run hit exactly this
+trap (unauthenticated CLI); the record above refuses to convert it into a null.
 
 **Doc status of the claim.** `worktrees.md` (fetched 2026-08-11) documents the default
 `.claude/worktrees/<name>/` placement, the isolation checks, the non-suppressible `EnterWorktree`
@@ -133,6 +163,6 @@ approval outside `.claude/worktrees/`, and what a worktree shares with the main 
 `.claude/rules/`. The claim is doc-*unaddressed*, not doc-contradicted, which is exactly why
 measurement is the only adjudicator and why an undisclosed fixture was fatal.
 
-**When you run it:** record the outcome here — *including a null, which is a finding* — and refresh
-the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift convention's
-"when a trigger fires" procedure.
+**When you re-run it:** record the outcome here — *including a null, which is a finding* — and
+refresh the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift convention's
+"when a trigger fires" procedure. Do not treat a zero-event fixture failure as a null.
