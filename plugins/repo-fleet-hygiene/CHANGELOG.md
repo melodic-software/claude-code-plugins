@@ -13,10 +13,14 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   and `merged-local-branch` requires `protected=false`, so a branch checked out in the main
   worktree — or the canonical checkout's current branch — satisfied neither and emitted nothing.
   The weaker `merged-pr-tip-drift` below carries no protection guard and did emit, so silence on
-  the strong path read as "nothing merged" rather than "merged, but protected". A new `LOW`
-  `merged-protected-branch` finding reports it and names which protection applies. The protection
-  rule is unchanged: the kind is absent from `branch_action_kind()`, so it never becomes a cleanup
-  candidate, inflates a rollup count, or enters an action plan.
+  the strong path read as "nothing merged" rather than "merged, but protected". A new `HIGH`
+  `merged-protected-branch` finding reports it and names which protection applies — `HIGH` because
+  the evidence is the same successful `MERGED` PR with an exact `headRefOid` match that the
+  sibling kinds carry, and the confidence model separates evidence strength from disposition. The
+  protection rule is unchanged: the kind is absent from `branch_action_kind()`, so it never becomes
+  a cleanup candidate, inflates a rollup count, or enters an action plan. Only the main-worktree
+  and current-branch protections are reachable; the default branch is excluded from merge-evidence
+  collection upstream and never reaches this classification.
 
 ## [0.22.1]
 

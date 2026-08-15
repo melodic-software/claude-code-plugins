@@ -2239,15 +2239,21 @@ analyze_repo() {
         # silence here reads as "nothing merged" rather than "merged but protected".
         # Reported, never a cleanup candidate -- the protection rule is unchanged
         # and this kind is deliberately absent from branch_action_kind().
+        # The default branch cannot reach here: pr_match is populated only under
+        # [[ "$branch" != "$default_branch" ]] at the collection guard above, and is
+        # reset every iteration, so a default branch never enters this block. Only
+        # the current-branch and main-worktree protections are reachable.
         protection_reason="branch is protected"
-        if [[ "$branch" == "$default_branch" ]]; then
-          protection_reason="default branch"
+        if [[ "$is_main" == "true" ]]; then
+          protection_reason="attached to the main worktree"
         elif [[ "$branch" == "$current_branch" ]]; then
           protection_reason="current branch of the canonical checkout"
-        elif [[ "$is_main" == "true" ]]; then
-          protection_reason="attached to the main worktree"
         fi
-        emit_finding LOW merged-protected-branch "$canonical :: $branch" \
+        # HIGH, matching merged-local-branch and merged-worktree: the evidence is the
+        # same successful MERGED PR with an exact headRefOid match. The confidence
+        # model separates evidence strength from disposition, so protection belongs in
+        # the disposition, not in a downgraded tier.
+        emit_finding HIGH merged-protected-branch "$canonical :: $branch" \
           "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url); $protection_reason" \
           "Informational only; protected branches are never branch-cleanup candidates" \
           "Switch off this branch in $canonical, then rerun to reclassify it"
