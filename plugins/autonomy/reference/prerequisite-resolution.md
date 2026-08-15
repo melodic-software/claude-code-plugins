@@ -29,9 +29,9 @@ substrates binds here. Isolation bindings key on execution-surface ids; the sche
 ## Candidate set
 
 - **`v1` rows only.** They alone have definition leaves, and posture tokens are leaf-owned.
-- **`join:` rows** report under the join-row marker `deferred-class`. A `join:` row has no leaf
-  and therefore no identities to resolve; `deferred-class` is a catalog-row marker, not a
-  verdict.
+- **`join:` and `join (external):` rows** report under the join-row marker `deferred-class`.
+  Both deferred status forms have no leaf and therefore no identities to resolve;
+  `deferred-class` is a catalog-row marker, not a verdict.
 - **`not-a-routine` rows** are outside the domain. No agent session exists to bind, so any
   verdict for them is a category error.
 
@@ -72,15 +72,16 @@ tokens"; they are not reused as probe labels.
 2. **harness-context** — `.mcp.json` server inventory, repo-declared plugins, committed skills:
    deterministic reads of structured, committed surfaces. `.mcp.json` **presence is not
    availability**: enablement is settings-gated (`enableAllProjectMcpServers` /
-   `enabledMcpjsonServers` / `disabledMcpjsonServers`), owned by the `claude-config` audit and
+   `enabledMcpjsonServers` / `disabledMcpjsonServers`), owned by the config-audit surface and
    composed presence-gated, never re-implemented here. Servers also arrive from user scope and
    plugins. The probe reports presence and the enablement gate separately.
 3. **machine-context** — CLI availability, local substrates: deterministic, per-surface. A
    result is a claim about the probed surface only, never a repo claim.
-4. **prose-context inference** — `CLAUDE.md`, `AGENTS.md`, README: judgment-only inference
-   source for *proposing* declarations into non-security keys, interactively. The deterministic
-   resolver never parses prose, and prose is never runtime authority. Platform bound: Claude
-   Code reads `CLAUDE.md`, not `AGENTS.md` — an `AGENTS.md` reaches a session only through a
+4. **prose-context inference** — host instruction files, agent-instruction files, README:
+   judgment-only inference source for *proposing* declarations into non-security keys,
+   interactively. The deterministic resolver never parses prose, and prose is never runtime
+   authority. Platform bound: the host harness reads its primary instruction file, not a
+   secondary agent-instruction file — a secondary file reaches a session only through a
    reference.
 
 Probe evidence is durable per surface under the existing isolation-binding pattern. Only signals
@@ -89,10 +90,9 @@ everything else composes an owning consumer surface below.
 
 ### Bounded limitations (stated up front)
 
-- **MCP enablement** is only partly resolvable from committed surfaces
-  (`.claude/settings.local.json` and user scope are invisible to a clone). On a scheduled run an
-  MCP-dependent identity resolves `conditional` at best, and `unknown` where enablement is
-  undeterminable.
+- **MCP enablement** is only partly resolvable from committed surfaces (untracked local settings
+  overlays and user scope are invisible to a clone). On a scheduled run an MCP-dependent identity
+  resolves `conditional` at best, and `unknown` where enablement is undeterminable.
 - **Personal ecosystem layers** (user-global and `.local.yaml`) are uncommitted. A scheduled
   cloud run resolves identities that depend on them `conditional` at best, and `unknown` where
   undeterminable.
@@ -123,14 +123,15 @@ declared narrows and fills where no contradicting fact exists; intent never outr
   (`conditional` or `unknown` as the signals warrant), with the unprobeable state named in
   provenance.
 
-Proposing is **interactive-only**. Non-interactive and forked contexts are barred from
-ask-and-persist rungs, so at routine runtime the resolution reports and never persists.
+Proposing is **interactive-only**. Non-interactive and forked contexts are barred from the
+binding seam's ask-and-persist path (setup interview into the repo-local layer), so at routine
+runtime the resolution reports and never persists.
 
-### Per-rung ownership
+### Per-layer ownership
 
-Connector entitlement for `prod` / `product` / `org` / `ext` binds at the **org rung** of the
-binding seam. A lower rung never asserts a prerequisite a higher rung owns. Security axes accept
-no repo-local value at all (this plugin's ratified cascade deviation).
+Connector entitlement for `prod` / `product` / `org` / `ext` binds at the **Org binding layer**
+of the binding seam. A lower layer never asserts a prerequisite a higher layer owns. Security
+axes accept no repo-local value at all (this plugin's ratified cascade deviation).
 
 ## Composition seams
 
@@ -140,8 +141,8 @@ presence-gated with a documented fallback per
 
 | Concern | Seam | Fallback when absent |
 |---|---|---|
-| Ecosystems | Toolchain seam (when the `toolchain` plugin is installed), reading *resolved* consumer state under `.claude/ecosystems/<eco>.yaml` — an ecosystem present but `enabled: false` is not configured; uncommitted user-global and `.local.yaml` layers report unresolvable | Inference from the repo's own build files; never another plugin's bundled defaults |
-| MCP enablement | `claude-config` audit surface (when the `claude-config` plugin is installed) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
+| Ecosystems | Toolchain seam (when the `toolchain` plugin is installed), reading *resolved* consumer state **with resolution-rung provenance** — consume only consumer-authored or repo-inferred rungs; an ecosystem present but `enabled: false` is not configured; uncommitted user-global and `.local.yaml` layers report unresolvable; **reject the seam's bundled-default rung** as repository evidence | Inference from the repo's own build files; never another plugin's bundled defaults |
+| MCP enablement | Config-audit surface (when that plugin is installed) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
 | Tracker | Work-item tracker seam — `.work-item-tracker.json` plus the bound adapter's `capabilities.json` (when the `work-items` plugin is installed) | Treat tracker-dependent prerequisites as unestablished (`unknown`) |
 | Substrates, schedulers, observability | Autonomy setup skill's own discovery slices | Same plugin — no gate |
 | Configured-surface enumeration | Each surface's own presence in the repo | Never by reading the config-cascade registry table (a conformance ledger, not a runtime inventory) |
@@ -177,7 +178,7 @@ consuming routine.
 
 The resolution recomputes at every consumption — a setup `check`, a pre-enablement gate, an
 advisory read. A persisted verdict is never authority. The only persisted artifacts are
-human-ratified declarations (an additive section of `.claude/autonomy/binding.json` that
+human-ratified declarations (an additive section of the repo-local binding document that
 references existing scheduling-surface ids and declares no `surfaces` map of its own, keeping
 envelope conformance unambiguous) and surface-qualified probe evidence under the existing
 isolation-binding pattern.
