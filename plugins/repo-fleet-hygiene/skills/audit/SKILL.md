@@ -142,9 +142,23 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    Linked, unlocked registrations with reliable admin emit one `MEDIUM` `worktree-status-handoff`
    per repository naming those paths — disposability (stranded / unknown / safe) is owned by
    `/source-control:worktree status`, and this collector emits no `git status`-based substitute
-   verdict. If either inventory command fails or emits malformed/partial output, discard it, emit `UNKNOWN`,
-   stop local branch/worktree classification, and do not count that repository as successfully
-   audited; an empty/failed inventory never means no branches are attached.
+   verdict. Separately, every linked worktree that passes existence and root-verifiability checks
+   is classified against the configured worktree root (`melodic.worktreeroot` when present on the
+   first resolvable TARGET, else source-control `worktree_root`): conforming, outside/wrong-layout
+   (expected `<root>/<owner>-<repo>-<slug>` or `<root>/<repo>-<slug>` without origin, matching
+   `/source-control:worktree create`; create-shaped basenames stay conforming after branch
+   rename/detach; comparisons use physical paths so symlink aliases of the configured root do not
+   false-positive), or tool-owned (Codex/Cursor).
+   Missing, prunable, non-root, and root-unverifiable registrations keep their own finding kinds and
+   are excluded from conformance denominators. When no root is configured, placement is reported
+   without asserting a convention. The collector uses a single fleet-wide root (first TARGET with
+   `melodic.worktreeroot`, else pluginConfigs); intentionally different per-repository `includeIf`
+   roots are not modeled. If pluginConfigs cannot be read because `jq` is missing, emit
+   `worktree-root-pluginconfigs-unreadable` rather than pretending the key is unset.
+   Per-repository and fleet rollups always state the classifiable counts. If either inventory
+   command fails or emits malformed/partial output, discard it, emit `UNKNOWN`, stop local
+   branch/worktree classification, and do not count that repository as successfully audited; an
+   empty/failed inventory never means no branches are attached.
 6. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
    cleanup candidates. A merged worktree is routed to worktree dry-run first. `merged-remote-branch`
    is independent of local attachment — it describes the remote ref.
@@ -255,6 +269,13 @@ issues merge:
 | `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the CONTAINING repository, so no cleanup handoff is safe until the path is resolved |
 | `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven — the probe itself failed — so infer nothing about the path in either direction |
 | `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
+| `worktree-outside-configured-root` | Recreate at the expected location named in evidence with `/source-control:worktree create`, then remove the misplaced one |
+| `worktree-wrong-layout` | Recreate at the expected `<owner>-<repo>-<slug>` path under the configured root, then remove the wrong-layout one |
+| `worktree-tool-owned` | Leave to Codex/Cursor lifecycle, or migrate deliberately to the configured root |
+| `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |
+| `worktree-root-conformance-summary` | Same as per-repository conformance; fleet-scale migration toward the configured root |
+| `worktree-root-unconfigured` | Set `melodic.worktreeroot` (git config) or source-control `worktree_root`, then rerun |
+| `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `melodic.worktreeroot`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |
 

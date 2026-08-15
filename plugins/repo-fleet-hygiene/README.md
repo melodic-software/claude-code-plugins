@@ -11,7 +11,8 @@ The currently shipped audit reports:
 - remote-tracking heads that still exist on origin after a GitHub merge (where
   `delete_branch_on_merge` is not enabled or was blocked — enabling that setting is complementary,
   not a substitute for this visibility, and this plugin never changes repository settings);
-- merged-PR, missing, prunable, or administratively mismatched worktree registrations; and
+- merged-PR, missing, prunable, or administratively mismatched worktree registrations;
+- linked worktrees that do not conform to the configured worktree root (or placement when unset); and
 - GitHub repositories whose configured remote resolves to a different owner or name.
 
 The plugin is deliberately **read-only by default**. The current release is report-only: it never
@@ -35,7 +36,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |
 | Per-repository verdicts, target deduplication, and a machine-readable rollup artifact | `repo-fleet-hygiene` | Shipped in [#2644](https://github.com/melodic-software/claude-code-plugins/pull/2644) / [#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) |
 | One fleet cleanup-plan handoff consuming that artifact | `repo-fleet-hygiene` plus the per-repo owners | Plan artifact shipped in [#2644](https://github.com/melodic-software/claude-code-plugins/pull/2644) / [#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609); execute consumer still deferred |
-| Conformance against the configured worktree root | `repo-fleet-hygiene`, reading the convention owned by `source-control` | Tracked by [#2606](https://github.com/melodic-software/claude-code-plugins/issues/2606); not yet shipped |
+| Conformance against the configured worktree root | `repo-fleet-hygiene`, reading the convention owned by `source-control` | Shipped in [#2651](https://github.com/melodic-software/claude-code-plugins/pull/2651) / [#2606](https://github.com/melodic-software/claude-code-plugins/issues/2606) |
 | Complete exact branch merge evidence via GraphQL | `repo-fleet-hygiene` | Shipped in [#2642](https://github.com/melodic-software/claude-code-plugins/pull/2642) / [#2604](https://github.com/melodic-software/claude-code-plugins/issues/2604) |
 | Merged remote-branch reporting and its separate safety gate | `repo-fleet-hygiene` | Tracked by [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607); follow-up PR [#2645](https://github.com/melodic-software/claude-code-plugins/pull/2645) |
 
