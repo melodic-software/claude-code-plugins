@@ -425,8 +425,8 @@ else
   fail "stub/write-lockfile-deny: lockfile was rewritten: $(cat "$STUB_REPO/package-lock.json")"
 fi
 CTX_LOCK=$(printf '%s' "$OUT_LOCK" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-if printf '%s' "$CTX_LOCK" | grep -qi 'allowlist' && printf '%s' "$CTX_LOCK" | grep -q 'teh'; then # spellchecker:disable-line
-  ok "stub/write-lockfile-deny: findings reported with write-allowlist skip note"
+if printf '%s' "$CTX_LOCK" | grep -qi 'lockfile basename' && printf '%s' "$CTX_LOCK" | grep -q 'teh'; then # spellchecker:disable-line
+  ok "stub/write-lockfile-deny: findings reported with lockfile skip note"
 else
   fail "stub/write-lockfile-deny: skip note or findings missing: $CTX_LOCK"
 fi
@@ -446,8 +446,8 @@ else
   fail "stub/write-ext-deny-extensionless: rewritten: $(cat "$STUB_REPO/LICENSE")"
 fi
 CTX_LIC=$(printf '%s' "$OUT_LIC" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-if printf '%s' "$CTX_LIC" | grep -qi 'allowlist' && printf '%s' "$CTX_LIC" | grep -q 'teh'; then # spellchecker:disable-line
-  ok "stub/write-ext-deny-extensionless: findings reported with write-allowlist skip note"
+if printf '%s' "$CTX_LIC" | grep -qi 'no extension' && printf '%s' "$CTX_LIC" | grep -q 'teh'; then # spellchecker:disable-line
+  ok "stub/write-ext-deny-extensionless: findings reported with extensionless skip note"
 else
   fail "stub/write-ext-deny-extensionless: skip note or findings missing: $CTX_LIC"
 fi

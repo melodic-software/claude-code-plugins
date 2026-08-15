@@ -3,6 +3,14 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.17]
+
+### Fixed
+
+- **Write-skip disclosure names the real gate (#2650).** Lockfile basename denies,
+  extensionless paths, and extension allowlist misses each get a distinct skip note
+  instead of always blaming the extension allowlist.
+
 ## [0.6.16]
 
 ### Fixed

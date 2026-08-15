@@ -274,10 +274,20 @@ typos_write_ext_allowed() {
 # report-only path (mode statement, no residual-after-write phrasing) without
 # a second messaging branch. WRITE_SKIPPED_EXT records why, for a one-line
 # note on the agent channel when findings exist.
-WRITE_SKIPPED_EXT=0
-if [[ "$WRITE_CHANGES" == "true" ]] && { typos_write_lockfile_denied "$FILE" || ! typos_write_ext_allowed "$FILE"; }; then
-  WRITE_CHANGES=false
-  WRITE_SKIPPED_EXT=1
+WRITE_SKIP_REASON=""
+if [[ "$WRITE_CHANGES" == "true" ]]; then
+  if typos_write_lockfile_denied "$FILE"; then
+    WRITE_CHANGES=false
+    WRITE_SKIP_REASON=lockfile
+  elif ! typos_write_ext_allowed "$FILE"; then
+    WRITE_CHANGES=false
+    base=$(basename -- "$FILE")
+    if [[ "$base" != *.* ]]; then
+      WRITE_SKIP_REASON=extensionless
+    else
+      WRITE_SKIP_REASON=extension
+    fi
+  fi
 fi
 
 # Disclosure cap. A file with hundreds of corrections must not turn this hook's
@@ -551,8 +561,19 @@ if ((APPLIED_COUNT > 0)); then
   fi
   SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in the repo's typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
 elif [[ "$WRITE_CHANGES" != "true" ]]; then
-  if ((WRITE_SKIPPED_EXT == 1)); then
-    CTX+="typos-format is report-only for $BASE — write mode is on, but this extension is outside the write allowlist, so the file was NOT modified. Findings:"$'\n'
+  if [[ -n "$WRITE_SKIP_REASON" ]]; then
+    case "$WRITE_SKIP_REASON" in
+      lockfile)
+        skip_why="this path is a generated lockfile basename, so the file was NOT modified"
+        ;;
+      extensionless)
+        skip_why="this path has no extension and is outside the write allowlist, so the file was NOT modified"
+        ;;
+      *)
+        skip_why="this extension is outside the write allowlist, so the file was NOT modified"
+        ;;
+    esac
+    CTX+="typos-format is report-only for $BASE — write mode is on, but ${skip_why}. Findings:"$'\n'
   else
     CTX+="typos-format is report-only — $BASE was NOT modified. Findings:"$'\n'
   fi
