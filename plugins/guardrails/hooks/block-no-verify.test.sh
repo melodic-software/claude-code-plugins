@@ -303,7 +303,8 @@ run_pwsh "PS: git update-ref -d (ref delete, blocked)" "& { git update-ref -d re
 # Hyphenated siblings that the `-`-excluding boundary keeps from riding on an
 # already-listed token, so each needs its own entry and its own case: `commit-graph`
 # is not `commit`, `merge-index`/`merge-one-file` are not `merge`, `fast-import` is
-# not `import`, `update-server-info` is not `update-ref`.
+# not `import`, `update-server-info` is not `update-ref`, and
+# `credential-cache`/`credential-store` are not `credential`.
 run_pwsh "PS: git commit-graph write (admin-state write, not 'commit', blocked)" \
   "& { git commit-graph write --reachable }" 2
 run_pwsh "PS: git fast-import (bulk ref force-update, blocked)" "& { git fast-import --force }" 2
@@ -316,6 +317,16 @@ run_pwsh "PS: git multi-pack-index (object-store admin write, blocked)" \
   "& { git multi-pack-index write }" 2
 run_pwsh "PS: git update-server-info (admin-state write, blocked)" \
   "& { git update-server-info -f }" 2
+run_pwsh "PS: git credential-store (writes credentials to disk, not 'credential', blocked)" \
+  "& { git credential-store store }" 2
+run_pwsh "PS: git credential-cache (manages the cache daemon, not 'credential', blocked)" \
+  "& { git credential-cache exit }" 2
+
+# GUI commit frontends. `git help -a` calls citool the "Graphical alternative to
+# git-commit", so a commit made through either inherits the session environment —
+# including a disabled hook manager — and must not ride the readonly-ok path.
+run_pwsh "PS: git citool (graphical git-commit, blocked)" "& { git citool }" 2
+run_pwsh "PS: git gui (commit frontend, blocked)" "& { git gui }" 2
 # Foreign-SCM bridges: dual-mode, and the mutating mode rewrites history and publishes.
 run_pwsh "PS: git svn dcommit (rewrites history + publishes, blocked)" "& { git svn dcommit }" 2
 run_pwsh "PS: git p4 submit (publishes to Perforce, blocked)" "& { git p4 submit }" 2

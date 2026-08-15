@@ -403,12 +403,19 @@ ps::git_command_is_readonly() {
   lc="${recovered,,}"
   # Same command-position git probe as ps::might_invoke_git (#2592).
   [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
-  # Mutating subcommands, alphabetical, split across five tests purely for
+  # Mutating subcommands, alphabetical, split across six tests purely for
   # reviewability. Each alternation stays a LITERAL in pattern position — never a
   # variable spliced into the pattern (see the call-target note above for why a
   # silently-non-matching predicate here would fail OPEN).
-  [[ "$lc" =~ (^|[^[:alnum:]_.-])(add|am|annex|apply|bisect|branch|checkout|checkout-index|cherry-pick|clean|commit)([^[:alnum:]_.-]|$) ]] && return 1
-  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit-graph|config|credential|cvsexportcommit|fast-import|filter-branch|filter-repo|gc|http-push|interpret-trailers|lfs)([^[:alnum:]_.-]|$) ]] && return 1
+  #
+  # A HYPHENATED SIBLING NEEDS ITS OWN ENTRY. The token boundary excludes `-`
+  # (load-bearing, so `--prune` and `--tags` stay read-only), which means a
+  # listed stem never matches its hyphenated relatives: `commit` does not cover
+  # `commit-graph`, and `credential` does not cover `credential-cache` /
+  # `credential-store`. Both of those write credentials to disk or manage a
+  # caching daemon, so each is spelled out rather than left to the stem.
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(add|am|annex|apply|bisect|branch|checkout|checkout-index|cherry-pick|citool|clean|commit)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit-graph|config|credential|credential-cache|credential-store|cvsexportcommit|fast-import|filter-branch|filter-repo|gc|gui|http-push|interpret-trailers|lfs)([^[:alnum:]_.-]|$) ]] && return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(maintenance|merge|merge-file|merge-index|merge-one-file|mergetool|multi-pack-index|mv|notes|p4|prune)([^[:alnum:]_.-]|$) ]] && return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(prune-packed|pull|push|quiltimport|read-tree|rebase|receive-pack|reflog|remote|repack)([^[:alnum:]_.-]|$) ]] && return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(replace|rerere|reset|restore|revert|rm|send-pack|sparse-checkout|stage|stash)([^[:alnum:]_.-]|$) ]] && return 1
