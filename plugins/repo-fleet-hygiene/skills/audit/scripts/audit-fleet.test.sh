@@ -2046,6 +2046,22 @@ else
   failures=$((failures + 1))
 fi
 
+cat >"$TMP/config/empty-skip.conf" <<EOF
+[fleet]
+    root = ../skip-root
+    skip =
+EOF
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/empty-skip.conf" \
+  >"$skip_out" 2>"$skip_err"; then
+  printf 'FAIL: empty fleet.skip unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "invalid fleet.skip value (expected a bare directory name): (empty)" "$skip_err"; then
+  printf 'PASS: empty fleet.skip hard-fails with a named error\n'
+else
+  printf 'FAIL: empty fleet.skip hard-fails with a named error\n%s\n' "$(cat "$skip_err" "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
 if [[ "$failures" -ne 0 ]]; then
   printf '\nCollector output:\n' >&2
   cat "$output" >&2

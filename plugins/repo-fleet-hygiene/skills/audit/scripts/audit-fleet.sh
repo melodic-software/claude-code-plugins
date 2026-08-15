@@ -712,7 +712,9 @@ fi
 # them.
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
-    [[ -n "$value" ]] || continue
+    # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
+    # `skip =` line that git-config returns as an empty string. Do not silently drop them:
+    # an empty-only list would otherwise restore the six defaults and quietly omit vendor/.
     validate_skip_name "$value" "fleet.skip"
     SKIP_NAMES+=("$value")
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
