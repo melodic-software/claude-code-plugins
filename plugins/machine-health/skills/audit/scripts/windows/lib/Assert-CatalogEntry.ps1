@@ -66,9 +66,7 @@ function Assert-CatalogEntry {
     }
 
     if ($Entry.script -notmatch '^scripts/(linux|macos|windows)/checks/[A-Za-z0-9_-]+\.ps1$') {
-        $msg = "CatalogEntry '$($Entry.id)' script path '$($Entry.script)'" +
-        " is not scripts/<os>/checks/Name.ps1$ctx."
-        throw $msg
+        throw "CatalogEntry '$($Entry.id)' script path '$($Entry.script)' is not scripts/<os>/checks/Name.ps1$ctx."
     }
 
     if ($Entry.added_on -notmatch '^\d{4}-\d{2}-\d{2}$') {

@@ -72,7 +72,7 @@ function Get-DetailPair {
 
     $pairs = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    if ($Detail -is [hashtable] -or $Detail -is [System.Collections.IDictionary]) {
+    if ($Detail -is [System.Collections.IDictionary]) {
         foreach ($key in $Detail.Keys) {
             $pairs.Add([pscustomobject]@{ Key = "$key"; Value = $Detail[$key] })
         }

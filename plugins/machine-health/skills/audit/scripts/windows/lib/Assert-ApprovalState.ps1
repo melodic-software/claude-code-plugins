@@ -56,10 +56,9 @@ function Assert-ApprovalState {
 
     if ($State.PSObject.Properties['migration']) {
         $mig = $State.migration
-        if ($null -ne $mig -and $mig.PSObject.Properties['migrated_from_todo_md']) {
-            if ($mig.migrated_from_todo_md -isnot [bool]) {
-                throw 'ApprovalState.migration.migrated_from_todo_md must be a boolean' + $ctx + '.'
-            }
+        if ($null -ne $mig -and $mig.PSObject.Properties['migrated_from_todo_md'] -and
+            $mig.migrated_from_todo_md -isnot [bool]) {
+            throw "ApprovalState.migration.migrated_from_todo_md must be a boolean$ctx."
         }
     }
 

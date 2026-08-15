@@ -39,16 +39,15 @@ function Get-CheckLastRun {
     for ($i = $HistoryTail.Count - 1; $i -ge 0; $i--) {
         $entry = $HistoryTail[$i]
         if ($null -eq $entry -or -not $entry.PSObject.Properties['checks_ran']) { continue }
-        if (@($entry.checks_ran) -contains $CheckId) {
-            if ($entry.PSObject.Properties['run_id'] -and $entry.run_id) {
-                # ConvertFrom-Json coerces the ISO run_id string to [datetime];
-                # normalize back to ISO 8601 so downstream parsing is locale-
-                # independent ("MM/dd/yyyy" round-trips would misparse abroad).
-                $runId = $entry.run_id
-                if ($runId -is [datetime]) { return ([datetimeoffset]$runId).ToString('o') }
-                if ($runId -is [datetimeoffset]) { return $runId.ToString('o') }
-                return "$runId"
-            }
+        if (@($entry.checks_ran) -contains $CheckId -and
+            $entry.PSObject.Properties['run_id'] -and $entry.run_id) {
+            # ConvertFrom-Json coerces the ISO run_id string to [datetime];
+            # normalize back to ISO 8601 so downstream parsing is locale-
+            # independent ("MM/dd/yyyy" round-trips would misparse abroad).
+            $runId = $entry.run_id
+            if ($runId -is [datetime]) { return ([datetimeoffset]$runId).ToString('o') }
+            if ($runId -is [datetimeoffset]) { return $runId.ToString('o') }
+            return "$runId"
         }
     }
     return $null

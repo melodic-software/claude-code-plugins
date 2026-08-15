@@ -76,7 +76,7 @@ assert_contains "unknown flag mentions expected modes" "$unknown_out" "expected"
 # shellcheck source=update.sh
 source "$SCRIPT" 2>/dev/null
 SOURCED_TMPDIR="$TMPDIR_RUN"
-if declare -F current_local_version >/dev/null; then
+if declare -F local_metadata_field >/dev/null; then
   pass "source-guard: helpers exposed after source"
 else
   fail "source-guard: helpers exposed after source" "function defined" "undefined"
@@ -101,10 +101,10 @@ EOF
 
 FRONTMATTER_FILE="$FIXTURE_SKILL"
 
-parsed_ver=$(current_local_version)
+parsed_ver=$(local_metadata_field "upstream-version")
 assert_eq "parses metadata.upstream-version (nested)" "7.5.0" "$parsed_ver"
 
-parsed_synced=$(current_local_synced)
+parsed_synced=$(local_metadata_field "synced")
 assert_eq "parses metadata.synced (nested)" "2026-01-15" "$parsed_synced"
 
 # --- 5. Negative parse: missing metadata block -------------------------------------
@@ -120,7 +120,7 @@ description: "no metadata block"
 EOF
 
 FRONTMATTER_FILE="$FIXTURE_BARE"
-empty_ver=$(current_local_version)
+empty_ver=$(local_metadata_field "upstream-version")
 assert_eq "missing metadata block returns empty" "" "$empty_ver"
 
 # --- 6. replace_metadata_field mutates indented key ---------------------------------

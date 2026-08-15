@@ -62,9 +62,9 @@ function ConvertFrom-WingetTextOutput {
 
         try {
             $name = $line.Substring(0, $idxId).Trim()
-            $ident = if ($line.Length -ge $idxVer) {
-                $line.Substring($idxId, $idxVer - $idxId).Trim()
-            } else { '' }
+            # The $line.Length -lt $idxVer rows are skipped above, so this
+            # substring is always in range.
+            $ident = $line.Substring($idxId, $idxVer - $idxId).Trim()
             $ver = if ($line.Length -ge $idxAvail) {
                 $line.Substring($idxVer, $idxAvail - $idxVer).Trim()
             } else { '' }

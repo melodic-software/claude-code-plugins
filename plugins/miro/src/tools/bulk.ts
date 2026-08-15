@@ -4,7 +4,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { jsonResponse } from "../response.js";
-import { buildStickyNotePayload, STICKY_NOTE_COLORS, STICKY_NOTE_SHAPES } from "./sticky-notes.js";
+import {
+  buildStickyNotePayload,
+  POSITION_X_DESCRIPTION,
+  POSITION_Y_DESCRIPTION,
+  STICKY_NOTE_COLORS,
+  STICKY_NOTE_SHAPES,
+} from "./sticky-notes.js";
 
 export const stickyNoteSchema = z.object({
   content: z.string().describe("Text content"),
@@ -13,16 +19,8 @@ export const stickyNoteSchema = z.object({
     .enum(STICKY_NOTE_SHAPES)
     .default("square")
     .describe("Sticky note shape. Use rectangle for Read Models, External Systems, Pivotal Events"),
-  x: z
-    .number()
-    .describe(
-      "X position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
-    ),
-  y: z
-    .number()
-    .describe(
-      "Y position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
-    ),
+  x: z.number().describe(POSITION_X_DESCRIPTION),
+  y: z.number().describe(POSITION_Y_DESCRIPTION),
 });
 
 export function registerBulkTools(server: McpServer, api: MiroApi): void {
