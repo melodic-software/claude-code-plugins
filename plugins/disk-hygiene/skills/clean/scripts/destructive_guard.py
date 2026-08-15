@@ -1057,8 +1057,19 @@ def _is_readonly_find(tokens: list[str]) -> bool:
 
 
 def _readonly_supporting_basename(head: str) -> str:
-    """Basename of a supporting command head on either path separator."""
-    return _PATH_SEPARATOR.split(head.rstrip("/\\"))[-1]
+    """Basename of a supporting command head on either path separator.
+
+    On Windows, strip a trailing executable extension (``.exe`` / ``.EXE`` /
+    ``.com`` / ``.bat`` / ``.cmd``) so a real Git-for-Windows binary such as
+    ``ls.EXE`` matches ``_READONLY_SUPPORTING_BASH_HEADS`` (#2774).
+    """
+    name = _PATH_SEPARATOR.split(head.rstrip("/\\"))[-1]
+    if os.name == "nt":
+        lower = name.lower()
+        for ext in (".exe", ".com", ".bat", ".cmd"):
+            if lower.endswith(ext):
+                return name[: -len(ext)]
+    return name
 
 
 # Absolute prefixes where an allowlisted head may live after realpath. A
@@ -1090,19 +1101,25 @@ _NT_SYSTEM_TRUSTED_BIN_SUBDIRS = (
 
 
 def _nt_known_git_installation_roots() -> tuple[Path, ...]:
-    """Git-for-Windows roots from independently trusted install locations.
+    """Git-for-Windows roots from well-known *machine* install locations.
 
     Never derived from ``PATH`` / ``shutil.which("git")``: a project-controlled
     directory ahead on ``PATH`` can plant ``cmd/git.exe`` and poison the trusted
     root, recreating the arbitrary-executable bypass the anchored-prefix change
-    closed. Only well-known installer destinations under ``ProgramFiles``,
-    ``ProgramFiles(x86)``, and ``LocalAppData\\Programs`` contribute roots, and
-    only when that directory actually exists.
+    closed. Only the per-machine installer destinations under ``ProgramFiles``
+    and ``ProgramFiles(x86)`` contribute roots, and only when that directory
+    actually exists.
+
+    ``%LOCALAPPDATA%\\Programs\\Git`` is intentionally excluded: it is a
+    user-writable path, so treating it as a trust root would let a local
+    plant under the profile contribute allowlisted heads whenever it exists
+    (#2774). Environment-variable control of ``ProgramFiles`` remains a
+    stronger precondition than PATH planting, but these roots are still
+    environment-derived — not independently attested install locations.
     """
     candidates: list[tuple[str, tuple[str, ...]]] = [
         ("ProgramFiles", ("Git",)),
         ("ProgramFiles(x86)", ("Git",)),
-        ("LocalAppData", ("Programs", "Git")),
     ]
     roots: list[Path] = []
     for key, rel in candidates:
@@ -1122,13 +1139,15 @@ def _nt_known_git_installation_roots() -> tuple[Path, ...]:
 def _nt_trusted_readonly_bin_roots() -> tuple[Path, ...]:
     """Resolved absolute directories on Windows whose contents the belt trusts.
 
-    Built from independently located Git installation roots and
+    Built from well-known Git installation roots (ProgramFiles /
+    ProgramFiles(x86) only — not user-writable LocalAppData) and
     ``%SystemRoot%`` — because a SUBSTRING match on a path fragment such as
     ``/git/usr/bin/`` is satisfied by any repository-controlled directory that
     merely spells that fragment (``D:/anyrepo/git/usr/bin/find``), which would
     hard-``allow`` a planted binary carrying an allowlisted basename. Anchoring
     to the resolved root removes that bypass; an unresolvable root contributes
-    NO trusted directories. Git roots are never taken from ``PATH``.
+    NO trusted directories. Git roots are never taken from ``PATH``. Environment
+    variables still supply the roots — they are not independently attested.
     """
     roots: list[Path] = []
     for git_root in _nt_known_git_installation_roots():
@@ -1184,18 +1203,18 @@ def _trusted_system_readonly_head(head: str) -> bool:
     what the shell will run. Relative path-qualified forms are denied.
 
     On Windows, Git Bash spells system tools as MSYS paths (``/usr/bin/ls``).
-    Native ``Path.resolve`` would map those onto the current drive, so they are
-    reinterpreted against the known Git installation roots instead.
+    Native ``Path.is_absolute()`` requires both a drive and a root, so those
+    POSIX-style heads are NOT absolute to pathlib — the MSYS reinterpretation
+    against known Git installation roots MUST run before the ``is_absolute``
+    gate, or the allowlist accepts nothing on Windows (#2774). Native
+    ``Path.resolve`` would otherwise map ``/usr/bin/ls`` onto the current drive.
     """
     if not head:
         return False
     if "/" not in head and "\\" not in head:
         return False
-    candidate = Path(head)
-    if not candidate.is_absolute():
-        return False
+    # MSYS absolute path BEFORE is_absolute(): /usr/bin/ls → <GitRoot>/usr/bin/ls[.exe]
     if os.name == "nt" and head.startswith("/") and not head.startswith("//"):
-        # MSYS absolute path: /usr/bin/ls → <GitRoot>/usr/bin/ls[.exe]
         rel_parts = tuple(part for part in head.split("/") if part)
         if not rel_parts:
             return False
@@ -1208,6 +1227,9 @@ def _trusted_system_readonly_head(head: str) -> bool:
                     continue
                 if _path_under_trusted_readonly_bin(resolved):
                     return True
+        return False
+    candidate = Path(head)
+    if not candidate.is_absolute():
         return False
     try:
         resolved = candidate.resolve()
@@ -1661,16 +1683,23 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
         return 0
     if is_exact_readonly_supporting_command(command):
+        # Engine-gate mode runs in every consumer session. A hard `allow` here
+        # would bypass the user's permission prompt for an allowlisted command
+        # that also names the engine path (#2774). `ask` keeps the ergonomic
+        # win while preserving the prompt for sessions that never invoked clean.
+        permission = (
+            "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
+        )
         print(
             json.dumps(
                 decision(
-                    "allow",
+                    permission,
                     "Exact literal-form read-only supporting Bash command "
                     "(disk-hygiene belt inspection allowlist).",
                 )
             )
         )
-        _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
+        _emit_guard_telemetry(start, tool_name, "ok", decision_value=permission)
         return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview", "handoff-verify"}:
