@@ -19,7 +19,7 @@
 import { UnsupportedSourceError } from "./adapter-contract.js";
 import * as youtubeModule from "./youtube.js";
 
-/** @typedef {import('./adapter-contract.js').SourceAdapter} SourceAdapter */
+/** @import { SourceAdapter } from './adapter-contract.js' */
 
 /**
  * Host → statically-imported adapter module. Keys must mirror each adapter's

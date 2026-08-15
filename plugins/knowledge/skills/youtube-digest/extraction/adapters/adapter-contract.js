@@ -45,8 +45,8 @@
  * process stderr without a per-adapter callback ({@link classifyErrorDetail}).
  */
 
-/** @typedef {import('../acquisition/select-caption.js').CaptionSelection} CaptionSelection */
-/** @typedef {import('../harvesting/models.js').HarvestedLink} HarvestedLink */
+/** @import { CaptionSelection } from '../acquisition/select-caption.js' */
+/** @import { HarvestedLink } from '../harvesting/models.js' */
 
 /**
  * Dispatch-level error: no registered adapter owns the URL's host. Deliberately not

@@ -10,14 +10,12 @@ import { findPinnedComment } from "../acquisition/video-metadata.js";
 import { deduplicateHarvestedLinks, linksFromText } from "../harvesting/harvest-links.js";
 import { createAcquisitionEnvelope, createSourceAdapter } from "./adapter-contract.js";
 
-/** @typedef {import('../acquisition/video-metadata.js').VideoMetadata} VideoMetadata */
-/** @typedef {import('./adapter-contract.js').SourceAdapterSpec} SourceAdapterSpec */
-/** @typedef {import('./adapter-contract.js').AcquireContext} AcquireContext */
-/** @typedef {import('./adapter-contract.js').AcquireOutcome} AcquireOutcome */
-/** @typedef {import('./adapter-contract.js').SourceMetadata} SourceMetadata */
-/** @typedef {import('./adapter-contract.js').UrlClaim} UrlClaim */
-/** @typedef {import('./adapter-contract.js').EnqueueDecision} EnqueueDecision */
-/** @typedef {import('../harvesting/models.js').HarvestedLink} HarvestedLink */
+/** @import { VideoMetadata } from '../acquisition/video-metadata.js' */
+/**
+ * @import { AcquireContext, AcquireOutcome, EnqueueDecision, SourceAdapterSpec,
+ *   SourceMetadata, UrlClaim } from './adapter-contract.js'
+ */
+/** @import { HarvestedLink } from '../harvesting/models.js' */
 
 /**
  * stderr signatures that mean the video is permanently gone / wrong — reject,
