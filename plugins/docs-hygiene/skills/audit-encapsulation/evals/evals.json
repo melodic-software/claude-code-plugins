@@ -70,6 +70,29 @@
         "Output routes content-duplication consolidation to /extract-ssot",
         "Output does NOT treat cross-file duplication as an encapsulation violation"
       ]
+    },
+    {
+      "id": 7,
+      "name": "bare-no-scope-asks-before-repo-run",
+      "prompt": "/docs-hygiene:audit-encapsulation — invoked at the top of a fresh session: no diff in flight, no prior audit notes, nothing in conversation narrowing the scope.",
+      "expected_output": "Does NOT run the detection yet. Asks ONE confirmation presenting the prescribed defaults for adjustment — scope: entire tracked repo; mode: detect + classify only (remediation stays a separate user-approved step); worker fan-out: off, with 2–3 concurrent workers as the cap if the user opts into fan-out while rate-limit telemetry is absent — and notes `sweep` as the explicit form that skips the question.",
+      "files": [],
+      "expectations": [
+        "Output asks a single scope confirmation before running detection, rather than assuming repo-wide scope",
+        "The confirmation presents prescribed defaults (repo-wide scope, detect-only mode, fan-out off) rather than an open-ended questionnaire",
+        "Output mentions the `sweep` argument as the way to skip the confirmation"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "sweep-skips-confirmation",
+      "prompt": "/docs-hygiene:audit-encapsulation sweep",
+      "expected_output": "Runs the repo-wide detect action immediately — detection grep, filter-taxonomy classification, violations table — with no scope-confirmation question: `sweep` is the explicit opt-in that already answered it.",
+      "files": [],
+      "expectations": [
+        "Output runs the detection immediately without asking a scope-confirmation question",
+        "Output still classifies hits through the filter taxonomy and emits the detect-mode violations table"
+      ]
     }
   ]
 }
