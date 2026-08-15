@@ -56,7 +56,15 @@ setup *
 # it lands only in a memory tier proven outside tracked space, and tracked source
 # is untouched
 # either way (#2680).
-audit claude-config,claude-memory,codebase-health,github,machine-health,mcp-tools,mutation-testing,plugin-quality,repo-fleet-hygiene
+# testing joins on the same grounds: its object — the suite's can't-fail test
+# audit — is supplied by the namespace, and the contract is exactly the verb's
+# (read-only findings report; nothing edits or deletes a test). The pass/fail
+# gate ships as a --check MODE of the same detector script rather than as a
+# sibling skill named `check`, keeping the verb table's meanings intact: the
+# skill surface reports, the mode gates. Its one persisted write sits behind
+# the explicit --persist-findings override the verb table sanctions, landing
+# only in the memory tier (#2684).
+audit claude-config,claude-memory,codebase-health,github,machine-health,mcp-tools,mutation-testing,plugin-quality,repo-fleet-hygiene,testing
 
 # Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
 # skill, toolchain checks a build.
