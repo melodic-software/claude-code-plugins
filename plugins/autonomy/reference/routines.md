@@ -212,7 +212,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
 | logic-simplification-sweep | AGT | DC (PR) | repo | C3 (equivalence above expression level is not mechanically checkable) | join (external): published effectiveness evidence exists |
 | abstraction-flattening | AGT | DC (PR) | repo | C4 (structural surface) | join (external): a validated detector is published |
-| gui-crash-fuzzing | DET (fuzzer) | R + WI | repo | n/a — no agent session; unattended GUI actuation still raises the isolation floor to L3 | not-a-routine |
+| gui-crash-fuzzing | DET (fuzzer) | R + WI | repo | n/a — no agent session; the GUI-actuation rule still requires L3 | not-a-routine |
 | doc-freshness-sweep | AGT | R + DC (optional docs PR) | repo | C1 (report); optional gated docs-PR portion C3 | v1 |
 | coverage-mutation-watch | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
 | release-notes-generation | hybrid: DET cut mechanics (no agent session); AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
@@ -295,9 +295,10 @@ commentary, and a leaf that contradicts one is non-conforming.
   Deciding whether a filed crash is reproducible is nonetheless not an unmodelled judgment portion
   of this class: a filed crash is ordinary queue intake, triaged by the issue-lifecycle classes, so
   the class is fuzz-and-file only and the `DET` exit is complete rather than skipping a split.
-  Because the class actuates a GUI unattended, its isolation floor is `L3` rather than the `L2` the
-  `repo` access class alone would give — the fuzz target is built from the repo, but synthetic input
-  actuation is not contained by a process boundary.
+  The `L3` its row carries comes from the GUI-actuation rule directly, not from the matrix's
+  min-isolation column, which a row deriving no class cannot index: the fuzz target is built from
+  the repo, but synthetic input actuation is not contained by a process boundary, so the `L2` the
+  `repo` access class alone would give is not the operative floor.
 - **`cant-fail-test-repair` — repair, not pruning.** A test that cannot fail is a coverage claim that
   is false; deleting it removes the false claim and the coverage together. The class repairs the
   assertion.
