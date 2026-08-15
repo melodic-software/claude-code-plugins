@@ -244,17 +244,17 @@ sanctioned paths:
 - **Interactive:** `/plugin configure source-control@<marketplace>` (or the `/plugin` dialog → source-control →
   configure), any time — Claude Code prompts per key using the manifest's types and defaults.
 - **Headless / CI:** `--config` only applies on a fresh install (ignored once installed), so
-  reconfiguring headless means `claude plugin uninstall source-control -s <scope>` then
-  reinstalling with the new values:
-  `claude plugin install source-control@<marketplace> -s <scope> --config KEY=VALUE` (repeatable
-  per key). Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
-  `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied comma-joined. Both
+  reconfigure via `claude plugin uninstall source-control -s <scope>` then
+  `claude plugin install source-control@<marketplace> -s <scope> --config KEY=VALUE`. Both
   commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin,
   and run from that project's directory for a `project`/`local` scope. Defaulting instead
   uninstalls a separate user-scope record while the effective install stays in place, so the
-  reinstall lands at a scope that does not load. Uninstalling also drops the stored
+  reinstall lands at a scope that does not load. The `--config` flag repeats per key, and
+  multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
+  `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied comma-joined.
+  Uninstalling also drops the stored
   `pluginConfigs` entry, so the reinstall must re-supply **every** key whose value should stay
-  non-default, not only the key being changed — this plugin declares twenty-nine, so a reinstall
+  non-default, not only the key being changed — this plugin declares thirty-five, so a reinstall
   that passes one silently resets the babysit fleet's owners, logins, tiers, caps, and worktree
   roots to their manifest defaults. Record the current values before uninstalling; afterwards
   there is nothing left to read them from.

@@ -129,12 +129,14 @@ give, rather than writing a dangling entry.
    `/plugin configure machine-health@<marketplace>` (interactive, any time) — the option is stored in plugin
    config, not the overlay. Headless: `--config` only applies on a fresh install (ignored once
    installed), so reconfigure via `claude plugin uninstall machine-health -s <scope>` then
-   `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`.
-   Both commands default to `-s user` — pass the scope `claude plugin list` reports for this
-   plugin, and run from that project's directory for a `project`/`local` scope. Defaulting
-   instead uninstalls a separate user-scope record while the effective install stays in place,
-   so the reinstall lands at a scope that does not load —
-   this skill never writes user settings or `pluginConfigs`.
+   `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`;
+   this skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` —
+   pass the scope `claude plugin list` reports for this plugin, and run from that project's
+   directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
+   record while the effective install stays in place, so the reinstall lands at a scope that does
+   not load. `report_dir` is this plugin's only `userConfig` key, so the reinstall has nothing
+   else to re-supply; uninstalling drops the stored value, so record it first if it should
+   survive the reinstall.
 
 Re-running `apply` after everything is already set changes nothing and reports "already configured".
 

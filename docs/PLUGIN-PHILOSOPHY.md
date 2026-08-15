@@ -273,6 +273,43 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   will stay that way without re-verifying, but do not omit the guidance merely because upstream
   hasn't written it down.
 
+**How a setup skill documents the headless reconfigure.** The `--config` bullet above obliges the
+skill to say the flag seeds only a fresh install; saying that alone leaves the reader with a
+two-command sequence whose *scope* is the half that fails silently. The recipe is stated inline in
+every `setup` skill whose plugin declares `userConfig` (a plugin with no keys has no headless
+reconfigure to document) rather than cited in place of the words, for the same reason the
+never-writes sentence in "Setup is explicit and repeatable" is: an installed plugin has no path to
+this file. Three fixed sentences carry it, in this order and this wording, with only the plugin
+name and the `--config` example varying:
+
+```text
+Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
+`claude plugin uninstall <plugin> -s <scope>` then
+`claude plugin install <plugin>@<marketplace> -s <scope> --config <key>=<value>`; this skill never
+writes user settings or `pluginConfigs`. Both commands
+default to `-s user` — pass the scope `claude plugin list` reports for this plugin, and run from
+that project's directory for a `project`/`local` scope. Defaulting instead uninstalls a separate
+user-scope record while the effective install stays in place, so the reinstall lands at a scope
+that does not load.
+```
+
+The semicolon tail on the first sentence is the fleet's established compressed pointer to the
+never-writes sentence above, which stays canonical; nothing else is ever folded into the three
+sentences — every other per-plugin fact is stated *after* them, the same rule the sibling blocks
+state. A plugin whose install lands disabled (`defaultEnabled: false`) adds the load-bearing
+`claude plugin enable <plugin> -s <scope>` step to its recipe; any normalization sweep preserves
+that step. Two facts follow the block, each in its own sentence and only where true of that plugin: uninstalling drops the whole stored `pluginConfigs` entry, so a
+plugin declaring more than one key says how many there are or names them, says the reinstall must
+re-supply **every** key whose value should stay non-default, and says to record the current values
+first because after the uninstall there is nothing left to read them from — a single-key plugin says
+in one clause that there is nothing else to re-supply; and `-y` skips only `uninstall`'s `--prune`
+confirmation, so where a reader is likely to reach for it the skill says the recipe never passes
+`--prune` and `-y` should not be added.
+Keeping the three sentences word-for-word is what makes a change to the recipe — a new flag, a
+changed default scope — one greppable sweep across the fleet instead of twenty judgement calls. No
+citation rides on the block: the provenance naming is once per skill, and these sentences are
+operable inline text on their own.
+
 Hook processes read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror — a hook-only export: a Bash
 call made by a skill and monitor processes do not receive it. A non-hook consumer (a `bin/` script,
 a skill-invoked shell script) takes the value through non-sensitive `${user_config.*}` substitution

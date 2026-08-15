@@ -13,16 +13,16 @@ conformingly write:
 - **A system tool** (`jq`) — `check` probes it; installing it is the operator's.
 - **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
   `pluginConfigs` setup must never write. Reconfiguration routes through Claude Code's native flow:
-  `/plugin configure rate-limit-guard@<marketplace>` interactively, any time. Headless, `claude plugin install
-  ... --config rate_limit_guard_enabled=false` seeds the value on a *fresh install only* and is
-  ignored once installed, so a headless reconfigure is `claude plugin uninstall rate-limit-guard -s
-  <scope>` then `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config
-  rate_limit_guard_enabled=<value>`. Both commands default to `-s user`, so pass the scope the
-  plugin is *actually* installed at — `claude plugin list` reports it per plugin — and run from that
-  project's directory when the scope is `project` or `local`; defaulting removes a separate user
-  record while the effective install stays in place. `-y` only skips `uninstall`'s `--prune`
-  confirmation; this recipe never passes `--prune`, so `-y` has no effect here and should not be
-  added.
+  `/plugin configure rate-limit-guard@<marketplace>` interactively, any time. Headless: `--config`
+  only applies on a fresh install (ignored once installed), so reconfigure via
+  `claude plugin uninstall rate-limit-guard -s <scope>` then
+  `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=<value>`.
+  Both commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin,
+  and run from that project's directory for a `project`/`local` scope. Defaulting instead uninstalls
+  a separate user-scope record while the effective install stays in place, so the reinstall lands at
+  a scope that does not load. `rate_limit_guard_enabled` is this plugin's only `userConfig` key, so
+  the reinstall has nothing else to re-supply. `-y` only skips `uninstall`'s `--prune` confirmation;
+  this recipe never passes `--prune`, so `-y` has no effect here and should not be added.
 - **The statusline wiring**, which lives in the **user's own** `settings.json` — neither
   `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
   mutate.
