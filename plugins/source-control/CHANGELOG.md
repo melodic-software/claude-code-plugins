@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.4]
+
+### Changed
+
+- **Docs:** `/worktree audit` no longer enumerates a subset of non-`safe` Work values
+  (#2766). SKILL.md Step 1 flags any Work value other than `safe` (owned by
+  `context/status.md`), so the list cannot drift when the axis gains a value.
+  `context/audit.md` health presentation adds `in-progress` and `dirty` — the two
+  classes `cleanup` refuses — alongside stranded/unproven. Docs-only.
+
 ## [0.54.3]
 
 ### Changed
