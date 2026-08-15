@@ -1016,6 +1016,10 @@ DISCOVERY_SKIP_PATHS=()
 DISCOVERY_SKIP_REASONS=()
 DISCOVERY_NONREPO_COUNT=0
 DISCOVERY_UNREADABLE_COUNT=0
+# Intermediate directories that are symbolic links (or Windows junctions that test as symlinks
+# under Git Bash). Discovery still does not follow them; each path is disclosed rather than omitted
+# silently (#2711).
+DISCOVERY_SYMLINK_PATHS=()
 
 # Paths where core.bare=true coincides with working-tree content and/or linked worktrees. Rejecting
 # these as "not a Git working tree" would omit the one administrative anomaly this collector exists
@@ -1208,12 +1212,21 @@ discover_repositories() {
   fi
   [[ "$depth" -lt "$MAX_DEPTH" ]] || return 0
   for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
-    [[ -d "$child" && ! -L "$child" ]] || continue
+    # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
+    [[ -e "$child" || -L "$child" ]] || continue
     name="$(basename "$child")"
     case "$name" in
     . | .. | .git | node_modules | vendor | .venv) continue ;;
-    *) discover_repositories "$child" $((depth + 1)) ;;
+    *) ;; # other names fall through to the symlink/dir probes below
     esac
+    # Symlinked/junctioned intermediate dirs: do not descend, but record for disclosure (#2711).
+    # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
+    if [[ -L "$child" && -d "$child" ]]; then
+      DISCOVERY_SYMLINK_PATHS+=("$child")
+      continue
+    fi
+    [[ -d "$child" ]] || continue
+    discover_repositories "$child" $((depth + 1))
   done
 }
 
@@ -1267,7 +1280,7 @@ done
 # contains no repositories is a valid empty audit ("0 repositories found"), not an error — the
 # operator named that tree (#2599). Hard-fail only when nothing was ever in scope: no roots walked,
 # no repos, and no stale/skip/bare-live entry to report.
-if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 && ${#ROOT_LABELS[@]} -eq 0 ]]; then
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#DISCOVERY_SYMLINK_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 && ${#ROOT_LABELS[@]} -eq 0 ]]; then
   fail "no Git working trees found in the requested scope"
 fi
 
@@ -2430,8 +2443,8 @@ done
 # (or a directory is unreadable), the path is skipped rather than aborting. Report the counts so
 # silence is not mistaken for a complete walk.
 if [[ ${#ROOT_LABELS[@]} -gt 0 ]]; then
-  printf 'Discovery skips: %s non-repository, %s unreadable\n' \
-    "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT"
+  printf 'Discovery skips: %s non-repository, %s unreadable, %s symlink\n' \
+    "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT" "${#DISCOVERY_SYMLINK_PATHS[@]}"
 fi
 
 # Config-sourced entries that failed per-entry validation during argument processing (the header
@@ -2452,6 +2465,15 @@ for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); 
     "${DISCOVERY_SKIP_REASONS[$skip_index]}" \
     "Path skipped; the rest of the fleet was audited" \
     "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun"
+done
+
+# Symlinked/junctioned intermediate directories under --root: still not followed, but never silent (#2711).
+for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink_index++)); do
+  printf '\n'
+  emit_finding UNKNOWN discovery-symlink-skip "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}" \
+    "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
+    "Path skipped; the rest of the fleet was audited" \
+    "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
 done
 
 # Bare repositories that still have working-tree content or linked worktrees (#2602). Reported
@@ -2548,16 +2570,24 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
   printf '%s\n' '---'
 done
 
-# Fleet-level findings (stale config, duplicate-checkout) get their own rollup row.
+# Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
+# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
+# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))
 done
+fleet_level_verdict="$(repo_verdict -1)"
 if [[ "$fleet_level_count" -gt 0 ]]; then
   printf 'Repo: fleet-level\n'
-  print_field Verdict "$(repo_verdict -1)"
+  print_field Verdict "$fleet_level_verdict"
   print_field 'Kind counts' "$(repo_kind_counts_text -1)"
   printf '%s\n' '---'
+  case "$fleet_level_verdict" in
+  BLOCKED*) fleet_blocked=$((fleet_blocked + 1)) ;;
+  CLEAN) ;;
+  *) fleet_candidates=$((fleet_candidates + 1)) ;;
+  esac
 fi
 
 case "$fleet_blocked" in
