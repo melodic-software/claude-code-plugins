@@ -70,7 +70,10 @@ the shared-findings-directory bullet), and `git check-ignore` on a path outside 
 `fatal: … is outside repository`, exit 128 — so a worktree-anchored probe can never succeed there,
 and `--persist-findings` would refuse every write in precisely the layout the consumer supports.
 Anchoring to `T` also answers the case the invoking worktree cannot see at all: an external root that
-sits inside *another* checkout, whose tracked space is just as real.
+sits inside *another* checkout, whose tracked space is just as real. Clear `GIT_DIR` and
+`GIT_WORK_TREE` from both probes' environment: either one set points git at a repository other than
+`T`, so the probe would answer truthfully about the wrong tree — the one failure mode `-C` alone does
+not close.
 
 **Three outcomes at step 5, and three distinct reports.** Exit 0 writes. Exit 1 means *the
 destination is tracked space*, and is reported as that. Any other exit means *the probe did not
