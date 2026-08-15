@@ -25,16 +25,22 @@ only.
 
 ## Decision
 
-**ACCEPT** — the plugin is read-only, has no automatic execution surface, and its only network access
-is explicit authenticated GitHub metadata lookup initiated by the user-invoked audit.
+**ACCEPT** — the audit skill is read-only and has no automatic execution surface; its only network
+access is explicit authenticated GitHub metadata lookup initiated by the user-invoked audit. Fleet
+mutation lives in a separate `/repo-fleet-hygiene:apply` skill with its own script and
+`allowed-tools` grant (`apply-plan.sh`), so widening `audit-fleet.sh` argv cannot silently expand
+the auditor's Bash allowlist. Apply defaults to dry-run, requires `--apply` plus interactive
+confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-closed on drift.
 
 ## Review surfaces
 
-1. **Code execution:** one user-invoked Bash script. Required binaries: Bash, Git, and optional `gh`. `--apply-plan` additionally requires `python3` to parse the plan JSON.
-   It uses quoted argv arrays, no `eval`, no `source`, no dynamic shell execution, no downloads, and no
-   write/mutation commands. Consumer config is parsed as data by `git config --file`. A positive
-   command gate admits only the collector's exact Git/gh argv shapes; arbitrary global options,
-   aliases, subcommands, API methods, and extra flags fail before process execution.
+1. **Code execution:** two user-invoked Bash scripts. Audit required binaries: Bash, Git, and
+   optional `gh`. `--apply-plan` and `apply-plan.sh` additionally require `python3` to parse plan
+   JSON. Apply mutates only under `--apply` after the batch confirmation gate (or `--yes`).
+   Both scripts use quoted argv arrays, no `eval`, no `source`, no dynamic shell execution, and no
+   downloads. Consumer config is parsed as data by `git config --file`. Audit admits only the
+   collector's exact Git/gh argv shapes; apply admits only the plan-driven delete/prune/remove
+   paths after live OID refresh.
 2. **MCP:** none.
 3. **Consumer config:** no `userConfig`, credentials, or secrets. Optional tracked/explicit config
    contains local discovery roots and canonical checkout paths only.
@@ -87,8 +93,9 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 - A worktree-looking directory cannot become a finding without Git porcelain membership.
 - `git status --porcelain` at a registered work-tree root is read-only local metadata; it never
   transmits content and cannot mutate. A failed status probe cannot be mistaken for a clean tree.
-- A high-confidence finding still cannot mutate because the script has no mutation mode;
-  `--apply-plan` only re-renders a prior plan as a dry-run approval artifact.
+- A high-confidence finding still cannot mutate from the audit script: it has no mutation mode;
+  `--apply-plan` only re-renders a prior plan as a dry-run approval artifact. Mutation requires the
+  separate apply skill with `--apply` and confirmation/`--yes`, plus live OID refresh.
 
 ## Deferred verification
 

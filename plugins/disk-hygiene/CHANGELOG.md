@@ -3,6 +3,51 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.5]
+
+### Fixed
+
+- **PowerShell `>>` append redirection is flagged like `>` (#2675).** `_POWERSHELL_OUTPUT_REDIRECT`
+  matched neither character of a `>>` pair — `(?![=>&])` rejects the first `>`, and the lookbehind
+  rejects the second — so `<cmd> >> append.txt` wrote a file with no prompt while the same command
+  with `>` prompted. Append is matched explicitly (`>>`, `2>>`, `*>>`) without widening that
+  lookahead (load-bearing for the stream-merge exclusion from #2627 and the `$null`-discard
+  exclusion from #2671). `>> $null` stays silent — a discard, not a file write — and requires a
+  real token terminator after `$null` so punctuation continuations like `>>$null/out.txt` stay
+  flagged.
+
+## [0.20.4]
+
+### Fixed
+
+- **PowerShell `$null` discards (`2>$null`, `*>$null`, `>$null`) are no longer flagged as
+  file-overwriting redirection (#2615).** The stream-merge exclusion released in 0.17.11
+  closed only the `>&` form; the character after `>` in a discard is `$`, so every
+  `2>$null` — PowerShell's `/dev/null`, the standard way to silence a noisy read-only
+  command — kept prompting. `_POWERSHELL_OUTPUT_REDIRECT` now also excludes a `>` whose
+  target is `$null`, spelled as guardrails' `ps::write_bypass` spells the same exclusion
+  and matched case-insensitively (PowerShell variable names are). Only horizontal
+  whitespace is skipped between `>` and `$null`, and `$null` itself must be followed by a
+  real token terminator (whitespace, `;`, `|`, `)`, `}`, or end-of-string) — so punctuation
+  continuations like `>$null/out.txt` or `2>$null\evil.ps1` stay flagged as file writes.
+  Real redirection still prompts: `2>out.txt`, `> out.txt`, `1>file`, `'data' > file`, a
+  non-`$null` variable target (`2>$nullish`), and a command that discards one stream while
+  redirecting another (`... 2>$null > out.txt`).
+
+## [0.20.3]
+
+### Fixed
+
+- **The documented argument surface names the root-children flags again (#2588).** Resolving the
+  conflict in #2641 inserted a fresh "Arguments and boundaries" opening paragraph above the existing
+  one instead of merging into it, orphaning that paragraph's continuation. The section was left with
+  two overlapping sentences, and the authoritative first one silently dropped `--root-children` and
+  `--root-child <name>` — reintroducing exactly the wrong-argument-surface defect #2589 was filed
+  for, against the feature #2636 had just shipped. The two sentences are merged back into one
+  carrying every flag, and the skill's `argument-hint` now lists the root-children flags it had
+  never carried. Documentation only: the engine has accepted both flags since #2636 and its
+  behavior is unchanged.
+
 ## [0.20.1]
 
 ### Fixed

@@ -999,9 +999,37 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
-# Exclude stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
-# streams and never designates a file. File redirects like `2>out.txt` still match.
-_POWERSHELL_OUTPUT_REDIRECT = re.compile(r"(?<![<>])>(?![=>&])")
+# Exclude the two redirect forms that cannot name a file:
+#   - stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
+#     streams and never designates a file;
+#   - the `$null` discard (`2>$null`, `*>$null`, `>$null`): PowerShell's
+#     /dev/null. Spelled as guardrails' `ps::write_bypass` spells it — a `>`
+#     whose target is `$null` — and case-insensitively, because PowerShell
+#     variable names are. Only horizontal whitespace is skipped between `>`
+#     and `$null`, so a trailing `>` cannot borrow a `$null` from the next
+#     line. After `$null`, require a real token terminator (whitespace, `;`,
+#     `|`, `)`, `}`, or end-of-string): punctuation continuations like
+#     `>$null/out.txt` or `2>$null\evil.ps1` are still file redirects because
+#     PowerShell concatenates the literal path onto the empty `$null` expansion.
+# File redirects still match: `2>out.txt`, `> out.txt`, `1>file`, and a command
+# that discards one stream while redirecting another (`... 2>$null > out.txt`),
+# whose second `>` has no `$null` after it.
+# Append (`>>`) is NOT covered here: `(?![=>&])` rejects the first `>` of the
+# pair and the lookbehind rejects the second, so `>>` is invisible — see
+# `_POWERSHELL_APPEND_REDIRECT` (#2675).
+_POWERSHELL_OUTPUT_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
+# File append (`>>`, `2>>file`, `*>>file`). Matched separately rather than by
+# widening the single-`>` lookahead, which is load-bearing for the stream-merge
+# and `$null`-discard exclusions above. Exclude `>> $null` the same way
+# guardrails' `ps::write_bypass` excludes the `$null` discard — case-
+# insensitively, horizontal whitespace only, and with a real token terminator
+# after `$null` (whitespace, `;`, `|`, `)`, `}`, or end-of-string) so
+# punctuation continuations like `>>$null/out.txt` stay flagged.
+_POWERSHELL_APPEND_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>>(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path
 # (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
@@ -1057,7 +1085,9 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             enabled,
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
-    if _POWERSHELL_OUTPUT_REDIRECT.search(command):
+    if _POWERSHELL_OUTPUT_REDIRECT.search(
+        command
+    ) or _POWERSHELL_APPEND_REDIRECT.search(command):
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",

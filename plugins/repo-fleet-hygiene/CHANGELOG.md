@@ -3,6 +3,36 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1]
+
+### Fixed
+
+- **Documented audit argument grammar restored after a silent prose revert (#2599).** Bare
+  positional paths and drive roots, `--project-dir` as a config rung only, the hard no-scope
+  failure, and the `bare-repo-with-working-tree` handoff row again match `audit-fleet.sh` (the
+  #2646 rebase had carried pre-#2638 skill prose forward). README / plugin / skill copy no longer
+  claim machine-wide no-argument discovery as shipped; Quick start uses an explicit `--repo`.
+
+## [0.22.0]
+
+### Added
+
+- **`/repo-fleet-hygiene:apply` — execute a prior audit action plan behind one gate (#2597).**
+  New skill + `apply-plan.sh` consume the machine-readable plan from `:audit` (`--plan-file`).
+  Default is dry-run with live OID refresh; `--apply` requires interactive confirmation or
+  `--yes` for non-interactive consent. One confirmation covers the whole fleet plan. Branch
+  deletes run before worktree cleanups. Mutable tips are re-derived immediately before every
+  delete; OID drift, missing plan OIDs, protected/current/attached branches, and dirty/unpushed
+  worktrees skip fail-closed. Batched `merged-local-branch` deletion is owned here so
+  `audit-fleet.sh` stays read-only (no execute flag on the auditor allowlist) and
+  `repo-hygiene:clean` keeps its per-branch interactive deletion model.
+
+### Changed
+
+- **Fleet cleanup-plan contract marked shipped.** README epic table and audit skill prose point
+  operators at `:apply` for execution; audit `--apply-plan` remains the read-only approval
+  artifact.
+
 ## [0.21.1]
 
 ### Fixed

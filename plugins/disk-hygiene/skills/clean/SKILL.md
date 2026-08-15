@@ -1,6 +1,6 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] <target-directory>"
+argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--root-children [--root-child <name>]...] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
@@ -37,16 +37,11 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
-`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, and one target
-directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
-`--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, and
-`--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
-by the user.
 `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
 engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
-`--report`, `--confirm-tier`, `--approval-token`, `--paths` on the other subcommands) are supplied
-by this skill's command templates, not typed by the user.
+`--report`, `--confirm-tier`, `--approval-token`, `--paths`, and `--vcs-evidence` on the other
+subcommands) are supplied by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform — the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
 unification, not a restatement: the flag previously read as engine-lane-only, which left the

@@ -5550,6 +5550,21 @@ class GuardTests(unittest.TestCase):
             "New-Item C:/tmp/file.txt -ItemType File -Force",
             "'data' > C:/tmp/file.txt",
             "Get-ChildItem C:/tmp 2>out.txt",
+            "Get-ChildItem C:/tmp > out.txt",
+            "Get-ChildItem C:/tmp 1>file",
+            # Discarding one stream does not license redirecting another: the
+            # second `>` has no `$null` after it, so the verdict still stands.
+            "Get-ChildItem C:/tmp 2>$null > out.txt",
+            "Get-ChildItem C:/tmp 2>&1 > out.txt",
+            # `$nullish` is an ordinary variable, not the null device.
+            "Get-ChildItem C:/tmp 2>$nullish",
+            # Punctuation after `$null` is a path continuation, not a discard:
+            # `$null` expands to "" and PowerShell concatenates the rest.
+            "Get-ChildItem C:/tmp 2>$null\\evil.ps1",
+            "Get-ChildItem C:/tmp 2>$null/x",
+            "Get-ChildItem C:/tmp 2>$null:altstream",
+            "Get-ChildItem C:/tmp 2>$null,x",
+            "Get-ChildItem C:/tmp >$null/out.txt",
         ):
             result = self.run_guard_powershell(command)
             assert result is not None, command
@@ -5567,6 +5582,52 @@ class GuardTests(unittest.TestCase):
             "Get-ChildItem C:/tmp 1>&2",
             "Get-ChildItem C:/tmp *>&1",
             "Get-ChildItem C:/tmp 2>&1 | Select-Object -First 1",
+        ):
+            self.assertIsNone(self.run_guard_powershell(command), command)
+
+    def test_powershell_null_discards_are_not_file_redirects(self) -> None:
+        """#2615 follow-up: `2>$null` discards output; it writes no file.
+
+        The patch proposed on #2615 excluded only a following `&`, so every
+        `$null` discard kept prompting — the character after `>` is `$`.
+        """
+        for command in (
+            "gh issue list --repo melodic-software/x --state open 2>$null",
+            "chezmoi managed | Select-String -Pattern claude 2>$null",
+            "Get-ChildItem C:/tmp 2>$null",
+            "Get-ChildItem C:/tmp *>$null",
+            "Get-ChildItem C:/tmp >$null",
+            "Get-ChildItem C:/tmp 2> $null",
+            "Get-ChildItem C:/tmp 2>$NULL",
+            "Get-ChildItem C:/tmp 2>$null; git status --short",
+            "Get-ChildItem C:/tmp 2>$null | Select-Object -First 1",
+        ):
+            self.assertIsNone(self.run_guard_powershell(command), command)
+
+    def test_powershell_append_redirects_are_file_writes(self) -> None:
+        """#2675: `>>` appends to a file; it must prompt like `>`, not slip past."""
+        for command in (
+            "Get-ChildItem C:/tmp >> append.txt",
+            "Get-ChildItem C:/tmp 2>>err.txt",
+            "Get-ChildItem C:/tmp *>>all.txt",
+            # `$nullish` is an ordinary variable target, not the null device.
+            "Get-ChildItem C:/tmp >>$nullish",
+            # Punctuation after `$null` is a path continuation, not a discard.
+            "Get-ChildItem C:/tmp >>$null/out.txt",
+            "Get-ChildItem C:/tmp 2>>$null\\evil.ps1",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "ask",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in (
+            "Get-ChildItem C:/tmp >> $null",
+            "Get-ChildItem C:/tmp >>$null",
+            "Get-ChildItem C:/tmp 2>>$null",
+            "Get-ChildItem C:/tmp *>>$NULL",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 

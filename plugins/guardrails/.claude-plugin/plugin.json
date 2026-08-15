@@ -112,7 +112,7 @@
     "block_dangerous_git_allow": {
       "type": "string",
       "title": "block-dangerous-git allow-list",
-      "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all",
+      "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all",
       "default": ""
     },
     "block_noncanonical_commit_allow": {
@@ -141,5 +141,5 @@
       "min": 1
     }
   },
-  "version": "0.28.24"
+  "version": "0.28.25"
 }

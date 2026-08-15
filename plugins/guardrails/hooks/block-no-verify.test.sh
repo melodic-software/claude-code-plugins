@@ -314,6 +314,17 @@ assert_contains "PS msg: iex of a literal gets the same actionable advice" \
   "$(pwsh_stderr "iex 'git commit --no-verify'")" \
   "Drop the iex/'&'/'.'"
 
+# --- #2662: headlines must not assert a git command is present -----------------
+# shellcheck disable=SC2016
+iex_nov_out="$(pwsh_stderr 'Invoke-Expression $cmd')"
+assert_contains "PS msg #2662: iex headline is shell-agnostic (no git-present claim)" \
+  "$iex_nov_out" "this PowerShell command cannot be parsed with confidence"
+assert_absent "PS msg #2662: iex headline does not say 'PowerShell git command'" \
+  "$iex_nov_out" "PowerShell git command"
+stop_nov_out="$(pwsh_stderr 'git --% commit --no-verify')"
+assert_contains "PS msg #2662: unparsable-git path still cannot-parse" \
+  "$stop_nov_out" "cannot be parsed with confidence"
+
 malformed_rc=0
 bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1 || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
