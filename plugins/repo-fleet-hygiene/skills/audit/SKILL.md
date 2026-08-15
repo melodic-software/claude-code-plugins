@@ -92,23 +92,21 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    404/403/network error is `UNKNOWN`, never "deleted" or "moved". A 404/403 on an identity listed
    in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still reported, never suppressed; acks
    never touch non-404/403 failures or successful-response evidence.
-3. **Merged branch:** one batched `gh pr list --repo <this-repo> --state merged --limit 200` query
-   per repository, matched locally by branch name — not a per-branch query. Two consequences a
-   reader must not assume away. A repository with more merged PRs than the window loses the older
-   ones; a full window is disclosed as `merged-pr-window-truncated`, and inside such a repository an
-   absent merged finding proves nothing. An exact per-branch `--head` fallback exists for a branch
-   the batch missed, but it is **privacy-gated**: the branch name is transmitted to github.com, so
-   the fallback runs only for a branch still present in the local remote-tracking inventory. After
-   the common merge flow — GitHub auto-deletes the head branch, a later fetch prunes the ref — that
-   branch is gated out and reported as `merge-evidence-privacy-gated`. The aggregate handoff
-   distinguishes never-pushed locals (push, then rerun) from auto-deleted merged heads (verify with
-   `gh pr list --repo github.com/<owner>/<repo> --state merged --head <branch> --json headRefOid`
-   per named branch and confirm the returned `headRefOid` equals the local tip — re-fetch cannot restore pruned
-   refs); no cleanup handoff until merge state is confirmed. Identical branch names in another
-   repository are unrelated. `HIGH` requires the PR `headRefOid` to equal the current local
-   tip. Tip drift is `MEDIUM` manual review. Git ancestry without GitHub evidence is `LOW` and never
-   called merged-by-PR — and under squash merges that ancestry predicate is near-inert, so on a
-   squash-merging fleet GitHub evidence is effectively the only merge evidence.
+3. **Merged branch:** one aliased `gh api graphql` query per repository page of local branches
+   (up to 100 `headRefName` aliases per call, `first:1`, `states:[MERGED]`). GraphQL's
+   `headRefName` argument is an **exact** match — never the search API's prefix-matching `head:`
+   qualifier, so `feature/auth` and `feature/auth-v2` never conflate. Measured rate cost stays 1
+   per call (nodeCount equals the alias count); that stays well under GitHub's documented
+   500,000-node ceiling and 5,000-point/hour primary limit. This retires the REST
+   `merged-pr-window-truncated` disclosure and the privacy-gated per-branch `--head` fallback:
+   every non-default local branch the operator asked about is queried by exact name, including
+   heads GitHub auto-deleted and a later fetch pruned. Fail closed when `gh`/GraphQL is
+   unavailable — emit `github-pr-evidence-unavailable` and never infer unmerged from a missing
+   row after a failed page. Identical branch names in another repository are unrelated. `HIGH`
+   requires the PR `headRefOid` to equal the current local tip. Tip drift is `MEDIUM` manual
+   review. Git ancestry without GitHub evidence is `LOW` and never called merged-by-PR — and
+   under squash merges that ancestry predicate is near-inert, so on a squash-merging fleet
+   GitHub evidence is effectively the only merge evidence.
 4. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
@@ -162,10 +160,6 @@ do not turn "no verified finding" into "fleet is clean".
   per-entry, not per-run: the entry becomes an `UNKNOWN` `stale-config-entry` finding and the rest of
   the fleet is still audited (deleting repositories right after an audit must not abort every
   subsequent run until the config is edited).
-- A path discovered under `--root` that is unreadable or not a Git working tree (despite a `.git`
-  marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
-  rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
-  hard-fails.
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.

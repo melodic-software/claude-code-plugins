@@ -3,6 +3,17 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Changed
+
+- **Merged-PR evidence uses aliased GraphQL and retires REST window/privacy findings (#2604).** One
+  `gh api graphql` query per repository page (≤100 exact `headRefName` aliases, `first:1`,
+  `states:[MERGED]`) replaces per-repo `gh pr list --state merged` and the privacy-gated `--head`
+  fallback. Measured rate cost stays 1 per call. Retires `merged-pr-window-truncated` and
+  `merge-evidence-privacy-gated`. Fail-closed `github-pr-evidence-unavailable` when GraphQL fails.
+  Branch matching stays exact (`feature/auth` never conflates with `feature/auth-v2`).
+
 ## [0.14.1]
 
 ### Fixed

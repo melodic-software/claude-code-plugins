@@ -9,6 +9,12 @@ Re-checked 2026-08-11 for the `allowed-tools` pairing fix: the grant is now a na
 `Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)` matching the body's direct invocation. No new
 execution, network, or config surface — the previous rule never matched, so this makes an already
 user-invoked script prompt-free rather than admitting anything new.
+Re-checked 2026-08-14 for #2604: merge evidence moves from REST `gh pr list` (window + privacy-gated
+`--head` fallback) to one aliased `gh api graphql` query per page of local branches. The allowlist
+admits only `query` documents with exact `headRefName` / `first:1` / `states:[MERGED]` shape and a
+fixed `--jq` flatten; `mutation`/`subscription` and REST `pr list` are rejected. Branch names
+transmitted are exactly the non-default local branches under audit for the operator's own resolved
+repository identity — not a silent gate that leaves branches unverdicted.
 
 ## Decision
 
@@ -29,14 +35,17 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
    Code substitutes both in skill content and in `allowed-tools` Bash rules, so the grant and the
    documented invocation resolve to the same install-local path. The plugin writes no cache or
    persistent state and has no sibling-plugin reach-outs.
-5. **Data egress:** `git` reads local metadata. `gh api` and `gh pr list` contact only `github.com` and
-   transmit repository/branch identifiers already represented by the configured GitHub remote. No
-   file content, report, commit content, diff, environment value, or absolute local path is sent.
-   Non-GitHub hosts are not contacted, and every `gh` call has a 30-second deadline plus a five-second
-   KILL grace. Compatible coreutils is feature-detected; a finite Bash watchdog covers other supported
-   platforms and has a TERM-ignoring regression test. **Accepted** as necessary first-party metadata
-   lookup. The collector pins `GH_HOST=github.com` and disables GitHub CLI prompting, update checks,
-   extension update checks, spinners, color, and telemetry for every invocation.
+5. **Data egress:** `git` reads local metadata. `gh api` (REST identity GET and aliased GraphQL
+   merged-PR queries) contacts only `github.com` and transmits repository identity plus the
+   non-default local branch names under audit for that repository. No file content, report, commit
+   content, diff, environment value, or absolute local path is sent. Non-GitHub hosts are not
+   contacted, and every `gh` call has a 30-second deadline plus a five-second KILL grace. Compatible
+   coreutils is feature-detected; a finite Bash watchdog covers other supported platforms and has a
+   TERM-ignoring regression test. **Accepted** as necessary first-party metadata lookup. The
+   collector pins `GH_HOST=github.com` and disables GitHub CLI prompting, update checks, extension
+   update checks, spinners, color, and telemetry for every invocation. Rate cost for the aliased
+   GraphQL page is documented as bounded (measured cost 1 per call; ≤100 aliases / ≤100 nodes per
+   page).
 6. **Provenance/trust:** Melodic Software authors and distributes the plugin under the repository's MIT
    license. Runtime trust is limited to locally installed Git and the official GitHub CLI; there is no
    third-party SaaS delegation beyond the repository's declared GitHub host. **Accepted.**
@@ -51,7 +60,8 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
   inherited repository/config injection selectors neutralized. The regression harness verifies those
   values at the fake-executable boundary.
 - The positive Git/gh allowlists reject representative fetch, branch deletion, remote mutation,
-  alias/config injection, PR merge, and non-GET API vectors without invoking either fake executable.
+  alias/config injection, PR merge, GraphQL `mutation`, REST `pr list`, and non-GET API vectors
+  without invoking either fake executable.
 - Branch refs and tips are buffered as NUL-delimited records with the `for-each-ref` exit status. A
   partial producer failure discards every record, emits `UNKNOWN`, and does not increment the audited
   repository count.
@@ -60,6 +70,7 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
   access-sensitive cases; it remains `UNKNOWN`.
 - A same-named branch in another repository cannot inherit PR status because every PR query includes
   the resolved repository identity.
+- GraphQL `headRefName` is exact; a merged `feature/auth-v2` cannot satisfy `feature/auth`.
 - A canonical override cannot contribute local evidence until its GitHub remote is present and proven
   identical to the discovered repository (direct normalized identity or matching canonical API result).
 - A failed worktree porcelain query cannot be mistaken for an empty attachment set; the repository's

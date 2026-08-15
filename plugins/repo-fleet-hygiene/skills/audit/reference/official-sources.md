@@ -32,8 +32,12 @@ plugin does not rely on remembered behavior.
 
 ## GitHub
 
-- [`gh pr list`](https://cli.github.com/manual/gh_pr_list) — repository/head/state filters and JSON
-  fields including `headRefName`, `headRefOid`, `mergedAt`, and `url`.
+- [`gh api graphql`](https://cli.github.com/manual/gh_api) — aliased `repository` /
+  `pullRequests(headRefName:, first:, states:)` queries for exact-name merged-PR evidence; `--jq`
+  flattens alias pages. Never use the search API's `head:` qualifier (prefix semantics).
+- [GitHub GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api) —
+  5,000-point/hour primary limit, 500,000 nodes per call, `first`/`last` ∈ 1–100. Measured cost for
+  the collector's aliased merged-PR page stays 1 (nodeCount equals the alias count, ≤100 per page).
 - [`gh repo view`](https://cli.github.com/manual/gh_repo_view) and
   [`gh api`](https://cli.github.com/manual/gh_api) — repository-qualified JSON/API lookup and
   formatted output.
@@ -62,6 +66,7 @@ plugin does not rely on remembered behavior.
 - All cleanup/repair/update operations are outside this plugin even though the official tools document
   them; this plugin reports the exact receiving-tool target only.
 - Every Git probe disables lazy fetch and optional locks. Every Git/gh call must match a fixed
-  command/option/environment allowlist; GitHub REST calls specify `--method GET` explicitly.
+  command/option/environment allowlist; GitHub REST identity calls specify `--method GET`
+  explicitly; GraphQL merge evidence admits `query` documents only (never `mutation`).
 - Worktree and branch inventories carry the producing Git command's status. Failed or partial output
   is not evidence and degrades to `UNKNOWN` without a successful-repository count.
