@@ -61,8 +61,8 @@ printf 'claude version: %s\n\n' "$CLAUDE_VERSION"
 # Pinned discriminators — recorded here so a README entry can cite them without
 # re-deriving from the script body. Changing any of these is a new probe run.
 printf 'Pinned discriminators:\n'
-printf '  creation:     plain `git worktree add` (not claude --worktree / EnterWorktree)\n'
-printf '  launch:       `cd <worktree> && claude -p … --settings <file>` (bare cd into git-worktree-add dir)\n'
+printf '  creation:     plain git-worktree-add (not claude --worktree / EnterWorktree)\n'
+printf '  launch:       cd <worktree> && claude -p … --settings <file> (bare cd into git-worktree-add dir)\n'
 printf '  paths glob:   src/** (anchored at each rule file'\''s own repo root)\n'
 printf '  parent rule:  COMMITTED in the parent checkout\n'
 printf '  hook form:    InstructionsLoaded exec (args-array) via --settings\n'

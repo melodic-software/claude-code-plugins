@@ -59,7 +59,7 @@ fi
 # 3. The owner carries what a pointer promises the reader will be there.
 assert_contains "the owner carries the anchor every pointer cites" \
   "$owner_text" "### The nesting invariant, verified"
-assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-08-15**"
+assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-08-07**"
 assert_contains "the owner carries an unconditional expiry, not only event triggers" \
   "$owner_text" "Unconditional expiry"
 # Keep the reasoning attached to the expiry, or a later reader deletes it as
