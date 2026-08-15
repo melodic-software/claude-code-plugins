@@ -1,5 +1,21 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.0]
+
+### Added
+
+- **extract-ssot: bare invocations confirm scope before surveying.** A bare
+  `/docs-hygiene:extract-ssot` with no working notes, no argument, and no conversation-implied
+  scope now asks the user (prescribed defaults, recommended option first) instead of
+  auto-dispatching the exhaustive survey; non-interactive sessions without an explicit scope report
+  options and stop.
+- **extract-ssot: orchestrated whole-repo mode (`context/orchestrated-mode.md`).** Defaults for
+  multi-agent batches at whole-repo scale: single-survey inventory, worker tiering, a static
+  conservative concurrency ceiling (default 2 — subscription rate-limit windows are shared and
+  usually unobservable), the verbatim-inlined rate-limit-guard operable floor with
+  between-dispatch checks when the guard's snapshot is present, and wave-committed cadence.
+  `actions/batch.md` Step 6 and the identify pre-flight now route through it.
+
 ## [0.13.0]
 
 ### Changed

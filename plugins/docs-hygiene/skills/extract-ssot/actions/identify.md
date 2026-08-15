@@ -32,6 +32,9 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 ## Exhaustive mode steps
 
 ```text
+0. Scope gate: exhaustive mode needs an affirmative scope — an explicit argument/user signal, or
+   the SKILL.md "Bare invocation — confirm scope first" ask answered whole-repo. Large repos run
+   the batch under context/orchestrated-mode.md defaults
 1. Pre-flight: confirm no working notes with an active candidate roster (would imply resume, not new identify)
 2. Dispatch a read-only exploration subagent with the survey prompt (template below)
 3. Subagent searches markdown surfaces with 30+ heuristics (template lists them)
