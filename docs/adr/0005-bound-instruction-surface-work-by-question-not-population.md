@@ -323,7 +323,7 @@ re-run the sweep rather than treating the row set as complete.
 | **#912** guardrails + source-control hardening audit | No / No | Hook bypass gaps and convention-enforcement SSOT |
 | **#1271** skill metadata / listing budget | No / No | Already folded per D-7 — corroborating evidence goes onto the existing ticket |
 | **#496**, **#551** runtime context economy | No / No | Runtime plane — see decision 6 |
-| **#1268** false `context: fork` rationale | No / No — **title-filter false positive** | Matched only on the literal `audit` inside another topic's slice path. It corrects one rationale inside that topic's design record, explicitly says "Do not change the decision", and has since closed. Recorded so a reader can see it was assessed rather than silently dropped |
+| **#1268** false `context: fork` rationale | No / No — **title-filter false positive** | Matched only on the literal `audit` inside another topic's slice path (`docs/topics/plugin-audit-port/`, PR #1241). It corrects one rationale inside that topic's design record, explicitly says "Do not change the decision", and has since closed. Recorded so a reader can see it was assessed rather than silently dropped |
 
 Per D-8, anything touching `plugins/skill-quality/scripts/check-skill.sh` or
 `docs/PLUGIN-PHILOSOPHY.md` sequences behind PR #1096, which claims **check 21**. The next free check

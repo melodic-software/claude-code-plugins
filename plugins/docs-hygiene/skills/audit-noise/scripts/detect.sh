@@ -120,6 +120,9 @@ audit_file() {
       else
         in_exempt=0
       fi
+      # A heading ends any marker-ignored paragraph even without a preceding
+      # blank line (unreachable in MD022-clean markdown; robustness only).
+      in_ignored_para=0
     fi
     # Opt-out markers per SKILL.md: the -line form covers the next line; the
     # bare form covers the next paragraph (through the next blank line).

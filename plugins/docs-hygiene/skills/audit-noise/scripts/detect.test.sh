@@ -86,6 +86,11 @@ First line of a wrapped paragraph with no noise,
 was renamed to something on its second line —
 paragraph scope must cover every line to the blank.
 
+<!-- markdown-discipline-ignore -->
+Marked paragraph followed directly by a heading.
+## Heading closes the marker scope
+We pivoted from the heading-scope layout.
+
 Path-scoped to `docs/**` per the loader.
 EOF
 
@@ -123,6 +128,7 @@ opt_out="$(bash "$DETECT" "$OPTOUT")"
 assert_not_contains "opt-out citation suppressed" "$opt_out" "bar-rollout"
 assert_not_contains "opt-out line suppressed" "$opt_out" "2026-05-01 incident"
 assert_not_contains "opt-out paragraph scope covers wrapped lines" "$opt_out" "was renamed to something on its second"
+assert_contains "heading ends marker scope even without a blank" "$opt_out" "heading-scope layout"
 assert_contains "scope-meta still detected" "$opt_out" "Finding shape: scope-meta"
 
 # --- 5. Backtick-wrapped slash-command roster detected ------------------------------

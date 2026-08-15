@@ -28,6 +28,7 @@ PR.
 
 ## History
 
-Prior issues (#2233, #2266) cited a memory-tier research file as this
-ledger; that path was never created, so absence claims were unfalsifiable
-until this file shipped (#2354).
+Prior issues (#2233, #2266) cited
+`.work/songwriting-plugin-pilot/suno-drift/RESEARCH.md` as this ledger;
+that memory-tier path was never created, so absence claims were
+unfalsifiable until this file shipped (#2354).

@@ -72,9 +72,10 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
    memory tiers) sectioned separately in the report; scan via a chunked `detect.sh` pass; on a
    large corpus, judge only scanner-flagged files, fanning out a small number of concurrent
    subagents with one fresh-context verification pass over the merged verdicts; report first —
-   treatments are applied only after the report is reviewed (report-vs-fix-as-you-go is the
-   author's call, and report-first is the accuracy-preferred default because repeating shapes get
-   one corpus-wide treatment decision). Unattended (no human to confirm), surface the offer as
+   this skill stays read-only either way, and the author applies any treatment edits only after
+   reviewing the report (report-vs-fix-as-you-go is the author's call; report-first is the
+   accuracy-preferred default because repeating shapes get one corpus-wide treatment decision).
+   Unattended (no human to confirm), surface the offer as
    blocked and stop — never launch the repo-wide run on silence.
 2. Empty arg AND uncommitted `.md` files → batch audit over those files
 3. Single file path → single-file audit
