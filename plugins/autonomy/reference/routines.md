@@ -188,10 +188,10 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | malicious-code-scan | AGT | R | repo | C5 (reads attacker-writable third-party code) | join: proven recurring manual pattern |
 | **Code quality / knowledge** | | | | | |
 | tech-debt-sweep | hybrid: DET recipes (no agent session); AGT sweep is the routine | WI | repo | C1 (WI); prioritization disposition human-gated | v1 |
-| dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | detect n/a — no agent session; quarantine-exit DC C3 (liveness not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat the build) | join: proven recurring manual pattern |
+| dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | C3 (liveness not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat the build); per-item escalation to C4 on a published surface | join: proven recurring manual pattern |
 | clone-trend-gate | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
-| cant-fail-test-repair | hybrid: DET detect (no agent session); AGT repair judgment is the routine | DC (PR) | repo | detect n/a — no agent session; repair DC C3 (an assertion's adequacy is not mechanically checkable — a test that now fails may be right or wrong) | join: proven recurring manual pattern |
-| stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | detect n/a — no agent session; removal DC C4 (a flag definition is a configuration surface); disposition human-gated | join: proven recurring manual pattern |
+| cant-fail-test-repair | hybrid: DET detect (no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable — a test that now fails may be right or wrong) | join: proven recurring manual pattern |
+| stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | C4 (a flag definition is a configuration surface; composes above the C3 the direct-change rule alone would give); disposition human-gated | join: proven recurring manual pattern |
 | formal-logic-modeling | AGT | R | repo | C1 | join: a stated invariant or specification artifact exists to model against |
 | layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
 | logic-simplification-sweep | AGT | DC (PR) | repo | C3 (equivalence above expression level is not mechanically checkable) | join: published effectiveness evidence exists |
@@ -219,6 +219,25 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 Normative detail a row's cells cannot carry. A parameter here binds the class; it is not
 commentary, and a leaf that contradicts one is non-conforming.
 
+- **Every hybrid row above is portion-split, so each binds a posture-qualified identity** —
+  `<class-token>/<posture-token>`, never the bare class token, per "Routine identity". The
+  no-agent-session property belongs to the detect portion and is stated in the Judgment cell; the
+  `Derived row` cell carries the judgment portion's class, because that portion IS the routine. A
+  hybrid row is therefore never flagged `not-a-routine` — that flag is reserved for a wholly
+  deterministic class with no agent portion at all.
+- **`dead-code-sweep` — `C3` is the class-level derivation; a published surface escalates the ITEM
+  to `C4`.** Deleting a symbol on a published, cross-repo-consumed API surface is a contract change,
+  so the structural-blast-radius rule fires per item and composition takes it to `C4`. The class does
+  not derive `C4` wholesale, because then the direct-change rule's `C2`/`C3` branch would be nearly
+  unpopulated for repo-scoped deletion work. The definition leaf owns the predicate that decides
+  which side an item falls on. What turns on it: `C3` versus `C4` is the difference between
+  auto-merge ever becoming eligible and human merge always.
+- **`dead-code-sweep` — a green quarantine window is inductive evidence, never proof.** It shows no
+  observed invocation over a bounded period under observed workloads. The paths a bounded window
+  under-samples worst — disaster recovery, annual and quarterly jobs, error and fallback branches, a
+  downstream consumer pinned to an older version — are exactly the ones that make deletion dangerous.
+  A suite that still passes after removal proves the suite does not cover the symbol, which is the
+  null hypothesis rather than the alternative.
 - **`dead-code-sweep` — the quarantine window floor is 30–90 days with staged quarantine, never a
   one-day window.** Removal is staged: detect, quarantine, and only then judge the exit. The floor
   is not tunable downward by an org binding. Published practice at scale runs an order of magnitude
@@ -228,6 +247,11 @@ commentary, and a leaf that contradicts one is non-conforming.
   in this class and is not a deferred posture of it: twenty years of clone-detection tooling produced
   no production automation for deciding which clones to unify, so there is nothing to defer to. A
   request to add a unify posture re-opens the class rather than extending it.
+- **`stale-flag-removal` — `AGT/HUM` assigns a disposition, not a class.** That rule is class-silent
+  by construction, so it never terminates a derivation: a row stopping there would carry a
+  human-gated disposition with no verification topology, no checker floor, and no cost tier. The
+  numeric class comes from the remaining rules — here `C3` from the direct-change rule, composed to
+  `C4` by the configuration surface. The same reading applies to every `AGT/HUM` row.
 - **`stale-flag-removal` — the disposition never automates.** Staleness is detectable; which branch
   survives is a product decision. The flag-lifecycle tools that lead this space stop at the same
   line, and the ones that act do so only where the decision was pre-encoded (a flag already at a
@@ -244,6 +268,12 @@ commentary, and a leaf that contradicts one is non-conforming.
   behavior preservation; simplification above that level changes behavior in the general case, which
   is why it sits outside them rather than being excluded by name within them. No published
   effectiveness evidence supports automating it.
+- **`abstraction-flattening` — the structural axis fires on the change's TARGET, not its file.** The
+  change edits module boundaries and type/interface structure, which is the structural surface
+  itself; cross-cutting blast radius is the shape of the operation rather than a risk it might incur.
+  A one-line fix that merely lives in a file declaring an interface is the over-read this
+  distinction excludes. A purely mechanical single-implementation inline does not demote the row
+  either — the axis keys on blast radius, not on how reliable the mechanism performing the edit is.
 - **`abstraction-flattening` — the fault data runs backwards.** Beyond having no validated detector,
   the empirical record does not support the premise: the smells this class would target
   (Speculative Generality, Middle Man) are in some studies associated with *fewer* faults, not more.

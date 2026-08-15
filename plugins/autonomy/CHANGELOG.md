@@ -18,7 +18,18 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   `gui-crash-fuzzing`). `dead-code-sweep` was amended rather than duplicated: it was `DET detect`
   only, and the quarantine-exit judgment makes it a hybrid whose judgment portion derives `C3`,
   because liveness is not mechanically checkable — reflection, dynamic dispatch, and out-of-tree
-  callers all defeat the build.
+  callers all defeat the build. `C3` is the **class-level** derivation: deleting a symbol on a
+  published, cross-repo-consumed surface is a contract change, so the structural axis fires per item
+  and escalates that item to `C4`. The class does not derive `C4` wholesale, or the direct-change
+  rule's `C2`/`C3` branch would be nearly unpopulated for repo-scoped deletion work.
+- **Three derivation rules made explicit** that the mapping rules imply but never state, each one a
+  place an independent re-derivation showed a careful reader can stop early or over-read: a hybrid
+  row is portion-split and so binds a posture-qualified identity, its `Derived row` cell carries the
+  judgment portion's class, and it is **never** flagged `not-a-routine` — that flag is reserved for a
+  wholly deterministic class. `AGT/HUM` assigns a **disposition, not a class**, so it never
+  terminates a derivation; a row stopping there would carry a human-gated disposition with no
+  verification topology, checker floor, or cost tier. And the structural-blast-radius axis fires on
+  the change's **target**, not on the file it lives in.
 - **A `Class parameters` section** carrying the normative detail a row's six cells cannot hold. Most
   load-bearing: `dead-code-sweep`'s quarantine window floor of **30–90 days with staged quarantine,
   never one day**, not tunable downward by an org binding — published practice at scale runs an
