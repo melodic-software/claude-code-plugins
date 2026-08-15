@@ -438,6 +438,12 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     def elide: if (length > 60) then (.[0:60] + "…") else . end;
     def tok: ((.typo // "") | elide);
     def corr1: ((.corrections[0] // "") | elide);
+    # Every candidate, not just the first. `corr1` is exact on the APPLIED side
+    # — typos only ever rewrites a single-candidate finding — but a RESIDUAL
+    # finding can carry several, and those are precisely the ones typos refuses
+    # to auto-correct. Rendering only `corrections[0]` there states a definite
+    # correction the tool itself declined to make (#2659).
+    def corrs: ([.corrections[] | elide] | join(" or "));
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
     | parse($lines[($sep + 1):]) as $r
@@ -482,7 +488,7 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
             if .corrections == null then
               "  \"\(tok)\" (line \(.line_num // 0)) is disallowed, no known correction."
             else
-              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\"."
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \(if (.corrections|length) > 1 then "\(corrs) (ambiguous — typos will not auto-correct this)" else "\"\(corrs)\"" end)."
             end) | join("\n"))
       }' 2>/dev/null) || CLASSIFIED=""
 
