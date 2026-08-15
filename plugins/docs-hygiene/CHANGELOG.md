@@ -14,6 +14,13 @@
   corpus; a large one now groups ~15-25 documents per subagent by directory affinity, so a
   1000-doc repo needs tens of agents rather than a thousand. Default concurrency is pinned low
   (3-4) — rate-limit headroom over wall-clock.
+- **`audit-derivability`: corpus output is bounded and the spot-test cap defers, never waives.**
+  Sweep subagents write per-document detail to batch ledger files; the reply carries only the
+  aggregate, the actionable subset (confirmed vs provisional), and ledger pointers — so a large
+  corpus cannot blow the parent context or one reply. A load-bearing `delete`/`convert-to-pointer`
+  verdict past the spot-test cap is provisional and excluded from actionable routing until its
+  deferred spot-test runs, reconciling the cap with the mandatory spot-test hard rule (Codex
+  review, #2695).
 
 ## [0.11.3]
 

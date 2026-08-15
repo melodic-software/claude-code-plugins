@@ -65,7 +65,7 @@ Gate the spot-test by stakes: skip it for an obviously trivial derivable file (a
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files; file path → single doc; dir path → each `.md` directly in it | Run the rubric per document: heuristic pass, spot-test where gated, emit the verdict ledger |
 | `audit [target]` | same target rules | Explicit form of the default; identical behavior |
-| `sweep <dir>` | a directory to walk recursively | Corpus audit. Throttled fan-out of fresh read-only subagents at deliberately low bounded concurrency (default 3-4 at a time — rate-limit headroom beats wall-clock). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context. Each subagent returns per-document verdicts; aggregate into one ledger. Never load the whole corpus into one context. |
+| `sweep <dir>` | a directory to walk recursively | Corpus audit. Throttled fan-out of fresh read-only subagents at deliberately low bounded concurrency (default 3-4 at a time — rate-limit headroom beats wall-clock). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context. Each subagent writes its per-document verdict blocks to a batch ledger file (session scratchpad or similar) and returns compact verdicts and counts; the reply carries the aggregate, the actionable subset, and pointers to the batch ledgers — corpus-scale per-document detail never streams through one context or one reply. |
 
 One action per response; actions do not chain implicitly. `sweep` is the only recursive mode — the bare/`audit` default never walks subdirectories, so a large tree is never audited by accident.
 
@@ -85,7 +85,7 @@ The interview knobs for the confirmation in rule 1, each with its default. A con
 - **Execution** — the `sweep` contract: fresh read-only subagents, batched for a large corpus.
 - **Concurrency** — low (3-4 concurrent) by default: rate-limit headroom over wall-clock; raise only if the user asks.
 - **Subagent model tier** — the session's model unless the user pins a tier.
-- **Spot-tests** — run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap; verdicts whose spot-test was skipped are reported as *provisional*, never as confirmed.
+- **Spot-tests** — run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap per pass. A flagged verdict past the cap is emitted as **provisional**: pending its spot-test, excluded from the actionable-routing offer, never presented as a confirmed delete. The cap *defers* the hard rule's spot-test to a follow-up pass; it never waives it.
 
 ## Output schema
 
@@ -113,6 +113,8 @@ Batch / sweep aggregate at the end:
 Audited <N> document(s): <d> delete, <p> convert-to-pointer, <c> keep-as-cache, <k> keep-owns-facts.
 ```
 
+Corpus-scale sweeps (more documents than one reply can carry): the per-document blocks live in the batch ledger files; the reply carries the aggregate line, the actionable (`delete` / `convert-to-pointer`) subset split into confirmed vs provisional, and the ledger file locations.
+
 After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointer) to the consumer's work-item tracker — one item per document — and stop. Never auto-file, never auto-edit.
 
 ## Hard rules
@@ -120,7 +122,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. The author applies every deletion and rewrite. Deletion is the highest-stakes doc edit; the classifier only recommends.
 - **Never derivability alone.** A `delete` verdict requires all of: derivable, low re-derivation cost, no owned facts. Any owned non-derivable fact forces `keep-owns-facts`.
 - **Cache verdicts carry a drift-control condition or they demote.** No regeneration path and no recheck trigger → not a cache, demote to pointer/delete.
-- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (official docs contrast it with a skill's `context: fork`, which starts blank; #1258 contests the Agent-tool half at runtime — documented guidance for routing, not a settled probe result).
+- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (official docs contrast it with a skill's `context: fork`, which starts blank; #1258 contests the Agent-tool half at runtime — documented guidance for routing, not a settled probe result). A verdict whose spot-test is deferred (e.g. past a sweep's cap) stays provisional and is never routed as actionable.
 - **Audience named in every verdict.** Agent-facing and human-facing docs clear different deletion bars.
 - **The empty-target escalation is offer-only.** A repo-wide sweep from the no-op path runs only after explicit user confirmation; decline or silence ends as the no-op.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
