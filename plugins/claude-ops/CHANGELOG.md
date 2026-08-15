@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.3]
+
+### Changed
+
+- **`known-issues/context/registry-schema.md` is now a pointer, not a copy.** A repo-wide
+  derivability audit (#2695) spot-tested the doc: a fresh-context agent reproduced every field,
+  enum, and validation rule from `scripts/registry_manager.py` alone — and more accurately than the
+  restatement. The file now points at the script's `REQUIRED_FIELDS` / `VALID_CATEGORIES` /
+  `VALID_STATUSES` / `validate_issue()` / `resolve_data_dir()` instead of restating them.
+
 ## [0.32.2]
 
 ### Fixed

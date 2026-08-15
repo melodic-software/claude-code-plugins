@@ -442,6 +442,20 @@ jobs:
       - name: Run cross-plugin-source-drift tests
         run: bash scripts/check-cross-plugin-source-drift.test.sh
 
+  detector-findings-crosswalk-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Self-test first, so a broken detector cannot mask a regression.
+      - name: Run detector-findings-crosswalk tests
+        run: bash scripts/check-detector-findings-crosswalk.test.sh
+      - name: Check every crosswalk row argues its disposition from a stated test
+        run: scripts/check-detector-findings-crosswalk.sh --check
+
   skill-leaf-name-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1168,6 +1182,7 @@ jobs:
       - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
+      - detector-findings-crosswalk-gate
       - skill-leaf-name-gate
       - userconfig-argv-gate
       - hook-exec-form-gate

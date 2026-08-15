@@ -119,7 +119,7 @@ boundaries are deliberate, not incidental.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - a new pattern, idiom, or structure standing beside an existing one that
   already solves the same thing, with no stated reason for the second way;

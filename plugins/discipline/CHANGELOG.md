@@ -5,6 +5,23 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.8]
+
+### Changed
+
+- **Plugin-quality audit fixes.** (1) The manifest description's closed "two further species"
+  enumeration had already drifted (it omitted `setup`); it is now open phrasing with marked
+  examples — the exact pin `point-dont-copy` itself prescribes. (2) `scrutinize-dont-coast`
+  declared two deltas to the shared loop while making three; the fresh-context relocation of the
+  loop's step 2 is now enumerated as the third. It also gains a parenthetical distinguishing the
+  Agent-tool fork (inherits conversation) from a skill's `context: fork` (isolated) — the docs
+  overload the word. (3) Sibling boundaries were declared one-way; `reason-dont-recite` now names
+  the reciprocal carve-outs (recheck-against-upstream, reuse-or-replace, pick-for-the-problem) and
+  `pick-for-the-problem` names `reuse-or-replace`'s consistency axis, so a scope edit on either
+  side has the other in view. (4) Method-doc step citations now carry the step's name alongside its
+  number ("step 2, self-audit") across the correctors, so a future loop renumbering cannot
+  silently invalidate them.
+
 ## [0.12.7]
 
 ### Changed

@@ -3,6 +3,17 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1]
+
+### Changed
+
+- **README de-duplicated toward its authoritative sources.** A repo-wide derivability audit (#2695)
+  spot-tested the README and found it stale where it diverged from code — its closed ecosystem list
+  named six ecosystems while `/toolchain:check` supports more (including `go`). The README now
+  defers behavior, flags, and the current ecosystem surface to each skill's `SKILL.md` and the
+  ecosystem-commands convention instead of restating them, keeping purpose, skill roles, install,
+  configuration, and license.
+
 ## [0.13.0]
 
 ### Added

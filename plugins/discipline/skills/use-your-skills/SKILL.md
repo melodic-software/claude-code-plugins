@@ -63,7 +63,7 @@ The discipline, at each of the three surfaces where skills apply:
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - a multi-step or specialized task carried by hand where a skill in the
   listing already owns that exact procedure;

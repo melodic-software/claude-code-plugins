@@ -3,6 +3,51 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **`fix` gains a fourth surface-instead-of-apply trigger: the remediation lies outside the finding's
+  `Location` (#2681).** Step 4 fences each fix to its finding's `Location`, and the findings shape has
+  no remediation-target column, so a row whose fix belongs in another file — a surviving mutant fixed
+  in its covering test, a contract violation detected at a caller and fixed at the callee — left a
+  fixer choosing between breaching its own fence and inventing a reason to surface. The existing three
+  triggers do not cover it: such a row can be high-confidence, mechanically contained, and low blast
+  radius. The new trigger is the disposition the contract was missing, and it is deliberately not a
+  column — what a column would enable is an unattended two-file apply, which is exactly what the fence
+  forbids.
+
+### Changed
+
+- **The consumption record is keyed to a CONSENTED gate and a pass that ran to completion, not to
+  having applied something (#2681).** The old trigger conflated two states: a gate the operator
+  **declined**, and a pass that **ran to completion and surfaced every row**. Only the first is what
+  the no-record rule was for. Left keyed to application, the off-site routing above would have made a
+  detector whose remediation is off-site *by construction* — a mutation-survivor producer, every one
+  of whose rows surfaces — emit a file that is never recorded, never subtracted, and therefore
+  re-merged and re-surfaced on every subsequent `fix` run, forever. That is the unbounded-noise
+  failure Step 1 exists to prevent, arriving through the ledger instead of the scan. A declined
+  interactive gate and the non-interactive STOP still write nothing: both emit a plan and process
+  nothing, and a record there would retire files the action never opened — a worse silent drop than
+  the one being closed. Operators will now see records from passes that changed no files.
+- **`Consumption is per FILE, not per row` is EXTENDED to the zero-applied case, not merely applied
+  to it.** Its wording covered a *partly* surfaced or operator-narrowed file, both of which
+  presuppose a non-empty applied set, so the zero case was silent rather than decided. Two zero
+  shapes are now argued separately: a file whose rows were all surfaced is retired because every one
+  is rendered individually in the "Not applied" table with its producer, and a **coverage-only** file
+  (no data rows at all — the ordinary output of a detector that examined its surface and found
+  nothing) is retired because it carries coverage rather than findings and has nothing to recover.
+- **`An apply that terminates abnormally writes no record` becomes `a pass`, and now names two
+  cases.** A purely-surfaced pass that dies partway through rendering the "Not applied" table retires
+  rows it never rendered, and that table is the only route back to a surfaced row — so a partial
+  apply is no longer "the one case". The record body's title and its applied lists take `(none)`,
+  matching the convention the "Not applied" table already set.
+- **Step 2 routes an off-site row to surface-only, and Step 3's counts follow.** Deciding it at
+  classification rather than at apply time is what keeps the plan honest: the correctness count is
+  what Step 4 will attempt, so a row Step 4 would decline is never counted as one it will fix. The
+  `Surface-only` plan line now names off-site remediation alongside human judgment and unparsed
+  entries, which is where such a row lands and is listed by name in the consumption record.
+
 ## [0.20.1]
 
 ### Changed
