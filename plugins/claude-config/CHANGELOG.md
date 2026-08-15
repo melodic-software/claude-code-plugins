@@ -12,6 +12,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   doc (encapsulation audit, Path A promotion — all six `extract-ssot verify` gates passed);
   `reference/run-state-and-resumability.md` §3 defers to it and keeps only how this run obtains the
   key. No dual-maintenance remains.
+- **`audit-instructions`: `conflict-criteria.md` names the C6 sibling in public terms.** The
+  cross-plugin relative link into `claude-memory:audit`'s private criteria file is gone
+  (encapsulation audit; Path A promotion refused at Rule of Three — the boundary's other
+  reproductions are immutable ADRs); the check is cited by skill name + check id with the question
+  quoted inline.
 
 ## [0.38.1]
 
