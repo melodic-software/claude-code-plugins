@@ -271,7 +271,7 @@ for-each-ref)
   if [[ "${3:-}" == refs/remotes/*/ ]]; then
     case "$base" in
     canonical-a)
-      printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
+      printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\norigin/feature/remote-only\tremote-only-tip\0\norigin/feature/stale-cached\tstale-cached-tip\0\norigin/feature/ls-fail\tls-fail-tip\0\n'
       ;;
     # Moved-identity checkout (#2600): remote still advertises the feature head for tip-drift
     # push-state wording; GraphQL merge evidence uses the resolved identity independently.
@@ -311,6 +311,22 @@ for-each-ref)
   prefix-auth) printf 'main\tpa-main\0\nfeature/auth\tauth-tip\0\nfeature/auth-v2\tauth-v2-tip\0\n' ;;
   sub-wt) printf 'main\tsub-main\0\n' ;;
   sep-wt) printf 'main\tsep-main\0\n' ;;
+  esac
+  ;;
+ls-remote)
+  # Live remote existence probe for merged-remote-branch HIGH confidence. Default: echo the
+  # matching tip. feature/stale-cached is present only in the local remote-tracking inventory
+  # (auto-deleted upstream); ls-remote returns empty. feature/ls-fail forces a probe error → MEDIUM.
+  [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
+  case "${3:-}" in
+  refs/heads/feature/stale-cached) exit 0 ;;
+  refs/heads/feature/ls-fail) exit 7 ;;
+  refs/heads/feature/remote-only) printf 'remote-only-tip\trefs/heads/feature/remote-only\n' ;;
+  refs/heads/feature/shared) printf 'sha-a\trefs/heads/feature/shared\n' ;;
+  refs/heads/feature/moved-local) printf 'moved-local-tip\trefs/heads/feature/moved-local\n' ;;
+  refs/heads/feature/moved-merged) printf 'moved-merged-tip\trefs/heads/feature/moved-merged\n' ;;
+  refs/heads/*) exit 0 ;;
+  *) exit 96 ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -395,6 +411,9 @@ api)
         feature/shared) printf '18|sha-a|2026-07-01T00:00:00Z|https://github.com/acme/repo-a/pull/18' ;;
         stale/changed) printf '42|merged-tip|2026-07-02T00:00:00Z|https://github.com/acme/repo-a/pull/42' ;;
         stale/gone) printf '43|other-tip|2026-07-03T00:00:00Z|https://github.com/acme/repo-a/pull/43' ;;
+        feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
+        feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
+        feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
         *) printf '' ;;
         esac
         ;;
@@ -603,6 +622,41 @@ assert_kind_targets "moved-remote still emits merged-worktree on resolved identi
   merged-worktree "old-repo :: feature/moved-merged" "new-clone"
 assert_kind_targets "moved-remote still emits merged-local-branch on resolved identity" \
   merged-local-branch "old-repo :: feature/moved-local" "new-clone"
+
+# #2607: remote heads that still exist after a MERGED PR are a distinct finding from local cleanup.
+assert_contains "merged remote-tracking head is reported" "Finding: merged-remote-branch"
+assert_kind_targets "remote-only merged head is reported without a local branch" \
+  merged-remote-branch "canonical-a :: origin/feature/remote-only" "stale/changed"
+assert_kind_targets "matching remote tip for an attached branch still emits merged-remote-branch" \
+  merged-remote-branch "canonical-a :: origin/feature/shared" "stale/changed"
+assert_not_contains "tip-drift remote tip is not a merged-remote-branch candidate" \
+  "Target: $TMP/canonical-a :: origin/stale/changed"
+assert_contains "merged-remote-branch handoff is dry-run preview only" \
+  "push --delete --dry-run origin feature/remote-only"
+assert_contains "merged-remote-branch names delete_branch_on_merge as complementary" \
+  "Enabling GitHub delete_branch_on_merge is complementary"
+assert_kind_targets "moved-remote still emits merged-remote-branch on resolved identity" \
+  merged-remote-branch "old-repo :: origin/feature/moved-local" "new-clone"
+# ls-remote proof → HIGH; empty ls-remote (auto-deleted upstream) → no finding; probe fail → MEDIUM.
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$output" |
+  grep -Fq "Confidence: HIGH"; then
+  printf 'PASS: ls-remote-confirmed merged-remote-branch is HIGH\n'
+else
+  printf 'FAIL: ls-remote-confirmed merged-remote-branch is HIGH\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "HIGH evidence names ls-remote confirmation" "ls-remote confirmed refs/heads/feature/remote-only"
+assert_not_contains "auto-deleted upstream is not reported as merged-remote-branch" \
+  "origin/feature/stale-cached"
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ls-fail" "$output" |
+  grep -Fq "Confidence: MEDIUM"; then
+  printf 'PASS: ls-remote failure demotes merged-remote-branch to MEDIUM\n'
+else
+  printf 'FAIL: ls-remote failure demotes merged-remote-branch to MEDIUM\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "MEDIUM evidence names unverified remote existence" \
+  "current remote existence could not be verified (ls-remote failed)"
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
@@ -1127,6 +1181,7 @@ else
   failures=$((failures + 1))
 fi
 assert_not_contains_file "no merged claim without GitHub evidence" "Finding: merged-local-branch" "$ladder_out"
+assert_not_contains_file "no merged-remote claim without GitHub evidence" "Finding: merged-remote-branch" "$ladder_out"
 
 # The tier table is the contract a consumer tiers decisions on, and it silently fell to covering
 # half the emitted kinds. Assert set equality in BOTH directions instead: a new emit_finding kind
@@ -1329,6 +1384,8 @@ run_git_probe -c alias.remote='!touch /tmp/pwned' remote >/dev/null 2>&1 && forb
 run_git_probe -C "$TMP/repo-b" branch -D main >/dev/null 2>&1 && forbidden_rejected=false
 run_git_probe -C "$TMP/repo-b" remote set-url origin https://example.invalid >/dev/null 2>&1 &&
   forbidden_rejected=false
+run_git_probe -C "$TMP/repo-b" push --delete --dry-run origin feature/x >/dev/null 2>&1 &&
+  forbidden_rejected=false
 run_git_probe config --file "$TMP/config/repo-fleet-hygiene.conf" --get-regexp -z '.*' >/dev/null 2>&1 &&
   forbidden_rejected=false
 run_bounded_gh api repos/acme/repo-b --hostname github.com --method POST --template x >/dev/null 2>&1 &&
@@ -1344,6 +1401,9 @@ status_rejected=true
 run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 && status_rejected=false
 allowed_log=true
 run_git_probe -C "$TMP/wt-a" log -1 --format=%ct HEAD >/dev/null 2>&1 || allowed_log=false
+allowed_ls_remote=true
+run_git_probe -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared >/dev/null 2>&1 ||
+  allowed_ls_remote=false
 if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
   printf 'FAIL: exact command allowlist admitted a forbidden Git/gh vector\n' >&2
   failures=$((failures + 1))
@@ -1361,6 +1421,13 @@ if [[ "$allowed_log" != "true" ]]; then
   failures=$((failures + 1))
 else
   printf 'PASS: log probe is admitted by the Git allowlist\n'
+fi
+
+if [[ "$allowed_ls_remote" != "true" ]]; then
+  printf 'FAIL: ls-remote --heads probe was not admitted by the Git allowlist\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: ls-remote --heads probe is admitted by the Git allowlist\n'
 fi
 
 # Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).

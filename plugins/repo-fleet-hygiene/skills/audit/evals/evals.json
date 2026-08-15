@@ -173,6 +173,20 @@
         "Names the #2608 rollup and #2609 consumer as unshipped contracts",
         "Keeps branch and worktree cleanup with the per-repository owners and their confirmation gates"
       ]
+    },
+    {
+      "id": 15,
+      "name": "merged-remote-branch-is-optional-preview-not-settings-mutation",
+      "prompt": "A fleet audit finds origin/feature/cleanup still present after PR #44 MERGED with headRefOid equal to the remote-tracking tip. delete_branch_on_merge is off in this org's Pulumi-managed settings. What should the report do?",
+      "expected_output": "After matching the MERGED PR headRefOid to the last-fetched remote-tracking tip, confirm the head still exists with ls-remote. Matching tip → HIGH merged-remote-branch with an optional git push --delete --dry-run preview handoff, separate from local cleanup. State that enabling delete_branch_on_merge is complementary and not a substitute for this visibility. Do not call org-admin APIs or change repository settings from the audit. If ls-remote fails, report MEDIUM as a cached observation; if ls-remote is empty, emit no finding.",
+      "files": [],
+      "expectations": [
+        "Requires ls-remote confirmation (or demotes to MEDIUM) before treating a remote-tracking tip as live HIGH evidence",
+        "Emits merged-remote-branch from GitHub MERGED PR evidence matched to the remote tip when live existence is proven",
+        "Offers only an optional dry-run preview handoff, never inline remote deletion",
+        "Treats delete_branch_on_merge as complementary documentation, not something the audit flips",
+        "Does not call org-admin APIs to change repository settings"
+      ]
     }
   ]
 }

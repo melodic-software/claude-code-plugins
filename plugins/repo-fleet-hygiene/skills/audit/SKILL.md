@@ -1,5 +1,5 @@
 ---
-description: "Coordinate Git/GitHub hygiene across a machine-wide fleet: discover canonical repositories, collect and roll up cross-repository evidence, and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
+description: "Coordinate Git/GitHub hygiene across a machine-wide fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
 argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
@@ -123,7 +123,18 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    review. Git ancestry without GitHub evidence is `LOW` and never called merged-by-PR — and
    under squash merges that ancestry predicate is near-inert, so on a squash-merging fleet
    GitHub evidence is effectively the only merge evidence.
-4. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
+4. **Merged remote branch:** after local classification, the same merged-PR rows are matched
+   against each remote-tracking tip under the selected remote. When `headRefOid` equals that tip
+   and the branch is not the default, probe live existence with
+   `git ls-remote --heads <remote> refs/heads/<branch>`. A matching tip → `HIGH`
+   `merged-remote-branch` (remote head still present after merge — unset or blocked
+   `delete_branch_on_merge`). ls-remote failure → `MEDIUM` cached observation (may be stale after a
+   prune-less fetch). Empty ls-remote → no finding (head already gone upstream). Remote-only heads
+   (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
+   preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
+   flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
+   accruing) and is **not** a substitute for this fleet visibility.
+5. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
    the canonical checkout's expected common dir. A mismatch is `HIGH` evidence of an administrative
@@ -134,8 +145,9 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    verdict. If either inventory command fails or emits malformed/partial output, discard it, emit `UNKNOWN`,
    stop local branch/worktree classification, and do not count that repository as successfully
    audited; an empty/failed inventory never means no branches are attached.
-5. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
-   cleanup candidates. A merged worktree is routed to worktree dry-run first.
+6. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
+   cleanup candidates. A merged worktree is routed to worktree dry-run first. `merged-remote-branch`
+   is independent of local attachment — it describes the remote ref.
 
 Every emitted finding kind, both confidence axes, and the merge-strategy and
 `gc.worktreePruneExpire` dependencies the tiers rest on:
@@ -236,6 +248,7 @@ issues merge:
 | Finding | Handoff (not executed here) |
 |---|---|
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
+| `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation — this audit does not change it |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator — emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |

@@ -3,6 +3,22 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **`merged-remote-branch` findings for heads still on origin after merge (#2607).** When
+  `delete_branch_on_merge` is not enabled (or a remote head survived), the collector reports merged
+  remote branches that remain on the configured remote and hands off exact cleanup guidance.
+  Enabling GitHub auto-delete remains complementary and is not changed by this release.
+
+### Fixed
+
+- **`merged-remote-branch` requires live remote proof for HIGH (#2607 review).** A last-fetched
+  remote-tracking tip match alone does not prove the head still exists after merge-and-auto-delete
+  without a pruning fetch. The collector now runs allowlisted `git ls-remote --heads` before HIGH;
+  probe failure demotes to MEDIUM (cached observation); empty ls-remote emits no finding.
+
 ## [0.19.2]
 
 ### Changed

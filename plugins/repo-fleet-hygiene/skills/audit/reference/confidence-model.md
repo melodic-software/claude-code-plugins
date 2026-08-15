@@ -26,6 +26,7 @@ failure rather than a discovery.
 | `merged-local-branch` | GitHub `MERGED` PR for this repository + branch and `headRefOid` equals local tip; branch is not current/default/worktree-attached | `HIGH` | Candidate handoff to `/repo-hygiene:clean git` |
 | `merged-worktree` | Same merged-PR/tip evidence, branch is attached to a non-main registered worktree | `HIGH` | Candidate handoff to `/source-control:worktree cleanup --dry-run` first |
 | `merged-pr-tip-drift` | GitHub merged PR exists, but local tip differs from every returned `headRefOid` | `MEDIUM` | Manual review; never delete from this evidence |
+| `merged-remote-branch` | GitHub `MERGED` PR for this repository + branch and `headRefOid` equals the last-fetched remote-tracking tip, **and** `git ls-remote --heads` confirms the same tip still exists on the remote (so `delete_branch_on_merge` was not enabled or was blocked). When ls-remote fails, the same cached match is reported at `MEDIUM` as an unverified local remote-tracking observation. Empty ls-remote (head already deleted upstream) emits no finding. | `HIGH` when ls-remote confirms; `MEDIUM` when ls-remote fails | Optional `git push --delete --dry-run` preview handoff; separate from local cleanup. Enabling GitHub `delete_branch_on_merge` is complementary (stops the class accruing), not a substitute for this finding — never changed by this audit |
 | `local-ancestry-only` | Local tip is an ancestor of the remote-tracking default branch, with no matching GitHub merged PR evidence | `LOW` | Informational only |
 | `prunable-worktree` | Git porcelain marks the registration `prunable` | `HIGH` | Candidate dry-run handoff; no inline prune |
 | `missing-worktree` | Registered path is absent but Git has not marked it prunable under its current expiry policy | `MEDIUM` | Manual review/dry-run handoff |
@@ -47,7 +48,7 @@ failure rather than a discovery.
 | `worktree-inventory-unavailable` | `git worktree list --porcelain -z` failed | `UNKNOWN` | Stop local branch/worktree classification for that repository |
 | `worktree-common-dir-unavailable` | A registered worktree path exists but its `--git-common-dir` could not be resolved | `UNKNOWN` | Manual inspection; the registration cannot be trusted either way |
 | `branch-inventory-unavailable` | `git for-each-ref` over `refs/heads/` failed or emitted malformed/partial output | `UNKNOWN` | Discard partial records, stop branch classification, exclude from the audited count |
-| `remote-branch-inventory-unavailable` | `git for-each-ref` over `refs/remotes/<remote>/` failed | `UNKNOWN` | Exact per-branch GitHub lookups are skipped for the whole repository |
+| `remote-branch-inventory-unavailable` | `git for-each-ref` over `refs/remotes/<remote>/` failed | `UNKNOWN` | Remote-tracking tip comparison for `merged-pr-tip-drift` is unavailable; GraphQL merge evidence still runs |
 | `current-branch-unavailable` | `git branch --show-current` failed, so branch-protection membership is unknown | `UNKNOWN` | Emit no standalone branch cleanup candidate for that repository |
 | `git-common-dir-unavailable` | The canonical checkout's own `--git-common-dir` could not be resolved | `UNKNOWN` | Stop that repository; registration comparison is impossible |
 | `local-ancestry-unavailable` | `git merge-base --is-ancestor` failed with an error status | `UNKNOWN` | Do not infer local ancestry |
@@ -79,8 +80,9 @@ not a difference in evidence strength.
 
 1. A protection condition wins over a branch candidate classification.
 2. A merged worktree routes through worktree cleanup before branch cleanup.
-3. Administrative mismatch wins over ordinary worktree status because the path cannot be trusted.
-4. A stronger confidence tier never authorizes mutation inside this plugin.
+3. `merged-remote-branch` is independent of local attachment: it describes the remote ref.
+4. Administrative mismatch wins over ordinary worktree status because the path cannot be trusted.
+5. A stronger confidence tier never authorizes mutation inside this plugin.
 
 ## Presentation rollup
 
