@@ -1,5 +1,22 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.2]
+
+### Fixed
+
+- **audit-encapsulation detect:** treat `detect.sh` as a candidate enumerator —
+  summary keys are `raw` / `mech-filtered` / `candidates`, exit 1 means
+  candidates exist (not adjudicated violations), and contract/SKILL/`--help`
+  language no longer invites hard-gating CI on that exit code alone. Widen the
+  ERE path class so uppercase / single-char / digit-leading / underscore-leading
+  skill and subdir names match (F3), while restricting segments to
+  `[A-Za-z0-9_.-]+` so multi-root prose lists cannot span whitespace/punctuation
+  into a false hit. Document `plugins/` in the scan-scope
+  sentence and add a Recheck-triggers row for detect.sh scope drift (F5). Drop
+  the unreachable `plugins/cache/` mechanical-filter branch and fix the docs
+  that claimed it fired (F7). Disclose the relative-path blind spot as #2716
+  (not fixed here) (#2728).
+
 ## [0.14.1]
 
 ### Fixed
