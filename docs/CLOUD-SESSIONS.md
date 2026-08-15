@@ -210,8 +210,9 @@ enables; the session-start hook installs (see
   first post-resume turn), and (the fix for turn one) the environment setup script
   running this same bootstrap at cache-build time, before any session process launches: the
   guarded one-liner in the
-  [setup-script lever above](#setup-script-vs-sessionstart-hook-decision-criteria), already
-  present in [CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md)'s step-1 script. Whether the cached
+  [setup-script lever above](#setup-script-vs-sessionstart-hook-decision-criteria), implemented
+  fleet-wide by the standards `cloud-environment` component that
+  [CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md)'s step-1 stub fetches. Whether the cached
   snapshot's `~/.claude` actually reaches sessions is undocumented — after adding the line,
   rebuild the cache (edit saves the script) and verify with a fresh session whose *first*
   message is a plugin slash command.
