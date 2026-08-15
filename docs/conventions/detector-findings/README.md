@@ -159,17 +159,23 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 | Judgment | Tier |
 |---|---|
-| A persisted file conforms to the findings-file shape | **Deterministic when built** — frontmatter keys and table columns are mechanically checkable. **Not built**: no producer exists yet, so a gate would have nothing to run against. |
-| `Confidence` is `high` or omitted, never `low` | **Deterministic when built** — a literal-value check. Folded into the same unbuilt gate. |
+| A persisted file conforms to the findings-file shape | **Deterministic when built** — frontmatter keys and table columns are mechanically checkable. **Buildable now**: the first producer exists, so a gate has something to run against. Still unbuilt. |
+| `Confidence` is `high` or omitted, never `low` | **Deterministic when built** — a literal-value check. Folded into the same gate, and equally buildable now. |
 | `Tier` is machine-computed rather than hand-picked | **Reasoning-only** — the derivation lives in the producer's own logic and no artifact records it. |
 | A producer's coexistence behavior (own file, self-named surface) | **Detect-then-judge** when built — appending into another producer's file is detectable; whether a `Surface(s)` value identifies the producer usefully is judgment. |
 
-**This stub defers all mechanical enforcement.** Recorded with event triggers rather than dates:
+**This stub still defers all mechanical enforcement**, but no longer for want of a subject. Recorded
+with event triggers rather than dates:
 
-- **Recheck trigger (conformance gate)** — the first detector reaches `main`, giving a gate something
-  to check.
+- **Recheck trigger (conformance gate) — FIRED.** `mutation-testing:audit` is the first detector to
+  reach `main` with a persist path, so a gate now has a real emitter to check rather than a fixture.
+  What that unblocks: the shape and `Confidence` judgments above are both a mechanical read of a file
+  this repository can produce on demand. No gate is written here — naming the trigger as fired is
+  what stops the deferral from reading as permanent.
 - **Recheck trigger (this doc's depth)** — the pilot completes, or a second producer adopts the
   contract, whichever comes first. Either produces the evidence the stub was published without.
+  Partially met: the pilot has produced its first evidence, including one gap the contract does not
+  address — a producer whose remediation site is not its `Location` (#2681).
 
 ## Adopters
 
@@ -179,7 +185,7 @@ adopter asserts what a reader cannot rely on.
 
 | Producer | Status | Notes |
 |---|---|---|
-| *(none yet)* | — | The first detector pilot is the first adopter; this stub precedes it by design. |
+| `mutation-testing:audit` | Conforming, opt-in | The first detector pilot. Persists surviving mutants behind `--persist-findings`; bare invocation still reports and stops. Computes `Tier` from the Phase 4 verdict class and emits `Confidence: high` only. Omits `tier:`, `## By dimension`, and `## Unparsed` as a detector with no analogue for them; keeps `## Surfaces`, which is the whole payload of a run that examined mutants and found nothing. Carries one known limitation this pilot surfaced: a mutation finding's remediation site is its covering test, not its `Location`, so a consumer fencing to `Location` cannot reach the target (routed to #2681). |
 
 `review:fanout` is not an adopter and is deliberately absent from the table: it is the **reference
 writer** whose file format this contract points at, and it sits on the other side of the boundary

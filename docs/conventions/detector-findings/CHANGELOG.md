@@ -4,6 +4,22 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 1.1.0 — 2026-08-15
+
+First adopter tabled. The row is added by the commit that makes it true, per the Adopters rule
+("tabled only once it actually does" conform) — tabling it in the stub itself would have asserted
+what a reader could not yet rely on.
+
+- **`mutation-testing:audit` tabled as the first adopter**, with what it computes, what it omits and
+  why, and the one gap the pilot surfaced.
+- **Conformance-gate recheck trigger recorded as FIRED.** The two enforceability rows that read
+  "**Not built**: no producer exists yet" now read as buildable: a real emitter exists to check. No
+  gate is written here; naming the trigger as fired is what stops the deferral from reading as
+  permanent.
+- **Depth trigger recorded as partially met** — the pilot's first evidence includes a case the
+  contract does not address: a producer whose remediation site is not its `Location`
+  ([#2681](https://github.com/melodic-software/claude-code-plugins/issues/2681)).
+
 ## 1.0.0 — 2026-08-15
 
 Initial published contract — a deliberate stub, per

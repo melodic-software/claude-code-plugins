@@ -1,12 +1,12 @@
 ---
-description: "Run diff-scoped mutation analysis and report surviving mutants read-only — the code under test is always restored, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: 'run mutation testing', 'are my tests actually checking this', 'mutation score for this change', 'my coverage is high but I do not trust it', 'audit test quality', after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too)."
-argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress]"
+description: "Run diff-scoped mutation analysis and report surviving mutants — the code under test is always restored, tracked source is never modified, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: 'run mutation testing', 'are my tests actually checking this', 'mutation score for this change', 'my coverage is high but I do not trust it', 'audit test quality', 'persist the surviving mutants for the fix pass', after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (also write the survivors as a findings file the review fix pass consumes)."
+argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: test
-  summary: Report surviving mutants on the diff, read-only, with survivors triaged
+  summary: Report surviving mutants on the diff without touching tracked source, survivors triaged
 ---
 
 ## Pre-computed context
@@ -29,14 +29,20 @@ Arguments: `$ARGUMENTS`
 - **`--max <n>`**: cap generated mutants for this run, overriding `max-mutants`.
 - **`--no-suppress`**: include mutants that the arid-node record would otherwise suppress, marked as
   suppressed. Read-only inspection of the suppression policy; it never edits the record.
+- **`--persist-findings`**: after reporting, also write the survivors as a findings file the
+  `review:fanout` `fix` action consumes ([Phase 6](#phase-6--persist-opt-in)). Off by default.
 
 ## The contract this skill holds
 
 Three properties, stated first because everything below depends on them:
 
-1. **Read-only with respect to the working tree.** A mutant is applied, measured, and reverted. The
-   tree at the end of a run is byte-identical to the tree at the start. Per the naming doctrine's
-   verb contract, `audit` reports and stops.
+1. **Read-only with respect to tracked source.** A mutant is applied, measured, and reverted.
+   Tracked source at the end of a run is byte-identical to tracked source at the start. Per the
+   naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
+   that. `--persist-findings` is the explicit user override that verb contract sanctions
+   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes — the findings file, and
+   the self-ignore guard's own `.gitignore` when it creates one — land only where git is **proven**
+   to ignore them, never in tracked source and never in a file another producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -196,7 +202,36 @@ from a personal draft.
 Report the covered-code score as the headline and the plain mutation score beside it — the first
 answers "are my tests weak", the second mixes that with "do I have tests at all".
 
-Then stop. Remediation is delegated.
+Then stop, unless `--persist-findings` was passed. Remediation is delegated.
+
+## Phase 6 — Persist (opt-in)
+
+Runs **only** under `--persist-findings`. Without the flag this phase does not exist and Phase 5 is
+the end of the run. The flag exists because the survivors this skill detects are real findings with
+no route to a remediation surface: writing one conforming file is that route, and it needs no wiring
+on the consuming side — the `review:fanout` `fix` action locates its input by frontmatter, never by
+provenance.
+
+The mechanics are owned by [`context/persist-findings.md`](context/persist-findings.md), which reads
+the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
+are not optional: the destination comes from the contract's **whole** rung order, taking its
+**non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
+`git check-ignore` **proves** the resolved path is ignored before anything is written, because a
+memory root inside tracked space leaves `git status` identical either way and so cannot detect
+itself; `Tier` and `Confidence` are computed from the Phase 4 **verdict class** and never from the
+finding's prose, with `Confidence: low` never emitted; every cell describes a mutant this run
+actually executed, never an illustrative one; a run that examined mutants writes even when it found
+nothing, while a run that examined **none** writes nothing at all; and an existing path is never
+overwritten.
+
+Persisting does not trade away the property in "The contract this skill holds": tracked source is
+byte-identical when the run ends, and a destination that cannot be proven ignored is not written to
+at all.
+
+**Known limitation, routed not solved.** A mutation finding's remediation lands in the covering test,
+not at its `Location`, so a consumer that fences each fix to `Location` cannot reach the target. The
+spoke records why this producer neither retargets `Location` nor invents a column; the disposition
+belongs to `melodic-software/claude-code-plugins#2681`.
 
 ## Remediation — delegated
 
@@ -240,6 +275,10 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 - **Reaching for "equivalent" is the standard way this technique manufactures false confidence.**
   It is the convenient explanation for any survivor whose test is hard to write. Require the
   demonstration; report the claim as unclassified when none exists.
+- **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
+  miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
+  failure mode of resolving only the documented default on a repo that configured its own memory
+  root, which is why Phase 6 runs the whole rung order rather than its last rung.
 - **A high mutation score is not a correctness argument.** The coupling effect covers faults composed
   of local errors. It says nothing about a wrong algorithm, a missing requirement, a concurrency
   interleaving, or an unexpressed security property.
@@ -247,6 +286,10 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 ## What this skill does NOT do
 
 - Write or modify tests, or leave any mutation in the tree.
+- Persist anything on bare invocation. The findings file is written only under `--persist-findings`,
+  and only into the gitignored memory tier.
+- Apply its own findings, or read the consumer's consumption ledger. It writes one file and stops;
+  what happens to that file belongs to the `fix` action.
 - Write suppressions without the user accepting them.
 - Fail a build on a score. There is no threshold to configure; see the `principles` skill's
   `scaling-and-suppression.md`.

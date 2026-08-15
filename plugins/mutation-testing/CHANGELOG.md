@@ -3,6 +3,52 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Added
+
+- **`/mutation-testing:audit --persist-findings`** — an opt-in Phase 6 that writes the run's
+  survivors as a findings file the `review:fanout` `fix` action consumes, making this skill the first
+  adopter of the detector-findings producer contract
+  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>).
+  The destination, the self-ignore guard, and the producer-computed fields are resolved through that
+  contract rather than restated. Bare invocation is unchanged: it reports and stops.
+- **`git check-ignore` proves the destination is ignored before anything is written**, and a path it
+  does not report as ignored is not written to at all. The obvious alternative is worthless: a
+  `.gitignore` whose content is `*` matches itself, so a memory root resolving inside tracked space
+  leaves `git status --porcelain` byte-identical whether the write was ignored or not.
+- **`Action` names the covering test file**, since Phase 1 already cached that selection and
+  withholding it is information loss.
+- **Severity is computed from the Phase 4 verdict class, never from the finding's prose.** Productive
+  and unclassified survivors emit `IMPORTANT` rows; arid and equivalent survivors emit no row at all —
+  arid because its only remediation is a suppression entry the user must accept, which an apply relay
+  must never be handed, and equivalent because it is not a defect. `Confidence` is `high` on every
+  emitted row (Phase 3 executed the mutant) and is never `low`, which ranks below omitting the field.
+- **A run that examined mutants and found nothing still writes the file**, with an empty `## Findings`
+  table and a `## Surfaces` line. The consumer unions `## Surfaces` across producers, so "this surface
+  ran and returned nothing" is coverage information a silent run destroys. A run that examined *no*
+  mutants writes nothing — there is no coverage to report, and claiming one would fabricate it.
+
+### Changed
+
+- **The read-only invariant is narrowed from the working tree to tracked source.** A mutant is still
+  applied, measured, and reverted, and tracked source is still byte-identical when the run ends — but
+  the property no longer covers the whole tree, because `--persist-findings` writes into the ignored
+  memory tier. That is a real widening of what the skill may do, disclosed here rather than folded
+  into a wording note; what did *not* change is the skill's standing under the naming doctrine, whose
+  verb table already permits mutation behind an explicit user override.
+  `scripts/skill-leaf-name-registry.txt` records the amended grounds on which this plugin holds the
+  `audit` leaf.
+
+### Known limitations
+
+- **A mutation finding's remediation site is not its `Location`.** The missing assertion belongs in
+  the covering test, while `Location` names the mutated node, so a consumer that fences each
+  remediation to `Location` cannot reach the target. This plugin neither retargets `Location` (which
+  would destroy the row's cross-producer dedup key) nor invents a column the findings-file shape does
+  not define; the disposition is routed to `melodic-software/claude-code-plugins#2681`. Until it
+  lands, a mutation-survivor row is one a human dispositions.
+
 ## [0.1.0]
 
 ### Added
