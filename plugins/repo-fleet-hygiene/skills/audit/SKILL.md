@@ -1,7 +1,7 @@
 ---
 description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
-argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
+argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
@@ -26,8 +26,10 @@ gate, and the receiving per-repository tool or human still owns actual preview/e
 
 ## Input resolution
 
-Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
+Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported forms:
 
+- `<dir>`: bare positional path — equivalent to `--root <dir>` (repeatable). Drive roots such as
+  `D:` are legitimate discovery roots (normalized to `D:/`).
 - `--root <dir>`: bounded recursive repository discovery (repeatable).
 - `--repo <dir>`: exact repository/worktree target (repeatable).
 - `--config <file>`: explicit Git-format config (at most one).
@@ -35,7 +37,7 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable; explicit wins over config).
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung
-  and the no-scope fallback target.
+  only — not as an implicit audit target.
 - `--detail`: emit collapsed per-target evidence after the rollup (default is rollup + action plan
   only).
 - `--plan-file <path>`: write the machine-readable action-plan JSON to this path (otherwise a temp
@@ -48,13 +50,13 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 **not** present in the Bash tool's environment, so the script cannot read it for itself — passing
 it in is what makes the project rung below reachable at all.
 
-If neither `--root` nor `--repo` is present, the script uses the project directory as an exact
-`--repo` target — not as a discovery root, so nothing beneath it is searched. A project directory
-that is not a Git working tree is therefore rejected, and the rejection names the three ways to
-supply scope plus `/repo-fleet-hygiene:setup apply`; pass that guidance through rather than
-re-deriving a root yourself. If no project directory resolves either, the run stops with the same
-remedies rather than auditing the shell's incidental working directory. Config
-resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
+If neither a bare path nor `--root`/`--repo` is present, the script uses config-supplied
+`fleet.root` / `fleet.repo` as the machine-wide default when a config on the ladder provides them.
+With neither CLI nor config scope, the run stops and names how to set scope (bare path,
+`--root`/`--repo`/`--config`, or `/repo-fleet-hygiene:setup apply`); pass that guidance through
+rather than re-deriving a root yourself or auditing the session project directory. A discovery
+root that exists but contains no repositories is a finding of zero repositories, not an error.
+Config resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
 `~/.claude/repo-fleet-hygiene.conf` (user-global — a machine-scoped fleet config placed there is
@@ -66,8 +68,10 @@ Config-supplied scope is **additive** to CLI-supplied scope: a `--repo X` run st
 configured root. The header's `Scope:` line names each contributing rung and its entry count, so
 report that line rather than assuming the arguments were the whole scope.
 
-Before execution, reject any arguments outside this grammar. Pass every path/override as a quoted
-argument; never assemble a shell fragment from config, repository, remote, or branch text.
+Before execution, reject any arguments outside this grammar. Keep reject-on-unknown for anything
+beginning with `-` (that is the injection boundary); bare paths are in-grammar. Pass every
+path/override as a quoted argument; never assemble a shell fragment from config, repository,
+remote, or branch text.
 
 Run exactly once:
 

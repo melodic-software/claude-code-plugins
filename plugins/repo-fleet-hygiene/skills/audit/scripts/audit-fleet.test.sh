@@ -806,8 +806,10 @@ else
   failures=$((failures + 1))
 fi
 
+# No-config no-CLI run: project directory is NOT an implicit --repo (#2599). State none consumed
+# via an explicit one-repo scope so the header path still exercises Config: none.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out"
+  bash "$SCRIPT" --repo "$TMP/discovered-a" >"$ladder_out"
 if grep -Fq -- "Config: none" "$ladder_out"; then
   printf 'PASS: no-config run states none was consumed\n'
 else
@@ -830,43 +832,53 @@ else
   failures=$((failures + 1))
 fi
 
-# The implicit current-project default (no CLI paths, no config) is CLI-equivalent: running the
-# zero-configuration audit from a non-Git directory must still hard-fail, never degrade to a
-# stale-config-entry with an empty source.
+# No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
+# exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
   bash "$SCRIPT" >"$ladder_out" 2>&1; then
-  printf 'FAIL: zero-config non-Git project dir did not hard-fail\n' >&2
+  printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
-elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
-  printf 'PASS: zero-config non-Git project dir hard-fails without stale-config degradation\n'
+elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
+  printf 'PASS: zero-config no-scope run hard-fails without stale-config degradation\n'
 else
-  printf 'FAIL: zero-config non-Git project dir hard-fails without stale-config degradation (wrong output)\n' >&2
+  printf 'FAIL: zero-config no-scope run hard-fails without stale-config degradation (wrong output)\n' >&2
   failures=$((failures + 1))
 fi
 
-# ...and it must name the remedy. The operator never chose the implicit path, so a bare rejection
-# leaves the very first invocation on a machine whose fleet lives elsewhere with no way forward.
+# ...and it must name the remedy, including the bare-path form.
 if grep -Fq -- "--root <dir>" "$ladder_out" && grep -Fq -- "--repo <dir>" "$ladder_out" &&
-  grep -Fq -- "--config <file>" "$ladder_out" && grep -Fq "repo-fleet-hygiene:setup apply" "$ladder_out"; then
-  printf 'PASS: zero-config rejection names --root, --repo, --config, and the setup skill\n'
+  grep -Fq -- "--config <file>" "$ladder_out" && grep -Fq "bare path" "$ladder_out" &&
+  grep -Fq "repo-fleet-hygiene:setup apply" "$ladder_out"; then
+  printf 'PASS: zero-config rejection names bare path, --root, --repo, --config, and the setup skill\n'
 else
   printf 'FAIL: zero-config rejection does not name the scope remedies\n' >&2
   failures=$((failures + 1))
 fi
 
-# A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) still falls back to the
-# implicit project-dir target, but the rejection must not claim --config was omitted -- the remedy
-# is adding scope to the config that was already consumed.
+# A Git project directory still does not become scope without config or CLI paths (#2599).
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+  printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "no scope resolved" "$ladder_out"; then
+  printf 'PASS: no-scope run does not treat the project directory as an implicit --repo\n'
+else
+  printf 'FAIL: no-scope run does not treat the project directory as an implicit --repo (wrong output)\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) no longer falls back to
+# the project directory; the remedy names the consumed config and directs scope INTO it.
 cat >"$TMP/scopeless.conf" <<'SCOPELESS'
 [fleet]
     maxDepth = 5
 SCOPELESS
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
   bash "$SCRIPT" --config "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
-  printf 'FAIL: scope-less config with non-Git project dir did not hard-fail\n' >&2
+  printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then
-  if grep -Fq "No --root, --repo, or --config was given" "$ladder_out"; then
+  if grep -Fq "No bare path, --root, --repo, or --config was given" "$ladder_out"; then
     printf 'FAIL: scope-less config rejection claims --config was omitted\n' >&2
     failures=$((failures + 1))
   else
@@ -877,15 +889,57 @@ else
   failures=$((failures + 1))
 fi
 
-# The guidance belongs to the IMPLICIT default only: an explicitly supplied bad path is a typo, and
-# the operator already knows how to pass a scope -- they just did.
+# The guidance belongs to the unresolved no-scope case only: an explicitly supplied bad path is a
+# typo, and the operator already knows how to pass a scope -- they just did.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/noconf" >"$ladder_out" 2>&1; then
   printf 'FAIL: explicit --repo on a non-Git dir did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq -- "--config <file>" "$ladder_out"; then
   printf 'PASS: explicit --repo rejection stays terse (no scope guidance)\n'
 else
-  printf 'FAIL: explicit --repo rejection leaked the implicit-default scope guidance\n' >&2
+  printf 'FAIL: explicit --repo rejection leaked the unresolved-scope guidance\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Bare path ≡ --root (#2599).
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/root" >"$ladder_out" 2>&1 &&
+  grep -Fq "Repo: $TMP/root/acme/root-repo" "$ladder_out" &&
+  grep -Fq "Scope: command line (1 --root/--repo argument(s))" "$ladder_out"; then
+  printf 'PASS: bare path is accepted as --root\n'
+else
+  printf 'FAIL: bare path is accepted as --root\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A discovery root with no repositories reports zero found rather than erroring (#2599).
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/emptyroot" >"$ladder_out" 2>&1 &&
+  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out" &&
+  grep -Fq "Root $TMP/emptyroot: 0 repositories" "$ladder_out"; then
+  printf 'PASS: empty discovery root reports zero repositories instead of erroring\n'
+else
+  printf 'FAIL: empty discovery root reports zero repositories instead of erroring\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Drive-letter shorthand normalizes to drive-root form before the missing-root check.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "Z:" >"$ladder_out" 2>&1; then
+  printf 'FAIL: bare drive letter unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "discovery root not found: Z:/" "$ladder_out"; then
+  printf 'PASS: bare drive letter normalizes to Z:/ before discovery\n'
+else
+  printf 'FAIL: bare drive letter normalizes to Z:/ before discovery (wrong output)\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Dashed unknowns stay rejected; bare paths are the only new positional form.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --bogus-flag >"$ladder_out" 2>&1; then
+  printf 'FAIL: unknown dashed argument did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "unknown argument: --bogus-flag" "$ladder_out"; then
+  printf 'PASS: unknown dashed argument is still rejected\n'
+else
+  printf 'FAIL: unknown dashed argument is still rejected (wrong output)\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -902,7 +956,7 @@ fi
 
 # A failed authenticated-login probe must degrade the header to the plain line, never block.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_USER_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out"
+  bash "$SCRIPT" --repo "$TMP/discovered-a" >"$ladder_out"
 if grep -Fq -- "GitHub evidence: available" "$ladder_out" && ! grep -Fq -- "(account:" "$ladder_out"; then
   printf 'PASS: failed account probe degrades to plain header line\n'
 else
@@ -1307,6 +1361,39 @@ if [[ "$allowed_log" != "true" ]]; then
   failures=$((failures + 1))
 else
   printf 'PASS: log probe is admitted by the Git allowlist\n'
+fi
+
+# Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).
+symlink_root="$TMP/symlink-root-target"
+mkdir -p "$symlink_root"
+symlink_path="$TMP/symlink-root"
+ln -s "$symlink_root" "$symlink_path"
+symlink_out="$TMP/symlink-root-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$symlink_path" >"$symlink_out" 2>&1; then
+  printf 'FAIL: symlink discovery root unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "discovery root is a symlink (refused)" "$symlink_out"; then
+  printf 'PASS: symlink discovery root is refused rather than reporting zero repositories\n'
+else
+  printf 'FAIL: symlink discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$symlink_out")" >&2
+  failures=$((failures + 1))
+fi
+# Unreadable/non-executable roots are the same false-empty class.
+unreadable_root="$TMP/unreadable-root"
+mkdir -p "$unreadable_root"
+chmod a-rx "$unreadable_root"
+unreadable_out="$TMP/unreadable-root-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$unreadable_root" >"$unreadable_out" 2>&1; then
+  chmod u+rx "$unreadable_root" 2>/dev/null || true
+  printf 'FAIL: unreadable discovery root unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "discovery root is not traversable" "$unreadable_out"; then
+  chmod u+rx "$unreadable_root" 2>/dev/null || true
+  printf 'PASS: unreadable discovery root is refused rather than reporting zero repositories\n'
+else
+  chmod u+rx "$unreadable_root" 2>/dev/null || true
+  printf 'FAIL: unreadable discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$unreadable_out")" >&2
+  failures=$((failures + 1))
 fi
 
 # Force the portable watchdog and prove a TERM-ignoring gh cannot outlive the finite KILL grace.

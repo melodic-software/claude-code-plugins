@@ -3,6 +3,21 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1]
+
+### Changed
+
+- **Bare paths and drive roots are valid discovery roots (#2599).** A positional `<dir>` (including
+  Windows drive roots such as `D:`) is equivalent to `--root <dir>` (normalized to `D:/`). Symlinked
+  discovery roots are refused. A `--root` that exists but is not readable/executable hard-fails with
+  `discovery root is not traversable` instead of recording a `ROOT_LABEL` and reporting a clean empty
+  audit. An empty walked root remains a valid zero-repository audit.
+- **No-argument audits no longer fall back to the session project directory (#2599).** Without a
+  bare path, `--root`/`--repo`, or config-supplied `fleet.root`/`fleet.repo`, the collector hard-fails
+  and names how to set scope (`/repo-fleet-hygiene:setup apply` or explicit CLI roots). This is a
+  breaking change for bare `/repo-fleet-hygiene:audit` invocations that previously audited
+  `$CLAUDE_PROJECT_DIR` as an implicit `--repo`.
+
 ## [0.19.0]
 
 ### Fixed
