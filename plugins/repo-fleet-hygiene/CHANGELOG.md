@@ -3,6 +3,14 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.4]
+
+### Fixed
+
+- **Audit `Scope:` header no longer conflates `--root` and `--repo` counts (#2710).**
+  Provenance now reports each flag's count separately (omitting zeros) so a
+  `--repo`-only invocation cannot read as mixed `--root/--repo` scope.
+
 ## [0.22.3]
 
 ### Fixed
