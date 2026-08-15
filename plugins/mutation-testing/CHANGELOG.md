@@ -27,6 +27,19 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 - **A two-hop pointer now names each owner directly.** The node-kind vocabulary is enumerated in the
   `principles` skill's `scaling-and-suppression.md`; `context/suppression.md` owns the rule that a
   survivor fitting none is not arid. Phase 4 previously attributed both to the latter.
+- **Phase 4's own disposition table now states the arid bar it sits above.** Its `Downstream` cell
+  read "propose a suppression entry, with a reason" — the pre-0.3.0 rule — while the bar twenty
+  lines below required a node kind. A reader who takes the table as the summary got the superseded
+  answer.
+- **Four guard-conditioning statements restored after a merge reverted them.** The round that made
+  the self-ignore guard conditional on a governing checkout being found landed in 0.2.0, and a later
+  merge whose branch predated it silently reinstated the older unconditional wording on four
+  surfaces: eval cases 9 and 13, this skill's read-only contract clause, Phase 6's invariant
+  statement, and the plugin README's audit row. Two were **graded** artifacts, so the suite was
+  certifying the behavior that round removed. Text restored from the merged commit rather than
+  retyped. The detailed spoke was untouched, which made this worse rather than better: the summary
+  and graded surfaces a reader meets first were wrong while the reference they consult last was
+  right.
 
 ## [0.3.1]
 
