@@ -1143,14 +1143,16 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-skill-portability.sh "origin/$BASE_REF"
 
-  # Shell-portability lint (#1491): flags GNU-only constructs in changed
-  # **/*.sh files — a class neither shellcheck (syntax/style) nor
-  # portability-lint (skill-coupling tokens, skill files only) covers, and no
-  # runner here uses BSD userland (macOS system grep/sed/date/stat/mktemp/sort
-  # — a Windows runner's Git Bash still ships GNU grep/sed, so it would not
-  # help either). Same shape as portability-lint: changed-file scoped so
-  # enabling a class never red-lines main, self-test-first so a broken
-  # detector cannot mask a regression behind a green gate, job never skips.
+  # Shell-portability lint (#1491 / #2704): flags GNU-only constructs in
+  # changed **/*.sh files and skill markdown under plugins/*/skills/ — a class
+  # neither shellcheck (syntax/style) nor portability-lint (skill-coupling
+  # tokens, skill files only) covers, and no runner here uses BSD userland
+  # (macOS system grep/sed/date/stat/mktemp/sort — a Windows runner's Git Bash
+  # still ships GNU grep/sed, so it would not help either). Same shape as
+  # portability-lint: changed-file scoped so enabling a class never red-lines
+  # main, self-test-first so a broken detector cannot mask a regression behind
+  # a green gate, job never skips. Skill-md backlog is grandfathered in
+  # scripts/shell-portability-skill-md-baseline.txt.
   shell-portability-lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1163,7 +1165,7 @@ jobs:
           fetch-depth: 0
       - name: Test the shell-portability gate
         run: bash scripts/check-shell-portability.test.sh
-      - name: Gate changed shell files for GNU-only constructs
+      - name: Gate changed shell and skill-md files for GNU-only constructs
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
