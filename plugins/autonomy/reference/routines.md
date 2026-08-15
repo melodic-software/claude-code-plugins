@@ -277,9 +277,9 @@ commentary, and a leaf that contradicts one is non-conforming.
   wrote — and requires clearing the incumbent gate against the existing architecture-review surface.
 - **`logic-simplification-sweep` — above expression level only, and unbuilt.** Equivalence above
   expression level is not mechanically checkable, which is what puts the row at `C3` rather than
-  `C2`. No effectiveness evidence for automating it surfaced in the surveyed literature — that
-  absence is the join trigger, and it is world state rather than a prerequisite an adopting org can
-  supply.
+  `C2`. No effectiveness evidence for automating it surfaced in the surveyed literature, which is
+  why the class is unbuilt. The join trigger is that evidence being published — world state, not a
+  prerequisite an adopting org can supply, which is why the status reads `join (external)`.
 - **`abstraction-flattening` — the structural axis fires because the target IS the structural
   surface.** The change edits module boundaries and type/interface structure; cross-cutting blast
   radius is the shape of the operation rather than a risk it might incur.

@@ -54,8 +54,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   carry a human-gated disposition with no verification topology, checker floor, or cost tier. And
   the structural-blast-radius axis fires on the change's **target**, not on the file it lives in.
 - **`gui-crash-fuzzing` re-scored against the GUI-actuation mapping rule.** Its `Derived row` cell
-  now applies the rule that unattended GUI actuation raises the isolation floor to `L3`, which the
-  `repo` access class alone does not give. Its class parameter also records that reproducibility
+  now applies the rule that unattended GUI actuation requires `L3`, which the `repo` access class
+  alone does not give. The `L3` comes from that mapping rule directly and not from the guardrail
+  matrix's min-isolation column, which is indexed by work class and which a row deriving no class
+  cannot reach. Its class parameter also records that reproducibility
   triage of a filed crash is *excluded* from the class rather than left as an unmodelled judgment
   portion — a filed crash is ordinary queue intake — so the `DET` exit is complete rather than
   skipping a split.
@@ -71,8 +73,11 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   new prohibition cannot be misread as contradicting the predicates above it: `0 human-reverted
   merges` is a correctness signal (a human asserting the change was wrong), not an acceptance rate
   (how much got merged); and `≥ 20 autonomous C2 merges over ≥ 14 days` is a **volume floor**, not
-  an acceptance rate — merging a higher fraction of a fixed attempt pool moves a rate and leaves
-  the floor exactly where it is.
+  an acceptance rate — the two behave oppositely under the move that makes an acceptance metric
+  untrustworthy, since a ratio rises when its denominator shrinks (attempting less, or attempting
+  only what is certain to land) while a count has no denominator to shrink. The section also
+  enumerates every distinct term type the predicate table actually uses — seven, where the prose
+  previously named four.
 - **The reviewer-burden term is recorded as deferred with an explicit trigger, not omitted
   (#2683).** It needs a denominator, and a denominator needs the org-scale trust-path requirements
   already deferred at solo volume. Without them the term moves with volume rather than

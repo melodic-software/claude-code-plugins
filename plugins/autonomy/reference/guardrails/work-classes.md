@@ -159,10 +159,11 @@ Conjoined with the same row's `100% deterministic-gate pass`, `0 human-reverted 
 `0 demotion events`, the count bounds how much evidence exists while those terms carry the
 correctness claim.
 
-Every distinct term type in the table is one of: completion counts, merge counts and review counts
-over a fixed window, deterministic-gate pass rates, revert counts, missed-blocking-finding counts,
-and demotion events. Each is correctness-side or volume-side by construction; none is a ratio of
-accepted to attempted.
+Every distinct term type in the predicate table above is one of seven: completion counts, merge
+counts over a fixed window, advisory-review counts, deterministic-gate pass rates, revert counts,
+missed-blocking-finding counts, and demotion events — the demotion evidence set enumerates what
+counts as the last of these. Each is correctness-side or volume-side by construction; none is a
+ratio of accepted to attempted.
 
 ### Reviewer-burden term — DEFERRED, with a trigger
 
