@@ -10,12 +10,13 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 `${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so state keyed by working directory would
 collide or fragment depending on where the operator happened to stand.
 
-**The `<state-key>` grammar and both of its segments are specified by the repo-level convention**
-[plugin-data report keying](../../../../../docs/conventions/plugin-data-report-keying/README.md),
-rule 1. The scheme started here and the convention now carries it, so it is defined once for every
-adopter rather than restated per skill. This run never transcribes the derivation: `run-state.sh
-paths` computes the key through the shared `lib/state-key.sh`, and every path below is relative to
-what it prints.
+**`<state-key> = <repo-identity>/<worktree-discriminator>`** — the grammar and both segment
+derivations are specified by the marketplace's `plugin-data-report-keying` convention (rule 1). The
+scheme started here and the convention now carries it, defined once for every adopter; that
+repo-level doc does not ship with an installed copy of this plugin, so the one-line grammar above
+stays as an intentional duplicate naming that convention as its source. The operational definition
+ships in-plugin: `run-state.sh paths` computes the key through the shared `lib/state-key.sh` (whose
+header states the full derivation), and every path below is relative to what it prints.
 
 Suppressions are keyed differently on purpose (§4): they are a decision about the *repository*, not
 about a checkout, so they are shared across worktrees and committed where the operator owns the

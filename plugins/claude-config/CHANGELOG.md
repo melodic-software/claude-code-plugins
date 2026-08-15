@@ -10,8 +10,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **`audit-pass`: the `<state-key>` scheme definition moved out to the repo convention.** The
   canonical grammar and segment derivations now live in the `plugin-data-report-keying` convention
   doc (encapsulation audit, Path A promotion — all six `extract-ssot verify` gates passed);
-  `reference/run-state-and-resumability.md` §3 defers to it and keeps only how this run obtains the
-  key. No dual-maintenance remains.
+  `reference/run-state-and-resumability.md` §3 names the convention and keeps only the one-line
+  grammar as a marked intentional duplicate (an installed copy ships without repo-level docs, so no
+  path link crosses the plugin boundary) plus the in-plugin operational pointer, `lib/state-key.sh`.
+  The full segment derivations live in exactly one prose location.
 - **`audit-instructions`: `conflict-criteria.md` names the C6 sibling in public terms.** The
   cross-plugin relative link into `claude-memory:audit`'s private criteria file is gone
   (encapsulation audit; Path A promotion refused at Rule of Three — the boundary's other
