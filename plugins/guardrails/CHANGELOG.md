@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.26]
+## [0.28.27]
 
 ### Changed
 
@@ -21,6 +21,51 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   budget.** `HOOK_ALIAS_WORK_MAX` bounds analysis count, not wall clock; the hooks reference says a
   timed-out hook fails open, so the 60s harness ceiling can invert the guard's fail-closed posture
   on a pathologically slow filesystem. Named as an accepted residual with its revisit trigger.
+
+## [0.28.26]
+
+### Fixed
+
+- **SECURITY — `ps::git_command_is_readonly` classified destructive git commands as
+  read-only.** The subcommand blocklist that decides whether a PowerShell command may
+  skip the fail-closed sink under the `readonly-ok` scope omitted `clean` and `restore`,
+  so `git clean -fdx` and `git restore .` — both of which destroy uncommitted work
+  irrecoverably — classified as READ-ONLY, violating the library's own
+  "OVER-BLOCK, NEVER UNDER-BLOCK" invariant. It also omitted `pull`, `add`, `apply`,
+  `branch`, `config`, `mv`, `rm`, `switch`, `submodule`, `sparse-checkout`, `reflog`,
+  `gc`, `prune`, `repack`, `update-ref`, `update-index`, `read-tree`, `checkout-index`,
+  `symbolic-ref`, `filter-branch`, `bisect`, `remote`, `replace`, `rerere`, `subtree`,
+  `maintenance`, `merge-file`, `merge-index`, `merge-one-file`, `mergetool`,
+  `fast-import`, `commit-graph`, `multi-pack-index`, `update-server-info`,
+  `quiltimport`, `prune-packed`, `credential`, `interpret-trailers`, the
+  foreign-SCM bridges `svn`/`p4`/`cvsexportcommit`, and the third-party
+  `filter-repo`/`lfs`/`annex`. It further omitted two spellings of mutations it
+  already listed under another name: `stage` (git's own documented synonym for
+  `add`) and the `push` plumbing `send-pack`/`http-push` — `send-pack` being the
+  sharpest case for this guard, since it publishes WITHOUT running the pre-push
+  hook that `push` runs. The set is now derived from a stated predicate —
+  a subcommand is not read-only when it can create, modify, delete or overwrite
+  working-tree or index content, create/delete/move/rewrite local refs or history,
+  alter the stash, configuration or repository administrative state, or publish to a
+  remote — with the interrogators, artifact producers, create-only plumbing, and
+  repo-creating forms deliberately omitted and justified in the function's own comment.
+  The `-`-excluding token boundary is documented as load-bearing (`--prune`,
+  `ls-remote`, `merge-base`, `--no-merges` and `--tags` still classify read-only), the
+  `fetch` allowance from #1415 is preserved and its own residual recorded, and the
+  negative-shape-match residual (a sink-routing construct can still hide a subcommand,
+  e.g. `git ('cle'+'an')`) is documented as deferred to an allowlist inversion, alongside
+  the two further families a spelling blocklist can never close: a runtime `.gitconfig`
+  alias, where the mutating subcommand is not in the text at all (`git co`, `git ci`), and
+  `-c core.pager=`/`-c alias.z=!`/`--exec-path=`, where the subcommand is irrelevant. The
+  scan is whole-command rather than argv-aware, so a listed word now also matches outside
+  the git call (PowerShell's `switch` keyword), inside it as a pathspec or ref
+  (`git log -- config/`, `git show HEAD:docs/notes/a.md`), or as a flag value
+  (`git log --grep clean`) — all fail-SAFE, costing friction rather than safety. The
+  comment also now records that `archive -o`/`diff --output=` can truncate an
+  operator-named file yet stay read-only BY DESIGN, since this predicate governs
+  repository state rather than the filesystem. No live exposure: `block-no-verify` is the
+  only caller passing `readonly-ok` today, so the change lands ahead of any widening of
+  that scope.
 
 ## [0.28.25]
 
