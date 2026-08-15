@@ -65,7 +65,7 @@ Gate the spot-test by stakes: skip it for an obviously trivial derivable file (a
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files; file path → single doc; dir path → each `.md` directly in it | Run the rubric per document: heuristic pass, spot-test where gated, emit the verdict ledger |
 | `audit [target]` | same target rules | Explicit form of the default; identical behavior |
-| `sweep <dir>` | a directory to walk recursively | Corpus audit. Throttled fan-out of fresh read-only subagents at deliberately low bounded concurrency (default 3-4 at a time — rate-limit headroom beats wall-clock). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context. Each subagent writes its per-document verdict blocks to a batch ledger file (session scratchpad or similar) and returns compact verdicts and counts; the reply carries the aggregate, the actionable subset, and pointers to the batch ledgers — corpus-scale per-document detail never streams through one context or one reply. |
+| `sweep <dir>` | a directory to walk recursively | Corpus audit of the directory's tracked markdown (enumerate via `git ls-files '*.md' -- <dir>`; gitignored, untracked, and vendored/ephemeral files are out of scope — the same tracked-only convention `/docs-hygiene:extract-ssot` codifies). Throttled fan-out of fresh read-only subagents at deliberately low bounded concurrency (default 3-4 at a time — rate-limit headroom beats wall-clock). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context. Each subagent writes its per-document verdict blocks to a batch ledger file (session scratchpad or similar) and returns compact verdicts and counts; the reply carries the aggregate, the actionable subset, and pointers to the batch ledgers — corpus-scale per-document detail never streams through one context or one reply. |
 
 One action per response; actions do not chain implicitly. `sweep` is the only recursive mode — the bare/`audit` default never walks subdirectories, so a large tree is never audited by accident.
 
@@ -113,7 +113,7 @@ Batch / sweep aggregate at the end:
 Audited <N> document(s): <d> delete, <p> convert-to-pointer, <c> keep-as-cache, <k> keep-owns-facts.
 ```
 
-Corpus-scale sweeps (more documents than one reply can carry): the per-document blocks live in the batch ledger files; the reply carries the aggregate line, the actionable (`delete` / `convert-to-pointer`) subset split into confirmed vs provisional, and the ledger file locations.
+Corpus-scale sweeps (more documents than one reply can carry): the per-document blocks live in the batch ledger files; the reply carries the aggregate line, the confirmed-actionable (`delete` / `convert-to-pointer`) subset, the provisional (cap-deferred) verdicts reported separately for visibility — never as part of the actionable subset — and the ledger file locations.
 
 After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointer) to the consumer's work-item tracker — one item per document — and stop. Never auto-file, never auto-edit.
 
