@@ -13,6 +13,7 @@ concern file's shape), `CHANGELOG.md` (version history), `examples/`
 
 ## Why this exists
 
+<!-- markdown-discipline-ignore -->
 Before this contract, four conventions coexisted (`.claude/notes/<slug>`,
 `.claude/handoffs/`, `.claude/review/`, legacy `.work/<slug>`) and a
 skill invoked outside any project root wrote into the user-global config
@@ -487,6 +488,7 @@ credentials. Raw output stays in the memory slice `<memory_dir>/<slug>/`
 
 ## Adoption (clean break)
 
+<!-- markdown-discipline-ignore -->
 The prior conventions (`.claude/notes/<slug>`, `.claude/handoffs/`,
 `.claude/review/`, unscoped `.work/<slug>`) are retired outright — no
 compatibility layer, no legacy knobs, no dual-read windows, no

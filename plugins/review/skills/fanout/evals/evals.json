@@ -213,7 +213,7 @@
       "expected_output": "Fix-pass classifies findings by class and routes cleanup-class findings to the optional in-session /simplify skill while applying correctness-class findings via sequential scope-fenced fixes.",
       "files": [],
       "expectations": [
-        "Locates the newest findings file for the CURRENT branch only",
+        "Builds the merge set from conforming findings files for the CURRENT branch only",
         "Classifies the cleanup-class finding and routes it to the optional in-session /simplify skill",
         "Classifies the correctness-class finding and applies it via a sequential scope-fenced fix, not via /simplify",
         "Emits the classification plan and confirms before mutating the working tree in an interactive session"
@@ -223,12 +223,12 @@
       "id": 19,
       "name": "fix-pass-no-findings-branch-scoped",
       "prompt": "[Scenario: the current branch has no findings file; a different branch's findings directory does have one.] /review:fanout fix",
-      "expected_output": "Fix-pass with no findings file for the current branch reports cleanly and stops, without scanning another branch's findings.",
+      "expected_output": "Fix-pass with an empty merge set for the current branch reports cleanly and stops, without scanning another branch's findings.",
       "files": [],
       "expectations": [
-        "Reports 'No findings for branch <branch>' and stops",
+        "Reports 'No unconsumed findings for branch <branch>' and stops",
         "Does NOT scan, read, or apply another branch's findings file — the branch check against frontmatter is the safety fence",
-        "Mutates nothing; suggests running the review first"
+        "Mutates nothing; directs the operator to run OR RE-RUN the review to produce fresh findings — not 'run the review first', which is wrong guidance when everything present was already consumed"
       ]
     },
     {
@@ -261,12 +261,14 @@
       "id": 22,
       "name": "fix-pass-headless-yes-applies-and-logs",
       "prompt": "[Scenario: a non-interactive session (claude -p) with a current-branch findings file; the operator passes the explicit headless opt-in flag.] /review:fanout fix --yes",
-      "expected_output": "In a non-interactive session with --yes, fix-pass applies the fixes and then writes a durable applied-plan record into the branch findings directory that the fix-pass locator skips on the next run.",
+      "expected_output": "In a non-interactive session with --yes, fix-pass applies the fixes and then writes a durable applied-plan record into the branch findings directory that Step 1's candidate pass skips on the next run.",
       "files": [],
       "expectations": [
         "Treats --yes as the explicit headless opt-in and applies the fixes (correctness via sequential scope-fenced fix, cleanup via /simplify)",
         "Writes a durable applied-plan record capturing what was classified, applied, and surfaced",
-        "The record's frontmatter type is NOT review-findings (e.g. fix-pass-record), so Step 1's locator skips it and never re-consumes it as findings",
+        "The record's frontmatter type is NOT review-findings (e.g. fix-pass-record), so Step 1's candidate pass skips it and never re-consumes it as findings",
+        "The record's source-findings is a YAML block sequence whose single entry carries both the consumed file's name and its sha256 content digest, not a bare scalar path and not a bare name",
+        "The record's own file name carries the digest of its body (<UTC-timestamp>-fix-pass-applied-<sha256-12>.md), staged outside the findings directory and moved into place",
         "The --yes / -y flag routes to fix mode and does not trip the 'Unknown action' diagnostic"
       ]
     },
@@ -274,12 +276,167 @@
       "id": 23,
       "name": "fix-pass-interactive-yes-skips-prompt",
       "prompt": "[Scenario: an interactive session with a current-branch findings file containing correctness- and cleanup-class findings; the user passes the flag to skip the confirmation prompt.] /review:fanout fix --yes",
-      "expected_output": "In an interactive session with --yes, fix-pass emits the classification plan, skips the confirmation prompt, and applies immediately; no applied-plan record is written because that record is headless-apply-only.",
+      "expected_output": "In an interactive session with --yes, fix-pass emits the classification plan, skips the confirmation prompt, applies immediately, and still writes the consumption record — the record is written on every path that applies, not only headless ones.",
       "files": [],
       "expectations": [
         "Emits the classification plan but shows NO interactive confirmation prompt — --yes skips the pre-execution gate",
         "Applies the fixes (correctness via sequential scope-fenced fix, cleanup via /simplify)",
-        "Writes NO applied-plan record — the record is written only on a headless (non-interactive) apply, and this session is interactive"
+        "Writes the consumption record even though the session is interactive — every apply path writes it, because the record is what marks the consumed files retired for the next merge set"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "fix-pass-merges-two-producers",
+      "prompt": "[Scenario: the current branch's findings directory holds two conforming files with different UTC timestamps — one written by review:fanout, one written by a script detector — and no fix-pass-record.] /review:fanout fix",
+      "expected_output": "Fix-pass consumes BOTH files as one merge set, plans against the union of their findings, and names both files in the plan header — the newer file does not shadow the older one.",
+      "files": [],
+      "expectations": [
+        "The classification plan counts findings from BOTH files, not only the newer one",
+        "The plan header names both consumed files, one line per file, with each file's tier reported rather than one tier winning",
+        "The ## Unparsed appendices of both files are unioned by concatenation, and the plan emits a 'Surfaces (union)' line carrying both files' ran / returned-no-result surfaces with each producer attributed",
+        "Neither file is skipped for lacking review:fanout provenance — conformance to the findings-file shape is the whole admission test"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "fix-pass-record-retires-consumed-files",
+      "prompt": "[Scenario: an interactive apply already ran against findings file A and wrote a fix-pass-record naming A in source-findings; a newer conforming file B has since been written for the same branch.] /review:fanout fix",
+      "expected_output": "The merge set is B only — A is subtracted because a fix-pass-record for this exact branch already names it — proving the record is written on the interactive path and bounds the set.",
+      "files": [],
+      "expectations": [
+        "The plan header names ONLY file B; file A appears nowhere in the consumed set",
+        "The subtraction reads source-findings from the fix-pass-record rather than bounding the set by timestamp",
+        "The record this run writes names only B in source-findings"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "fix-pass-tolerates-legacy-scalar-source-findings",
+      "prompt": "[Scenario: the branch findings directory holds findings file A, whose date: is strictly older than the record's date:, and a fix-pass-record written by an older plugin version whose source-findings is a bare scalar repo-relative path to A, plus a newer conforming file B.] /review:fanout fix",
+      "expected_output": "The legacy scalar source-findings carries no digest, so it matches by name alone; A's date: is strictly older than the record's, so the entry is honored and A is subtracted, leaving the merge set as B only.",
+      "files": [],
+      "expectations": [
+        "File A is subtracted from the merge set even though the record's source-findings is a scalar rather than a block sequence",
+        "The entry is matched by name ALONE because it carries no sha256 digest — the digest half of the match is required only of entries that have one",
+        "The subtraction is justified by A's date: being STRICTLY OLDER than the record's date:, not merely by the name matching",
+        "The scalar's repo-relative path is compared by its base name, not matched literally against the candidate file name",
+        "Findings from A are not re-injected — a legacy record is honored rather than silently ignored"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "fix-pass-consumes-minimally-conforming-detector-file",
+      "prompt": "[Scenario: two conforming files for the current branch. One is a full review:fanout report. The other is written by a script detector and carries only type: review-findings, branch:, and a parseable ## Findings table — no tier:, no ## By dimension, no ## Unparsed, no ## Surfaces.] /review:fanout fix",
+      "expected_output": "Both files are consumed. The detector's file is admitted on type:, branch: and a parseable table alone, reported as tier: unstated, and contributes nothing to the unions it has no sections for — it is neither skipped as non-conforming nor filled in with guessed values.",
+      "files": [],
+      "expectations": [
+        "The detector's file is NOT skipped for omitting tier:, ## By dimension, ## Unparsed, or ## Surfaces — those are required of review:fanout's own writer, not part of the admission test",
+        "The plan header reports the detector's file as 'tier: unstated' rather than inventing a tier or inheriting the other file's",
+        "The ## Unparsed and ## Surfaces unions carry only the fanout file's content — the detector contributes nothing to sections it does not have, and its absence is not reported as a surface that returned nothing",
+        "Both files appear in the plan header and in source-findings, each with its own sha256 digest"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "fix-pass-legacy-entry-does-not-retire-a-rewritten-file",
+      "prompt": "[Scenario: a conforming script detector writes ONE fixed file name with no timestamp in it — mutation-survivors.md — overwriting it on every run. A pre-0.20.0 fix-pass-record for this exact branch names that path as a bare scalar source-findings with no digest. The detector has since re-run, so the file on disk holds entirely new findings and declares a date: later than the record's date:.] /review:fanout fix",
+      "expected_output": "The legacy entry matches by name but the candidate's date: is newer than the record's, so the entry is not honored: the rewritten file enters the merge set and its new findings are planned rather than silently retired forever.",
+      "files": [],
+      "expectations": [
+        "The candidate is NOT subtracted — a digest-less entry is honored only when the candidate's date: is STRICTLY OLDER than the record's date:",
+        "The comparison uses the two frontmatter date: values, NOT filesystem modification times, which a copied or restored findings directory would rewrite",
+        "The comparison is made against the record, not assumed from the file name — a producer is never required to put a timestamp in its file name, so a fixed-name file must still be reachable",
+        "The detector's new findings appear in the plan rather than being permanently skipped by a single stale legacy record",
+        "The run's own record names the file WITH its sha256 digest, so the name-alone fallback does not apply to it again"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "fix-pass-legacy-entry-equal-date-keeps-candidate",
+      "prompt": "[Scenario: a conforming detector writes one fixed file name and derives its date: from the commit under review rather than from the moment of writing, so the value never changes between runs. A pre-0.20.0 fix-pass-record for this exact branch names that file as a bare scalar with no digest, and the record's own date: happens to equal the candidate's.] /review:fanout fix",
+      "expected_output": "Equal dates do not subtract: the digest-less entry is honored only for a candidate strictly older than the record, so the rewritten file stays in the merge set and its new findings are planned.",
+      "files": [],
+      "expectations": [
+        "The candidate STAYS in the merge set on equal dates — the test subtracts only on a STRICTLY OLDER candidate",
+        "The reasoning acknowledges date: is producer-declared, so a constant or subject-derived date: makes equality the normal state rather than a coincidence",
+        "The tiebreak fails OPEN, consistent with the unreadable-date: and missing-digest rules — re-application is recoverable, silent retirement is not",
+        "A constant-date: producer is therefore never permanently retired by a single stale legacy record"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "fix-pass-legacy-entry-undated-candidate-stays-in-set",
+      "prompt": "[Scenario: a minimally conforming producer wrote a findings file carrying type:, branch: and a parseable ## Findings table but NO date: field at all. A pre-0.20.0 fix-pass-record for this exact branch names that file as a bare scalar source-findings with no digest.] /review:fanout fix",
+      "expected_output": "The not-newer test cannot be evaluated without the candidate's date:, so the digest-less entry is not honored and the candidate stays in the merge set — failing toward re-admission rather than toward a silent drop.",
+      "files": [],
+      "expectations": [
+        "The candidate STAYS in the merge set — a missing, empty, or unparsable date: fails the not-newer test rather than defaulting to 'not newer' and subtracting",
+        "The file is not skipped for lacking date: — date: is required of review:fanout's own writer but is not part of the admission test (type:, branch:, parseable table)",
+        "The direction is justified as fail-safe: re-admitting an already-applied file is recoverable, silently dropping an unapplied one is not",
+        "After this run consumes it, the new record names it WITH a digest, so the digest match governs on the next run and date: is never consulted for it again"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "fix-pass-record-attributes-every-unapplied-row",
+      "prompt": "[Scenario: an interactive session; the merge set is two conforming files — one from review:fanout, one from a script detector — carrying correctness rows, cleanup rows, and one ## Unparsed entry. At the confirmation gate the operator narrows scope: 'only the correctness ones', and one correctness row is surfaced rather than auto-applied because its blast radius is high.] /review:fanout fix",
+      "expected_output": "Both files are consumed in full, and the record's 'Not applied' table renders every row that did not land — the narrowed-out cleanup rows, the surfaced correctness row, and the unparsed entry — each with the consumed file it came from, so the operator knows which producer to re-run.",
+      "files": [],
+      "expectations": [
+        "The narrowed-out cleanup rows appear individually in the record's 'Not applied' table rather than vanishing because the cleanup class reports only what changed",
+        "The surfaced correctness row appears as its own table row, not merely as a count appended to the correctness-class line",
+        "Every 'Not applied' row names the consumed file it came from, and the detector's rows are attributed to the detector's file rather than to review:fanout's",
+        "Both files are still recorded as consumed in source-findings — consumption is per file, so a partly-applied file is retired whole and the table is what keeps its deferred rows recoverable"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "fix-pass-same-name-different-content-still-consumed",
+      "prompt": "[Scenario: a fix-pass-record for this exact branch names 20260815T044501Z-review.md with its sha256 digest; a producer has since written a DIFFERENT findings file to that same 20260815T044501Z-review.md path, so the name on disk matches the record but the content does not.] /review:fanout fix",
+      "expected_output": "The candidate's digest is computed from its bytes on disk and does not match the recorded digest, so the file is NOT subtracted: it enters the merge set and its findings are planned and applied.",
+      "files": [],
+      "expectations": [
+        "The digest of the candidate is computed at read time from the candidate's own bytes, not inferred from the record or compared record-to-record",
+        "The candidate is NOT subtracted — subtraction requires the record entry to match BOTH the file name and the content digest",
+        "The file appears in the plan header and its findings are counted, rather than being silently skipped because its name appears in an old record"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "fix-pass-two-same-second-applies-write-two-records",
+      "prompt": "[Scenario: two automation triggers fire close together against the same branch and both applies run to completion within the same UTC second; a producer wrote a further findings file between them, so the second apply consumes a set the first did not.] /review:fanout fix --yes",
+      "expected_output": "Each apply names its record by the digest of that record's own staged bytes, so the two same-second applies produce two distinct records rather than the second overwriting the first, and the next run subtracts both records' source-findings.",
+      "files": [],
+      "expectations": [
+        "The record file name is <UTC-timestamp>-fix-pass-applied-<sha256-12>.md — the timestamp alone is not treated as a unique name",
+        "The record body is staged outside the findings directory (mktemp) and moved into place after its digest is computed, so the staging path cannot collide either",
+        "Two applies whose bodies differ produce two records; neither clobbers the other, so neither record's source-findings is lost from the next run's subtraction",
+        "Two applies whose bodies are byte-identical may share a name, and that is stated as harmless because identical records name the same consumed set"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "fix-pass-record-branch-filter-binds-both-sides",
+      "prompt": "[Scenario: the shared findings directory holds a conforming findings file for the current branch plus a fix-pass-record whose branch: value is a DIFFERENT branch that slugs to the same directory, and whose source-findings names the current branch's file.] /review:fanout fix",
+      "expected_output": "The foreign-branch record excludes nothing: its branch: does not equal the current branch exactly, so the current branch's findings file stays in the merge set.",
+      "files": [],
+      "expectations": [
+        "The current branch's findings file remains in the merge set and appears in the plan header",
+        "The fix-pass-record is ignored for subtraction because its branch: value does not equal the current branch exactly",
+        "The exact-branch check is applied to records as well as to candidate findings files, not to candidates alone"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "fix-pass-dedup-is-presence-only",
+      "prompt": "[Scenario: two conforming findings files for the current branch, each ranking its own findings from 1; one reports a defect at foo.ts:42 and the other a DIFFERENT defect at foo.ts:44, and both report an identically-worded finding at bar.ts:10 that one rates CRITICAL/high and the other MAJOR/medium.] /review:fanout fix",
+      "expected_output": "Only the byte-identical Location-plus-Finding pair collapses — taking MAX tier and MAX confidence and retaining both Actions — while the two nearby but distinct defects survive as separate rows, and the merged table is renumbered from 1.",
+      "files": [],
+      "expectations": [
+        "The foo.ts:42 and foo.ts:44 rows BOTH survive as distinct rows — no line-proximity bucket merges them",
+        "The two identical bar.ts:10 rows collapse into one row naming both producers in Surface(s), carrying the CRITICAL tier and high confidence",
+        "The collapsed row retains both distinct Actions rather than dropping one producer's remediation",
+        "Rank is renumbered from 1 across the merged table — the plan does not contain two rank-1 rows"
       ]
     }
   ]

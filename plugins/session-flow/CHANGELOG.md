@@ -1,5 +1,13 @@
 # Changelog — session-flow plugin
 
+## [0.23.5]
+
+### Changed
+
+- **README:** the Network section's closed roster of network-free skills is reopened to a category
+  statement ("every skill not named above"), so skill additions no longer silently drift the list
+  (repo-wide `/docs-hygiene:audit-noise` run, 2026-08-15).
+
 ## [0.23.4]
 
 ### Fixed

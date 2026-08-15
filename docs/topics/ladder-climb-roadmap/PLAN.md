@@ -84,14 +84,14 @@ step 4 triggers armed.
 ## Plan
 
 Roadmap-level plan: five phases, snowball-ordered. Phase I is promoted to its own sub-topic
-(`docs/topics/autonomy-ignition/`) — it carries its own exploration, >5 work items, and an
+(`docs/topics/autonomy-ignition/`, PR #796) — it carries its own exploration, >5 work items, and an
 independent commit boundary on the proving ground. Phases III–V are gated on Phase I evidence
 and stay [TODO] outlines here until their gates arm; each gets its own sub-topic plan when it
 ignites (search-before-create against open issues first).
 
 ### Phase I: Ignition (#778) — standing routine + evidence drain [TODO]
 
-Sub-topic: `docs/topics/autonomy-ignition/PLAN.md` (authored at Phase I start, inherits the
+Sub-topic: `docs/topics/autonomy-ignition/PLAN.md` (PR #796; authored at Phase I start, inherits the
 interview rulings as design record). Scope, ruled: hourly C2 drain (cadence re-bound
 2026-07-22 to a 15-min slot grid; predicate span ≥14d re-bound to ≥7d under a 48h
 merge-maturity guard — sub-topic Phase 4 re-bind ratification) on
@@ -299,8 +299,8 @@ any Phase II PR (fallback trigger: scope-fence violation or main-session babysit
 
 ### Execution shape ([EXEC-SHAPE] tagged)
 
-- [EXEC-SHAPE] Phase I promoted to sub-topic `docs/topics/autonomy-ignition/` with its own
-  PLAN.md; roadmap phases III–V stay outlines here until gated ignition.
+- [EXEC-SHAPE] Phase I promoted to sub-topic `docs/topics/autonomy-ignition/` (PR #796) with its
+  own PLAN.md; roadmap phases III–V stay outlines here until gated ignition.
 - [EXEC-SHAPE] Phase I/II interleave permitted after Phase I routine is live; sequential
   fallback documented above.
 - [EXEC-SHAPE] Builders per STANDING ORCHESTRATION CONTRACT: Fable plans, Opus builders in

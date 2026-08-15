@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.12.2]
+## [0.12.3]
 
 ### Added
 
@@ -13,6 +13,22 @@ only after that version increases.
   `extraction/` npm package; CI and repo docs now invoke the facades instead of running npm
   directly inside the private subdirectory. The extraction packages themselves are unchanged.
 
+## [0.12.2]
+
+### Changed
+
+- **`map-corpus` states its own deferred decisions instead of pointing outside itself.** The skill
+  cited an authoring-time planning document by label, which no consumer ever receives — an
+  unresolvable reference on a shipped surface. Each site is now self-contained: the deferred rung-3
+  decision states its own fork (a presence-gated `/firecrawl:firecrawl map` seam versus a recorded
+  reimplementation), its user-reserved arbiter, and its trigger; the deferred repo-tree enumeration
+  rung states its trigger; the opaque `Q19` label is dropped from `SKILL.md`,
+  `discovery/link-map-format.md`, `discovery/check_linkmap.py`, and the eval set; and the
+  whole-snapshot hash in `extraction/node-manifest-format.md` now points at
+  `reference/citation-shape.md`, its actual owner. No behavior, schema, gate, exit code, or
+  argument changes.
+>>>>>>> origin/main
+
 ## [0.12.1]
 
 ### Added
@@ -20,9 +36,9 @@ only after that version increases.
 - **Owner doc for the tracked citation shape** (`reference/citation-shape.md`): URL + retrieval
   date (ISO 8601, UTC) + `sha256:<hex64>` over raw snapshot bytes, with inline and structured
   forms, an optional node-id sub-resource anchor, and a drift rule (new fetch = new citation;
-  never edit a hash in place). Pays down the Brief-captured debt `map-corpus` recorded ("that
-  citation shape still needs an owner doc before a second skill emits it") — the skill's
-  cite-never-copy gotcha now points at the owner doc instead of naming the debt.
+  never edit a hash in place). Pays down the debt `map-corpus` recorded ("that citation shape still
+  needs an owner doc before a second skill emits it") — the skill's cite-never-copy gotcha now
+  points at the owner doc instead of naming the debt.
 
 ## [0.12.0]
 
