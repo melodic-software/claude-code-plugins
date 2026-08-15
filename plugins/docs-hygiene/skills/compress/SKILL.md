@@ -55,7 +55,7 @@ Agent applies Edit ops directly on `$target` per the `context/flavor-vs-content-
 
 | Action | Args | Behavior |
 |---|---|---|
-| `<target>` (default, no action keyword) | empty → uncommitted `.md` from `git diff`; file path → single-file; dir path → batch | snapshot → backend → dispatch → revert-pass → markdownlint verify → summary |
+| `<target>` (default, no action keyword) | empty → uncommitted `.md` from `git status`; file path → single-file; dir path → batch | snapshot → backend → dispatch → revert-pass → markdownlint verify → summary |
 | `audit [target]` | same target rules | read-only dry-run; compute expected-yield heuristic per `context/target-types.md`; classify SKIP/COMPRESS/UNCERTAIN |
 
 Flags (apply to both actions):
