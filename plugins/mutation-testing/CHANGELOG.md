@@ -3,6 +3,16 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- **The permissive-branch guard rule becomes a pointer.** `--persist-findings` skips the self-ignore
+  guard where no checkout is detected as governing the destination; that rule now belongs to the
+  [topic-docs convention](../../docs/conventions/topic-docs/README.md) "Runtime guards", which owns
+  the guard, so the spoke cites it instead of deriving it locally. Behavior is unchanged — the rule
+  moved to its owner, where it binds every consumer of that guard rather than this plugin alone.
+
 ## [0.2.0]
 
 ### Added
