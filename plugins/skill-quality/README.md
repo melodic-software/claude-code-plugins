@@ -94,8 +94,10 @@ After the schema, `check-evals-quality.sh` (bash + jq) lints eval CONTENT determ
 `FAIL:` tier — duplicate case ids/names, empty criterion items, `files` fixture entries that
 resolve to no path under the skill or evals directory. `WARN:` tier (advisory, exit 0) — a case
 carrying both `expectations` and `assertions`, identical prompt+files pairs, vague whole-item
-phrasing ("the output is good"), a thin sole-criterion `expected_output`, and a set with no
-refusal/guardrail or anti-pattern case. It deliberately does not flag low case count. Run
+phrasing ("the output is good"), a thin sole-criterion `expected_output`, a set with no
+refusal/guardrail or anti-pattern case, and (Q4 prose) an empty `files` list with
+path-shaped tokens in `prompt`/`expected_output` that resolve nowhere (silence with
+`narration: true` or declare fixtures). It deliberately does not flag low case count. Run
 `--help` on the script for the full Q1-Q9 list; without `jq` it exits 2 and the schema verdict
 stands alone.
 

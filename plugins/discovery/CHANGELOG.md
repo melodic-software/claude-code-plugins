@@ -1,5 +1,21 @@
 # Changelog — discovery plugin
 
+## [0.15.5]
+
+### Changed
+
+- **Explore composes the toolchain ecosystem seam instead of a silent second
+  signal table (#2726).** `skills/explore/reference/ecosystem-discovery.md` now
+  presence-gates `/toolchain:check`'s covered-ecosystem set and
+  `project-discovery` / `anchor` for shared detection and root adjacency, keeps
+  explore-only keys (`dependency-grep`, `test-globs`, `test-content-grep`,
+  `build-configs`, `runtime-version-cmd`) even when that seam is present —
+  including fallback ecosystems the seam does not cover (`rust`, `java`) and the
+  exhaustive configuration / runtime-probe inventories seam `globs` /
+  `install-hint` do not replace — and retains the prior YAML table as the
+  documented fallback when `toolchain` is absent. `explore` Dimensions 3–6, the
+  `explorer` agent, and the plugin README cite the same gate+fallback shape.
+
 ## [0.15.4]
 
 ### Fixed

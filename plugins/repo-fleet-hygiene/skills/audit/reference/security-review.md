@@ -1,18 +1,21 @@
 # Plugin-acceptance security review
 
 Reviewed 2026-07-16 against the repository migration playbook and current official Claude Code plugin,
-skills, Git, GitHub CLI, and GitHub REST documentation. Re-checked 2026-07-31 for #1795 (merged-PR
-batch limit raised to the shared `MERGED_PR_BATCH_LIMIT` / `MERGED_PR_HEAD_LIMIT` constants; probe
-allowlist still admits only the fixed `pr list` argv shapes, now keyed to those constants rather than
-hardcoded 200/100 literals; truncation at the cap emits `UNKNOWN` and does not widen network egress).
+skills, Git, GitHub CLI, and GitHub REST documentation. Re-checked 2026-07-31 for #1795 (historical:
+on the then-REST `gh pr list` path, the merged-PR batch limit was raised from hardcoded 100 to 200 and
+the probe allowlist was keyed to those batch/head limits rather than hardcoded 200/100 literals;
+truncation at the cap emitted `UNKNOWN` and did not widen network egress). Superseded by the
+2026-08-14 re-check below — those REST batch/head limit names no longer exist after the GraphQL
+migration.
 Re-checked 2026-08-11 for the `allowed-tools` pairing fix: the grant is now a narrow, skill-anchored
 `Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)` matching the body's direct invocation. No new
 execution, network, or config surface — the previous rule never matched, so this makes an already
 user-invoked script prompt-free rather than admitting anything new.
 Re-checked 2026-08-14 for #2604: merge evidence moves from REST `gh pr list` (window + privacy-gated
-`--head` fallback) to one aliased `gh api graphql` query per page of local branches. The allowlist
-admits only `query` documents with exact `headRefName` / `first:1` / `states:[MERGED]` shape and a
-fixed `--jq` flatten; `mutation`/`subscription` and REST `pr list` are rejected. Branch names
+`--head` fallback) to one aliased `gh api graphql` query per page of local branches
+(`MERGED_PR_GRAPHQL_ALIAS_PAGE` aliases per call). The allowlist admits only `query` documents with
+exact `headRefName` / `first:1` / `states:[MERGED]` shape and a fixed `--jq` flatten
+(`MERGED_PR_GRAPHQL_JQ`); `mutation`/`subscription` and REST `pr list` are rejected. Branch names
 transmitted are exactly the non-default local branches under audit for the operator's own resolved
 repository identity — not a silent gate that leaves branches unverdicted.
 Re-checked 2026-08-15 for #2607 (`merged-remote-branch`): reuses the same aliased GraphQL
