@@ -158,13 +158,14 @@ local surface; 36.6% crash-replay reproducibility).
 
 ### Deferred questions
 
-- **Q12 (arbiter: USER-RESERVED)** — repo-scope plugin declaration in cloud. Two official pages
-  contradict each other on whether repo-declared marketplace plugins install; workspace trust for a
-  cloud clone is undocumented, and if untrusted the declaration is ignored **silently**;
-  private-marketplace auth in cloud is undocumented. **One probe settles all three**: scratch repo,
-  declare a plugin via `extraKnownMarketplaces` + `enabledPlugins`, fire a routine, read the
-  transcript — public and private. Unresolvable from documentation. Tier 0's fourth item is blocked
-  on it, and the documented alternative (components committed directly to `.claude/`) is the fallback.
+- **Q12 (arbiter: USER-RESERVED)** — repo-scope plugin declaration in cloud. **Filed as
+  [#2660](https://github.com/melodic-software/claude-code-plugins/issues/2660)** (`needs-human`).
+  Two official pages contradict each other on whether repo-declared marketplace plugins install;
+  workspace trust for a cloud clone is undocumented, and if untrusted the declaration is ignored
+  **silently**; private-marketplace auth in cloud is undocumented. One probe settles all three, and
+  it cannot run unattended — browser selection, account mutation, and metered usage all require the
+  human. Tier 0's fourth item is blocked on it; the documented alternative (components committed
+  directly to `.claude/`) is the fallback and needs no marketplace fetch, trust step, or credentials.
 - **Q4 follow-on (arbiter: `/planning:plan`)** — add a reviewer-burden term to the existing promotion
   predicate, and keep any future tuner's signal set disjoint from promotion evidence. Composition
   hazard if not: a tuner could raise the metric that promotes the cell that reduces scrutiny of the
