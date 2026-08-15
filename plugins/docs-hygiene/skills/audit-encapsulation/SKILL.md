@@ -55,7 +55,8 @@ detection, presenting these prescribed defaults for adjustment:
 | Mode | detect + classify only; remediation stays a separate, user-approved step |
 | Worker fan-out | off — classify in-session. When the user opts into subagent classification or remediation, run 2–3 concurrent workers, no more, while rate-limit telemetry is absent; when the `rate-limit-guard` plugin's snapshot is readable, resolve pacing from its reader contract instead (that contract owns the snapshot path, staleness rule, and thresholds — read them there) |
 
-An inherited scope suppresses the question — audit the implied surface directly. `sweep` is the
+An inherited scope — or a scope the user already stated in the invocation ("across the repo",
+"audit this directory") — suppresses the question; audit that surface directly. `sweep` is the
 explicit opt-in that skips the confirmation and runs the repo-wide detect immediately.
 
 ## Detection

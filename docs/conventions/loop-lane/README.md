@@ -458,10 +458,8 @@ next iteration with `ScheduleWakeup`, whose delay is clamped between one minute 
 `ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified
 against <https://code.claude.com/docs/en/tools-reference> and
 <https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-27, no drift from the prior
-2026-07-23 stamp). Idle raises the delay toward the ceiling. The `source-control` babysit lane's own
-self-pacing section
-([`babysit-prs` loop reference](../../../plugins/source-control/skills/babysit-prs/reference/loop.md))
-is the worked precedent.
+2026-07-23 stamp). Idle raises the delay toward the ceiling. The self-pacing section the
+`source-control:babysit-prs` skill owns is the worked precedent.
 
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
 the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
