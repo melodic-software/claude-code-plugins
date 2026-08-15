@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for extract_nodes.py. Stdlib unittest; run: python test_extract_nodes.py"""
 
+import contextlib
 import hashlib
 import json
 import os
@@ -23,15 +24,26 @@ def run_cli(args, expect_code=0):
     return proc
 
 
-def extract(data: bytes, suffix=".md", extra_args=None):
+@contextlib.contextmanager
+def temp_snapshot(data: bytes, suffix=".md"):
+    """Yield the path of a temp file holding `data`; delete it on exit.
+
+    The handle is CLOSED before the yield: on Windows an open handle blocks the
+    child process from reading the file.
+    """
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as fh:
         fh.write(data)
         path = fh.name
     try:
-        proc = run_cli([path] + (extra_args or []))
-        return json.loads(proc.stdout)
+        yield path
     finally:
         os.unlink(path)
+
+
+def extract(data: bytes, suffix=".md", extra_args=None):
+    with temp_snapshot(data, suffix) as path:
+        proc = run_cli([path] + (extra_args or []))
+        return json.loads(proc.stdout)
 
 
 def assert_partition(test, manifest, data: bytes):
@@ -200,33 +212,19 @@ class TestOpaqueAndErrors(unittest.TestCase):
         self.assertEqual(m["nodes"][0]["kind"], "document")
 
     def test_empty_snapshot_fails_loudly(self):
-        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as fh:
-            path = fh.name
-        try:
+        with temp_snapshot(b"") as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"empty", proc.stderr)
-        finally:
-            os.unlink(path)
 
     def test_unknown_extension_fails_loudly(self):
-        with tempfile.NamedTemporaryFile(suffix=".xyz", delete=False) as fh:
-            fh.write(b"content")
-            path = fh.name
-        try:
+        with temp_snapshot(b"content", suffix=".xyz") as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"unknown snapshot extension", proc.stderr)
-        finally:
-            os.unlink(path)
 
     def test_pdf_extension_refused(self):
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as fh:
-            fh.write(b"%PDF-1.4")
-            path = fh.name
-        try:
+        with temp_snapshot(b"%PDF-1.4", suffix=".pdf") as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"not node-extractable", proc.stderr)
-        finally:
-            os.unlink(path)
 
     def test_missing_file_fails_loudly(self):
         run_cli([os.path.join(HERE, "does-not-exist.md")], expect_code=2)
@@ -259,49 +257,29 @@ class TestEncodings(unittest.TestCase):
 
     def test_utf16_bom_rejected(self):
         data = "<h1>Hi</h1>".encode("utf-16")  # LE with BOM
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as fh:
-            fh.write(data)
-            path = fh.name
-        try:
+        with temp_snapshot(data, suffix=".html") as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"UTF-16", proc.stderr)
-        finally:
-            os.unlink(path)
 
     def test_utf32_bom_rejected(self):
         data = "# Hi\n".encode("utf-32")  # LE with BOM
-        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as fh:
-            fh.write(data)
-            path = fh.name
-        try:
+        with temp_snapshot(data) as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"UTF-32", proc.stderr)
-        finally:
-            os.unlink(path)
 
     def test_cr_only_rejected(self):
-        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as fh:
-            fh.write(b"# A\rbody\r")
-            path = fh.name
-        try:
+        with temp_snapshot(b"# A\rbody\r") as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"CR-only", proc.stderr)
-        finally:
-            os.unlink(path)
 
 
 class TestDeterminism(unittest.TestCase):
     def test_two_runs_byte_identical(self):
-        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as fh:
-            fh.write(MD_FULL)
-            path = fh.name
-        try:
+        with temp_snapshot(MD_FULL) as path:
             out1 = run_cli([path]).stdout
             out2 = run_cli([path]).stdout
             self.assertEqual(out1, out2)
             self.assertGreater(len(out1), 0)
-        finally:
-            os.unlink(path)
 
     def test_out_file_matches_stdout(self):
         with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as src:

@@ -198,9 +198,10 @@ def main(argv=None) -> int:
         if not isinstance(url, str) or not url:
             failures.add(f"row[{index}]: url is not a non-empty string.")
             continue
-        if normalize_url(url) != url:
+        normalized = normalize_url(url)
+        if normalized != url:
             failures.add(f"{label}: url is not in normalized form (expected "
-                         f"{normalize_url(url)!r}); one resource must not "
+                         f"{normalized!r}); one resource must not "
                          f"appear under two spellings.")
             continue
         if url in seen:

@@ -52,7 +52,8 @@ ask_yn() {
   fi
   echo
   read -r -p "${prompt} [y/N]: " ans
-  [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]]
+  local answer="${ans,,}"
+  [[ "${answer}" == "y" || "${answer}" == "yes" ]]
 }
 
 run_or_show() {

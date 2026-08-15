@@ -678,7 +678,6 @@ ps::_blank_cmd_statements() {
 
 # Blank special-construct opaque regions: `--%` through statement end, matched
 # `{}`/`()` groups, and backtick escapes. Writes PS_SAFE_COMMAND.
-# Also move locals to top of _blank_special_construct_regions
 ps::_blank_special_construct_regions() {
   local cmd="$1" n=${#1} i=0 out="" c end depth open close
   while ((i < n)); do

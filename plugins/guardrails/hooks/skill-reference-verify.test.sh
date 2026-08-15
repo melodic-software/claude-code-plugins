@@ -550,7 +550,7 @@ assert_contains "a reference reconstructed out of multibyte content is intact" "
 # codepoint is baked in). Every candidate is escape-built, never a literal byte, so
 # an editor or transfer that normalizes whitespace cannot quietly turn it into an
 # ASCII space — which is exactly what happened while this case was first written.
-# MIRRORS skill-reference-verify.sh:220 — emit_refs' reference-extraction sed,
+# MIRRORS skill-reference-verify.sh — emit_refs' reference-extraction sed,
 # byte for byte. Nothing enforces that, so if you change the grammar there, change
 # it here too. A drift cannot pass silently: the end-to-end assertion below still
 # runs the REAL hook, so a separator discovered against a stale copy would fail

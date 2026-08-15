@@ -122,10 +122,9 @@ async function downloadOneItem(item, stats) {
 
 async function downloadAllItems(downloadItems) {
   const stats = { success: 0, failed: 0, skipped: 0, totalBytes: 0 };
-  await downloadItems.reduce(async (chain, item) => {
-    await chain;
+  for (const item of downloadItems) {
     await downloadOneItem(item, stats);
-  }, Promise.resolve());
+  }
   return stats;
 }
 

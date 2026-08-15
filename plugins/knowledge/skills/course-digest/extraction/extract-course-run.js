@@ -231,15 +231,12 @@ async function processLesson(module, lesson, ctx) {
 export async function runLessonExtraction(ctx) {
   const { course, log, modulesDir } = ctx;
 
-  await course.modules.reduce(async (moduleChain, module) => {
-    await moduleChain;
+  for (const module of course.modules) {
     log.info(`  Module ${module.position}: ${module.title}`);
-    const lessons = module.lessons.map((lesson) => ({ module, lesson }));
-    await lessons.reduce(async (lessonChain, entry) => {
-      await lessonChain;
-      await processLesson(entry.module, entry.lesson, ctx);
-    }, Promise.resolve());
-  }, Promise.resolve());
+    for (const lesson of module.lessons) {
+      await processLesson(module, lesson, ctx);
+    }
+  }
 
   return { modulesDir };
 }

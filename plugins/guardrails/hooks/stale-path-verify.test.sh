@@ -656,12 +656,6 @@ RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
 
-# ============================ SOURCE CONTRACT ===============================
-
-HOOK_SRC=$(cat "$HOOK")
-
-# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
-# cannot host bash + coreutils across Git Bash and Linux, the same constraint
 # --- non-ASCII deleted paths: core.quotePath=false on the history walk (#1452) -
 UNI_REPO="$TEST_TMPDIR/uni-repo"
 mkdir -p "$UNI_REPO/docs"
@@ -676,6 +670,12 @@ UNI_TARGET="$UNI_REPO/notes.md"
 out=$(CLAUDE_PROJECT_DIR="$UNI_REPO" bash "$HOOK" <<<"$(write_json "$UNI_TARGET" 'See `docs/café.md`.')" 2>&1)
 assert_contains "non-ASCII deleted path fires" "$out" "STALE_PATH: docs/café.md"
 
+# ============================ SOURCE CONTRACT ===============================
+
+HOOK_SRC=$(cat "$HOOK")
+
+# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
+# cannot host bash + coreutils across Git Bash and Linux, the same constraint
 # secret-pattern-detection.test.sh and require-jq-notice-isolation.test.sh both
 # document. Assert the fail-open guard is present; require_jq's own behavior is
 # covered by lib/hook-utils.test.sh and the notice key's plugin-wide uniqueness

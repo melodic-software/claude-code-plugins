@@ -122,7 +122,7 @@ function classifyLesson(dedupEntry, durationSec) {
     classified.push({
       file: frame.file,
       timestamp: estimatedTimestamp,
-      timestampEstimated: !frame.isInterval,
+      timestampEstimated: isScene,
       type,
       description: null,
       keep,

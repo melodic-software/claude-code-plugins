@@ -333,18 +333,29 @@ reconstruct_partial_edit() {
 
 reconstruct_partial_edit
 
+# Split a "bin|chain|flag" CANDIDATES/FAILURES key into its three parts. Globals
+# rather than an echo: this runs per candidate and per finding, and a command
+# substitution would add a fork to each one.
+KEY_BIN=""
+KEY_CHAIN=""
+KEY_FLAG=""
+split_candidate_key() {
+  local rest
+  KEY_BIN="${1%%|*}"
+  rest="${1#*|}"
+  KEY_CHAIN="${rest%|*}"
+  KEY_FLAG="${rest##*|}"
+}
+
 # Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
 FAILURES=()
 for key in "${!CANDIDATES[@]}"; do
-  bin="${key%%|*}"
-  rest="${key#*|}"
-  chainstr="${rest%|*}"
-  flag="${rest##*|}"
+  split_candidate_key "$key"
   # Skip if binary not on PATH (verifier exit 2). Avoids spurious failures on
   # systems missing tools the file references for documentation purposes.
-  command -v "$bin" >/dev/null 2>&1 || continue
-  read -ra chainarr <<<"$chainstr"
-  "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
+  command -v "$KEY_BIN" >/dev/null 2>&1 || continue
+  read -ra chainarr <<<"$KEY_CHAIN"
+  "$VERIFIER" --quiet "$KEY_BIN" "${chainarr[@]}" "$KEY_FLAG" 2>/dev/null
   rc=$?
   # Exit 1 = flag absent (likely hallucinated); 2 = unverifiable, treat as
   # neutral (don't flag — could be tool not on this machine, transient
@@ -379,13 +390,10 @@ emit_tel() {
   *) ;;
   esac
   if ((${#FAILURES[@]} > 0)); then
-    local f raw="" bin rest chainstr flag disp
+    local f raw="" disp
     for f in "${FAILURES[@]}"; do
-      bin="${f%%|*}"
-      rest="${f#*|}"
-      chainstr="${rest%|*}"
-      flag="${rest##*|}"
-      [[ -n "$chainstr" ]] && disp="$bin $chainstr $flag" || disp="$bin $flag"
+      split_candidate_key "$f"
+      [[ -n "$KEY_CHAIN" ]] && disp="$KEY_BIN $KEY_CHAIN $KEY_FLAG" || disp="$KEY_BIN $KEY_FLAG"
       raw+="$disp"$'\n'
     done
     findings_json=$(printf '%s' "$raw" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
@@ -401,20 +409,17 @@ if ((${#FAILURES[@]} > 0)); then
   hook::ctx_append "cli-flag-verify: ${#FAILURES[@]} unknown flag(s) in $FILE"
   hook::ctx_append "Possible hallucination — verify against the binary's actual --help output:"
   for f in "${FAILURES[@]}"; do
-    bin="${f%%|*}"
-    rest="${f#*|}"
-    chainstr="${rest%|*}"
-    flag="${rest##*|}"
-    if [[ -n "$chainstr" ]]; then
-      disp="$bin $chainstr $flag"
-      helpref="$bin $chainstr --help"
+    split_candidate_key "$f"
+    if [[ -n "$KEY_CHAIN" ]]; then
+      disp="$KEY_BIN $KEY_CHAIN $KEY_FLAG"
+      helpref="$KEY_BIN $KEY_CHAIN --help"
     else
-      disp="$bin $flag"
-      helpref="$bin --help"
+      disp="$KEY_BIN $KEY_FLAG"
+      helpref="$KEY_BIN --help"
     fi
     hook::ctx_append "  UNKNOWN_FLAG: $disp (not found in '$helpref')"
     hook::ctx_append "    fix:   run '$helpref' and confirm the flag exists"
-    hook::ctx_append "    skip:  add $bin to the guardrails cli_flag_verify_skip_bins option"
+    hook::ctx_append "    skip:  add $KEY_BIN to the guardrails cli_flag_verify_skip_bins option"
   done
   hook::ctx_append ""
   hook::ctx_append "Subagent / training-recall flag claims are unverified — confirm"

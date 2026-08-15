@@ -125,10 +125,9 @@ async function inspectLesson({ module: mod, lesson }, ctx) {
 }
 
 async function inspectAllLessons(lessonList, ctx) {
-  await lessonList.reduce(async (chain, entry) => {
-    await chain;
+  for (const entry of lessonList) {
     await inspectLesson(entry, ctx);
-  }, Promise.resolve());
+  }
 }
 
 async function main() {

@@ -96,7 +96,7 @@ def extract_markdown_urls(text: str, base_url: str) -> list:
         found.append((m.group(1), True))
     urls = []
     for target, bare in found:
-        if target.startswith(("#",)):
+        if target.startswith("#"):
             continue
         absolute = urljoin(base_url, target)
         normalized = normalize_url(absolute, strip_punct=bare)
@@ -183,10 +183,7 @@ def main(argv=None) -> int:
     if args.rung == "sitemap-xml":
         urls = extract_sitemap_xml_urls(data)
     else:  # llms-txt, sitemap-md: both are markdown-ish text
-        if data.startswith(b"\xef\xbb\xbf"):
-            data_text = data[3:]
-        else:
-            data_text = data
+        data_text = data.removeprefix(b"\xef\xbb\xbf")
         try:
             text = data_text.decode("utf-8")
         except UnicodeDecodeError as exc:
