@@ -123,8 +123,16 @@ fi
 # source is documented as a development source, and sessions in fact arrive with
 # an empty plugin registry — no plugin skill loaded and every `/plugin` command
 # unknown. Registering the checkout by absolute path and installing the enabled
-# set repairs that while keeping the property the directory source exists for:
-# a session exercises the plugin code on the current branch, not published main.
+# set repairs the on-disk state while keeping the property the directory source
+# exists for: a session exercises the plugin code on the current branch, not
+# published main.
+#
+# Timing limit (docs/CLOUD-SESSIONS.md, "Plugins in sessions on this repo"):
+# the plugin/command registry is read at process start, BEFORE a SessionStart
+# hook runs, and is not re-read, so a hook run's installs are invisible to the
+# session performing them. They serve the next process start — which on an
+# ephemeral cloud VM means the environment's setup script must run this script
+# at cache-build time for a session to ever start with plugins loaded.
 #
 # Never `claude plugin marketplace remove` here. That subcommand deletes the
 # marketplace's entry from .claude/settings.json, so using it to force a
@@ -132,9 +140,7 @@ fi
 #
 # Best effort by design: a plugin that fails to install costs that plugin's
 # skills, not the session. Idempotent — installed plugins are skipped, so a
-# resume re-run costs one `claude plugin list` call. Only the pre-launch
-# caller's installs are live at turn one; installs made by a SessionStart-hook
-# run surface at the next resume (the registry is read once, at process start).
+# resume re-run costs one `claude plugin list` call.
 claude_bin="$repo_root/node_modules/.bin/claude"
 marketplace_name="melodic-software"
 if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then

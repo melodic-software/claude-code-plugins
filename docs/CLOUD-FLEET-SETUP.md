@@ -60,10 +60,21 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 
 ## Step 1 — the shared environment (claude.ai UI, one time)
 
+> **Rollout direction (2026-08-15):** account rollout and per-repo migration prompts live in
+> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md). Fleet repos are
+> renaming their committed bootstrap from `.claude/hooks/session-start.sh` to
+> `.claude/cloud-bootstrap.sh` (one script, two callers — the environment's cache build
+> pre-launch, and the SessionStart hook per session). The standards `cloud-environment`
+> component invokes **only** the new path — no legacy fallback, by decision — so completing a
+> repo's migration is what turns on its pre-launch bootstrap; until then that repo's sessions
+> rely on the per-session hook alone. Pre-launch execution is what makes marketplace plugins
+> load at turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box) — there is no API.
-Either edit **Default** in place or add a new environment named e.g. **Melodic** so Default stays
-pristine:
+Edit **Default** in place — the paste-once rollout settles on one account-wide Default rather
+than a separate named environment (see
+[One environment per account?](../prompts/cloud-bootstrap-rollout.md#one-environment-per-account)):
 
 - **Network access**: **Custom**, with **Also include default list of common package managers**
   checked, plus these hosts: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
@@ -262,8 +273,11 @@ session on this repo in the new environment and ask Claude to verify:
 2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
    `actionlint`), and re-running the bootstrap is a fast no-op.
 3. `echo $GH_TOKEN` prints `proxy-injected` (GitHub proxy is authenticating).
-4. Marketplace plugins loaded (`/plugin` → installed list shows `@melodic-software` entries) in a
-   session on a repo that declares them (songwriting or medley).
+4. Marketplace plugins loaded, in a session on a repo that declares them (songwriting or
+   medley): make the session's *first* message a plugin slash command and confirm it resolves —
+   `/plugin` is not available in cloud sessions, and a Bash-side
+   `claude plugin list` proves only disk state, not that the session loaded anything (see the
+   same-session limit in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
 5. If the .NET setup-script step failed (`dotnet` missing), confirm the environment actually has
    the Custom allowlist from [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) —
    under Trusted this step *always* fails (#2654 Blocker 1) — then rebuild and re-verify.
@@ -283,9 +297,15 @@ session on this repo in the new environment and ask Claude to verify:
   on a `startup|resume` matcher — and #2657 closed the last hook blocker (the
   `--require-hashes` pin list lacked cp311 wheels for the cloud VM's Python 3.11, so the hook
   failed deterministically; verified against PyPI's published digests, a coverage gap rather
-  than tampering). Remaining #2654 actions are environment-side, not repo-side: switch the
-  environment to the Custom allowlist ([Step 1](#step-1--the-shared-environment-claudeai-ui-one-time))
-  and rebuild the interrupted cache, then re-run the [checklist](#verification-checklist).
+  than tampering). A 2026-08-15 session then confirmed the wiring end to end — the hook ran at
+  startup and installed all 65 plugins — and established the follow-on limit now recorded in
+  `docs/CLOUD-SESSIONS.md` §"Plugins in sessions on this repo": hook-time installs land on disk
+  but are never loaded by the session that ran them (the registry is read before the hook), so
+  plugins go live at turn one only when the cache build runs the bootstrap pre-launch, which the
+  standards `cloud-environment` component does. Remaining #2654 actions are environment-side,
+  not repo-side: switch the environment to the Custom allowlist
+  ([Step 1](#step-1--the-shared-environment-claudeai-ui-one-time)) and rebuild the interrupted
+  cache, then re-run the [checklist](#verification-checklist).
 - **`dotfiles` cannot deliver user config to the cloud.** By platform design nothing from
   `~/.claude` reaches cloud sessions; the repo remains editable in the cloud, but any behavior it
   installs locally must be re-homed (repo `.claude/`, plugins, or the environment) to exist
