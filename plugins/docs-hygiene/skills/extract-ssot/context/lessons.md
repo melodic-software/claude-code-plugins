@@ -179,6 +179,42 @@ If only ONE passes, extraction is borderline — run an adversarial-review round
 
 **Encoded in.** `decision-framework.md` 6+5 gate (extends Rule of Three with the combined test); `actions/identify.md` prompt template (distinguishing form (e) per-instance unique data with shared framing).
 
+## Lesson 12: Changelog correction entries are refutation evidence — read them before canonicalizing a mechanism
+
+**Observation.** An execute worker drafted a new SSOT unifying two empirically-described refusal mechanisms; the consuming plugin's own CHANGELOG recorded a LATER adversarial re-probe refuting exactly that unification. The worker read the skills' body prose (already corrected) and the roster, but not the changelog's correction entry, and re-contaminated seven deliberately-corrected files plus the authoring playbook. Only a fresh-context adversarial diff review caught it pre-commit.
+
+**Trigger.** Any extraction whose cluster asserts an empirical mechanism (what triggers a refusal, what a tool actually does) rather than a policy.
+
+**Mitigation.** Before canonicalizing an empirical claim, grep the owning plugin's CHANGELOG for the newest entry touching that claim and treat a recorded refutation or dispute as binding: record the dispute in the SSOT or refuse, never silently resolve it. For WARN-borderline clusters, the adversarial-review round is mandatory and runs as a fresh-context diff review before commit.
+
+**Source.** 2026-08-15 whole-repo batch — cluster C13 (context-gather preamble): 4 blocking review findings, edits reverted, cluster deferred pending a fresh probe of the disputed mechanism.
+
+**Encoded in.** Candidate additions: `context/execution-checklist.md` (pre-edit changelog check), `actions/verify.md` WARN semantics (review round is a defined step, not advice).
+
+## Lesson 13: Portability inverts the output type on plugin runtime surfaces
+
+**Observation.** For clusters whose call sites are plugin runtime surfaces (skills, agents, references shipped to consumers without the marketplace repo), trim-to-citation is structurally unavailable — an installed plugin cannot read the marketplace `docs/`. 6 of 8 executed clusters inverted at plan/execute time to normalize-inline + provenance-only citation, with near-zero net line reduction; the ROI is drift elimination and one greppable canonical string, not size. The provenance budget is once per file, not per cluster — later clusters in the same files add zero new citations.
+
+**Trigger.** Any cluster whose sites match `plugins/*/skills/**`, `plugins/*/agents/**`, `plugins/*/context/**`, `plugins/*/reference/**` and whose proposed SSOT lives in the consuming repo's `docs/`.
+
+**Mitigation.** At `plan`, run a citation-target-reachability test: can every call site read the SSOT at its own runtime? If not, the output type is normalize-inline (byte-identical canonical sentence, per-site load-bearing slots preserved, provenance-only reference in the established form) and orchestrators must not rank the cluster by expected line reduction.
+
+**Source.** 2026-08-15 whole-repo batch — C01, C02, C03, C04, C07, C17, C23 all executed in this shape; C25's residual sites refused partly on this ground.
+
+**Encoded in.** `context/orchestrated-mode.md` (portability constraint); candidate addition: `context/decision-framework.md` output-type table (reachability row).
+
+## Lesson 14: Re-count dependent clusters after their predecessor executes; never count the SSOT or generated blocks as call sites
+
+**Observation.** A cluster verified WARN before its overlapping predecessor ran was fully exhausted by that predecessor's deletions: the execute-time re-count returned 0 migratable sites and a clean refusal. Separately, the survey's claimed 32 sites for that cluster were exactly the 32 files carrying the generator-owned options block — the SSOT itself counted as call sites — and a document-scope ownership declaration made a "restating" file an already-citing one that the line-scoped Gate 2 grep missed.
+
+**Trigger.** Batch sequencing where clusters share files; clusters whose canonical lives inside a generated block; consumers with document-top ownership declarations.
+
+**Mitigation.** Execute workers on dependent clusters re-run Gate 0/1 counts before editing (the verify verdict is a snapshot, not a warrant). Identify and verify exclude generator-owned regions (split on BEGIN/END GENERATED markers) and the SSOT's own file from reproduction counts. Gate 2 checks document scope (a top-of-file ownership statement covers every downstream restatement in that file), not just ±10 lines.
+
+**Source.** 2026-08-15 whole-repo batch — C25 (REFUSED-cluster-exhausted-by-C09 at execute; roster 32 → Tier 0 re-count 4 → post-C09 0 migratable), C09 (the predecessor).
+
+**Encoded in.** Candidate additions: `actions/identify.md` scope rules (generated-region split), `actions/verify.md` Gate 2 (document-scope pass), `actions/batch.md` (dependent-cluster re-count rule).
+
 ## Append guidance for future batches
 
 When a future `/docs-hygiene:extract-ssot batch` execution surfaces a new empirical pattern:

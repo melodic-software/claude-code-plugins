@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.5.2]
 
 ### Changed

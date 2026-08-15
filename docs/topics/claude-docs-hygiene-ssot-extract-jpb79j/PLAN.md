@@ -103,6 +103,32 @@ worker: plugin runtime surfaces must stay operable standalone — a
 marketplace-docs citation is provenance-only, never a runtime
 dependency (the loop-lane inline-floor form is the precedent).
 
+## Batch audit log (2026-08-15, final)
+
+| Cluster | Verify | Execute verdict | Wave | Outcome |
+|---|---|---|---|---|
+| C02 | PROCEED 31/0 | EXTRACTED | 1 | philosophy §setup extended; 31 setup skills normalized |
+| C06 | PROCEED 14/8 | EXTRACTED | 1 | new `docs/conventions/untrusted-content/`; 15 adopters |
+| C01 | PROCEED 14/0 | EXTRACTED | 2 | 14 sites normalized; 4 drifted sites repaired |
+| C09 | PROCEED 12/0 | EXTRACTED | 2 | Shape C deletion ×9 + in-file pointer ×3 |
+| C07 | PROCEED 16/0 | EXTRACTED | 3 | check-opening block; 16 setup skills |
+| C13 | WARN 11/0 | REVERTED → DEFERRED | 3 | review found refuted mechanism canonicalized (Lesson 12) |
+| C04 | PROCEED 32/0 | EXTRACTED | 4 | never-writes sentence; 12 wordings → 1; 8 provenance gaps closed |
+| C17 | WARN 9/0 | EXTRACTED (review approved) | 4 | songwriting attribution ×9 |
+| C03 | WARN 21/0 | EXTRACTED (review repairs applied) | 5 | reconfigure recipe block; 7 sites normalized |
+| C23 | PROCEED 4/1 | EXTRACTED | 5 | mktemp dialect semantics hoisted to topic-docs ephemeral tier |
+| C25 | WARN 16/0 | REFUSED-cluster-exhausted-by-C09 | 6 | clean refusal after re-count (Lesson 14) |
+| 18 others | REFUSE | (not dispatched) | — | refuse-fast savings: 18 execute dispatches avoided |
+
+Dispatch policy: strictly sequential waves, ≤2 workers per wave, disjoint
+file lanes; WARN clusters carried a fresh-context adversarial diff
+review before commit (caught C13's 4 blocking findings and C03's 6).
+Lessons 12–14 appended to the skill's `context/lessons.md` after
+orchestrator re-verification. Follow-ups recorded in the PR body:
+C02b userConfig-carve-out stragglers (5 setup skills), C01 compressed
+cousins (2 sites), songwriting README skill-table drift, R10 telemetry
+copy drift advisory, C13 mechanism probe.
+
 ## Status log
 
 - **2026-08-15** — Contract locked via interview; survey subagent

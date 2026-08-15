@@ -1,5 +1,13 @@
 # Changelog — discovery plugin
 
+## [0.15.5]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.15.4]
 
 ### Fixed

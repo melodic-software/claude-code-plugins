@@ -4,6 +4,10 @@
 
 ### Added
 
+- **extract-ssot: Lessons 12–14 appended to `context/lessons.md`** from the whole-repo batch
+  (#2698): changelog-correction entries as refutation evidence, portability inverting the output
+  type on plugin runtime surfaces, and dependent-cluster re-counts / generated-region exclusion.
+
 - **extract-ssot: bare invocations confirm scope before surveying.** A bare
   `/docs-hygiene:extract-ssot` with no working notes, no argument, and no conversation-implied
   scope now asks the user (prescribed defaults, recommended option first) instead of
