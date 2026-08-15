@@ -44,7 +44,8 @@ done
 #   - every .claude/ child directory EXCEPT skills/ (intra-skill self-citation
 #     is legal; opt back in via --include-skills) and worktrees/ (worktrees
 #     share the tracked tree; the same rules apply at the root path)
-#   - .github/ (workflows), docs/, .lefthook/ (git-hook scripts)
+#   - .github/ (workflows), docs/, .lefthook/ (git-hook scripts),
+#     plugins/ (marketplace-monorepo skill roots)
 #   - root instruction/config files plus .claude/ top-level files
 # CI/hook surfaces stay IN-SCOPE for hit detection; the scripts/ entry-surface
 # carve-out and the filter taxonomy decide legality downstream, not exclusion.
@@ -121,13 +122,6 @@ trap 'rm -f "$HITS_FILE"' EXIT
     grep -Hno "$PATTERN" "${SCOPE_FILES[@]}" 2>/dev/null || true
   fi
 } | grep -vE "$SCRIPTS_RE" >"$HITS_FILE" || true
-
-if [[ ! -s "$HITS_FILE" ]]; then
-  if [[ "$APPLY_FILTERS" -eq 1 ]]; then
-    printf 'Summary: raw=0 legal=0 illegal=0\n' >&2
-  fi
-  exit 0
-fi
 
 # Convert grep "file:line:match" → "file<TAB>line<TAB>match". The `-o` scan
 # emits only the matched path text, which contains no colons, so colon

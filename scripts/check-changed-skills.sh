@@ -70,12 +70,10 @@ for skill_dir in "${changed[@]}"; do
   if git diff --name-only "$BASE" -- "$skill_dir/SKILL.md" | grep -q .; then
     require_evals_args=(--require-evals)
   fi
-  if CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
+  if ! CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
     CHECK_SKILL_BASE_REF="$BASE" \
     CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
     bash "$CHECKER" "${require_evals_args[@]}" "$skill_name"; then
-    :
-  else
     failed=$((failed + 1))
   fi
 done

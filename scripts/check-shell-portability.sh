@@ -1096,7 +1096,6 @@ scan_file() {
       # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
       # real ladders and were being forced into an exemption (#1544).
       NAME = "(\\$?[" SQ DQ "]|" BS BS ")?" "(/[^;|&[:space:]]*/)?"
-      SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
       # A word inside PRE is any single argument that is not a control
       # operator. Excluding the operators matters as much here as in SEG: a gap
       # that may swallow a `;` lets the guard reach PAST the matched invocation

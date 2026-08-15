@@ -89,9 +89,16 @@ strip_value() {
     # value like `# use default` — YAML-null, must resolve to empty so the
     # fallback fires) or is preceded by whitespace (` #…`); a `#` adjacent to a
     # non-space char (`a#b`, `.work/#t`) is part of the scalar. Then trim
-    # trailing whitespace.
+    # trailing whitespace. Pure parameter expansion, not a `printf | sed`
+    # pipeline: `%%` strips the LONGEST matching suffix, i.e. cuts at the
+    # leftmost ` #` exactly as sed's leftmost match did, without the fork+exec
+    # every consumer paid on every call.
     val="$raw"
-    val="$(printf '%s' "$val" | sed -e 's/^#.*$//' -e 's/[[:space:]]#.*$//')"
+    if [[ "$val" == '#'* ]]; then
+      val=""
+    else
+      val="${val%%[[:space:]]#*}"
+    fi
     val="${val%"${val##*[![:space:]]}"}"
     ;;
   esac

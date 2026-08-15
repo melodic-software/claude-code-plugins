@@ -46,9 +46,12 @@ ruff_reported_version() {
   printf '%s\n' "${out##* }"
 }
 
+ruff_on_path=0
+got=""
 if command -v ruff >/dev/null 2>&1; then
-  # shellcheck disable=SC2310  # the probe's only failure is "no version", handled by the fallback
-  got="$(ruff_reported_version)" || got=""
+  ruff_on_path=1
+  # shellcheck disable=SC2310  # the probe's only failure is "no version", reported but never trusted
+  got="$(ruff_reported_version)" || got="unknown"
   if [[ "$got" == "$pin" ]]; then
     exec ruff "$@"
   fi
@@ -58,9 +61,7 @@ if command -v uvx >/dev/null 2>&1; then
   exec uvx "ruff==${pin}" "$@"
 fi
 
-if command -v ruff >/dev/null 2>&1; then
-  # shellcheck disable=SC2310  # same probe, same fallback — reported, never trusted
-  got="$(ruff_reported_version)" || got="unknown"
+if ((ruff_on_path)); then
   echo "error: ruff on PATH is ${got}, but CI pins ruff==${pin} (.github/requirements-ci.txt)." >&2
   echo "error: install the pin, or install uv and re-run (uvx ruff==${pin} ...)." >&2
   exit 2

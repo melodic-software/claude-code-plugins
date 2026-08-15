@@ -10,11 +10,10 @@
 #                                                                  plugin never delivers the change to consumers
 #
 # Like sync-parse-concern-value.sh, the copies are consumed at DIFFERENT paths,
-# so the destinations are an explicit list. The list is intentionally EMPTY
-# until the first consumer vendors the resolver: the guardrails CC-layer content
-# gate (#914) and the opt-in commit-msg hook (#919) each add their copy path here
-# and bump the guardrails manifest in the same change. Until then the resolver is
-# the seam's source of truth with no cache-isolated copies to keep in step.
+# so the destinations are an explicit list. The list started EMPTY and grows as
+# each consumer vendors the resolver: the guardrails CC-layer content gate (#914)
+# added the copy below, and the opt-in commit-msg hook (#919) adds its own copy
+# path here and bumps the guardrails manifest in the same change.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

@@ -78,17 +78,13 @@ for item in "$QUEUE_DIR"/*.md; do
   done
 
   status="$(fm_value "$fm" status)"
-  if [[ -n "$status" ]]; then
-    if ! grep -qE "^(${VALID_STATUSES})$" <<<"$status"; then
-      report_violation "$item" "status '$status' not in documented set (unclaimed|claimed|in-progress|blocked|done)"
-    fi
+  if [[ -n "$status" ]] && ! grep -qE "^(${VALID_STATUSES})$" <<<"$status"; then
+    report_violation "$item" "status '$status' not in documented set (${VALID_STATUSES})"
   fi
 
   priority="$(fm_value "$fm" priority)"
-  if [[ -n "${priority//[[:space:]]/}" ]]; then
-    if ! grep -qE "^(${VALID_PRIORITIES})$" <<<"$priority"; then
-      report_violation "$item" "priority '$priority' not in documented set (low|medium|high|urgent)"
-    fi
+  if [[ -n "${priority//[[:space:]]/}" ]] && ! grep -qE "^(${VALID_PRIORITIES})$" <<<"$priority"; then
+    report_violation "$item" "priority '$priority' not in documented set (${VALID_PRIORITIES})"
   fi
 
   id="$(fm_value "$fm" id)"

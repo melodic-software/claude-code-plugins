@@ -822,13 +822,20 @@ fi
 # the coreutils notice_once needs (mkdir/find/tr) but no jq — an empty PATH
 # would also hide mkdir, making the dedup marker untrackable and the notice
 # fail-open on every run. bash is resolved via $BASH since the stub PATH has none.
+# make_stub_bin → prints the temp dir that shape needs; used again by Test 17b.
+make_stub_bin() {
+  local d t real_t
+  d="$(mktemp -d)"
+  for t in mkdir find tr; do
+    real_t=$(command -v "$t")
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$d/$t"
+    chmod +x "$d/$t"
+  done
+  printf '%s' "$d"
+}
+
 DATA17="$(mktemp -d)"
-FAKEBIN17="$(mktemp -d)"
-for t in mkdir find tr; do
-  real_t=$(command -v "$t")
-  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN17/$t"
-  chmod +x "$FAKEBIN17/$t"
-done
+FAKEBIN17="$(make_stub_bin)"
 run17() {
   CLAUDE_PLUGIN_DATA="$DATA17" "$BASH" -c '
     PATH="'"$FAKEBIN17"'"
@@ -863,6 +870,7 @@ if [[ "$out17b" == "alive" ]]; then
 else
   fail "require_jq_blocking: jq present misbehaved: $out17b"
 fi
+FAKEBIN17="$(make_stub_bin)"
 run17b() {
   local args="$1"
   CLAUDE_PLUGIN_DATA="$(mktemp -d)" "$BASH" -c '
@@ -872,12 +880,6 @@ run17b() {
     echo "unreachable"
   ' 2>&1
 }
-FAKEBIN17="$(mktemp -d)"
-for t in mkdir find tr; do
-  real_t=$(command -v "$t")
-  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN17/$t"
-  chmod +x "$FAKEBIN17/$t"
-done
 with_opt17b=$(run17b 'test-hook block_test_enabled')
 rc_with_opt17b=$?
 if [[ $rc_with_opt17b -eq 2 && "$with_opt17b" == *'block_test_enabled'* && "$with_opt17b" != *unreachable* ]]; then
@@ -2593,54 +2595,56 @@ ie_probe "DISABLED+SURVIVED" "explicit false returns false WITHOUT exiting" \
   CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
 
 # --- hook::physical_path / hook::repo_root: unresolved is distinguishable -------
-physical_path_resolved() {
-  local target="$1" probe rc flag out
+# Both helpers answer on THREE channels — return code, an UNRESOLVED global, and
+# stdout — and all four cases below read the same three. One driver runs the
+# helper in a child shell (a child is required anyway: BASH_ENV is how the
+# unresolved cases make realpath/readlink fail FOR REAL rather than simulated)
+# and reports through probe_rc / probe_flag / probe_out.
+#   probe_lib <fn> <unresolved-global> <arg> [bash-env-shim]
+probe_lib() {
+  local fn="$1" flagvar="$2" arg="$3" shim="${4:-}" probe
   probe=$(
-    bash -c '
+    BASH_ENV="$shim" bash -c '
       # shellcheck source=hook-utils.sh
       source "$1"
       _tmp=$(mktemp)
-      hook::physical_path "$2" >"$_tmp"
-      printf "%s\n%s\n%s" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$(cat "$_tmp")"
+      "$2" "$4" >"$_tmp"
+      _rc=$?
+      _flag="$3"
+      printf "%s\n%s\n%s\n" "$_rc" "${!_flag}" "$(cat "$_tmp")"
       rm -f "$_tmp"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$target"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$fn" "$flagvar" "$arg"
   )
-  rc=$(printf '%s\n' "$probe" | sed -n '1p')
-  flag=$(printf '%s\n' "$probe" | sed -n '2p')
-  out=$(printf '%s\n' "$probe" | sed -n '3p')
-  if ((rc == 0 && flag == 0)) && [[ -n "$out" ]]; then
+  {
+    read -r probe_rc
+    read -r probe_flag
+    read -r probe_out
+  } <<<"$probe"
+}
+
+physical_path_resolved() {
+  local target="$1"
+  probe_lib hook::physical_path HOOK_PHYSICAL_PATH_UNRESOLVED "$target"
+  if ((probe_rc == 0 && probe_flag == 0)) && [[ -n "$probe_out" ]]; then
     ok "physical_path: resolved $target"
   else
-    fail "physical_path: expected resolved for $target (rc=$rc flag=$flag out=$out)"
+    fail "physical_path: expected resolved for $target (rc=$probe_rc flag=$probe_flag out=$probe_out)"
   fi
 }
 
 physical_path_unresolved() {
-  local target="$1" out rc flag probe
-  local no_canon
+  local target="$1" no_canon
   no_canon="$(mktemp)"
   cat >"$no_canon" <<'EOF'
 realpath() { return 1; }
 readlink() { return 1; }
 EOF
-  probe=$(
-    BASH_ENV="$no_canon" bash -c '
-      # shellcheck source=hook-utils.sh
-      source "$1"
-      _tmp=$(mktemp)
-      hook::physical_path "$2" >"$_tmp"
-      printf "%s\n%s\n%s" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$(cat "$_tmp")"
-      rm -f "$_tmp"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$target"
-  )
-  rc=$(printf '%s\n' "$probe" | sed -n '1p')
-  flag=$(printf '%s\n' "$probe" | sed -n '2p')
-  out=$(printf '%s\n' "$probe" | sed -n '3p')
+  probe_lib hook::physical_path HOOK_PHYSICAL_PATH_UNRESOLVED "$target" "$no_canon"
   rm -f "$no_canon"
-  if ((rc == 1 && flag == 1)) && [[ "$out" == "$target" ]]; then
+  if ((probe_rc == 1 && probe_flag == 1)) && [[ "$probe_out" == "$target" ]]; then
     ok "physical_path: unresolved returns lexical path for $target"
   else
-    fail "physical_path unresolved $target: rc=$rc flag=$flag out=$out"
+    fail "physical_path unresolved $target: rc=$probe_rc flag=$probe_flag out=$probe_out"
   fi
 }
 
@@ -2651,46 +2655,22 @@ physical_path_unresolved "$PP_TARGET"
 rm -f "$PP_TARGET"
 
 repo_root_resolved() {
-  local hint="$1" probe rc flag out
-  probe=$(
-    bash -c '
-      # shellcheck source=hook-utils.sh
-      source "$1"
-      _tmp=$(mktemp)
-      hook::repo_root "$2" >"$_tmp"
-      printf "%s\n%s\n%s" "$?" "$HOOK_REPO_ROOT_UNRESOLVED" "$(cat "$_tmp")"
-      rm -f "$_tmp"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$hint"
-  )
-  rc=$(printf '%s\n' "$probe" | sed -n '1p')
-  flag=$(printf '%s\n' "$probe" | sed -n '2p')
-  out=$(printf '%s\n' "$probe" | sed -n '3p')
-  if ((rc == 0 && flag == 0)) && [[ -n "$out" ]]; then
+  local hint="$1"
+  probe_lib hook::repo_root HOOK_REPO_ROOT_UNRESOLVED "$hint"
+  if ((probe_rc == 0 && probe_flag == 0)) && [[ -n "$probe_out" ]]; then
     ok "repo_root: git resolved from $hint"
   else
-    fail "repo_root: expected git resolution from $hint (rc=$rc flag=$flag out=$out)"
+    fail "repo_root: expected git resolution from $hint (rc=$probe_rc flag=$probe_flag out=$probe_out)"
   fi
 }
 
 repo_root_unresolved() {
-  local hint="$1" out rc flag probe
-  probe=$(
-    bash -c '
-      # shellcheck source=hook-utils.sh
-      source "$1"
-      _tmp=$(mktemp)
-      hook::repo_root "$2" >"$_tmp"
-      printf "%s\n%s\n%s" "$?" "$HOOK_REPO_ROOT_UNRESOLVED" "$(cat "$_tmp")"
-      rm -f "$_tmp"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$hint"
-  )
-  rc=$(printf '%s\n' "$probe" | sed -n '1p')
-  flag=$(printf '%s\n' "$probe" | sed -n '2p')
-  out=$(printf '%s\n' "$probe" | sed -n '3p')
-  if ((rc == 1 && flag == 1)) && [[ "$out" == "$hint" ]]; then
+  local hint="$1"
+  probe_lib hook::repo_root HOOK_REPO_ROOT_UNRESOLVED "$hint"
+  if ((probe_rc == 1 && probe_flag == 1)) && [[ "$probe_out" == "$hint" ]]; then
     ok "repo_root: unresolved falls back to hint for $hint"
   else
-    fail "repo_root unresolved $hint: rc=$rc flag=$flag out=$out"
+    fail "repo_root unresolved $hint: rc=$probe_rc flag=$probe_flag out=$probe_out"
   fi
 }
 
