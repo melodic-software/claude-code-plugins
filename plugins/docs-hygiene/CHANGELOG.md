@@ -2,6 +2,17 @@
 
 ## [0.12.0]
 
+### Added
+
+- **compress:** Audit heuristic signal 6 — flavor-token density per kilo-word. A repo authored
+  under standing prose discipline is lean without citing any convention: the 2026-08-15
+  authoring-repo run sent 9 signal-5-classified files (0-7 flavor-tokens/kw) to compression and
+  all 9 reverted at 0.02-0.4% yield, while the skill's deliberately-verbose fixtures measure
+  50-60/kw. Density < 5/kw now forces SKIP (expected ≤ 3%). This is the "add a 6th signal"
+  branch of the pre-existing recheck trigger for consistently under-yielding signal-5 files.
+- **compress:** Target-validation gate 5 — paths under `evals/fixtures/` skip with
+  `reason=fixture`. Fixture verbosity is deliberate test input; compressing it corrupts the eval.
+
 ### Changed
 
 - **compress:** Empty-target + clean-tree invocations in interactive sessions now fall back to a
@@ -11,6 +22,10 @@
   excluded) — instead of dead-ending at the friendly no-op. Non-interactive contexts (subagent,
   headless/CI) keep the no-op. Entry path only; per-file hard rules (semantic-diff dispatch,
   revert pass, markdownlint, `<3%` rule) are unchanged.
+- **compress:** The interview fallback's audit step bounds its inline output — aggregate counts,
+  dispatch-cost estimate, and top-20 highest-yield rows inline; the full per-file table goes to a
+  file. On a large repo the full table runs to hundreds of KB and would truncate the confirmation
+  prompt it feeds (Codex review finding on #2700).
 
 ## [0.11.3]
 

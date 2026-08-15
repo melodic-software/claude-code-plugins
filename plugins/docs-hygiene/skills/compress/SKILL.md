@@ -76,7 +76,7 @@ Flags (apply to both actions):
 Instead of dead-ending, offer a repo-wide run — confirmation-gated at every step; declining at any step exits with the friendly no-op message.
 
 1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
-2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`; present the SKIP/COMPRESS/UNCERTAIN table sorted by expected yield descending, with aggregate counts and a dispatch-cost estimate (2 subagent requests per compressed file).
+2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and the top 20 highest-yield COMPRESS rows; write the full per-file table to a file and point at it. Never render every row inline — on a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds.
 3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first):
    - **Scope** — default: all COMPRESS-classified files, highest expected yield first; alternates: top-N highest-yield subset, include UNCERTAIN, stop after audit (report only).
    - **Concurrency** — default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
