@@ -193,7 +193,8 @@ jobs:
           # Code's own [DEBUG] narration, which prints native Windows settings
           # paths — rewriting those would make the fixture stop matching what
           # the parser has to survive. The paths are invented (`alice`, `x`),
-          # not any operator's.
+          # not any operator's. source-control's same-drive unit tests need
+          # literal `C:/` / `D:/` drive fixtures to exercise the gate (#2764).
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
@@ -202,6 +203,7 @@ jobs:
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
+            :(exclude)plugins/source-control/scripts/worktree-create.test.sh
 
       - name: Check index-level EOL drift
         id: eol

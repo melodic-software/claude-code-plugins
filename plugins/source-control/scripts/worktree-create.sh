@@ -52,17 +52,35 @@ set -uo pipefail
 PROG=${0##*/}
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
-# windows_drive_letter <path> — echo the drive letter (A–Z) when <path> matches
-# the `<letter>:/` absolute shape git and this helper treat as drive-anchored;
-# otherwise return non-zero. Path-shape gate, not `$OSTYPE`: POSIX and UNC paths
-# carry no drive letter and stay inert (#2764).
+# windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
+# drive-anchored; otherwise return non-zero. Recognized shapes (#2764):
+#   - `X:/...` — git / Windows absolute
+#   - `/cygdrive/x/...` — Cygwin (unambiguous on every host)
+#   - `/x/...` — MSYS/Git Bash single-letter drive form, only when uname is
+#     MINGW*/MSYS*/CYGWIN* (same gate as landed-work.sh path_key). On POSIX a
+#     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
+#     never mistaken for drive U:.
 windows_drive_letter() {
-  local path="$1"
-  if [[ "$path" =~ ^([A-Za-z]):/ ]]; then
-    local d="${BASH_REMATCH[1]}"
+  local path="$1" d
+  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]]; then
+    d="${BASH_REMATCH[1]}"
     printf '%s' "${d^^}"
     return 0
   fi
+  if [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
+    d="${BASH_REMATCH[1]}"
+    printf '%s' "${d^^}"
+    return 0
+  fi
+  case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*)
+    if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
+      d="${BASH_REMATCH[1]}"
+      printf '%s' "${d^^}"
+      return 0
+    fi
+    ;;
+  esac
   return 1
 }
 
@@ -70,11 +88,11 @@ windows_drive_letter() {
 # same-drive-on-Windows invariant for worktree placement (#2764).
 #
 # `git worktree move` is `rename()` and cannot cross a volume boundary on
-# Windows (EXDEV / "Improper link"). Rungs 1–3 are an explicit/configured
-# choice → refuse (return 3). Rung 4 is the unconfigured plugin-data-dir
-# default → warn on stderr and return 0: refusing would fail every harness
-# WorktreeCreate on a cross-drive machine (#1852). Inert when either path
-# lacks a drive letter.
+# Windows (EXDEV / "Invalid cross-device link"). Rungs 1–3 are an
+# explicit/configured choice → refuse (return 3). Rung 4 is the unconfigured
+# plugin-data-dir default → warn on stderr and return 0: refusing would fail
+# every harness WorktreeCreate on a cross-drive machine (#1852). Inert when
+# either path lacks a drive letter.
 #
 # Returns 0 to proceed, 3 to refuse. Caller exits on non-zero.
 check_same_drive() {
@@ -90,7 +108,7 @@ check_same_drive() {
     # hook path, where exit-0 stderr goes to the debug log only. Refusing at
     # rung 4 was considered and rejected for that blast radius.
     cat >&2 <<EOF
-$PROG: WARNING: default worktree root is on drive ${wt_drive}: but the repository is on drive ${repo_drive}: — git worktree move will fail across drives (EXDEV / Improper link).
+$PROG: WARNING: default worktree root is on drive ${wt_drive}: but the repository is on drive ${repo_drive}: — git worktree move will fail across drives (EXDEV / Invalid cross-device link).
 
   repository: $repo_path
   worktree:   $wt_path
