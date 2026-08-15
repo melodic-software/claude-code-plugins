@@ -93,6 +93,15 @@ becomes additive rather than defining.
   STOP path. Those are the migration's safety properties and each is pinned by a fixture.
 - **Interactive applies now write a record.** Consumers who read `.work/reviews/<branch-slug>/` will
   see records where previously only headless `--yes` runs produced them.
+- **Consumption is per file, not per row.** The ledger's key is the `source-findings:` file name, so
+  the granularity follows from Decision 3: a file whose rows were partly surfaced instead of applied,
+  or narrowed by the operator at the interactive gate, is marked consumed in full and those rows do
+  not survive inside it. Recoverability therefore rests on the record body naming every deferred row
+  **with the source file it came from** — an obligation this decision places on the record format,
+  not a property the record already had. Recovery re-runs that row's OWN producer: re-running
+  `review:fanout` regenerates fanout's rows and nothing else, and a row from another producer returns
+  only when that producer runs again. Either way the regenerated rows arrive as a NEW findings file
+  that enters the next merge set as a fresh candidate.
 - **Re-opens if** the fix action gains an LLM normalization stage — a semantic key would then be
   computable and the narrower one could be revisited. It does not re-open on a request for
   cross-branch consumption: never scanning another branch's findings is a separate fence and is not
