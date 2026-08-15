@@ -35,6 +35,11 @@ import { createAcquisitionEnvelope, createSourceAdapter } from "./adapter-contra
  * @import { AcquireContext, AcquireOutcome, EnqueueDecision, SourceAdapterSpec,
  *   SourceMetadata, UrlClaim } from './adapter-contract.js'
  */
+/**
+ * @import { AcquisitionMode, YtDlpAuthOverride, YtDlpSourceOptions }
+ *   from '../acquisition/build-yt-dlp-args.js'
+ */
+/** @import { SpawnResult } from '@melodic/video-digestion/shared/process' */
 /** @import { HarvestedLink } from '../harvesting/models.js' */
 
 /** The `extractor` value yt-dlp stamps into info JSON for TwitterIE results. */
@@ -479,7 +484,7 @@ function matchEntryArtifacts(files, mediaId) {
  * Injectable I/O for {@link acquireXMedia} (tests only).
  *
  * @typedef {Object} XAcquireDeps
- * @property {(command: string, args: string[], options?: object) => Promise<import('@melodic/video-digestion/shared/process').SpawnResult>} [spawn]
+ * @property {(command: string, args: string[], options?: object) => Promise<SpawnResult>} [spawn]
  * @property {(dir: string) => Promise<string[]>} [listFiles]
  * @property {(filePath: string) => Promise<string>} [readFile]
  * @property {(filePath: string, content: string, encoding: string) => Promise<void>} [writeFile]
@@ -534,14 +539,12 @@ export async function acquireXMedia(url, context) {
   const outputTemplate = path.join(workDir, "%(id)s.%(ext)s");
 
   /**
-   * @param {import('../acquisition/build-yt-dlp-args.js').AcquisitionMode} passMode
-   * @param {Partial<import('../acquisition/build-yt-dlp-args.js').YtDlpSourceOptions>} [extraSource]
+   * @param {AcquisitionMode} passMode
+   * @param {Partial<YtDlpSourceOptions>} [extraSource]
    */
   const runPass = (passMode, extraSource = {}) =>
     throttle(() => {
-      const buildArgs = (
-        /** @type {import('../acquisition/build-yt-dlp-args.js').YtDlpAuthOverride} */ authOverride = {},
-      ) =>
+      const buildArgs = (/** @type {YtDlpAuthOverride} */ authOverride = {}) =>
         buildYtDlpArgs(url, {
           mode: passMode,
           outputTemplate,
