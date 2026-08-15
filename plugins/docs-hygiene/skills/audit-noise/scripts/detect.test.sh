@@ -140,6 +140,18 @@ EOF
 bt_out="$(bash "$DETECT" "$BT_FIXTURE")"
 assert_contains "backtick enum-list detected" "$bt_out" "Finding shape: enum-list"
 
+# --- 5b. CHANGELOG.md skipped by basename (exempt per SKILL.md hard rules) ----------
+
+CL_FIXTURE="$TEST_TMPDIR/CHANGELOG.md"
+cat >"$CL_FIXTURE" <<'EOF'
+# Changelog
+
+Was renamed to something. Empirically observed. `.work/some-slice/PLAN.md` cited.
+EOF
+cl_out="$(bash "$DETECT" "$CL_FIXTURE")"
+assert_not_contains "CHANGELOG.md emits no findings" "$cl_out" "Finding shape:"
+assert_not_contains "CHANGELOG.md not counted as audited" "$cl_out" "Summary file: $CL_FIXTURE"
+
 # --- 6. Directory target expands to its .md files ------------------------------------
 
 DIR_FIXTURE="$TEST_TMPDIR/dir-target/nested"

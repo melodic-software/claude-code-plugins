@@ -104,6 +104,9 @@ total_t1=0 total_t2=0 total_t3=0 files_audited=0
 audit_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
+  # CHANGELOG.md entries are exempt per SKILL.md hard rules — skip by basename
+  # so a changelog in a target list never emits findings.
+  case "${file##*/}" in CHANGELOG.md) return 0 ;; esac
   files_audited=$((files_audited + 1))
 
   local t1=0 t2=0 t3=0

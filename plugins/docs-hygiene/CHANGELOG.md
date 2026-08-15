@@ -12,6 +12,12 @@
 
 ### Changed
 
+- **audit-noise:** hard rules tightened from first-run findings — Tier 3 explicitly carries no
+  treatment; the `-line` opt-out marker's exact-next-line semantics are documented; the ghost-ref
+  treatment accepts a carrying/pruning PR number as a durable pointer alongside commit-SHA
+  permalinks; the judgment pass's recurring dismissal grounds (fictional example slugs, vendored
+  baselines, delete-instruction targets, self-matches) are codified; and `detect.sh` now skips
+  `CHANGELOG.md` by basename, matching the long-documented exemption.
 - **audit-noise:** the clean-tree default is no longer a silent no-op. With no target and a clean
   tree the skill now offers a confirmation-gated repo-wide audit with prescribed defaults
   (fixture/changelog exclusions, slice sectioning, chunked scan, flagged-files-only judgment
