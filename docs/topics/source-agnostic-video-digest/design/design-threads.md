@@ -30,7 +30,10 @@ by picking a different hardcoded literal — which is the framing the reframe re
 
 ## T1 — adapter-home
 
-**Status:** OPEN · recommendation firm (local evidence, not research-dependent)
+**Status:** **RESOLVED — (a) `youtube-digest/extraction/adapters/`** (under user delegation,
+2026-08-15, "proceed as you think is best"). Deciding rationale: the correctness argument below —
+the two contracts are different abstractions, `vendor/` holds source-agnostic primitives only —
+not the joint-ownership process cost.
 
 Where the adapter contract and per-source adapters live.
 
@@ -63,7 +66,14 @@ with no knowledge of where media comes from; acquisition and adapters live in th
 
 ## T2a — description rewrite
 
-**Status:** OPEN · **not deferrable, ships with the feature**
+**Status:** **RESOLVED** (under user delegation, 2026-08-15) — ship the widened description with
+the feature, in the `xlsx` shape: literal host enumeration (`youtube.com`, `youtu.be`, `x.com`,
+`twitter.com`), natural-language triggers, and an explicit `Do NOT` clause preserving the
+`course-digest` boundary. Retain the existing `youtube` / `youtu.be` trigger tokens; target the
+1,536-char combined listing cap, noting the 1,024 frontmatter-validation cap binds only if
+claude.ai portability is later wanted. PLAN note: after T2b's rename the `skill-quality:check`
+keyword diff runs against a new directory, so the sweep must verify trigger-token continuity
+manually rather than relying on the HEAD diff.
 
 The `description` field *is* the trigger mechanism. Leave it YouTube-only and X URLs never reach the
 skill, no matter how correct the engine is. This is separable from — and strictly prior to — the
@@ -106,7 +116,20 @@ remedy if the widened description over-fires: make it more specific, or set
 
 ## T2b — skill rename
 
-**Status:** OPEN · research RETURNED — and it splits the thread into a free half and a hard-break half.
+**Status:** **RESOLVED — (a), rename to `video-digest`** (under user delegation, 2026-08-15).
+Deciding rationale: the goal is a source-agnostic skill and a name that lies about scope fails it;
+repo precedent (`shadowed-skill-renames/PLAN.md:32`) shows an established rename playbook. Execution
+terms, all binding on the PLAN:
+
+- Pin `name: video-digest` in frontmatter at rename time — recorded as a **deliberate exception**
+  to the 205-file no-`name:` convention, so every future directory change is free.
+- Treat the command rename as a **deliberate breaking change**: CHANGELOG entry + out-of-band
+  announcement naming the five silent consumer surfaces (routines, scheduled tasks/`/loop`,
+  `Skill()` permission rules, SDK allowlists, bare-`/name` squatting).
+- PLAN enumerates: the five `course-digest` mechanical cross-references, the twelfth entry point
+  (`detect-recoverable-bootstrap.js:106-113`), and the 5 CI occurrences.
+- Sweep regression test: the three stale `/youtube` references in vendored READMEs/TUNING.md must
+  be caught (and fixed regardless).
 
 ### Research verdict: directory rename is free (after one cheap fix); COMMAND rename is a hard break
 
@@ -431,7 +454,29 @@ option wins.
 
 ## A2 — published config and environment namespace
 
-**Status:** OPEN · new thread
+**Status:** **RESOLVED** (under user delegation, 2026-08-15) — rename-with-compatibility-read on
+the env surface; downloader-scoped config keys keep their names; adapter-namespacing
+TAGGED-DEFERRED.
+
+| Option | Verdict |
+|---|---|
+| (a) keep `YOUTUBE_*` everywhere | Rejected — unlike A1's storage identifier, an env/config name is a **published interface**, read and typed by consumers; A1(4)'s format-stability argument does not transfer to it |
+| (b) hard-rename | Rejected — silently breaks every consumer who set `YOUTUBE_WORK_ROOT` et al.; same unenumerable-population argument as A1 |
+| **(c) rename + compatibility read** | **Adopted** — new `VIDEO_DIGEST_*` names primary; resolution checks new then old, warns once on old; deprecation documented in CHANGELOG with the T2b breaking-change entry |
+
+Terms:
+
+- All six env vars rename under (c) — the five in `run-args.js` **plus `YOUTUBE_ACQUIRE_PHASE_GAP_SEC`**
+  (`acquire.js:24,57-58`), which is hereby named: it also enters the `run-args.js` flag map and the
+  docs, closing the sixth-knob gap.
+- `userConfig` keys `yt_dlp_*` / `max_concurrent_acquires` are **downloader- or pipeline-scoped, not
+  YouTube-scoped** — accurate for both sources (X auth is also a yt-dlp cookies file). Keys keep
+  their names; only the human-readable `"… (youtube-digest)"` titles change, mechanically, with T2b.
+- **Adapter-namespaced config: TAGGED-DEFERRED.** Trigger: a third source, or the first auth/config
+  knob that is not yt-dlp-shaped. Design note for that day: take streamlink's `@pluginargument`
+  posture — declared name, type, validation, sensitivity — never `--extractor-args` string-parsing.
+- A1 move (ii)'s deferral trigger referenced A2's resolution: this resolution does **not** fire it —
+  no `--epic` flag or epic `userConfig` key ships here.
 
 `plugins/knowledge/.claude-plugin/plugin.json:38-63` declares four `userConfig` entries literally
 titled `"… (youtube-digest)"`: `yt_dlp_js_runtimes`, `yt_dlp_cookies_file`,
@@ -454,10 +499,14 @@ after every documented key is renamed.
 
 ## T3 — contract shape and dispatch
 
-**Status:** OPEN · **research RETURNED, gate-passed, and adversarially verified.** Direction settled:
-a **static host-keyed registry**, not a computed dynamic import — the type-safety fix and the
-security fix are the same change. Blocked only on a **precondition**: the repo's type lane is off
-(see below) and must be switched on first.
+**Status:** **RESOLVED** (under user delegation, 2026-08-15) — **static host-keyed registry** with
+declarative claims; regex only within a host an adapter already owns; unknown host fails closed with
+the supported-source list; CI collision test kept as insurance, not present value. Deciding
+rationale: the type-safety fix and the security fix are the same change — a static map is checkable
+and untraversable, an interpolated specifier is neither (see SECURITY below). The type-lane
+precondition is **implementation step zero**, not a design blocker. Priority/scoring stays out with
+its deferral trigger recorded below (first format-shaped claim). `@satisfies` is the annotation
+standard.
 
 Provisional direction: reuse `course-digest`'s **pattern** — plain object, explicit
 `REQUIRED_METHODS`, `validateAdapter` + `createAdapter` factory, `Result`-typed returns — with a
@@ -689,19 +738,30 @@ legitimately claim the same key?"* For hosts, no.
 
 ## T4 — adapter-method-set
 
-**Status:** OPEN (blocked by T1, T3)
+**Status:** **RESOLVED** (under user delegation, 2026-08-15; T1 and T3 now resolved). The draft's
+seven methods resolve to **five required methods + declared attributes**, applying the tier rule
+below ("attribute > predicate > method") to every per-source variation that is data, not behaviour:
 
-Draft required set, from the seven per-source stages in `capability-matrix.md`:
+| Contract element | Kind | Stage | Disposition |
+|---|---|---|---|
+| `matchUrl(url)` | required method | dispatch | Kept — claim + canonicalization (T10 (ii)); no I/O |
+| `extractSliceKey(url, metadata)` | required method | 3 | Kept — signature fixed even though both sources need only `url` |
+| `acquire(...)` | required method | 1 | Kept — specified by OUTPUTS (media path, caption paths, metadata), never by yt-dlp invocation |
+| `harvestLinks(metadata)` | required method | 9 | Kept — post-text links only (T10) |
+| `acceptForEnqueue(url)` | required method | 13 | Kept — preflight hard-reject stays per-source |
+| ~~`buildDownloaderArgs(...)`~~ | **declared attribute** | 1b | Extractor-args string is a class attribute on the YouTube adapter, read by the shared driver (granularity resolution below) |
+| ~~`classifyCaption(captionPaths)`~~ | **declared attribute** | 2 | Adapter declares its caption class/trust (e.g. X: platform-ASR); the shared ladder consumes the declaration — T12 lifted the edit prohibition, and a declaration keeps source knowledge out of shared code without a callback. **Stage 2 collapses to shared; per-source stages 7 → 6** |
+| ~~`classifyError(stderr)`~~ | **declared attribute** | 14 | Per-adapter error-pattern table consumed by the shared retry loop (T11) |
+| hosts / claim keys | declared attribute | dispatch | Registry keys (T3) |
+| `transcriptStrategy` default | declared attribute | 2/4 | Per-source default, pipeline-overridable (T5) |
+| capabilities | declared attributes, **closed by default** | — | T9's SQLAlchemy posture: adapters declare what they HAVE; absence is a declaration, not a failure |
+| content-claim capability | **reserved, unimplemented** | dispatch | D-C below |
 
-| Method | Stage |
-|--------|-------|
-| `matchUrl(url)` | dispatch |
-| `extractSliceKey(url, metadata)` | 3 |
-| `buildDownloaderArgs(...)` | 1b |
-| `classifyCaption(captionPaths)` | 2 |
-| `harvestLinks(metadata)` | 9 |
-| `acceptForEnqueue(url)` | 13 |
-| `classifyError(stderr)` | 14 |
+Uniform 0..N result envelope (T6) with an open metadata namespace and a reserved source-specific
+key prefix (envelope re-derivation below). Slug formatting stays shared; construction does no I/O
+(cheap pure normalization permitted); declared arity is dead (T6 — arity is a property of the
+result). Contract stability posture must be declared explicitly in the contract file itself
+(yt-dlp's undeclared-API caution below).
 
 ### Structural finding — WITHDRAWN in its strong form; the weak form survives and is what matters
 
@@ -876,11 +936,43 @@ construction performs no network or filesystem access; cheap pure normalization 
 
 ## T5 — transcript-source posture
 
-**Status:** OPEN · **posture (i) ELIMINATED on evidence** — X captions are absent more often than
-present with no date cutoff, so platform-captions-only cannot deliver watch parity. Awaiting the ASR
-topic to choose *which* fallback. Originally "how does X flip
-`isAutoCaption` without editing managed `select-caption.js`". The research asks the prior question:
-should the pipeline own transcription at all?
+**Status:** **directional** (under user delegation, 2026-08-15) — direction agreed; the remaining
+detail carries research tags below.
+
+**Direction:** the strategy seam from constraint 2 — a per-source-defaulted, pipeline-overridable
+`transcriptStrategy` (`captions` | `asr` | `captions+repair`) — with these defaults:
+
+- **YouTube: `captions`** — behaviour unchanged for every existing user.
+- **X, caption present: `captions+repair`** — posture (v): proper-noun repair over the platform VTT,
+  lexicon drawn from the post text (`description` carries the author-typed proper nouns) and
+  harvested links. Near-zero dependency cost, aimed at the observed corruption.
+- **X, caption absent: `asr`** — posture (ii): faster-whisper large-v3, `batch_size=8`. Mandatory,
+  resting on **unpredictability, not frequency** — no predictor of caption presence exists, so the
+  pipeline cannot know in advance; feasibility cleared on consumer hardware (2-hour video < 3 min).
+- **Posture (iv) — ASR as substrate for every source — REJECTED** for this refactor: it lands a
+  multi-GB model dependency on every existing YouTube user and is a separately-costed project, per
+  constraint 3.
+- ASR is an **optional capability**, declared closed by default (T9): absent the ASR toolchain, the
+  X caption-absent path degrades explicitly (digest without transcript, stated in provenance),
+  never silently.
+
+**Research tags on the remaining detail** (probes already specified; run them during
+implementation, cheap and empirical — each is a one-clip measurement, not a literature search):
+
+- `[T5-ASR-ENTITY]` Does whisper-class ASR beat X's ASR on **technical proper nouns**? Evidence bar
+  below stands: general WER is not an answer; "no evidence exists" is decision-grade. Governs
+  whether `captions+repair` on the caption-present path is ever upgraded to posture (iii)
+  (ASR-replace).
+- `[T5-ASR-TIMESTAMPS]` Word-level timestamp quality of the ASR path — load-bearing, the pipeline
+  aligns cues to frames. Probe: transcribe a known clip, compare cue boundaries against platform
+  VTT.
+- `[T5-ASR-LEXICON]` Does `initial_prompt` / vocabulary biasing close the proper-noun gap? Probe:
+  one clip with and without a post-text lexicon. Governs whether the repair lexicon also feeds the
+  ASR rung.
+
+Originally "how does X flip `isAutoCaption` without editing managed `select-caption.js`"; T12
+refuted the managed constraint and T4 resolved the mechanism as a declared caption-class attribute
+consumed by the shared ladder.
 
 The known defect: X's `.en.vtt` matches `MANUAL_EN_PATTERN` (`select-caption.js:23`) → `manual-en` →
 `isAutoCaption: false` → X's own ASR is routed through `cleanManualCaptions`.
@@ -1019,9 +1111,13 @@ decision-grade result and rates the posture's support as weak.
 
 ## T6 — multi-media-posture
 
-**Status:** **directional — fail-closed REVERSED.** Return a uniform 0..N collection; arity is a
-property of the result. Research returned and gate-passed; `playlist_count` is the discriminator and
-a zero-entry playlist is a *downstream filtering artifact*, not an extractor state.
+**Status:** **RESOLVED** (directional 2026-08-14; D-A closed under user delegation, 2026-08-15).
+Return a uniform 0..N collection; arity is a property of the result, never of the adapter. All of
+0/1/N expressible without an exception escaping. **D-A resolved: a post with no video produces a
+text-only digest with populated provenance** — Tika's `EmptyParser` posture (well-formed empty
+result, never null, never a throw), because it removes a special case from every downstream
+consumer. Research returned and gate-passed; `playlist_count` is the discriminator and a zero-entry
+playlist is a *downstream filtering artifact*, not an extractor state.
 
 Multi-media X posts return `_type: playlist`; one observed sample had **zero** entries.
 
@@ -1089,10 +1185,13 @@ because it removes a special case from every downstream consumer.
 
 ## T7 — spoke-topology
 
-**Status:** OPEN · **research RETURNED.** Conditional loading confirmed documented — an
-unconditional "read all spokes" split is **net-negative**, not neutral. Path revised to
-`reference/sources/<source>.md` after a gate pre-check. Sizing now driven by the `< 5,000 token`
-budget rather than the unbacked 200-line target.
+**Status:** **RESOLVED — (a) `reference/sources/<source>.md`** (under user delegation, 2026-08-15).
+Deciding rationale: gains check-5 coverage, reuses `course-digest/reference/adapters/` idiom rather
+than inventing a parallel one, no cross-plugin gate change. Binding terms: routing in the hub is an
+**explicit conditional table** ("read `reference/sources/x.md` when the URL is an x.com/twitter.com
+status") — it is both the documented progressive-disclosure mechanism and the only orphan detection
+available, since check 15 is shallow. A `transcript <url>` run never loads the watch spoke; a
+YouTube run never loads the X source file. Sizing driven by the `< 5,000 token` hub budget.
 
 Provisional: a dedicated `sources/` directory (`sources/youtube.md`, `sources/x.md`).
 
@@ -1154,7 +1253,22 @@ The original `sources/` recommendation is recorded as overturned rather than del
 
 ## T9 — test-seam-posture
 
-**Status:** OPEN (blocked by T4) · strong prior art now available
+**Status:** **RESOLVED** (under user delegation, 2026-08-15; T4 now resolved) — a **shared
+conformance suite** in SQLAlchemy's shape, layered over (not replacing) the colocated vitest seam:
+
+- The suite is asserted **once against the contract, consumed per adapter** (SQLAlchemy's answer):
+  each adapter owns a thin test file importing the shared suite with its own capability
+  declaration, so escape hatches are visible and local.
+- Capability declarations **skew closed** (79/112 precedent): a new adapter opts in to what it has
+  and is never failed for what it lacks — X's missing comments/chapters/heatmap/`automatic_captions`
+  are declarations, not failures.
+- Conformance is **offline, fixture-based, CI-gated**; liveness (real network) is scheduled and
+  never on the merge path (yt-dlp's `_TESTS`-not-in-CI lesson).
+- **An X golden eval fixture IS added** — `skill-quality:check` has an eval-presence check, and the
+  end-to-end X completion criterion needs a pinned fixture regardless.
+- Rationale: all four live defects in this design (wrong caption boolean, timestamp fidelity, error
+  misrouting, 0/1/N arity) are wrong-value/wrong-behaviour defects a type checker cannot catch —
+  the table below.
 
 ### SQLAlchemy's dialect conformance suite — the canonical third option
 
@@ -1207,18 +1321,21 @@ All four of this design's live defects are in the class a conformance suite catc
 checker cannot. That is the argument for T9 taking this shape rather than relying on JSDoc plus
 `checkJs`.
 
-**Open sub-questions unchanged:** whether conformance is asserted once against the contract or per
-adapter (SQLAlchemy's answer: once, consumed per adapter), and whether an X golden eval fixture is
-added.
-
-Existing seam: colocated vitest `*.test.js` per module, plus `evals/` fixtures and `evals/check-*.js`
-outcome scripts. Open: contract-conformance asserted once against the contract or per adapter; and
-whether an X golden eval fixture is added. `skill-quality:check` has an eval-presence check, so the
-fixture question must be decided, not left open.
+Both former sub-questions are answered in the status block above (once-against-contract consumed
+per adapter; X golden fixture added). Existing seam retained: colocated vitest `*.test.js` per
+module, plus `evals/` fixtures and `evals/check-*.js` outcome scripts.
 
 ## T10 — x-read-coupling
 
-**Status:** OPEN
+**Status:** **RESOLVED** (under user delegation, 2026-08-15) — agent-lane optional `/x:read`
+invocation as recommended below; `harvestLinks` returns post-text links only. The unenforced-
+invariant sub-decision resolves as **(ii) adapter-level URL canonicalization**: the X adapter's
+claim/normalize step re-derives the canonical status URL itself, so the guarantee the capability
+matrix asserts is made by code on every entry path, CLI included. Deciding rationale: the URL is
+untrusted input selecting the adapter (T3's security posture), canonicalization is cheap pure
+normalization explicitly permitted at construction (T4's streamlink precedent), and (i) would
+document a hole rather than close it. The three operating conditions (cookie cases, silent 429
+degradation detection, weeks-to-months auth-fallback windows) bind the adapter's design.
 
 X's real reference links live in reply chains. `/x:read` step 2 (Thread Reader) reaches them.
 
@@ -1353,7 +1470,16 @@ inherited across a session boundary need the same verification as any other conc
 
 ## T11 — error taxonomy
 
-**Status:** OPEN (blocked by T3) · **research RETURNED and it settles the gating question.**
+**Status:** **RESOLVED** (under user delegation, 2026-08-15) — four distinct error types from day
+one (streamlink's shape, not yt-dlp's `expected=True` flag): dispatch-level unsupported-source
+(outside the adapter error hierarchy, per `NoPluginError`), retryable source error, fatal source
+error, and login-required. "Mine but empty" is a well-formed result, not an error (T6). Mechanism:
+a **per-adapter declared pattern table** mapping stderr patterns to taxonomy classes, consumed by
+the shared retry loop at its single yt-dlp classification site
+(`spawn-yt-dlp-with-auth-fallback.js:54`) — the tier-1 "attribute, not callback" rule from T4;
+`classifyError` as a required method is dropped. Cookie fallback gates on the login-required class
+**only**. Silent 429 degradation (T10) classifies as retryable-degraded, never as success. Concrete
+identifier names are PLAN-level detail. Research basis below.
 X's failure taxonomy has **12 classes**, of which **only two are cookie-remediable**, both raised via
 `raise_login_required`. **None of the three observed X errors is auth or bot-challenge.** So the
 cookie fallback must be gated on `raise_login_required`-shaped errors only — routing the observed
