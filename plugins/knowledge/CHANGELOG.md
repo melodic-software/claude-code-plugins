@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.12.3]
+
+### Added
+
+- **`youtube-digest` and `course-digest` gain public test entry surfaces (#2701).** Each skill's
+  new `scripts/run-tests.sh` facade (`install`/`build`/`test`/`all`) delegates into the private
+  `extraction/` npm package; CI and repo docs now invoke the facades instead of running npm
+  directly inside the private subdirectory. The extraction packages themselves are unchanged.
+
 ## [0.12.2]
 
 ### Changed

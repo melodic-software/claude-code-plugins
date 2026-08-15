@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.23]
+
+### Changed
+
+- **`item-content-trust` owns its untrusted-content fence self-contained.** The `main`-pinned
+  raw-GitHub deep link into `babysit-prs`'s private orchestration reference is gone (encapsulation
+  audit; Path A promotion refused at Rule of Three — two consumers); the fence block is now this
+  doc's own normative statement, with the `babysit-prs` alignment named in prose as the contract's
+  intentional-duplication technique prescribes.
+
 ## [0.35.22]
 
 ### Changed

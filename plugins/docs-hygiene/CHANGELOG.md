@@ -1,5 +1,18 @@
 # Changelog — docs-hygiene plugin
 
+## [0.12.1]
+
+### Added
+
+- **`audit-encapsulation`: no-scope confirmation + `sweep` action.** A bare invocation with no
+  inherited working set — no diff in flight, no prior audit notes, nothing narrowing the scope —
+  now asks ONE confirmation before the repo-wide run, presenting prescribed defaults (scope: entire
+  tracked repo; mode: detect + classify only; worker fan-out: off, capped at 2–3 concurrent workers
+  when the user opts in and no rate-limit telemetry is readable — pacing resolves from the
+  `rate-limit-guard` plugin's reader contract when its snapshot is present). The new `sweep`
+  argument is the explicit opt-in that skips the confirmation and runs the repo-wide detect
+  immediately. Eval cases 7–8 pin both behaviors.
+
 ## [0.12.0]
 
 ### Fixed

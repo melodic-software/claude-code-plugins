@@ -3,6 +3,14 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Changed
+
+- **Shared `lib/state-key.sh` re-synced from canonical.** The header now names the
+  `plugin-data-report-keying` convention as the scheme's source (previously `audit-pass`'s §3,
+  which no longer specifies it after the encapsulation-audit promotion). Behavior unchanged.
+
 ## [0.9.0]
 
 ### Added

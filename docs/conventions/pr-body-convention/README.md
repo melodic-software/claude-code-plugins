@@ -27,9 +27,8 @@ the per-key (whole-list) override semantics. This doc never restates them — it
 - **`source-control` drafting (today).** `/source-control:pull-request create` resolves the
   effective section list before assembling a PR body, builds one `## <heading>` scaffold per
   required section, and runs a pre-`gh pr create` gate that fails when an assembled body is missing
-  a required section or leaves one empty — see
-  [`skills/pull-request/reference/create.md`](../../../plugins/source-control/skills/pull-request/reference/create.md)
-  §2.4.1 (assembly) and §2.4.2 (gate).
+  a required section or leaves one empty — the `create` action owns both halves, the assembly and
+  the pre-create gate.
 - **CI / enforcement (deferred).** A gate validating an *already-opened* PR body against the same
   team-tracked value — the enforcement half of the two-reads pattern the
   [commit-convention seam](../commit-convention/README.md) already establishes for the

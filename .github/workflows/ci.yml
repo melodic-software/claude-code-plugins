@@ -907,19 +907,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run build
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh build
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
@@ -960,15 +959,15 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/ai-briefing/skills/generate/output/build
+        run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/ai-briefing/skills/generate/output/build
+        run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
@@ -1009,19 +1008,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/course-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run build
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the course-digest extraction suite cannot be affected — reporting success."
