@@ -839,6 +839,182 @@ scratch_target_exempt() {
   return 1
 }
 
+# --- Same-command staged-write move (#2731) ----------------------------------
+#
+# Narrow detector for `<producer> > <tmp> && mv|cp <tmp> <dest>` when the
+# producer is unmodeled (`jq`, `curl`, …): the redirect alone is allowed by the
+# producer-scoped lanes above, and the later move places authored content into
+# a repo path while skipping Write|Edit-matched content guards. Path-identity
+# with a prior effective stdout target is what keeps ordinary renames and
+# data-pipeline moves unblocked (never-hard-block tier).
+#
+# SCOPE (documented residual): same command string only — cross-tool-call
+# staging (write in one Bash call, move in another), variable-carried paths
+# (`t=/tmp/x; jq … > "$t"; mv "$t" dest`), quoted/opaque mv|cp source operands
+# (strip_literals drops non-redirect quotes), and other movers (`install`,
+# `rsync`, `dd`) are not seen. A broad any-redirect-into-repo lane was assessed
+# and rejected (blocks legitimate data-processing redirects).
+#
+# Destination outside configured scratch roots: with no roots configured
+# (shipped default), every destination is outside, so any matched staged move
+# blocks. A dest under a configured scratch root is exempt — still staging.
+
+# 0 when $1 and $2 name the same path under the same lexical rules as the
+# scratch-root axis. Absolute paths go through _norm_path; relative or
+# unnormalizable paths compare as separator-folded strings. Opaque / empty
+# operands never match (cannot establish identity → cannot block).
+paths_identical() {
+  local a="$1" b="$2" na nb
+  [[ -n "$a" && -n "$b" ]] || return 1
+  [[ "$a" == *"$_MARK_OPAQUE"* || "$b" == *"$_MARK_OPAQUE"* ]] && return 1
+  a="${a//"$_MARK_QUOTE"/}"
+  b="${b//"$_MARK_QUOTE"/}"
+  if _norm_path "$a"; then
+    na="$_NORM_PATH"
+    if _norm_path "$b"; then
+      nb="$_NORM_PATH"
+      [[ -n "$na" && -n "$nb" && "$na" == "$nb" ]] && return 0
+      return 1
+    fi
+    return 1
+  fi
+  # Both relative / unexpanded: identity is literal after separator fold.
+  a="${a//\\//}"
+  b="${b//\\//}"
+  [[ "$a" == "$b" ]]
+}
+
+# Parse an mv|cp segment into MOVE_SOURCES (NUL-separated) and MOVE_DEST.
+# Supports GNU `-t DIR` / `--target-directory=DIR` (dest in the option; remaining
+# non-options are sources) and the common `sources… dest` form. Returns 1 when
+# the segment is not an mv|cp simple command or operands are incomplete.
+MOVE_SOURCES=""
+MOVE_DEST=""
+parse_mv_cp_operands() {
+  local seg="$1" head tok expect_t=0 saw_cmd=0
+  local -a srcs=()
+  MOVE_SOURCES=""
+  MOVE_DEST=""
+  head="${seg#"${seg%%[![:space:]]*}"}"
+  # Peel the same prefix class producer_redirect_bypass peels so
+  # `env mv /tmp/x dest` still classifies.
+  local prev_mod=""
+  while :; do
+    if [[ "$head" =~ $_cmd_prefix ]]; then
+      prev_mod="${BASH_REMATCH[1]}"
+      head="${head#"${BASH_REMATCH[1]}"}"
+      head="${head#"${head%%[![:space:]]*}"}"
+      continue
+    fi
+    if [[ "$prev_mod" == command || "$prev_mod" == exec ]]; then
+      if [[ "$head" =~ $_modifier_opt_arg || "$head" =~ $_modifier_opt ||
+        "$head" =~ $_modifier_optend ]]; then
+        [[ "$prev_mod" == command && "${BASH_REMATCH[0]}" == *v* ]] && return 1
+        head="${head#"${BASH_REMATCH[0]}"}"
+        head="${head#"${head%%[![:space:]]*}"}"
+        continue
+      fi
+    fi
+    break
+  done
+  [[ "$head" =~ ^(mv|cp)(\.exe)?([[:space:]]|$) ]] || return 1
+  head="${head#"${BASH_REMATCH[1]}"}"
+  head="${head#.exe}"
+  head="${head#"${head%%[![:space:]]*}"}"
+  saw_cmd=1
+  while [[ -n "$head" ]]; do
+    tok="${head%%[[:space:]]*}"
+    head="${head#"$tok"}"
+    head="${head#"${head%%[![:space:]]*}"}"
+    if ((expect_t)); then
+      MOVE_DEST="$tok"
+      expect_t=0
+      continue
+    fi
+    case "$tok" in
+    --)
+      while [[ -n "$head" ]]; do
+        tok="${head%%[[:space:]]*}"
+        head="${head#"$tok"}"
+        head="${head#"${head%%[![:space:]]*}"}"
+        srcs+=("$tok")
+      done
+      break
+      ;;
+    --target-directory=* | -t=*)
+      MOVE_DEST="${tok#*=}"
+      ;;
+    -t | --target-directory)
+      expect_t=1
+      ;;
+    -*)
+      # Short/long options without a separate dest operand (including clustered
+      # `-fv`). Value-taking options other than `-t` are not modeled — residual.
+      continue
+      ;;
+    *)
+      srcs+=("$tok")
+      ;;
+    esac
+  done
+  ((saw_cmd)) || return 1
+  ((expect_t)) && return 1 # `-t` without its directory operand
+  if [[ -n "$MOVE_DEST" ]]; then
+    ((${#srcs[@]} >= 1)) || return 1
+    MOVE_SOURCES=$(printf '%s\0' "${srcs[@]}")
+    return 0
+  fi
+  # Classic form (including after `--`): last operand is dest, earlier are sources.
+  ((${#srcs[@]} >= 2)) || return 1
+  MOVE_DEST="${srcs[-1]}"
+  unset 'srcs[-1]'
+  ((${#srcs[@]} >= 1)) || return 1
+  MOVE_SOURCES=$(printf '%s\0' "${srcs[@]}")
+  return 0
+}
+
+# 0 when a prior effective stdout target is reused as an mv|cp SOURCE with a
+# destination that is not scratch-exempt.
+staged_write_move_bypass() {
+  local seg src dest seen="" prior rest
+  while IFS= read -r seg || [[ -n "$seg" ]]; do
+    [[ -n "${seg//[[:space:]]/}" ]] || continue
+    if parse_mv_cp_operands "$seg"; then
+      dest="$MOVE_DEST"
+      resolve_target_marks "$dest"
+      # Destination marks: an opaque dest cannot prove scratch containment, so
+      # treat it as outside scratch (fail closed toward blocking a staged move).
+      if ! ((TARGET_OPAQUE)) && scratch_target_exempt "$TARGET_TEXT"; then
+        :
+      else
+        while IFS= read -r -d '' src || [[ -n "$src" ]]; do
+          [[ -n "$src" ]] || continue
+          rest="$seen"
+          while [[ -n "$rest" ]]; do
+            prior="${rest%%$'\n'*}"
+            if [[ "$prior" == "$rest" ]]; then rest=""; else rest="${rest#*$'\n'}"; fi
+            [[ -n "$prior" ]] || continue
+            if paths_identical "$src" "$prior"; then
+              return 0
+            fi
+          done
+        done < <(printf '%s' "$MOVE_SOURCES")
+      fi
+    fi
+    # Record this segment's effective stdout target for later segments.
+    set_last_stdout_target "$seg"
+    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
+    resolve_target_marks "$LAST_STDOUT_TARGET"
+    # Opaque /dev/null-shaped or unrecoverable targets cannot establish identity.
+    ((TARGET_OPAQUE)) && continue
+    [[ -n "$TARGET_TEXT" ]] || continue
+    # Discard is never a staging file worth tracking.
+    [[ "$TARGET_TEXT" == "/dev/null" ]] && continue
+    seen+="${TARGET_TEXT}"$'\n'
+  done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  return 1
+}
+
 # `cat >` with no input file is content authoring redirected into a file — the
 # heredoc/typed-content Write bypass. Scanned per segment so the /dev/null
 # DISCARD exemption cannot leak across a compound command: `cat > /dev/null &&
@@ -955,12 +1131,14 @@ producer_redirect_bypass() {
 # reach. Restated at the shipped width, with the residuals named at theirs.
 _BYPASS_SCOPE_NOTE_BASH="Scope: only this command string is inspected — known shell \
 file-write forms plus inline python code (python/python3/py/pypy with -c, or a \
-program read from stdin as python3 - <<PY) only. POSIX tee pipe writes, other \
-inline-interpreter writes (e.g. node -e, sed -i), a stdin heredoc with no - \
-argument (python3 <<PY), writes inside an invoked script file or a program's own \
-opaque code, redirects produced by another program, and a staged write moved into \
-place (<producer> > <tmp> && mv <tmp> <dest>) whose producer is unmodeled, are \
-not seen."
+program read from stdin as python3 - <<PY) only, plus a same-command staged \
+move (effective redirect target reused as mv|cp source with dest outside \
+configured scratch roots). POSIX tee pipe writes, other inline-interpreter \
+writes (e.g. node -e, sed -i), a stdin heredoc with no - argument (python3 <<PY), \
+writes inside an invoked script file or a program's own opaque code, redirects \
+produced by another program that are not later mv|cp-moved in the same command, \
+cross-tool-call staging, variable-carried staging paths, and other movers \
+(install, rsync, dd), are not seen."
 _BYPASS_SCOPE_NOTE_PWSH="Scope: only this command string is inspected — known PowerShell \
 file-write cmdlets and content-producer redirects (including Tee-Object and the \
 tee alias) plus inline python code (python/python3/py/pypy with -c) only. Other \
@@ -1063,6 +1241,14 @@ fi
 # a co-located but unrelated echo, or tokens inside a quoted argument).
 if producer_redirect_bypass; then
   block_bypass "echo-redirect" "echo/printf > file write bypasses Write/Edit hooks"
+fi
+
+# Same-command staged write: unmodeled producer redirects into a path that a
+# later mv|cp in THIS command reuses as SOURCE toward a non-scratch dest
+# (#2731). Ordinary renames (no prior redirect of that source) stay allowed.
+if staged_write_move_bypass; then
+  block_bypass "staged-write-move" \
+    "same-command staged write (redirect target reused as mv|cp source) bypasses Write/Edit hooks"
 fi
 
 # SCOPE (documented residual): inline writes via interpreters other than

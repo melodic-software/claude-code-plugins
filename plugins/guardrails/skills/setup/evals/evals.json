@@ -48,6 +48,18 @@
         "States that install-commit-msg is the opt-in argument that installs the personal hook",
         "Does not configure core.hooksPath or write a tracked team hooks directory from this skill"
       ]
+    },
+    {
+      "id": 5,
+      "name": "install-pre-commit-content-is-opt-in-only",
+      "prompt": "/guardrails:setup apply",
+      "expected_output": "Bare apply does not install the pre-commit content-invariants hook. That DEPTH-layer hook installs only when the explicit `apply install-pre-commit-content` argument is given; it writes only the operator's personal .git/hooks/ lane (hook + guardrails-content-lib/) and never a committed team hooksPath.",
+      "files": [],
+      "expectations": [
+        "Does not install a pre-commit content hook from bare apply",
+        "States that install-pre-commit-content is the opt-in argument that installs the personal content-invariants hook",
+        "Does not configure core.hooksPath or write a tracked team hooks directory from this skill"
+      ]
     }
   ]
 }

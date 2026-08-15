@@ -1278,6 +1278,38 @@ assert_absent "#2663: PowerShell lane has no unbound ps:: on stderr" \
 run_pwsh "#2663: PowerShell write still blocked after lazy source" \
   "Set-Content -Path f.txt -Value x" 2
 
+# --- #2731: same-command staged-write mv|cp detector --------------------------
+# Unmodeled producer redirects into a path that a later mv|cp reuses as SOURCE.
+# Path-identity keeps ordinary renames unblocked; scratch-root dest stays staging.
+run "#2731: jq > tmp && mv tmp repo-file (blocked)" \
+  "jq . f > /tmp/x && mv /tmp/x plugins/guardrails/.claude-plugin/plugin.json" 2
+run "#2731: curl > tmp && cp tmp dest (blocked)" \
+  "curl -s https://example.com > /tmp/page && cp /tmp/page out.html" 2
+run "#2731: sort > tmp && mv -f tmp dest (blocked)" \
+  "sort f > /tmp/sorted && mv -f /tmp/sorted out.txt" 2
+run "#2731: mv -t dest form (blocked)" \
+  "jq . f > /tmp/x && mv -t plugins/x.json /tmp/x" 2
+run "#2731: ordinary rename, no prior redirect (allowed)" \
+  "mv old.txt new.txt" 0
+run "#2731: data-pipeline mv of a path never redirected here (allowed)" \
+  "jq . f > /tmp/other && mv /tmp/unrelated dest.txt" 0
+run "#2731: redirect alone, no later move (allowed — producer residual)" \
+  "jq . f > plugins/guardrails/.claude-plugin/plugin.json" 0
+run "#2731: staged move into configured scratch (allowed)" \
+  "jq . f > /tmp/scratch/x && mv /tmp/scratch/x /tmp/scratch/y" 0 \
+  "$SCRATCH_ENV=/tmp/scratch"
+run "#2731: staged move from scratch path to repo (blocked)" \
+  "jq . f > /tmp/scratch/x && mv /tmp/scratch/x out.json" 2 \
+  "$SCRATCH_ENV=/tmp/scratch"
+run "#2731: install mover residual (allowed — not mv|cp)" \
+  "jq . f > /tmp/x && install /tmp/x dest.txt" 0
+# Scope note names the new lane and the residuals it still cannot see.
+scopeout=$(bash "$HOOK" <<<"$(command_json 'jq . f > /tmp/x && mv /tmp/x dest')" 2>&1 >/dev/null) || true
+assert_contains "#2731: block names staged-write-move form" "$scopeout" "staged write"
+assert_contains "#2731: scope names same-command staged move" "$scopeout" "same-command staged"
+assert_contains "#2731: scope names cross-tool-call residual" "$scopeout" "cross-tool-call"
+assert_contains "#2731: scope names other movers residual" "$scopeout" "install, rsync, dd"
+
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 nul_rc=0
 bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
