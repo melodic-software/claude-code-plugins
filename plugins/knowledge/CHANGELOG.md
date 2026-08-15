@@ -27,7 +27,6 @@ only after that version increases.
   whole-snapshot hash in `extraction/node-manifest-format.md` now points at
   `reference/citation-shape.md`, its actual owner. No behavior, schema, gate, exit code, or
   argument changes.
->>>>>>> origin/main
 
 ## [0.12.1]
 
