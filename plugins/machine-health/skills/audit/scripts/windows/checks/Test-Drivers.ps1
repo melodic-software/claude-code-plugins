@@ -95,18 +95,14 @@ function Invoke-DriversCheck {
         $adminFields = [System.Collections.Generic.List[string]]::new()
 
         $problemDevices = @()
+        $pendingDriverUpdates = $null
         if ($elevated) {
             try {
                 $problemDevices = @(Get-PnpProblemDevice)
             } catch {
                 Write-Verbose "Test-Drivers: pnputil problem probe failed. $($_.Exception.Message)"
             }
-        } else {
-            $adminFields.Add('problem_devices')
-        }
 
-        $pendingDriverUpdates = $null
-        if ($elevated) {
             $pswuAvailable = $null -ne (Get-Module -ListAvailable PSWindowsUpdate -ErrorAction SilentlyContinue)
             if ($pswuAvailable) {
                 try {
@@ -124,6 +120,7 @@ function Invoke-DriversCheck {
                 }
             }
         } else {
+            $adminFields.Add('problem_devices')
             $adminFields.Add('pending_driver_updates')
         }
 

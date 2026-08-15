@@ -93,12 +93,9 @@ try {
             }).Count
 
         # Same product crashing >=5 times in last 7 days is a WARN signal.
-        $repeatCrashCount = 0
-        if ($records.Count -gt 0) {
-            $repeatCrashCount = @($records |
-                    Group-Object -Property ProductName |
-                    Where-Object { $_.Count -ge 5 }).Count
-        }
+        $repeatCrashCount = @($records |
+                Group-Object -Property ProductName |
+                Where-Object { $_.Count -ge 5 }).Count
 
         $severity = 'OK'
         $summary = "Stability avg $stabilityAvg / 10, $($records.Count) event(s) in 7d."

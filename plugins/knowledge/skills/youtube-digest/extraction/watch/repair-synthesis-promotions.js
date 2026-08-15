@@ -106,24 +106,25 @@ function rejectPipelinePlaceholder(row, oldDest) {
 }
 
 /**
+ * Rewrite a forbidden destName in place, recording the rename to apply on disk.
+ * A permitted name is left untouched — including its unnormalized spelling, which
+ * must survive into the persisted decisions doc byte-for-byte.
+ *
  * @param {{ destName: string, gapNote?: string }} row
+ * @param {string} oldDest normalized current destName
  * @param {Set<string>} reserved
  * @param {[string, string][]} renamePairs
- * @returns {string}
  */
-function repairDestName(row, reserved, renamePairs) {
-  const oldDest = normalizeDestName(row.destName);
-  let destName = oldDest;
-  if (!forbiddenSynthesisFileNameReason(destName)) {
-    return destName;
+function repairDestName(row, oldDest, reserved, renamePairs) {
+  if (!forbiddenSynthesisFileNameReason(oldDest)) {
+    return;
   }
-  reserved.delete(destName);
-  destName = deriveSemanticNameFromGapNote(row.gapNote ?? "", reserved);
+  reserved.delete(oldDest);
+  const destName = deriveSemanticNameFromGapNote(row.gapNote ?? "", reserved);
   row.destName = destName;
   if (destName !== oldDest) {
     renamePairs.push([oldDest, destName]);
   }
-  return destName;
 }
 
 /**
@@ -171,12 +172,13 @@ function pruneUnpromotedSynthesisFiles(synthesisDir, doc) {
  * @param {object} doc
  */
 function writePromotionArtifacts(absSlice, doc) {
+  const promotes = doc.decisions.filter(
+    (/** @type {{ verdict: string }} */ d) => d.verdict === "promote",
+  );
+
   /** @type {Record<string, { sourceFile: string, gapNote?: string, session?: string }>} */
   const promotionMap = {};
-  for (const row of doc.decisions) {
-    if (row.verdict !== "promote") {
-      continue;
-    }
+  for (const row of promotes) {
     const destName = normalizeDestName(row.destName);
     if (forbiddenSynthesisFileNameReason(destName)) {
       throw new Error(`still forbidden after repair: ${destName}`);
@@ -194,9 +196,6 @@ function writePromotionArtifacts(absSlice, doc) {
     "utf8",
   );
 
-  const promotes = doc.decisions.filter(
-    (/** @type {{ verdict: string }} */ d) => d.verdict === "promote",
-  );
   const auditDoc = {
     reviewedAt: new Date().toISOString(),
     model: "repair-synthesis-promotions",
@@ -222,7 +221,6 @@ function writePromotionArtifacts(absSlice, doc) {
  * @returns {{ renamed: number, rejected: number, sessionsFixed: number, renamePairs: [string, string][] }}
  */
 function repairPromotionRows(doc, reserved, absSlice) {
-  let renamed = 0;
   let rejected = 0;
   let sessionsFixed = 0;
   /** @type {[string, string][]} */
@@ -242,10 +240,7 @@ function repairPromotionRows(doc, reserved, absSlice) {
       continue;
     }
 
-    const destName = repairDestName(row, reserved, renamePairs);
-    if (destName !== oldDest) {
-      renamed += 1;
-    }
+    repairDestName(row, oldDest, reserved, renamePairs);
 
     if (typeof row.session === "string" && isForbiddenPipelineSessionSlug(row.session)) {
       if (sessionIndex === undefined) {
@@ -256,7 +251,8 @@ function repairPromotionRows(doc, reserved, absSlice) {
     }
   }
 
-  return { renamed, rejected, sessionsFixed, renamePairs };
+  // Every rename recorded a pair, so the pair list IS the rename count.
+  return { renamed: renamePairs.length, rejected, sessionsFixed, renamePairs };
 }
 
 /**

@@ -21,9 +21,7 @@ export const TEXT_DENSE_REASONS = new Set(["code", "terminal", "slides", "demo",
  * @returns {boolean}
  */
 export function isTextDenseReason(reason) {
-  return (
-    TEXT_DENSE_REASONS.has(reason) || reason.split("+").some((part) => TEXT_DENSE_REASONS.has(part))
-  );
+  return reason.split("+").some((part) => TEXT_DENSE_REASONS.has(part));
 }
 
 /**

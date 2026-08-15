@@ -401,9 +401,7 @@ $ranCheckIds = [System.Collections.Generic.List[string]]::new()
 $checkResults = [System.Collections.Generic.List[object]]::new()
 # Surface Assert-CatalogEntry failures through the normal reporting path first
 # so a registered-but-invalid check cannot silently vanish from the report.
-foreach ($invalidResult in $invalidCatalogResults) {
-    $checkResults.Add($invalidResult)
-}
+$checkResults.AddRange($invalidCatalogResults)
 foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
     if (-not (Test-Path -LiteralPath $scriptPath)) {

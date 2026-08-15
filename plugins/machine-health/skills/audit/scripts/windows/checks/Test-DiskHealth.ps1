@@ -56,8 +56,10 @@ function Get-WearSeverity {
 
 try {
     $volumes = [System.Collections.Generic.List[pscustomobject]]::new()
-    $volumeSeverities = [System.Collections.Generic.List[string]]::new()
-    $volumeSeverities.Add('OK')
+    # One ladder for volume and physical-disk sub-severities; Get-WorstSeverity
+    # takes the max, so a single seeded 'OK' covers both empty collections.
+    $allSeverities = [System.Collections.Generic.List[string]]::new()
+    $allSeverities.Add('OK')
 
     try {
         Get-Volume -ErrorAction Stop |
@@ -79,7 +81,7 @@ try {
                 if ($freePct -lt 5) { $sev = 'CRIT' }
                 elseif ($freePct -lt 15) { $sev = 'WARN' }
 
-                $volumeSeverities.Add($sev)
+                $allSeverities.Add($sev)
                 $volumes.Add([pscustomobject]@{
                         drive      = [string]$_.DriveLetter
                         filesystem = $_.FileSystem
@@ -94,8 +96,6 @@ try {
     }
 
     $disks = [System.Collections.Generic.List[pscustomobject]]::new()
-    $diskSeverities = [System.Collections.Generic.List[string]]::new()
-    $diskSeverities.Add('OK')
     try {
         Get-PhysicalDisk -ErrorAction Stop | ForEach-Object {
             $disk = $_
@@ -120,7 +120,7 @@ try {
             $wearSev = Get-WearSeverity -Wear $wear
 
             $diskSev = Get-WorstSeverity @($healthSev, $tempSev, $wearSev)
-            $diskSeverities.Add($diskSev)
+            $allSeverities.Add($diskSev)
 
             $disks.Add([pscustomobject]@{
                     friendly_name      = $disk.FriendlyName
@@ -139,9 +139,6 @@ try {
         Write-Verbose "Test-DiskHealth: Get-PhysicalDisk failed. $($_.Exception.Message)"
     }
 
-    $allSeverities = [System.Collections.Generic.List[string]]::new()
-    $allSeverities.AddRange($volumeSeverities)
-    $allSeverities.AddRange($diskSeverities)
     $overallSev = Get-WorstSeverity $allSeverities.ToArray()
 
     $worstVolumeUsedPct = $null

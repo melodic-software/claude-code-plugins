@@ -47,7 +47,8 @@ import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {object} [frameSelection]
  * @property {number} [frameSelection.selectedCount]
- * @property {number} [frameSelection.softCap]
+ * @property {number} [frameSelection.targetMinFrames]
+ * @property {boolean} [frameSelection.highVolume]
  * @property {boolean} [frameSelection.overCap]
  * @property {number} [frameSelection.candidateCount]
  * @property {object} [artifactPaths]
@@ -218,6 +219,7 @@ export function continuationPromptPath(sliceDir) {
  * @param {string} sliceDir
  * @param {WatchState} state
  * @param {typeof fs.writeFile} [writeFile]
+ * @param {typeof fs.mkdir} [mkdir]
  */
 export async function writeWatchState(sliceDir, state, writeFile = fs.writeFile, mkdir = fs.mkdir) {
   const persisted = state.tempSession
@@ -245,6 +247,7 @@ export async function readWatchState(sliceDir, readFile = fs.readFile) {
  * @param {string} sliceDir
  * @param {WatchState} state
  * @param {typeof fs.writeFile} [writeFile]
+ * @param {typeof fs.mkdir} [mkdir]
  */
 export async function writeContinuationPrompt(
   sliceDir,
@@ -287,6 +290,7 @@ const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
  * @param {object} [io]
  * @param {typeof fs.readFile} [io.readFile]
  * @param {typeof fs.writeFile} [io.writeFile]
+ * @param {typeof fs.mkdir} [io.mkdir]
  * @returns {Promise<number>} 0 on success or no-op skip, 1 on error
  */
 export async function runMarkPhase(sliceDir, phase, { readFile, writeFile, mkdir } = {}) {
