@@ -589,21 +589,12 @@ jobs:
       - name: Check for orphaned eval fixtures
         run: scripts/check-orphaned-fixtures.sh --check
 
-  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
-  # version heading does not outrun the manifest (static --check), a PR that
-  # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
-  # the same diff (--check-bump, PR-only), and no PR may DROP a version heading a
-  # changelog already carried (--check-preserved, PR-only). Existing
-  # "versioned but changelog-less" debt is grandfathered by name in
-  # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
-  # never relaxed by the baseline. The self-test runs unconditionally so a broken
-  # gate cannot mask a regression, and the PR-diff step is event-gated.
-# Every finding kind audit-fleet.sh emits must have a Finding: <kind>
-# collector-output assertion in audit-fleet.test.sh (or be grandfathered).
-# Lives outside the suite so a stale-base squash that rewrites the test file
-# alongside the collector cannot delete its own defender (#2656). Existing
-# debt is grandfathered in scripts/fleet-finding-test-coverage-baseline.txt
-# with a stale guard.
+  # Every finding kind audit-fleet.sh emits must have a Finding: <kind>
+  # collector-output assertion in audit-fleet.test.sh (or be grandfathered).
+  # Lives outside the suite so a stale-base squash that rewrites the test file
+  # alongside the collector cannot delete its own defender (#2656). Existing
+  # debt is grandfathered in scripts/fleet-finding-test-coverage-baseline.txt
+  # with a stale guard.
   fleet-finding-test-coverage-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -620,6 +611,15 @@ jobs:
       - name: Check every emitted fleet finding kind has a Finding: assertion
         run: scripts/check-fleet-finding-test-coverage.sh --check
 
+  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
+  # version heading does not outrun the manifest (static --check), a PR that
+  # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
+  # the same diff (--check-bump, PR-only), and no PR may DROP a version heading a
+  # changelog already carried (--check-preserved, PR-only). Existing
+  # "versioned but changelog-less" debt is grandfathered by name in
+  # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
+  # never relaxed by the baseline. The self-test runs unconditionally so a broken
+  # gate cannot mask a regression, and the PR-diff step is event-gated.
   changelog-parity-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
