@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.5]
+
+### Fixed
+
+- **Symlinked/junctioned intermediate directories under discovery are disclosed, not silent (#2711).**
+  Discovery still does not follow links. Each skipped intermediate symlink (or Windows directory
+  junction, which tests as a symlink under Git Bash) becomes an `UNKNOWN` `discovery-symlink-skip`
+  finding and is counted on the `Discovery skips:` header line. Symlinked discovery roots remain
+  refused as before. Fleet-level `UNKNOWN` findings (including these skips) now also move the
+  overall `Fleet verdict` off `CLEAN`, so a root whose only content is a skipped symlink cannot
+  report a clean walk.
+
 ## [0.22.4]
 
 ### Fixed

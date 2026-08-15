@@ -250,6 +250,11 @@ Related fleet contracts that remain separate:
   marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
   rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
   hard-fails.
+- A symlinked or junctioned intermediate directory under `--root` is not followed (same non-following
+  bound as before) but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
+  the discovery-skips header line. Windows directory junctions test as symlinks under Git Bash, so
+  they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
+  (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.
