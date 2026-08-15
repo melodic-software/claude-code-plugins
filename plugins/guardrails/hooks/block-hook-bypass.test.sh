@@ -608,6 +608,16 @@ run_pwsh "PS: & \$w -Value computed writer (blocked)" \
   "& \$w -Path f.txt -Value x" 2
 run_pwsh "PS: & \$w > file computed call redirect (blocked)" \
   "& \$w > f.txt" 2
+# Positional Path+Value / pipeline Out-File shapes lack -Value and `>` but still write.
+run_pwsh "PS: & \$w positional Path+Value (blocked)" \
+  "& \$w f.txt x" 2
+run_pwsh "PS: pipeline into & \$w path (blocked)" \
+  "\$data | & \$w out.txt" 2
+# Quoted `>` / `-value` text must not trip the write-signal probes.
+run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
+  "& \$tool -Message \"CPU > 90%\"" 0
+run_pwsh "PS: & \$tool quoted -value substring (allowed)" \
+  "& \$tool -Message \"please -value this\"" 0
 # fd-dup merge is plumbing, not a file write — must not trip the redirect gate.
 run_pwsh "PS: & \$tool 2>&1 stream merge (allowed — no file write)" \
   "& \$tool 2>&1" 0

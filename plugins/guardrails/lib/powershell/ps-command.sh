@@ -225,6 +225,50 @@ ps::call_target_is_bare_computed() {
   [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\(] ]]
 }
 
+# True (0) when a bare computed *variable* call carries a positional write
+# shape that the named-parameter probes miss. Set-Content/Add-Content take
+# Path+Value positionally (`& $w f.txt x`); Out-File commonly takes pipeline
+# input plus a path (`$data | & $w out.txt`). Count *leading* non-flag tokens
+# after the target (stop at the first dash-flag) so `& $py script.py` (one
+# positional) and `& $python -m unittest discover` (flag-first) stay allowed
+# while two leading positionals still fail closed. A pipeline into the call
+# needs only one leading positional — the content arrives via `|`.
+# Subexpression targets (`& ('Set-'+'Content') …`) already trip
+# `ps::has_special_constructs` via `()` and do not need this probe.
+ps::computed_call_has_positional_write_signal() {
+  local lc="$1" rest="" tok count=0 piped=0
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  local re_pipe='^(.*)[.\&][[:space:]]*\$'
+  lc="${lc//\`/}"
+  lc="${lc,,}"
+  [[ "$lc" =~ $re_var ]] || return 1
+  rest="${BASH_REMATCH[4]}"
+  if [[ "$lc" =~ $re_pipe ]]; then
+    [[ "${BASH_REMATCH[1]}" == *'|'* ]] && piped=1
+  fi
+  # Truncate at statement / pipeline continuations so trailing clauses do not
+  # inflate the positional count.
+  rest="${rest%%[\;\|\&]*}"
+  # Drop redirect operands (`> f`, `2> err`) — those are covered by the
+  # redirect probe; they are not Path+Value positionals.
+  rest=$(printf '%s' "$rest" | sed -E 's/[0-9*]*>+[^[:space:]]*//g; s/[0-9*]*<+[^[:space:]]*//g')
+  # shellcheck disable=SC2086 # intentional word-split on PowerShell tokens
+  for tok in $rest; do
+    [[ -z "$tok" ]] && continue
+    if [[ "$tok" == -* ]]; then
+      break
+    fi
+    count=$((count + 1))
+  done
+  if (( count >= 2 )); then
+    return 0
+  fi
+  if (( piped == 1 && count >= 1 )); then
+    return 0
+  fi
+  return 1
+}
+
 # True (0) when the call/dot-source target is a DOUBLE-quoted string that
 # INTERPOLATES a variable or subexpression — `& "$tool" …`, `& "$(Get-Tool)" …`,
 # `& "C:\tools\$ver\x.exe" …`. Grounded in PowerShell `about_Quoting_Rules`:
@@ -1029,10 +1073,13 @@ ps::write_bypass() {
     blanked_gate=$(ps::blank_quoted_spans "$lcq")
     # fd-dup merges (`2>&1`) are plumbing, not file writes — strip before the
     # redirect probe so `& $tool 2>&1` does not look like a producer redirect.
-    gate=$(printf '%s' "$lcq" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    # Redirect / -va* probes run on quote-blanked text so a quoted `>` or
+    # `-value` substring in message text is not a write signal (#2722 review).
+    gate=$(printf '%s' "$blanked_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
     if ps::has_special_constructs "$blanked_gate" ||
       [[ "$gate" == *'>'* ]] ||
-      [[ "$lcq" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
+      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
+      ps::computed_call_has_positional_write_signal "$blanked_gate"; then
       return 0
     fi
   fi

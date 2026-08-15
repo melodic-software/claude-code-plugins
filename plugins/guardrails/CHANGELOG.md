@@ -14,13 +14,17 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   required — so commands that author no content were blocked with a message
   naming file-write cmdlets and redirection. The computed-target probe now
   requires a write signal first: a special construct (`()`/`{}`/backtick/`--%`),
-  a producer redirect (`>` after fd-dup merges are stripped), or a `-Value` /
-  `-va*` parameter. That mirrors the git lane, where `ps::might_invoke_git`'s
-  computed-target test only runs after a sink trigger has already routed the
-  command, and keeps the same residual `has_dynamic_invocation` documents for a
-  construct-free `& $tool …`. Genuine cases still block: literal writers,
-  `& 'Set-Content'`, `& ('Set-'+'Content') …`, `& $w -Value …`, `& $w > f`,
-  redirects, `iex`, and .NET writes.
+  a producer redirect (`>` after fd-dup merges are stripped), a `-Value` /
+  `-va*` parameter, or a positional write shape (two leading non-flag tokens
+  after the target for Path+Value, or one leading positional when the call is
+  pipeline-fed). Redirect and `-va*` probes run on quote-blanked text so a
+  quoted `>` or `-value` substring in message text is not a signal. That mirrors
+  the git lane, where `ps::might_invoke_git`'s computed-target test only runs
+  after a sink trigger has already routed the command, and keeps the same
+  residual `has_dynamic_invocation` documents for a construct-free `& $tool …`.
+  Genuine cases still block: literal writers, `& 'Set-Content'`,
+  `& ('Set-'+'Content') …`, `& $w -Value …`, `& $w f.txt x`, `$data | & $w out.txt`,
+  `& $w > f`, redirects, `iex`, and .NET writes.
 
 ## [0.28.27]
 
