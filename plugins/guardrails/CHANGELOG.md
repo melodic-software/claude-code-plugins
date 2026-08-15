@@ -3,6 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.28]
+
+### Fixed
+
+- **`ps::write_bypass` no longer treats a bare computed call/dot-source as a file
+  write ([#2722](https://github.com/melodic-software/claude-code-plugins/issues/2722)).**
+  The fail-closed branch for `& $tool …` / `. $PROFILE` / `& ('Set-'+'Content') …`
+  previously fired on the invocation *shape* alone, with no write indicator
+  required — so commands that author no content were blocked with a message
+  naming file-write cmdlets and redirection. The computed-target probe now
+  requires a write signal first: a special construct (`()`/`{}`/backtick/`--%`),
+  a producer redirect (`>` after fd-dup merges are stripped), or a `-Value` /
+  `-va*` parameter. That mirrors the git lane, where `ps::might_invoke_git`'s
+  computed-target test only runs after a sink trigger has already routed the
+  command, and keeps the same residual `has_dynamic_invocation` documents for a
+  construct-free `& $tool …`. Genuine cases still block: literal writers,
+  `& 'Set-Content'`, `& ('Set-'+'Content') …`, `& $w -Value …`, `& $w > f`,
+  redirects, `iex`, and .NET writes.
+
 ## [0.28.27]
 
 ### Changed

@@ -590,6 +590,27 @@ run_pwsh "PS: numeric expression > file (blocked)" "36 > out.txt" 2
 run_pwsh "PS: cast expression > file (blocked)" "[char]65 > out.txt" 2
 run_pwsh "PS: & computed writer name (fail-closed block)" \
   "& ('Set-'+'Content') -Path f.txt -Value x" 2
+# #2722: a bare computed call/dot-source with NO write indicator is not a write.
+# The shape alone must not enter the fail-closed sink — same residual the git
+# lane documents for `& $tool …` in has_dynamic_invocation.
+run_pwsh "PS: . \$PROFILE reload (allowed — no write indicator)" \
+  ". \$PROFILE" 0
+run_pwsh "PS: & \$py script.py (allowed — no write indicator)" \
+  "& \$py script.py" 0
+run_pwsh "PS: & \$tool --version (allowed — no write indicator)" \
+  "& \$tool --version" 0
+run_pwsh "PS: . \$env:MY_PROFILE (allowed — no write indicator)" \
+  ". \$env:MY_PROFILE" 0
+run_pwsh "PS: & \$python -m unittest discover (allowed — no write indicator)" \
+  "& \$python -m unittest discover" 0
+# Still fail-closed when a write signal accompanies the computed variable target.
+run_pwsh "PS: & \$w -Value computed writer (blocked)" \
+  "& \$w -Path f.txt -Value x" 2
+run_pwsh "PS: & \$w > file computed call redirect (blocked)" \
+  "& \$w > f.txt" 2
+# fd-dup merge is plumbing, not a file write — must not trip the redirect gate.
+run_pwsh "PS: & \$tool 2>&1 stream merge (allowed — no file write)" \
+  "& \$tool 2>&1" 0
 run_pwsh "PS: spaced numeric is a value write, tool redirect still allowed" \
   "git diff 2> err.txt" 0
 # Review round 6: non-success stream producers and separator-adjacent calls.

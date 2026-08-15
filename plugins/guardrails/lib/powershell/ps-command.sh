@@ -482,10 +482,11 @@ ps::might_write_via_python3() {
   # target (so the launcher/token tests miss it) and it is not a launcher, so match
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
-  # matched. ps::write_bypass catches only an UNQUOTED `& $`/`& (`; this closes the
-  # quoted-interpolated form for the python-write lane — which is why this lane
-  # takes only the interpolating-string half of the shared call-target predicate
-  # and not the bare-computed half.
+# matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
+# write indicator or special construct (#2722); this closes the
+# quoted-interpolated form for the python-write lane — which is why this lane
+# takes only the interpolating-string half of the shared call-target predicate
+# and not the bare-computed half.
   ps::call_target_is_interpolating_string "$recovered" && return 0
   # Must name a python interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])(pypy|python|py)[0-9]*([.][0-9]+)*([.]exe)?([^[:alnum:]_.]|$) ]] || return 1
@@ -989,7 +990,10 @@ ps::print_unparsable_git_block_message() {
 #     scoped to match the Bash guard, which allows `<tool> ... > out` (the
 #     producer is the tool, not a content author);
 #   - iex / invoke-expression, whose run string is opaque here — fail closed,
-#     mirroring the git guards' sink.
+#     mirroring the git guards' sink;
+#   - a call/dot-source of a COMPUTED target (`& ('Set-'+'Content') …`,
+#     `& $w -Value …`, `& $w > f`) when a write indicator or special construct
+#     is also present — not the bare `& $tool …` / `. $PROFILE` residual (#2722).
 # Backticks are deleted before matching so an escape-obfuscated name (`Set``-Content`)
 # resolves to its real form.
 #
@@ -997,7 +1001,7 @@ ps::print_unparsable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head lcq q="\"'"
+  local cmd="$1" scan lcs seg lc head lcq q="\"'" gate blanked_gate
   ps::blank_herestrings "$cmd"
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
@@ -1013,12 +1017,24 @@ ps::write_bypass() {
   fi
   # A call/dot-source of a COMPUTED target — `& ('Set-'+'Content') …`, `& $w …`
   # — evaluates an expression into the command name; it cannot be proven
-  # non-writer, so it fails closed like iex (review round 5). Mirrors
-  # ps::might_invoke_git's treatment of the same shape on the git side. Both
-  # this and the quoted-writer check above accept a statement/block separator
+  # non-writer, so it fails closed like iex WHEN a write signal is also present
+  # (review round 5, narrowed in #2722). Mirrors the git lane: ps::might_invoke_git's
+  # computed-target probe only runs after ps::has_special_constructs (or another
+  # sink trigger) has already routed the command. A construct-free `& $tool …` /
+  # `. $PROFILE` with no redirect and no -Value is the same deferred
+  # variable-command-word residual has_dynamic_invocation documents for git.
+  # Both this and the quoted-writer check above accept a statement/block separator
   # boundary (`;& …`), not only whitespace (review round 6).
-  if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\(\$] ]]; then
-    return 0
+  if ps::call_target_is_bare_computed "$lcq"; then
+    blanked_gate=$(ps::blank_quoted_spans "$lcq")
+    # fd-dup merges (`2>&1`) are plumbing, not file writes — strip before the
+    # redirect probe so `& $tool 2>&1` does not look like a producer redirect.
+    gate=$(printf '%s' "$lcq" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    if ps::has_special_constructs "$blanked_gate" ||
+      [[ "$gate" == *'>'* ]] ||
+      [[ "$lcq" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
+      return 0
+    fi
   fi
 
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
