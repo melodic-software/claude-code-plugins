@@ -55,9 +55,18 @@ What the binding leaves to a producer — consequences, not a second statement o
   answer to those rungs instead resolves to a directory the consumer never reaches.
 - **The directory never proves ownership.** What proves a file is this branch's is its own `branch:`
   frontmatter, never the directory it sits in — the binding's slug rule says why.
-- **The self-ignore guard is owed, not re-derived** — including the convention's invalid-root rule,
-  which stops the guard from healing into a consumer's root `.gitignore`. Skipping it commits
-  findings that are meant to stay checkout-local.
+- **The self-ignore guard is owed, not re-derived** — including the convention's invalid cases, which
+  stop the guard from healing into a consumer's root `.gitignore` and from writing at a root no
+  checkout is detected as governing. Skipping it **where a checkout governs the destination** commits
+  findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
+  that the guard does not run. **The artifact write is not automatically safe there either**:
+  recreating a path that is an *index-tracked deletion* in a missed checkout modifies tracked state
+  rather than creating an untracked one (measured), so "it lands untracked" is not universally true.
+  But a blanket refusal is the wrong correction — it would refuse the `${CLAUDE_PLUGIN_DATA}`
+  fallback the convention routes non-interactive runs to, which sits outside every checkout **by
+  construction** and cannot be a tracked deletion. The rule follows that distinction: write where the
+  destination is that plugin-data surface, and where it is a resolved root no checkout could be shown
+  to govern, report the resolved destination and persist nothing.
 
 ## Boundary
 

@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Changed
+
+- **The binding's Guards section now defers on invalid roots as well as stating the guard.** It said
+  the self-ignore guard "applies on first write (verify-or-create `.gitignore`)" and named none of
+  the roots at which the contract says the guard does **not** run — so a reader landed on text
+  reading as unconditional, including for the no-project-root default where this plugin's memory
+  writes go. The section now states that such roots exist and points at the convention's "Runtime
+  guards" for them, **enumerating none**: a second copy of the list is how one rule ends up stated
+  several ways.
+
 ## [0.5.2]
 
 ### Fixed

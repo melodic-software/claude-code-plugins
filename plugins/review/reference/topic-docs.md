@@ -4,7 +4,7 @@ How `/review:quality-gate` and `/review:fanout` resolve where review
 reports land in a consuming repo. Both skills read this one document; neither bakes its own paths.
 
 Implements the topic-docs convention:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
 The contract owns the tier table, concern-file schema, slug spec, and lifecycle; this document binds
 this plugin's artifacts to it.
 
@@ -67,5 +67,8 @@ before any write — the convention's no-project-root fallback surface never com
 - **Self-ignore guard:** the session's first memory-tier write verifies the **resolved memory
   root** (whatever `memory_dir` names — never a hardcoded `.work`) contains a `.gitignore` with
   `*`, creating it (announced) when absent — fresh clones heal on first write. Once per session,
-  per the contract.
+  per the contract. The contract also defines **invalid roots at which the guard does not run**;
+  they are enumerated in its
+  [Runtime guards](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards)
+  section and deliberately not listed here, so this binding cannot drift from them.
 - No skill in this plugin ever edits the consumer's root `.gitignore`.

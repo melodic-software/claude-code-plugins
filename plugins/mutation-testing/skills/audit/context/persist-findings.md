@@ -21,7 +21,9 @@ obligations are the ones a mutation run is most likely to skip, so they are name
 here: run the **whole** rung order rather than its last rung; take the **non-interactive collapse**
 for the rungs that confirm or ask, since a headless detector cannot answer; and honor the
 **self-ignore guard**, including the invalid-root rule that keeps it out of a consumer's root
-`.gitignore`.
+`.gitignore` — and its second invalid case, named in "Prove the destination is outside tracked
+space", where no checkout can be shown to govern a resolved root and this phase writes nothing there
+at all.
 
 File name: `${TS}-mutation-survivors.md`, with `TS="$(date -u +%Y%m%dT%H%M%SZ)"` — colon-free and
 Windows-safe, so lexical sort equals chronological sort.
@@ -33,11 +35,20 @@ handed to the merge set — the same defect as writing into a file another produ
 
 ## Prove the destination is outside tracked space before writing to it
 
-This phase makes **two** writes — the findings file and, when the self-ignore guard heals a root, that
-root's `.gitignore` — and the property to prove is that git picks up neither. **Each is proven before
-that write is made**, which is the strongest form available and not the same as proving both up
-front: on a fresh root the guard's file is exactly what makes the findings file's probe pass, so that
-probe cannot precede the guard. The order is what makes the per-write form hold:
+This phase makes **at most two** writes — the findings file and, when the self-ignore guard heals a
+root, that root's `.gitignore` — and the property to prove is that git picks up neither. **Each is
+proven before that write is made**, which is the strongest form available and not the same as proving
+both up front: on a fresh root the guard's file is exactly what makes the findings file's probe pass,
+so that probe cannot precede the guard. "At most" is load-bearing — where no governing checkout is
+found, neither write happens at a resolved root (step 1).
+
+**The one write that survives that branch is proven by step 1 itself, not by a probe.** The
+`${CLAUDE_PLUGIN_DATA}` fallback is written there, and what proves it safe is the agreement of two
+independent signals that no checkout governs the path: a destination outside every checkout cannot be
+tracked by one, so there is no ignore rule to satisfy and nothing for `check-ignore` to answer. That
+is a proof, not an exemption — which is why step 1 needs both signals and why a single-signal version
+of it would be fail-open rather than merely weaker. The order below is what makes the per-write form
+hold everywhere else:
 
 0. **Make the resolved root a physical path first.** `cd` to its nearest existing ancestor, take
    `pwd -P`, and re-append the components below it. A lexical walk over a path whose ancestor is a
@@ -52,8 +63,9 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
      run under the **ambient** environment. A toplevel it reports is a governing checkout even when
      the walk found none.
 
-   **No checkout governs the path only when both come back empty**; then, and only then, both writes
-   proceed. Either signal alone is fail-open in a state the other sees: the walk cannot see a working
+   **No checkout governs the path only when both come back empty** — and that is the branch on which
+   this producer writes **nothing**, not the branch on which it writes freely. Either signal alone is
+   fail-open in a state the other sees: the walk cannot see a working
    tree designated by `GIT_WORK_TREE`/`GIT_DIR`, where nothing in the path has a `.git` at all yet git
    reports tracked files there; `rev-parse` cannot tell "no repository" from a missing directory, a
    dangling `gitdir:`, or a discovery limit, all of which are exit 128. They do not fail on the same
@@ -67,26 +79,32 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
    nothing in the environment to find**. The designation lives in a config file that destination-side
    discovery never reaches, so both signals come back empty together.
 
-   **On the permissive branch, do not run the self-ignore guard at all.** Where no checkout governs
-   the path there is no repository to keep the write out of, so the guard has no work to do — and the
-   only circumstance in which its file would have mattered is the one where this discovery was wrong.
-   Skipping it is what keeps that case harmless. The guard's rule is *create when absent*, and a
-   `.gitignore` that is absent from disk but **tracked** in an undiscovered checkout — routine after
-   an `rm` or an interrupted checkout — would be created straight over the consumer's committed
-   content. A tracked file is exempt from its own pattern, so it could not even hide itself: the
-   result is a modified tracked file, which is precisely what "never in tracked source" forbids. Step
-   3 is what refuses a root holding tracked files, and step 3 never ran here, so the guard would be
-   writing with its only protection absent.
+   **On the permissive branch this producer writes nothing at all — with one exception, below.** Not
+   the guard's `.gitignore`, and not the findings file. The guard's half is the
+   [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
+   second invalid case, which owns the rule and why; nothing is re-derived here. The findings file
+   follows for the same undecidability applied to this skill's own contract: the destination may be
+   an **index-tracked deletion** in the checkout the detection missed, and writing it there produces
+   a *modified tracked file* rather than a new untracked one — measured. "Read-only with respect to
+   tracked source" admits no such write, so the branch that cannot rule it out cannot take it.
 
-   What remains on that branch is the findings file alone, written into a directory nothing was found
-   to govern. If discovery *was* wrong, it shows up in the undiscovered checkout as an untracked
-   path — visible, attributable, and having overwritten nothing.
+   Report the resolved destination, say that no checkout could be shown to govern it and the findings
+   were therefore not persisted, and stop. A refusal a human can act on is the correct end of this
+   branch; it is not a silent skip.
+
+   **The exception is the contract's `${CLAUDE_PLUGIN_DATA}` fallback**, which the rung order takes
+   when there is no project root at all. That surface is outside every checkout **by construction**,
+   so no tracked deletion can hide there and the refusal has nothing to protect — write, and announce
+   the absolute path as the contract requires. Refusing it would strand the one destination a
+   headless run on a rootless directory is *supposed* to use.
 
    Two cases the signals resolve rather than defer: a **bare** repository with no worktree puts no
-   `.git` in any ancestor and reports none, so it reaches the permissive branch — correct, since a
-   repository with no working tree picks nothing up. (A bare *layout* that names a worktree through
-   `core.worktree` is the topology above, not this one.) A destination **inside a checkout's own
-   `.git/`** is refused
+   `.git` in any ancestor and reports none, so it reaches this branch and the run refuses. That
+   refusal is conservative rather than necessary — a repository with no working tree picks nothing
+   up — but the signals cannot distinguish it from the `core.worktree` topology, which is the whole
+   reason the branch refuses; a rule that guessed which one it was facing would be the fail-open this
+   step exists to prevent. (A bare *layout* that names a worktree through `core.worktree` is that
+   topology, not this one.) A destination **inside a checkout's own `.git/`** is refused
    here, by name: `check-ignore` answers exit 1 for it, which step 5 would report as "tracked space",
    and `.git/` is not that.
 2. **Reject a root-equivalent `memory_dir`** — the contract's invalid-root rule, judged against `T`

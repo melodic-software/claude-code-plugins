@@ -1,5 +1,42 @@
 # Changelog — topic-docs convention
 
+## 2.5.0 — 2026-08-15
+
+**The self-ignore guard gains a second invalid case: a root no checkout is
+detected as governing.** The guard does not run there. Two outcomes bind it —
+(A) a memory-tier write is never picked up by a checkout that governs the
+destination, and (B) no plugin ever modifies content tracked in any checkout.
+The guard is the means to A wherever a governing checkout is found; where none
+is detected it buys nothing toward A and can violate B.
+
+**The rule is blanket by derivation, not by generalizing from one case.** A
+`.gitignore` absent from disk is either untracked in some undetected checkout —
+where creating it is harmless and even mitigating — or tracked there, where
+creating it overwrites committed content and cannot hide the change, since a
+tracked file is exempt from its own pattern. Telling those apart requires
+querying a checkout, and this branch is defined by having found none, so the
+index check that would decide it is the one check that cannot run. The costs are
+unequal: guessing "untracked" and being wrong modifies content committed in a
+repository the producer cannot see; guessing "tracked" and being wrong forgoes a
+mitigation for a harm that is reachable rather than automatic. An undecidable
+test with asymmetric outcomes yields *do not write*.
+
+"Not detected" is stated as a detection claim and never as a claim that none
+exists — the branch is entered precisely where detection can be wrong, which is
+why the rule is *do not write* rather than *nothing is at risk*. The tracked-file
+case was measured on the `core.worktree` topology, where a repository governs a
+tree with no `.git` in the destination's path and nothing in the environment to
+find; that demonstration is one route into the state, not its definition.
+
+This closes a self-contradiction rather than carving an exception: the
+no-project-root fallback already routes non-interactive runs to
+`${CLAUDE_PLUGIN_DATA}` by default — a destination outside every checkout — while
+the guard bullet still spoke unconditionally about that same destination.
+Non-interactive is the normal condition for forked subagents, dispatched
+workers, and headless runs, so every consumer reaching that surface ran
+create-when-absent against a root no checkout governs.
+(<https://github.com/melodic-software/claude-code-plugins/issues/2680>)
+
 ## 2.4.4 — 2026-08-15
 
 Docs-only: the Memory, concern-scoped tier row now names `.work/running-retros/`

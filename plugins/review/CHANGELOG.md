@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Changed
+
+- **The binding's self-ignore-guard bullet now defers on invalid roots as well as on cadence.** It
+  already restated the guard's create-when-absent behavior and ended "per the contract", but named
+  none of the roots at which the contract says the guard does **not** run — so a reader arriving
+  through the detector-findings owner table, which names this binding as the guard's owner, met text
+  reading as unconditional. The bullet now states that such roots exist and points at the
+  convention's "Runtime guards" for them, **enumerating none**: a second copy of the list is how a
+  rule ends up stated several ways, and the omission this repairs was itself an incomplete copy.
+
 ## [0.21.0]
 
 ### Added
