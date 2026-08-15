@@ -129,3 +129,42 @@ predicate dependencies: `C3` auto-merge is earned on the `C2` auto-merge track
 record, and its automatic transition is gated on the `C3` AI-review cell being
 blocking, so contrary evidence against either prerequisite demotes `C3`
 auto-merge with it.
+
+### What may never enter a predicate
+
+**An acceptance or merge rate is never a promotion input, and it is not an efficacy signal**
+— in either role, at any cell, at any threshold. Three independent lines of evidence —
+peer-reviewed observational work, large-N regression, and a randomized trial — find artifact
+quality weakly-to-not coupled to whether a change is accepted. The strongest statement is
+Lenarduzzi et al.'s: *"code quality turned out not to affect the acceptance of a pull request at
+all."* A predicate built on acceptance would therefore promote throughput while claiming to
+measure trustworthiness.
+
+This does not touch the predicates above, and the distinction is worth stating because one row sits
+close to the line. **`0 human-reverted merges` is a correctness signal, not an acceptance rate.** A
+revert is a human asserting the change was wrong after it landed; an acceptance rate counts how much
+got merged. The first is evidence about the work, the second about the pipeline. Every predicate
+above is built from completion counts, deterministic-gate pass rates, revert counts, and demotion
+events — all correctness-side by construction.
+
+### Reviewer-burden term — DEFERRED, with a trigger
+
+A reviewer-burden term (how much human review effort a cell's output actually costs) is a
+**candidate predicate input, deliberately not a live term.** It is recorded rather than omitted
+because a designated planning pass was asked to settle it and silence would leave that obligation
+unfilled.
+
+**Why deferred:** the term needs a denominator, and a denominator needs the org-scale trust-path
+requirements this contract already defers at solo volume — a population to divide by, a non-merge
+outcome signal, and a lookback window with a demotion rule. Absent those, "reviewer burden" is a
+count with nothing to normalize against: it moves with volume rather than with trustworthiness, and
+a term that moves with volume rewards a cell for producing less. A metric in name only.
+
+**Trigger to reconsider:** the volume at which all three requirements are satisfiable is reached,
+and a non-merge outcome signal exists. Reaching only the volume is not the trigger.
+
+**Standing constraint on any future tuner.** If a tuner is ever built, its signal set stays
+**disjoint** from promotion evidence. Overlap is a self-dealing loop: a tuner optimizing a signal
+that also promotes a cell can raise that signal to reduce the scrutiny applied to the tuner's own
+output. The constraint binds whether or not the reviewer-burden term is ever activated, and it binds
+the tuner's inputs, not merely its intent.

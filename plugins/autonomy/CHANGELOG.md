@@ -3,6 +3,51 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **Ten routine-catalog rows for every class considered, including the ones deliberately not built
+  (#2682).** A catalog that lists only what shipped cannot be reasoned from — a reader asking "why
+  isn't there a clone unifier?" finds silence, which reads as an oversight rather than a decision.
+  Every new row derives its guardrail class **through the mapping rules**, never by hand: three
+  Tier-1 classes with join triggers (`formal-logic-modeling`, `cant-fail-test-repair`,
+  `layering-enforcement`), three Tier-2 (`clone-trend-gate`, `stale-flag-removal`, plus an amendment
+  to `dead-code-sweep`), and four Tier-3 recording why they are not built
+  (`logic-simplification-sweep`, `abstraction-flattening`, `ant-only-shipper`,
+  `gui-crash-fuzzing`). `dead-code-sweep` was amended rather than duplicated: it was `DET detect`
+  only, and the quarantine-exit judgment makes it a hybrid whose judgment portion derives `C3`,
+  because liveness is not mechanically checkable — reflection, dynamic dispatch, and out-of-tree
+  callers all defeat the build.
+- **A `Class parameters` section** carrying the normative detail a row's six cells cannot hold. Most
+  load-bearing: `dead-code-sweep`'s quarantine window floor of **30–90 days with staged quarantine,
+  never one day**, not tunable downward by an org binding — published practice at scale runs an
+  order of magnitude longer, and a short window turns a detector false positive into a deletion
+  before anything can contradict it. Also: `clone-trend-gate` is detection and trend gating only,
+  with the unify *decision* excluded rather than deferred (twenty years of tooling produced no
+  production automation for it, so there is nothing to defer to); `stale-flag-removal`'s and
+  `ant-only-shipper`'s dispositions never automate, because which branch survives and whether to
+  promote are product calls.
+
+### Changed
+
+- **`guardrails/work-classes.md` records what may never enter a promotion predicate (#2683).** An
+  acceptance or merge rate is never a promotion input and is not an efficacy signal, in either role,
+  at any cell. Three independent lines of evidence find artifact quality weakly-to-not coupled to
+  acceptance. The section explicitly distinguishes the nearest existing row —
+  `0 human-reverted merges` is a correctness signal (a human asserting the change was wrong), not an
+  acceptance rate (how much got merged) — so the new prohibition cannot be misread as contradicting
+  the predicate above it.
+- **The reviewer-burden term is recorded as deferred with an explicit trigger, not omitted
+  (#2683).** It needs a denominator, and a denominator needs the org-scale trust-path requirements
+  already deferred at solo volume. Without them the term moves with volume rather than
+  trustworthiness — which would reward a cell for producing less. Recorded because a designated
+  planning pass was asked to settle it, and silence would have left that obligation unfilled.
+- **Standing constraint on any future tuner:** its signal set stays disjoint from promotion
+  evidence. Overlap is a self-dealing loop — a tuner optimizing a signal that also promotes a cell
+  can raise that signal to reduce scrutiny of the tuner's own output. Binds the tuner's inputs, not
+  its intent, and binds whether or not the reviewer-burden term is ever activated.
+
 ## [0.16.12]
 
 ### Changed

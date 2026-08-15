@@ -188,7 +188,15 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | malicious-code-scan | AGT | R | repo | C5 (reads attacker-writable third-party code) | join: proven recurring manual pattern |
 | **Code quality / knowledge** | | | | | |
 | tech-debt-sweep | hybrid: DET recipes (no agent session); AGT sweep is the routine | WI | repo | C1 (WI); prioritization disposition human-gated | v1 |
-| dead-code-sweep | DET detect | DC (review-gated PR) | repo | n/a — no agent session | not-a-routine |
+| dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | detect n/a — no agent session; quarantine-exit DC C3 (liveness not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat the build) | join: proven recurring manual pattern |
+| clone-trend-gate | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
+| cant-fail-test-repair | hybrid: DET detect (no agent session); AGT repair judgment is the routine | DC (PR) | repo | detect n/a — no agent session; repair DC C3 (an assertion's adequacy is not mechanically checkable — a test that now fails may be right or wrong) | join: proven recurring manual pattern |
+| stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | detect n/a — no agent session; removal DC C4 (a flag definition is a configuration surface); disposition human-gated | join: proven recurring manual pattern |
+| formal-logic-modeling | AGT | R | repo | C1 | join: a stated invariant or specification artifact exists to model against |
+| layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
+| logic-simplification-sweep | AGT | DC (PR) | repo | C3 (equivalence above expression level is not mechanically checkable) | join: published effectiveness evidence exists |
+| abstraction-flattening | AGT | DC (PR) | repo | C4 (structural surface) | join: a validated detector exists |
+| gui-crash-fuzzing | DET (fuzzer) | R + WI | repo | n/a — no agent session | not-a-routine |
 | doc-freshness-sweep | AGT | R + DC (optional docs PR) | repo | C1 (report); optional gated docs-PR portion C3 | v1 |
 | coverage-mutation-watch | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
 | release-notes-generation | hybrid: DET cut mechanics (no agent session); AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
@@ -204,6 +212,50 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | analytics-anomaly-review | AGT/HUM | R | product | C1; disposition human-gated | join: analytics/feedback connected |
 | experiment-readout | AGT/HUM | R | product | C1; disposition human-gated | join: analytics/feedback connected |
 | competitive-ecosystem-watch | AGT | R | ext | C5 (attacker-writable external content; read-only exfiltration surface) | join: named intel need |
+| ant-only-shipper | AGT/HUM | R (promotion recommendation) | product | C1; disposition human-gated | join: analytics/feedback connected, and a named human owns the promotion call |
+
+### Class parameters
+
+Normative detail a row's cells cannot carry. A parameter here binds the class; it is not
+commentary, and a leaf that contradicts one is non-conforming.
+
+- **`dead-code-sweep` — the quarantine window floor is 30–90 days with staged quarantine, never a
+  one-day window.** Removal is staged: detect, quarantine, and only then judge the exit. The floor
+  is not tunable downward by an org binding. Published practice at scale runs an order of magnitude
+  longer than a day, and a short window converts a detector false positive into a deletion before
+  anything can contradict it.
+- **`clone-trend-gate` — detection and trend gating ONLY.** The unify *decision* is deliberately not
+  in this class and is not a deferred posture of it: twenty years of clone-detection tooling produced
+  no production automation for deciding which clones to unify, so there is nothing to defer to. A
+  request to add a unify posture re-opens the class rather than extending it.
+- **`stale-flag-removal` — the disposition never automates.** Staleness is detectable; which branch
+  survives is a product decision. The flag-lifecycle tools that lead this space stop at the same
+  line, and the ones that act do so only where the decision was pre-encoded (a flag already at a
+  single variation everywhere).
+- **`ant-only-shipper` — the decision layer is a human product call and stays one.** The agent
+  assembles the promotion evidence; whether to promote, hold, or retire is not delegable to the
+  routine. This is the whole reason the row is `AGT/HUM` rather than `AGT`.
+- **`layering-enforcement` — the inform-human posture only.** A direct-change posture would derive
+  `C4` by structural blast radius and has no evidence behind it; it is excluded, not deferred.
+  Admission also requires layering rules stated as text — a routine cannot enforce a rule nobody
+  wrote — and requires clearing the incumbent gate against the existing architecture-review surface.
+- **`logic-simplification-sweep` — above expression level only, and unbuilt.** Expression-level
+  simplification is already covered by structure-only tidying surfaces, whose whole discipline is
+  behavior preservation; simplification above that level changes behavior in the general case, which
+  is why it sits outside them rather than being excluded by name within them. No published
+  effectiveness evidence supports automating it.
+- **`abstraction-flattening` — the fault data runs backwards.** Beyond having no validated detector,
+  the empirical record does not support the premise: the smells this class would target
+  (Speculative Generality, Middle Man) are in some studies associated with *fewer* faults, not more.
+  The join trigger is a validated detector; the evidence question is separate and also open.
+- **`gui-crash-fuzzing` — no local surface, and replay is unreliable.** The fleet ships no GUI to
+  fuzz, so the class has no observable here at all. Independently, published crash-replay
+  reproducibility around 36.6% means a filed work item is more often unreproducible than not, which
+  would degrade the governed queue rather than feed it.
+- **`cant-fail-test-repair` — repair, not pruning.** A test that cannot fail is a coverage claim that
+  is false; deleting it removes the false claim and the coverage together. The class repairs the
+  assertion. Its detection portion is deterministic and carries the no-agent-session property; only
+  the repair judgment is the routine.
 
 ### v1 leaves
 
