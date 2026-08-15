@@ -696,12 +696,17 @@ fi
 # question from which config FILE was consumed, and the header used to answer it with a fixed
 # literal that could contradict the run's own inputs two lines later. Config-supplied scope is
 # ADDITIVE to any CLI-supplied scope, so both contributions are named rather than one masking the
-# other. Bare positional paths count as command-line --root equivalents.
-cli_scope_count=$((CLI_ROOT_COUNT + CLI_REPO_COUNT))
+# other. Bare positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the
+# command-line segment attributes them as --root/bare-path rather than conflating with --repo.
 config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
+cli_scope_label=""
+[[ "$CLI_REPO_COUNT" -gt 0 ]] && cli_scope_label="${CLI_REPO_COUNT} --repo"
+if [[ "$CLI_ROOT_COUNT" -gt 0 ]]; then
+  [[ -n "$cli_scope_label" ]] && cli_scope_label="${cli_scope_label}, "
+  cli_scope_label="${cli_scope_label}${CLI_ROOT_COUNT} --root/bare-path"
+fi
 SCOPE_PROVENANCE=""
-[[ "$cli_scope_count" -gt 0 ]] &&
-  SCOPE_PROVENANCE="command line ($cli_scope_count --root/--repo argument(s))"
+[[ -n "$cli_scope_label" ]] && SCOPE_PROVENANCE="command line ($cli_scope_label)"
 if [[ "$config_scope_count" -gt 0 ]]; then
   [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
   SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
