@@ -540,13 +540,12 @@ class Observer:
                             "treating as session end"
                         )
                         break
-                else:
-                    if pending_idle:
-                        pending_idle = False
-                        state = "watching"
-                        self.log(
-                            "transcript grew during idle confirmation; resuming watch"
-                        )
+                elif pending_idle:
+                    pending_idle = False
+                    state = "watching"
+                    self.log(
+                        "transcript grew during idle confirmation; resuming watch"
+                    )
                 if time.time() > lifetime_deadline:
                     state = "stopped-maxtime"
                     self.log(f"max lifetime {self.max_secs}s reached; exiting without "
@@ -776,11 +775,10 @@ class Observer:
         return None
 
     def _cleanup_observations(self) -> None:
-        for path in (self.obs_path,):
-            try:
-                path.unlink()
-            except OSError:
-                pass
+        try:
+            self.obs_path.unlink()
+        except OSError:
+            pass
 
 
 def _pid_alive(pid: int) -> bool:
@@ -800,8 +798,11 @@ def _pid_alive(pid: int) -> bool:
         return str(pid).encode("ascii") in out.stdout
     try:
         os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
-        return isinstance(sys.exc_info()[1], PermissionError)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Signal refused, but the process exists -- it is alive.
+        return True
     except OSError:
         return False
     return True

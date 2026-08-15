@@ -146,6 +146,11 @@ AHEAD_COUNT="${AHEAD_COUNT:-0}"
 
 # Build the default-preserve exclude args once (shared by dry-run preview + apply).
 mapfile -t PRESERVE_ARGS < <(clean_tree_preserve_args "$INCLUDE_DEPS" "$INCLUDE_SECRETS")
+# Exclude args arrive as `-e <pattern>` pairs, so the pattern count is half of them.
+PRESERVE_SUFFIX=""
+if [[ ${#PRESERVE_ARGS[@]} -gt 0 ]]; then
+  PRESERVE_SUFFIX="$(printf ' (+%d preserve excludes)' "$((${#PRESERVE_ARGS[@]} / 2))")"
+fi
 
 printf 'Upstream: %s\n' "$UPSTREAM"
 printf 'DefaultBranch: %s\n' "$DEFAULT_BRANCH"
@@ -179,7 +184,7 @@ fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
   printf 'PlannedFetch: git fetch %s\n' "$UPSTREAM_REMOTE"
   printf 'PlannedReset: git reset --hard %s\n' "$UPSTREAM"
-  printf 'PlannedClean: git clean -fdx%s\n' "$([[ ${#PRESERVE_ARGS[@]} -gt 0 ]] && printf ' (+%d preserve excludes)' "$(((${#PRESERVE_ARGS[@]}) / 2))")"
+  printf 'PlannedClean: git clean -fdx%s\n' "$PRESERVE_SUFFIX"
   if [[ "$AHEAD_COUNT" -gt 0 ]]; then
     printf 'WARNING: HEAD is %s commit(s) ahead of %s — apply needs --allow-unpushed.\n' "$AHEAD_COUNT" "$UPSTREAM"
   fi
@@ -273,7 +278,7 @@ if [[ "$CLEAN_RC" -ne 0 && "${CLEAN_NON_LOCKED_FAILURE:-0}" -ne 0 ]]; then
   exit 7
 fi
 
-printf 'AppliedClean: git clean -fdx%s\n' "$([[ ${#PRESERVE_ARGS[@]} -gt 0 ]] && printf ' (+%d preserve excludes)' "$(((${#PRESERVE_ARGS[@]}) / 2))")"
+printf 'AppliedClean: git clean -fdx%s\n' "$PRESERVE_SUFFIX"
 printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
 printf 'Unremovable: %s\n' "${UNREMOVABLE:-0}"
 

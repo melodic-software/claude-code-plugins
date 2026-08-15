@@ -35,6 +35,9 @@ fi
 
 joined="$(printf '%s ' "$@" | tr '[:upper:]' '[:lower:]')"
 
+# Fold one token to lower case — resolve_one's tables are all lower-case.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 resolve_one() {
   case "$1" in
   scan | inventory | space | audit | report | show)
@@ -120,7 +123,8 @@ has_reset_intent() {
 # falls through to the normal conflict path.
 sel=""
 for token in "$@"; do
-  t="$(resolve_one "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')")"
+  lowered="$(lower "$token")"
+  t="$(resolve_one "$lowered")"
   case "$t" in
   caches | build | git)
     if [[ -z "$sel" ]]; then
@@ -150,11 +154,11 @@ note=""
 # has_fleet_indicator (not just is_fleet_phrase) so a fleet request the phrase list
 # misses ("all across the fleet") routes to the batch tier below instead of being
 # preempted into a single-repo action with the fleet words demoted to a note.
-first_lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+first_lower="$(lower "$1")"
 first_action="$(resolve_one "$first_lower")"
 second_action=""
 if [[ $# -ge 2 ]]; then
-  second_lower="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+  second_lower="$(lower "$2")"
   second_action="$(resolve_one "$second_lower")"
 fi
 if [[ -n "$first_action" && $# -ge 2 && -z "$second_action" ]] && ! has_fleet_indicator "$joined"; then
@@ -167,8 +171,8 @@ fi
 
 if [[ -z "$canonical" ]]; then
   for token in "$@"; do
-    lower="$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')"
-    hit="$(resolve_one "$lower")"
+    lowered="$(lower "$token")"
+    hit="$(resolve_one "$lowered")"
     # A bare "all" token is the single-repo `all` tier, but inside a fleet phrase it
     # names a multi-repo sweep. Reset/fresh-pull phrasing ("reset all my repos") is
     # the DESTRUCTIVE tree-batch; a plain fleet cleanup ("clean all repos", "sweep

@@ -1006,6 +1006,7 @@ RETARGETED_TO=()
 # Stale config-sourced entries collected during argument processing; the report header has not
 # printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
 STALE_CONFIG_PATHS=()
+STALE_CONFIG_REASONS=()
 
 DISCOVERY_SKIP_PATHS=()
 DISCOVERY_SKIP_REASONS=()
@@ -1019,7 +1020,6 @@ BARE_LIVE_TREE_PATHS=()
 BARE_LIVE_TREE_EVIDENCE=()
 BARE_LIVE_TREE_COMMON_KEYS=()
 
-STALE_CONFIG_REASONS=()
 # reject_target <origin> <message>: apply the rejection policy for a target that failed a
 # prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
 # other origin stops the run. "default" is the implicit no-argument target — the same hard failure,

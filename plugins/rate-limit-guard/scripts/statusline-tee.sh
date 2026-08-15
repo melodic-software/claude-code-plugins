@@ -549,9 +549,32 @@ _RLG_HAS_WINDOWS=false
 _RLG_USER_VERDICT=""
 _RLG_USER_PROBED=0
 
+# Absorb one jq pass's three output lines — payload, window-bearing, user verdict
+# — into the globals above. Shared verbatim by _rlg_probe and _rlg_drain so the
+# two can never disagree about how a pass is read, exactly as they already share
+# the filter text itself.
+#
+# An unparsable payload means jq produced nothing usable; the user verdict is
+# then left unprobed so the gate falls back to its own read rather than silently
+# reading "no verdict configured" off a failed parse.
+_rlg_absorb_jq_lines() {
+  local line
+  local -a lines=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lines[${#lines[@]}]="$line"
+  done <<<"$1"
+  _RLG_PAYLOAD="${lines[0]:-}"
+  [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
+  if [[ -n "$_RLG_PAYLOAD" ]]; then
+    _RLG_USER_VERDICT="${lines[2]:-}"
+    _RLG_USER_PROBED=1
+  fi
+  return 0
+}
+
 _rlg_probe() {
   command -v jq >/dev/null 2>&1 || return 0
-  local ts settings_file settings_json out line
+  local ts settings_file settings_json out
   # printf's %()T is a bash 4.2+ builtin; macOS statusline Bash 3.2 needs date -u.
   ts=""
   if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
@@ -584,19 +607,7 @@ _rlg_probe() {
       (try ('"$_RLG_VERDICT_JQ"') catch "")
   ' <<<"$INPUT" 2>/dev/null)" || return 0
 
-  local -a lines=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    lines[${#lines[@]}]="$line"
-  done <<<"$out"
-  _RLG_PAYLOAD="${lines[0]:-}"
-  [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
-  # An unparsable payload means jq produced nothing usable; leave the user
-  # verdict unprobed so the gate falls back to its own read rather than
-  # silently reading "no verdict configured" off a failed parse.
-  if [[ -n "$_RLG_PAYLOAD" ]]; then
-    _RLG_USER_VERDICT="${lines[2]:-}"
-    _RLG_USER_PROBED=1
-  fi
+  _rlg_absorb_jq_lines "$out"
   return 0
 }
 
@@ -778,16 +789,7 @@ _rlg_drain() {
             (try ('"$_RLG_VERDICT_JQ"') catch "")
         end
     ' <<<"$batch" 2>/dev/null)" || out=""
-    local -a lines=()
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      lines[${#lines[@]}]="$line"
-    done <<<"$out"
-    _RLG_PAYLOAD="${lines[0]:-}"
-    [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
-    if [[ -n "$_RLG_PAYLOAD" ]]; then
-      _RLG_USER_VERDICT="${lines[2]:-}"
-      _RLG_USER_PROBED=1
-    fi
+    _rlg_absorb_jq_lines "$out"
   fi
 
   # Bootstrap, or every line torn: fall back to this render's own payload so the

@@ -198,6 +198,13 @@ plan_repo_record_wellformed() {
 # to cd into; its common-dir key is informational.
 plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
 
+# Child `Summary: …` parsing, shared by the apply and dry-run loops so both read a
+# child's tallies the same way. summary_line <child-output> extracts the first
+# Summary line; summary_field <name> <summary-line> pulls one numeric `<name>=<n>`
+# field out of it, or nothing when the field is absent (callers default to 0).
+summary_line() { printf '%s\n' "$1" | sed -n 's/^Summary: //p' | head -1; }
+summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
+
 # ---------------------------------------------------------------------------
 # APPLY: consume the gated plan only (never re-enumerate).
 # ---------------------------------------------------------------------------
@@ -296,10 +303,10 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       fi
       out="$(cd "$a" && bash "$child" --apply --manifest "$c" "${extra[@]}" 2>&1)"
       rc=$?
-      r="$(printf '%s\n' "$out" | sed -n 's/^Summary: //p' | head -1)"
-      removed="$(sed -n 's/.*removed=\([0-9]*\).*/\1/p' <<<"$r")"
-      failed="$(sed -n 's/.*failed=\([0-9]*\).*/\1/p' <<<"$r")"
-      bytes="$(sed -n 's/.*bytes=\([0-9]*\).*/\1/p' <<<"$r")"
+      r="$(summary_line "$out")"
+      removed="$(summary_field removed "$r")"
+      failed="$(summary_field failed "$r")"
+      bytes="$(summary_field bytes "$r")"
       removed="${removed:-0}"
       failed="${failed:-0}"
       bytes="${bytes:-0}"
@@ -461,9 +468,9 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
       BLOCKED=$((BLOCKED + 1))
       continue
     fi
-    r="$(printf '%s\n' "$out" | sed -n 's/^Summary: //p' | head -1)"
-    planned="$(sed -n 's/.*planned=\([0-9]*\).*/\1/p' <<<"$r")"
-    bytes="$(sed -n 's/.*bytes=\([0-9]*\).*/\1/p' <<<"$r")"
+    r="$(summary_line "$out")"
+    planned="$(summary_field planned "$r")"
+    bytes="$(summary_field bytes "$r")"
     planned="${planned:-0}"
     bytes="${bytes:-0}"
     PLANNED=$((PLANNED + planned))
