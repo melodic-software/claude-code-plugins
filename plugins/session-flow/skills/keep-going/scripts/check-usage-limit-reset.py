@@ -19,7 +19,9 @@ first-party ``tzdata`` package. This script extracts a bundled
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
+import os
 import re
 import shutil
 import sys
@@ -33,40 +35,99 @@ from pathlib import Path
 _VENDOR_ZIP = Path(__file__).resolve().parent / "vendor" / "tzdata-zoneinfo.zip"
 
 
+def _cache_owner_suffix() -> str:
+    """A per-user component for the cache directory name.
+
+    Without it the cache path is fully predictable — the digest comes from a
+    publicly committed file — so on a shared world-writable /tmp any local user
+    could pre-create the directory and have it imported (CWE-377, CWE-426).
+    """
+    try:
+        return f"-{os.getuid()}"  # type: ignore[attr-defined]
+    except AttributeError:
+        # Windows: %TEMP% is already per-user, but keep the name distinct.
+        return f"-{getpass.getuser()}"
+
+
 def _ensure_bundled_tzdata() -> None:
-    """Extract the vendored tzdata zip once into a tempfile cache on sys.path."""
+    """Extract the vendored tzdata zip once into a tempfile cache on sys.path.
+
+    Every failure here is non-fatal by design: the caller degrades to exit 3
+    ("timezone-unavailable"), which is the documented "cannot determine" code.
+    An exception escaping this function would abort the script with exit 1,
+    and in this script's contract exit 1 means "the limit still holds" — a
+    corrupt bundle would tell the caller to keep waiting.
+    """
     if not _VENDOR_ZIP.is_file():
         return
-    digest = hashlib.sha256()
-    with _VENDOR_ZIP.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    cache_root = Path(tempfile.gettempdir()) / f"session-flow-tzdata-{digest.hexdigest()[:16]}"
-    if not (cache_root / "tzdata").is_dir():
-        staging = Path(
-            tempfile.mkdtemp(
-                prefix=f"{cache_root.name}-",
-                dir=str(cache_root.parent),
-            )
+    try:
+        digest = hashlib.sha256()
+        with _VENDOR_ZIP.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        cache_root = Path(tempfile.gettempdir()) / (
+            f"session-flow-tzdata-{digest.hexdigest()[:16]}{_cache_owner_suffix()}"
         )
-        try:
-            with zipfile.ZipFile(_VENDOR_ZIP) as archive:
-                archive.extractall(staging)
-            if (staging / "tzdata").is_dir():
-                try:
-                    staging.rename(cache_root)
-                except OSError:
-                    # Another process likely finished extraction first.
-                    if not (cache_root / "tzdata").is_dir():
-                        raise
-        finally:
-            if staging.exists():
-                shutil.rmtree(staging, ignore_errors=True)
-    if not (cache_root / "tzdata").is_dir():
+        if not (cache_root / "tzdata").is_dir():
+            staging = Path(
+                tempfile.mkdtemp(
+                    prefix=f"{cache_root.name}-",
+                    dir=str(cache_root.parent),
+                )
+            )
+            try:
+                with zipfile.ZipFile(_VENDOR_ZIP) as archive:
+                    archive.extractall(staging)
+                if (staging / "tzdata").is_dir():
+                    try:
+                        staging.rename(cache_root)
+                    except OSError:
+                        # Another process likely finished extraction first.
+                        if not (cache_root / "tzdata").is_dir():
+                            raise
+            finally:
+                if staging.exists():
+                    shutil.rmtree(staging, ignore_errors=True)
+        if not (cache_root / "tzdata").is_dir():
+            return
+        # Trust the cache only if we own it. A directory planted by another
+        # user is skipped rather than imported; the run then degrades to the
+        # same exit 3 as a missing bundle.
+        if not _cache_is_trusted(cache_root):
+            return
+        cache_path = str(cache_root)
+        if cache_path not in sys.path:
+            sys.path.insert(0, cache_path)
+    except Exception:
+        # Corrupt or truncated zip, read-only TEMP, disk full, unreadable
+        # bundle, failed rename — all degrade to "no bundled tzdata".
         return
-    cache_path = str(cache_root)
-    if cache_path not in sys.path:
-        sys.path.insert(0, cache_path)
+
+
+def _cache_is_trusted(cache_root: Path) -> bool:
+    """True when the cache directory is safe to put on ``sys.path``.
+
+    Two independent checks, because neither covers every host:
+
+    * **Not a symlink.** A symlinked cache root could redirect the import
+      somewhere else entirely, on any platform.
+    * **Owned by this user**, where the platform can say so. ``os.getuid``
+      exists on POSIX; on Windows it does not, so this check is a no-op there
+      and the per-user directory name carries the isolation instead —
+      ``%TEMP%`` is already per-user on Windows, which is why the predictable
+      shared-directory problem is a POSIX-shared-``/tmp`` problem in the first
+      place.
+    """
+    try:
+        if cache_root.is_symlink():
+            return False
+        stat_result = os.stat(cache_root)
+    except OSError:
+        return False
+    owner_id = getattr(os, "getuid", None)
+    if owner_id is not None and stat_result.st_uid != owner_id():
+        return False
+    return True
 
 
 _ensure_bundled_tzdata()
