@@ -12,6 +12,8 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   instruction-content conflicts across scopes — **including user↔project** — when both anchors are
   in `discover-instruction-surfaces`. Nested `CLAUDE.md`, auto-memory, and non-memory surfaces stay
   with `claude-config:audit-instructions` I15 (precedence / settings / out-of-population pairs).
+  Step 3 now compares every distinct population pair for contradictions (including
+  CLAUDE.md↔CLAUDE.local.md and rule↔rule), not only the prior cross-scope redundancy pass.
   New eval 11 pins the ownership claim; sibling `conflict-criteria.md` on the config side was the
   stale half this closes.
 

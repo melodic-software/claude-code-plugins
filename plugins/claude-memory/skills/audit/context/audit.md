@@ -86,16 +86,20 @@ skipping the judgment.
 
 ## Step 3: Cross-file consistency check (C6)
 
-After per-file checks, cross-reference:
+After per-file checks, cross-reference every pair of distinct surfaces in the
+discover-instruction-surfaces population for **contradictions** (C6 owns all such pairs). Also
+report **redundancy** where both sides load together in the same session. Concrete passes:
 
-1. Compare CLAUDE.md sections against `.claude/rules/` for contradictions
-2. Compare CLAUDE.md against CLAUDE.local.md for redundancy
-3. Check if any CLAUDE.md instruction is already enforced by rule, hook, or analyzer
-4. Compare the **user**-scope surfaces against the project ones. Both load together in every session
-   here, so a user instruction that contradicts a project one is a live conflict rather than a
-   layering choice, and a user instruction the project already states is redundant context on every
-   run. Report the contradiction against the pair, and say which scope each side came from — the
-   resolution differs, since only one of the two is yours to edit on behalf of the repo.
+1. Compare each CLAUDE.md (any scope) against every co-resident rule for contradictions
+2. Compare CLAUDE.md against CLAUDE.local.md (same or cross-scope) for contradictions and redundancy
+3. Compare rules against other co-resident rules for contradictions (same-scope and cross-scope)
+4. Check if any CLAUDE.md instruction is already enforced by rule, hook, or analyzer
+5. Compare the **user**-scope surfaces against the project ones for any remaining pair not covered
+   above. Both load together in every session here, so a user instruction that contradicts a project
+   one is a live conflict rather than a layering choice, and a user instruction the project already
+   states is redundant context on every run. Report the finding against the pair, and say which scope
+   each side came from — the resolution differs, since only one of the two is yours to edit on behalf
+   of the repo.
    **Two exclusions.** A `both`-scoped file is one file, not a pair: never compare it with itself. And
    a path-scoped user rule only co-resides where its `paths:` can match here, so establish that before
    calling it a contradiction or a redundancy
