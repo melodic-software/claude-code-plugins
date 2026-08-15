@@ -1,7 +1,7 @@
 ---
 description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
-argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
+argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
@@ -44,6 +44,13 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
 - `--config <file>`: explicit Git-format config (at most one).
 - `--canonical <github.com/owner/repo=path>`: invocation-specific canonical checkout override
   (repeatable; explicit wins over config).
+- `--skip <name>`: discovery directory-name skip (repeatable). Explicit `--skip` / `fleet.skip`
+  entries **replace** the default skip list rather than appending — otherwise shrinking is
+  impossible. Default (neither CLI nor config): `.`, `..`, `.git`, `node_modules`, `vendor`,
+  `.venv`. To extend, pass those six defaults plus your names; to shrink (e.g. reach a repo under
+  `vendor/`), omit names you want walked. CLI and config compose additively with each other like
+  other scope inputs. Values must be bare directory names (no empty value, no path separator).
+  `.` and `..` stay skipped unconditionally even when an explicit list omits them.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
   It is **not** a scope fallback — a run with no scope fails rather than auditing it.
@@ -250,6 +257,10 @@ Related fleet contracts that remain separate:
   marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
   rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
   hard-fails.
+- A directory that itself carries a `.git` marker (directory or file) is treated as a nested
+  repository: discovery `add_target`s it and **returns without descending into its children**. A
+  repository buried inside another repository's working tree therefore never appears as its own
+  audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed (same non-following
   bound as before) but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
   the discovery-skips header line. Windows directory junctions test as symlinks under Git Bash, so

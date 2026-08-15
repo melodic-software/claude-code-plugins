@@ -8,7 +8,7 @@ usage() {
   cat <<'EOF'
 Usage: audit-fleet.sh [DIR]... [--root DIR]... [--repo DIR]... [--config FILE]
                       [--canonical github.com/owner/repo=PATH]...
-                      [--max-depth 1..12] [--project-dir DIR]
+                      [--skip NAME]... [--max-depth 1..12] [--project-dir DIR]
                       [--detail] [--plan-file PATH]
        audit-fleet.sh --apply-plan PATH
 
@@ -37,6 +37,16 @@ names how to set scope — it does not audit the session project directory.
 config rung only (not as an implicit audit target). It is passed in rather
 than read from the environment, which does not carry it. An empty value means
 "no project directory": the project config rung is skipped.
+
+--skip NAME (repeatable) and config fleet.skip (repeatable) REPLACE the default
+discovery skip list rather than appending to it. With neither supplied, discovery
+skips . , .. , .git , node_modules , vendor , and .venv. Supplying any --skip or
+fleet.skip entry replaces that set entirely — to extend, pass the six defaults
+plus your names; to shrink (e.g. reach a repo under vendor/), omit the names you
+want walked. CLI and config entries compose additively with each other the same
+way other scope inputs do. Values must be bare directory names (no empty value,
+no path separator). . and .. stay skipped unconditionally even when an explicit
+list omits them.
 EOF
 }
 
@@ -138,7 +148,8 @@ git_probe_allowed() {
       return
     fi
     if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
-      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ]]
+      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ||
+        "$6" == "fleet.skip" ]]
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
@@ -400,6 +411,7 @@ ROOT_ARGS=()
 REPO_ARGS=()
 OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
+SKIP_NAMES=()
 CONFIG_FILE=""
 MAX_DEPTH=""
 PROJECT_DIR_ARG=""
@@ -407,6 +419,18 @@ DETAIL=false
 PLAN_FILE=""
 APPLY_PLAN=""
 PLAN_FILE_EXPLICIT=false
+
+# Bare directory-name validation for --skip / fleet.skip. Reject empty values and anything with a
+# path separator so a mistaken path cannot silently widen or narrow discovery.
+validate_skip_name() {
+  local name="$1" origin="$2"
+  [[ -n "$name" ]] || fail "invalid ${origin} value (expected a bare directory name): (empty)"
+  case "$name" in
+  */* | *\\*)
+    fail "invalid ${origin} value (expected a bare directory name, no path separator): $name"
+    ;;
+  esac
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -440,6 +464,12 @@ while [[ $# -gt 0 ]]; do
       fail "invalid --canonical value: $pair"
     OVERRIDE_KEYS+=("$key")
     OVERRIDE_PATHS+=("$value")
+    shift 2
+    ;;
+  --skip)
+    [[ $# -ge 2 ]] || fail "--skip requires a bare directory name"
+    validate_skip_name "$2" "--skip"
+    SKIP_NAMES+=("$2")
     shift 2
     ;;
   --max-depth)
@@ -492,8 +522,8 @@ done
 # artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
 if [[ -n "$APPLY_PLAN" ]]; then
   if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
-    ${#OVERRIDE_KEYS[@]} -gt 0 || -n "$MAX_DEPTH" || -n "$PROJECT_DIR_ARG" ||
-    "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
+    ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || -n "$MAX_DEPTH" ||
+    -n "$PROJECT_DIR_ARG" || "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
     fail "--apply-plan cannot be combined with audit discovery flags"
   fi
   [[ -f "$APPLY_PLAN" ]] || fail "apply-plan file not found: $APPLY_PLAN"
@@ -673,6 +703,33 @@ if [[ -n "$CONFIG_FILE" ]]; then
     ACK_KEYS+=("$ack_key")
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.ackUnavailable 2>/dev/null || true)
 fi
+
+# Discovery skip names (--skip / fleet.skip). Explicit entries REPLACE the default set rather than
+# appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
+# config compose additively with each other like other scope inputs; with neither supplied, keep
+# today's six-name default. . and .. stay skipped unconditionally even when an explicit list omits
+# them.
+if [[ -n "$CONFIG_FILE" ]]; then
+  while IFS= read -r -d '' value; do
+    [[ -n "$value" ]] || continue
+    validate_skip_name "$value" "fleet.skip"
+    SKIP_NAMES+=("$value")
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
+fi
+if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
+  SKIP_NAMES=(. .. .git node_modules vendor .venv)
+fi
+
+should_skip_dir_name() {
+  local name="$1" skip
+  case "$name" in
+  . | ..) return 0 ;;
+  esac
+  for skip in "${SKIP_NAMES[@]}"; do
+    [[ -n "$skip" && "$name" == "$skip" ]] && return 0
+  done
+  return 1
+}
 
 is_acked() {
   local key a
@@ -1206,7 +1263,10 @@ discover_repositories() {
     return 0
   fi
   if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
-    # Discovery origin: a .git marker that is not a usable working tree degrades per-entry.
+    # Nested-repository early return: a .git marker means this directory is a repository (or a husk
+    # that degrades per-entry below). Discovery stops descending here — children under a nested
+    # checkout are never walked, so a repo buried inside another repo's tree never appears as its
+    # own audit target (#2712).
     add_target "$dir" discovery
     return 0
   fi
@@ -1215,10 +1275,11 @@ discover_repositories() {
     # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
     [[ -e "$child" || -L "$child" ]] || continue
     name="$(basename "$child")"
-    case "$name" in
-    . | .. | .git | node_modules | vendor | .venv) continue ;;
-    *) ;; # other names fall through to the symlink/dir probes below
-    esac
+    # Configurable skip list (--skip / fleet.skip). . and .. are always skipped; other names come
+    # from SKIP_NAMES (defaults, or an explicit replace list). See usage() for replace semantics.
+    if should_skip_dir_name "$name"; then
+      continue
+    fi
     # Symlinked/junctioned intermediate dirs: do not descend, but record for disclosure (#2711).
     # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
     if [[ -L "$child" && -d "$child" ]]; then
