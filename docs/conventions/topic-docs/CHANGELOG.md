@@ -37,6 +37,16 @@ workers, and headless runs, so every consumer reaching that surface ran
 create-when-absent against a root no checkout governs.
 (<https://github.com/melodic-software/claude-code-plugins/issues/2680>)
 
+## 2.4.3 — 2026-08-15
+
+Docs-only: the prune recovery pointer no longer pretends squash-merge
+preserves branch ancestry. Step 5 now prescribes the Contents API form
+`?ref=<pre-prune-commit>` (no `^`), states that unreachable-object
+retention is best-effort with no promised lifetime, and makes the
+graduation targets (ADR / specs / tracker items) the load-bearing
+record. Step 2's "reference the rest" pointer names that pre-prune SHA
+plus those targets. (#2699)
+
 ## 2.4.2 — 2026-08-12
 
 Docs-only: the contract-slice lifecycle now documents how to retrieve a
