@@ -21,7 +21,6 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   with historical wording for the retired names so an auditor is not sent looking
   for symbols that do not exist.
 
-
 ## [0.22.2]
 
 ### Fixed
