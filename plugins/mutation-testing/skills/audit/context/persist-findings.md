@@ -5,9 +5,16 @@ The mechanics of `--persist-findings` (SKILL.md "Phase 6 — Persist (opt-in)").
 **Read the producer contract before the first write** —
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
-obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what a
-mutation run decides for itself, and cites the contract for the rest. Where the two disagree, the
-contract wins and this file is the defect.
+obligations, and what a minimal producer may omit. The **self-ignore guard is not its rule to own** —
+the contract passes it through from the
+[topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards", which
+defines the artifact, the trigger, the once-per-session cadence, and the invalid-root case; the
+contract states the consequence for a producer and explicitly does not restate it. This file adds
+only what a mutation run decides for itself, and cites those owners for the rest.
+
+**Precedence, as this file's own posture rather than a rule either owner claims:** where this file
+and an owner doc disagree, the owner wins and this file is the defect. Neither owner asserts that
+over its adopters, so it is stated here as a choice, not reported as theirs.
 
 **If the contract cannot be fetched, do not write.** Report that the destination and the guard could
 not be resolved from their owner, and stop. Inventing a destination is the one failure the contract's
