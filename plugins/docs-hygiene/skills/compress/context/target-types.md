@@ -9,7 +9,7 @@ Per `../SKILL.md` "Auto-detect default", argument resolution at invocation:
 | Invocation | Target set | Action |
 |---|---|---|
 | `/docs-hygiene:compress` (empty arg) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | default action over each, batch |
-| `/docs-hygiene:compress` (empty arg) AND clean tree | (none) | friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.") |
+| `/docs-hygiene:compress` (empty arg) AND clean tree | interactive: all tracked eligible `.md` offered via the repo-wide interview fallback (`../SKILL.md` "Repo-wide interview fallback"); non-interactive: (none) | interactive: confirmation-gated audit-first interview; non-interactive: friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.") |
 | `/docs-hygiene:compress <file.md>` | single file | default action, single-file |
 | `/docs-hygiene:compress <dir>` | every `.md` under `<dir>` (recursive); filenames sorted lexically for determinism | default action, batch |
 | `/docs-hygiene:compress audit` (empty rest) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | audit action over each |
@@ -27,14 +27,15 @@ Per-target gates before any dispatch:
 2. Path ends in `.md` (case-insensitive) → otherwise skip with `reason=non-markdown`
 3. Path NOT a symlink escaping repo root → otherwise skip with `reason=symlink-escape`
 4. Path NOT inside `.git/` → otherwise skip with `reason=git-internal`
+5. Default (mutating) action with an ENUMERATED target set only — any target set the user did not name file-by-file: the empty-arg uncommitted-`.md` batch (argument-shape row 1, enumerated from `git status`), directory expansion, or the repo-wide interview sweep: path NOT under an `evals/fixtures/` directory → otherwise skip with `reason=fixture` (fixture verbosity is deliberate test input — compressing it corrupts the eval, and the two most-verbose files in the authoring repo's 2026-08-15 run were this skill's own verbose fixtures). An explicitly-named single-file target bypasses this gate — naming a fixture is an intentional act, same philosophy as `--force`; the audit action is read-only and never applies it.
 
 Binary files and non-markdown files are out of scope per `../SKILL.md` "When NOT to use".
 
 ## Author-time-signal heuristic (audit action only)
 
-Audit is a pure mechanical scan — no subagent dispatch, no edits. Per target, compute an expected-yield estimate from five signals; emit SKIP / COMPRESS / UNCERTAIN per the classification table below.
+Audit is a pure mechanical scan — no subagent dispatch, no edits. Per target, compute an expected-yield estimate from six signals; emit SKIP / COMPRESS / UNCERTAIN per the classification table below.
 
-### Five signals
+### Six signals
 
 | # | Signal | Method | Effect on expected-yield |
 |---|---|---|---|
@@ -42,13 +43,15 @@ Audit is a pure mechanical scan — no subagent dispatch, no edits. Per target, 
 | 2 | Inline-code-token density | `awk` count of backtick pairs (`` ` ``) per kilo-word (1000 words = 1 unit); density > 10 = high | high density → narrower compressible flavor → lower expected yield |
 | 3 | Cross-reference density | regex count per kilo-word of `@`-paths, `.md` cites, file-system path tokens (`[a-z][a-z0-9._/-]+\.(md\|cs\|sh\|json\|yaml)`); density > 8 = high | high density → load-bearing references → lower expected yield |
 | 4 | Explicit compression-discipline cite | `grep -F` for the fixed string `Prose compression discipline` — a file citing the consuming repo's author-time compression-discipline convention marks itself as already disciplined | match → author-time-disciplined → expected ≤ 3% |
-| 5 | Default fallback (no other signal fires) | none of 1-4 match | verbose-prose baseline → expected 5-15% |
+| 5 | Default fallback (no other signal fires) | none of 1-4 match AND signal 6 does not fire | verbose-prose baseline → expected 5-15% |
+| 6 | Flavor-token density (gates signal 5; computed when no signal 1-4 fires) | `grep -oiwE` count per kilo-word of the compress template's LATITUDE flavor tokens (just/really/basically/actually/simply/perhaps/somewhat/very/quite, "in order to", "due to the fact that", "make use of", "it is important to", "note that", "keep in mind"); density < 5 = already disciplined | force expected ≤ 3%; a repo authored under standing prose discipline is lean without citing any convention (empirical: 2026-08-15 authoring-repo run, 9/9 signal-5-classified files at ≤7/kw yielded 0.02-0.4% and all reverted, while this skill's deliberately-verbose fixtures measured 50-60/kw) |
 
 ### Classification table
 
 | Expected yield | classify | reason text |
 |---|---|---|
 | ≤ 3% (signals 1 OR 4 fire) | `SKIP` | "author-time-disciplined; empirical baseline 3/3 reverted; use `--force` only for targeted sub-3% diff" |
+| ≤ 3% (signal 6 fires) | `SKIP` | "flavor-token density N/kw < 5; disciplined-by-authorship; empirical baseline 9/9 reverted at 0.02-0.4%" — N inlined |
 | 3-7% (signals 2 OR 3 fire, no signal 1/4) | `UNCERTAIN` | "inline-code density H AND/OR cross-ref density H; flavor band narrow" — H values inlined |
 | ≥ 8% (signal 5 fallback) | `COMPRESS` | "verbose-prose baseline; expected flavor cuts on filler/hedging/articles" |
 
@@ -73,7 +76,7 @@ Empirically (authoring-repo baseline): instruction-file paths produce <3% yield 
 | Condition | Action |
 |---|---|
 | Audit classifies an instruction-file path COMPRESS (signal 1 misfires) | Tighten path glob OR add a signal 1 exception; note the exception in this file |
-| Default-fallback files (signal 5) consistently yield <5% | Bump COMPRESS threshold OR add a 6th signal capturing the new author-time-disciplined surface |
+| Default-fallback files (signal 5) consistently yield <5% | Fired 2026-08-15 (authoring repo, 9/9 reverted) → signal 6 added. If it fires again, revisit signal 6's `< 5/kw` threshold (files at 5-9/kw whose flavor tokens sit inside protected quoted text also reverted) |
 | Empirical yield baseline shifts beyond 3% | Update SKIP reason text + bump signal 1 expected band; rev the variant table in `context/flavor-vs-content-matrix.md` |
 | New always-loaded instruction path lands outside `.claude/rules/**` | Extend signal 1 glob; verify SKIP fires on the new path |
 

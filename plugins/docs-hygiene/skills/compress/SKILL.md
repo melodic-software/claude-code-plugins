@@ -1,5 +1,5 @@
 ---
-description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
+description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); empty target + clean tree in an interactive session offers a confirmation-gated repo-wide run (audit-first interview with prescribed defaults) instead of the no-op; flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
 argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
@@ -55,7 +55,7 @@ Agent applies Edit ops directly on `$target` per the `context/flavor-vs-content-
 
 | Action | Args | Behavior |
 |---|---|---|
-| `<target>` (default, no action keyword) | empty → uncommitted `.md` from `git diff`; file path → single-file; dir path → batch | snapshot → backend → dispatch → revert-pass → markdownlint verify → summary |
+| `<target>` (default, no action keyword) | empty → uncommitted `.md` from `git status`; file path → single-file; dir path → batch | snapshot → backend → dispatch → revert-pass → markdownlint verify → summary |
 | `audit [target]` | same target rules | read-only dry-run; compute expected-yield heuristic per `context/target-types.md`; classify SKIP/COMPRESS/UNCERTAIN |
 
 Flags (apply to both actions):
@@ -65,11 +65,25 @@ Flags (apply to both actions):
 
 ## Auto-detect default
 
-1. Empty arg AND clean tree → friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
+1. Empty arg AND clean tree → interactive session: repo-wide interview fallback (next section); non-interactive context (subagent, headless/CI): friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
 2. Empty arg AND uncommitted `.md` files → batch default action over those files
 3. Single file path → single-file default action
 4. Directory path → batch default action (filenames sorted lexically for deterministic output)
 5. First positional == `audit` → audit action on rest
+
+## Repo-wide interview fallback (empty arg, clean tree, interactive)
+
+Instead of dead-ending, offer a repo-wide run — confirmation-gated at every step; declining at any step exits with the friendly no-op message.
+
+1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
+2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and a top-20 excerpt of COMPRESS rows selected deterministically: expected-yield band descending, then word count descending, then lexical path (band strings tie; the two tie-breaks keep the excerpt stable run-to-run). Write the full per-file table to a file — lexically sorted per the "Summary output deterministic" hard rule — and point at it. Never render every row inline — on a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds.
+3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first):
+   - **Scope** — default: all COMPRESS-classified files, highest expected yield first; alternates: top-N highest-yield subset, include UNCERTAIN, stop after audit (report only).
+   - **Concurrency** — default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
+   - **Always-loaded files** — default: excluded (SKIP per the 2-3% empirical baseline); including them requires the same explicit opt-in as `--force`.
+4. **Confirm and run**: batch default action over the confirmed set, waves per `context/fan-out-orchestration.md`. Every per-file hard rule — semantic-diff dispatch, revert pass, markdownlint, `<3% AND 0 semantic-loss → REVERT` — applies unchanged.
+
+Non-interactive contexts never interview; they take the no-op branch. The fallback adds an entry path only — it changes no compression, verification, or revert semantics.
 
 ## Hard rules
 
