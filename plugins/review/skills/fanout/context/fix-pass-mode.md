@@ -6,17 +6,40 @@ The skill's `fix` action: consume the UNCONSUMED persisted findings for the CURR
 
 Nothing authenticates the writer of a findings file: any component of any shape that persists a conforming file reaches this action, so `review:fanout` is one producer among several. Taking only the newest file would let a later producer silently shadow an earlier one's findings — a green run with hidden findings, the failure class `docs/conventions/liveness-assertion/README.md` "Core contract" item 1 (Fail loud) exists to prevent. **The consumed input is therefore a set, and this action merges it rather than picking a winner.**
 
-Resolve the findings location for the current branch (SKILL.md "Shared inputs"; the resolved `<memory_dir>/reviews/<branch-slug>/` home, default `.work/reviews/`), then build the set in two passes:
+Resolve the findings location for the current branch through the binding (SKILL.md "Shared inputs"). **Resolve the home; never assume its shape** — the binding's rungs do not all compose a `reviews/<branch-slug>` segment, so a step that hardcodes the default's shape scans a directory the producer never wrote to. That miss is silent in exactly the way this mode exists to prevent: the set comes back empty and this step STOPs cleanly, which an operator cannot distinguish from "no findings". Producers resolve the same binding (`default-mode.md` "Findings-writer contract"), so both sides land in one directory only while both defer to it — including on the headless `--yes` path (Step 3), where the binding's cited non-interactive rule is what keeps the two sides from diverging.
+
+Then build the set in two passes:
 
 1. **Candidates** — EVERY `*.md` in that directory **whose frontmatter declares `type: review-findings` AND whose `branch:` value equals the current branch name exactly** (the fanout contract in `default-mode.md` "Findings-file shape"). The directory is shared with `quality-gate` modes, whose reports have a different shape; skip any file without that frontmatter marker rather than parsing it as the fanout contract. The `branch:` check is load-bearing: the slug is lossy (`feature/foo` and `feature-foo` map to the same directory), so the directory alone does not prove the findings belong to this branch.
-2. **Subtract what was already consumed** — every `*.md` in the same directory declaring `type: fix-pass-record` **whose own `branch:` value ALSO equals the current branch name exactly** lists the files it consumed in `source-findings:` (Step 5). Drop every listed file name from the candidate set. **Tolerate a legacy scalar** `source-findings:` — records written before this merge behavior existed carry a single repo-relative path rather than a sequence; treat such a value as a one-entry sequence and compare by its base name. Silently failing to match it would re-admit an already-applied file and re-inject findings the required post-fix re-review resolved. The exact-`branch:` filter binds BOTH sides for the same reason it binds the first: a record left by a slug-collided branch would otherwise silently truncate this set, re-creating the hidden-findings failure inside the fix that closes it.
+2. **Subtract what was already consumed** — every `*.md` in the same directory declaring `type: fix-pass-record` **whose own `branch:` value ALSO equals the current branch name exactly** lists what it consumed in `source-findings:` (Step 5): one entry per file, each carrying that file's `name:` and the `sha256:` digest of its content. **Compute the digest of every pass-1 candidate now**, from that candidate's own bytes on disk — a read-time property of the candidate, never a comparison between records:
 
-Sort the surviving set by file name — the colon-free UTC timestamps sort lexically = chronologically — so the merged report is deterministic.
+   ```bash
+   sha256sum "<candidate>" | cut -c1-12   # or, where absent: shasum -a 256 "<candidate>" | cut -c1-12
+   ```
+
+   **A candidate is subtracted only when some entry matches BOTH its file name and its content digest. An entry that carries no digest matches by name alone, and only if the candidate is not newer than the record.** Compare names byte-for-byte, case-SENSITIVELY, even on a case-insensitive filesystem — two names differing only in case are two entries, and matching them would be a merge this step never makes. Compare digests case-insensitively on the first 12 hex characters, so an entry that recorded the full 64 still matches. A `sha256:` key present but empty or whitespace is a MALFORMED digest, not an absent one: it matches nothing, and the entry subtracts nothing — never silently demote it to the name-alone path.
+
+   A name is not an identity: names carry only second resolution and a producer-chosen topic, so a later producer can write an entirely different file under a name an old record already names. Subtracting on the name alone would silently skip that file's genuinely new findings — the hidden-findings failure this mode exists to close, re-created inside it.
+
+   The name-alone clause is the whole of the legacy tolerance. It covers a pre-0.20.0 bare scalar `source-findings:` (a single repo-relative path — compare by its base name) and any other entry written without a digest; silently failing to match one would re-admit an already-applied file and re-inject findings the required post-fix re-review resolved.
+
+   **The not-newer test is what keeps that fallback from becoming permanent.** Honor a digest-less entry only when the candidate's `date:` is **not newer than the record's own `date:`** — both frontmatter values, both ISO-8601 UTC, compared as instants (in the canonical `YYYY-MM-DDTHH:MM:SSZ` form a plain string comparison is equivalent). Equal subtracts, preserving the behavior the record was written under. Compare the declared dates, never the files' modification times: these files sit in a gitignored memory tier that a second checkout, a synced worktree, or a backup restore rewrites wholesale, and mtime would silently invert there while the declared instants survive the copy. It also keeps this step free of `stat`, whose format flag differs between GNU and BSD userland.
+
+   Without the test the fallback is unbounded, and not in the rare way it might appear: **nothing requires a producer to put a timestamp in its file name at all.** The admission test is `type:`, `branch:`, and a parseable table, so a conforming detector may write one fixed name it overwrites every run. A single pre-0.20.0 record naming that file would then subtract every future version of it, silently and forever, since a subtracted file is never consumed and so never re-recorded with a digest. A candidate produced after the record was written cannot be the file that record consumed; admitting it costs at worst a re-application, which is recoverable (a no-op or a visible conflict — see "An apply that terminates abnormally" below), where a silent retirement is not.
+
+   **A candidate whose `date:` is missing, empty, or not an unambiguous UTC ISO-8601 instant fails the test and STAYS in the set** — same for a record whose own `date:` is unreadable. `date:` is required of `review:fanout`'s writer but is not part of the admission test, so a minimally conforming producer may omit it, and this step must decide that case rather than guess an ordering. It fails toward keeping the candidate for the reason the whole step is built on: re-admitting an applied file is recoverable and dropping an unapplied one is not. The cost is bounded to one extra pass — that candidate is then consumed and re-recorded WITH a digest, after which the digest match governs and `date:` is never consulted for it again.
+
+   **The fallback cannot spread:** an entry that HAS a digest never falls back to name-alone, so name-only matching is confined to records written before this rule existed, and the not-newer test bounds it there. The residual is a file consumed under 0.19.0 that a producer later rewrites while declaring a `date:` no later than the record's — a producer backdating its own output. Pre-0.20.0 records are gitignored local state and may simply be deleted.
+
+   The exact-`branch:` filter binds BOTH sides for the same reason it binds the first: a record left by a slug-collided branch would otherwise silently truncate this set, re-creating the same failure.
+
+Sort the surviving set by file name. **Determinism is the requirement, not chronology** — the sort must not depend on directory-read order, which no rule fixes. For the colon-free UTC-timestamped names `review:fanout` writes, lexical order is also chronological; for a producer that names its file some other way — which nothing forbids, per the admission test above — it simply gives a stable total order. Step 2 renumbers `Rank` by `Tier`, then `Confidence`, then this order, so nothing downstream reads it as a timeline.
 
 - **Empty set → report cleanly, STOP.** Print: ``No unconsumed findings for branch `<branch>`. Run (or re-run) the review to produce fresh findings, then re-run fix.`` The wording covers both states the empty set has — nothing was ever written, and everything present was already consumed — and "run the review first" is wrong guidance in the second. **NEVER scan another branch's findings** — applying one branch's findings to a different branch's working tree is the failure this fence prevents.
-- **A one-file set reduces to the previous single-producer behavior byte-for-byte** — the merge, the union, and the dedup are all identities on one input. That is the migration's safety property, not an accident.
-- **A minimally conforming producer is still consumed.** `type:`, `branch:`, and a parseable `## Findings` table are the admission test; `tier:`, `## Unparsed`, and `## Surfaces` are required of `review:fanout`'s own writer but a third-party detector may omit them. Never skip such a file and never invent a value: render `tier: unstated` in the plan, and contribute nothing to the unions it has no section for.
+- **A one-file set reduces to the previous single-producer APPLIED SET exactly** — the merge, the union, and the dedup are all identities on one input, so the same findings are classified and applied the same way. That is the migration's safety property, not an accident. The emitted bytes do differ: the plan header gained per-file lines and the `Surfaces (union)` line, and an interactive apply now writes a record where it wrote none.
+- **A minimally conforming producer is still consumed.** `type:`, `branch:`, and a parseable `## Findings` table are the admission test. Everything else the shape lists — `date:`, `tier:`, `## By dimension`, `## Unparsed`, `## Surfaces` — is required of `review:fanout`'s own writer and omittable by a third-party detector; that scoping is stated on the shape itself (`default-mode.md` "Findings-file shape"), so the two sides give one answer. Never skip such a file and never invent a value: render `tier: unstated` in the plan, and contribute nothing to the unions it has no section for. `## By dimension` is never parsed here at all, so omitting it costs the merge nothing.
 - **Shared findings directory.** A `memory_dir` resolving outside the worktree serves several worktrees, and those worktrees are on different branches. The exact-`branch:` filter on BOTH the candidates and the records is the whole of what keeps that correct — never the directory path, and never the file's location on disk.
+- **Content identifies a consumed file; the name does not.** Nothing about this step depends on a producer choosing a collision-free file name — a candidate whose name matches a consumed one but whose bytes differ is a different file and stays in the set. Producers are asked not to clobber each other (`default-mode.md` "Findings-writer contract"), but that is their own hygiene, not this step's correctness condition.
 
 ## Step 2: Merge, then classify by finding class
 
@@ -28,7 +51,7 @@ Merge across the set before classifying:
 - **A collapsed row** names every contributing producer in `Surface(s)`, takes the MAX `Tier` and MAX `Confidence` across its inputs (Stage 4's rule in `findings-normalization.md`, applied here for the same reason — the strongest assessment of one defect is the honest one), and retains every distinct `Action`. Never drop an `Action`: the rows were only collapsed because they name the same defect, so keeping both remediations costs a line and losing one costs a fix.
 - **Renumber `Rank` after merging.** Each file's ranks are 1..N within that file, so a two-file merge arrives with two rank-1 rows. Order the merged rows by `Tier`, then `Confidence`, then consumed-file order, and renumber from 1 — Step 4 applies in that order, so an unordered merge makes the apply sequence arbitrary.
 - **`## Unparsed`** — union by concatenation. Never drop one file's appendix because another had none.
-- **`## Surfaces`** — union, each producer's ran/returned-nothing line attributed to it, and report the union in Step 3 and Step 5. A surface that ran and returned nothing is coverage information; unioning it and then printing it nowhere hides it exactly as picking one producer's line would.
+- **`## Surfaces`** — union, each producer's ran/returned-nothing line attributed to it, and report the union in Step 3 and Step 5. **Attribute by the consumed file's NAME** — the same string the plan header prints and `source-findings:` records as `name:`. The findings-file shape carries no producer field, so the file name is the only identifier both sides can agree on; attributing by the `<topic>` segment or by the rows' own `Surface(s)` values would name something the record cannot be matched back to. A surface that ran and returned nothing is coverage information; unioning it and then printing it nowhere hides it exactly as picking one producer's line would.
 - **`tier:`** — report EVERY consumed file's tier. One tier does not win; tiers describe different producers' change scopes and are not comparable.
 
 **Dedup is presence-only, and that is narrower than Stage 3's key on purpose.** `findings-normalization.md` places dedup at "Stage 3 Sonnet (semantic merge)" — an LLM stage this action does not run — and orders "**Minimize FALSE-MERGE over FALSE-SPLIT** — a false merge silently drops a real issue". The tempting key, normalized path plus a ±3-line bucket, would merge distinct defects at `foo.ts:42` and `foo.ts:44`; since Step 4 applies one `Action` per row and fences each fix to that row's file, one producer's remediation would be discarded with no trace. A false split adds a duplicate row an operator can see. Duplicate rows are therefore possible and accepted.
@@ -100,12 +123,24 @@ Invoke the `/simplify` skill when available in the session; otherwise apply the 
 - Consumed: `<S>` file(s), each named with its `tier:`.
 - Surfaces (union): ran `[...]`; returned no result `[...]` — the same union Step 3 printed, repeated here because the report is what an operator keeps.
 - Cleanup-class: `<n>` findings → what changed.
-- Correctness-class: `<m>` → `<applied>` fixed (list with file:line), `<surfaced>` surfaced for decision.
-- Unparsed / surface-only: `<k>` listed for manual handling.
+- Correctness-class: `<m>` → `<applied>` fixed (list with file:line).
+- Not applied: every row that did not land — surfaced, operator-narrowed, or unparsed — listed with the consumed file it came from, never as a bare count. Same rows as the record's "Not applied" table below; the operator recovers a row by re-running the producer that column names.
 
 ### Consumption record (EVERY apply path)
 
-Whenever the action applied anything, ALSO persist the applied plan as a durable record. It serves two purposes: an after-the-fact review surface for an apply nobody watched, and — the load-bearing one — the ledger Step 1 subtracts by. Run the self-ignore guard (a fix-first session may be the first memory-tier write, so the guard is not headless-only), then write into the same branch findings location (SKILL.md "Shared inputs") as `<UTC-timestamp>-fix-pass-applied.md` (`date -u +%Y%m%dT%H%M%SZ`, colon-free):
+Whenever the action applied anything, ALSO persist the applied plan as a durable record. It serves two purposes: an after-the-fact review surface for an apply nobody watched, and — the load-bearing one — the ledger Step 1 subtracts by. Run the self-ignore guard (a fix-first session may be the first memory-tier write, so the guard is not headless-only), then stage the record OUTSIDE the findings directory, digest it, and move it in under a name that carries that digest:
+
+```bash
+TS="$(date -u +%Y%m%dT%H%M%SZ)"                       # colon-free, Windows-safe
+TMP="$(mktemp)"                                       # stage outside the findings directory
+# ...write the record body below to "$TMP"...
+D="$(sha256sum "$TMP" | cut -c1-12)"                  # or: shasum -a 256 "$TMP" | cut -c1-12
+mv "$TMP" "<findings-location>/${TS}-fix-pass-applied-${D}.md"
+```
+
+The suffix is the digest of **the staged file's own bytes, frontmatter included** — not of any consumed file; the consumed files' digests go inside `source-findings:` below. Hash the file, never a mental extract of it: `sha256sum "$TMP"` as written is the whole rule.
+
+**The digest suffix is what keeps two applies from becoming one record.** `<UTC-timestamp>-fix-pass-applied.md` is not a unique name: the timestamp has second resolution and the topic is a fixed literal, so two applies on this branch finishing in the same UTC second — a retried headless `--yes` run, or two automation triggers firing close together — write the same path and the second silently clobbers the first. A lost record is a set of files never subtracted, re-injecting on the next run exactly the already-applied findings this record exists to retire. A content digest beats a random nonce here because the one case that still collides is two byte-identical records, which name the same consumed set and the same applied rows, so the overwrite is a no-op rather than a loss. Staging through `mktemp` rather than through the plain name inside the findings directory is what keeps the collision out of the staging path too.
 
 ```markdown
 ---
@@ -113,26 +148,43 @@ type: fix-pass-record
 date: <ISO-8601 UTC>
 branch: <branch>
 source-findings:
-  - 20260815T044501Z-review.md
-  - 20260815T051230Z-mutation-survivors.md
+  - name: 20260815T044501Z-review.md
+    sha256: a1b2c3d4e5f6
+  - name: 20260815T051230Z-mutation-survivors.md
+    sha256: 0f9e8d7c6b5a
 ---
 
 ## Applied fix-pass plan
 
-- Consumed (<S> files): <file-name list, matching source-findings>
+- Consumed (<S> files): <file-name list, matching the `name:` values in source-findings>
 - Surfaces (union): ran <[...]>; returned no result <[...]>
 - Cleanup-class (<n>) → /simplify: <what changed>
-- Correctness-class (<m>): <applied file:line list>; <surfaced> surfaced for decision
-- Surface-only / unparsed (<k>): <listed, each with the file name it came from>
+- Correctness-class (<m>): <applied file:line list>
+
+## Not applied — recover by re-running the source producer
+
+| Location | Finding | Why not applied | Source file |
+|---|---|---|---|
+| src/a.ts:42 | ... | surfaced for decision (high blast radius) | 20260815T044501Z-review.md |
+| src/b.ts:10 | ... | operator narrowed to correctness only | 20260815T051230Z-mutation-survivors.md |
+| — | ... | unparsed | 20260815T044501Z-review.md |
 ```
 
-**`source-findings:` is ALWAYS a YAML block sequence of bare file NAMES — one entry even for a single file, never a bare scalar.** Step 1 matches those entries against candidate file names, and a writer emitting a scalar where the reader expects a sequence under-matches silently, re-consuming findings this record was written to retire. Names rather than paths because both sides of the comparison are always read from the SAME single branch findings directory: the `<UTC-timestamp>-<topic>.md` name is already the unique key there, so any path prefix is dead weight that can only introduce a mismatch (`./x.md` vs `x.md`, relative vs absolute). This is not a claim that consumption works across directories — it does not, and Step 1's exact-`branch:` filter is what fences that.
+**Every row inside a consumed file that was NOT applied gets a row in that table** — correctness surfaced by Step 4's low-confidence / blast-radius fence, any row of any class the operator narrowed out, and every `## Unparsed` entry. An empty table renders as `(none)`. A count is not attribution: consumption is per file, so the file is retired whole, and the only way back to a deferred row is re-running the producer that found it — which the `Source file` column is what names. The class lines above carry counts and what changed; this table is where the rows that did NOT land are individually recoverable, so nothing may appear only as a number.
+
+**`source-findings:` is ALWAYS a YAML block sequence of `name:` + `sha256:` mappings — one entry even for a single file, never a bare scalar and never a bare name.** `sha256:` is the first 12 lowercase hex characters of the SHA-256 of that consumed file's bytes exactly as read — `sha256sum "<file>" | cut -c1-12` (or `shasum -a 256`) — with no normalization, trimming, or case folding.
+
+**Content is the key; the name is not.** A `<UTC-timestamp>-<topic>.md` name is unique only in the moment it is written: the timestamp has second resolution and the topic is producer-chosen, so a later producer can reuse it for entirely different findings, and a record matching on the name alone would retire that new file unread. The digest is what makes "already consumed" a statement about the findings rather than about the file name. `name:` is carried for human legibility and for the recovery attribution below, and it narrows the match — a candidate is retired only when both halves agree, so two byte-identical files under different names each stay in the set until each is named, which is the same false-split-over-false-merge direction Step 2 takes.
+
+Names rather than repo-relative paths because both sides of the comparison are always read from the SAME single branch findings directory, so any path prefix is dead weight that can only introduce a mismatch (`./x.md` vs `x.md`, relative vs absolute). This is not a claim that consumption works across directories — it does not, and Step 1's exact-`branch:` filter is what fences that.
+
+A writer emitting a bare scalar, or a sequence of bare names, under-matches: Step 1 reads a digest-less entry as the legacy form and falls back to name-alone matching — precisely the weakness this shape retires. Emit both fields.
 
 The `type: fix-pass-record` marker is deliberately NOT `review-findings`, so Step 1's candidate pass skips this record and never re-consumes it as findings (the same frontmatter fence that already skips `quality-gate` reports). The record lands in the gitignored memory-tier findings dir, so it is checkout-local durable for the operator who ran the lane, not a committed artifact — local and reversible.
 
-**Consumption is per FILE, not per row.** A file whose rows were partly surfaced rather than applied (Step 4), or narrowed by the operator ("only the correctness ones"), is still marked consumed in full. Every such row is named in the record body **with the file name it came from** — that attribution is what makes the row recoverable, so it is required, not decorative.
+**Consumption is per FILE, not per row.** A file whose rows were partly surfaced rather than applied (Step 4), or narrowed by the operator ("only the correctness ones"), is still marked consumed in full. Every such row is rendered individually in the record's **"Not applied"** table above, with the file name it came from — that attribution is what makes the row recoverable, so it is required, not decorative, and a class-level count never discharges it.
 
-**Recovery re-runs the row's OWN producer, not necessarily this skill.** Re-running `/review:fanout` re-fans-out fanout's reviewers, which regenerates fanout's rows and nothing else; a row that came from a script detector or another skill returns only when THAT producer runs again. Naming the source file in the record body is what tells the operator which one to re-run. Either way the regenerated findings land as a NEW file and enter the next merge set as a fresh candidate — deferred rows never survive inside the consumed file.
+**Recovery re-runs the row's OWN producer, not necessarily this skill.** Re-running `/review:fanout` re-fans-out fanout's reviewers, which regenerates fanout's rows and nothing else; a row that came from a script detector or another skill returns only when THAT producer runs again. The "Not applied" table's `Source file` column is what tells the operator which one to re-run. Either way the regenerated findings land as a NEW file and enter the next merge set as a fresh candidate — deferred rows never survive inside the consumed file.
 
 **An apply that terminates abnormally writes NO record.** A partial apply is the one case where file-granular consumption would retire rows that were never reached, and re-consuming an already-applied fix is recoverable (the fix is a no-op or a visible conflict) while a silently retired one is not. The next run therefore re-admits the whole set; the required post-fix re-review is what reconciles it.
 
