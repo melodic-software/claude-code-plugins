@@ -3,6 +3,20 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **Configurable discovery skip list via `--skip` / `fleet.skip` (#2712).** Repeatable CLI
+  `--skip <name>` and config `fleet.skip` replace the default directory-name skip list
+  (`.`, `..`, `.git`, `node_modules`, `vendor`, `.venv`) rather than appending — so an operator
+  can shrink (reach a repo under `vendor/`) or extend (skip a differently named vendored tree).
+  CLI and config compose additively with each other like other scope inputs. Values must be bare
+  directory names; empty values (including a bare `skip =` config line) and path separators
+  hard-fail. `.` and `..` stay skipped
+  unconditionally. Nested-repository early return (stop descending when a directory carries a
+  `.git` marker) is documented in the audit skill. Setup `apply --skip` writes `fleet.skip`.
+
 ## [0.22.5]
 
 ### Fixed
