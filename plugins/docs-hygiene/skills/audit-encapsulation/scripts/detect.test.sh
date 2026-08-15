@@ -188,7 +188,8 @@ assert_contains "self-citation raw hit emitted" "$out" "${skill_root}/foo/contex
 err="$(cd "$self_repo" && bash "$SCRIPT" --include-skills --apply-filters 2>&1 >/dev/null)"
 code=$?
 assert_exit "self-citation filtered legal → exit 0" 0 "$code"
-assert_contains "summary counts self-citation as legal" "$err" "raw=1 legal=1 illegal=0"
+assert_contains "summary counts self-citation as mech-filtered" "$err" \
+  "raw=1 mech-filtered=1 candidates=0"
 
 plugin_skill_root="plugins/my-plugin/skills"
 
@@ -205,6 +206,40 @@ plugin_scripts_repo="$(fixture_repo "docs/guide.md" \
 out="$(cd "$plugin_scripts_repo" && bash "$SCRIPT" 2>/dev/null)"
 assert_exit "plugin scripts/ entry cite → exit 0 (carve-out)" 0 "$?"
 assert_silent "plugin scripts/ cite emits nothing" "$out"
+
+# F3: subdir / skill name shapes the old kebab class missed must now match.
+for shape_desc_path in \
+  "uppercase-subdir:${skill_root}/foo/Context/notes.md" \
+  "single-char-subdir:${skill_root}/foo/c/x.md" \
+  "digit-leading-subdir:${skill_root}/foo/2dir/x.md" \
+  "underscore-leading-subdir:${skill_root}/foo/_priv/x.md" \
+  "uppercase-skill:${skill_root}/Foo/context/x.md" \
+  "digit-leading-skill:${skill_root}/2skill/context/x.md" \
+  "underscore-leading-skill:${skill_root}/_x/context/x.md"; do
+  shape="${shape_desc_path%%:*}"
+  cite_path="${shape_desc_path#*:}"
+  match_prefix="$(dirname "$cite_path")/"
+  shape_repo="$(fixture_repo ".claude/rules/shape.md" "see ${cite_path}")"
+  out="$(cd "$shape_repo" && bash "$SCRIPT" 2>/dev/null)"
+  assert_exit "F3 ${shape} cite → exit 1" 1 "$?"
+  assert_contains "F3 ${shape} emitted" "$out" "$match_prefix"
+done
+
+# --help documents candidate semantics and relative-path limitation
+help_out="$(bash "$SCRIPT" --help 2>&1)"
+assert_contains "--help says candidates exist" "$help_out" "candidates exist"
+assert_contains "--help discloses relative-path gap" "$help_out" "#2716"
+assert_contains "--help warns against hard-gate" "$help_out" "hard-gate CI"
+
+# Honest summary keys under --apply-filters on a candidate hit
+cand_repo="$(fixture_repo ".claude/rules/cand.md" \
+  "see ${skill_root}/foo/context/notes.md")"
+err="$(cd "$cand_repo" && bash "$SCRIPT" --apply-filters 2>&1 >/dev/null)"
+code=$?
+assert_exit "candidate hit → exit 1" 1 "$code"
+assert_contains "summary uses candidates key" "$err" "candidates=1"
+assert_contains "summary uses mech-filtered key" "$err" "mech-filtered=0"
+assert_not_contains "summary does not say illegal=" "$err" "illegal="
 
 if [[ "$FAILED" -ne 0 ]]; then
   exit 1
