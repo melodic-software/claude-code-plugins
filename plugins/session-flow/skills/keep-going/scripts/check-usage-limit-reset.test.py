@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -111,6 +113,81 @@ class CheckUsageLimitResetTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(code, 3)
+
+
+class BundledTzdataDegradationTests(unittest.TestCase):
+    """A failing tzdata bundle must never look like 'the limit still holds'.
+
+    Exit 1 is this script's 'blocked' answer, so an exception escaping the
+    extraction path would tell a caller to keep waiting because a zip was
+    corrupt. Every failure must degrade to exit 3 (timezone-unavailable),
+    which is what a missing bundle has always produced.
+    """
+
+    def _run_with_bundle(self, write_bundle) -> int:
+        """Run the script against a scratch copy whose bundle is sabotaged.
+
+        Empty ``PYTHONTZPATH`` hides the system zoneinfo tree so a sabotaged
+        bundle cannot silently succeed via ``/usr/share/zoneinfo`` on Linux CI.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp) / "scripts"
+            (scripts / "vendor").mkdir(parents=True)
+            shutil.copy2(SCRIPT, scripts / SCRIPT.name)
+            write_bundle(scripts / "vendor" / "tzdata-zoneinfo.zip")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(scripts / SCRIPT.name),
+                    "resets 2:30am (America/New_York)",
+                    "--now",
+                    "2026-08-14T10:00:00-04:00",
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PYTHONTZPATH": ""},
+            )
+            return proc.returncode
+
+    def test_corrupt_bundle_degrades_to_timezone_unavailable(self) -> None:
+        """Corrupt bytes pass ``is_file()`` and hit the ZipFile try/except (#2672)."""
+        code = self._run_with_bundle(
+            lambda p: p.write_bytes(b"this is definitely not a zip archive")
+        )
+        self.assertEqual(code, 3, "a corrupt bundle must not report 'limit holds'")
+
+    def test_truncated_bundle_degrades_to_timezone_unavailable(self) -> None:
+        """Truncated zip passes ``is_file()`` and hits the ZipFile try/except (#2672)."""
+        head = VENDOR_ZIP.read_bytes()[:2048]
+        code = self._run_with_bundle(lambda p: p.write_bytes(head))
+        self.assertEqual(code, 3, "a truncated bundle must not report 'limit holds'")
+
+    def test_directory_at_bundle_path_degrades_to_timezone_unavailable(self) -> None:
+        """A directory at the bundle path fails the ``is_file()`` guard (#2647).
+
+        That path returns before the #2672 try/except; corrupt/truncated cases
+        above exercise the new exception handling. chmod 000 is not a portable
+        probe (Administrator on Windows NTFS ignores it).
+        """
+        code = self._run_with_bundle(lambda p: p.mkdir())
+        self.assertEqual(code, 3, "an unusable bundle must not report 'limit holds'")
+
+    def test_symlinked_cache_root_is_not_trusted(self) -> None:
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            link = Path(tmp) / "link"
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink creation unavailable on this host")
+            self.assertFalse(mod._cache_is_trusted(link))
+
+    def test_plain_owned_directory_is_trusted(self) -> None:
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertTrue(mod._cache_is_trusted(Path(tmp)))
 
 
 if __name__ == "__main__":
