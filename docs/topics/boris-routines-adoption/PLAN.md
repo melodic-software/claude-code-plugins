@@ -194,8 +194,12 @@ findings producer exists.
 conforming findings file and the apply relay consumes it without dropping the other producer's
 findings.
 
-**Two reductions against the Brief, stated rather than absorbed** — both routed to the approval
-gates in "Handoff to implementation", because dropping Brief-listed scope is the user's call:
+**Approved 2026-08-15.** Branch shape (a); both reductions below and the close-out deviation accepted
+as stated.
+
+**Two reductions against the Brief, stated rather than absorbed** — both were routed to the approval
+gates in "Handoff to implementation", because dropping Brief-listed scope is the user's call, and
+both were accepted there:
 
 1. The Brief's Tier 1 names **three** detectors. This cycle ships **one** (can't-fail tests). The
    other two become catalog rows with named triggers. Rationale in "Alternatives considered"; the
@@ -673,12 +677,14 @@ Consequences the earlier drafts missed:
   every phase PR's diff**, so under a phase-per-PR shape the gate fires every time — which is what
   makes the branch-shape decision below structural rather than cosmetic.
 
-- [ ] **Graduate the coexistence decision to an ADR.** It passes all three admission tests: hard to
-      reverse (it changes a contract `default-mode.md:48` calls stable and other producers consume),
-      surprising without context (a future reader asks why the consumer merges rather than takes the
-      newest), and the result of a real trade-off (three named options, one chosen for stated
-      reasons). Write it when the decision crystallizes in Phase 1, not here — this phase moves an
-      already-written file.
+- [x] **Graduate the coexistence decision to an ADR.** Done 2026-08-15:
+      [ADR 0010](../../adr/0010-merge-findings-across-producers-and-mark-consumption-explicitly.md).
+      It passes all three admission tests: hard to reverse (it changes a contract `default-mode.md:48`
+      calls stable and other producers consume), surprising without context (a future reader asks why
+      the consumer merges rather than takes the newest), and the result of a real trade-off (three
+      named options for coexistence, two named keys for dedup, each chosen for stated reasons). It is
+      written **before** Phase 1 rather than after, because under shape (a) it is what carries the
+      decision once this slice is pruned — Phase 1 implements the ADR rather than deciding it.
 - [ ] **Graduate the ADR-0004 incumbent evidence out of the gitignored tree.** `git check-ignore -v
       .work/` returns `.work/.gitignore:1:*`. Phases 3, 5, and 7 each open by citing
       `V1-coverage-negatives.md` §C.5 / §N3, and two of those phases route to sub-agent workers that
@@ -864,19 +870,16 @@ finish sequentially.
 
 ### Open questions
 
-- **BLOCKING, and the user's call: what branch shape carries a ten-phase plan past the contract-slice
-  prune gate?** The slice must be deleted before merge, and the per-phase tag advancement puts it in
-  every phase PR's diff, so "phase boundaries are PR boundaries" and "prune before merge" cannot both
-  hold as written. Two shapes:
-  - **(a) RECOMMENDED — graduate early, prune at this branch's merge, then run phases as independent
-    PRs.** This PR graduates the coexistence ADR plus the inlined incumbent evidence, files the
-    remaining phases as tracker issues, pastes the plan into its own body, and prunes the slice. Later
-    phases carry their contract in their issue and PR bodies, so no slice exists to red-line. Matches
-    the convention's own documented lifecycle and keeps PRs small.
-  - **(b) One long-lived branch, all ten phases as commits, a single merge with a terminal prune.**
-    Keeps PLAN.md live on disk the whole way and needs no issue decomposition, but yields one very
-    large PR and defers every gate to the end — which is how a silent-shadowing bug got this far in
-    the first place.
+- ~~**BLOCKING: what branch shape carries a ten-phase plan past the contract-slice prune gate?**~~
+  **RESOLVED 2026-08-15 — shape (a).** Graduate early, prune at this branch's merge, then run phases
+  as independent PRs. This PR graduates the coexistence ADR
+  ([0010](../../adr/0010-merge-findings-across-producers-and-mark-consumption-explicitly.md)) plus
+  the inlined incumbent evidence, files the remaining phases as tracker issues, pastes the plan into
+  its own body, and prunes the slice. Later phases carry their contract in their issue and PR bodies,
+  so no slice exists to red-line. The rejected alternative was one long-lived branch with all ten
+  phases as commits and a single terminal prune: it keeps PLAN.md on disk throughout and needs no
+  issue decomposition, but yields one very large PR and defers every gate to the end — which is how
+  a silent-shadowing bug survived to draft stage here.
 - **Detector output has no delivery path in a cloud routine — and this is a conformance question, not
   a scoping one.** `.work/` is gitignored (`*`), a cloud run's containment is the `claude/`-branch
   push rule, and "green status ≠ success", so a scheduled routine running any detector produces
