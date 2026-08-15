@@ -6,6 +6,8 @@
 #   cat > path
 #   echo ... > path      (and printf ... > path)
 #   python3 -c ... file write
+#   same-command staged write: <producer> > tmp && mv|cp tmp dest
+#     (effective redirect target reused as mv/cp source; #2731)
 #
 # Detection runs over the LITERAL-STRIPPED command for the executable token
 # (so prose/commit text merely MENTIONING the pattern is not a false positive),
