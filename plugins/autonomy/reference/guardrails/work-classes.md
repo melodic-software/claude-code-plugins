@@ -113,8 +113,10 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
 
 ## Suggested default predicates
 
-The predicate shape is contract-fixed; the threshold values below are suggested defaults the
-org binds (org-bindable values):
+The predicate shape is contract-fixed; the threshold values in the table below are suggested
+defaults the org binds (org-bindable values). The two subsections after the table are not
+defaults and carry no bindable threshold: one fixes what may never enter a predicate at all, the
+other records a candidate term as deliberately deferred.
 
 | Cell | Suggested default predicate |
 |---|---|
@@ -133,19 +135,33 @@ auto-merge with it.
 ### What may never enter a predicate
 
 **An acceptance or merge rate is never a promotion input, and it is not an efficacy signal**
-— in either role, at any cell, at any threshold. Three independent lines of evidence —
-peer-reviewed observational work, large-N regression, and a randomized trial — find artifact
-quality weakly-to-not coupled to whether a change is accepted. The strongest statement is
+— in either role, at any cell, at any threshold. Findings across observational, regression, and
+randomized designs point the same way: artifact quality is weakly-to-not coupled to whether a
+change is accepted. The one verified at primary source, and the strongest statement of it, is
 Lenarduzzi et al.'s: *"code quality turned out not to affect the acceptance of a pull request at
 all."* A predicate built on acceptance would therefore promote throughput while claiming to
 measure trustworthiness.
 
-This does not touch the predicates above, and the distinction is worth stating because one row sits
-close to the line. **`0 human-reverted merges` is a correctness signal, not an acceptance rate.** A
-revert is a human asserting the change was wrong after it landed; an acceptance rate counts how much
-got merged. The first is evidence about the work, the second about the pipeline. Every predicate
-above is built from completion counts, deterministic-gate pass rates, revert counts, and demotion
-events — all correctness-side by construction.
+This does not touch the predicates above, and the distinction is worth stating because two of their
+terms sit close to the line.
+
+**`0 human-reverted merges` is a correctness signal, not an acceptance rate.** A revert is a human
+asserting the change was wrong after it landed; an acceptance rate counts how much got merged. The
+first is evidence about the work, the second about the pipeline.
+
+**A merge COUNT over a fixed window is a volume floor, not an acceptance rate.** The `C3` term
+`≥ 20 autonomous C2 merges over ≥ 14 days` says only that enough autonomous work has landed for a
+track record to exist at all. The two behave oppositely under exactly the move that makes an
+acceptance metric untrustworthy: a ratio rises when its denominator shrinks, so attempting less —
+or attempting only what is certain to land — raises it with no change in the work itself. A count
+has no denominator to shrink. Selectivity leaves it flat, and clearing it takes absolute output.
+Conjoined with the same row's `100% deterministic-gate pass`, `0 human-reverted merges`, and
+`0 demotion events`, the count bounds how much evidence exists while those terms carry the
+correctness claim.
+
+The full term inventory above is completion counts, merge counts over a fixed window,
+deterministic-gate pass rates, revert counts, and demotion events — correctness-side or
+volume-side by construction, never a ratio of accepted to attempted.
 
 ### Reviewer-burden term — DEFERRED, with a trigger
 
