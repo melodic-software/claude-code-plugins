@@ -89,8 +89,9 @@ nesting_invariant_expiry_date_passed() {
   [[ "$today" > "$expiry" || "$today" == "$expiry" ]]
 }
 
-# Parse: as-of **YYYY-MM-DD**
-if [[ "$owner_text" =~ as-of\ \*\*([0-9]{4}-[0-9]{2}-[0-9]{2})\*\* ]]; then
+# Parse: as-of **YYYY-MM-DD** — require the stamp delimiters so a nearby date
+# cannot satisfy the check as a substring.
+if [[ "$owner_text" =~ as-of[[:space:]]+\*\*([0-9]{4}-[0-9]{2}-[0-9]{2})\*\* ]]; then
   as_of_date="${BASH_REMATCH[1]}"
   pass "as-of date is parseable ($as_of_date)"
 else
@@ -100,25 +101,25 @@ fi
 
 # Parse unconditional expiry arms from the owner sentence:
 #   **Unconditional expiry.** **2.1.244, or 2026-11-07 — whichever comes first.**
-if [[ "$owner_text" =~ Unconditional\ expiry\.\*\*[[:space:]]*\*\*([0-9]+\.[0-9]+\.[0-9]+),\ or\ ([0-9]{4}-[0-9]{2}-[0-9]{2}) ]]; then
+# Match the complete bold arm (not an arbitrary substring) so malformed tokens
+# such as `2.1.244.1`, `v2.1.244`, or overlong dates cannot pass shape checks.
+expiry_version=""
+expiry_date=""
+if [[ "$owner_text" =~ Unconditional[[:space:]]+expiry\.\*\*[[:space:]]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+[—-] ]]; then
   expiry_version="${BASH_REMATCH[1]}"
   expiry_date="${BASH_REMATCH[2]}"
+elif [[ "$owner_text" =~ Unconditional[[:space:]]+expiry[^\n]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2}) ]]; then
+  # Same whole-arm capture with slightly looser heading markup tolerance.
+  expiry_version="${BASH_REMATCH[1]}"
+  expiry_date="${BASH_REMATCH[2]}"
+fi
+
+if [[ -n "$expiry_version" && -n "$expiry_date" ]]; then
   pass "unconditional expiry version arm is parseable ($expiry_version)"
   pass "unconditional expiry date arm is parseable ($expiry_date)"
 else
-  # Fallback: scan the Unconditional expiry line with looser extraction so a
-  # wording tweak that keeps the arms still fails closed on shape, not silence.
-  expiry_version=""
-  expiry_date=""
-  if [[ "$owner_text" =~ Unconditional\ expiry[^$'\n']*([0-9]+\.[0-9]+\.[0-9]+)[^$'\n']*([0-9]{4}-[0-9]{2}-[0-9]{2}) ]]; then
-    expiry_version="${BASH_REMATCH[1]}"
-    expiry_date="${BASH_REMATCH[2]}"
-    pass "unconditional expiry version arm is parseable ($expiry_version)"
-    pass "unconditional expiry date arm is parseable ($expiry_date)"
-  else
-    fail "unconditional expiry carries a parseable version arm (N.N.N)" "matched" "no match"
-    fail "unconditional expiry carries a parseable date arm (YYYY-MM-DD)" "matched" "no match"
-  fi
+  fail "unconditional expiry carries a parseable version arm (N.N.N)" "matched" "no match"
+  fail "unconditional expiry carries a parseable date arm (YYYY-MM-DD)" "matched" "no match"
 fi
 
 # Version arm: present and shaped — do not evaluate against a live Claude Code
