@@ -17,9 +17,13 @@ reports sit under the memory root's reserved `reviews/` name rather than inside 
 |---|---|
 | `quality-gate` findings | `.work/reviews/<branch-slug>/<UTC-timestamp>-<mode>.md` — never committed |
 | `fanout` ranked reports | `.work/reviews/<branch-slug>/<UTC-timestamp>-<topic>.md` — never committed |
+| `fanout` consumption records | `.work/reviews/<branch-slug>/<UTC-timestamp>-fix-pass-applied-<sha256-12>.md` — never committed |
 
-Reports are write-only process output; nothing downstream enforces against them, which is what makes
-them memory-tier by the convention's placement question. They are therefore lane-local (contract
+Reports are process output that nothing outside this plugin enforces against, which is what makes
+them memory-tier by the convention's placement question. One artifact is read back: the `fix`
+action's consumption record is the ledger that bounds its next merge set, so losing one re-injects
+already-applied findings — durability inside the lane matters even though nothing downstream gates
+on it. They are therefore lane-local (contract
 ≥ 2.0.0): a sibling worktree or cloud clone never sees them. Findings that must cross lanes
 graduate through the work-item tracker — the contract's cross-lane index — as tickets that point,
 never as pasted report bodies.
@@ -34,6 +38,17 @@ never as pasted report bodies.
    review reports) → confirm with the user, persist to the concern file.
 4. Ask once — one question, recommended option first; persist the answer to the concern file.
 5. The documented default: `.work/reviews/<branch-slug>/`.
+
+Only rung 1 and rung 5 compose `reviews/<branch-slug>` themselves. Rungs 2–4 yield whatever location
+the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A skill
+that hardcodes the default's shape reads or writes a directory the other side never touched, and the
+fanout `fix` action's failure mode for that is a clean empty-set STOP indistinguishable from "no
+findings".
+
+**Non-interactive / forked mode.** Rungs 2–4 can require asking the user or persisting config. A
+context that can do neither — a forked subagent, a dispatched worker, a headless run such as
+`fanout`'s `fix --yes` — follows the contract's "Non-interactive / forked mode" section, which is
+contract-owned and cited here rather than redefined.
 
 Both skills review a git diff; with no git repo there is nothing to review, and the skills stop
 before any write — the convention's no-project-root fallback surface never comes into play here.

@@ -29,7 +29,7 @@ Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invo
 
 - **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`, then `HEAD`). Never a hardcoded `git diff HEAD`, which is empty on a clean committed branch.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
-- **Findings location** — resolve through the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the `.claude/topic-docs.yaml` concern file's `memory_dir` first (`<memory_dir>/reviews/<branch-slug>/`); else a review-artifacts location declared in the project's `CLAUDE.md` / rules (use it, and offer to persist it into the concern file — prose is an inference source, not the runtime authority); else the default `.work/reviews/<branch-slug>/` — the memory tier's concern-scoped reviews home, branch axis — where `<branch-slug>` is the branch name lowercased with non-`[a-z0-9._-]` characters replaced by `-`. Self-ignore guard: the session's first memory-tier write verifies the resolved memory root contains a `.gitignore` with `*`, creating it (announced) when absent.
+- **Findings location** — resolve through the plugin binding, [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md), which owns the resolution ladder, the `<branch-slug>` and timestamp spec, the non-interactive collapse, and the self-ignore guard. **Resolve the home; never assume its shape** — the ladder's rungs do not all compose a `reviews/<branch-slug>` segment, and the review modes' writer and the `fix` action's reader must land in the same directory or findings go silently unseen. Read the binding rather than working from the default's shape.
 
 ## Arguments
 
@@ -97,7 +97,7 @@ Run the 5-stage pipeline in [context/findings-normalization.md](context/findings
 
 ## Step 3: Persist findings
 
-Run the self-ignore guard ("Shared inputs"), then write the ranked report to `<findings-location>/<UTC-timestamp>-<topic>.md` (`date -u +%Y%m%dT%H%M%SZ`, colon-free; `<topic>` sanitized to `[a-z0-9._-]`). Relativize machine paths BEFORE writing — findings cite `file:line` repo-relative only. File shape contract: [context/default-mode.md](context/default-mode.md) "Findings-file shape".
+Run the self-ignore guard ("Shared inputs"), then write the ranked report into the resolved findings location as `<UTC-timestamp>-<topic>.md`, with `<topic>` sanitized to `[a-z0-9._-]`. The timestamp format is the binding's ("Shared inputs"), not restated here. Relativize machine paths BEFORE writing — findings cite `file:line` repo-relative only. File-name collision rule and file shape contract: [context/default-mode.md](context/default-mode.md) "Findings-writer contract" and "Findings-file shape".
 
 ## Orchestrator plugins
 
