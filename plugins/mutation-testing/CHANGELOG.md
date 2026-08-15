@@ -63,7 +63,6 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   the covering test in `Action` and the consumer surfaces the row to a human. A surfaced mutation row
   is the intended end of the route.
 
-
 ## [0.2.0]
 
 ### Added
