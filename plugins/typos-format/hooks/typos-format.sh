@@ -272,7 +272,7 @@ typos_write_ext_allowed() {
 # Opt-in write mode that lands on a denied extension degrades to report-only
 # for THIS file. Flipping WRITE_CHANGES keeps the disclosure composer on the
 # report-only path (mode statement, no residual-after-write phrasing) without
-# a second messaging branch. WRITE_SKIPPED_EXT records why, for a one-line
+# a second messaging branch. WRITE_SKIP_REASON records why, for a one-line
 # note on the agent channel when findings exist.
 WRITE_SKIP_REASON=""
 if [[ "$WRITE_CHANGES" == "true" ]]; then
