@@ -3,6 +3,25 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.2]
+
+### Fixed
+
+- **Exact-OID merged evidence on a protected branch is no longer computed and discarded (#2687).**
+  A branch carrying a `MERGED` PR whose `headRefOid` equals the local tip fell through both arms
+  of the match block when it was also protected: `merged-worktree` requires a non-main worktree,
+  and `merged-local-branch` requires `protected=false`, so a branch checked out in the main
+  worktree — or the canonical checkout's current branch — satisfied neither and emitted nothing.
+  The weaker `merged-pr-tip-drift` below carries no protection guard and did emit, so silence on
+  the strong path read as "nothing merged" rather than "merged, but protected". A new `HIGH`
+  `merged-protected-branch` finding reports it and names which protection applies — `HIGH` because
+  the evidence is the same successful `MERGED` PR with an exact `headRefOid` match that the
+  sibling kinds carry, and the confidence model separates evidence strength from disposition. The
+  protection rule is unchanged: the kind is absent from `branch_action_kind()`, so it never becomes
+  a cleanup candidate, inflates a rollup count, or enters an action plan. Only the main-worktree
+  and current-branch protections are reachable; the default branch is excluded from merge-evidence
+  collection upstream and never reaches this classification.
+
 ## [0.22.1]
 
 ### Fixed

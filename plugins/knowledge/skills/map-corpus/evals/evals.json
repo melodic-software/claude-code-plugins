@@ -28,10 +28,10 @@
       "id": 3,
       "name": "no-discovery-artifacts-stops-loudly",
       "prompt": "Run /knowledge:map-corpus \"internal wiki\" https://wiki.internal.example where the site serves neither llms.txt nor any sitemap.",
-      "expected_output": "Stops loudly at discovery: reports that neither rung 1 (llms.txt) nor rung 2 (sitemap) resolved, names the deferred rung-3 decision (Q19, user-reserved firecrawl seam vs reimplementation), and asks the user rather than crawling in-page links.",
+      "expected_output": "Stops loudly at discovery: reports that neither rung 1 (llms.txt) nor rung 2 (sitemap) resolved, names the deferred rung-3 decision (user-reserved: a presence-gated firecrawl map seam versus a recorded reimplementation), and asks the user rather than crawling in-page links.",
       "expectations": [
         "Does not extract in-page links as a fallback",
-        "Names the Q19 deferral and its user-reserved arbiter",
+        "Names the deferred rung-3 decision and that its arbiter is the user",
         "Does not silently classify the corpus as empty"
       ]
     },

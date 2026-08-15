@@ -36,7 +36,11 @@ document names substrate CLASSES as marked examples only, never an instance list
   so component rules can only narrow, the surface is not `L2`-capable.
 - **`L3` — kernel-separated ephemeral environment.** Substrate classes (marked examples): a
   VM or microVM; a hosted ephemeral executor surface. Required where policy demands kernel
-  separation — untrusted-provenance (`C5`) work.
+  separation. Two demands do: untrusted-provenance (`C5`) work, per the matrix's min-isolation
+  column; and unattended GUI actuation, per the [routine catalog](../routines.md)'s access mapping
+  rule — synthetic input actuation drives the host's own input surface, which no process boundary
+  contains. The second reaches classes that derive no work class at all, so it cannot be expressed
+  through the min-isolation column.
 
 ## Axes
 

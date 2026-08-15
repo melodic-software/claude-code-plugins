@@ -167,11 +167,12 @@ block the session from starting. GitHub release-asset downloads are additionally
 because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
 documents that release assets from repositories not attached to the session can return 403.
 
-Not installed at session start (install on demand when working in those areas): the four plugin
-npm roots (`plugins/miro`, `plugins/knowledge/skills/youtube-digest/extraction`,
-`plugins/knowledge/skills/course-digest/extraction`,
-`plugins/ai-briefing/skills/generate/output/build`) and
-`.github/standards/runner-policy` — each is an `npm ci` in that directory; the heavy ones pull
+Not installed at session start (install on demand when working in those areas): the plugin npm
+packages — `plugins/miro` and `.github/standards/runner-policy` are each an `npm ci` in their
+own directory, while the youtube-digest, course-digest, and ai-briefing suites install through
+their skills' entry scripts (`plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh
+install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,
+`plugins/ai-briefing/skills/generate/scripts/run-tests.sh install`); the heavy ones pull
 Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
 
 ### Plugins in sessions on this repo

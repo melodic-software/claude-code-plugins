@@ -1,6 +1,6 @@
 ---
 description: "Audit and remediate skill-encapsulation violations — external citations reaching into private surfaces inside `.claude/skills/<X>/` or `plugins/<plugin>/skills/<X>/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into <skill>', 'check skill boundaries', 'public API drift', or before refactoring a skill."
-argument-hint: "[detect|fix|file-issues]"
+argument-hint: "[detect|sweep|fix <file>:<line>|file-issues]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -35,11 +35,29 @@ The choice is per-cite. The bundled detect script is this plugin's detector; any
 
 | Argument | Action | Purpose |
 |----------|--------|---------|
-| *(empty)* / `detect` | Default | Run detection grep, classify legal vs illegal, output violation table |
+| *(empty)* / `detect` | Default | Run detection grep, classify legal vs illegal, output violation table — behind the no-scope confirmation below when nothing narrows the scope |
+| `sweep` | Explicit repo-wide detect | Default detect minus the no-scope confirmation — for when the user already said "whole repo" |
 | `fix <file>:<line>` | Targeted remediation | Interactive Path A (promote-out) vs Path B (route-via-`/<skill>`) for one hit |
 | `file-issues` | Batch | File one tracking work item per illegal hit in the consumer's tracker (e.g. `gh issue create`); emit a checklist if no tracker is available |
 
 One action per response.
+
+### No inherited scope — confirm before a repo-wide run
+
+The default action's domain is the whole repo, but a bare invocation does not prove the user meant
+that. When the invocation arrives with NO inherited working set — no diff in flight, no prior audit
+notes, nothing in the conversation narrowing the scope — ask ONE confirmation before running the
+detection, presenting these prescribed defaults for adjustment:
+
+| Default | Value |
+|---------|-------|
+| Scope | entire tracked repo (the detect script's scan domain) |
+| Mode | detect + classify only; remediation stays a separate, user-approved step |
+| Worker fan-out | off — classify in-session. When the user opts into subagent classification or remediation, run 2–3 concurrent workers, no more, while rate-limit telemetry is absent; when the `rate-limit-guard` plugin's snapshot is readable, resolve pacing from its reader contract instead (that contract owns the snapshot path, staleness rule, and thresholds — read them there) |
+
+An inherited scope — or a scope the user already stated in the invocation ("across the repo",
+"audit this directory") — suppresses the question; audit that surface directly. `sweep` is the
+explicit opt-in that skips the confirmation and runs the repo-wide detect immediately.
 
 ## Detection
 

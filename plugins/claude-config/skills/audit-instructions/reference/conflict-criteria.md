@@ -47,11 +47,10 @@ I15 routes a contradiction "wholly inside the memory layer" to `claude-memory:au
 Consistency** check, and counts `~/.claude/rules/` among the memory-layer surfaces. Those two
 statements do not compose, and the gap is silent.
 
-C6 asks its question "across CLAUDE.md, CLAUDE.local.md, and rules files"
-([`plugins/claude-memory/skills/audit/reference/criteria.md`](../../../../claude-memory/skills/audit/reference/criteria.md),
-check C6), and its population is **project-relative**: the audit workflow discovers files with
-`find . -maxdepth 1 -name "CLAUDE.md"` and `find .claude/rules`, and the orphan-rule script scans
-`.claude/rules/*.md`. The plugin resolves a user-level directory only for auto-memory under
+The `claude-memory:audit` skill's check **C6** asks its question "across CLAUDE.md, CLAUDE.local.md,
+and rules files", and its population is **project-relative**: the audit workflow discovers files
+with `find . -maxdepth 1 -name "CLAUDE.md"` and `find .claude/rules`, and the orphan-rule script
+scans `.claude/rules/*.md`. The plugin resolves a user-level directory only for auto-memory under
 `~/.claude/projects/<slug>/`, never for rules. Its official-guidance reference notes `~/.claude/rules/`
 exists as background and never audits it.
 

@@ -144,7 +144,7 @@ Self-review by the producing context is enough here — a fresh-context verifier
 
 Never call `git commit` or `gh pr create` directly — Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
 
-If the `source-control` plugin is installed, invoke `/source-control:pull-request create`. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content — the canonical flow's body template is fixed to Summary + Test plan (`plugins/source-control/skills/pull-request/reference/create.md` §2.4.1), so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is installed, invoke `/source-control:pull-request create`. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content — the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
 
 Title:
 
@@ -163,7 +163,7 @@ Body sections:
 - **Summary** — 1-3 bullets: which lane, which tidyings, anchor commit.
 - **Test plan** — verification commands run + results.
 
-`/source-control:pull-request create` reports the created `<pr_number>` back on completion (its own §2.6 "Report and stop"). Immediately post one follow-up comment on that PR with `tidy`'s own audit trail — content the canonical body template has no slot for:
+`/source-control:pull-request create` reports the created `<pr_number>` back on completion. Immediately post one follow-up comment on that PR with `tidy`'s own audit trail — content the canonical body template has no slot for:
 
 ```bash
 gh pr comment <pr_number> --body-file - <<'EOF'
