@@ -13,10 +13,14 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>).
   The destination, the self-ignore guard, and the producer-computed fields are resolved through that
   contract rather than restated. Bare invocation is unchanged: it reports and stops.
-- **`git check-ignore` proves the destination is ignored before anything is written**, and a path it
-  does not report as ignored is not written to at all. The obvious alternative is worthless: a
-  `.gitignore` whose content is `*` matches itself, so a memory root resolving inside tracked space
-  leaves `git status --porcelain` byte-identical whether the write was ignored or not.
+- **The destination is proven outside tracked space before anything is written**, and a destination
+  that cannot be proven is not written to at all. The probe is `git check-ignore` anchored to the
+  repository that governs the destination — never to the invoking worktree, where a memory root
+  resolving outside the worktree (a layout the `review:fanout` `fix` action supports explicitly)
+  makes the probe fatal with exit 128 and every write a refusal. A destination no repository governs
+  is untrackable and needs no ignore rule. The obvious alternative is worthless: a `.gitignore` whose
+  content is `*` matches itself, so a memory root resolving inside tracked space leaves
+  `git status --porcelain` byte-identical whether the write was ignored or not.
 - **`Action` names the covering test file**, since Phase 1 already cached that selection and
   withholding it is information loss.
 - **Severity is computed from the Phase 4 verdict class, never from the finding's prose.** Productive
@@ -39,6 +43,14 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   verb table already permits mutation behind an explicit user override.
   `scripts/skill-leaf-name-registry.txt` records the amended grounds on which this plugin holds the
   `audit` leaf.
+- **A failed restoration now ends the run instead of headlining a report.** Phase 3 verifies every
+  revert against the Phase 0 snapshot *inside* the mutant loop, and the first path it cannot confirm
+  restored is terminal: no further mutants, no triage, no ranked report, and no findings file even
+  under `--persist-findings`. Previously the failure was reported as the run's headline finding while
+  the run continued, which let a normal-looking outcome — and, with the flag, a conforming findings
+  file whose `Location`s assert a restored tree — be produced over source left mutated. That is the
+  false-green class `docs/conventions/liveness-assertion/README.md` "Core contract" item 1 forbids,
+  and it is what makes the read-only invariant enforced rather than asserted.
 
 ### Known limitations
 

@@ -37,7 +37,10 @@ Arguments: `$ARGUMENTS`
 Three properties, stated first because everything below depends on them:
 
 1. **Read-only with respect to tracked source.** A mutant is applied, measured, and reverted.
-   Tracked source at the end of a run is byte-identical to tracked source at the start. Per the
+   Tracked source at the end of a run is byte-identical to tracked source at the start. That is
+   enforced, not assumed: every revert is verified against the Phase 0 snapshot, and the first one
+   that cannot be verified ends the run in failure — no later phase runs and nothing is persisted
+   ([Phase 3](#phase-3--execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
    (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes — the findings file, and
@@ -105,7 +108,7 @@ skill's `tooling.md`: prefer statement/block removal, then relational-operator i
 ## Phase 3 — Execute
 
 For each mutant: apply, run the cached covering tests, record the state
-(killed / survived / no-coverage / timeout / invalid), revert.
+(killed / survived / no-coverage / timeout / invalid), revert, **verify the revert**.
 
 **This phase is a deterministic gate and is deliberately not delegated.** The tests' pass/fail *is*
 the verdict; there is no judgment to bias and no independence to buy. Spending a subagent here would
@@ -120,8 +123,27 @@ dirty *target* but permits unrelated dirty files elsewhere, so an unconditional 
 would report a restoration failure on a repo that merely has unrelated work in progress — and, worse,
 would teach the reader to ignore that line. Capture `git status --porcelain` before Phase 3 and
 compare the after-state to it: equality is success, any difference in a mutated path is a failed
-restore. A failed restore is the run's **headline finding**, naming the paths and the recovery
-command — never a footnote, and never something a later phase's output can push off the screen.
+restore.
+
+**Compare after every revert, inside the loop — never once at the end.** A failed restore means the
+trap itself failed, so the next mutant would be applied on top of unrestored source: every verdict
+after that point describes a tree nobody wrote, and an end-of-phase comparison cannot tell you which
+mutant broke it.
+
+**The first failed restore ends the run.** It is terminal, not a finding reported beside the others:
+
+- Apply no further mutants.
+- Enter no later phase — no triage, no ranked report, and **no findings file, `--persist-findings`
+  or not**.
+- Return a **failure** verdict naming every unrestored path and the recovery command. The failure is
+  the whole report; nothing may push it off the screen.
+
+Stopping rather than reporting is what `docs/conventions/liveness-assertion/README.md` "Core
+contract" item 1 requires of a surface that cannot vouch for its own outcome, and continuing would
+produce both false-green shapes that doc names at once. The ranked report would read exactly like a
+normal run while tracked source sits mutated; and under `--persist-findings` the run would hand an
+apply relay a conforming findings file whose every `Location` asserts a restored tree — findings
+measured against a state that no longer exists, fenced onto source that is now corrupt.
 
 ## Phase 4 — Triage (fresh context)
 
@@ -202,12 +224,22 @@ from a personal draft.
 Report the covered-code score as the headline and the plain mutation score beside it — the first
 answers "are my tests weak", the second mixes that with "do I have tests at all".
 
-Then stop, unless `--persist-findings` was passed. Remediation is delegated.
+Then stop, unless `--persist-findings` was passed. Remediation is delegated. This phase is reached
+only by a run whose reverts all verified; a failed restore ended it at Phase 3.
 
 ## Phase 6 — Persist (opt-in)
 
-Runs **only** under `--persist-findings`. Without the flag this phase does not exist and Phase 5 is
-the end of the run. The flag exists because the survivors this skill detects are real findings with
+Runs **only** under `--persist-findings`, and only on a run whose every revert Phase 3 verified.
+Without the flag this phase does not exist and Phase 5 is the end of the run; without a verified
+restoration there is no Phase 5 either, because the run already ended in failure. The flag is not the
+only gate, and treating it as one is the defect: it decides whether *conforming* findings are
+persisted, never whether the tree they describe still exists.
+
+**This gate reads Phase 3's verdict; it never re-derives one.** The comparison against the Phase 0
+snapshot has already run by the time this phase is reachable, so a run that persists over a failed
+restore is not missing a check — it is declining to read one it already holds.
+
+The flag exists because the survivors this skill detects are real findings with
 no route to a remediation surface: writing one conforming file is that route, and it needs no wiring
 on the consuming side — the `review:fanout` `fix` action locates its input by frontmatter, never by
 provenance.
@@ -216,17 +248,20 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-`git check-ignore` **proves** the resolved path is ignored before anything is written, because a
-memory root inside tracked space leaves `git status` identical either way and so cannot detect
-itself; `Tier` and `Confidence` are computed from the Phase 4 **verdict class** and never from the
+the destination is **proven** outside tracked space before anything is written, by a
+`git check-ignore` anchored to the repository that governs the destination rather than to the
+invoking worktree — a memory root inside tracked space leaves `git status` identical either way and
+so cannot detect itself, while a memory root outside the worktree is a layout the consumer supports
+and a worktree-anchored probe could only ever refuse; `Tier` and `Confidence` are computed from the
+Phase 4 **verdict class** and never from the
 finding's prose, with `Confidence: low` never emitted; every cell describes a mutant this run
 actually executed, never an illustrative one; a run that examined mutants writes even when it found
 nothing, while a run that examined **none** writes nothing at all; and an existing path is never
 overwritten.
 
 Persisting does not trade away the property in "The contract this skill holds": tracked source is
-byte-identical when the run ends, and a destination that cannot be proven ignored is not written to
-at all.
+byte-identical when the run ends — verified, not assumed — and a destination that cannot be proven
+outside tracked space is not written to at all.
 
 **Known limitation, routed not solved.** A mutation finding's remediation lands in the covering test,
 not at its `Location`, so a consumer that fences each fix to `Location` cannot reach the target. The

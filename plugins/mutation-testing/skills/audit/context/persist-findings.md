@@ -31,13 +31,44 @@ Windows-safe, so lexical sort equals chronological sort.
 same second is the ordinary cause, and overwriting would destroy a file this producer had already
 handed to the merge set — the same defect as writing into a file another producer owns.
 
-## Prove the destination is ignored before writing to it
+## Prove the destination is outside tracked space before writing to it
 
-Run `git check-ignore -q -- <the exact intended file path>` and **write only if it reports the path
-ignored.** Otherwise report the resolved path, say the findings were not persisted because that path
-is tracked space, and stop.
+The property to prove is that **git will not pick the write up** — not that one particular repository
+ignores it. Resolve which repository governs the destination, then probe *there*:
 
-This is a positive check, and the distinction matters because the obvious alternative is worthless: a
+1. `git -C <the destination's directory> rev-parse --show-toplevel`. Non-zero means **no repository
+   governs the path**: nothing can track it, there is no ignore rule to satisfy, and the write
+   proceeds.
+2. Otherwise `git -C <the destination's directory> check-ignore -q -- <the exact intended file path>`,
+   and **write only on exit 0.**
+
+**Three outcomes, and three distinct reports.** Exit 0 writes. Exit 1 means *the destination is
+tracked space*, and is reported as that. Any other exit means *the probe did not evaluate this path*,
+and is reported as that, quoting the resolved path and the exit status. Both non-zero cases refuse —
+fail closed, because a probe that did not answer is never permission — but reporting an undetermined
+probe as "tracked space" sends the reader after a repair that does not exist. Collapsing those two
+states is what let a worktree-anchored probe pass for a working proof.
+
+**Anchor the probe to the destination, never to the invoking worktree.** A `memory_dir` resolving
+outside the worktree is a supported configuration the consumer handles explicitly (`fix-pass-mode.md`
+"Step 1", the shared-findings-directory bullet), and `git check-ignore` on a path outside its
+repository is `fatal: … is outside repository`, exit 128 — so a worktree-anchored probe can never
+succeed there, and `--persist-findings` would refuse every write in precisely the layout the consumer
+supports. Anchoring to the destination also answers the case the invoking worktree cannot see at all:
+an external root that sits inside *another* checkout, whose tracked space is just as real.
+
+**Do not reduce this to a path-prefix comparison** against `git rev-parse --show-toplevel`. A prefix
+test is only sound on canonicalized paths, and both `realpath` and `readlink`'s canonicalizing flag
+are GNU-only; `git -C` puts the question to git in the right place and needs no canonicalization.
+
+**Order, because `git -C` needs its directory to exist:** resolve the destination → reject a
+root-equivalent `memory_dir` → create the memory root → run the self-ignore guard → create the
+destination directory → probe → write. Judge the invalid-root rule against **the repository that
+governs the resolved root**, not the invoking worktree — that is the contract's own rule read where
+the guard actually writes, since an external root that is another checkout's toplevel would heal into
+*that* repo's root `.gitignore`.
+
+The probe is positive, and the distinction matters because the obvious alternative is worthless: a
 `.gitignore` whose content is `*` matches **itself**, so a resolved root inside tracked space leaves
 `git status --porcelain` byte-identical to the Phase 0 snapshot whether the write was ignored or not.
 Comparing porcelain before and after therefore cannot detect the failure it appears to test.
@@ -53,7 +84,9 @@ Three states this catches that reasoning about the guard alone does not:
   amount of writing `*` at the root of the memory tier overrides.
 
 The guard may itself create a `.gitignore`; that write is the guard's, is announced, and is the only
-write this phase makes outside the findings file. Both are subject to this check.
+write this phase makes outside the findings file. It necessarily runs **before** the probe — on a
+fresh root that file is what makes the probe pass — so a refusal after it must report the guard's
+write too, never leave it behind unannounced.
 
 ## What each cell says
 
@@ -171,7 +204,10 @@ and never read the consumer's ledger to decide what to write.
 
 ## The tree after a persist run
 
-Tracked source is byte-identical to the Phase 0 snapshot, because nothing in this phase edits tracked
-source and the destination was proven ignored before the write. That property is not traded for a
-findings file: when the destination cannot be proven ignored, the run reports why and persists
-nothing.
+Tracked source is byte-identical to the Phase 0 snapshot on three limbs, none of them assumed:
+Phase 3 verified every revert against that snapshot, nothing in this phase edits tracked source, and
+the destination was proven outside tracked space before the write. The first limb is why this phase
+can describe a tree at all — a run whose revert did not verify ends in failure at Phase 3 and never
+reaches here, so a findings file never claims `Location`s against source left mutated. The third is
+not traded for a findings file either: a destination that cannot be proven outside tracked space is
+reported and not written to.
