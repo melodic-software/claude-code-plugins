@@ -263,6 +263,56 @@ assert_eq "the configured root wins over the data dir" \
 assert_file_absent "nothing created under the data dir when a root is configured" \
   "$DATA_DIR/worktrees/acme-widget-feat-precedence"
 
+# --- Case: melodic.worktreeroot wins over --fallback-root (plugin option) -----
+# The git config key is machine truth every consumer can read; the plugin option
+# only this plugin can read, so it ranks below (#2610/#2612).
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+config_root="$TEST_TMPDIR_NATIVE/config-root"
+fallback="$TEST_TMPDIR_NATIVE/fallback-root"
+git -C "$repo" config --local melodic.worktreeroot "$config_root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/gitconfig --fallback-root "$fallback" --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+assert_exit "melodic.worktreeroot plus --fallback-root creates (exit 0)" 0 "$?"
+assert_eq "melodic.worktreeroot wins over --fallback-root" \
+  "$config_root/acme-widget-feat-gitconfig" "$out"
+assert_file_absent "nothing under the fallback root when git config supplies one" \
+  "$fallback/acme-widget-feat-gitconfig"
+
+# --- Case: explicit --root wins over melodic.worktreeroot (most specific first) ---
+# A per-invocation caller decision outranks the machine convention; without this,
+# setting the key would silently override every deliberate --root.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+explicit_root="$TEST_TMPDIR_NATIVE/explicit-root"
+git -C "$repo" config --local melodic.worktreeroot "$TEST_TMPDIR_NATIVE/keyed-root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/explicit --root "$explicit_root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root plus melodic.worktreeroot creates (exit 0)" 0 "$?"
+assert_eq "explicit --root wins over melodic.worktreeroot" \
+  "$explicit_root/acme-widget-feat-explicit" "$out"
+assert_file_absent "nothing under the keyed root when --root is explicit" \
+  "$TEST_TMPDIR/keyed-root/acme-widget-feat-explicit/README.md"
+
+# --- Case: melodic.worktreeroot is multi-valued and the LAST value wins -----------
+# includeIf layering APPENDS values in parse order rather than replacing them, so
+# a per-identity include's answer is the last parsed — a first-wins read would
+# silently return the machine default and defeat the whole per-identity layer.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+git -C "$repo" config --local --add melodic.worktreeroot "$TEST_TMPDIR_NATIVE/first-root"
+git -C "$repo" config --local --add melodic.worktreeroot "$TEST_TMPDIR_NATIVE/last-root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/lastwins --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+assert_exit "a multi-valued key creates (exit 0)" 0 "$?"
+assert_eq "the LAST melodic.worktreeroot value wins" \
+  "$TEST_TMPDIR_NATIVE/last-root/acme-widget-feat-lastwins" "$out"
+assert_file_absent "nothing under the earlier value" \
+  "$TEST_TMPDIR/first-root/acme-widget-feat-lastwins/README.md"
+
+# --- Case: a melodic.worktreeroot pointing inside a repository refuses (exit 3) ---
+# The containment guard judges the RESOLVED root whatever rung supplied it; a
+# misconfigured key must not become a licensed nesting.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+git -C "$repo" config --local melodic.worktreeroot "$repo/.claude/worktrees"
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/keynested --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "an in-repo melodic.worktreeroot refuses exit 3" 3 "$?"
+assert_contains "the in-repo key refusal names the repository" "$err" "inside the repository"
+
 # --- Case: a missing --data-root-file path is a usage error (exit 2) ---
 # Mirrors the --root-file contract: a caller naming a file that is not there has a
 # broken handoff, which is not the same as declining to supply one.

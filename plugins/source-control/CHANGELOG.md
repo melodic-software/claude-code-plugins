@@ -3,6 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.0]
+
+### Added
+
+- **`worktree-add-containment-gate` PreToolUse Bash hook (#2611).** Blocks a raw
+  `git worktree add` whose statically-resolved target lands inside a git working tree
+  or a `.git` / bare directory, naming the configured external root
+  (`melodic.worktreeroot`, then `worktree_root`, then the plugin data dir). Conforming
+  targets pass silently; unresolved targets pass. Kill switch:
+  `worktree_add_containment_gate_enabled`.
+- **`scripts/worktree-root-doctor.sh` (#2612).** Conformance check for the
+  `melodic.worktreeroot` convention against the live repository: makes the silent
+  `includeIf` failure classes loud (unfired or unrecognized conditions, missing
+  include files, parse-order shadowing, scoped-read divergence, identity partials,
+  a root inside a repository) and names which rule supplied the root.
+  `/worktree audit` runs it as part of its configuration-health step. Convention
+  owner doc: `reference/worktree-root-convention.md`.
+
+### Changed
+
+- **Worktree root resolution prefers `melodic.worktreeroot` over the plugin option (#2610/#2612).**
+  `scripts/worktree-create.sh` and `hooks/worktree-create-gate.sh` resolve most-specific-first:
+  explicit `--root`, then the git config key (includes on), then `--fallback-root` (plugin option),
+  then the plugin data directory. Documented in `reference/worktree-root-convention.md`. The
+  `/worktree create` skill passes `${user_config.worktree_root}` via `--fallback-root-file` (not
+  `--root-file`) so the primary creation flow honors the same precedence.
+
 ## [0.53.25]
 
 ### Changed

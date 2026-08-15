@@ -9,6 +9,7 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 | Check | How | Expected |
 |-------|-----|----------|
 | `delete_branch_on_merge` | `gh api repos/{owner}/{repo} --jq '.delete_branch_on_merge'` | `true` recommended — remote branches auto-delete on merge, so cleanup only handles local branches |
+| Worktree root convention | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-root-doctor.sh" --repo-dir <repo>` | Exit 0 — the doctor makes the `melodic.worktreeroot` / `includeIf` silent-failure classes loud (misfiring conditions, missing include files, parse-order shadowing, a root inside a repository) and names which rule supplied this repository's root; report each `warn:`/`error:` line as a finding. Convention: `reference/worktree-root-convention.md` |
 | Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional — suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`); Claude Code copies matching gitignored files into new worktrees |
 | Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention — skip when the project has none |
 | Stale metadata | `git worktree list --porcelain` shows no `prunable` entries | Clean — otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
@@ -22,6 +23,7 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 | Check | Status |
 |-------|--------|
 | delete_branch_on_merge | OK (enabled) |
+| Worktree root convention | OK (melodic.worktreeroot supplied by includeIf "gitdir/i:~/work/") |
 | .worktreeinclude | SUGGEST — gitignored local settings exist but no .worktreeinclude |
 | Stale metadata | OK (none prunable) |
 

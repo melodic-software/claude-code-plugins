@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.53.25",
+  "version": "0.54.0",
   "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-authored-by trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop \u2014 safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /babysit-loop (the loop-lane merge lane: a standing or drain loop that invokes babysit-prs per cycle, configured through repo-scoped babysit_loop_* keys on the layered source-control.md seam, with merge authority human-only until the target repo's tracked config adopts the lane, a gate-proven C2-mechanical baseline once adopted, and standing merge-rung raises binding from the team-tracked layer only \u2014 with one named exception, where an invocation line explicitly typing both the autopilot tier keyword and the dedicated raise argument --merge c3-this-run widens that single invocation's merge authority up to C3 behind a fresh independent frontier-tier resolver, while C4-structural and C5-untrusted-provenance stay unconditionally human-merge), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply \u2014 interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep \u2014 never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
@@ -38,6 +38,12 @@
       "type": "boolean",
       "title": "pr-linkage-mcp-gate hook",
       "description": "Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required pr-issue-linkage check \u2014 the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml, and only for the repository the origin remote names.",
+      "default": true
+    },
+    "worktree_add_containment_gate_enabled": {
+      "type": "boolean",
+      "title": "worktree-add-containment-gate hook",
+      "description": "Block a raw Bash `git worktree add` whose resolved target lands inside a git repository \u2014 a working tree, or a .git / bare directory \u2014 with a message naming the configured external root (melodic.worktreeroot git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` \u00a7 \"The nesting invariant, verified\".",
       "default": true
     },
     "worktree_create_gate_enabled": {
