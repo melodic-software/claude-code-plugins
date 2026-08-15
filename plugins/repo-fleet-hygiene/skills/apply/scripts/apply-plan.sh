@@ -9,6 +9,7 @@
 #
 # Exit: 0 success (including dry-run / confirmation-stop); 2 usage/plan error; 3 apply aborted
 # by confirmation gate; 4 one or more mutations failed after the gate.
+# shellcheck disable=SC2310 # git_probe and status predicates return status in if/||/!; every false path is handled
 set -euo pipefail
 
 PROG=${0##*/}
@@ -123,7 +124,7 @@ WORKTREE_KINDS = {
     "missing-worktree",
     "reclaimable-worktree",
 }
-oid_re = re.compile(r"headRefOid\s+([0-9a-fA-F]{7,40})")
+oid_re = re.compile(r"headRefOid[ \t]+([0-9a-fA-F]{7,40})")
 # Map (canonical, target) -> first actionable finding kind + oid from evidence.
 finding_index = {}
 audited_canonicals = set()
@@ -306,6 +307,7 @@ worktree_path_for_branch() {
     "")
       cur_path=""
       ;;
+    *) ;;
     esac
   done < <(git_probe -C "$canonical" worktree list --porcelain 2>/dev/null || true)
   printf '%s\n' "$path"
@@ -332,6 +334,7 @@ worktree_locked() {
       cur_path=""
       locked=0
       ;;
+    *) ;;
     esac
   done < <(git_probe -C "$canonical" worktree list --porcelain 2>/dev/null || true)
   # Final record may lack trailing blank line.
@@ -497,6 +500,7 @@ refresh_worktree_cleanup() {
       skip "reclaimable-worktree retired; delegate to source-control:worktree status" ""
     return 0
     ;;
+  *) ;;
   esac
 
   # Default / merged-worktree path.

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # apply-plan.test.sh — dry-run, confirmation stop, OID drift skip, ordering.
+# shellcheck disable=SC2310 # pass/fail helpers return status in if/||; every false path is handled
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -360,13 +361,21 @@ fi
 # --- 5) Usage / schema ------------------------------------------------------
 rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
-[[ "$rc" -eq 2 ]] && pass "missing --plan-file exits 2" || fail "missing --plan-file exits 2"
+if [[ "$rc" -eq 2 ]]; then
+  pass "missing --plan-file exits 2"
+else
+  fail "missing --plan-file exits 2"
+fi
 
 bad="$TMP/bad.json"
 printf '{ "schema_version": 99, "actions": [] }\n' >"$bad"
 rc=0
 bash "$SCRIPT" --plan-file "$bad" >/dev/null 2>&1 || rc=$?
-[[ "$rc" -eq 2 ]] && pass "bad schema exits 2" || fail "bad schema exits 2"
+if [[ "$rc" -eq 2 ]]; then
+  pass "bad schema exits 2"
+else
+  fail "bad schema exits 2"
+fi
 
 # --- 6) Reject non-audit / unbound action plans (P1 safety) -----------------
 fake="$TMP/fake-plan.json"
@@ -399,7 +408,7 @@ fi
 
 unbound="$TMP/unbound-plan.json"
 # Fresh matching tip so a naive apply would otherwise delete.
-OID_UNBOUND="$(add_merged_branch "$REPO_A" "feat/unbound")"
+add_merged_branch "$REPO_A" "feat/unbound" >/dev/null
 write_plan "$unbound" <<EOF
 {
   "schema_version": 1,

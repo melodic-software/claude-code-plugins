@@ -33,7 +33,6 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   out-of-suite finding-kind gate now requires that needle (not a bare token / `F_KIND`
   mention) so false-green setup references cannot satisfy it.
 
-
 ## [0.21.0]
 
 ### Fixed
