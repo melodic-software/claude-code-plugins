@@ -22,8 +22,8 @@ here: run the **whole** rung order rather than its last rung; take the **non-int
 for the rungs that confirm or ask, since a headless detector cannot answer; and honor the
 **self-ignore guard**, including the invalid-root rule that keeps it out of a consumer's root
 `.gitignore` — and its second invalid case, named in "Prove the destination is outside tracked
-space", where no checkout can be shown to govern the destination and this phase writes nothing at
-all.
+space", where no checkout can be shown to govern a resolved root and this phase writes nothing there
+at all.
 
 File name: `${TS}-mutation-survivors.md`, with `TS="$(date -u +%Y%m%dT%H%M%SZ)"` — colon-free and
 Windows-safe, so lexical sort equals chronological sort.
@@ -40,7 +40,15 @@ root, that root's `.gitignore` — and the property to prove is that git picks u
 proven before that write is made**, which is the strongest form available and not the same as proving
 both up front: on a fresh root the guard's file is exactly what makes the findings file's probe pass,
 so that probe cannot precede the guard. "At most" is load-bearing — where no governing checkout is
-found, neither write happens (step 1). The order is what makes the per-write form hold:
+found, neither write happens at a resolved root (step 1).
+
+**The one write that survives that branch is proven by step 1 itself, not by a probe.** The
+`${CLAUDE_PLUGIN_DATA}` fallback is written there, and what proves it safe is the agreement of two
+independent signals that no checkout governs the path: a destination outside every checkout cannot be
+tracked by one, so there is no ignore rule to satisfy and nothing for `check-ignore` to answer. That
+is a proof, not an exemption — which is why step 1 needs both signals and why a single-signal version
+of it would be fail-open rather than merely weaker. The order below is what makes the per-write form
+hold everywhere else:
 
 0. **Make the resolved root a physical path first.** `cd` to its nearest existing ancestor, take
    `pwd -P`, and re-append the components below it. A lexical walk over a path whose ancestor is a
