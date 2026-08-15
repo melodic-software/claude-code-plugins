@@ -3,6 +3,19 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4]
+
+### Changed
+
+- **`skills/audit/TODO.md` is now a pointer, not a policy summary.** A repo-wide derivability audit
+  (#2695) spot-tested it: every load-bearing claim was reproducible from
+  `references/shared/approvals.md`, `references/windows/remediation-policy.md`, and the approvals
+  schema — and its denylist summary had already drifted (missing rationale and the BITS
+  precondition). The file keeps the no-state banner and points at those two sources instead of
+  restating them. The `scripts/linux|macos/NOT_IMPLEMENTED.md` placeholders were audited too and
+  deliberately kept: they own the removal criterion (all eight seeded checks ported or explicitly
+  not-applicable) that no code states.
+
 ## [0.10.3]
 
 ### Changed

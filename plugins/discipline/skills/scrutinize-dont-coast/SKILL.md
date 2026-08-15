@@ -42,10 +42,13 @@ states a self-scrutiny / verify-before-acting discipline in its own `CLAUDE.md` 
 - **A clean pass is a real outcome.** Scrutiny that finds the work sound reports
   clean. The duty is to look hard, not to manufacture a fault.
 
-## Two deltas to the shared loop
+## Three deltas to the shared loop
 
-This corrector runs the shared re-anchor / audit / correct-forward loop with two
-specific modifications, both flagged here rather than left to diverge silently:
+This corrector runs the shared re-anchor / audit / correct-forward loop with three
+specific modifications, all flagged here rather than left to diverge silently (the
+third is declared in its own section below: the loop's step 2 self-audit runs inside
+the fresh-context subagent, not in the producing thread — see "The adversarial pass
+runs in a fresh context"):
 
 1. **Stop first.** An inserted step between the loop's step 1 and step 2:
    re-anchoring happens on skill load as always, then the current trajectory
@@ -54,7 +57,7 @@ specific modifications, both flagged here rather than left to diverge silently:
    the foot off the gas — do not push the in-flight action one step further before
    the re-examination has run. No other corrector prepends a stop; this one does,
    because the trigger *is* "you are moving too fast on this."
-2. **Remediate *with* the user, not autonomously.** The shared loop's step 3
+2. **Remediate *with* the user, not autonomously.** The shared loop's step 3 (correct forward)
    corrects forward on its own, in-tree, now. Here that step becomes collaborative:
    surface the adversarial findings and work the fixes **with** the user rather than
    barrelling ahead into an autonomous rewrite. The reason is the same failure mode
@@ -77,6 +80,8 @@ optional here. It **must** run as a fresh-context (non-fork) subagent, blind to 
 reasoning that produced the output: handed the artifact and the requirement, not the
 story of how the work was reached, and told to find what is wrong. A fork inherits
 the parent conversation and carries the bias forward, so it does not satisfy this.
+(That is the Agent tool's fork subagent; a *skill's* `context: fork` frontmatter is
+the opposite — isolated, no conversation history — the official docs overload the word.)
 
 The findings return to this thread, and remediation proceeds *with* the user (delta
 2): the fresh context supplies the unbiased critique, the user stays in the loop on
