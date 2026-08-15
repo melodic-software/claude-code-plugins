@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.5]
+
+### Fixed
+
+- **PowerShell `>>` append redirection is flagged like `>` (#2675).** `_POWERSHELL_OUTPUT_REDIRECT`
+  matched neither character of a `>>` pair — `(?![=>&])` rejects the first `>`, and the lookbehind
+  rejects the second — so `<cmd> >> append.txt` wrote a file with no prompt while the same command
+  with `>` prompted. Append is matched explicitly (`>>`, `2>>`, `*>>`) without widening that
+  lookahead (load-bearing for the stream-merge exclusion from #2627 and the `$null`-discard
+  exclusion from #2671). `>> $null` stays silent — a discard, not a file write — and requires a
+  real token terminator after `$null` so punctuation continuations like `>>$null/out.txt` stay
+  flagged.
+
 ## [0.20.4]
 
 ### Fixed

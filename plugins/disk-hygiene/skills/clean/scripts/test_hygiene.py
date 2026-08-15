@@ -5604,6 +5604,33 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
+    def test_powershell_append_redirects_are_file_writes(self) -> None:
+        """#2675: `>>` appends to a file; it must prompt like `>`, not slip past."""
+        for command in (
+            "Get-ChildItem C:/tmp >> append.txt",
+            "Get-ChildItem C:/tmp 2>>err.txt",
+            "Get-ChildItem C:/tmp *>>all.txt",
+            # `$nullish` is an ordinary variable target, not the null device.
+            "Get-ChildItem C:/tmp >>$nullish",
+            # Punctuation after `$null` is a path continuation, not a discard.
+            "Get-ChildItem C:/tmp >>$null/out.txt",
+            "Get-ChildItem C:/tmp 2>>$null\\evil.ps1",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "ask",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in (
+            "Get-ChildItem C:/tmp >> $null",
+            "Get-ChildItem C:/tmp >>$null",
+            "Get-ChildItem C:/tmp 2>>$null",
+            "Get-ChildItem C:/tmp *>>$NULL",
+        ):
+            self.assertIsNone(self.run_guard_powershell(command), command)
+
     def test_powershell_bare_name_mentions_defer_but_engine_identity_denies(
         self,
     ) -> None:
