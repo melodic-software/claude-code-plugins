@@ -18,7 +18,6 @@ const CAPTION_LADDER = /** @type {const} */ (["manual-en", "auto-en", "auto-tran
 
 const TLANG_TRANSLATE_PATTERN = /\.(tlang|translate)/;
 const EN_ORIG_PATTERN = /\.en-orig\.vtt$/;
-const EN_ORIG_LOCALIZED_PATTERN = /\.en\.[a-z]{2,3}\.en-orig\.vtt$/;
 const EN_AUTO_PATTERN = /\.en\.auto\.vtt$/;
 const MANUAL_EN_PATTERN = /\.en(?:-[a-z]{2,3})?\.vtt$/;
 const AUTO_TRANSLATE_EN_PATTERN = /\.en(?:-[a-z]{2,3})?\.[a-z]{2,3}\.vtt$/;
@@ -37,11 +36,7 @@ export function classifyCaptionRung(filePath) {
     return "auto-translate-en";
   }
 
-  if (EN_ORIG_PATTERN.test(name) || EN_ORIG_LOCALIZED_PATTERN.test(name)) {
-    return "auto-en";
-  }
-
-  if (EN_AUTO_PATTERN.test(name)) {
+  if (EN_ORIG_PATTERN.test(name) || EN_AUTO_PATTERN.test(name)) {
     return "auto-en";
   }
 

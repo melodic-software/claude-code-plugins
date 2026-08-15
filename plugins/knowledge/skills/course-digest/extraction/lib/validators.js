@@ -15,7 +15,9 @@ export const WARN = "warn";
 export const FAIL = "fail";
 
 const PLACEHOLDER_VALUES = ["N/A", "TBD", "Unknown", ""];
+const REQUIRED_COURSE_FIELDS = ["title", "instructor", "platform", "duration", "totalLessons"];
 const REQUIRED_LESSON_FIELDS = ["position", "title", "slug", "duration"];
+const DEPRECATED_LESSON_FIELDS = ["resourcesDetected"];
 const CHARS_PER_MIN_LOW = 400;
 const CHARS_PER_MIN_HIGH = 1500;
 const TRANSCRIPT_TIMESTAMP_MARKER = /\[\d+:\d{2}\]/;
@@ -36,8 +38,7 @@ function allLessons(course) {
 export function checkMetadata(course) {
   const results = [];
 
-  const required = ["title", "instructor", "platform", "duration", "totalLessons"];
-  for (const field of required) {
+  for (const field of REQUIRED_COURSE_FIELDS) {
     const value = course[field];
     const missing = value === undefined || value === null || value === "";
     results.push(
@@ -203,8 +204,7 @@ export function checkSchema(course) {
     }
   }
 
-  const deprecatedFields = ["resourcesDetected"];
-  for (const field of deprecatedFields) {
+  for (const field of DEPRECATED_LESSON_FIELDS) {
     const count = lessons.filter((l) => l[field] !== undefined).length;
     if (count > 0) {
       results.push(

@@ -11,6 +11,9 @@
  * allow requests from the player.hotmart.com origin.
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 import {
   parseSubtitleManifest,
@@ -19,6 +22,14 @@ import {
 
 const VIDEO_ID_PREFIX = /^(\w+)-\d+-/;
 const PNG_DATA_URL_PREFIX = /^data:image\/png;base64,/;
+const HLS_FIELDS = [
+  "masterUrl",
+  "masterUrlFull",
+  "subtitlePlaylistUrl",
+  "subtitlePlaylistUrlFull",
+  "hasVjs",
+  "hasHlsJs",
+];
 
 // ---------------------------------------------------------------------------
 // Module-level state (per-session singleton)
@@ -60,32 +71,23 @@ async function fetchSubtitleBatch(hotmartFrame, batch) {
   }, batch);
 }
 
-function collectSegmentBatchResults(results, segmentBodies, fetchFailedRef) {
-  for (const result of results) {
-    if (result.ok && result.length > 0) {
-      segmentBodies.push(result.text);
-    } else {
-      fetchFailedRef.count++;
-    }
-  }
-}
-
 async function fetchSubtitleSegmentBatches(hotmartFrame, absoluteUrls) {
   const segmentBodies = [];
-  const fetchFailedRef = { count: 0 };
-  const batchStarts = [];
-  for (let i = 0; i < absoluteUrls.length; i += SUBTITLE_BATCH_SIZE) {
-    batchStarts.push(i);
-  }
+  let fetchFailed = 0;
 
-  await batchStarts.reduce(async (chain, start) => {
-    await chain;
+  for (let start = 0; start < absoluteUrls.length; start += SUBTITLE_BATCH_SIZE) {
     const batch = absoluteUrls.slice(start, start + SUBTITLE_BATCH_SIZE);
     const results = await fetchSubtitleBatch(hotmartFrame, batch);
-    collectSegmentBatchResults(results, segmentBodies, fetchFailedRef);
-  }, Promise.resolve());
+    for (const result of results) {
+      if (result.ok && result.length > 0) {
+        segmentBodies.push(result.text);
+      } else {
+        fetchFailed++;
+      }
+    }
+  }
 
-  return { segmentBodies, fetchFailed: fetchFailedRef.count };
+  return { segmentBodies, fetchFailed };
 }
 
 async function captureCanvasFrame(hotmartFrame, seekTime, maxWidth) {
@@ -118,33 +120,25 @@ async function captureCanvasFrame(hotmartFrame, seekTime, maxWidth) {
     .catch(() => null);
 }
 
-async function captureCanvasFrames({ hotmartFrame, timestamps, outputDir, maxWidth, fs }) {
+async function captureCanvasFrames({ hotmartFrame, timestamps, outputDir, maxWidth }) {
   let success = 0;
 
-  await timestamps.reduce(async (chain, seekTime) => {
-    await chain;
+  for (const seekTime of timestamps) {
     const frameData = await captureCanvasFrame(hotmartFrame, seekTime, maxWidth);
     if (frameData?.startsWith("data:image/png")) {
       const base64 = frameData.replace(PNG_DATA_URL_PREFIX, "");
       const buffer = Buffer.from(base64, "base64");
-      const outFile = fs.join(outputDir, `interval_${String(success + 1).padStart(4, "0")}.png`);
-      fs.writeFileSync(outFile, buffer);
+      const outFile = join(outputDir, `interval_${String(success + 1).padStart(4, "0")}.png`);
+      writeFileSync(outFile, buffer);
       success++;
     }
-  }, Promise.resolve());
+  }
 
   return success;
 }
 
 function mergeHlsFields(target, source) {
-  for (const key of [
-    "masterUrl",
-    "masterUrlFull",
-    "subtitlePlaylistUrl",
-    "subtitlePlaylistUrlFull",
-    "hasVjs",
-    "hasHlsJs",
-  ]) {
+  for (const key of HLS_FIELDS) {
     if (source[key]) target[key] = source[key];
   }
 }
@@ -531,8 +525,6 @@ export function getHlsUrl(page) {
  */
 export async function extractFrames(page, duration, outputDir, options = {}) {
   const { intervalSec = 15, maxWidth = 1280 } = options;
-  const { mkdirSync, writeFileSync } = await import("node:fs");
-  const { join } = await import("node:path");
 
   mkdirSync(outputDir, { recursive: true });
   writeStdout(`    Canvas: duration=${duration}, interval=${intervalSec}, outputDir=${outputDir}`);
@@ -550,7 +542,6 @@ export async function extractFrames(page, duration, outputDir, options = {}) {
     timestamps,
     outputDir,
     maxWidth,
-    fs: { writeFileSync, join },
   });
 
   return { method: "canvas-seek", count: success };

@@ -151,9 +151,6 @@ export async function prepareLessonPage(page, platformCfg, lesson) {
   });
 }
 
-/**
- * Extract per-lesson resources from the Teachable DOM.
- */
 async function scrapeCodeSnippets(page, codeDisplaySelector) {
   return page.evaluate(
     ({ selector, languageSource }) => {
@@ -206,6 +203,9 @@ async function scrapeTextAttachments(page, textSelector) {
   }, textSelector);
 }
 
+/**
+ * Extract per-lesson resources from the Teachable DOM.
+ */
 export async function extractResources(page, platformCfg) {
   return timed("extract-resources", null, async () => {
     const selectors = {

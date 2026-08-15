@@ -10,9 +10,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY_SUT="python3:$SCRIPT_DIR/check-coverage-complete.py"
 SUTS=(
   "bash:$SCRIPT_DIR/check-coverage-complete.sh"
-  "python3:$SCRIPT_DIR/check-coverage-complete.py"
+  "$PY_SUT"
 )
 
 WORK="$(mktemp -d)"
@@ -247,17 +248,7 @@ bad_utf8="$WORK/bad-utf8.md"
   printf ' alpha | criterion | [x] |\n'
 } >"$bad_utf8"
 # Bash/awk may still grade bytes; the .py twin must exit 2. Run the twin alone.
-for sut in "${SUTS[@]}"; do
-  runner="${sut%%:*}"
-  path="${sut#*:}"
-  [[ "$runner" == "python3" ]] || continue
-  out="$("$runner" "$path" "$bad_utf8" 2>&1)" && rc=0 || rc=$?
-  if [[ "$rc" -eq 2 ]]; then
-    pass "non-UTF-8 ledger fails closed as ungradeable [$runner]"
-  else
-    fail "non-UTF-8 ledger should exit 2 [$runner] — got $rc: $out"
-  fi
-done
+run_one "$PY_SUT" 2 "non-UTF-8 ledger fails closed as ungradeable" "$bad_utf8"
 
 # Permission denied after is_file() is likewise ungradeable for the Python twin.
 unreadable="$WORK/unreadable.md"
@@ -267,17 +258,7 @@ unreadable="$WORK/unreadable.md"
   printf '| 1 | alpha | criterion | [x] |\n'
 } >"$unreadable"
 chmod 000 "$unreadable"
-for sut in "${SUTS[@]}"; do
-  runner="${sut%%:*}"
-  path="${sut#*:}"
-  [[ "$runner" == "python3" ]] || continue
-  out="$("$runner" "$path" "$unreadable" 2>&1)" && rc=0 || rc=$?
-  if [[ "$rc" -eq 2 ]]; then
-    pass "unreadable ledger fails closed as ungradeable [$runner]"
-  else
-    fail "unreadable ledger should exit 2 [$runner] — got $rc: $out"
-  fi
-done
+run_one "$PY_SUT" 2 "unreadable ledger fails closed as ungradeable" "$unreadable"
 chmod 644 "$unreadable" 2>/dev/null || true
 
 # --- usage ------------------------------------------------------------------

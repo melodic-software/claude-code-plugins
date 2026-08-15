@@ -11,7 +11,6 @@ export const YT_DLP_RETRIES = "3";
 export const YT_DLP_FRAGMENT_RETRIES = "3";
 export const YT_DLP_SLEEP_REQUESTS_SEC = "1";
 export const YT_DLP_SLEEP_SUBTITLES_SEC = "2";
-export const YT_DLP_CAPTION_ONLY_SLEEP_SUBTITLES_SEC = "10";
 
 export const YT_DLP_COOKIES_FILE_ENV = "YOUTUBE_YT_DLP_COOKIES_FILE";
 export const YT_DLP_COOKIES_FROM_BROWSER_ENV = "YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER";
@@ -64,7 +63,7 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
   if (jsRuntimes === "off" || jsRuntimes === "0") {
     return args;
   }
-  args.push("--js-runtimes", jsRuntimes && jsRuntimes.length > 0 ? jsRuntimes : "node");
+  args.push("--js-runtimes", jsRuntimes || "node");
   return args;
 }
 

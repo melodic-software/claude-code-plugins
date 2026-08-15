@@ -18,6 +18,9 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
 /** Default cap on a single fetched attachment; links come from attacker-controlled video descriptions. */
 export const MAX_ATTACHMENT_BYTES = 500 * 1024 * 1024;
 
+/** Link kinds this fetcher downloads; any other kind is recorded as skipped. */
+const FETCHABLE_KINDS = new Set(["deck", "doc", "attachment"]);
+
 /**
  * Stream a WHATWG response body to disk, aborting past `maxBytes`. Enforces the
  * cap on the actual byte count (a missing/lying `content-length` cannot bypass
@@ -88,7 +91,7 @@ export async function fetchDeckAttachments(
 
   for (const link of links) {
     const kind = link.type ?? link.kind ?? "other";
-    if (kind !== "deck" && kind !== "doc" && kind !== "attachment") {
+    if (!FETCHABLE_KINDS.has(kind)) {
       skipped.push(`${link.url ?? link.href}: type ${kind}`);
       continue;
     }
@@ -137,12 +140,12 @@ export async function fetchDeckAttachments(
   return { fetched, skipped };
 }
 
-const sliceDir = process.argv[2];
-const dryRun = process.argv.includes("--dry-run");
 const isMain =
   process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
+  const sliceDir = process.argv[2];
+  const dryRun = process.argv.includes("--dry-run");
   if (!sliceDir) {
     writeStderr("Usage: node harvesting/fetch-deck-attachments.js <slice-dir> [--dry-run]\n");
     process.exit(2);

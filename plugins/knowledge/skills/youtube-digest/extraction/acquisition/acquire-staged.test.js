@@ -17,13 +17,13 @@ const INFO_JSON = JSON.stringify({
  * @param {string[]} modes
  */
 function createStagedSpawn(modes) {
-  /** @type {string[]} */
-  const seen = [];
   return async (_cmd, args) => {
-    const skipIdx = args.indexOf("--skip-download");
-    const hasSubs = args.includes("--write-subs");
-    const mode = skipIdx !== -1 ? "captions-only" : hasSubs ? "legacy-full" : "video-only";
-    seen.push(mode);
+    let mode = "video-only";
+    if (args.includes("--skip-download")) {
+      mode = "captions-only";
+    } else if (args.includes("--write-subs")) {
+      mode = "legacy-full";
+    }
     modes.push(mode);
     return {
       success: true,

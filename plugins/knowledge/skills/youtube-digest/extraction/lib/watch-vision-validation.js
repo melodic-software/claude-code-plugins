@@ -190,6 +190,10 @@ export function validateTriageBatchFiles(sliceDir, manifest) {
   return errors;
 }
 
+/**
+ * @param {unknown} manifest
+ * @returns {string[]}
+ */
 export function validateTriageAgentic(manifest) {
   /** @type {string[]} */
   const errors = [];

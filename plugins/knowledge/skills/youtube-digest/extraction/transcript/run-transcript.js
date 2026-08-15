@@ -37,8 +37,7 @@ export async function runTranscriptCli(argv) {
     }
 
     const { artifacts, metadata, caption } = acquisition.data;
-    const selectedCaptionPath = caption.path;
-    const vttText = await fs.readFile(selectedCaptionPath, "utf8");
+    const vttText = await fs.readFile(caption.path, "utf8");
     const videoSlug = deriveVideoSlug(metadata.title, metadata.id);
     const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
 
@@ -57,7 +56,7 @@ export async function runTranscriptCli(argv) {
           videoSlug,
           sliceDir,
           captionRung: caption.rung,
-          captionPath: selectedCaptionPath,
+          captionPath: caption.path,
           metadataPath: artifacts.metadataPath,
           transcriptPath: written.transcriptPath,
           cueCount: written.cueCount,
