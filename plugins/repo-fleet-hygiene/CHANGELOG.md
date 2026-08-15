@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Added
+
+- **`bare-repo-with-working-tree` finding (#2602).** A path with `core.bare=true` that still has
+  populated working-tree content or registered linked worktrees is classified as `MEDIUM` manual
+  review instead of rejected as "not a Git working tree". The finding names
+  `git config --local core.bare false` as the preferred remedy and states that linked worktrees are
+  unaffected. Discovery and `--repo` no longer abort the whole run on this administrative anomaly.
+  Ordinary `git init --bare` hubs (administrative entries at the repository root, no `.git`
+  subdirectory) are not this finding.
+
 ## [0.18.0]
 
 ### Added

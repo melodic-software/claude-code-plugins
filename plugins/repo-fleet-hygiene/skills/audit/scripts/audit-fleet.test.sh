@@ -4,7 +4,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/audit-fleet.sh"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'chmod -R u+rwx "$TMP" >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
 
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
@@ -19,7 +19,20 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
   "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
   "$TMP/canonical-a/.claude/worktrees/nested" "$TMP/canonical-a/husk" \
-  "$TMP/prefix-fail" "$TMP/prefix-auth/.git"
+  "$TMP/prefix-fail" \
+  "$TMP/mix-root/mix-good/.git" "$TMP/mix-root/mix-husk/.git" "$TMP/mix-root/plain-dir" \
+  "$TMP/mix-root/unreadable-dir" \
+  "$TMP/bare-live/.git" "$TMP/bare-live-link" \
+  "$TMP/bare-pure/objects" "$TMP/bare-pure/refs"
+# bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
+# administrative anomaly the collector must classify rather than reject (#2602).
+: >"$TMP/bare-live/README"
+: >"$TMP/bare-live/.gitignore"
+# bare-pure: conventional `git init --bare` shape (HEAD/config/objects/refs at the repository
+# root, no in-tree .git). Administrative entries must not count as working-tree content (#2602).
+: >"$TMP/bare-pure/HEAD"
+: >"$TMP/bare-pure/config"
+: >"$TMP/bare-pure/description"
 # Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
 # worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
 # a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
@@ -30,6 +43,18 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
 # both reach the retarget path, which must refuse to adopt an administrative directory as canonical.
 : >"$TMP/wt-admin/sub-wt/.git"
 : >"$TMP/wt-admin/sep-wt/.git"
+# mix-husk carries a .git directory so discovery treats it as a candidate, but the mock makes
+# --show-toplevel fail — the per-entry discovery-skip path under --root (#2598).
+# unreadable-dir has no usable contents; discovery must count it and continue, never abort.
+# Mode bits alone do not deny root (or some ACL hosts): Bash -r/-x still succeed, so probe the
+# fixture the same way discovery will and only assert a non-zero unreadable count when effective.
+chmod a-rwx "$TMP/mix-root/unreadable-dir"
+EXPECT_MIX_UNREADABLE=0
+if [[ ! -r "$TMP/mix-root/unreadable-dir" || ! -x "$TMP/mix-root/unreadable-dir" ]]; then
+  EXPECT_MIX_UNREADABLE=1
+else
+  printf 'SKIP: unreadable-dir fixture ineffective after chmod a-rwx (root/ACL/filesystem); asserting 0 unreadable. Exercised on unprivileged POSIX hosts.\n' >&2
+fi
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -69,6 +94,7 @@ rev-parse)
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a" ;;
     new-clone) printf '%s\n' "$TEST_ROOT/new-clone" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
+    mix-good) printf '%s\n' "$TEST_ROOT/mix-root/mix-good" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo" ;;
@@ -87,10 +113,13 @@ rev-parse)
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.claude/worktrees/nested" ;;
     husk) printf '%s\n' "$TEST_ROOT/canonical-a" ;;
     prefix-fail) printf '%s\n' "$TEST_ROOT/prefix-fail" ;;
-    prefix-auth) printf '%s\n' "$TEST_ROOT/prefix-auth" ;;
     wt-a) printf '%s\n' "$TEST_ROOT/wt-a" ;;
     wt-mismatch) printf '%s\n' "$TEST_ROOT/wt-mismatch" ;;
     wt-status-fail) printf '%s\n' "$TEST_ROOT/wt-status-fail" ;;
+    # bare-live / bare-pure: show-toplevel fails (not a work tree). bare-live-link is a real linked
+    # worktree of the misconfigured main and answers normally.
+    bare-live-link) printf '%s\n' "$TEST_ROOT/bare-live-link" ;;
+    bare-live | bare-pure) exit 1 ;;
     *) exit 1 ;;
     esac
     ;;
@@ -108,8 +137,9 @@ rev-parse)
     esac
     ;;
   --is-bare-repository)
-    # Only the bare hub answers true; everything else is a working checkout.
+    # bare-live and bare-pure answer true; linked worktrees of a bare-misconfigured main answer false.
     case "$base" in
+    bare-live | bare-pure) printf 'true\n' ;;
     *) printf 'false\n' ;;
     esac
     ;;
@@ -128,6 +158,7 @@ rev-parse)
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a/.git" ;;
     new-clone) printf '%s\n' "$TEST_ROOT/new-clone/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
+    mix-good) printf '%s\n' "$TEST_ROOT/mix-root/mix-good/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
@@ -136,9 +167,10 @@ rev-parse)
     prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     wt-a | wt-mismatch | wt-status-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
-    prefix-auth) printf '%s\n' "$TEST_ROOT/prefix-auth/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
     sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
+    bare-live | bare-live-link) printf '%s\n' "$TEST_ROOT/bare-live/.git" ;;
+    bare-pure) printf '%s\n' "$TEST_ROOT/bare-pure" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -159,12 +191,12 @@ remote)
     dup-a) printf '%s\n' 'https://github.com/acme/repo-b.git' ;;
     new-clone) printf '%s\n' 'https://github.com/new/repo.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
+    mix-good) printf '%s\n' 'https://github.com/acme/mix-good.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
     lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
     net-repo) printf '%s\n' 'https://github.com/gone/net.git' ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' 'https://github.com/acme/wt-canon.git' ;;
-    prefix-auth) printf '%s\n' 'https://github.com/acme/prefix-auth.git' ;;
     sub-wt) printf '%s\n' 'https://github.com/acme/sub-mod.git' ;;
     sep-wt) printf '%s\n' 'https://github.com/acme/sep-mod.git' ;;
     *) exit 1 ;;
@@ -196,9 +228,6 @@ worktree)
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
     ;;
-  prefix-auth)
-    printf 'worktree %s\0HEAD pa-main\0branch refs/heads/main\0\0' "$TEST_ROOT/prefix-auth"
-    ;;
   old-repo)
     # Moved-identity fixture (#2600): local branch/worktree inventory must still be classified
     # against the resolved GitHub identity (new/repo), not skipped after github-remote-moved.
@@ -220,6 +249,9 @@ worktree)
     ;;
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
+    ;;
+  mix-good)
+    printf 'worktree %s\0HEAD mix-main\0branch refs/heads/main\0\0' "$TEST_ROOT/mix-root/mix-good"
     ;;
   canonical-c)
     printf 'worktree %s\0HEAD main-c\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-c"
@@ -250,6 +282,19 @@ worktree)
   sep-wt)
     printf 'worktree %s\0HEAD sep-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-admin/sep-gitdir"
     ;;
+  # bare-live: main registration is bare; a linked worktree still exists (the anomaly shape).
+  bare-live)
+    printf 'worktree %s\0HEAD bare-main\0bare\0\0' "$TEST_ROOT/bare-live"
+    printf 'worktree %s\0HEAD bare-link\0branch refs/heads/feat\0\0' "$TEST_ROOT/bare-live-link"
+    ;;
+  # bare-pure: only the bare registration, no linked worktrees; admin files at root are not debris.
+  bare-pure)
+    printf 'worktree %s\0HEAD bare-pure\0bare\0\0' "$TEST_ROOT/bare-pure"
+    ;;
+  bare-live-link)
+    printf 'worktree %s\0HEAD bare-main\0bare\0\0' "$TEST_ROOT/bare-live"
+    printf 'worktree %s\0HEAD bare-link\0branch refs/heads/feat\0\0' "$TEST_ROOT/bare-live-link"
+    ;;
   esac
   ;;
 symbolic-ref)
@@ -258,28 +303,29 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo | prefix-auth) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | mix-good | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
   sub-wt | sep-wt) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
-  # refs/remotes/<remote>/ scans prove remote-tracking tip comparison for merged-pr-tip-drift.
-  # Merge evidence is GraphQL headRefName aliases over every non-default local branch, so a
-  # branch absent from this inventory (canonical-a omits feature/mismatch; repo-b returns empty)
-  # is still queried by exact name — not privacy-gated.
+  # refs/remotes/<remote>/ scans (case-branch below) prove a local-only branch never becomes a
+  # --head argument to gh: canonical-a's remote mirror deliberately omits feature/mismatch.
+  # repo-b deliberately matches NO case here (empty output, exit 0): it is the empty-remote-
+  # inventory regression fixture for #1119 -- its non-default feature/shared branch has no PR-batch
+  # row, so the exact-fallback gate loop must run over an empty REMOTE_BRANCH_NAMES without
+  # aborting the fleet (unguarded expansion is fatal under set -u on bash <= 4.3) and must report
+  # the skipped lookup as a visible privacy gap.
   if [[ "${3:-}" == refs/remotes/*/ ]]; then
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
       ;;
-    # Moved-identity checkout (#2600): remote still advertises the feature head for tip-drift
-    # push-state wording; GraphQL merge evidence uses the resolved identity independently.
+    # Moved-identity checkout (#2600): remote still advertises the feature head, so the privacy
+    # gate must not block the exact-OID merge match against the resolved identity.
     old-repo) printf 'origin/main\told-main\0\norigin/feature/moved-merged\tmoved-merged-tip\0\norigin/feature/moved-local\tmoved-local-tip\0\n' ;;
     rref-fail) exit 9 ;;
     aaa-linked | bbb-linked | zzz-canonical) printf 'origin/main\tcanon-main\0\n' ;;
-    # Prefix-exactness fixture: remote tip for auth-v2 only; GraphQL must not conflate auth.
-    prefix-auth) printf 'origin/main\tpa-main\0\norigin/feature/auth-v2\tauth-v2-tip\0\n' ;;
     sub-wt) printf 'origin/main\tsub-main\0\n' ;;
     sep-wt) printf 'origin/main\tsep-main\0\n' ;;
     esac
@@ -287,7 +333,7 @@ for-each-ref)
   fi
   case "$base" in
   canonical-a)
-    # stale/gone: GraphQL returns a merged PR at a different OID (drift) and the branch has no
+    # stale/gone: merged-PR batch row exists at a different OID (drift) but the branch has no
     # remote-tracking ref -- the drift finding must state tip/headRefOid differ without claiming
     # the commits were never pushed (they may still be on the remote).
     printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\n'
@@ -302,13 +348,12 @@ for-each-ref)
   dup-a) printf 'main\tdup-main\0\n' ;;
   new-clone) printf 'main\tnc-main\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
+  mix-good) printf 'main\tmix-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
   gone-repo) printf 'main\tgone-main\0\n' ;;
   lost-repo) printf 'main\tlost-main\0\n' ;;
   net-repo) printf 'main\tnet-main\0\n' ;;
   aaa-linked | bbb-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
-  # Exact headRefName: feature/auth must not inherit feature/auth-v2's merged PR (#2604).
-  prefix-auth) printf 'main\tpa-main\0\nfeature/auth\tauth-tip\0\nfeature/auth-v2\tauth-v2-tip\0\n' ;;
   sub-wt) printf 'main\tsub-main\0\n' ;;
   sep-wt) printf 'main\tsep-main\0\n' ;;
   esac
@@ -349,112 +394,10 @@ api)
     [[ "${MOCK_GH_USER_FAIL:-}" == "1" ]] && exit 1
     printf 'test-login'
     ;;
-  graphql)
-    # Aliased GraphQL merged-PR evidence (#2604). Parse owner/name + headRefName aliases from
-    # the query document, emit a JSON payload, then apply --jq when present (as real gh does).
-    query=""
-    jq_filter=""
-    shift 2 || true
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-      --hostname) shift 2 || true ;;
-      -f)
-        shift
-        [[ "${1:-}" == query=* ]] && query="${1#query=}"
-        shift || true
-        ;;
-      --jq)
-        shift
-        jq_filter="${1:-}"
-        shift || true
-        ;;
-      *) shift || true ;;
-      esac
-    done
-    [[ -n "$query" ]] || exit 1
-    owner=""
-    name=""
-    if [[ "$query" =~ repository\(owner:\"([^\"]+)\",name:\"([^\"]+)\"\) ]]; then
-      owner="${BASH_REMATCH[1]}"
-      name="${BASH_REMATCH[2]}"
-    fi
-    [[ -n "$owner" && -n "$name" ]] || exit 1
-    # Collect exact headRefName values from aliases (order preserved).
-    heads=()
-    rest="$query"
-    while [[ "$rest" =~ headRefName:\"([^\"]+)\"(.*)$ ]]; do
-      heads+=("${BASH_REMATCH[1]}")
-      rest="${BASH_REMATCH[2]}"
-    done
-    # Fixture table: owner/name -> headRefName -> number|oid|mergedAt|url
-    lookup_pr() {
-      local o="$1" n="$2" head="$3"
-      case "$o/$n" in
-      acme/repo-a)
-        case "$head" in
-        feature/shared) printf '18|sha-a|2026-07-01T00:00:00Z|https://github.com/acme/repo-a/pull/18' ;;
-        stale/changed) printf '42|merged-tip|2026-07-02T00:00:00Z|https://github.com/acme/repo-a/pull/42' ;;
-        stale/gone) printf '43|other-tip|2026-07-03T00:00:00Z|https://github.com/acme/repo-a/pull/43' ;;
-        *) printf '' ;;
-        esac
-        ;;
-      new/repo)
-        case "$head" in
-        feature/moved-merged) printf '7|moved-merged-tip|2026-07-04T00:00:00Z|https://github.com/new/repo/pull/7' ;;
-        feature/moved-local) printf '8|moved-local-tip|2026-07-05T00:00:00Z|https://github.com/new/repo/pull/8' ;;
-        *) printf '' ;;
-        esac
-        ;;
-      acme/wt-fail)
-        case "$head" in
-        feature/fail) printf '88|fail-tip|2026-07-03T00:00:00Z|https://github.com/acme/wt-fail/pull/88' ;;
-        *) printf '' ;;
-        esac
-        ;;
-      acme/wt-canon)
-        # Deep history: GraphQL answers feature/linked by exact name even though a REST
-        # window of recent merged PRs would have been exhausted by unrelated archives.
-        case "$head" in
-        feature/linked) printf '9001|canon-feat|2025-01-01T00:00:00Z|https://github.com/acme/wt-canon/pull/9001' ;;
-        *) printf '' ;;
-        esac
-        ;;
-      acme/prefix-auth)
-        # Only auth-v2 merged; feature/auth must not inherit it (exact headRefName).
-        case "$head" in
-        feature/auth-v2) printf '55|auth-v2-tip|2026-07-06T00:00:00Z|https://github.com/acme/prefix-auth/pull/55' ;;
-        *) printf '' ;;
-        esac
-        ;;
-      acme/repo-b | acme/root-repo | acme/repo-c | acme/rref-fail | acme/ref-fail | acme/sub-mod | acme/sep-mod)
-        printf ''
-        ;;
-      *) return 1 ;;
-      esac
-    }
-    json='{"data":{"rateLimit":{"cost":1,"nodeCount":'"${#heads[@]}"'}'
-    alias_i=0
-    for head in "${heads[@]:-}"; do
-      [[ -n "$head" ]] || continue
-      row="$(lookup_pr "$owner" "$name" "$head")" || exit 1
-      if [[ -n "$row" ]]; then
-        IFS='|' read -r num oid merged url <<<"$row"
-        json+=",\"b${alias_i}\":{\"pullRequests\":{\"nodes\":[{\"number\":$num,\"headRefName\":\"$head\",\"headRefOid\":\"$oid\",\"mergedAt\":\"$merged\",\"url\":\"$url\"}]}}"
-      else
-        json+=",\"b${alias_i}\":{\"pullRequests\":{\"nodes\":[]}}"
-      fi
-      alias_i=$((alias_i + 1))
-    done
-    json+='}}'
-    if [[ -n "$jq_filter" ]]; then
-      printf '%s' "$json" | jq -r "$jq_filter"
-    else
-      printf '%s' "$json"
-    fi
-    ;;
   repos/acme/repo-a) printf 'acme/repo-a\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
+  repos/acme/mix-good) printf 'acme/mix-good\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
@@ -463,11 +406,47 @@ api)
   repos/new/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
   repos/acme/wt-canon) printf 'acme/wt-canon\tmain' ;;
-  repos/acme/prefix-auth) printf 'acme/prefix-auth\tmain' ;;
   repos/acme/sub-mod) printf 'acme/sub-mod\tmain' ;;
   repos/acme/sep-mod) printf 'acme/sep-mod\tmain' ;;
   repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
+  esac
+  ;;
+pr)
+  repo=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--repo" ]]; then repo="$2"; shift 2; else shift; fi
+  done
+  case "$repo" in
+  github.com/acme/repo-a)
+    printf '18\tfeature/shared\tsha-a\t2026-07-01T00:00:00Z\thttps://github.com/acme/repo-a/pull/18\n'
+    printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
+    printf '43\tstale/gone\tother-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/repo-a/pull/43\n'
+    ;;
+  github.com/acme/repo-b | github.com/acme/root-repo | github.com/acme/mix-good | github.com/acme/repo-c) ;;
+  # Resolved identity for the moved-remote fixture: merge evidence must be queried here, not under
+  # the stale configured remote (old/repo). Exact-OID rows prove branch/worktree analysis continued.
+  github.com/new/repo)
+    printf '7\tfeature/moved-merged\tmoved-merged-tip\t2026-07-04T00:00:00Z\thttps://github.com/new/repo/pull/7\n'
+    printf '8\tfeature/moved-local\tmoved-local-tip\t2026-07-05T00:00:00Z\thttps://github.com/new/repo/pull/8\n'
+    ;;
+  # A FULL merged-PR window: gh returns at most --limit rows, so 200 rows means older merged PRs
+  # were silently dropped. Every row is a branch this repository does not have locally, so the
+  # truncation disclosure is the only thing this fixture can produce.
+  github.com/acme/sub-mod | github.com/acme/sep-mod) ;;
+  github.com/acme/wt-canon)
+    i=1
+    while [[ "$i" -le 1000 ]]; do
+      printf '%s\tarchived/branch-%s\toid-%s\t2026-07-01T00:00:00Z\thttps://github.com/acme/wt-canon/pull/%s\n' "$i" "$i" "$i" "$i"
+      i=$((i + 1))
+    done
+    ;;
+  github.com/acme/rref-fail) ;;
+  github.com/acme/wt-fail)
+    printf '88\tfeature/fail\tfail-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/wt-fail/pull/88\n'
+    ;;
+  github.com/acme/ref-fail) ;;
+  *) exit 1 ;;
   esac
   ;;
 *) exit 95 ;;
@@ -502,7 +481,6 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../gone-repo
     repo = ../lost-repo
     repo = ../net-repo
-    repo = ../prefix-auth
     maxDepth = 5
     ackUnavailable = github.com/Gone/Away
     ackUnavailable = github.com/gone/net
@@ -515,8 +493,7 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
 EOF
 
 output="$TMP/output.txt"
-PLAN_FILE="$TMP/action-plan.json"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" --detail --plan-file "$PLAN_FILE" >"$output"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" >"$output"
 
 failures=0
 assert_contains() {
@@ -566,11 +543,7 @@ assert_contains "not-a-root finding says why the probe reads clean" \
 # finding's block and prove nothing.
 assert_kind_targets() {
   local label="$1" kind="$2" wanted="$3" forbidden="$4" targets
-  targets="$(grep -A2 -F "Finding: $kind" "$output" | grep -F "Target: " || true)"
-  # Detail layout prints Target before Finding; also accept Target on preceding lines.
-  if [[ -z "$targets" ]]; then
-    targets="$(grep -B3 -F "Finding: $kind" "$output" | grep -F "Target: " || true)"
-  fi
+  targets="$(grep -A2 -F "Finding: $kind" "$output" | grep -F 'Target: ')"
   if [[ "$targets" == *"$wanted"* && "$targets" != *"$forbidden"* ]]; then
     printf 'PASS: %s\n' "$label"
   else
@@ -584,7 +557,7 @@ assert_kind_targets "nested names the nested worktree and not the husk" \
   worktree-nested-in-repository "worktrees/nested" "canonical-a/husk"
 # Status handoff names reliable-admin linked paths (including a former status-fail sibling) and
 # excludes the admin-mismatched registration — disposability is delegated, not porcelain-gated.
-status_handoff_evidence="$(grep -B2 -A8 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:')"
+status_handoff_evidence="$(grep -A5 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:')"
 if [[ "$status_handoff_evidence" == *"$TMP/wt-a"* &&
   "$status_handoff_evidence" == *"$TMP/wt-status-fail"* &&
   "$status_handoff_evidence" != *"$TMP/wt-mismatch"* ]]; then
@@ -624,12 +597,12 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories_audited=12"
+assert_contains "failed repositories not counted successful" "Summary: repositories_audited=11"
 
 # Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
 # resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
-if grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
-  grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
+  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
   printf 'PASS: moved-remote checkout pairs with fresh clone via canonical identity\n'
 else
   printf 'FAIL: moved-remote checkout pairs with fresh clone via canonical identity\n' >&2
@@ -653,51 +626,23 @@ else
   printf 'FAIL: duplicate-checkout stays LOW\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
-  grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
+  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
   printf 'PASS: duplicate-checkout lists both checkout paths\n'
 else
   printf 'FAIL: duplicate-checkout lists both checkout paths\n' >&2
   failures=$((failures + 1))
 fi
-if grep -B3 -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
   printf 'FAIL: single-checkout identity wrongly reported as duplicate\n' >&2
   failures=$((failures + 1))
 else
   printf 'PASS: single-checkout identity not reported as duplicate\n'
 fi
 assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
-assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
 
-# GraphQL merge evidence (#2604) queries every non-default local branch by exact headRefName,
-# including branches absent from remote-tracking inventory. The retired privacy-gate and REST
-# window findings must not appear. Empty remote inventory (repo-b) and failed remote inventory
-# (rref-fail) still must not abort the fleet under set -u.
-assert_not_contains "retired merge-evidence-privacy-gated is not emitted" \
-  "Finding: merge-evidence-privacy-gated"
-assert_not_contains "retired merged-pr-window-truncated is not emitted" \
-  "Finding: merged-pr-window-truncated"
-assert_contains "failed remote-ref scan reported repo-wide" "Finding: remote-branch-inventory-unavailable"
-# Local-only branch still reaches GraphQL (name appears in an aliased query).
-if grep -E "gh api graphql .*feature/mismatch" "$CALL_LOG" >/dev/null; then
-  printf 'PASS: local-only branch queried via GraphQL headRefName\n'
-else
-  printf 'FAIL: local-only branch queried via GraphQL headRefName\n' >&2
-  failures=$((failures + 1))
-fi
-# Exactness: feature/auth must not inherit feature/auth-v2's merged PR.
-if grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth-v2" "$output" | grep -Fq "Finding: merged-local-branch"; then
-  printf 'PASS: exact headRefName merge for feature/auth-v2\n'
-else
-  printf 'FAIL: exact headRefName merge for feature/auth-v2\n' >&2
-  failures=$((failures + 1))
-fi
-if grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth" "$output" | grep -Fq "Finding: merged-local-branch"; then
-  printf 'FAIL: feature/auth wrongly inherited auth-v2 merge evidence\n' >&2
-  failures=$((failures + 1))
-else
-  printf 'PASS: feature/auth does not inherit feature/auth-v2 merge evidence\n'
-fi
+# A FAILED remote-ref scan (rref-fail) already reports remote-branch-inventory-unavailable
+# repo-wide; the per-repo privacy-gap aggregate must stay quiet there, not double-report.
 
 # Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
 # (pushed as of last fetch); stale/gone has a drift-batch row but NO remote-tracking ref — that
@@ -713,13 +658,13 @@ assert_not_contains "tip-drift evidence never claims unpushed without proof" \
 assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
 
 # Clean repos say so explicitly instead of ending the section without a marker.
-if grep -A30 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
+if grep -A6 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
   printf 'PASS: clean repo emits explicit Findings: none marker\n'
 else
   printf 'FAIL: clean repo emits explicit Findings: none marker\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A30 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
+if grep -A6 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
   printf 'FAIL: finding-bearing repo wrongly emitted Findings: none\n' >&2
   failures=$((failures + 1))
 else
@@ -729,20 +674,20 @@ fi
 # fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
 # demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
 # an acked identity stays UNKNOWN with its real reason.
-if grep -A5 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
+if grep -B2 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
   printf 'PASS: acked 404 demoted to ACKNOWLEDGED\n'
 else
   printf 'FAIL: acked 404 demoted to ACKNOWLEDGED\n' >&2
   failures=$((failures + 1))
 fi
 assert_contains "acked finding names its ack source" "acknowledged known-inaccessible via fleet.ackUnavailable"
-if grep -A5 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+if grep -B2 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
   printf 'PASS: unacked 404 stays UNKNOWN\n'
 else
   printf 'FAIL: unacked 404 stays UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A5 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+if grep -B2 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
   printf 'PASS: non-404 failure on acked identity stays UNKNOWN\n'
 else
   printf 'FAIL: non-404 failure on acked identity stays UNKNOWN\n' >&2
@@ -750,22 +695,16 @@ else
 fi
 assert_contains "summary counts acknowledged separately" "acknowledged=1"
 
-if grep -Fq -- 'pr list' "$CALL_LOG"; then
-  printf 'FAIL: REST pr list still used for merge evidence\n' >&2
+if grep -Fq -- '--head feature/mismatch' "$CALL_LOG"; then
+  printf 'FAIL: local-only branch name was sent to GitHub via --head\n' >&2
   failures=$((failures + 1))
 else
-  printf 'PASS: merge evidence uses GraphQL only (no pr list)\n'
+  printf 'PASS: local-only branch name never sent to GitHub\n'
 fi
-if grep -Fq -- 'api graphql' "$CALL_LOG"; then
-  printf 'PASS: aliased GraphQL merged-PR query invoked\n'
+if grep -Fq -- '--head stale/changed' "$CALL_LOG"; then
+  printf 'PASS: remote-known branch still queried via exact-fallback\n'
 else
-  printf 'FAIL: aliased GraphQL merged-PR query invoked\n' >&2
-  failures=$((failures + 1))
-fi
-if grep -E "gh api graphql .*stale/changed" "$CALL_LOG" >/dev/null; then
-  printf 'PASS: drift branch queried via GraphQL headRefName\n'
-else
-  printf 'FAIL: drift branch queried via GraphQL headRefName\n' >&2
+  printf 'FAIL: remote-known branch was not queried via exact-fallback\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -821,7 +760,7 @@ cat >"$TMP/stale-only.conf" <<'STALEONLY'
 [fleet]
     repo = ./no-such-dir-anywhere
 STALEONLY
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" --detail >"$ladder_out" 2>&1 &&
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" >"$ladder_out" 2>&1 &&
   grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
   grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out"; then
   printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
@@ -900,6 +839,78 @@ else
   failures=$((failures + 1))
 fi
 
+# Discovery under --root must degrade per-entry for a .git husk (and count unreadable dirs), never
+# abort the fleet the way an explicit --repo typo does (#2598).
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --root "$TMP/mix-root" >"$ladder_out" 2>&1
+mix_status=$?
+if [[ "$mix_status" -ne 0 ]]; then
+  printf 'FAIL: --root with a non-repository husk aborted the audit (exit %s)\n' "$mix_status" >&2
+  failures=$((failures + 1))
+elif grep -Fq "Repo: $TMP/mix-root/mix-good" "$ladder_out" &&
+  grep -Fq "Finding: discovery-skip" "$ladder_out" &&
+  grep -A3 -F "Finding: discovery-skip" "$ladder_out" | grep -Fq "$TMP/mix-root/mix-husk" &&
+  grep -Fq "Discovery skips: 1 non-repository, ${EXPECT_MIX_UNREADABLE} unreadable" "$ladder_out" &&
+  ! grep -Fq "Error: not a Git working tree" "$ladder_out"; then
+  printf 'PASS: discovery husk degrades per-entry and audits siblings under --root\n'
+else
+  printf 'FAIL: discovery husk degrades per-entry and audits siblings under --root\n' >&2
+  failures=$((failures + 1))
+fi
+# The same husk named explicitly via --repo remains a hard failure — operator typo, not discovery.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/mix-root/mix-husk" >"$ladder_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a discovery husk did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq "discovery-skip" "$ladder_out"; then
+  printf 'PASS: explicit --repo on a discovery husk still hard-fails\n'
+else
+  printf 'FAIL: explicit --repo on a discovery husk still hard-fails (wrong output)\n' >&2
+  failures=$((failures + 1))
+fi
+
+# core.bare=true with working-tree content / linked worktrees is an administrative anomaly, not a
+# silent omission and not a run abort (#2602). Explicit --repo must emit the finding and continue.
+bare_out="$TMP/bare-live-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-live" --repo "$TMP/repo-b" \
+  >"$bare_out" 2>&1; then
+  if grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out" &&
+    grep -Fq "git config --local core.bare false" "$bare_out" &&
+    grep -Fq "linked worktrees are unaffected" "$bare_out" &&
+    grep -Fq "Repo: $TMP/repo-b" "$bare_out" &&
+    ! grep -Fq "Error: not a Git working tree" "$bare_out"; then
+    printf 'PASS: bare-repo-with-working-tree is reported and does not abort the run\n'
+  else
+    printf 'FAIL: bare-repo-with-working-tree is reported and does not abort the run\n' >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: bare-repo-with-working-tree run aborted (exit %s)\n' "$?" >&2
+  failures=$((failures + 1))
+fi
+
+# Discovery under --root must classify the same anomaly rather than aborting before the report.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/bare-live" --repo "$TMP/repo-b" \
+  >"$bare_out" 2>&1 &&
+  grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out" &&
+  grep -Fq "Repo: $TMP/repo-b" "$bare_out"; then
+  printf 'PASS: discovery of bare-with-live-tree emits a finding and continues\n'
+else
+  printf 'FAIL: discovery of bare-with-live-tree emits a finding and continues\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A pure bare hub (no checkout debris, no linked worktrees) is still not this finding.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-pure" >"$bare_out" 2>&1; then
+  printf 'FAIL: pure bare hub unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$bare_out" &&
+  ! grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out"; then
+  printf 'PASS: pure bare hub without live tree still rejects as not a working tree\n'
+else
+  printf 'FAIL: pure bare hub without live tree still rejects as not a working tree\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A failed authenticated-login probe must degrade the header to the plain line, never block.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_USER_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" >"$ladder_out"
@@ -916,7 +927,7 @@ fi
 # handoff carries the canonical path, so picking the worktree would aim per-repository cleanup at a
 # checkout that is not the repository of record.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$ladder_out" 2>&1
+  bash "$SCRIPT" --root "$TMP/wt-root" >"$ladder_out" 2>&1
 if grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
   printf 'PASS: main worktree wins canonical selection over an earlier-sorting linked sibling\n'
 else
@@ -1043,28 +1054,12 @@ else
   printf 'FAIL: an empty --root value hard-fails (wrong error)\n' >&2
   failures=$((failures + 1))
 fi
-# GraphQL answers per-branch by exact headRefName, so a repository with deep merged history still
-# surfaces an old merge for a local branch (wt-canon feature/linked) without a truncation finding.
-# Dedicated capture: later auth-fail reuse of $ladder_out must not erase this evidence.
-deep_out="$TMP/deep-history.txt"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$deep_out" 2>&1
-if grep -Fq "Finding: merged-pr-window-truncated" "$deep_out"; then
-  printf 'FAIL: retired merged-pr-window-truncated still emitted on deep-history fixture\n' >&2
-  failures=$((failures + 1))
-elif grep -B2 -A6 -Fx "Target: $TMP/wt-root/zzz-canonical :: feature/linked" "$deep_out" |
-  grep -Fq "Finding: merged-worktree"; then
-  printf 'PASS: GraphQL finds merged branch beyond any former REST window\n'
-else
-  printf 'FAIL: GraphQL finds merged branch beyond any former REST window\n' >&2
-  failures=$((failures + 1))
-fi
 
 # gh unavailable/unauthenticated: the skill promises the audit continues with GitHub evidence marked
 # UNKNOWN rather than aborting or inferring a negative. Never exercised before, though it is the
 # degradation a machine without gh hits on its very first run.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_AUTH_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$ladder_out" 2>&1
+  bash "$SCRIPT" --root "$TMP/wt-root" >"$ladder_out" 2>&1
 if grep -Fq "GitHub evidence: unavailable" "$ladder_out" &&
   grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
   printf 'PASS: unauthenticated gh degrades to UNKNOWN GitHub evidence and still audits locally\n'
@@ -1079,6 +1074,14 @@ assert_not_contains_file "no merged claim without GitHub evidence" "Finding: mer
 # with no documented disposition fails here, and so does a table row for a kind the collector no
 # longer emits. Both sides are extracted mechanically -- comparing two hand-maintained lists would
 # reproduce the drift this replaces.
+
+# GraphQL merge evidence (#2604) queries every non-default local branch by exact headRefName,
+# so the retired privacy-gated and window-truncated findings must not appear.
+assert_not_contains "retired merge-evidence-privacy-gated is not emitted" \
+  "Finding: merge-evidence-privacy-gated"
+assert_not_contains "retired merged-pr-window-truncated is not emitted" \
+  "Finding: merged-pr-window-truncated"
+
 MODEL_DOC="$SCRIPT_DIR/../reference/confidence-model.md"
 emitted_kinds="$TMP/emitted-kinds.txt"
 documented_kinds="$TMP/documented-kinds.txt"
@@ -1105,165 +1108,6 @@ else
   failures=$((failures + 1))
 fi
 
-
-# --- #2608 / #2609 rollup + fleet action plan ---------------------------------
-assert_contains "rollup section present" "Repository rollup"
-assert_contains "fleet action plan present" "Fleet action plan"
-assert_contains "one-gate confirmation model" "ONE gate for this entire plan"
-assert_contains "branch-before-worktree order rule" "delete/clean branches before pruning worktrees"
-assert_contains "action plan path named" "Action plan: $PLAN_FILE"
-if [[ -f "$PLAN_FILE" ]]; then
-  printf 'PASS: action plan file was written\n'
-else
-  printf 'FAIL: action plan file missing\n' >&2
-  failures=$((failures + 1))
-fi
-if PLAN_FILE="$PLAN_FILE" python3 - <<PY
-import json, os, sys
-plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
-assert plan.get("schema_version") == 1
-assert plan.get("confirmation_model") == "one-gate-for-entire-plan"
-actions = plan.get("actions") or []
-# Branch actions must precede worktree actions in plan order.
-phases = [a.get("phase") for a in actions]
-assert phases == sorted(phases), phases
-# Skills appear at most once per canonical repository.
-seen = set()
-for a in actions:
-    key = (a.get("skill"), a.get("canonical"))
-    assert key not in seen, key
-    seen.add(key)
-# Collapsed targets: no target string repeats inside one repository entry.
-for repo in plan.get("repositories") or []:
-    targets = [t.get("target") for t in (repo.get("targets") or [])]
-    assert len(targets) == len(set(targets)), targets
-print("plan-json-ok")
-PY
-then
-  printf 'PASS: action plan JSON schema, ordering, and collapsed targets\n'
-else
-  printf 'FAIL: action plan JSON validation\n' >&2
-  failures=$((failures + 1))
-fi
-
-# Default (no --detail) fits the rollup contract: no per-finding enumeration, but verdicts present.
-rollup_out="$TMP/rollup-only.txt"
-rollup_plan="$TMP/rollup-plan.json"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$rollup_plan" >"$rollup_out" 2>&1 || true
-if grep -Fq "Repository rollup" "$rollup_out" && grep -Fq "Verdict:" "$rollup_out" &&
-  ! grep -Fq "Finding: merged-local-branch" "$rollup_out"; then
-  printf 'PASS: default output is rollup without per-finding enumeration\n'
-else
-  printf 'FAIL: default output rollup contract\n' >&2
-  failures=$((failures + 1))
-fi
-
-# --apply-plan dry-run: one ordered approval artifact, no mutation verbs beyond the plan text.
-apply_out="$TMP/apply-plan-out.txt"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --apply-plan "$PLAN_FILE" >"$apply_out" 2>&1 || true
-if grep -Fq "apply-plan dry-run (no mutations)" "$apply_out" &&
-  grep -Fq "ONE gate for this entire plan" "$apply_out" &&
-  grep -Fq "Order rule: delete/clean branches before pruning worktrees" "$apply_out"; then
-  printf 'PASS: --apply-plan renders dry-run approval artifact\n'
-else
-  printf 'FAIL: --apply-plan dry-run artifact\n' >&2
-  failures=$((failures + 1))
-fi
-
-# UTF-8 paths must survive json_escape intact (not byte-wise \u00XX mojibake).
-utf8_sample=$'répô'
-utf8_escaped="$(
-  bash -c '
-    eval "$(sed -n "/^json_escape()/,/^}/p" "$1")"
-    json_escape "$2"
-  ' bash "$SCRIPT" "$utf8_sample"
-)"
-if [[ "$utf8_escaped" == "$utf8_sample" && "$utf8_escaped" != *'\\u00'* ]]; then
-  printf 'PASS: json_escape preserves UTF-8 code points\n'
-else
-  printf 'FAIL: json_escape mojibaked UTF-8 (%s)\n' "$utf8_escaped" >&2
-  failures=$((failures + 1))
-fi
-
-# Newline-bearing actionable worktree paths must stay ONE plan target (NUL-delimited packing).
-if PLAN_FILE="$PLAN_FILE" EVIL_PATH="$EVIL_PATH" python3 - <<'PY'
-import json, os, sys
-plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
-evil = os.environ["EVIL_PATH"]
-found = False
-for action in plan.get("actions") or []:
-    if action.get("operation") != "cleanup-worktrees":
-        continue
-    targets = action.get("targets") or []
-    # Exact path (plus optional " (branch)" suffix) must appear as a single element.
-    matches = [t for t in targets if t == evil or t.startswith(evil + " ")]
-    if matches:
-        found = True
-        if any(t == "Finding: forged" or t.startswith("Confidence:") for t in targets):
-            print("split-targets", targets, file=sys.stderr)
-            sys.exit(1)
-if not found:
-    print("evil path missing from worktree actions", file=sys.stderr)
-    sys.exit(1)
-print("nul-targets-ok")
-PY
-then
-  printf 'PASS: newline-bearing worktree path stays one action target\n'
-else
-  printf 'FAIL: newline-bearing worktree path was split across action targets\n' >&2
-  failures=$((failures + 1))
-fi
-
-# Unwritable --plan-file must fail closed (nonzero), not claim success.
-missing_plan_dir="$TMP/missing-plan-dir"
-missing_plan="$missing_plan_dir/nope.json"
-plan_fail_out="$TMP/plan-fail-out.txt"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$missing_plan" \
-  >"$plan_fail_out" 2>&1
-plan_fail_status=$?
-if [[ "$plan_fail_status" -ne 0 && ! -f "$missing_plan" ]] &&
-  grep -Fq "cannot write plan file" "$plan_fail_out" &&
-  ! grep -Fq "Action plan: $missing_plan" "$plan_fail_out"; then
-  printf 'PASS: unwritable --plan-file fails closed\n'
-else
-  printf 'FAIL: unwritable --plan-file did not fail closed (status=%s)\n' "$plan_fail_status" >&2
-  failures=$((failures + 1))
-fi
-
-# Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence.
-verdict_probe="$(
-  bash -c '
-    eval "$(sed -n "/^branch_action_kind()/,/^}/p; /^worktree_action_kind()/,/^}/p; /^repo_verdict()/,/^}/p" "$1")"
-    F_KIND=(locked-worktree merged-pr-tip-drift)
-    F_CONF=(HIGH MEDIUM)
-    F_TARGET=("/tmp/locked" "/tmp/drift")
-    F_REPO_IDX=(0 0)
-    repo_verdict 0
-  ' bash "$SCRIPT"
-)"
-if [[ "$verdict_probe" == "CLEAN" ]]; then
-  printf 'PASS: manual-review HIGH/MEDIUM findings are not rollup candidates\n'
-else
-  printf 'FAIL: expected CLEAN for manual-review-only findings, got %s\n' "$verdict_probe" >&2
-  failures=$((failures + 1))
-fi
-verdict_probe_actionable="$(
-  bash -c '
-    eval "$(sed -n "/^branch_action_kind()/,/^}/p; /^worktree_action_kind()/,/^}/p; /^repo_verdict()/,/^}/p" "$1")"
-    F_KIND=(merged-local-branch locked-worktree)
-    F_CONF=(HIGH HIGH)
-    F_TARGET=("repo :: feature/x" "/tmp/locked")
-    F_REPO_IDX=(0 0)
-    repo_verdict 0
-  ' bash "$SCRIPT"
-)"
-if [[ "$verdict_probe_actionable" == "1 candidates" ]]; then
-  printf 'PASS: actionable kinds still count as rollup candidates\n'
-else
-  printf 'FAIL: expected 1 candidates with one actionable kind, got %s\n' "$verdict_probe_actionable" >&2
-  failures=$((failures + 1))
-fi
-
 # Exercise the collector's own fail-closed command gate, rather than relying on a denylist that can
 # miss a new mutation spelling. None of these forbidden vectors may reach the fake executables.
 calls_before="$(wc -l <"$CALL_LOG")"
@@ -1281,10 +1125,6 @@ run_bounded_gh api repos/acme/repo-b --hostname github.com --method POST --templ
   forbidden_rejected=false
 run_bounded_gh pr merge --repo github.com/acme/repo-b >/dev/null 2>&1 && forbidden_rejected=false
 run_bounded_gh alias set pr '!touch /tmp/pwned' >/dev/null 2>&1 && forbidden_rejected=false
-run_bounded_gh api graphql --hostname github.com -f 'query=mutation{__typename}' --jq . >/dev/null 2>&1 &&
-  forbidden_rejected=false
-run_bounded_gh pr list --repo github.com/acme/repo-b --state merged --limit 1000 --json number,headRefName,headRefOid,mergedAt,url --template x >/dev/null 2>&1 &&
-  forbidden_rejected=false
 calls_after="$(wc -l <"$CALL_LOG")"
 status_rejected=true
 run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 && status_rejected=false

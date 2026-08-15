@@ -36,21 +36,23 @@ failure rather than a discovery.
 | `worktree-nested-in-repository` | A non-main registration's root is inside the canonical checkout's own working tree, rather than at an external root outside every repository | `MEDIUM` | Manual placement decision; never auto-move or auto-remove |
 | `worktree-status-handoff` | One or more linked, unlocked registrations with reliable admin exist; disposability is owned by `/source-control:worktree status` (stranded / unknown / safe), not by fleet `git status` | `MEDIUM` | Delegate stranded-work classification; never treat porcelain emptiness as reclaimable; cleanup `--dry-run` only after Work is safe |
 | `worktree-placement-unverifiable` | A non-bare canonical checkout gave no working-tree root, so no registration under it could be placement-checked. A BARE hub is not this finding — it has no working tree for a worktree to be nested inside, so the check is legitimately skipped rather than unanswered | `UNKNOWN` | Do not infer that this repository's worktrees are correctly placed |
+| `bare-repo-with-working-tree` | `core.bare=true` coincides with populated working-tree content and/or registered linked worktrees, so the path is a Git repository but not a work tree | `MEDIUM` | Manual review only; prefer `git config --local core.bare false` (linked worktrees are unaffected); never auto-rewrite |
 | `github-remote-moved` | GitHub REST resolves the requested `owner/repo` to a different canonical `full_name`. Branch and worktree analysis continues against the resolved identity; this finding does not stop local classification | `HIGH` | Human-reviewed remote update; local classification is not deferred |
 | `duplicate-checkout` | Two or more distinct checkouts resolve to one normalized GitHub identity | `LOW` | Informational only; same-identity clones legitimately diverge |
 | `canonical-override-invalid` | An override target has a missing, ambiguous, credential-only, or non-`github.com` remote | `UNKNOWN` | Stop that repository; never combine evidence |
 | `canonical-identity-unverified` | An override target's GitHub identity could not be resolved for comparison against the discovered one | `UNKNOWN` | Stop that repository; never combine evidence |
 | `canonical-identity-conflict` | An override target resolves to a different GitHub identity than the discovered checkout | `UNKNOWN` | Stop that repository; never combine evidence |
 | `github-identity-unavailable` | `GET /repos/{owner}/{repo}` returned 404/403, failed, or timed out | `UNKNOWN`, demoted to `ACKNOWLEDGED` when the identity is listed in `fleet.ackUnavailable` and the failure was 404/403 | Investigate; never infer "deleted" or "moved" |
-| `github-pr-evidence-unavailable` | The aliased GraphQL merged-PR query failed or GitHub evidence is otherwise unavailable | `UNKNOWN` | Do not infer branch merge state |
+| `github-pr-evidence-unavailable` | The repository-scoped merged-PR query failed | `UNKNOWN` | Do not infer branch merge state |
 | `worktree-inventory-unavailable` | `git worktree list --porcelain -z` failed | `UNKNOWN` | Stop local branch/worktree classification for that repository |
 | `worktree-common-dir-unavailable` | A registered worktree path exists but its `--git-common-dir` could not be resolved | `UNKNOWN` | Manual inspection; the registration cannot be trusted either way |
 | `branch-inventory-unavailable` | `git for-each-ref` over `refs/heads/` failed or emitted malformed/partial output | `UNKNOWN` | Discard partial records, stop branch classification, exclude from the audited count |
-| `remote-branch-inventory-unavailable` | `git for-each-ref` over `refs/remotes/<remote>/` failed | `UNKNOWN` | Remote-tracking tip comparison for `merged-pr-tip-drift` is unavailable; GraphQL merge evidence still runs |
+| `remote-branch-inventory-unavailable` | `git for-each-ref` over `refs/remotes/<remote>/` failed | `UNKNOWN` | Exact per-branch GitHub lookups are skipped for the whole repository |
 | `current-branch-unavailable` | `git branch --show-current` failed, so branch-protection membership is unknown | `UNKNOWN` | Emit no standalone branch cleanup candidate for that repository |
 | `git-common-dir-unavailable` | The canonical checkout's own `--git-common-dir` could not be resolved | `UNKNOWN` | Stop that repository; registration comparison is impossible |
 | `local-ancestry-unavailable` | `git merge-base --is-ancestor` failed with an error status | `UNKNOWN` | Do not infer local ancestry |
 | `stale-config-entry` | A config-sourced `fleet.root`/`fleet.repo` path is missing or not a Git working tree | `UNKNOWN` | Entry skipped, rest of the fleet still audited; correct or remove the entry |
+| `discovery-skip` | A path discovered under `--root` is unreadable or not a Git working tree despite a `.git` marker | `UNKNOWN` | Path skipped, rest of the fleet still audited; inspect unexpected `.git` markers |
 
 ## What the tiers depend on
 
