@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.3]
+
+### Fixed
+
+- **The documented argument surface names the root-children flags again (#2588).** Resolving the
+  conflict in #2641 inserted a fresh "Arguments and boundaries" opening paragraph above the existing
+  one instead of merging into it, orphaning that paragraph's continuation. The section was left with
+  two overlapping sentences, and the authoritative first one silently dropped `--root-children` and
+  `--root-child <name>` — reintroducing exactly the wrong-argument-surface defect #2589 was filed
+  for, against the feature #2636 had just shipped. The two sentences are merged back into one
+  carrying every flag, and the skill's `argument-hint` now lists the root-children flags it had
+  never carried. Documentation only: the engine has accepted both flags since #2636 and its
+  behavior is unchanged.
+
 ## [0.20.1]
 
 ### Fixed
