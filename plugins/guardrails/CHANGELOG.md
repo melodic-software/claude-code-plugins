@@ -26,6 +26,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `ps-unparsable-launcher`, `ps-unparsable-special-construct`, or
   `ps-unparsable-herestring-unbalanced` without the global kill switch.
   Destructive-form tokens (`reset-hard`, …) still do not open the sink.
+  Allowing a sink shape blanks that opaque region and keeps checking any
+  remaining visible commands — a compound like
+  `Invoke-Expression '…'; git reset --hard` still requires `reset-hard`
+  (Codex review on #2667).
 
 ## [0.28.24]
 

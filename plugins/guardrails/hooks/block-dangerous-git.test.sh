@@ -895,6 +895,7 @@ pwsh_stderr() {
 }
 # shellcheck disable=SC2016
 iex_rc=0
+# shellcheck disable=SC2016  # intentional literal $cmd in the PowerShell payload
 iex_out="$(pwsh_stderr 'Invoke-Expression $cmd')" || iex_rc=$?
 assert_exit "PS: iex with no git token still fail-closes (#2662)" 2 "$iex_rc"
 assert_contains "PS msg #2662: iex headline omits 'git command' claim" \
@@ -937,6 +938,21 @@ run_pwsh "PS #2664: wrong sink-shape token does not open --% path (still blocked
 run_pwsh "PS #2664: sink-shape allow does not waive a parsable reset --hard" \
   "git reset --hard" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+# Allowing a sink shape must not fail-open independently visible siblings on the
+# same compound command (Codex P1 on #2667).
+run_pwsh "PS #2667: allowlisted iex does not waive visible reset --hard sibling" \
+  "Invoke-Expression 'Write-Host harmless'; git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+run_pwsh "PS #2667: allowlisted scriptblock does not waive visible reset --hard sibling" \
+  "{ Write-Host hi }; git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS #2667: allowlisted launcher does not waive visible reset --hard sibling" \
+  "Start-Process notepad; git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
+# Both tokens: sink shape for iex + reset-hard for the visible sibling.
+run_pwsh "PS #2667: sink allow + reset-hard allow opens iex;reset compound" \
+  "Invoke-Expression 'Write-Host harmless'; git reset --hard" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation,reset-hard
 
 malformed_rc=0
 (cd "$REPO_SHA1" && bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1) || malformed_rc=$?

@@ -29,6 +29,8 @@
 # They are NOT interchangeable with the destructive-form tokens above: an
 # unparsable command cannot prove which forms it carries, so reset-hard (etc.)
 # never opens the sink. Only the matching ps-unparsable-<trigger> token does.
+# Allowing a sink shape blanks that opaque region and continues checking any
+# remaining visible commands — it does not fail-open the whole compound line.
 #
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — an
 # object id of the repository's own hash width (a literal one: a substitution is
@@ -1369,23 +1371,43 @@ fi
 # (ps-unparsable-<trigger>), drawn from PS_SINK_TRIGGER (#2664). Destructive-form
 # tokens (reset-hard, …) do not open this branch — an unparsable command still
 # cannot prove which forms it carries.
+#
+# When a sink-shape token IS allowlisted, blank that opaque region and keep
+# checking any remaining visible text — do not fail-open the whole compound
+# command (Codex review on #2667: `iex '…'; git reset --hard`).
 ps::classify_git_command "$TOOL_NAME" "$COMMAND"
-case $? in
-2)
+_ps_rc=$?
+_ps_sink_attempts=0
+while ((_ps_rc == 2)); do
   # The allow token is namespaced separately from the telemetry form token
   # (powershell-unparsable-*) so an operator configuring the allow-list cannot
   # confuse the two namespaces, and so no pre-#2664 allow value gains power.
   sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
-  if allowed "$sink_allow"; then
+  if ! allowed "$sink_allow"; then
+    ps::print_unparsable_git_block_message
+    # The trigger rides along in the form token: four distinct shapes reach this
+    # sink, and one collapsed token cannot show which of them is over-blocking.
+    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
+    exit 2
+  fi
+  # Sink shape allowed — blank its opaque region(s) and re-classify the
+  # remainder so independently parseable siblings still reach check_segment.
+  ps::blank_sink_opaque_regions "$COMMAND" "${PS_SINK_TRIGGER:-unknown}"
+  COMMAND="$PS_SAFE_COMMAND"
+  if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
     emit_tel "ok" ""
     exit 0
   fi
-  ps::print_unparsable_git_block_message
-  # The trigger rides along in the form token: four distinct shapes reach this
-  # sink, and one collapsed token cannot show which of them is over-blocking.
-  emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
-  exit 2
-  ;;
+  _ps_sink_attempts=$((_ps_sink_attempts + 1))
+  if ((_ps_sink_attempts > 4)); then
+    # Only opaque residue left after bounded blanks — treat as allowed.
+    emit_tel "ok" ""
+    exit 0
+  fi
+  ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+  _ps_rc=$?
+done
+case $_ps_rc in
 1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
