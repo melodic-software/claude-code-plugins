@@ -32,7 +32,8 @@ The epic's fleet architecture is intentionally split from the current implementa
 
 | Capability | Owner | Availability in this release |
 |---|---|---|
-| Machine-wide repository discovery and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
+| Bounded repository discovery (bare path, drive root, `--root`, `--repo`, config rungs) and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
+| Machine-wide discovery with no argument (ghq / configured roots / agent state / bounded sweep ladder) | `repo-fleet-hygiene` | Not shipped — tracked by [#2599](https://github.com/melodic-software/claude-code-plugins/issues/2599); a no-scope run fails with remedies rather than guessing a root |
 | Cross-repository GitHub merge and repository-identity evidence | `repo-fleet-hygiene` | Shipped |
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |
