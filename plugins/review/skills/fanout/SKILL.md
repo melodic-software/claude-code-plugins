@@ -46,7 +46,7 @@ A positional mode token (Step 0) plus one flag:
 Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the remaining mode token:
 
 - `run-everything` / `everything` / `all` → the full-breadth sweep. Read [context/run-everything-mode.md](context/run-everything-mode.md) and follow it end-to-end (availability gate → main-thread orchestrators → leaf fan-out → normalize → persist); skip Step 1 and rejoin at Step 2.
-- `fix` / `fix-pass` (with or without `--yes`) → consume the newest persisted findings file for the current branch, split by finding class, and apply. Read [context/fix-pass-mode.md](context/fix-pass-mode.md) and follow it end-to-end; skip Steps 1–3.
+- `fix` / `fix-pass` (with or without `--yes`) → consume the merged set of unconsumed persisted findings for the current branch — every conforming producer's, not just the newest file — split by finding class, and apply. Read [context/fix-pass-mode.md](context/fix-pass-mode.md) and follow it end-to-end; skip Steps 1–3.
 - empty → the default lifecycle-tiered review. Read [context/default-mode.md](context/default-mode.md) before dispatching.
 - any other value → emit one diagnostic line `Unknown action '<value>'. Available: run-everything, fix. Defaulting to standard review.`, then run the default review — a typo is surfaced, never silently absorbed. The `--yes` / `-y` flag is not a mode value; stripping it before this match keeps `fix --yes` from tripping the diagnostic.
 

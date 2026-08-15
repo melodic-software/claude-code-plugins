@@ -213,7 +213,7 @@
       "expected_output": "Fix-pass classifies findings by class and routes cleanup-class findings to the optional in-session /simplify skill while applying correctness-class findings via sequential scope-fenced fixes.",
       "files": [],
       "expectations": [
-        "Locates the newest findings file for the CURRENT branch only",
+        "Builds the merge set from conforming findings files for the CURRENT branch only",
         "Classifies the cleanup-class finding and routes it to the optional in-session /simplify skill",
         "Classifies the correctness-class finding and applies it via a sequential scope-fenced fix, not via /simplify",
         "Emits the classification plan and confirms before mutating the working tree in an interactive session"
@@ -223,10 +223,10 @@
       "id": 19,
       "name": "fix-pass-no-findings-branch-scoped",
       "prompt": "[Scenario: the current branch has no findings file; a different branch's findings directory does have one.] /review:fanout fix",
-      "expected_output": "Fix-pass with no findings file for the current branch reports cleanly and stops, without scanning another branch's findings.",
+      "expected_output": "Fix-pass with an empty merge set for the current branch reports cleanly and stops, without scanning another branch's findings.",
       "files": [],
       "expectations": [
-        "Reports 'No findings for branch <branch>' and stops",
+        "Reports 'No unconsumed findings for branch <branch>' and stops",
         "Does NOT scan, read, or apply another branch's findings file — the branch check against frontmatter is the safety fence",
         "Mutates nothing; suggests running the review first"
       ]
@@ -274,12 +274,61 @@
       "id": 23,
       "name": "fix-pass-interactive-yes-skips-prompt",
       "prompt": "[Scenario: an interactive session with a current-branch findings file containing correctness- and cleanup-class findings; the user passes the flag to skip the confirmation prompt.] /review:fanout fix --yes",
-      "expected_output": "In an interactive session with --yes, fix-pass emits the classification plan, skips the confirmation prompt, and applies immediately; no applied-plan record is written because that record is headless-apply-only.",
+      "expected_output": "In an interactive session with --yes, fix-pass emits the classification plan, skips the confirmation prompt, applies immediately, and still writes the consumption record — the record is written on every path that applies, not only headless ones.",
       "files": [],
       "expectations": [
         "Emits the classification plan but shows NO interactive confirmation prompt — --yes skips the pre-execution gate",
         "Applies the fixes (correctness via sequential scope-fenced fix, cleanup via /simplify)",
-        "Writes NO applied-plan record — the record is written only on a headless (non-interactive) apply, and this session is interactive"
+        "Writes the consumption record even though the session is interactive — every apply path writes it, because the record is what marks the consumed files retired for the next merge set"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "fix-pass-merges-two-producers",
+      "prompt": "[Scenario: the current branch's findings directory holds two conforming files with different UTC timestamps — one written by review:fanout, one written by a script detector — and no fix-pass-record.] /review:fanout fix",
+      "expected_output": "Fix-pass consumes BOTH files as one merge set, plans against the union of their findings, and names both files in the plan header — the newer file does not shadow the older one.",
+      "files": [],
+      "expectations": [
+        "The classification plan counts findings from BOTH files, not only the newer one",
+        "The plan header names both consumed files, one line per file, with each file's tier reported rather than one tier winning",
+        "The ## Unparsed appendices of both files are unioned by concatenation, and the ## Surfaces lines of both are reported with each producer attributed",
+        "Neither file is skipped for lacking review:fanout provenance — conformance to the findings-file shape is the whole admission test"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "fix-pass-record-retires-consumed-files",
+      "prompt": "[Scenario: an interactive apply already ran against findings file A and wrote a fix-pass-record naming A in source-findings; a newer conforming file B has since been written for the same branch.] /review:fanout fix",
+      "expected_output": "The merge set is B only — A is subtracted because a fix-pass-record for this exact branch already names it — proving the record is written on the interactive path and bounds the set.",
+      "files": [],
+      "expectations": [
+        "The plan header names ONLY file B; file A appears nowhere in the consumed set",
+        "The subtraction reads source-findings from the fix-pass-record rather than bounding the set by timestamp",
+        "Findings already applied from A are not re-injected into the plan"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "fix-pass-record-branch-filter-binds-both-sides",
+      "prompt": "[Scenario: the shared findings directory holds a conforming findings file for the current branch plus a fix-pass-record whose branch: value is a DIFFERENT branch that slugs to the same directory, and whose source-findings names the current branch's file.] /review:fanout fix",
+      "expected_output": "The foreign-branch record excludes nothing: its branch: does not equal the current branch exactly, so the current branch's findings file stays in the merge set.",
+      "files": [],
+      "expectations": [
+        "The current branch's findings file remains in the merge set and appears in the plan header",
+        "The fix-pass-record is ignored for subtraction because its branch: value does not equal the current branch exactly",
+        "The exact-branch check is applied to records as well as to candidate findings files, not to candidates alone"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "fix-pass-dedup-is-presence-only",
+      "prompt": "[Scenario: two conforming findings files for the current branch; one reports a defect at foo.ts:42 and the other a DIFFERENT defect at foo.ts:44, and both report an identically-worded finding at bar.ts:10.] /review:fanout fix",
+      "expected_output": "Only the byte-identical Location-plus-Finding pair collapses; the two nearby but distinct defects both survive as separate rows, each keeping its own Action.",
+      "files": [],
+      "expectations": [
+        "The foo.ts:42 and foo.ts:44 rows BOTH survive as distinct rows — no line-proximity bucket merges them",
+        "The two identical bar.ts:10 rows collapse into one row naming both producers in Surface(s)",
+        "Each surviving row keeps its own Action, so neither producer's remediation is discarded"
       ]
     }
   ]

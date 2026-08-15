@@ -3,6 +3,36 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Changed
+
+- **`fanout`'s `fix` action consumes a merged SET of findings files, not the newest one
+  ([ADR 0010](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0010-merge-findings-across-producers-and-mark-consumption-explicitly.md),
+  #2678).** The findings-file shape is the whole integration contract — nothing authenticates the
+  writer — so any component that persists a conforming file reaches the apply relay. That made a
+  second producer a silent-data-loss bug: `fix` took the newest `*.md` and merged nothing, so a
+  detector running after a full review shadowed the entire review with no error, no warning, and a
+  green run. `fix` now takes every conforming file for the exact current branch, unions the coverage
+  fields (`## Unparsed` concatenated, `## Surfaces` attributed per producer, every consumed file's
+  `tier:` reported rather than one winning), and names the consumed set in its plan header. Dedup is
+  presence-only — identical `Location` AND identical `Finding` text — deliberately narrower than
+  Stage 3's ±3-line semantic key, which the `fix` action cannot compute because it runs no LLM stage
+  and which would drop one of two distinct defects at `foo.ts:42` and `foo.ts:44`. A one-file set
+  reduces to the previous behavior byte-for-byte; an empty set keeps the clean STOP.
+- **The applied-plan record is now written on EVERY apply path and is the consumption ledger.**
+  It was headless-`--yes`-only, so a bound anchored on it was a no-op on the dominant interactive
+  path and the merge set would have grown without limit, re-injecting findings the required post-fix
+  re-review had already resolved. `source-findings:` is now always a YAML block sequence of consumed
+  file NAMES — names, not paths, because the resolved `memory_dir` can differ between the session
+  that wrote the findings and the session that applies them, while the branch findings directory is
+  a single home with unique timestamped names. `fix` subtracts those names from the merge set, and
+  the exact-`branch:` filter binds records as well as candidates so a slug-collided branch's record
+  cannot truncate the set. Consumption is per file, not per row: rows surfaced or narrowed out are
+  named in the record body and recovered by re-running the review, never by re-consumption.
+  Operators reading `.work/reviews/<branch-slug>/` will now see records from interactive applies
+  where previously only headless runs produced them.
+
 ## [0.19.0]
 
 ### Added
