@@ -45,8 +45,17 @@
  * process stderr without a per-adapter callback ({@link classifyErrorDetail}).
  */
 
-/** @import { CaptionSelection } from '../acquisition/select-caption.js' */
+import { CAPTION_CLASSES } from "../acquisition/select-caption.js";
+
+/** @import { CaptionClass, CaptionSelection } from '../acquisition/select-caption.js' */
 /** @import { HarvestedLink } from '../harvesting/models.js' */
+
+/**
+ * Per-source transcript strategy (T5): how a transcript is produced from the
+ * acquired artifacts. Adapters declare a default; the pipeline may override.
+ *
+ * @typedef {'captions'|'captions+repair'|'asr'} TranscriptStrategy
+ */
 
 /**
  * Dispatch-level error: no registered adapter owns the URL's host. Deliberately not
@@ -342,12 +351,12 @@ export function primaryEntry(envelope) {
  *   restriction. A source whose upstream extractor can delegate to foreign
  *   URLs MUST declare one so the delegation is refused without any fetch
  *   (SSRF guard); every probe/acquire/preflight invocation consumes it.
- * @property {string} captionClass - declared caption provenance class; reserved
- *   for the shared caption-selection ladder, whose consumer lands with the
- *   transcript-strategy seam (no shared consumer reads it yet)
+ * @property {CaptionClass} captionClass - declared caption provenance class,
+ *   consumed by the shared caption-selection ladder
+ *   (`acquisition/select-caption.js`); must be one of {@link CAPTION_CLASSES}
  * @property {SourceErrorPatterns} errorPatterns
- * @property {'captions'|'captions+repair'|'asr'} transcriptStrategy - per-source
- *   default; pipeline-overridable
+ * @property {TranscriptStrategy} transcriptStrategy - per-source default;
+ *   pipeline-overridable
  * @property {SourceCapabilities} capabilities
  * @property {MatchUrlFn} matchUrl
  * @property {ExtractSliceKeyFn} extractSliceKey
@@ -378,7 +387,10 @@ export const REQUIRED_METHOD_ARITY = Object.freeze({
   acceptForEnqueue: 1,
 });
 
-const TRANSCRIPT_STRATEGIES = Object.freeze(["captions", "captions+repair", "asr"]);
+/** The transcript-strategy vocabulary ({@link TranscriptStrategy}). */
+export const TRANSCRIPT_STRATEGIES = Object.freeze(
+  /** @type {readonly TranscriptStrategy[]} */ (["captions", "captions+repair", "asr"]),
+);
 const KNOWN_CAPABILITIES = Object.freeze([
   "comments",
   "browserCookieFallback",
@@ -439,12 +451,19 @@ export function validateAdapter(spec) {
   if (record.allowedExtractors !== null && typeof record.allowedExtractors !== "string") {
     violations.push('attribute "allowedExtractors" must be a string or null');
   }
-  if (typeof record.captionClass !== "string" || record.captionClass.length === 0) {
-    violations.push('attribute "captionClass" must be a non-empty string');
+  if (
+    typeof record.captionClass !== "string" ||
+    !CAPTION_CLASSES.includes(/** @type {CaptionClass} */ (record.captionClass))
+  ) {
+    violations.push(
+      `attribute "captionClass" must be one of: ${CAPTION_CLASSES.join(", ")} (the classes the shared caption ladder consumes)`,
+    );
   }
   if (
     typeof record.transcriptStrategy !== "string" ||
-    !TRANSCRIPT_STRATEGIES.includes(record.transcriptStrategy)
+    !TRANSCRIPT_STRATEGIES.includes(
+      /** @type {TranscriptStrategy} */ (record.transcriptStrategy),
+    )
   ) {
     violations.push(
       `attribute "transcriptStrategy" must be one of: ${TRANSCRIPT_STRATEGIES.join(", ")}`,

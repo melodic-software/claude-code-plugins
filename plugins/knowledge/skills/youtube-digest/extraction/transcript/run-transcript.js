@@ -2,10 +2,14 @@
 /**
  * CLI: acquire captions + write `.work/<video-slug>/transcript.txt`.
  *
- * Usage: node transcript/run-transcript.js <video-url>
+ * Usage: node transcript/run-transcript.js <video-url> [--transcript-strategy <captions|captions+repair|asr>]
  *
  * Acquisition dispatches through the source-adapter registry; an unknown host
- * fails closed (non-zero exit) listing the supported sources.
+ * fails closed (non-zero exit) listing the supported sources. The transcript
+ * strategy defaults per source (adapter `transcriptStrategy`); the flag is the
+ * explicit pipeline override. A degraded transcript (e.g. captions absent and
+ * the optional ASR toolchain not available) still exits 0, with the reason in
+ * the `transcriptDegradation` output field.
  */
 
 import fs from "node:fs/promises";
@@ -17,8 +21,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
+import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "./derive-video-slug.js";
+import { parseTranscriptStrategyOverride } from "./transcript-strategy.js";
 import { writeEnvelopeTranscriptArtifacts } from "./write-transcript.js";
 
 /**
@@ -26,8 +32,15 @@ import { writeEnvelopeTranscriptArtifacts } from "./write-transcript.js";
  */
 export async function runTranscriptCli(argv) {
   const url = argv[2];
-  if (!url) {
-    writeStderr("Usage: node transcript/run-transcript.js <video-url>");
+  if (!url || url.startsWith("--")) {
+    writeStderr(
+      "Usage: node transcript/run-transcript.js <video-url> [--transcript-strategy <captions|captions+repair|asr>]",
+    );
+    return 1;
+  }
+  const strategyArg = parseTranscriptStrategyOverride(argv);
+  if (!strategyArg.ok) {
+    writeStderr(strategyArg.error);
     return 1;
   }
 
@@ -73,6 +86,9 @@ export async function runTranscriptCli(argv) {
       envelope,
       sourceUrl: url,
       sliceKey,
+      transcriptStrategy: adapter.transcriptStrategy,
+      strategyOverride: strategyArg.override,
+      harvestedLinks: harvestMetadataLinks(metadata, adapter),
     });
     const primary = primaryEntry(envelope);
     const primaryTranscript =
@@ -93,6 +109,8 @@ export async function runTranscriptCli(argv) {
           cueCount: primaryTranscript?.cueCount ?? 0,
           paragraphCount: primaryTranscript?.paragraphCount ?? 0,
           cleanedAutoCaptions: primaryTranscript?.cleanedAutoCaptions ?? false,
+          transcriptStrategy: primaryTranscript?.strategy ?? null,
+          transcriptDegradation: written.transcriptDegradation,
           videoDownloaded: envelope.entries.some((entry) => Boolean(entry.mediaPath)),
           transcripts: written.transcripts,
         },

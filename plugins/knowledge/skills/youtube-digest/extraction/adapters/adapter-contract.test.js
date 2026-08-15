@@ -192,6 +192,15 @@ describe("validateAdapter", () => {
     badStrategy.transcriptStrategy = "telepathy";
     expect(validateAdapter(badStrategy).some((v) => v.includes("transcriptStrategy"))).toBe(true);
 
+    // captionClass is CONSUMED by the shared caption ladder, so the contract
+    // rejects classes the ladder does not understand.
+    const badCaptionClass = validSpec();
+    badCaptionClass.captionClass = "hand-transcribed";
+    expect(validateAdapter(badCaptionClass).some((v) => v.includes("captionClass"))).toBe(true);
+    const manualAndAuto = validSpec();
+    manualAndAuto.captionClass = "manual-and-auto";
+    expect(validateAdapter(manualAndAuto)).toEqual([]);
+
     const badPatterns = validSpec();
     badPatterns.errorPatterns = { retryable: [], fatal: ["gone"], loginRequired: [] };
     expect(validateAdapter(badPatterns).some((v) => v.includes("errorPatterns.fatal"))).toBe(true);

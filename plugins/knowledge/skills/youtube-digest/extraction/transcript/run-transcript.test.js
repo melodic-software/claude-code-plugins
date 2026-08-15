@@ -115,6 +115,45 @@ describe("runTranscriptCli envelope consumption", () => {
     );
   });
 
+  it("caption-absent X entry exits 0 with the named transcriptDegradation provenance field", async () => {
+    const xUrl = "https://x.com/someone/status/1001551623938805763";
+    vi.mocked(acquireMedia).mockResolvedValue({
+      success: true,
+      data: createAcquisitionEnvelope({
+        entries: [
+          {
+            mediaPath: "",
+            captionPaths: [],
+            metadataPath: path.join(fixtureDir, "info.json"),
+            caption: null,
+          },
+        ],
+        metadata: { id: "1001551417340022785", title: "Fixture Post", description: "" },
+        workDir: fixtureDir,
+      }),
+    });
+
+    const code = await runTranscriptCli(["node", "run-transcript.js", xUrl]);
+    expect(code).toBe(0);
+
+    const output = JSON.parse(captured.stdout.join(""));
+    expect(output.transcriptPath).toBeNull();
+    expect(output.transcriptStrategy).toBeNull();
+    expect(output.transcriptDegradation).toContain("no captions were selected");
+  });
+
+  it("rejects an unknown --transcript-strategy override", async () => {
+    const code = await runTranscriptCli([
+      "node",
+      "run-transcript.js",
+      URL,
+      "--transcript-strategy",
+      "telepathy",
+    ]);
+    expect(code).toBe(1);
+    expect(captured.stderr.join("\n")).toContain("--transcript-strategy requires one of");
+  });
+
   it("consumes a 0-entry envelope as a well-formed metadata-only slice", async () => {
     vi.mocked(acquireMedia).mockResolvedValue({
       success: true,

@@ -2,6 +2,64 @@ import { describe, expect, it } from "vitest";
 
 import { classifyCaptionRung, selectCaptionFile } from "./select-caption.js";
 
+describe("classifyCaptionRung (platform-asr class)", () => {
+  it("classifies an X-style bare .en.vtt as platform ASR, never manual-en", () => {
+    expect(classifyCaptionRung("/w/1001551417340022785.en.vtt", "platform-asr")).toBe(
+      "platform-asr-en",
+    );
+    expect(classifyCaptionRung("/w/123.en-us.vtt", "platform-asr")).toBe("platform-asr-en");
+    expect(classifyCaptionRung("/w/123.en-gb.vtt", "platform-asr")).toBe("platform-asr-en");
+  });
+
+  it("classifies the raw und LANGUAGE fallback", () => {
+    expect(classifyCaptionRung("/w/123.und.vtt", "platform-asr")).toBe("platform-asr-und");
+  });
+
+  it("returns null for non-English tracks and non-vtt files", () => {
+    expect(classifyCaptionRung("/w/123.ja.vtt", "platform-asr")).toBeNull();
+    expect(classifyCaptionRung("/w/123.en.srt", "platform-asr")).toBeNull();
+  });
+
+  it("throws on an unknown caption class", () => {
+    expect(() =>
+      classifyCaptionRung("/w/123.en.vtt", /** @type {never} */ ("telepathy")),
+    ).toThrow(/Unknown captionClass/);
+  });
+});
+
+describe("selectCaptionFile (platform-asr class)", () => {
+  it("selects the EN track as auto-class (the X .en.vtt misclassification fix)", () => {
+    const result = selectCaptionFile(["/w/1001551417340022785.en.vtt"], "platform-asr");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.rung).toBe("platform-asr-en");
+      expect(result.selection.isAutoCaption).toBe(true);
+    }
+  });
+
+  it("prefers EN over und, and falls back to und", () => {
+    const preferred = selectCaptionFile(["/w/a.und.vtt", "/w/a.en.vtt"], "platform-asr");
+    expect(preferred.success).toBe(true);
+    if (preferred.success) {
+      expect(preferred.selection.rung).toBe("platform-asr-en");
+    }
+    const fallback = selectCaptionFile(["/w/a.und.vtt"], "platform-asr");
+    expect(fallback.success).toBe(true);
+    if (fallback.success) {
+      expect(fallback.selection.rung).toBe("platform-asr-und");
+      expect(fallback.selection.isAutoCaption).toBe(true);
+    }
+  });
+
+  it("exhausts the platform ladder on non-English-only tracks", () => {
+    const result = selectCaptionFile(["/w/a.ja.vtt"], "platform-asr");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("platform-ASR EN → und ladder exhausted");
+    }
+  });
+});
+
 describe("classifyCaptionRung", () => {
   it("classifies manual English captions", () => {
     expect(classifyCaptionRung("/tmp/abc.en.vtt")).toBe("manual-en");

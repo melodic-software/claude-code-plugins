@@ -2,14 +2,19 @@
 /**
  * CLI: acquire + transcript + watching selection + harvest for `/youtube-digest watch`.
  *
- * Usage: node watch/run-watch.js <video-url> [--skip-research] [--target <repo>] [--recover <slice-dir>]
+ * Usage: node watch/run-watch.js <video-url> [--skip-research] [--target <repo>]
+ *   [--recover <slice-dir>] [--transcript-strategy <captions|captions+repair|asr>]
  *
  * Acquisition dispatches through the source-adapter registry (unknown host
  * fails closed, non-zero exit, listing supported sources) and consumes the
  * 0..N result envelope: a 0-media envelope produces a well-formed text-only
  * slice (transcript/watching/vision recorded as skipped); visual watching
  * covers the primary media entry, with envelope arity recorded in watch state
- * (`entryCount`) and every caption-bearing entry's transcript written.
+ * (`entryCount`) and every transcript-bearing entry's transcript written. The
+ * transcript strategy defaults per source (adapter `transcriptStrategy`); the
+ * flag is the explicit pipeline override, and a degraded transcript surfaces
+ * in the `transcriptDegradation` provenance field (watch.json + output),
+ * never silently.
  *
  * Vision absorption, research, and synthesis run in the skill session (not this script).
  */
@@ -28,6 +33,7 @@ import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
+import { parseTranscriptStrategyOverride } from "../transcript/transcript-strategy.js";
 import { writeEnvelopeTranscriptArtifacts } from "../transcript/write-transcript.js";
 import { orchestrateWatching } from "../watching/orchestrate-watching.js";
 import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
@@ -100,6 +106,11 @@ export async function runWatchCli(argv) {
     return 1;
   }
   const target = targetIndex !== -1 ? argv[targetIndex + 1] : undefined;
+  const strategyArg = parseTranscriptStrategyOverride(argv);
+  if (!strategyArg.ok) {
+    writeStderr(strategyArg.error);
+    return 1;
+  }
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-extraction-"));
   const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-frames-"));
@@ -153,11 +164,15 @@ export async function runWatchCli(argv) {
       ...(envelope.acquireMetrics ?? {}),
     });
 
+    const harvestedLinks = harvestMetadataLinks(metadata, adapter);
     const written = await writeEnvelopeTranscriptArtifacts({
       sliceDir,
       envelope,
       sourceUrl: url,
       sliceKey,
+      transcriptStrategy: adapter.transcriptStrategy,
+      strategyOverride: strategyArg.override,
+      harvestedLinks,
     });
     const primaryTranscript =
       written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
@@ -171,13 +186,22 @@ export async function runWatchCli(argv) {
             paragraphCount: primaryTranscript.paragraphCount,
             cueCount: primaryTranscript.cueCount,
             transcriptCount: written.transcripts.length,
+            transcriptStrategy: primaryTranscript.strategy,
+            ...(written.transcriptDegradation
+              ? { transcriptDegradation: written.transcriptDegradation }
+              : {}),
           }
-        : { skipped: true, reason: "no caption-bearing entries" },
+        : {
+            skipped: true,
+            reason: "no transcript-bearing entries",
+            ...(written.transcriptDegradation
+              ? { transcriptDegradation: written.transcriptDegradation }
+              : {}),
+          },
     );
 
     /** @param {import('./watch-state.js').WatchState} current */
     const finishSlice = async (current) => {
-      const harvestedLinks = harvestMetadataLinks(metadata, adapter);
       await fs.mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
       const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
       await fs.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");
@@ -221,6 +245,8 @@ export async function runWatchCli(argv) {
             status: state.status,
             entryCount: entries.length,
             textOnly: true,
+            transcriptStrategy: primaryTranscript?.strategy ?? null,
+            transcriptDegradation: written.transcriptDegradation,
             harvestedLinkCount: finished.harvestedLinks.length,
             skipResearch,
             tempSession,
@@ -296,6 +322,8 @@ export async function runWatchCli(argv) {
           highVolume: watching.highVolume ?? false,
           selectedCount: watching.selectedFrames.length,
           targetMinFrames: watching.targetMinFrames ?? 0,
+          transcriptStrategy: primaryTranscript?.strategy ?? null,
+          transcriptDegradation: written.transcriptDegradation,
           harvestedLinkCount: finished.harvestedLinks.length,
           skipResearch,
           tempSession,

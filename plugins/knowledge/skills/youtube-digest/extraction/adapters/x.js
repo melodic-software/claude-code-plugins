@@ -146,6 +146,15 @@ export const X_RETRYABLE_PATTERNS = Object.freeze([
  */
 const X_SUB_LANGS = "en.*,und,-live_chat";
 
+/**
+ * Every X caption track is platform-generated ASR — declared once, consumed by
+ * both the spec and this adapter's own caption selection so the shared ladder
+ * never classifies an X `.en.vtt` as `manual-en`.
+ *
+ * @type {import('../acquisition/select-caption.js').CaptionClass}
+ */
+const X_CAPTION_CLASS = "platform-asr";
+
 /** Literal marker of X's word-timing caption tags (kept verbatim on disk). */
 const X_WORD_TIMING_TAG_MARKER = "<X-word-ms";
 
@@ -863,7 +872,7 @@ export async function acquireXMedia(url, context) {
   const orderedVideos = orderTwitterVideos(inspected.twitterVideos, inspected.twitterPlaylist);
   const entries = orderedVideos.map((video) => {
     const artifacts = matchEntryArtifacts(files, String(video.info.id));
-    const captionResult = selectCaptionFile(artifacts.captionPaths);
+    const captionResult = selectCaptionFile(artifacts.captionPaths, X_CAPTION_CLASS);
     return {
       mediaPath: mode === "full" ? artifacts.mediaPath : "",
       captionPaths: artifacts.captionPaths,
@@ -894,7 +903,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   hosts: [...X_OWNED_HOSTS],
   extractorArgs: null,
   allowedExtractors: X_ALLOWED_EXTRACTORS,
-  captionClass: "platform-asr",
+  captionClass: X_CAPTION_CLASS,
   errorPatterns: {
     retryable: [...X_RETRYABLE_PATTERNS],
     fatal: [...X_FATAL_PATTERNS],

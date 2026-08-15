@@ -92,6 +92,190 @@ describe("writeEnvelopeTranscriptArtifacts", () => {
     expect(readme).not.toContain("metadataId0");
   });
 
+  it("captions+repair repairs proper nouns from the post-text lexicon", async () => {
+    const corruptedVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+so I opened clawed code today
+`;
+    /** @type {Record<string, string>} */
+    const files = {};
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        sliceDir,
+        envelope: createAcquisitionEnvelope({
+          entries: [
+            entry({
+              mediaPath: "/w/a.mp4",
+              captionPaths: ["/w/a.en.vtt"],
+              caption: { path: "/w/a.en.vtt", rung: "platform-asr-en", isAutoCaption: true },
+            }),
+          ],
+          metadata: { ...metadata, description: "Claude Code ships today" },
+          workDir: "/w",
+        }),
+        sourceUrl: "https://x.com/u/status/1",
+        sliceKey: "urlKey0",
+        transcriptStrategy: "captions+repair",
+      },
+      {
+        mkdir: async () => {},
+        readFile: async () => corruptedVtt,
+        writeFile: async (filePath, content) => {
+          files[String(filePath)] = String(content);
+        },
+      },
+    );
+
+    expect(result.transcripts).toHaveLength(1);
+    expect(result.transcripts[0].strategy).toBe("captions+repair");
+    expect(result.transcripts[0].repairedTermCount).toBe(1);
+    expect(result.transcriptDegradation).toBeNull();
+    const transcript = files[path.join(sliceDir, "source", "transcript.txt")];
+    expect(transcript).toContain("Claude Code");
+    expect(transcript).not.toContain("clawed code");
+  });
+
+  it("caption-absent + ASR capability available runs the asr rung", async () => {
+    /** @type {Record<string, string>} */
+    const files = {};
+    const runAsrMock = async (/** @type {{mediaPath: string}} */ options) => {
+      expect(options.mediaPath).toBe("/w/a.mp4");
+      return {
+        success: true,
+        cues: [{ startSec: 0, endSec: 2, text: "spoken words" }],
+        words: [],
+      };
+    };
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        sliceDir,
+        envelope: createAcquisitionEnvelope({
+          entries: [entry({ mediaPath: "/w/a.mp4" })],
+          metadata,
+          workDir: "/w",
+        }),
+        sourceUrl: "https://x.com/u/status/1",
+        sliceKey: "urlKey0",
+        transcriptStrategy: "captions+repair",
+      },
+      {
+        mkdir: async () => {},
+        readFile: async () => "",
+        writeFile: async (filePath, content) => {
+          files[String(filePath)] = String(content);
+        },
+        detectAsr: async () => ({
+          available: true,
+          python: "python",
+          version: "1.1.0",
+          detail: "test",
+        }),
+        runAsr: runAsrMock,
+      },
+    );
+
+    expect(result.transcripts).toHaveLength(1);
+    expect(result.transcripts[0].strategy).toBe("asr");
+    expect(result.captionlessEntryCount).toBe(1);
+    expect(result.transcriptDegradation).toBeNull();
+    expect(files[path.join(sliceDir, "source", "transcript.txt")]).toContain("spoken words");
+  });
+
+  it("caption-absent + capability absent degrades explicitly in the named provenance field", async () => {
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        sliceDir,
+        envelope: createAcquisitionEnvelope({
+          entries: [entry({ mediaPath: "/w/a.mp4" })],
+          metadata,
+          workDir: "/w",
+        }),
+        sourceUrl: "https://x.com/u/status/1",
+        sliceKey: "urlKey0",
+        transcriptStrategy: "captions+repair",
+      },
+      {
+        mkdir: async () => {},
+        readFile: async () => "",
+        writeFile: async () => {},
+        detectAsr: async () => ({
+          available: false,
+          python: null,
+          version: null,
+          detail: "not installed",
+        }),
+      },
+    );
+
+    expect(result.transcripts).toHaveLength(0);
+    expect(result.transcriptDegradation).toContain("faster-whisper");
+    expect(result.entryDegradations).toEqual([
+      { entryIndex: 0, reason: expect.stringContaining("without a transcript") },
+    ]);
+  });
+
+  it("an explicit pipeline override wins over the adapter default", async () => {
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        sliceDir,
+        envelope: createAcquisitionEnvelope({
+          entries: [
+            entry({
+              captionPaths: ["/w/a.en.vtt"],
+              caption: { path: "/w/a.en.vtt", rung: "platform-asr-en", isAutoCaption: true },
+            }),
+          ],
+          metadata: { ...metadata, description: "Claude Code" },
+          workDir: "/w",
+        }),
+        sourceUrl: "https://x.com/u/status/1",
+        sliceKey: "urlKey0",
+        transcriptStrategy: "captions+repair",
+        strategyOverride: "captions",
+      },
+      {
+        mkdir: async () => {},
+        readFile: async () => SAMPLE_VTT,
+        writeFile: async () => {},
+      },
+    );
+
+    expect(result.transcripts[0].strategy).toBe("captions");
+    expect(result.transcripts[0].repairedTermCount).toBe(0);
+  });
+
+  it("an ASR failure degrades the entry explicitly instead of failing the digest", async () => {
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        sliceDir,
+        envelope: createAcquisitionEnvelope({
+          entries: [entry({ mediaPath: "/w/a.mp4" })],
+          metadata,
+          workDir: "/w",
+        }),
+        sourceUrl: "https://x.com/u/status/1",
+        sliceKey: "urlKey0",
+        transcriptStrategy: "captions+repair",
+      },
+      {
+        mkdir: async () => {},
+        readFile: async () => "",
+        writeFile: async () => {},
+        detectAsr: async () => ({
+          available: true,
+          python: "python",
+          version: "1.1.0",
+          detail: "test",
+        }),
+        runAsr: async () => ({ success: false, error: "ASR transcription failed: boom" }),
+      },
+    );
+
+    expect(result.transcripts).toHaveLength(0);
+    expect(result.transcriptDegradation).toContain("boom");
+  });
+
   it("pairs transcript.txt with the primary (media-bearing) entry, not entry 0", async () => {
     const { files, result } = await writeWithFakeFs(
       createAcquisitionEnvelope({
