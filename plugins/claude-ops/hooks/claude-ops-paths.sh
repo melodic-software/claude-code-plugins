@@ -6,6 +6,7 @@
 # escape the physical project root. Prints the candidate on success.
 claude_ops::resolve_project_relative_dir() {
   local project_dir="$1" configured="$2" normalized segment candidate ancestor
+  local -a segments
 
   [[ -n "$project_dir" && -n "$configured" ]] || return 1
 

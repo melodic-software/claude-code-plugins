@@ -264,13 +264,20 @@ inert_grant_remedy() {
   esac
 }
 
+rule_matches() {
+  # rule_matches <text> <ere> — the distinct whole-rule matches of <ere>, one per
+  # line. Deduplicated so one rule text repeating an offending spelling reports
+  # once; the caller owns the finding's severity, check id and wording.
+  printf '%s\n' "$1" | grep -oE "$2" 2>/dev/null | sort -u
+}
+
 scan_rule() {
   # scan_rule <rule-string> <source-label> [<source-file>] — one allow rule or
   # one frontmatter token region. source-file enables the P4 remedy branch.
   local text="$1" src="$2" file="${3:-}" m remedy
   while IFS= read -r m; do
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
-  done < <(printf '%s\n' "$text" | grep -oE "$P1_ERE" 2>/dev/null | sort -u)
+  done < <(rule_matches "$text" "$P1_ERE")
   while IFS= read -r m; do
     [[ -z "$m" ]] && continue
     # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
@@ -280,16 +287,16 @@ scan_rule() {
     # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
     # genuinely portable forms and are already excluded by `_seg` above.
     emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
-  done < <(printf '%s\n' "$text" | grep -oE "$P2_RULE_ERE" 2>/dev/null | sort -u)
+  done < <(rule_matches "$text" "$P2_RULE_ERE")
   while IFS= read -r m; do
     [[ -z "$m" ]] && continue
     emit error P2 "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. Use \${CLAUDE_SKILL_DIR} for a skill's own script, a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
-  done < <(printf '%s\n' "$text" | grep -oE "$P2_TILDE_USER_RULE_ERE" 2>/dev/null | sort -u)
+  done < <(rule_matches "$text" "$P2_TILDE_USER_RULE_ERE")
   while IFS= read -r m; do
     [[ -z "$m" ]] && continue
     remedy="$(inert_grant_remedy "$file")"
     emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
-  done < <(printf '%s\n' "$text" | grep -oE "$P4_BASH_INERT_ERE" 2>/dev/null | sort -u)
+  done < <(rule_matches "$text" "$P4_BASH_INERT_ERE")
 }
 
 top_level_tokens() {

@@ -327,19 +327,17 @@ SIGNAL="none"
 # block reason below would otherwise instruct the agent to emit an empty token.
 SENTINEL=$(gate_option lane_stop_gate_sentinel) || SENTINEL=""
 [[ -n "$SENTINEL" ]] || SENTINEL="LANE-STOP-OK"
-if [[ -n "$SENTINEL" ]]; then
-  LAST=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
-  # Escape any regex metacharacters in the (configurable) sentinel before use.
-  SENTINEL_RE=$(printf '%s' "$SENTINEL" | sed 's/[][\.^$*+?(){}|/]/\\&/g')
-  # Here-string, NOT `printf | grep -q`: under pipefail, grep -q exits on the
-  # first match, and when a long message continues past the pipe buffer the
-  # producer takes SIGPIPE — the pipeline then reads as false and a genuinely
-  # signaled completion would be blocked. A here-string has no pipeline, so an
-  # early match can never be lost.
-  if grep -qE "^[[:space:]]*${SENTINEL_RE}[[:space:]]*$" <<<"$LAST"; then
-    SIGNALED=1
-    SIGNAL="sentinel"
-  fi
+LAST=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
+# Escape any regex metacharacters in the (configurable) sentinel before use.
+SENTINEL_RE=$(printf '%s' "$SENTINEL" | sed 's/[][\.^$*+?(){}|/]/\\&/g')
+# Here-string, NOT `printf | grep -q`: under pipefail, grep -q exits on the
+# first match, and when a long message continues past the pipe buffer the
+# producer takes SIGPIPE — the pipeline then reads as false and a genuinely
+# signaled completion would be blocked. A here-string has no pipeline, so an
+# early match can never be lost.
+if grep -qE "^[[:space:]]*${SENTINEL_RE}[[:space:]]*$" <<<"$LAST"; then
+  SIGNALED=1
+  SIGNAL="sentinel"
 fi
 
 # --- Marker consumption ledger ------------------------------------------------
