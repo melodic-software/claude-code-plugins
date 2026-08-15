@@ -1,10 +1,7 @@
 # Suno context drift audit ledger
 
 Committed authority for what has and has not been audited in the `suno`
-skill's context spokes. Prior issues (#2233, #2266) cited
-`.work/songwriting-plugin-pilot/suno-drift/RESEARCH.md` as this ledger;
-that memory-tier path was never created, so absence claims were
-unfalsifiable until this file shipped (#2354).
+skill's context spokes.
 
 **How to use:** each row names a site, the claim class, audit status, and
 the release or issue that last touched it. "Unsourced" means no source was
@@ -28,3 +25,9 @@ false.
 
 When a row moves, update this table and the plugin CHANGELOG in the same
 PR.
+
+## History
+
+Prior issues (#2233, #2266) cited a memory-tier research file as this
+ledger; that path was never created, so absence claims were unfalsifiable
+until this file shipped (#2354).

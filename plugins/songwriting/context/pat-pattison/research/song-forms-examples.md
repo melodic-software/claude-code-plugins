@@ -22,13 +22,8 @@ block, and the "Common threads across all four" list are this file's own
 synthesis, not claims Chapter 6 makes. Everything else is Pat's text as
 printed.
 
-## Why this file exists
-
-`song-forms.md` covers the principles. This file is the worked-example
-companion writers reach when asking: "how is this form actually built?" or
-"how does a deceptive verse hand off to a resolving chorus?"
-
-Load via `/songwriting:song-form song-forms` when a writer wants to see Pat's
+`song-forms.md` covers the principles; this file is the worked-example
+companion (load via `/songwriting:song-form song-forms`) for Pat's
 mechanism analyses, not just the form taxonomy.
 
 ## "This Bottle and Me" — Verse/Refrain (Chapter 6)

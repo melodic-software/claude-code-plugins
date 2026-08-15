@@ -10,8 +10,8 @@ date: 2026-07-23
 
 The design-significant threads for both plugins were resolved and owner-confirmed during
 `/planning:interview` (4 frontier rounds, 15 branches, confirmed 2026-07-23 — ledger:
-`.work/plugin-audit-port/interview-checklist.md`). The Brief in `PLAN.md` carries the resolved
-contracts verbatim; a design pass would re-derive settled threads. This artifact records the
+`.work/plugin-audit-port/interview-checklist.md`, checkout-local and uncommitted). The Brief in
+`PLAN.md` carries the resolved contracts verbatim; a design pass would re-derive settled threads. This artifact records the
 early-exit and the type/contract sketch the gate requires. `[FALLBACK — confirm or override]` —
 surfaced in the plan's decisions table; the owner may still demand a full `/design` pass.
 

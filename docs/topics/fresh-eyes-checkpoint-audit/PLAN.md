@@ -8,8 +8,9 @@ Wave 2 of program #304: retrofit fresh-context delegation into the 10 skills whe
 judgment is structural and unmitigated, codify the delegation mechanics (dispatch shape, model
 tiers, named-agent bar) as doctrine with a deterministic conformance gate, and correct two false
 claims found during the audit. Wave 1 (the 50-plugin audit) was executed 2026-07-19 by five
-fresh-context agents; findings and the working ledger live in
-`.work/fresh-eyes-checkpoint-audit/interview-checklist.md`.
+fresh-context agents; findings and the working ledger live in the checkout-local memory slice
+(`.work/fresh-eyes-checkpoint-audit/interview-checklist.md` — uncommitted, invisible outside the
+authoring checkout).
 
 ### Goal
 
@@ -97,7 +98,7 @@ doctrine, enforced by a deterministic authoring-time gate.
 ## Plan
 
 Design contract (declared patterns, check-18 semantics): `design/design-resolution.md`. Evidence:
-`.work/fresh-eyes-checkpoint-audit/interview-checklist.md`.
+the topic's checkout-local interview ledger (see the Brief's note above).
 
 ### Phase 1: Doctrine + gate PR [TODO]
 
