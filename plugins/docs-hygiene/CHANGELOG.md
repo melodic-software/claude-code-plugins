@@ -11,7 +11,8 @@
   50-60/kw. Density < 5/kw now forces SKIP (expected ≤ 3%). This is the "add a 6th signal"
   branch of the pre-existing recheck trigger for consistently under-yielding signal-5 files.
 - **compress:** Target-validation gate 5 — during the mutating action's ENUMERATED sweeps
-  (directory expansion or the repo-wide interview), paths under `evals/fixtures/` skip with
+  (any target set the user did not name file-by-file: the empty-arg uncommitted-`.md` batch,
+  directory expansion, or the repo-wide interview), paths under `evals/fixtures/` skip with
   `reason=fixture`. Fixture verbosity is deliberate test input; compressing it corrupts the eval.
   Explicitly-named single-file targets and the read-only audit action bypass the gate (naming a
   fixture is an intentional act, same philosophy as `--force`).

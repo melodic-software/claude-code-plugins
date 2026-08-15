@@ -115,13 +115,25 @@
       "id": 9,
       "name": "fixture-path-skip-in-enumerated-sweep",
       "prompt": "Compress plugins/docs-hygiene/skills/compress/ — the whole directory, everything markdown under it.",
-      "expected_output": "The directory target enumerates recursively, so target-validation gate 5 applies: every enumerated path under evals/fixtures/ skips with reason=fixture and is never edited (fixture verbosity is deliberate test input; compressing it corrupts the eval), while non-fixture markdown proceeds through the normal per-file pipeline. Gate 5 is scoped to the mutating action on ENUMERATED targets only — an explicitly-named single fixture file (as in eval 1) and the read-only audit action (as in eval 2) bypass it.",
+      "expected_output": "The directory target enumerates recursively, so target-validation gate 5 applies: every enumerated path under evals/fixtures/ skips with reason=fixture and is never edited (fixture verbosity is deliberate test input; compressing it corrupts the eval), while non-fixture markdown proceeds through the normal per-file pipeline. Gate 5 is scoped to the mutating action on ENUMERATED targets only — the empty-arg uncommitted-.md batch, directory expansion, and the repo-wide interview sweep — while an explicitly-named single fixture file (as in eval 1) and the read-only audit action (as in eval 2) bypass it.",
       "files": [],
       "expectations": [
         "Enumerated paths under evals/fixtures/ are skipped with reason=fixture before any dispatch",
         "No fixture file is edited by the sweep",
         "Non-fixture markdown in the directory is processed normally, not skipped",
         "Output reflects the gate's scoping: it applies to enumerated mutating sweeps, not to an explicitly-named single fixture file or to the read-only audit action"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "fixture-skip-in-uncommitted-batch",
+      "prompt": "/docs-hygiene:compress (invoked with no target; the working tree has two uncommitted .md files: docs/notes/draft.md and plugins/docs-hygiene/skills/compress/evals/fixtures/verbose-onboarding-snippet.md, the latter touched by a formatter)",
+      "expected_output": "The empty-arg + uncommitted-.md batch enumerates its targets from git status, so target-validation gate 5 applies to it exactly as to directory expansion and the interview sweep: the fixture file skips with reason=fixture and is never edited, while docs/notes/draft.md proceeds through the normal per-file pipeline. The user never named the fixture file, so the explicit-naming bypass does not apply.",
+      "files": [],
+      "expectations": [
+        "The uncommitted fixture file is skipped with reason=fixture, not compressed",
+        "The non-fixture uncommitted file is processed normally",
+        "Output does not treat an uncommitted edit to a fixture as intentional naming — the bypass is only for a target path the user typed"
       ]
     }
   ]
