@@ -1,7 +1,7 @@
 # Cross-Surface Conflict Criteria
 
-Version: 1.4.0
-Last updated: 2026-08-08
+Version: 1.5.0
+Last updated: 2026-08-15
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -43,45 +43,51 @@ pages do not make is recorded as unresolved and given no winner.
 
 ## Boundary: what C6's population actually is
 
-I15 routes a contradiction "wholly inside the memory layer" to `claude-memory:audit`'s **C6
-Consistency** check, and counts `~/.claude/rules/` among the memory-layer surfaces. Those two
-statements do not compose, and the gap is silent.
+I15 routes a contradiction whose **both** anchors sit in `claude-memory:audit`'s C6 discovery
+population to that check, and keeps every other pair here — including memory-layer pairs C6 still
+does not enumerate, and every cross-layer pair. The predicate is the population, never the layer
+name.
 
 The `claude-memory:audit` skill's check **C6** asks its question "across CLAUDE.md, CLAUDE.local.md,
-and rules files", and its population is **project-relative**: the audit workflow discovers files
-with `find . -maxdepth 1 -name "CLAUDE.md"` and `find .claude/rules`, and the orphan-rule script
-scans `.claude/rules/*.md`. The plugin resolves a user-level directory only for auto-memory under
-`~/.claude/projects/<slug>/`, never for rules. Its official-guidance reference notes `~/.claude/rules/`
-exists as background and never audits it.
+and rules files". Its live discovery is
+`skills/audit/scripts/discover-instruction-surfaces.sh`, which emits **project and user** scope —
+root-level project `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**`, plus
+`${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and `…/rules/**` — each tagged so project-scoped criteria
+can skip personal files. Step 3 of the audit workflow then compares user-scope surfaces against
+project ones as live C6 conflicts. That widening closed the silent gap the previous edition of this
+section documented: a user-global instruction contradicting a project one is no longer deferred by
+I15 into a check that could not see it.
 
-So a user-global instruction contradicting a project one — `~/.claude/CLAUDE.md` against project
-`CLAUDE.md`, or `~/.claude/rules/` against `.claude/rules/` — is deferred by I15 as "memory-layer" and
-never picked up by C6. **Neither check reports it.** Route on C6's actual population instead:
+Route on that population:
 
 | Pair | Owner |
 |---|---|
-| Both halves inside **root-level project** `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` | `claude-memory`'s C6 |
-| Anything else — any `~/.claude/` side, any auto-memory side, **any nested `CLAUDE.md` / `CLAUDE.local.md` side** | I15 |
+| Both anchors in the **discover-instruction-surfaces** population (any mix of project / user / `both` scope among root-level `CLAUDE.md` / `CLAUDE.local.md` / rules) — **including user↔project** | `claude-memory`'s C6 |
+| Anything else — **any nested `CLAUDE.md` / `CLAUDE.local.md` side**, any auto-memory side, settings, hooks, skills, agents, output styles, or any other surface outside that population | I15 |
 
-**Nested memory files are not routed out either**, for the same reason and by the same evidence.
-Phase A inventories every nested `CLAUDE.md` / `CLAUDE.local.md` in the project tree, while C6
-discovers with `find . -maxdepth 1` — so routing a nested pair to C6 hands it to a check that never
-reads the file. "Project-scope" is the wrong predicate; **root-level project** is the right one.
+**Nested memory files stay with I15**, for the same reason as before. Phase A inventories every nested
+`CLAUDE.md` / `CLAUDE.local.md` in the project tree, while discover-instruction-surfaces is depth-1 by
+design — so routing a nested pair to C6 hands it to a check that never reads the file.
 
-**Auto-memory is deliberately not routed out** for the same reason. `claude-memory` audits `MEMORY.md`
-for size and index integrity, but C6's question names only "CLAUDE.md, CLAUDE.local.md, and rules
-files" — auto-memory is absent from the check text. Routing a `MEMORY.md`-versus-`CLAUDE.md`
-contradiction to C6 would leave it audited by neither skill, so it stays with I15 until C6 widens.
+**Auto-memory stays with I15** on the same evidence. `claude-memory` audits `MEMORY.md` for size and
+index integrity via a separate resolver, but that path is not in the discover-instruction-surfaces
+population C6 pairs over. Routing a `MEMORY.md`-versus-`CLAUDE.md` contradiction to C6 would leave it
+audited by neither skill's conflict check.
 
-When a pair is wholly project-scope memory-layer, report it as an observation and point the operator
-at `/claude-memory:audit` rather than grading it here; when that plugin is not installed, keep it as a
+**I15 still owns memory-layer precedence adjudication** — what the docs settle, what they leave
+unresolved, and the co-residency / liveness gates in this file — for every pair it keeps. C6 owns
+instruction-*content* consistency inside its discovery population; it does not absorb this file's
+precedence tables or the surfaces outside that population.
+
+When both anchors are in C6's population, report the pair as an observation and point the operator at
+`/claude-memory:audit` rather than grading it here; when that plugin is not installed, keep it as a
 finding so nothing is silently dropped. This mirrors the reciprocal routing `claude-memory` already
 performs for content-fit findings.
 
-The durable fix is upstream: C6's population should widen to cover the user scope, at which point this
-table narrows again. Until then, the rule is **route on the population a check actually enumerates,
-never on the name of the layer** — a boundary drawn from a label rather than from the incumbent's
-discovery globs is how a gap this size stays invisible.
+The rule remains **route on the population a check actually enumerates, never on the name of the
+layer** — a boundary drawn from a label rather than from the incumbent's discovery script is how a
+gap the size of the pre-widening user↔project hole stays invisible. When that script's population
+moves again, this table moves with it.
 
 ## Prerequisite: co-residency
 
