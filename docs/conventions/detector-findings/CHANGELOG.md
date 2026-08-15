@@ -4,6 +4,14 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.0.1 — 2026-08-15
+
+Docs-only: the self-ignore-guard bullet under "What the binding leaves to a
+producer" now matches the topic-docs invalid-root rule — the guard is owed only
+where a checkout governs the destination; where none is detected the exposure is
+an untracked findings path in any missed checkout, not a committed write.
+(#2756 follow-through on #2715)
+
 ## 2.0.0 — 2026-08-15
 
 The crosswalk phase, written from what the pilot ran into. **Major** under this contract's own rule:

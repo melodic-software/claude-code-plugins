@@ -3,6 +3,19 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.18]
+
+### Fixed
+
+- **Missing-tool notice: latch wording + probed-PATH diagnostic (#2740).** 0.11.17 already dropped
+  the "Install it explicitly" misdirection, but the notice still understated the latch: only the
+  notice itself latches (`skip-notices/` via `hook::notice_once`); the binary probe re-runs on every
+  Markdown edit and recovers mid-session when the tool becomes resolvable. The notice now says
+  "skipped for this edit", names that there is no skip latch, and appends a one-line
+  `PATH probed: …` diagnostic so a PATH-layer miss (cloud harness / nvm prefix) is diagnosable
+  without guessing. Deliberately does **not** widen the probe into nvm layout guesses — that is an
+  environment/bootstrap fix (#2739 / #2748), not a hook-side search expansion.
+
 ## [0.11.17]
 
 ### Changed

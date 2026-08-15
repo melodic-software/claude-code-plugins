@@ -37,6 +37,15 @@ workers, and headless runs, so every consumer reaching that surface ran
 create-when-absent against a root no checkout governs.
 (<https://github.com/melodic-software/claude-code-plugins/issues/2680>)
 
+## 2.4.4 — 2026-08-15
+
+Docs-only: the Memory, concern-scoped tier row now names `.work/running-retros/`
+alongside `.work/handoffs/` and `.work/reviews/`, matching the reserved
+first-level names and the session-flow implementer row already in this contract.
+The schema `memory_dir` description lists the same three concern directories.
+(`docs-hygiene` `/audit-noise` bare-root ghost-ref exemption tracks this roster.)
+(#2730)
+
 ## 2.4.3 — 2026-08-15
 
 Docs-only: the prune recovery pointer no longer pretends squash-merge

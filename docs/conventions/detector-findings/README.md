@@ -61,7 +61,12 @@ What the binding leaves to a producer — consequences, not a second statement o
   findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
   that the guard does not run, and the exposure is different in kind: the findings file lands as an
   **untracked** path in any checkout the detection missed — reachable by a later `git add -A`, not
-  committed by this producer's action. Reachable, not automatic.
+  committed by this producer's action. Reachable, not automatic. Recreating a path that is an
+  *index-tracked deletion* in a missed checkout would modify tracked state; that residual is the
+  same undecidable class the guard branch already discloses, and refusing every artifact write
+  whenever detection fails would also refuse the `${CLAUDE_PLUGIN_DATA}` default that sits outside
+  every checkout by construction — so the contract keeps the write and names the residual rather
+  than widening to a blanket refuse.
 
 ## Boundary
 
