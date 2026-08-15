@@ -83,10 +83,6 @@ install command:
 claude plugin install biome-format@<marketplace> --config biome_format_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings, not the
-project's). To turn the hook off for a single repository, disable the whole
-plugin in that project's `enabledPlugins` instead.
-
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

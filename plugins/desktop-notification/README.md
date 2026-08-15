@@ -74,9 +74,8 @@ on the install command:
 claude plugin install desktop-notification@<marketplace> --config desktop_notification_os_toast_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings, not the
-project's). To silence notifications for a single repository, disable the whole
-plugin in that project's `enabledPlugins` instead.
+Option scoping (user vs project settings, and the per-repository escape hatch)
+per "How to set these" below.
 
 ### Disable without uninstalling
 

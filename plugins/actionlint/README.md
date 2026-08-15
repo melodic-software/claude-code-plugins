@@ -74,11 +74,6 @@ install time:
 claude plugin install actionlint@<marketplace> --config actionlint_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings), so a value set
-here applies across every project. To disable actionlint for a single
-repository, disable the plugin in that project's `enabledPlugins` rather than
-setting `actionlint_enabled`.
-
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

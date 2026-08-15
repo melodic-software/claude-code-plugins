@@ -165,8 +165,9 @@ rubber-stamps it; an independent agent re-reading the doc claim AND the actual c
 false positives and miscategorized-but-correct claims. Where the finding set is high-stakes and
 correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** —
 e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the
-fresh-context same-vendor subagent as the fallback, never a route to a command that may not
-resolve. Fence each validator to read-only (its
+fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve
+(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+Fence each validator to read-only (its
 findings' files + verification-sources).
 
 ### External research (required when the tooling exists)
