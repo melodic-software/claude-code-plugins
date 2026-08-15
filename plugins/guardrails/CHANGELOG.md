@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.25]
+
+### Fixed
+
+- **PowerShell fail-closed block messages no longer assert a git command is present
+  ([#2662](https://github.com/melodic-software/claude-code-plugins/issues/2662)).**
+  The sink is gated by `ps::might_invoke_git` (possibly-git), so `iex` /
+  computed-call / computed-launcher paths can block with no git token. Headlines
+  now say the command cannot be parsed with confidence (and, for
+  `block-dangerous-git`, that it could reach git) without claiming git was found.
+
+- **`block-hook-bypass` sources the PowerShell classifier only on PowerShell tool
+  calls ([#2663](https://github.com/melodic-software/claude-code-plugins/issues/2663)).**
+  `ps-command.sh` (~41 KB) is no longer parsed on every Bash PreToolUse; the
+  Bash lane still sources only `hook-utils.sh` at file scope.
+
+- **`block-dangerous-git` honors sink-shape allow-list tokens on the PowerShell
+  fail-closed branch
+  ([#2664](https://github.com/melodic-software/claude-code-plugins/issues/2664)).**
+  Operators can narrow that sink with `ps-unparsable-dynamic-invocation`,
+  `ps-unparsable-launcher`, `ps-unparsable-special-construct`, or
+  `ps-unparsable-herestring-unbalanced` without the global kill switch.
+  Destructive-form tokens (`reset-hard`, …) still do not open the sink.
+  Allowing a sink shape blanks that opaque region and keeps checking any
+  remaining visible commands — a compound like
+  `Invoke-Expression '…'; git reset --hard` still requires `reset-hard`
+  (Codex review on #2667).
+
 ## [0.28.24]
 
 ### Added

@@ -20,6 +20,18 @@
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
+# PowerShell fail-closed sink-shape tokens (separately namespaced — #2664):
+#   ps-unparsable-dynamic-invocation
+#   ps-unparsable-launcher
+#   ps-unparsable-special-construct
+#   ps-unparsable-herestring-unbalanced
+# These narrow the unparsable-PowerShell sink by the trigger that routed there.
+# They are NOT interchangeable with the destructive-form tokens above: an
+# unparsable command cannot prove which forms it carries, so reset-hard (etc.)
+# never opens the sink. Only the matching ps-unparsable-<trigger> token does.
+# Allowing a sink shape blanks that opaque region and continues checking any
+# remaining visible commands — it does not fail-open the whole compound line.
+#
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — an
 # object id of the repository's own hash width (a literal one: a substitution is
 # not evaluated, so it is never immutable here), or the empty string asserting
@@ -31,9 +43,10 @@
 # recovers deleted refs, and sanctioned skill flows issue it inline).
 #
 # Per-repo/per-user allow-list: the guardrails `block_dangerous_git_allow`
-# userConfig option is a comma-separated list of the form tokens above (e.g.
-# "push-force,reset-hard"). Set it with `/plugin configure guardrails@<marketplace>` or
-# headless via `claude plugin install --config`; the hook reads it from the
+# userConfig option is a comma-separated list of the form tokens and sink-shape
+# tokens above (e.g. "push-force,reset-hard" or "ps-unparsable-dynamic-invocation").
+# Set it with `/plugin configure guardrails@<marketplace>` or headless via
+# `claude plugin install --config`; the hook reads it from the
 # CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW process mirror. Kill switch:
 # the `block_dangerous_git_enabled` userConfig option set to false.
 #
@@ -1335,9 +1348,10 @@ check_segment() {
   return 0
 }
 
-# Fail-closed by construction: this path never consults the allow-list — an
-# unparsable command cannot prove which forms it carries, so no form token
-# can honestly allow it. Only the kill switch bypasses.
+# Fail-closed by construction for length / --config-env: those paths never
+# consult the allow-list — an unparsable command cannot prove which forms it
+# carries, so no destructive-form token can honestly allow them. Only the kill
+# switch bypasses.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   echo "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." >&2
   echo "Shorten the command, or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
@@ -1352,15 +1366,48 @@ fi
 # forms (reset/clean/checkout/restore), and an unparsable `git --% reset --hard`
 # must not slip through. A non-git unparsable PowerShell command is not this
 # guard's concern and is allowed.
+#
+# The sink consults the allow-list ONLY for sink-shape tokens
+# (ps-unparsable-<trigger>), drawn from PS_SINK_TRIGGER (#2664). Destructive-form
+# tokens (reset-hard, …) do not open this branch — an unparsable command still
+# cannot prove which forms it carries.
+#
+# When a sink-shape token IS allowlisted, blank that opaque region and keep
+# checking any remaining visible text — do not fail-open the whole compound
+# command (Codex review on #2667: `iex '…'; git reset --hard`).
 ps::classify_git_command "$TOOL_NAME" "$COMMAND"
-case $? in
-2)
-  ps::print_unparsable_git_block_message
-  # The trigger rides along in the form token: four distinct shapes reach this
-  # sink, and one collapsed token cannot show which of them is over-blocking.
-  emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
-  exit 2
-  ;;
+_ps_rc=$?
+_ps_sink_attempts=0
+while ((_ps_rc == 2)); do
+  # The allow token is namespaced separately from the telemetry form token
+  # (powershell-unparsable-*) so an operator configuring the allow-list cannot
+  # confuse the two namespaces, and so no pre-#2664 allow value gains power.
+  sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
+  if ! allowed "$sink_allow"; then
+    ps::print_unparsable_git_block_message
+    # The trigger rides along in the form token: four distinct shapes reach this
+    # sink, and one collapsed token cannot show which of them is over-blocking.
+    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
+    exit 2
+  fi
+  # Sink shape allowed — blank its opaque region(s) and re-classify the
+  # remainder so independently parseable siblings still reach check_segment.
+  ps::blank_sink_opaque_regions "$COMMAND" "${PS_SINK_TRIGGER:-unknown}"
+  COMMAND="$PS_SAFE_COMMAND"
+  if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
+    emit_tel "ok" ""
+    exit 0
+  fi
+  _ps_sink_attempts=$((_ps_sink_attempts + 1))
+  if ((_ps_sink_attempts > 4)); then
+    # Only opaque residue left after bounded blanks — treat as allowed.
+    emit_tel "ok" ""
+    exit 0
+  fi
+  ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+  _ps_rc=$?
+done
+case $_ps_rc in
 1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
