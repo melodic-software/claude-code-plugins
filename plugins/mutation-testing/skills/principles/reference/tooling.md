@@ -3,22 +3,46 @@
 Which mutation tool exists for which stack, what each one calls things, and the honest answer for
 languages nobody has built a tool for.
 
-Sources: [Stryker](https://stryker-mutator.io/), [PIT](https://pitest.org/),
-[Infection](https://infection.github.io/), [mutmut](https://mutmut.readthedocs.io/). Fetched
-2026-08-10.
+Sources: [StrykerJS configuration](https://stryker-mutator.io/docs/stryker-js/configuration/),
+[StrykerJS incremental](https://stryker-mutator.io/docs/stryker-js/incremental/),
+[Stryker.NET configuration](https://stryker-mutator.io/docs/stryker-net/configuration/),
+[Stryker4s configuration](https://stryker-mutator.io/docs/stryker4s/configuration/),
+[PIT FAQ](https://pitest.org/faq/),
+[Infection CLI](https://infection.github.io/guide/command-line-options.html),
+[mutmut](https://mutmut.readthedocs.io/). Fetched 2026-08-15.
 
 ## Established tools
 
-| Ecosystem | Tool | Diff-scoping flag | Covered-code metric name |
-|---|---|---|---|
-| JavaScript / TypeScript | StrykerJS | `--incremental` | Mutation score based on covered code |
-| C# / .NET | Stryker.NET | `--since[:<target>]` | Mutation score based on covered code |
-| Scala | Stryker4s | `--since` | Mutation score based on covered code |
-| Java / JVM | PIT (pitest) | incremental analysis | **Test strength** |
-| PHP | Infection | `--git-diff-lines` | **Covered Code MSI** |
-| Python | mutmut | changed-file selection | mutation score |
+| Ecosystem | Tool | Diff-scoping flag | Write-regime setting | Covered-code metric name |
+|---|---|---|---|---|
+| JavaScript / TypeScript | StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace` (default `false`) | Mutation score based on covered code |
+| C# / .NET | Stryker.NET | `--since[:<target>]` | none — fixed out-of-tree | Mutation score based on covered code |
+| Scala | Stryker4s | none | none — fixed out-of-tree | Mutation score based on covered code |
+| Java / JVM | PIT (pitest) | incremental analysis | none — mutants held in memory, never written to disk | **Test strength** |
+| PHP | Infection | `--git-diff-lines` (with `--git-diff-base` / `--git-diff-filter`) | none — fixed out-of-tree | **Covered Code MSI** |
+| Python | mutmut | changed-file selection | ≤2.x in-place; ≥3.0.0 out-of-tree — version is the regime | mutation score |
 
 Names differ; the metric is the same one. See [metrics.md](metrics.md).
+
+**Diff-scoping flag** is what `/mutation-testing:audit` Phase 2 passes when the configured tool
+supports scoped generation. `none` means the tool has no git-diff scoping switch — do not invent
+`--since` or fall back to a whole-project run; scope with the tool's file/`mutate` selection or the
+manual protocol.
+
+**Write-regime setting** is what Phase 0 reads to resolve out-of-tree vs in-tree. A named key means
+read the project's own config (defaults are user-changeable). `none — …` means there is nothing to
+read — the regime is a constant for that tool. Evidence classes differ per row and must not be
+collapsed across tools:
+
+- **StrykerJS `inPlace`** — documented option with default `false`
+  (<https://stryker-mutator.io/docs/stryker-js/configuration/>).
+- **Stryker.NET / Stryker4s / Infection `none`** — negatives by enumerating the published options
+  list; an added in-place option would announce itself nowhere, so re-enumerate rather than
+  spot-check.
+- **PIT** — documented guarantee that mutants are "held in memory and never written to disk"
+  (<https://pitest.org/faq/>).
+- **mutmut** — execution-model boundary at **3.0.0** (≤2.x rewrites the user's files; 3.x uses an
+  out-of-tree `mutants/` / temp copy). The installed major version *is* the regime.
 
 ## Selecting a tool
 
