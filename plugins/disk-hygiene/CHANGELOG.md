@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.2]
+## [0.20.4]
 
 ### Fixed
 
@@ -14,10 +14,26 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   command — kept prompting. `_POWERSHELL_OUTPUT_REDIRECT` now also excludes a `>` whose
   target is `$null`, spelled as guardrails' `ps::write_bypass` spells the same exclusion
   and matched case-insensitively (PowerShell variable names are). Only horizontal
-  whitespace is skipped, so a trailing `>` cannot borrow a `$null` from the next line.
+  whitespace is skipped between `>` and `$null`, and `$null` itself must be followed by a
+  real token terminator (whitespace, `;`, `|`, `)`, `}`, or end-of-string) — so punctuation
+  continuations like `>$null/out.txt` or `2>$null\evil.ps1` stay flagged as file writes.
   Real redirection still prompts: `2>out.txt`, `> out.txt`, `1>file`, `'data' > file`, a
   non-`$null` variable target (`2>$nullish`), and a command that discards one stream while
   redirecting another (`... 2>$null > out.txt`).
+
+## [0.20.3]
+
+### Fixed
+
+- **The documented argument surface names the root-children flags again (#2588).** Resolving the
+  conflict in #2641 inserted a fresh "Arguments and boundaries" opening paragraph above the existing
+  one instead of merging into it, orphaning that paragraph's continuation. The section was left with
+  two overlapping sentences, and the authoritative first one silently dropped `--root-children` and
+  `--root-child <name>` — reintroducing exactly the wrong-argument-surface defect #2589 was filed
+  for, against the feature #2636 had just shipped. The two sentences are merged back into one
+  carrying every flag, and the skill's `argument-hint` now lists the root-children flags it had
+  never carried. Documentation only: the engine has accepted both flags since #2636 and its
+  behavior is unchanged.
 
 ## [0.20.1]
 

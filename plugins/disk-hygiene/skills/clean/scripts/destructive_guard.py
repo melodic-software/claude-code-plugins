@@ -1005,13 +1005,17 @@ _POWERSHELL_NEW_ITEM_FORCE = re.compile(
 #   - the `$null` discard (`2>$null`, `*>$null`, `>$null`): PowerShell's
 #     /dev/null. Spelled as guardrails' `ps::write_bypass` spells it — a `>`
 #     whose target is `$null` — and case-insensitively, because PowerShell
-#     variable names are. Only horizontal whitespace is skipped, so a trailing
-#     `>` cannot borrow a `$null` from the next line.
+#     variable names are. Only horizontal whitespace is skipped between `>`
+#     and `$null`, so a trailing `>` cannot borrow a `$null` from the next
+#     line. After `$null`, require a real token terminator (whitespace, `;`,
+#     `|`, `)`, `}`, or end-of-string): punctuation continuations like
+#     `>$null/out.txt` or `2>$null\evil.ps1` are still file redirects because
+#     PowerShell concatenates the literal path onto the empty `$null` expansion.
 # File redirects still match: `2>out.txt`, `> out.txt`, `1>file`, and a command
 # that discards one stream while redirecting another (`... 2>$null > out.txt`),
 # whose second `>` has no `$null` after it.
 _POWERSHELL_OUTPUT_REDIRECT = re.compile(
-    r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?![\w-]))"
+    r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?=[\s;|)}]|$))"
 )
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path

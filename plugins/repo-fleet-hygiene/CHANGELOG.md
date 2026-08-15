@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1]
+
+### Fixed
+
+- **Documented audit argument grammar restored after a silent prose revert (#2599).** Bare
+  positional paths and drive roots, `--project-dir` as a config rung only, the hard no-scope
+  failure, and the `bare-repo-with-working-tree` handoff row again match `audit-fleet.sh` (the
+  #2646 rebase had carried pre-#2638 skill prose forward). README / plugin / skill copy no longer
+  claim machine-wide no-argument discovery as shipped; Quick start uses an explicit `--repo`.
+
 ## [0.22.0]
 
 ### Added

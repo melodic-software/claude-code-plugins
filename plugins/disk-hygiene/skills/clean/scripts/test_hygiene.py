@@ -5558,6 +5558,13 @@ class GuardTests(unittest.TestCase):
             "Get-ChildItem C:/tmp 2>&1 > out.txt",
             # `$nullish` is an ordinary variable, not the null device.
             "Get-ChildItem C:/tmp 2>$nullish",
+            # Punctuation after `$null` is a path continuation, not a discard:
+            # `$null` expands to "" and PowerShell concatenates the rest.
+            "Get-ChildItem C:/tmp 2>$null\\evil.ps1",
+            "Get-ChildItem C:/tmp 2>$null/x",
+            "Get-ChildItem C:/tmp 2>$null:altstream",
+            "Get-ChildItem C:/tmp 2>$null,x",
+            "Get-ChildItem C:/tmp >$null/out.txt",
         ):
             result = self.run_guard_powershell(command)
             assert result is not None, command
