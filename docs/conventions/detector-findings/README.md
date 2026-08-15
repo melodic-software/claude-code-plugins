@@ -28,6 +28,25 @@ It matters because the fleet's gap is **detectors, not apply capability**. Deter
 exist and produce real findings; what they lack is a route to a remediation surface. Conforming to a
 file format is that route.
 
+## Where the file goes
+
+The destination is a **memory-tier, concern-scoped** location, owned by the
+[topic-docs convention](../topic-docs/README.md) — read it for tier semantics, `memory_dir`
+resolution and its overrides, and the invalid-root rules. A producer outside the `review` plugin
+cannot follow `review:fanout`'s own pointer chain, which resolves through a
+`${CLAUDE_PLUGIN_ROOT}`-relative path only that plugin can expand, so the three producer-facing
+specifics that the convention pointer does not itself carry are stated here:
+
+1. **Sub-path** — `<memory_dir>/reviews/<branch-slug>/`, defaulting to `.work/reviews/<branch-slug>/`.
+   The axis is the branch, not a topic slug, which is why review reports sit outside topic slices.
+2. **Slug rule** — `<branch-slug>` is the branch name lowercased with every character outside
+   `[a-z0-9._-]` replaced by `-`. It is **lossy** (`feature/foo` and `feature-foo` collide), which is
+   why the file's own `branch:` frontmatter — not its directory — is what proves ownership.
+3. **Self-ignore guard** — the session's first memory-tier write must verify that the resolved memory
+   root carries a `.gitignore` containing `*`, creating it (announced) when absent. Skipping it
+   commits findings that are meant to stay checkout-local. The convention states the full rule,
+   including which roots are invalid; a producer owes the guard, not a re-derivation of it.
+
 ## Boundary
 
 This doc owns the **producer-side contract** for non-fanout findings. It does not own:
@@ -55,62 +74,65 @@ These four are therefore computed by the producer, and each has a failure mode t
 1. **`Tier` is machine-computed, never guessed.** Derive it from what the detector actually knows —
    the rule that fired, its class, its blast radius — and use the same derivation for every finding
    of that class. A detector emitting a hand-picked tier per run makes rank order meaningless across
-   runs.
-2. **`Confidence` is `high` or OMITTED — never `low`.** This is the rule a detector author will get
-   wrong, because it inverts the intuition. The rank order is
-   `high` > `medium` > `unscored` > `low` ([`findings-normalization.md:72`](../../../plugins/review/skills/fanout/context/findings-normalization.md)),
-   and absent confidence resolves to `unscored`, which ranks **above** `low`. `:62` states it
-   directly: "Absent confidence ≠ low." So emitting `low` to express uncertainty ranks the finding
-   *below* saying nothing at all. A deterministic detector that fired is `high`; anything less
-   certain omits the field.
-3. **`Location` is a repo-relative `file:line`.** Relativize before writing — strip the repo root,
-   replace the home directory with `~`. An absolute path is not portable across the checkout that
-   applies the fix, and the fix action fences each remediation to its finding's `Location`.
-4. **Cell escaping is the producer's job.** Inside `Finding` and `Action` cells, write a literal pipe
-   as `\|` and replace newlines with spaces. Detector output routinely contains pipes — shell
-   pipelines, type unions, regex alternation — and an unescaped one splits the row into phantom
-   columns that the fix action misreads. This is stated in `default-mode.md` as part of the shape;
-   it is repeated as a *pointer* here because it is the single most likely way a first detector
-   ships a file that parses wrong rather than not at all.
+   runs. The **vocabulary** is not this doc's to define: it is owned by
+   [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md) "Severity
+   tiers", whose consumer-precedence rule binds a producer too — when the consuming project defines
+   its own severity vocabulary, map to the project's tiers rather than the baseline's. A detector
+   emitting a vocabulary of its own invention is non-conforming.
+2. **`Confidence` is `high` or OMITTED — never `low`.** The enum is defined by
+   [`severity.md`](../../../plugins/review/context/severity.md) "Confidence axis", which already
+   states the trap — `unscored` means "absence of a score is NOT low confidence". The *consequence*
+   is what makes `low` actively harmful: the rank order is `high` > `medium` > `unscored` > `low`
+   ([`findings-normalization.md:72`](../../../plugins/review/skills/fanout/context/findings-normalization.md)),
+   so emitting `low` to express uncertainty ranks the finding *below* saying nothing at all. A
+   deterministic detector that fired is `high`; anything less certain omits the field.
+   **`Confidence` is confidence-of-realness, not confidence in the fix.** A detector can be certain a
+   defect is real while its remediation needs human judgment; say that in `Tier` and in the `Action`
+   wording, never by downgrading `Confidence` — that would bury a real finding beneath one nobody
+   reported.
+3. **`Location` is a repo-relative `file:line`.** The relativization rule belongs to the shape —
+   `default-mode.md` "Findings-file shape" states it. What is producer-specific is the reason it is
+   not optional: the fix action fences each remediation to its finding's `Location`, and an absolute
+   path is not portable to the checkout that applies the fix.
+4. **Cell escaping is the producer's job.** Apply `default-mode.md`'s "Cell-escaping rule (required —
+   the fix action parses this table)" as written there. It is called out here, without restating the
+   characters, because detector output routinely contains pipes — shell pipelines, type unions, regex
+   alternation — making this the single most likely way a first detector ships a file that parses
+   *wrong* rather than not at all.
 
-## Multiple producers, one directory
+## Coexisting with other producers
 
-Producers coexist. The branch findings directory holds every producer's file, and the `fix` action
-consumes the **merged set** of unconsumed conforming files for the exact current branch rather than
-the newest one. Two consequences bind a producer:
+Producers share one directory and the consumer merges across all of them —
+[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 1: Build
+the merge set" owns how. Three obligations fall on a producer:
 
-- **Write your own file. Never append into another producer's.** Appending would require a
-  write-ordering and locking convention that does not exist, and a partial write would corrupt a
-  file another producer owns.
-- **Name yourself in `Surface(s)`.** When two producers report the same defect at the same
-  `Location` with identical `Finding` text, the consumer collapses them into one row naming both.
-  That collapse is only legible if each producer identified itself.
+- **Write your own file. Never append into another producer's.** Appending would need a
+  write-ordering and locking convention that does not exist, and a partial write corrupts a file
+  another producer owns.
+- **Name yourself in `Surface(s)`.** Rows that match exactly are collapsed into one naming every
+  contributor; that collapse is only legible if each producer identified itself.
+- **Expect near-duplicate rows to survive.** Cross-producer matching is deliberately narrow, so do
+  not pre-deduplicate against another producer's output — you would be guessing at a defect you did
+  not detect.
 
-Dedup across producers is **presence-only** — identical `Location` and identical `Finding` text, and
-nothing looser. The tempting semantic key sits behind an LLM stage the `fix` action does not run, and
-adopting it without the semantics would violate `findings-normalization.md`'s own ordering:
-"Minimize FALSE-MERGE over FALSE-SPLIT — a false merge silently drops a real issue." A producer
-should therefore expect near-duplicate rows to survive as separate rows, and should not try to
-pre-deduplicate against another producer's output.
+## Emitting more than once
 
-## Consumption is marked, and it is per file
-
-An apply writes a record naming every file it consumed, and the consumer subtracts those files from
-the next merge set. Two obligations follow for a producer:
-
-- **A file is consumed once.** Re-emitting an unchanged file after an apply does not re-surface its
-  findings unless the file name differs, and re-emitting under a new name re-injects findings that
-  may already be fixed. A detector re-runs and writes what it currently finds; it never replays.
-- **Do not write into the directory to signal anything but findings.** The frontmatter `type:` is the
-  admission test; a file declaring `type: review-findings` will be parsed as findings.
+An apply marks the files it consumed and the consumer subtracts them —
+[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 5" owns
+the ledger. What binds a producer is one rule: **a detector re-runs and writes what it currently
+finds; it never replays.** Re-emitting a stale file under a new name re-injects findings that may
+already be fixed, and the consumer cannot tell the difference.
 
 ## What a minimally conforming producer may omit
 
-`type:`, `branch:`, and a parseable `## Findings` table are the admission test. `tier:`,
-`## By dimension`, `## Unparsed`, and `## Surfaces` are required of `review:fanout`'s own writer to
-keep its report honest about coverage; a third-party detector that has no analogue may omit them and
-is still consumed. Omit rather than fabricate — an invented `## Surfaces` line asserts coverage that
-was never attempted, which is the failure the field exists to prevent.
+The admission test is stated by
+[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 1" — meet
+it and you are consumed. Beyond it, the coverage fields (`tier:`, `## By dimension`, `## Unparsed`,
+`## Surfaces`) are required of `review:fanout`'s own writer to keep its report honest; a detector
+with no analogue may omit them. **Omit rather than fabricate** — an invented `## Surfaces` line
+asserts coverage that was never attempted, which is the failure that field exists to prevent. `date:`
+is expected of every producer: it is the only record of when the detector actually ran, and a
+consumer weighing findings against a moving tree needs it.
 
 ## Liveness
 
@@ -140,12 +162,17 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 ## Adopters
 
-**A row is tabled only once a producer actually conforms.** Tabling a planned adopter would assert
-what a reader cannot rely on.
+An **adopter** is a producer outside `review:fanout` that conforms to this contract. A row asserts
+that the producer conforms today — **tabled only once it actually does**, because tabling a planned
+adopter asserts what a reader cannot rely on.
 
 | Producer | Status | Notes |
 |---|---|---|
-| `review:fanout` (default / run-everything modes) | Conforming (reference writer) | Owns the shape; the contract is its file format. Not a "detector", but the producer every other one is measured against. |
+| *(none yet)* | — | The first detector pilot is the first adopter; this stub precedes it by design. |
+
+`review:fanout` is not an adopter and is deliberately absent from the table: it is the **reference
+writer** whose file format this contract points at, and it sits on the other side of the boundary
+this doc draws.
 
 ## Versioning
 
@@ -157,6 +184,9 @@ adopter row is a minor bump; docs-only clarification is a patch.
 
 - [`plugins/review/skills/fanout/context/default-mode.md`](../../../plugins/review/skills/fanout/context/default-mode.md) — the findings-file shape this contract points at and never copies.
 - [`plugins/review/skills/fanout/context/fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) — the consumer algorithm, including merge-set construction and consumption marking.
-- [`plugins/review/skills/fanout/context/findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md) — the rank order and the "Absent confidence ≠ low" rule that make `low` worse than omission.
+- [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md) — the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
+- [`plugins/review/skills/fanout/context/findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md) — the rank order that makes `low` worse than omission.
+- [`docs/conventions/topic-docs/`](../topic-docs/README.md) — memory-tier resolution, `memory_dir` overrides, and the self-ignore guard that governs where a producer writes.
+- `melodic-software/standards` `conventions/engineering/enforceability-tiers.md` — tier vocabulary and routing rule.
 - [`liveness-assertion`](../liveness-assertion/README.md) — the fail-loud-or-agent-readable contract a detector satisfies by persisting.
 - [`PLUGIN-PHILOSOPHY` Convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry) — one owner doc per shared concern, and the before-a-second-adopter deadline this stub answers.

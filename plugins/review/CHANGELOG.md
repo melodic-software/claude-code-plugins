@@ -14,7 +14,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   doc per shared concern. The general rules (producer-owned fields, coexistence obligations,
   minimal conformance) now live in `docs/conventions/detector-findings/`, cited by raw URL because a
   plugin installs standalone and cannot resolve a repo-relative path. `default-mode.md` keeps only
-  what fanout's own writer does. No behavior change.
+  fanout's own writer contract. The findings-file shape, the fix action, and every gate are
+  unchanged; what moved is instruction text an agent reads, so a producer authored against 0.20.0's
+  prose still conforms.
 
 ## [0.20.0]
 

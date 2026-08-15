@@ -80,6 +80,6 @@ Ran: [...]. Returned no result: [...] (with cause when known).
 
 **Multiple producers, one directory.** Nothing authenticates the writer: this shape is the whole integration contract, so any component that writes a conforming file reaches the fix action without a fanout edit. The fix action therefore consumes the merged SET of unconsumed conforming files for the exact current branch and marks what it consumed — [`fix-pass-mode.md`](fix-pass-mode.md) "Step 1: Build the merge set".
 
-The rules binding a NON-fanout producer — which fields it computes for itself, its coexistence obligations, and what it may omit — are a cross-plugin concern and are owned by the detector-findings convention:
+The rules binding a NON-fanout producer — where it writes, which fields it computes for itself, its coexistence obligations, and what it may omit — are a cross-plugin concern owned by the detector-findings convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
-This section records only what fanout's own writer does; the contract owns every general rule.
+The contract owns every general producer rule; this section records fanout's own writer contract.
