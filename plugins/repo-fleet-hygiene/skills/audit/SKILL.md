@@ -1,19 +1,27 @@
 ---
-description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
+description: "Coordinate Git/GitHub hygiene across a machine-wide fleet: discover canonical repositories, collect and roll up cross-repository evidence, and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
-argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
+argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
   workflow-stage: operator
-  summary: Audit git and GitHub hygiene across all local repositories, read-only
+  summary: Discover a repository fleet and coordinate read-only evidence handoffs
   cadence: weekly
 ---
 
 ## Purpose
 
-Produce one read-only fleet report. This skill owns cross-repository discovery, evidence collection,
-classification, and routing. It does **not** own cleanup execution.
+Coordinate machine-wide repository hygiene. This skill owns cross-repository discovery, canonical
+checkout resolution, fleet-scale evidence collection, rollup, and action-plan routing. It does
+**not** own per-repository cleanup decisions or execution; those belong to `repo-hygiene` and
+`source-control`.
+
+The currently shipped collector produces the detailed read-only report described below, including
+the compact machine-readable rollup and action-plan artifact from
+[#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) /
+[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609). The execute consumer
+that would apply that plan under one fleet confirmation is still deferred.
 
 ## Non-negotiable boundary
 
@@ -26,10 +34,8 @@ gate, and the receiving per-repository tool or human still owns actual preview/e
 
 ## Input resolution
 
-Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported forms:
+Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
 
-- `<dir>`: bare positional path — equivalent to `--root <dir>` (repeatable). Drive roots such as
-  `D:` are legitimate discovery roots (normalized to `D:/`).
 - `--root <dir>`: bounded recursive repository discovery (repeatable).
 - `--repo <dir>`: exact repository/worktree target (repeatable).
 - `--config <file>`: explicit Git-format config (at most one).
@@ -37,7 +43,7 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported forms:
   (repeatable; explicit wins over config).
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung
-  only — not as an implicit audit target.
+  and the no-scope fallback target.
 - `--detail`: emit collapsed per-target evidence after the rollup (default is rollup + action plan
   only).
 - `--plan-file <path>`: write the machine-readable action-plan JSON to this path (otherwise a temp
@@ -50,13 +56,13 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 **not** present in the Bash tool's environment, so the script cannot read it for itself — passing
 it in is what makes the project rung below reachable at all.
 
-If neither a bare path nor `--root`/`--repo` is present, the script uses config-supplied
-`fleet.root` / `fleet.repo` as the machine-wide default when a config on the ladder provides them.
-With neither CLI nor config scope, the run stops and names how to set scope (bare path,
-`--root`/`--repo`/`--config`, or `/repo-fleet-hygiene:setup apply`); pass that guidance through
-rather than re-deriving a root yourself or auditing the session project directory. A discovery
-root that exists but contains no repositories is a finding of zero repositories, not an error.
-Config resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
+If neither `--root` nor `--repo` is present, the script uses the project directory as an exact
+`--repo` target — not as a discovery root, so nothing beneath it is searched. A project directory
+that is not a Git working tree is therefore rejected, and the rejection names the three ways to
+supply scope plus `/repo-fleet-hygiene:setup apply`; pass that guidance through rather than
+re-deriving a root yourself. If no project directory resolves either, the run stops with the same
+remedies rather than auditing the shell's incidental working directory. Config
+resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
 `~/.claude/repo-fleet-hygiene.conf` (user-global — a machine-scoped fleet config placed there is
@@ -68,10 +74,8 @@ Config-supplied scope is **additive** to CLI-supplied scope: a `--repo X` run st
 configured root. The header's `Scope:` line names each contributing rung and its entry count, so
 report that line rather than assuming the arguments were the whole scope.
 
-Before execution, reject any arguments outside this grammar. Keep reject-on-unknown for anything
-beginning with `-` (that is the injection boundary); bare paths are in-grammar. Pass every
-path/override as a quoted argument; never assemble a shell fragment from config, repository,
-remote, or branch text.
+Before execution, reject any arguments outside this grammar. Pass every path/override as a quoted
+argument; never assemble a shell fragment from config, repository, remote, or branch text.
 
 Run exactly once:
 
@@ -166,6 +170,40 @@ repository — not "GitHub was unreachable so nothing was wrong." Manual-review 
 When acting on a fleet report, prefer the action plan / `--apply-plan` dry-run over driving
 per-repository skills by hand.
 
+## Fleet cleanup plan
+
+This section defines the fleet-level handoff contract; it does not add a command to the current
+argument grammar.
+
+The cleanup-plan consumer takes only the machine-readable rollup artifact tracked by
+[#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608). Never parse this skill's
+human report into executable operations. The consumer tracked by
+[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609) must:
+
+1. reject an incomplete, invalid, or non-audit artifact and preserve every repository-qualified
+   target, confidence, evidence gap, and disposition;
+2. group candidates by canonical repository, then route branch decisions to
+   `/repo-hygiene:clean git` and worktree decisions to `/source-control:worktree` instead of
+   recomputing either sibling's per-repository verdict;
+3. present one fleet action plan and obtain one explicit confirmation before delegating any
+   mutation; and
+4. re-derive mutable facts, including relevant branch/worktree OIDs, at execution time. An old
+   artifact is evidence, not authorization.
+
+On this release, the rollup and `--apply-plan` dry-run ship, but no execute/auto-delete consumer
+exists. Do not invent `--cleanup-plan`, `--execute`, report-and-execute behavior, or an inline
+deletion loop. Return the report, rollup, and exact per-repository handoffs; each remains subject
+to the receiving skill's preview and confirmation gate. A `HIGH` evidence tier is never itself
+permission to delete a branch or worktree.
+
+Related fleet contracts are tracked separately and must not be presented as shipped until their
+issues merge:
+
+- configured-worktree-root conformance:
+  [#2606](https://github.com/melodic-software/claude-code-plugins/issues/2606); and
+- merged remote branches with a distinct safety gate:
+  [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607).
+
 ## Graceful degradation
 
 - Git missing or too old: stop before scanning and give the prerequisite error.
@@ -182,10 +220,6 @@ per-repository skills by hand.
   marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
   rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
   hard-fails.
-- A path that is a Git repository with `core.bare=true` but still has working-tree content or linked
-  worktrees is classified as `MEDIUM` `bare-repo-with-working-tree` rather than rejected: the run
-  continues, and the finding names `git config --local core.bare false` (linked worktrees keep
-  working; only the main worktree is disabled).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.

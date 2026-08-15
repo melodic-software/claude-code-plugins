@@ -3,6 +3,23 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.2]
+
+### Changed
+
+- **The plugin contract now matches its fleet-level job (#2597).** README, manifest, and audit-skill
+  framing assign machine-wide discovery, evidence rollup, and action-plan handoff to
+  `repo-fleet-hygiene`, while per-repository branch/worktree decisions and cleanup remain with
+  `repo-hygiene` and `source-control`.
+- **The fleet cleanup-plan boundary is explicit.** The machine-readable rollup from #2608 is on
+  `main`; a future consumer groups repository-qualified actions for the sibling owners, requires one
+  explicit fleet confirmation, and re-derives mutable OIDs before execution. This release still
+  refuses to invent an execute/auto-delete mode until that consumer ships.
+- **Remaining unshipped epic capabilities are named as contracts, not advertised as commands.**
+  Worktree-root conformance (#2606) remains a child-issue contract. GraphQL merge evidence (#2604)
+  and rollup/handoff framing (#2608/#2609) are on `main`; merged remote branches (#2607) track the
+  open follow-up PR.
+
 ## [0.19.1]
 
 ### Changed
