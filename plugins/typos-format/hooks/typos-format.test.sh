@@ -485,6 +485,48 @@ else
   fail "stub/both: channels not composed: $OUT_BOTH"
 fi
 
+# --- Residual render: multi-candidate vs single-candidate vs null (#2659) ----
+# typos returns a correction LIST. When length > 1 it refuses to auto-apply, so
+# disclosing only corrections[0] as a definite "should be X" instructs the agent
+# to make an edit the tool itself declined. Multi-candidate residuals must read
+# as ambiguous; single-candidate residuals keep the quoted definite form;
+# null-correction residuals stay on the disallowed arm.
+printf 'this has wnat and a disallowme term\n' >"$STUB_REPO/multi-residual.txt" # spellchecker:disable-line
+OUT_MR=$(run_stub "$STUB_REPO/multi-residual.txt")
+CTX_MR=$(printf '%s' "$OUT_MR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+# Exact multi-candidate shape — quoting only want (corrections[0]) is the bug.
+if printf '%s' "$CTX_MR" | grep -qF '"wnat" (line 1) should be want or what (ambiguous — typos will not auto-correct this).'; then # spellchecker:disable-line
+  ok "stub/multi-candidate-residual: ambiguous findings list every candidate"
+else
+  fail "stub/multi-candidate-residual: expected ambiguous multi-candidate render, got: $CTX_MR"
+fi
+if printf '%s' "$CTX_MR" | grep -qE '"wnat" \(line 1\) should be "want"\.'; then # spellchecker:disable-line
+  fail "stub/multi-candidate-residual: multi-candidate still rendered as a single definite correction: $CTX_MR"
+else
+  ok "stub/multi-candidate-residual: does not present corrections[0] as a definite fix"
+fi
+if printf '%s' "$CTX_MR" | grep -qF '"disallowme" (line 1) is disallowed, no known correction.'; then
+  ok "stub/multi-candidate-residual: null-correction arm unchanged"
+else
+  fail "stub/multi-candidate-residual: null-correction arm missing or altered: $CTX_MR"
+fi
+
+# Report-only leaves a single-candidate finding residual; that arm must still
+# quote the one correction as a definite suggestion (not the ambiguous form).
+printf 'this has teh typo\n' >"$STUB_REPO/single-residual.txt" # spellchecker:disable-line
+OUT_SR1=$(run_stub_default "$STUB_REPO/single-residual.txt")
+CTX_SR1=$(printf '%s' "$OUT_SR1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SR1" | grep -qF '"teh" (line 1) should be "the".'; then # spellchecker:disable-line
+  ok "stub/single-candidate-residual: single correction still renders as a definite suggestion"
+else
+  fail "stub/single-candidate-residual: expected quoted single-candidate render, got: $CTX_SR1"
+fi
+if printf '%s' "$CTX_SR1" | grep -qi 'ambiguous'; then
+  fail "stub/single-candidate-residual: single-candidate marked ambiguous: $CTX_SR1"
+else
+  ok "stub/single-candidate-residual: not marked ambiguous"
+fi
+
 # --- A residual that MOVED between the passes is not a rewrite ---------------
 # Claude Code runs matching PostToolUse hooks in parallel, so a sibling
 # formatter can reflow the file between this hook's scan and write passes and

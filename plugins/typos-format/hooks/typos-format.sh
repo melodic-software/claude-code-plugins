@@ -438,6 +438,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     def elide: if (length > 60) then (.[0:60] + "…") else . end;
     def tok: ((.typo // "") | elide);
     def corr1: ((.corrections[0] // "") | elide);
+    # Multi-candidate residuals join every option; typos itself refuses to
+    # auto-apply when length > 1, so the disclosure must not pick corrections[0]
+    # as a definite "should be X".
+    def corrs: ((.corrections // []) | map(elide) | join(" or "));
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
     | parse($lines[($sep + 1):]) as $r
@@ -481,8 +485,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
         residualText: ([limit($max; $r[])] | map(
             if .corrections == null then
               "  \"\(tok)\" (line \(.line_num // 0)) is disallowed, no known correction."
+            elif (.corrections | length) > 1 then
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \(corrs) (ambiguous — typos will not auto-correct this)."
             else
-              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\"."
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corrs)\"."
             end) | join("\n"))
       }' 2>/dev/null) || CLASSIFIED=""
 

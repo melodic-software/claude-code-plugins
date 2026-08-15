@@ -3,6 +3,19 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.18]
+
+### Fixed
+
+- **Multi-candidate residual findings no longer render as a single definite
+  correction (#2659).** Upstream `typos` returns a correction list and refuses to
+  auto-apply when that list has more than one entry; the residual disclosure now
+  lists every candidate and marks the finding ambiguous instead of quoting only
+  `corrections[0]` as `should be "X"`. Single-candidate and null-correction
+  residual arms, and all applied-correction renders, are unchanged.
+- **`hooks.json` `statusMessage`** reads `Checking spelling...` rather than
+  `Fixing typos...`, matching the default report-only posture that never writes.
+
 ## [0.6.17]
 
 ### Fixed
