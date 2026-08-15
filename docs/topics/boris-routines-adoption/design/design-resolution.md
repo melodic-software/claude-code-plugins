@@ -25,18 +25,41 @@ The consumer reads one file and merges nothing (`fix-pass-mode.md:3,7`). The res
 that consumer rather than adding a component beside it:
 
 ```text
+consumed(branch) = union of source-findings: over every fix-pass-record
+                   whose branch: equals <current-branch> exactly
+
 locate(branch) ->
   R = { f in <memory_dir>/reviews/<branch-slug>/*.md
         | f.frontmatter.type == 'review-findings'
         AND f.frontmatter.branch == <current-branch>
-        AND f.filename-timestamp > newest(fix-pass-record).filename-timestamp }
-  merge(R) by the Stage-3 dedup key: normalized path + ±3-line bucket
+        AND f NOT IN consumed(branch) }
+  merge(R) presence-only: collapse rows sharing identical Location AND identical Finding text;
+            everything else stays a distinct row, producer named in Surface(s)
 ```
 
-- The staleness bound reuses the `type: fix-pass-record` marker already written at
-  `fix-pass-mode.md:76-93`, so no new artifact and no locking convention is introduced.
-- `R` empty keeps today's clean STOP path.
-- `|R| == 1` reduces to today's behavior exactly, which is the migration's safety property.
+Two properties this depends on, neither of which holds today:
+
+- **The record must become unconditional.** `fix-pass-mode.md:76` writes it **only** under `--yes` in
+  a non-interactive session — "Interactive and headless-stop paths write no record". The Brief's solo
+  shape is the interactive path, so a timestamp bound anchored on the record is a no-op there and the
+  merge set would grow without limit. Phase 1 therefore changes the record from an
+  unwatched-apply review surface into a **consumption ledger** written on every apply path; its
+  review-surface role becomes additive rather than defining.
+- **The dedup key must be narrower than Stage 3's.** `findings-normalization.md:77` places dedup at
+  "Stage 3 Sonnet (semantic merge)" and `:66` orders it to "**Minimize FALSE-MERGE over
+  FALSE-SPLIT** — a false merge silently drops a real issue… When in doubt, do NOT merge." The fix
+  action runs no LLM stage, so it cannot evaluate that key. Presence-only matching is the largest
+  key the consumer can actually compute; the ±3-line bucket would merge two distinct defects at
+  `foo.ts:42` and `foo.ts:44` and drop one producer's remediation — reintroducing, inside the fix,
+  exactly the hidden-findings failure Phase 1 exists to close.
+
+Degenerate cases: `R` empty keeps today's clean STOP path; `|R| == 1` reduces to today's behavior
+exactly, which is the migration's safety property.
+
+Coverage fields are unioned, not picked: `## Surfaces` merges with each producer named, and each
+consumed file's `tier:` is reported rather than one winning. `default-mode.md:77` declares those
+required "to keep the report honest about coverage", so collapsing them would move the
+green-with-hidden-findings class up one layer instead of closing it.
 
 ## Sketch 2 — detector finding fields
 
