@@ -1,5 +1,5 @@
 ---
-description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
+description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); empty target + clean tree in an interactive session offers a confirmation-gated repo-wide run (audit-first interview with prescribed defaults) instead of the no-op; flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
 argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
@@ -65,11 +65,25 @@ Flags (apply to both actions):
 
 ## Auto-detect default
 
-1. Empty arg AND clean tree → friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
+1. Empty arg AND clean tree → interactive session: repo-wide interview fallback (next section); non-interactive context (subagent, headless/CI): friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
 2. Empty arg AND uncommitted `.md` files → batch default action over those files
 3. Single file path → single-file default action
 4. Directory path → batch default action (filenames sorted lexically for deterministic output)
 5. First positional == `audit` → audit action on rest
+
+## Repo-wide interview fallback (empty arg, clean tree, interactive)
+
+Instead of dead-ending, offer a repo-wide run — confirmation-gated at every step; declining at any step exits with the friendly no-op message.
+
+1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
+2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`; present the SKIP/COMPRESS/UNCERTAIN table sorted by expected yield descending, with aggregate counts and a dispatch-cost estimate (2 subagent requests per compressed file).
+3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first):
+   - **Scope** — default: all COMPRESS-classified files, highest expected yield first; alternates: top-N highest-yield subset, include UNCERTAIN, stop after audit (report only).
+   - **Concurrency** — default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
+   - **Always-loaded files** — default: excluded (SKIP per the 2-3% empirical baseline); including them requires the same explicit opt-in as `--force`.
+4. **Confirm and run**: batch default action over the confirmed set, waves per `context/fan-out-orchestration.md`. Every per-file hard rule — semantic-diff dispatch, revert pass, markdownlint, `<3% AND 0 semantic-loss → REVERT` — applies unchanged.
+
+Non-interactive contexts never interview; they take the no-op branch. The fallback adds an entry path only — it changes no compression, verification, or revert semantics.
 
 ## Hard rules
 

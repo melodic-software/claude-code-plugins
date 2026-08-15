@@ -9,7 +9,7 @@ Per `../SKILL.md` "Auto-detect default", argument resolution at invocation:
 | Invocation | Target set | Action |
 |---|---|---|
 | `/docs-hygiene:compress` (empty arg) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | default action over each, batch |
-| `/docs-hygiene:compress` (empty arg) AND clean tree | (none) | friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.") |
+| `/docs-hygiene:compress` (empty arg) AND clean tree | interactive: all tracked eligible `.md` offered via the repo-wide interview fallback (`../SKILL.md` "Repo-wide interview fallback"); non-interactive: (none) | interactive: confirmation-gated audit-first interview; non-interactive: friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.") |
 | `/docs-hygiene:compress <file.md>` | single file | default action, single-file |
 | `/docs-hygiene:compress <dir>` | every `.md` under `<dir>` (recursive); filenames sorted lexically for determinism | default action, batch |
 | `/docs-hygiene:compress audit` (empty rest) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | audit action over each |

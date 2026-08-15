@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## [0.12.0]
+
+### Changed
+
+- **compress:** Empty-target + clean-tree invocations in interactive sessions now fall back to a
+  confirmation-gated repo-wide interview — offer, free mechanical audit (SKIP/COMPRESS/UNCERTAIN
+  table sorted by expected yield descending), scope/concurrency interview with prescribed defaults
+  (all COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files
+  excluded) — instead of dead-ending at the friendly no-op. Non-interactive contexts (subagent,
+  headless/CI) keep the no-op. Entry path only; per-file hard rules (semantic-diff dispatch,
+  revert pass, markdownlint, `<3%` rule) are unchanged.
+
 ## [0.11.3]
 
 ### Changed
