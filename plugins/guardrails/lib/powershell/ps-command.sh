@@ -291,17 +291,128 @@ ps::might_invoke_git() {
 }
 
 # True (0) when every git invocation in the text is plausibly read-only — fetch,
-# log, status, rev-list, merge-base, etc. — with no commit/push/reset-class
-# subcommand visible. Used to narrow the fail-closed sink for guards that only
-# care about mutating git (#1415): `git fetch | ForEach-Object { }` must not
-# block just because `git` appears alongside `{}` grouping.
+# log, status, rev-list, merge-base, etc. — with no mutating subcommand visible.
+# Used to narrow the fail-closed sink for guards that only care about mutating
+# git (#1415): `git fetch | ForEach-Object { }` must not block just because `git`
+# appears alongside `{}` grouping.
+#
+# THE PREDICATE, stated so the list below is derivable rather than remembered. A
+# subcommand is NOT read-only when it can create, modify, delete, or overwrite
+# content in the working tree or the index; create, delete, move, or rewrite
+# local refs or history; alter the stash, the configuration, or repository
+# administrative state (object store, reflog, sparse-checkout, submodules); or
+# publish to a remote. Everything else stays read-only: the interrogators
+# (log/status/diff/show/grep/blame/rev-list/rev-parse/ls-files/ls-tree/ls-remote/
+# cat-file/merge-base/describe/shortlog/cherry/range-diff/fsck/verify-*/
+# fast-export), the artifact producers that never touch REPOSITORY state
+# (archive, bundle, format-patch, request-pull, send-email, mailsplit, diagnose,
+# bugreport), the create-only plumbing that can neither overwrite nor delete
+# (write-tree, hash-object, commit-tree, merge-tree, pack-objects, index-pack,
+# unpack-objects, unpack-file, mktree, mktag), the lossless representation
+# rewrite (pack-refs), and the repo-creating forms that cannot destroy existing
+# work (clone refuses a non-empty target; init on an existing repo
+# re-initializes without data loss).
+#
+# "ARTIFACT PRODUCER" MEANS REPOSITORY STATE, NOT THE FILESYSTEM. Several of the
+# omitted forms take an operator-named output path and will happily truncate it:
+# `git archive -o README.md HEAD`, `git diff --output=README.md`,
+# `git format-patch -o <dir>`. That is a WRITE, but it is not git mutating the
+# repository — it is the operator naming a destination, exactly as `>` would.
+# This predicate is about repository state, so those stay read-only BY DESIGN;
+# clobbering an explicitly-named output file is out of scope here and belongs to
+# the write-side guards, not to a git-subcommand classifier. Recorded so a future
+# reader does not mistake the omission for an oversight.
+#
+# DUAL-MODE SUBCOMMANDS ARE BLOCKED WHOLE. `tag` and `notes` were already listed
+# despite having read-only list forms (`git tag`, `git notes list`), so the
+# established policy is "a subcommand with any mutating mode is not read-only".
+# `branch`, `config`, `remote`, `bisect`, `reflog`, `rerere`, `submodule`,
+# `sparse-checkout`, `commit-graph`, `multi-pack-index`, `worktree`, `subtree`,
+# `credential`, `interpret-trailers` (mutating only under `--in-place`), the
+# foreign-SCM bridges `svn`/`p4`/`cvsexportcommit`, and the widely-installed
+# third-party subcommands `filter-repo`/`lfs`/`annex` follow that precedent
+# rather than a fresh argument each — `git svn dcommit`, `git p4 submit`,
+# `git filter-repo --force`, `git lfs prune` and `git annex drop` all destroy or
+# publish, so each is listed even though every one of them has an interrogator
+# mode (`git svn log`, `git lfs ls-files`).
+#
+# SYNONYMS COUNT AS SEPARATE SPELLINGS. `stage` is git's own documented synonym
+# for `add` (git-stage(1): "This is a synonym for git-add"), so listing `add`
+# alone left the identical index write reachable under another name. Likewise
+# `send-pack` and `http-push` are the plumbing beneath `push` — and crucially
+# `send-pack` does NOT run the pre-push hook that `push` runs, so omitting it
+# left this guard's own subject matter (hook bypass) wide open. Note the boundary
+# class means `--staged` does NOT match `stage` (the trailing `d` is alphanumeric),
+# so `git diff --staged` stays read-only.
+#
+# THE BOUNDARY CLASS EXCLUDES `-` ON PURPOSE, and that is load-bearing in both
+# directions. A hyphen neither opens nor closes a token, so an option that merely
+# spells a listed word is NOT matched (`--add`, `--prune`, `--force`, PowerShell's
+# `-replace`) and neither is a hyphenated sibling (`ls-remote` does not match
+# `remote`, `merge-base`/`--no-merges` do not match `merge`, `--tags` does not
+# match `tag`) — which is exactly what keeps the #1415 read-only allowance intact.
+# The same rule is why `checkout-index`, `sparse-checkout`, `merge-file`,
+# `merge-index`, `merge-one-file`, `filter-branch`, `fast-import`,
+# `commit-graph`, `multi-pack-index`, `update-index`, `update-ref` and
+# `update-server-info` each need their OWN entry instead of riding on
+# `checkout`/`merge`/`branch`/`commit`/`update-*`.
+#
+# THE SCAN IS WHOLE-COMMAND, NOT ARGV-AWARE, so a listed word matches ANYWHERE in
+# the text — not only in subcommand position. Three distinct shapes hit this:
+#   1. outside the git call entirely — PowerShell's `switch` keyword, a `config`
+#      variable name, `git log | Where-Object { $_ -match 'clean' }`;
+#   2. INSIDE the git call as a pathspec or ref — `git log -- config/`,
+#      `git diff -- src/remote/`, `git show HEAD:docs/notes/a.md`,
+#      `git ls-files -- tests/clean/`. Directory names like `add/`, `config/`,
+#      `remote/`, `clean/` and `rm/` are common, so this is the widest friction
+#      class and the one most likely to surprise;
+#   3. as a flag VALUE — `git log --grep clean`.
+# All three are fail-SAFE: they route to the fail-closed sink and BLOCK, costing
+# friction rather than safety. Narrowing them requires argv-aware parsing of a
+# string this function is only ever handed BECAUSE it could not be parsed — so it
+# is the same redesign the residual below defers to, not a separate fix.
+#
+# `fetch` IS A DELIBERATE, DOCUMENTED EXCEPTION. It writes the object store and
+# remote-tracking refs, and `git fetch <remote> +<src>:<dst>` can even force-update
+# a LOCAL ref, so the allowance is not airtight. It is kept because it is the exact
+# case #1415 exists for; listing it would retire that allowance rather than fix it.
+#
+# RESIDUAL (documented, deferred — same class as the file-header residuals). This
+# is a NEGATIVE shape match on SPELLINGS, so three families defeat it and no
+# addition to the list above can close any of them:
+#   a. THE SUBCOMMAND IS OBSCURED. It only ever runs on commands that ALREADY
+#      carry a construct the Bash tokenizer cannot read, so that construct can
+#      also hide the subcommand — `git ('cle'+'an') -fdx`, `git $sub -fdx`, a
+#      subcommand assembled inside an `iex` payload.
+#   b. THE SUBCOMMAND IS NOT IN THE TEXT AT ALL. A user alias resolves at runtime
+#      from `.gitconfig`: `git co`, `git ci -m x`, `git unstage f`, `git pf`, or
+#      an `!`-shell alias running anything. Nothing in the string names the
+#      mutating operation, so un-mangling cannot recover it. This is a strictly
+#      DIFFERENT class from (a) and a blocklist can never converge on it.
+#   c. THE SUBCOMMAND IS IRRELEVANT. `-c core.pager=./x`, `-c core.editor=./x`,
+#      `-c alias.z=!./x`, `--exec-path=.` turn a read-only `git log` into
+#      arbitrary local execution.
+# The mangle-resistant fix for all three is to INVERT this into an allowlist —
+# read-only iff every git occurrence is followed by a known interrogator — which
+# is a redesign of the #1415 allowance, not a widening of this list. Until then
+# this narrows the sink on a best-effort basis and is never the only thing between
+# a destructive form and the repository: the DEFAULT `mutating` sink scope (what
+# block-dangerous-git uses) does not consult this function at all.
 ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
   # Same command-position git probe as ps::might_invoke_git (#2592).
   [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
-  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit|push|reset|rebase|checkout|merge|cherry-pick|revert|stash|am|tag|notes|worktree)([^[:alnum:]_.-]|$) ]] &&
-    return 1
+  # Mutating subcommands, alphabetical, split across five tests purely for
+  # reviewability. Each alternation stays a LITERAL in pattern position — never a
+  # variable spliced into the pattern (see the call-target note above for why a
+  # silently-non-matching predicate here would fail OPEN).
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(add|am|annex|apply|bisect|branch|checkout|checkout-index|cherry-pick|clean|commit)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit-graph|config|credential|cvsexportcommit|fast-import|filter-branch|filter-repo|gc|http-push|interpret-trailers|lfs)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(maintenance|merge|merge-file|merge-index|merge-one-file|mergetool|multi-pack-index|mv|notes|p4|prune)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(prune-packed|pull|push|quiltimport|read-tree|rebase|receive-pack|reflog|remote|repack)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(replace|rerere|reset|restore|revert|rm|send-pack|sparse-checkout|stage|stash)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(submodule|subtree|svn|switch|symbolic-ref|tag|update-index|update-ref|update-server-info|worktree)([^[:alnum:]_.-]|$) ]] && return 1
   return 0
 }
 
