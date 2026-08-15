@@ -147,10 +147,11 @@ the optional `gh` setup-script one-liner from above). The repo side:
 |---|---|---|
 | Node | `.node-version` (via the VM's nvm) | required — CI pins a major the VM image doesn't ship |
 | claude CLI + Biome | root `package-lock.json` (`npm ci`) | required |
-| ruff | `.github/requirements-ci.txt` (hash-locked) | required |
+| ruff, pytest, pyyaml | `.github/requirements-ci.txt` (hash-locked) | required — `--require-hashes` fails closed |
 | shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the hook (GitHub release binaries) | best effort — warns and continues |
 | markdownlint-cli2, check-jsonschema | pinned in the hook (npm -g / uv tool) | best effort |
 | full git history + `origin/main` | `git fetch` | best effort — the base-ref diff gates need it |
+| the enabled plugin catalog | `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
 
 Best-effort rather than required, deliberately: the plugin contract suites SKIP visibly when an
 optional tool is absent and CI remains the enforcing gate, while a required install failure would
@@ -168,16 +169,46 @@ Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
 ### Plugins in sessions on this repo
 
 Being the marketplace doesn't make this repo's plugins active in a session — plugins load only
-when a marketplace is declared and plugins are enabled. `.claude/settings.json` does both, which
-is the documented path for cloud sessions (see
+when a marketplace is declared, enabled, **and installed**. `.claude/settings.json` declares and
+enables; the session-start hook installs (see
 [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
 [extraKnownMarketplaces / enabledPlugins](https://code.claude.com/docs/en/settings#plugin-settings)):
 
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
-  with a relative path, which
-  [resolves against the repository's checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths)
-  — cloud sessions install from the clone at session start; local collaborators are prompted
-  once they trust the folder.
+  with a relative path, so a session exercises the plugin code on the current branch rather than
+  published `main`. Local collaborators are prompted once they trust the folder.
+- **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
+  [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
+  groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
+  while hooks and the `env` block are used whether or not it is. Observed on 2026-08-15: a cloud
+  session on this repo had `projects["<repo-root>"].hasTrustDialogAccepted` set to `false` in
+  `~/.claude.json`, an empty `~/.claude/plugins/installed_plugins.json`, no plugin skill loaded
+  and every `/plugin` command unknown — while the same settings file's `env` block *had* applied.
+  That is exactly the split the table predicts, and it is why
+  [what carries over](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
+  promising plugins "installed at session start from the marketplace you declared" did not hold
+  here. A hook is the durable fix precisely because hooks run untrusted.
+- Being a `directory` source may compound it —
+  [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
+  and the carry-over note qualifies install-at-session-start with "requires network access to reach
+  the marketplace source". The two candidates were not separated, because the trust gate alone
+  accounts for the symptom and the hook makes both moot.
+- The hook therefore registers the checkout by absolute path and installs the enabled set
+  explicitly. It never calls `claude plugin marketplace remove`, which deletes the marketplace's
+  entry from `.claude/settings.json` and would have the hook mutate tracked config.
+- On resume it also repairs [same-version commit drift](MIGRATION-PLAYBOOK.md): because a
+  directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a
+  presence check alone would keep serving whichever commit installed first. The hook compares the
+  `gitCommitSha` recorded at install time against `HEAD` and forces the documented
+  uninstall/install/enable cycle for the plugins whose own directory changed between the two, so
+  the usual resume stays cheap. Uncommitted edits are out of scope by design — use
+  `claude --plugin-dir ./plugins/<name>`, which takes session precedence over the cached install.
+- **Consumer repos** should declare the marketplace with a `github` source —
+  `{"source": "github", "repo": "melodic-software/claude-code-plugins"}` — since the relative
+  `directory` source is specific to this repo, whose reason to exist is validating in-flight
+  plugin changes. Declaring it is necessary but, per the trust gate above, not sufficient in a
+  cloud session; verify in a fresh session and add the same install-on-start hook if the catalog
+  does not load.
 - `enabledPlugins` turns on the whole catalog, so this repo dogfoods everything it publishes and a
   regression in any plugin surfaces here first. The trade is context: every enabled plugin adds
   per-turn cost, so a *consumer* repo should enable only the plugins it needs rather than copying
@@ -210,6 +241,11 @@ Both exist in cloud sessions and don't conflict — they serve different callers
   set (verified against the `chore: sync standards components` history on 2026-07-30), so its
   Node pin updates arrive via sync. `.claude/settings.json` and the hook script itself are
   repo-owned.
+- `.github/requirements-ci.txt` is hash-locked. The lockfile carries ABI-specific hashes for both
+  the CI interpreter (cp314 / 3.14) and the cloud VM system Python (cp311 / 3.11; #2657), so the
+  SessionStart hook always installs with `--require-hashes` and a digest mismatch stays fatal —
+  no interpreter-mismatch skip, no unpinned fallback. Installs use `pip` rather than `uv`, whose
+  PyPI fetches time out against the VM's egress proxy.
 - The hook's own version pins exist only because those tools have no in-repo manifest; the cloud
   proxy blocks the GitHub API and `releases/latest` redirects, so the hook can't self-resolve
   "latest". Each GitHub-release asset also carries a pinned SHA-256 the hook verifies before
