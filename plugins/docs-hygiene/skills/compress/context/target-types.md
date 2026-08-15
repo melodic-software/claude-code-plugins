@@ -27,7 +27,7 @@ Per-target gates before any dispatch:
 2. Path ends in `.md` (case-insensitive) → otherwise skip with `reason=non-markdown`
 3. Path NOT a symlink escaping repo root → otherwise skip with `reason=symlink-escape`
 4. Path NOT inside `.git/` → otherwise skip with `reason=git-internal`
-5. Path NOT under an `evals/fixtures/` directory → otherwise skip with `reason=fixture` (fixture verbosity is deliberate test input — compressing it corrupts the eval, and the two most-verbose files in the authoring repo's 2026-08-15 run were this skill's own verbose fixtures)
+5. Default (mutating) action with an ENUMERATED target set only — directory expansion or the repo-wide interview sweep: path NOT under an `evals/fixtures/` directory → otherwise skip with `reason=fixture` (fixture verbosity is deliberate test input — compressing it corrupts the eval, and the two most-verbose files in the authoring repo's 2026-08-15 run were this skill's own verbose fixtures). An explicitly-named single-file target bypasses this gate — naming a fixture is an intentional act, same philosophy as `--force`; the audit action is read-only and never applies it.
 
 Binary files and non-markdown files are out of scope per `../SKILL.md` "When NOT to use".
 

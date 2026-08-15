@@ -10,8 +10,11 @@
   all 9 reverted at 0.02-0.4% yield, while the skill's deliberately-verbose fixtures measure
   50-60/kw. Density < 5/kw now forces SKIP (expected ≤ 3%). This is the "add a 6th signal"
   branch of the pre-existing recheck trigger for consistently under-yielding signal-5 files.
-- **compress:** Target-validation gate 5 — paths under `evals/fixtures/` skip with
+- **compress:** Target-validation gate 5 — during the mutating action's ENUMERATED sweeps
+  (directory expansion or the repo-wide interview), paths under `evals/fixtures/` skip with
   `reason=fixture`. Fixture verbosity is deliberate test input; compressing it corrupts the eval.
+  Explicitly-named single-file targets and the read-only audit action bypass the gate (naming a
+  fixture is an intentional act, same philosophy as `--force`).
 - **compress:** Eval scenarios 7-9 covering the three new branches: the interview fallback
   (offer, decline-exits-no-op, bounded audit output, no edit before confirmation), a signal-6
   density SKIP, and a fixture-path skip (review finding on #2700).

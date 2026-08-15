@@ -113,14 +113,15 @@
     },
     {
       "id": 9,
-      "name": "fixture-path-skip",
-      "prompt": "Compress plugins/docs-hygiene/skills/compress/evals/fixtures/verbose-onboarding-snippet.md — it reads as very wordy.",
-      "expected_output": "Target-validation gate 5 rejects the path: it is under an evals/fixtures/ directory, so the target skips with reason=fixture and is never edited. The run explains that fixture verbosity is deliberate test input and compressing it corrupts the eval, rather than running the compression pipeline on it.",
+      "name": "fixture-path-skip-in-enumerated-sweep",
+      "prompt": "Compress plugins/docs-hygiene/skills/compress/ — the whole directory, everything markdown under it.",
+      "expected_output": "The directory target enumerates recursively, so target-validation gate 5 applies: every enumerated path under evals/fixtures/ skips with reason=fixture and is never edited (fixture verbosity is deliberate test input; compressing it corrupts the eval), while non-fixture markdown proceeds through the normal per-file pipeline. Gate 5 is scoped to the mutating action on ENUMERATED targets only — an explicitly-named single fixture file (as in eval 1) and the read-only audit action (as in eval 2) bypass it.",
       "files": [],
       "expectations": [
-        "A path under evals/fixtures/ is skipped with reason=fixture before any dispatch",
-        "The fixture file is not edited",
-        "Output explains fixture verbosity is deliberate test input, not flavor to remove"
+        "Enumerated paths under evals/fixtures/ are skipped with reason=fixture before any dispatch",
+        "No fixture file is edited by the sweep",
+        "Non-fixture markdown in the directory is processed normally, not skipped",
+        "Output reflects the gate's scoping: it applies to enumerated mutating sweeps, not to an explicitly-named single fixture file or to the read-only audit action"
       ]
     }
   ]
