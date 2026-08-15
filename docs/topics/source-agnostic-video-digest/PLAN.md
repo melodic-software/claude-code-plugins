@@ -194,34 +194,34 @@ adapter seam with observably identical behavior.
   slice layout-identical to a pre-change run; diff summary saved to
   `.work/source-agnostic-video-digest/evidence/phase1/yt-parity.md`
 
-### Phase 2: X adapter [TODO]
+### Phase 2: X adapter [DONE]
 
 Review: security
 
 `extraction/adapters/x.js` + registration:
 
-- [ ] `matchUrl` claims `x.com` / `twitter.com` status URLs; **adapter-level canonicalization**
+- [x] `matchUrl` claims `x.com` / `twitter.com` status URLs; **adapter-level canonicalization**
   re-derives the canonical status URL itself (T10 (ii)). Entry-path inventory it must cover
   (all reach dispatch through the shared seam): `run-watch.js` (`watch <url>`),
   `preflight-metadata.js` + `queue-claim.js` (`queue <url>` / `watch <n>`),
   `run-transcript.js`, `run-resume.js` / `watch-state.js` resume, and the recovery command
   emitted by `detect-recoverable-bootstrap.js` — canonicalization lives in the adapter so
   every path gets it by construction; test at least watch, queue, and transcript entries.
-- [ ] `extractSliceKey` → pair `(display_id, id)`. **Canonical identity = `display_id`** (the
+- [x] `extractSliceKey` → pair `(display_id, id)`. **Canonical identity = `display_id`** (the
   URL status id — the design invariant "slice key is the id captured from the URL"); `id`
   rides as the media discriminator. Same pair → same slice (no duplicates). Tolerates the
   link-post branch where `id` = twid. Snowflake timestamp delta (`(id >> 22) + 1288834974657`)
   flags quote/retweet aliasing; a flagged aliasing is recorded in slice metadata. Fixtures:
   original post, quote tweet, retweet, link post.
-- [ ] **Provenance guard**: any yt-dlp result whose `extractor` is not `twitter` is a
+- [x] **Provenance guard**: any yt-dlp result whose `extractor` is not `twitter` is a
   **blocked delegation**, never followed (upstream #9715). The post itself then resolves as a
   0-video result (next item) — the guard blocks foreign media, it does not error the post.
-- [ ] 0..N per `twitter.py`'s five branches: N → collection; 1 → single-entry collection
+- [x] 0..N per `twitter.py`'s five branches: N → collection; 1 → single-entry collection
   (never bare-object); `/video/<n>` pinned index honored; 0-with-outbound-link → provenance
   guard blocks the delegation, post yields a well-formed metadata-only 0-result with the
   blocked link recorded in provenance/harvested links; 0-no-link → metadata-only 0-result.
   Both 0-cases produce a **text-only digest with populated provenance** (T6 D-A).
-- [ ] `errorPatterns`: the three observed X failures (`No video could be found in this tweet`,
+- [x] `errorPatterns`: the three observed X failures (`No video could be found in this tweet`,
   `No video formats found!`, `Unsupported URL:`) → fatal-source (the first two are
   post-content facts; with the 0..N envelope the first typically resolves as a 0-result before
   spawn-level classification). **Login-required = exactly the three documented cases**
@@ -229,29 +229,29 @@ Review: security
   `not authorized` API message), all `raise_login_required`-shaped — only these gate the
   cookie fallback. Auth-dependence note carried into the source spoke: X auth-fallback
   windows are weeks-to-months, not days (design volatility measurement).
-- [ ] **429 silent-degradation compound detector**: warning text `Rate-limit exceeded;
+- [x] **429 silent-degradation compound detector**: warning text `Rate-limit exceeded;
   falling back to syndication endpoint` AND/OR missing `*_count` metadata AND multi-media
   collapse to one entry → classified retryable (degradation metadata set), never success.
   Fixtures: degraded response (positive), legitimate single-video post (negative — must NOT
   flag), boundary (counts present but warning seen).
-- [ ] `harvestLinks`: post-text links only (reply-chain harvest is agent-lane `/x:read`,
+- [x] `harvestLinks`: post-text links only (reply-chain harvest is agent-lane `/x:read`,
   optional — hub routing, Phase 6).
-- [ ] Captions: `--write-subs` never `--write-auto-subs`; raw `LANGUAGE` subtitle keys
+- [x] Captions: `--write-subs` never `--write-auto-subs`; raw `LANGUAGE` subtitle keys
   (`en`, `en-US`, `en-GB`, `und`) — no hardcoded `subtitles['en']`; literal `<X-word-ms`
   detection with `--convert-subs srt` cleanup path; `captionClass` declares platform-ASR.
-- [ ] `extractorArgs = null`; `comments` capability false; browser-cookie-fallback capability
+- [x] `extractorArgs = null`; `comments` capability false; browser-cookie-fallback capability
   false (cookies file is the only auth route).
 
 **Sanity Check:**
 
-- [ ] Offline fixture tests exit 0 covering: slice-key pair + all four identity fixtures,
+- [x] Offline fixture tests exit 0 covering: slice-key pair + all four identity fixtures,
   provenance-guard block + 0-result production, both 0-case digest paths, compound 429
   detector (3 fixtures), error-pattern mapping incl. login-required-only cookie gating,
   canonicalization via watch/queue/transcript entries
-- [ ] `git grep -n -e "automatic_captions" -e "write-auto-subs" -- plugins/knowledge/skills/youtube-digest/extraction/adapters/x.js` → 0 rows
-- [ ] Storage invariant test: X slice + YouTube slice created under one queue root in a temp
+- [x] `git grep -n -e "automatic_captions" -e "write-auto-subs" -- plugins/knowledge/skills/youtube-digest/extraction/adapters/x.js` → 0 rows
+- [x] Storage invariant test: X slice + YouTube slice created under one queue root in a temp
   `--work-root`; both resolve; `QUEUE.md` claims namespace shared; no source directory level
-- [ ] One-time evidence (NOT a merge gate): manual anonymous download of the design's verified
+- [x] One-time evidence (NOT a merge gate): manual anonymous download of the design's verified
   public status; media + `.vtt` + `sourceUrl` recorded to
   `.work/source-agnostic-video-digest/evidence/phase2/x-live-probe.md`
 

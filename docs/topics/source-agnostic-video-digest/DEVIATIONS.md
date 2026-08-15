@@ -39,6 +39,35 @@ dispatch moved into `adapters/registry.js`; `acquire.js` no longer imports the r
 graph is acyclic, and the registry consistency check runs at plain module init. Same intent
 (all acquisition routes through the adapter seam), sharper seam location. Landed `5020fd4a`.
 
+## 2026-08-15 — Phase 2: contract grew two review-driven declarations
+
+Security review (two independent reviewers; the cross-checked SSRF finding was CRITICAL) drove
+two additive contract attributes not in the PLAN's Phase 1 attribute list:
+
+- **`allowedExtractors` (required, string|null):** yt-dlp's link-post delegation (upstream
+  #9715) meant the probe pass fetched an attacker-chosen outbound URL — cookie-bearing —
+  before the provenance guard could read the result. The fix restricts every spawn (probe,
+  media, queue preflight) with `--use-extractors` from an adapter declaration; X declares
+  `twitter.*` (family verified live: twitter, :amplify, :broadcast, :card, :shortener,
+  :spaces), YouTube declares null. A refused delegation (`ERROR: No suitable extractor found
+  for URL <url>` — the live-verified refusal shape) is parsed into the well-formed 0-result
+  with the blocked link in provenance; a foreign info JSON on disk is now a hard failure.
+- **`mediaOptional` capability (closed-by-default):** maps to `--ignore-no-formats-error` in
+  BOTH acquire and preflight arg builders, so a valid 0-video X post enqueues metadata-only
+  and digests text-only end-to-end (T6 D-A), removing the queue-vs-watch asymmetry. YouTube
+  unchanged.
+
+Also from review, recorded here: X fatal patterns gained `/Media #\d+ is not a video/` and
+sibling `/Video #\d+ is unavailable/` (deterministic index-selected conditions, not in the
+PLAN's three observed literals — additive, same permanence class); the self-referential
+`/X acquisition degraded/` retryable pattern was removed (an adapter table describes source
+stderr only).
+
+**Deferred with trigger:** the 429 `countsMissing` heuristic classifies a permanently-degraded
+post retryable on every attempt. Today no queue-level retry consumes adapter retryable
+patterns, so no loop exists. Trigger: any future queue-retry lane adopting adapter patterns
+must add an attempt cap or degraded-accept path (doc note lives on the detector).
+
 ## 2026-08-15 — Phase 0: `@satisfies` standardization had no applicable sites
 
 The only contract-bearing `@type` object literal in either tree is `utils.js:111` (Node stdlib
