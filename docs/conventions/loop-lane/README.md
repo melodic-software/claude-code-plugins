@@ -466,23 +466,21 @@ is the worked precedent.
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
 the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
 prompt never assumes a fresh one, and what carries forward also degrades, since auto-compaction
-summarizes earlier history in place rather than preserving it
-([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md#a-relaunch-is-the-only-context-reset-a-loop-lane-gets)
-owns the mechanism).
+summarizes earlier history in place rather than preserving it (the `claude-ops:lanes` skill owns the
+mechanism).
 
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
-cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets
-([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md#a-relaunch-is-the-only-context-reset-a-loop-lane-gets)).
-What happens next is launcher-relative. Under a launcher that
-acts on restart-requests, the lane is relaunched and the loop continues — the budget restarts the
-**session**, never ends the **loop**. **No such automatic launcher exists today**: `claude-ops`
-`lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today", per its
-SKILL.md), so until an automatic relaunch trigger exists, *every* budget hit — under `lanes` or a
-bare interactive `/loop` alike — is a **terminal** manual-restart state: the stop is reported in
-lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's one-command
-path). The restart-request in the #502 block is written so that the operator today, and an
-automatic trigger when one exists, can act on the same surface.
+cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets (the
+`claude-ops:lanes` skill owns the mechanism). What happens next is launcher-relative. Under a
+launcher that acts on restart-requests, the lane is relaunched and the loop continues — the budget
+restarts the **session**, never ends the **loop**. **No such automatic launcher exists today**:
+`claude-ops` `lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today",
+per its SKILL.md), so until an automatic relaunch trigger exists, *every* budget hit — under `lanes`
+or a bare interactive `/loop` alike — is a **terminal** manual-restart state: the stop is reported
+in lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's
+one-command path). The restart-request in the #502 block is written so that the operator today, and
+an automatic trigger when one exists, can act on the same surface.
 
 **Telemetry comment (#502).** Each lane **instance** maintains exactly **one** status comment on a
 tracking item, identified by a machine sentinel marker and **edited in place** every cycle — never a
@@ -737,10 +735,9 @@ scheduled time, or up to half the interval for a task running more often than ho
 
 The two shapes coexist inside one plugin without conflicting because they answer different
 invocations, not competing defaults: `babysit-prs` documents a fixed-interval launch of *itself*,
-while its cadence mapping
-([`loop.md` §5.3](../../../plugins/source-control/skills/babysit-prs/reference/loop.md#53-self-pacing-schedulewakeup))
-is the self-paced contract the `babysit-loop` lane consumes. Reading either as the other's default is
-the confusion this note exists to prevent.
+while its cadence mapping (the self-pacing cadence contract owned by the
+`source-control:babysit-prs` skill) is the self-paced contract the `babysit-loop` lane consumes.
+Reading either as the other's default is the confusion this note exists to prevent.
 
 **Known gap — the self-paced shape is provider-conditional.** On Amazon Bedrock, Claude Platform on
 AWS, Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval does **not** hand the

@@ -1,7 +1,7 @@
 # audit-pass — run state, concurrency, and resumability
 
-This file owns §3 and §5: the state key, the applying lock, the lease that tells a live run from an
-abandoned one, and what `--resume` re-runs rather than carries forward.
+This file owns §3 and §5: how the run tree is keyed, the applying lock, the lease that tells a live
+run from an abandoned one, and what `--resume` re-runs rather than carries forward.
 
 Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 
@@ -10,14 +10,12 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 `${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so state keyed by working directory would
 collide or fragment depending on where the operator happened to stand.
 
-**`<state-key>` = `<repo-identity>/<worktree-discriminator>`.**
-
-- **`repo-identity`** — for a git repository, the first configured remote URL normalized to
-  `host/owner/repo`, lowercased, `.git` suffix and credentials stripped. With no remote,
-  `local/<sha256 of the canonicalized repo root>` truncated to 12.
-- **`worktree-discriminator`** — `sha256` of the canonicalized worktree root, truncated to 8. Two
-  worktrees of one repository on different branches legitimately hold different content and must not
-  share a run report.
+**The `<state-key>` grammar and both of its segments are specified by the repo-level convention**
+[plugin-data report keying](../../../../../docs/conventions/plugin-data-report-keying/README.md),
+rule 1. The scheme started here and the convention now carries it, so it is defined once for every
+adopter rather than restated per skill. This run never transcribes the derivation: `run-state.sh
+paths` computes the key through the shared `lib/state-key.sh`, and every path below is relative to
+what it prints.
 
 Suppressions are keyed differently on purpose (§4): they are a decision about the *repository*, not
 about a checkout, so they are shared across worktrees and committed where the operator owns the

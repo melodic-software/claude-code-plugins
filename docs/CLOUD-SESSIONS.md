@@ -167,6 +167,7 @@ block the session from starting. GitHub release-asset downloads are additionally
 because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
 documents that release assets from repositories not attached to the session can return 403.
 
+<!-- TODO(audit-encapsulation): three of these npm roots are skill-private subdirs — re-point when scripts/ facades land (#2701) -->
 Not installed at session start (install on demand when working in those areas): the four plugin
 npm roots (`plugins/miro`, `plugins/knowledge/skills/youtube-digest/extraction`,
 `plugins/knowledge/skills/course-digest/extraction`,

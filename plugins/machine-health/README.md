@@ -78,6 +78,7 @@ by `/machine-health:setup`. No hooks, no MCP servers.
 A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only — it
 mocks Win32/MSFT CIM types that resolve only there:
 
+<!-- TODO(audit-encapsulation): tests/ is a skill-private subdir — relocate/wrap the runner under scripts/ (#2702) -->
 ```powershell
 pwsh -NoProfile -File plugins/machine-health/skills/audit/tests/Invoke-MachineHealthTests.ps1
 ```

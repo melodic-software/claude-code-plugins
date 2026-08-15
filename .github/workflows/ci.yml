@@ -907,6 +907,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # TODO(audit-encapsulation): npm lane reaches a skill-private subdir — pending scripts/ facade or contract carve-out (#2701)
           cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
@@ -960,6 +961,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # TODO(audit-encapsulation): npm lane reaches a skill-private subdir — pending scripts/ facade or contract carve-out (#2701)
           cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
@@ -1009,6 +1011,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # TODO(audit-encapsulation): npm lane reaches a skill-private subdir — pending scripts/ facade or contract carve-out (#2701)
           cache-dependency-path: plugins/knowledge/skills/course-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
