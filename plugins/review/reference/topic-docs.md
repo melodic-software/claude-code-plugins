@@ -69,6 +69,6 @@ before any write — the convention's no-project-root fallback surface never com
   `*`, creating it (announced) when absent — fresh clones heal on first write. Once per session,
   per the contract. The contract also defines **invalid roots at which the guard does not run**;
   they are enumerated in its
-  [Runtime guards](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md)
+  [Runtime guards](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards)
   section and deliberately not listed here, so this binding cannot drift from them.
 - No skill in this plugin ever edits the consumer's root `.gitignore`.

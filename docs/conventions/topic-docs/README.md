@@ -415,6 +415,15 @@ cite it rather than redefining it.
   no-project-root fallback above routes non-interactive runs to
   `${CLAUDE_PLUGIN_DATA}` by default, and non-interactive is the normal
   condition for forked subagents, dispatched workers, and headless runs.
+  **The same undecidability binds every other write on that branch**, not
+  only the guard's: any destination path may be an index-tracked
+  deletion in the undetected checkout, in which case writing it produces
+  a tracked modification rather than a new untracked file. A surface
+  whose artifact must not modify tracked content therefore refuses the
+  artifact write too, rather than skipping only the guard. A surface
+  that can tolerate an untracked path being staged by a later
+  `git add -A` may proceed — the two outcomes differ in what they
+  protect, and only the first is absolute.
 - No plugin ever edits the consumer's root `.gitignore`.
 
 ## Slug and filename spec

@@ -45,7 +45,8 @@ Three properties, stated first because everything below depends on them:
    naming doctrine's verb contract, `audit` reports and stops — and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
    (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its two writes — the findings file,
-   and the self-ignore guard's own `.gitignore` when it heals a root — are each **proven outside
+   and the self-ignore guard's own `.gitignore` when a governing checkout is found and the guard
+   heals that root — are each **proven outside
    tracked space before that write is made**, never in tracked source and never in a file another
    producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
@@ -312,10 +313,12 @@ The mechanics are owned by [`context/persist-findings.md`](context/persist-findi
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
 are not optional: the destination comes from the contract's **whole** rung order, taking its
 **non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
-**each** of the phase's two writes — the findings file and the self-ignore guard's `.gitignore` — is
+**each** write this phase makes — the findings file and the self-ignore guard's `.gitignore` — is
 proven outside tracked space before **that** write is made, against the checkout that governs the
-destination rather than the invoking worktree, and with the guard's own write proven before the guard
-heals rather than reported afterwards (a memory root inside tracked space leaves `git status`
+destination rather than the invoking worktree, with the guard's own write proven before the guard
+heals rather than reported afterwards, and with **nothing written at all** where no governing
+checkout can be found, since an undetected checkout may hold the destination as a tracked deletion
+that a write would modify rather than create (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
 class** selects the contract rule and the rule decides `Tier`, never the finding's prose, with

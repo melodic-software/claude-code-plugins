@@ -85,7 +85,7 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   contract rather than restated. Bare invocation is unchanged: it reports and stops.
 - **Each write this phase makes is proven outside tracked space before that write is made** — the
   findings file, and the self-ignore guard's own `.gitignore` where a governing checkout was found
-  (where none was, the guard does not run and the findings file is the only write). Per-write rather
+  (where none was, neither write happens — see below). Per-write rather
   than both up front,
   because on a fresh root the guard's file is what makes the findings file's probe pass. The guard's
   write is proven *before the guard heals*, by requiring the resolved root to hold no tracked files, because writing `*` into a
@@ -102,8 +102,11 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   run at all.** There is no repository to keep the write out of, and its create-when-absent rule
   would otherwise write straight over a `.gitignore` that is absent from disk but tracked in the
   undiscovered checkout, modifying committed content it could not even hide, since a tracked file is
-  exempt from its own pattern. What remains on that branch is the findings file alone, which
-  overwrites nothing. With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
+  exempt from its own pattern. **The findings file is withheld on that branch too**: the same
+  undecidability applies to it, since its destination may be an index-tracked deletion in the
+  undetected checkout, where writing produces a modified tracked file rather than a new untracked one
+  (measured). The run reports the resolved destination and that nothing was persisted, rather than
+  writing where it cannot rule that out. With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
   worktree, where a memory root outside the worktree (a layout the `review:fanout` `fix` action
   supports explicitly) makes the probe fatal with exit 128 and every write a refusal. "The path is
   tracked space" and "the probe could not evaluate the path" are reported as the different states

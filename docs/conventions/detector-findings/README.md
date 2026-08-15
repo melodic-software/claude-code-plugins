@@ -59,9 +59,10 @@ What the binding leaves to a producer — consequences, not a second statement o
   stop the guard from healing into a consumer's root `.gitignore` and from writing at a root no
   checkout is detected as governing. Skipping it **where a checkout governs the destination** commits
   findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
-  that the guard does not run, and the exposure is different in kind: the findings file lands as an
-  **untracked** path in any checkout the detection missed — reachable by a later `git add -A`, not
-  committed by this producer's action. Reachable, not automatic.
+  that the guard does not run — and a producer bound to leave tracked content unmodified **withholds
+  the findings file there as well**, because that destination may itself be an index-tracked deletion
+  in the checkout the detection missed, where writing it modifies tracked content rather than
+  creating an untracked path. Report the resolved destination and persist nothing.
 
 ## Boundary
 
