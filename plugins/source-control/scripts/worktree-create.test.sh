@@ -848,4 +848,75 @@ else
 fi
 assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
 
+# --- Unit: same-drive policy (#2764) -----------------------------------------
+# Path-shape gate is pure string work; extract the helpers so Linux CI can prove
+# refuse / warn / inert / same-drive without a second volume. Integration coverage
+# on a real NTFS dual-drive host is the Windows backslash block's sibling.
+eval "$(awk '/same-drive helpers \(begin\)/{p=1; next} /same-drive helpers \(end\)/{p=0} p' "$HELPER")"
+# shellcheck disable=SC2034 # consumed by check_same_drive, eval'd in above from worktree-create.sh
+PROG=worktree-create.sh
+
+# letter extraction
+assert_eq "drive letter from C:/repos" "C" "$(windows_drive_letter 'C:/repos/foo')"
+assert_eq "drive letter casefolds" "D" "$(windows_drive_letter 'd:/Worktrees')"
+assert_eq "drive letter from /cygdrive/d" "D" "$(windows_drive_letter '/cygdrive/d/worktrees')"
+windows_drive_letter '/tmp/foo' >/dev/null 2>&1
+assert_exit "POSIX path has no drive letter" 1 "$?"
+windows_drive_letter '//server/share/x' >/dev/null 2>&1
+assert_exit "UNC path has no drive letter" 1 "$?"
+# `/d/...` is MSYS-only; on POSIX it must stay inert so `/usr` is never drive U:.
+case "$(uname -s 2>/dev/null || true)" in
+MINGW* | MSYS* | CYGWIN*)
+  assert_eq "MSYS /d/ form is drive D" "D" "$(windows_drive_letter '/d/worktrees')"
+  err=$(check_same_drive 'C:/repos/acme' '/d/worktrees/acme-x' 1 2>&1 >/dev/null)
+  assert_exit "MSYS root vs Windows repo refuses cross-drive" 3 "$?"
+  ;;
+*)
+  windows_drive_letter '/d/worktrees' >/dev/null 2>&1
+  assert_exit "POSIX /d/ path is not a drive letter" 1 "$?"
+  ;;
+esac
+
+# same-drive: proceed
+check_same_drive 'C:/repos/acme' 'C:/worktrees/acme-x' 1 >/dev/null 2>&1
+assert_exit "same-drive explicit root proceeds" 0 "$?"
+check_same_drive 'c:/repos/acme' 'C:/worktrees/acme-x' 2 >/dev/null 2>&1
+assert_exit "same-drive casefold proceeds" 0 "$?"
+check_same_drive 'C:/repos/acme' '/cygdrive/c/worktrees/acme-x' 1 >/dev/null 2>&1
+assert_exit "same-drive Cygwin form proceeds" 0 "$?"
+
+# inert when either side lacks a drive letter
+check_same_drive '/tmp/repo' 'D:/worktrees/x' 1 >/dev/null 2>&1
+assert_exit "inert when repo has no drive letter" 0 "$?"
+check_same_drive 'C:/repos/acme' '/var/worktrees/x' 1 >/dev/null 2>&1
+assert_exit "inert when worktree has no drive letter" 0 "$?"
+check_same_drive '/tmp/repo' '/var/worktrees/x' 1 >/dev/null 2>&1
+assert_exit "inert on POSIX both sides" 0 "$?"
+
+# rungs 1–3 refuse cross-drive
+err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 1 2>&1 >/dev/null)
+assert_exit "rung-1 cross-drive refuses exit 3" 3 "$?"
+assert_contains "rung-1 refuse names both drives" "$err" "drive C:"
+assert_contains "rung-1 refuse names the foreign drive" "$err" "drive D:"
+assert_contains "rung-1 refuse is remedy-first (melodic.worktreeroot)" "$err" "melodic.worktreeroot"
+assert_contains "rung-1 refuse names EXDEV" "$err" "EXDEV"
+
+err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 2 2>&1 >/dev/null)
+assert_exit "rung-2 (melodic.worktreeroot) cross-drive refuses exit 3" 3 "$?"
+
+err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 3 2>&1 >/dev/null)
+assert_exit "rung-3 (--fallback-root) cross-drive refuses exit 3" 3 "$?"
+
+err=$(check_same_drive 'C:/repos/acme' '/cygdrive/d/worktrees/acme-x' 1 2>&1 >/dev/null)
+assert_exit "rung-1 Cygwin foreign drive refuses exit 3" 3 "$?"
+
+# rung 4 warns and proceeds (fixture paths stay drive-letter-only — no Users/ home literals)
+err=$(check_same_drive 'C:/repos/acme' 'D:/claude/plugins/cache/worktrees/acme-x' 4 2>&1 >/dev/null)
+assert_exit "rung-4 cross-drive warns but proceeds (exit 0)" 0 "$?"
+assert_contains "rung-4 warning is loud" "$err" "WARNING"
+assert_contains "rung-4 warning names both drives" "$err" "drive D:"
+assert_contains "rung-4 warning names the repo drive" "$err" "drive C:"
+assert_contains "rung-4 warning names the remedy" "$err" "melodic.worktreeroot"
+assert_contains "rung-4 warning explains proceeding" "$err" "Proceeding anyway"
+
 [[ $FAILED -eq 0 ]] || exit 1

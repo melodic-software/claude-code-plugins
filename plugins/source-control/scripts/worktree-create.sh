@@ -39,14 +39,106 @@
 # (machine-parseable); all diagnostics go to stderr.
 #
 # Exit codes:
-#   0  success — worktree created; path on stdout
+#   0  success — worktree created; path on stdout (a rung-4 cross-drive default
+#      still exits 0 after a loud stderr warning — see same-drive check below)
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
-#   3  refuse — no usable external root (guidance on stderr); nothing created
+#   3  refuse — no usable external root, root inside a repository, or an
+#      explicit/configured (rungs 1–3) cross-drive root on Windows (guidance on
+#      stderr); nothing created
 #   4  environment error — not a git repo, or `git worktree add` failed
 
 set -uo pipefail
 
 PROG=${0##*/}
+
+# --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
+# windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
+# drive-anchored; otherwise return non-zero. Recognized shapes (#2764):
+#   - `X:/...` — git / Windows absolute
+#   - `/cygdrive/x/...` — Cygwin (unambiguous on every host)
+#   - `/x/...` — MSYS/Git Bash single-letter drive form, only when uname is
+#     MINGW*/MSYS*/CYGWIN* (same gate as landed-work.sh path_key). On POSIX a
+#     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
+#     never mistaken for drive U:.
+windows_drive_letter() {
+  local path="$1" d
+  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]]; then
+    d="${BASH_REMATCH[1]}"
+    printf '%s' "${d^^}"
+    return 0
+  fi
+  if [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
+    d="${BASH_REMATCH[1]}"
+    printf '%s' "${d^^}"
+    return 0
+  fi
+  case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*)
+    if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
+      d="${BASH_REMATCH[1]}"
+      printf '%s' "${d^^}"
+      return 0
+    fi
+    ;;
+  *) ;;
+  esac
+  return 1
+}
+
+# check_same_drive <repo-toplevel> <worktree-path> <root-rung> — enforce the
+# same-drive-on-Windows invariant for worktree placement (#2764).
+#
+# `git worktree move` is `rename()` and cannot cross a volume boundary on
+# Windows (EXDEV / "Invalid cross-device link"). Rungs 1–3 are an
+# explicit/configured choice → refuse (return 3). Rung 4 is the unconfigured
+# plugin-data-dir default → warn on stderr and return 0: refusing would fail
+# every harness WorktreeCreate on a cross-drive machine (#1852). Inert when
+# either path lacks a drive letter.
+#
+# Returns 0 to proceed, 3 to refuse. Caller exits on non-zero.
+check_same_drive() {
+  local repo_path="$1" wt_path="$2" rung="$3"
+  local repo_drive wt_drive
+  repo_drive=$(windows_drive_letter "$repo_path") || return 0
+  wt_drive=$(windows_drive_letter "$wt_path") || return 0
+  [[ "$repo_drive" == "$wt_drive" ]] && return 0
+
+  if (( rung == 4 )); then
+    # Channel asymmetry is intentional: this warning reaches the /worktree
+    # create skill path (Bash-tool stderr) but is dropped on the WorktreeCreate
+    # hook path, where exit-0 stderr goes to the debug log only. Refusing at
+    # rung 4 was considered and rejected for that blast radius.
+    cat >&2 <<EOF
+$PROG: WARNING: default worktree root is on drive ${wt_drive}: but the repository is on drive ${repo_drive}: — git worktree move will fail across drives (EXDEV / Invalid cross-device link).
+
+  repository: $repo_path
+  worktree:   $wt_path
+
+Set the \`melodic.worktreeroot\` git config key to a same-drive external root:
+
+  git config --global melodic.worktreeroot <same-drive-root>
+
+Proceeding anyway — refusing the unconfigured default would break every
+harness-driven WorktreeCreate on a cross-drive machine.
+EOF
+    return 0
+  fi
+
+  cat >&2 <<EOF
+$PROG: set \`melodic.worktreeroot\` (or the plugin's \`worktree_root\` option) to a directory on drive ${repo_drive}: — refusing a cross-drive root.
+
+  repository: $repo_path  (drive ${repo_drive}:)
+  worktree:   $wt_path  (drive ${wt_drive}:)
+
+git worktree move uses rename(), which cannot cross volumes on Windows
+(EXDEV / Improper link). The includeIf-capable \`melodic.worktreeroot\` key
+is the per-repository remedy:
+
+  git config melodic.worktreeroot <same-drive-root>
+EOF
+  return 3
+}
+# --- same-drive helpers (end) ---
 
 usage() {
   cat >&2 <<EOF
@@ -322,13 +414,16 @@ canonicalize_root() {
 
 # Unconfigured root: detected here, resolved after the repository is known below
 # (the melodic.worktreeroot rung needs the repository, and the data-dir rung
-# stays last).
+# stays last). root_rung tracks which resolution arm supplied the root so the
+# same-drive check (#2764) can refuse rungs 1–3 and only warn on rung 4.
 root_unset=0
+root_rung=0
 if root_is_unset "$root"; then
   root_unset=1
 else
   canonicalize_root "$root" --root
   root="$CANONICAL_ROOT"
+  root_rung=1
 fi
 
 # Resolve the source repository top level.
@@ -369,6 +464,7 @@ if (( root_unset )); then
     canonicalize_root "$config_root" "melodic.worktreeroot"
     root="$CANONICAL_ROOT"
     root_unset=0
+    root_rung=2
     printf '%s: worktree root resolved from the melodic.worktreeroot git config key\n' "$PROG" >&2
   fi
 fi
@@ -380,6 +476,7 @@ if (( root_unset )) && ! root_is_unset "$fallback_root"; then
   canonicalize_root "$fallback_root" --fallback-root
   root="$CANONICAL_ROOT"
   root_unset=0
+  root_rung=3
 fi
 
 # Rung 4: the plugin's own data directory, delivered by the caller through
@@ -442,6 +539,7 @@ EOF
   fi
 
   root="${data_root%/}/worktrees"
+  root_rung=4
   printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
   # SC2016: the backticks are literal markdown in guidance text, not a command
   # substitution — expansion is exactly what must NOT happen here.
@@ -655,6 +753,11 @@ EOF
     exit 3
   fi
 fi
+
+# Same-drive-on-Windows invariant (#2764). Stated in plugin.json and the
+# containment message above; enforced here. Path-shape gate (both sides must
+# match <letter>:/) so POSIX and UNC stay inert. Rungs 1–3 refuse; rung 4 warns.
+check_same_drive "$toplevel" "$worktree_path" "$root_rung" || exit $?
 
 if [[ -e "$worktree_path" ]]; then
   printf '%s: target path already exists: %s\n' "$PROG" "$worktree_path" >&2
