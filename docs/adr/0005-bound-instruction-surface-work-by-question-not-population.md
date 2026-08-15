@@ -403,3 +403,24 @@ search filtered the open-issue list by title for audit/sweep/scan/all-plugin/con
 criteria/conflict shapes; that list moves week to week and is deliberately not stated as a figure.
 Counts and `path:line` citations were re-verified against the post-#1276 tree, since `main` landed a
 plugin rename during the effort.
+
+## Addendum (2026-08-15): C6 operational coverage now includes user↔project
+
+**Status: superseding note only.** Decisions 1–3 and the coverage-predicate consequence above remain
+as ratified. This note records that C6's operational population moved after ADR acceptance.
+
+When this ADR was written, C6's discovery was CWD-relative `find` and **"the only pair C6
+operationally covers for contradiction is root project `CLAUDE.md` versus project `.claude/rules/`"**
+— so user-global versus project was correctly listed as L2/I15 novel scope. That discovery was later
+replaced by `discover-instruction-surfaces.sh` (project **and** user). Operator ratification for
+[#2705](https://github.com/melodic-software/claude-code-plugins/issues/2705) (2026-08-15) locks the
+routing that follows from the new population:
+
+| Predicate | Owner |
+|---|---|
+| Both anchors in discover-instruction-surfaces (including user↔project) | C6 |
+| Any anchor outside that population; memory-layer precedence / settings adjudication | I15 |
+
+The load-bearing consequence is unchanged: **route on operational coverage, not on layer name.**
+What changed is which pairs satisfy the coverage predicate. Nested `CLAUDE.md` and auto-memory
+remain outside C6's population and stay with I15.

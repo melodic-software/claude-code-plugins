@@ -3,6 +3,19 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.4]
+
+### Changed
+
+- **`audit-instructions`: ratify the C6/I15 boundary against C6's widened population (#2705).**
+  `conflict-criteria.md` 1.5.0 no longer routes every `~/.claude/` half to I15. C6 owns
+  instruction-content conflicts whose both anchors are in `discover-instruction-surfaces`
+  (project **and** user root-level CLAUDE.md / rules) — **including user↔project**. I15 keeps
+  nested `CLAUDE.md`, auto-memory, settings, and every surface outside that population, plus
+  memory-layer precedence adjudication for the pairs it retains. SKILL.md "What this skill does
+  NOT do", eval 7, and new eval 18 pin the routing; ADR 0004/0005 carry superseding notes so the
+  immutable records stay accurate beside the live table.
+
 ## [0.38.3]
 
 ### Fixed

@@ -12,7 +12,8 @@ Find files in scope:
 # The bundled script resolves ${CLAUDE_CONFIG_DIR:-$HOME/.claude} the same way the
 # memory-dir resolver does. A bare `find .` sees project scope only, which left
 # ~/.claude/CLAUDE.md and ~/.claude/rules/*.md audited by nothing — they load in
-# every session, and audit-instructions' surface partition hands them here by name.
+# every session. C6 owns instruction-content conflicts across this population
+# (including user↔project); I15 owns pairs with an anchor outside it.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover-instruction-surfaces.sh"
 # Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`
 
