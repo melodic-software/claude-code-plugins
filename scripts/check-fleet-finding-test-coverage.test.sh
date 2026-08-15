@@ -143,6 +143,26 @@ else
 fi
 rm -rf "$repo"
 
+# A shorter kind must not be covered by a Finding: assertion for a longer kind
+# that shares its prefix (worktree-root-conformance vs -summary).
+repo="$(mk_tree)"
+write_collector "$repo" covered-one short-kind short-kind-extra
+{
+  printf '# synthetic suite\n'
+  for kind in "${PAD_KINDS[@]}" covered-one short-kind-extra; do
+    printf 'assert_contains "x" "Finding: %s"\n' "$kind"
+  done
+} >"$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh"
+out="$(run_check "$repo" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNCOVERED FINDING KIND: short-kind"* ]]; then
+  ok "prefix of a longer Finding: kind does not satisfy coverage"
+else
+  fail "prefix collision wrongly counted as coverage: rc=$rc out='$out'"
+fi
+rm -rf "$repo"
+
+
 # Historical proof (#2656): the gate must go red against the two commits that
 # shipped the coverage gap. Point FLEET_FINDING_* at trees extracted from git.
 if git rev-parse --verify --quiet "cc58cbc5^{commit}" >/dev/null 2>&1 &&

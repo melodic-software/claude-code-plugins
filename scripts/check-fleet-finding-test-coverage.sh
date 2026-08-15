@@ -64,9 +64,11 @@ if [[ "$emitted_count" -lt 20 ]]; then
 fi
 
 kind_asserted() {
-  # True only when the suite asserts collector output for this kind.
+  # True only when the suite asserts collector output for this exact kind.
+  # Anchor the trailing boundary so Finding: worktree-root-conformance does not
+  # false-cover via Finding: worktree-root-conformance-summary (#2656 review).
   local kind="$1"
-  grep -Fq -- "Finding: $kind" "$TEST"
+  grep -Eq -- "Finding: ${kind}([^a-z-]|$)" "$TEST"
 }
 
 : >"$missing_tmp"
