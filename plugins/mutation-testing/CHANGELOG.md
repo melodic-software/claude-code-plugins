@@ -24,9 +24,14 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   ancestor cannot hide a checkout, and `git rev-parse --show-toplevel` run under the ambient
   environment. Neither is trusted alone — `rev-parse` fails with exit 128 alike for no-repository, a
   missing directory, a dangling `gitdir:`, and a discovery limit under which a repository does govern
-  the path, while the walk cannot see a working tree designated by `GIT_WORK_TREE`/`GIT_DIR`. A
-  topology that defeats both, a repository whose `core.worktree` names the destination's tree, is
-  disclosed as a named blind spot rather than claimed closed. With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
+  the path, while the walk cannot see a working tree designated by `GIT_WORK_TREE`/`GIT_DIR`. One
+  topology defeats both — a repository whose `core.worktree` names the destination's tree — and the
+  permissive branch is shaped around it: **where no checkout is found, the self-ignore guard does not
+  run at all.** There is no repository to keep the write out of, and its create-when-absent rule
+  would otherwise write straight over a `.gitignore` that is absent from disk but tracked in the
+  undiscovered checkout, modifying committed content it could not even hide, since a tracked file is
+  exempt from its own pattern. What remains on that branch is the findings file alone, which
+  overwrites nothing. With a governing checkout, `git check-ignore` decides, anchored there and never to the invoking
   worktree, where a memory root outside the worktree (a layout the `review:fanout` `fix` action
   supports explicitly) makes the probe fatal with exit 128 and every write a refusal. "The path is
   tracked space" and "the probe could not evaluate the path" are reported as the different states

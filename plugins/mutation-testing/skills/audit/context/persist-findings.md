@@ -61,17 +61,26 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
    both report one and they differ, prove against **both** — steps 3 and 5 run per checkout and every
    one must pass.
 
-   **One topology defeats both signals, and it is named rather than papered over.** A repository whose
-   `core.worktree` points at the destination's tree — including the bare-layout variant with
+   **One topology defeats both signals, and the permissive branch is shaped around it.** A repository
+   whose `core.worktree` points at the destination's tree — including the bare-layout variant with
    `core.bare false` — governs that tree with **no `.git` anywhere in the destination's path and
    nothing in the environment to find**. The designation lives in a config file that destination-side
-   discovery never reaches, so the walk and `rev-parse` come back empty together and the permissive
-   branch is taken. What limits the damage is that the guard's `.gitignore` is a filesystem artifact:
-   any git that walks that directory reads it, discovered or not, so `*` ignores this producer's
-   writes in the undiscovered checkout too. The residual is therefore bounded and visible rather than
-   silent — a `.gitignore` and a findings file appearing in a directory that checkout can see, which
-   is recoverable and never a loss of the consumer's work — and it is genuinely open only where that
-   checkout also carries a negation pattern re-including the path.
+   discovery never reaches, so both signals come back empty together.
+
+   **On the permissive branch, do not run the self-ignore guard at all.** Where no checkout governs
+   the path there is no repository to keep the write out of, so the guard has no work to do — and the
+   only circumstance in which its file would have mattered is the one where this discovery was wrong.
+   Skipping it is what keeps that case harmless. The guard's rule is *create when absent*, and a
+   `.gitignore` that is absent from disk but **tracked** in an undiscovered checkout — routine after
+   an `rm` or an interrupted checkout — would be created straight over the consumer's committed
+   content. A tracked file is exempt from its own pattern, so it could not even hide itself: the
+   result is a modified tracked file, which is precisely what "never in tracked source" forbids. Step
+   3 is what refuses a root holding tracked files, and step 3 never ran here, so the guard would be
+   writing with its only protection absent.
+
+   What remains on that branch is the findings file alone, written into a directory nothing was found
+   to govern. If discovery *was* wrong, it shows up in the undiscovered checkout as an untracked
+   path — visible, attributable, and having overwritten nothing.
 
    Two cases the signals resolve rather than defer: a **bare** repository with no worktree puts no
    `.git` in any ancestor and reports none, so it reaches the permissive branch — correct, since a
@@ -96,11 +105,13 @@ probe cannot precede the guard. The order is what makes the per-write form hold:
    owns": a source directory whose files were never added is invisible to it, and healing `*` there
    makes a later `git add` skip them silently. Narrow that residual by also refusing when the root
    already exists and holds an entry that is neither `.gitignore`, nor a `*.md` file, nor a
-   directory. **Not "only files this producer wrote"** — the contract has producers share one
-   directory, so other producers' findings files and the consumer's own records are the ordinary
-   steady state and must not trip this. What the rule excludes is a root that looks like source: a
-   `.py`, a `.cs`, a `Makefile`. It is a heuristic and is stated as one; it narrows the residual
-   rather than closing it.
+   directory, nor an OS-generated artifact — `desktop.ini`, `Thumbs.db`, `.DS_Store`. **Not "only
+   files this producer wrote"** — the contract has producers share one directory, so other producers'
+   findings files and the consumer's own records are the ordinary steady state and must not trip
+   this, and the OS entries would otherwise refuse a perfectly good memory root on Windows or macOS
+   for a file no human put there. What the rule excludes is a root that looks like source: a `.py`, a
+   `.cs`, a `Makefile`. It is a heuristic and is stated as one; it narrows the residual rather than
+   closing it.
    The precondition itself is the self-ignore guard's, not this producer's — the
    [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
    owns where that guard may heal; what is stated here is only how this producer discharges it before
@@ -294,7 +305,7 @@ Tracked source is byte-identical to the Phase 0 snapshot on three limbs, none of
 Phase 3 verified restoration against that snapshot, nothing in this phase edits tracked source, and
 each of this phase's two writes — the findings file and the guard's `.gitignore` — was proven outside
 tracked space before that write was made. The first limb is why this phase can describe a tree at all — a
-run whose revert did not verify ends in failure at Phase 3 and never reaches here, so a findings file
+run whose restoration did not verify ends in failure at Phase 3 and never reaches here, so a findings file
 never claims `Location`s against source left mutated. The third is
 not traded for a findings file either: a destination that cannot be proven outside tracked space is
 reported and not written to.

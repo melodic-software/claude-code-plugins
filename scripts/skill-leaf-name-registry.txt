@@ -45,8 +45,8 @@ setup *
 # mutation-testing joins on the same grounds, and its argument is worth stating
 # because the obvious alternative is wrong: the verb table fixes `clean`/`tidy`/
 # `fix` as "mutates the target", so a leaf named `mutate` would promise to edit
-# the consumer's source — the opposite of the contract, since every mutant is
-# reverted and restoration verified, so the run either ends with tracked source
+# the consumer's source — the opposite of the contract, since a mutant is never
+# left in place and restoration is verified, so the run either ends with tracked source
 # byte-identical or ends in failure naming what it could not restore, never in a
 # reported outcome over edited source. What the skill
 # produces is a findings report (surviving mutants), which is this verb. Its
