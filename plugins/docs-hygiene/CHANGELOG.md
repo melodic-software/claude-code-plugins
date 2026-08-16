@@ -1,5 +1,18 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.5]
+
+### Fixed
+
+- **audit-noise detect:** scanner exemption gaps — skip YAML frontmatter; require
+  opt-out markers to be well-formed HTML comment lines (prose mentions no longer
+  swallow following content); skip fenced code blocks and strip inline-code spans
+  for citation/enum/scope matching (ghost-ref still sees unwrapped path text);
+  toggle section exemption on any ATX heading level so `### Sources` exempts and
+  an H1 after `## Sources` ends the exemption. Also resolve relative targets
+  before `cd` to the repo root and parse spaced filenames from `git status`
+  porcelain without `$NF` (#2742).
+
 ## [0.14.4]
 
 ### Fixed
