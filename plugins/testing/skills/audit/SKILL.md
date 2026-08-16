@@ -127,9 +127,19 @@ line above it, or inside the body — the same recorded-decision shape as the re
   tighten the token list to chase recall at precision's expense.
 - **`recomputed-expectation` v1 is the decidable core** — textually identical actual/expected on one
   line (chains spanning lines are deliberately not matched, and only the first `expect` per line is
-  examined). `x = f(a); assert x == f(a)` is the same defect and is not yet detected.
+  examined). `x = f(a); assert x == f(a)` and C#'s generic `Assert.Equal<T>(a, a)` are the same
+  defect and are not yet detected.
+- **The JS regex-literal masker triggers only after an operator or opening delimiter** — never after
+  an identifier, so a regex directly after `return` is not masked. Wrongly reading division as a
+  regex would mask real code, which is the worse direction; no false positive has been observed
+  from the narrow set.
 - **Skips are honored at both levels** — test-level (`it.skip`/`x`-prefixed/`@skip`/`[Fact(Skip=…)]`)
   and suite-level (<!-- spellchecker:off -->`xdescribe`<!-- spellchecker:on -->/`describe.skip`/`context.skip`/`suite.skip`): a test that does not
   run is not judged.
 - **Fixture corpora under `evals/fixtures/` are pruned** — a detector's planted-defect fixtures are
   not the consumer's defects. Point `$CANT_FAIL_SCAN_ROOT` at one explicitly to scan it.
+- **A platform-skipped assertion is unverified on the platform that skips it** — a green local run is
+  not evidence about a case only another platform executes. That is the same defect family this
+  detector hunts, approached from the environment side, and it is out of the detector's reach: a
+  visible skip is not an assertion-free body. The uncovered axis of the dropped skip rule is
+  platform as well as ecosystem.

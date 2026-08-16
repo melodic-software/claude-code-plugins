@@ -3,6 +3,19 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- **Three verifier-earned known limits recorded in `/testing:audit`'s gotchas**, so the next reader
+  meets them as documented boundaries rather than rediscovering them as bugs: the C# generic
+  `Assert.Equal<T>(a, a)` recall gap in `recomputed-expectation` v1; the JS regex-literal masker's
+  deliberately narrow trigger set (never after an identifier, so a regex directly after `return` is
+  unmasked — the direction chosen because misreading division as a regex would mask real code); and
+  the platform-skip blindness boundary — a platform-skipped assertion is unverified on the platform
+  that skips it, the same defect family this detector hunts approached from the environment side and
+  out of static reach, making the dropped skip rule's uncovered axis platform as well as ecosystem.
+
 ## [0.6.0]
 
 ### Added
