@@ -80,7 +80,15 @@ told:
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
-   / rate-limit headroom (thin headroom caps how many workers you run at once). Sizing is
+   / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
+   headroom is unobservable** — the `rate-limit-guard` tee is absent, stale, or missing
+   `rate_limits`, which is the expected state in cloud / remote sessions with no statusline
+   producer (see that plugin's `reference/reader-contract.md`, "Cloud / remote sessions") — treat
+   headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
+   waves over a wide tree, and do not invent window percentages. Scale further down on this
+   session's own rate-limit errors or on live sibling-automation 429s already visible to the
+   session (for example review-lane infra comments classifying `api_error_status: 429`); scale
+   back up only after those reactive signals stop, never on a guessed recovery. Sizing is
    small/medium/large — a small ask stays single-agent, a medium one fans out a few, only a large
    genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
    fallback. Per-worker tier is part of sizing and scales with fan-out width: past a wide fan-out

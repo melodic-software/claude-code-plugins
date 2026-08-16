@@ -1,5 +1,16 @@
 # Changelog — session-flow plugin
 
+## [0.23.7]
+
+### Changed
+
+- **`orchestrate`: cloud / unobservable rate-limit headroom fallback.** Imperative 7 now treats a
+  missing/stale/`rate_limits`-less `rate-limit-guard` tee (the expected cloud / remote state) as
+  thin headroom by default: small concurrent-worker cap, short waves, scale only on own-session
+  rate-limit errors or live sibling-automation 429s — never invent window percentages. Gotchas and
+  sources cite the reader contract's degraded-mode section; the live cloud statusline producer
+  remains that contract's documented residual (#2697, #2736, #2747).
+
 ## [0.23.6]
 
 ### Changed

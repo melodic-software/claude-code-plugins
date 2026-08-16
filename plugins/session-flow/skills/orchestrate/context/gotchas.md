@@ -43,3 +43,19 @@ wrong-target answer detectable from above.
 The default action loads the imperatives into context and stops. Re-emitting them as paste text is
 the most common misfire: it spends the window on output the session already has, and it reads as
 having done the work. Only `handoff` / `worker` emit, and only for a target that LEAVES the session.
+
+## Unobservable rate-limit headroom is thin headroom, not free headroom
+
+Cloud / remote sessions (and any host without a statusline tee) have no
+`~/.claude/rate-limit-guard/rate-limits.json`. Under `rate-limit-guard`'s reader contract that is
+**unknown → reactive-only** — expected, not a setup bug. The failure mode is treating the missing
+tee as "no pressure" and launching a wide fan-out that drains the same account-scoped windows local
+sessions are pacing against. Observed 2026-08-15: an 88-agent cloud workflow ran a hardcoded-low
+wave while sibling CI review lanes were already failing with `429 rate-limit`, and the orchestrator
+had no proactive signal to shrink further or to grow once other sessions paused.
+
+**Do this instead:** when the tee is absent/stale/missing `rate_limits`, imperative 7's rate-limit
+clause fires the thin-by-default fallback (small concurrent cap, short waves, scale only on this
+session's own rate-limit errors or live sibling-automation 429s). Do not invent window percentages.
+The live statusline producer that would restore proactive mode in cloud is a documented residual on
+the reader contract, not a reason to skip the fallback.
