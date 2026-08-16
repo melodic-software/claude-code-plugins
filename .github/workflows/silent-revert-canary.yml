@@ -1,0 +1,147 @@
+name: silent-revert-canary
+
+# Post-merge canary for #2691: detect a merge that silently deleted content
+# another recently-merged commit had just added.
+#
+# On 2026-08-15 three squash merges each landed a tree that dropped work a
+# sibling PR had merged minutes earlier (#2633 dropped #2632, #2639 dropped
+# #2635, #2641 dropped #2639). Every check stayed green through all three,
+# because each reverting squash removed the code AND its tests in the same
+# commit -- no suite can fail for a behavior whose tests are gone. Two issues
+# sat CLOSED as COMPLETED with their fixes absent from main.
+#
+# DETECTION, NOT PREVENTION -- and deliberately so.
+#
+#   * It runs on `push` to main only. There is no `pull_request` trigger, so it
+#     can never gate a PR. By the time it speaks, the merge has happened; the
+#     value is that a human learns within minutes instead of during a
+#     from-scratch content audit weeks later.
+#   * It is NOT in ci.yml and is NOT wired into that workflow's `ci-status`
+#     aggregate, which is the single required check the org ci-gate ruleset
+#     keys on. Adding it there would make a detection heuristic able to block
+#     merges, which is how canaries acquire a constituency for switching them
+#     off. Same posture as link-check.yml: advisory lane, outside ci-status.
+#   * Nothing here changes any ruleset. The global
+#     `strict_required_status_checks_policy` stays off under the accepted ADR
+#     in melodic-software/github-iac
+#     (docs/adr/0001-relax-strict-required-status-checks.md), and this canary
+#     is valuable precisely because it catches the class without that churn --
+#     and, per the evidence in scripts/check-silent-revert.sh, without needing
+#     it, since all three branches were up to date with main in history and
+#     stale only in content. `strict` would have passed every one of them.
+#
+# No cancelling concurrency group on purpose. ci.yml cancels superseded runs to
+# save minutes on a PR, but a cancelled canary is a silently missed detection --
+# exactly the false-green this lane exists to remove. Pushes to main are
+# infrequent enough that letting every run finish costs nothing worth saving.
+
+# The `pull_request` trigger runs the detector's OWN tests, never the canary.
+# The scan step is gated off for PR events below, so nothing on a PR ever
+# inspects that PR for silent reverts -- detection stays post-merge, per the
+# design note above. What a PR gets is ordinary unit-test coverage of a shipped
+# script, scoped by `paths` to the canary's own files so it is inert on every
+# other PR.
+#
+# Without it the detector would ship untested until the next push to main, and
+# the specific way this script can break is a false GREEN: if the blame parser
+# stops matching (awk dialects differ between the runner's mawk and a
+# developer's gawk), attribution yields nothing and every commit reports `ok`.
+# A canary whose failure mode is silent success is the exact thing #2691 is
+# about, so it gets tested before it lands, not after.
+#
+# This does not make the lane a merge gate. It is not in ci.yml and not in that
+# workflow's `ci-status` aggregate, which is the single required check the org
+# ci-gate ruleset keys on, so nothing here can block a merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'scripts/check-silent-revert.sh'
+      - 'scripts/check-silent-revert.test.sh'
+      - 'scripts/silent-revert-incidents.txt'
+      - 'scripts/silent-revert-acknowledged.txt'
+      - '.github/workflows/silent-revert-canary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  silent-revert-canary:
+    name: Silent-revert canary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history: the canary blames the lines a merge deleted against
+          # its parent, and replays the recorded incidents from 2026-08. A
+          # shallow clone cannot do either, and the script exits 2 rather than
+          # reporting a clean run it did not earn.
+          fetch-depth: 0
+
+      # Self-test first, unconditionally: a broken detector must not be able to
+      # mask a real regression behind a green canary. Same never-skip,
+      # self-test-first shape as the ci.yml gates.
+      - name: Test the silent-revert detector
+        run: bash scripts/check-silent-revert.test.sh
+
+      # The honesty proof. The shipped thresholds are replayed against the
+      # actual merges from #2691 and must still fire on them -- and must still
+      # stay quiet on the verified-legitimate commit pinned alongside. A
+      # detector that only looks plausible is worthless here, because every
+      # signal a reader normally checks looked healthy during the incident.
+      - name: Replay the recorded incidents
+        run: scripts/check-silent-revert.sh --verify-known-incidents
+
+      # Resolve the pushed range. `github.event.before` is all-zeros on a first
+      # push or after a history rewrite, and absent entirely on
+      # workflow_dispatch; in both cases fall back to the head commit and SAY
+      # SO, rather than reporting a clean scan of nothing. Values arrive through
+      # env, never interpolated into the script body.
+      # Detection is post-merge only. On a pull_request event the two steps
+      # above have already proven the detector works; scanning stops here so the
+      # lane never inspects a PR and never has an opinion about merging it.
+      - name: Resolve the pushed range
+        id: range
+        if: github.event_name != 'pull_request'
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+        run: |
+          set -uo pipefail
+          zero='0000000000000000000000000000000000000000'
+          before="${EVENT_BEFORE:-}"
+          after="${EVENT_AFTER:-$(git rev-parse HEAD)}"
+
+          if [ -z "$before" ] || [ "$before" = "$zero" ] ||
+            ! git rev-parse --verify --quiet "${before}^{commit}" >/dev/null; then
+            echo "::warning::No usable push range (before='${before:-<unset>}');" \
+              "scanning only the head commit ${after}. Any earlier commit in" \
+              "this push was NOT scanned."
+            {
+              echo "mode=commit"
+              echo "target=$after"
+            } >>"$GITHUB_OUTPUT"
+          else
+            {
+              echo "mode=range"
+              echo "target=${before}..${after}"
+            } >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan the merged commits for silent reverts
+        if: github.event_name != 'pull_request'
+        env:
+          SCAN_MODE: ${{ steps.range.outputs.mode }}
+          SCAN_TARGET: ${{ steps.range.outputs.target }}
+        run: |
+          set -uo pipefail
+          if [ "$SCAN_MODE" = "commit" ]; then
+            scripts/check-silent-revert.sh --commit "$SCAN_TARGET"
+          else
+            scripts/check-silent-revert.sh "$SCAN_TARGET"
+          fi
