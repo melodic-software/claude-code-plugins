@@ -29,7 +29,6 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   is added: `v1` means a proven manual pattern, and a detector proves detection, never the repair
   pattern that trigger names.
 
-
 ## [0.19.0]
 
 ### Added
