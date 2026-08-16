@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.10]
+
+### Fixed
+
+- **Restore the last two files #2635 never got back (#2590).** #2635 changed seven files; the
+  stale-base squash in #2639 deleted them, #2714 restored four and #2803 restored four, and the
+  overlap left `README.md` and `skills/clean/evals/evals.json` unrestored on `main` — a partial
+  recovery the silent-revert canary cannot detect, because the deleting commit is already a
+  recorded incident. The README's overview, approval-contract bullet, and deletion-report
+  paragraph lead with tidiness again, and eval 12
+  (`empty-directories-remain-first-class-tidiness-findings`) is back alongside eval 1's
+  provenance-first expectation. The approval bullet is rewritten rather than restored verbatim:
+  #2635's own hunk was malformed and would have re-introduced a duplicated, truncated bullet.
+
 ## [0.20.9]
 
 ### Fixed
