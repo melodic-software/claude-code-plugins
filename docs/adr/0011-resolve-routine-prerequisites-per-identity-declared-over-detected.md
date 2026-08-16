@@ -160,3 +160,23 @@ would be the precise agent-writable bypass the classification obligation forbids
   per-identity prerequisite sections in the ten `v1` leaves; the generated emission with its
   drift gate; the deterministic resolver; the setup slice), each carrying its own version bump,
   CHANGELOG entry, and inlined incumbent evidence.
+
+## Amendment (2026-08-16) — the naming ruling, and its reconciliation with the shipped state
+
+The human naming ruling this ADR deferred to landed on #2717 — after the contract document and
+its downstream phases had already merged with a working vocabulary. The ruling's premise ("the
+contract document may be authored against these") was stale when written; this amendment is the
+reconciliation of record.
+
+- **Verdict tokens: the shipped set is ratified.** `supported` / `conditional` / `unsupported` /
+  `unknown` stays. The ruling's `met` family was a precision preference, not a defect cure: the
+  shipped set clears every constraint that binds — no security-binding reading, no barred health
+  word, no collision with the five named incumbents. Migrating ~60 sites across four merged PRs,
+  including machine-emitted resolver tokens, buys no correctness.
+- **The deferred marker gains its mandatory trigger: `deferred(<trigger>)`.** This half of the
+  ruling names a genuine defect: a bare marker records that resolution is postponed while
+  discarding the condition under which the deferral is revisited — the half that makes it
+  auditable rather than an indefinite hold. The trigger is the `join:` row's own catalog Status
+  trigger; the parameterized shape reuses the deferral-with-explicit-trigger idiom already in
+  `work-classes.md`.
+- The contract noun and filename were confirmed unchanged.
