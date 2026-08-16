@@ -65,19 +65,21 @@ Flags (apply to both actions):
 
 ## Auto-detect default
 
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+
 1. Empty arg AND clean tree → interactive session: repo-wide interview fallback (next section); non-interactive context (subagent, headless/CI): friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
 2. Empty arg AND uncommitted `.md` files → batch default action over those files
 3. Single file path → single-file default action
 4. Directory path → batch default action (filenames sorted lexically for deterministic output)
-5. First positional == `audit` → audit action on rest
+5. First positional == `audit` → audit action on rest (same clean-tree offer as rule 1 when the rest is empty — report-only corpus audit, no Edit)
 
 ## Repo-wide interview fallback (empty arg, clean tree, interactive)
 
-Instead of dead-ending, offer a repo-wide run — confirmation-gated at every step; declining at any step exits with the friendly no-op message.
+Instead of dead-ending, offer a repo-wide run — confirmation-gated at every step; declining at any step exits with the friendly no-op message. Bare `/docs-hygiene:compress audit` on a clean tree uses steps 1–2 only (free audit + report; no compression interview).
 
 1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
-2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and a top-20 excerpt of COMPRESS rows selected deterministically: expected-yield band descending, then word count descending, then lexical path (band strings tie; the two tie-breaks keep the excerpt stable run-to-run). Write the full per-file table to a file — lexically sorted per the "Summary output deterministic" hard rule — and point at it. Never render every row inline — on a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds.
-3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first):
+2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and a top-20 excerpt of COMPRESS rows selected deterministically: expected-yield band descending, then word count descending, then lexical path (band strings tie; the two tie-breaks keep the excerpt stable run-to-run). Write the full per-file table to a file — destination `${CLAUDE_PLUGIN_DATA}/audit/<branch-or-scope>-audit.md` when that dir is writable, otherwise a temp path echoed to the user — lexically sorted per the "Summary output deterministic" hard rule — and point at it. Never render every row inline — on a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds. **Stop here when the invocation was the audit action** (report-only).
+3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first) — default (mutating) action only:
    - **Scope** — default: all COMPRESS-classified files, highest expected yield first; alternates: top-N highest-yield subset, include UNCERTAIN, stop after audit (report only).
    - **Concurrency** — default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
    - **Always-loaded files** — default: excluded (SKIP per the 2-3% empirical baseline); including them requires the same explicit opt-in as `--force`.

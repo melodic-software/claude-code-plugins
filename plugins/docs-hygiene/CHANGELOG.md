@@ -1,5 +1,23 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.6]
+
+### Added
+
+- **Shared clean-tree / no-scope fallback contract**
+  (`context/clean-tree-fallback.md`): the offer → confirm → prescribed-defaults
+  → decline-or-silence-no-op skeleton that audit-noise 0.12.0 introduced, now
+  cited by `audit-noise`, `audit-derivability`, `audit-encapsulation`,
+  `compress`, and `extract-ssot`, with deliberate divergences recorded
+  (compress stays mutating/audit-first; encapsulation triggers on "no inherited
+  scope", not only a clean tree).
+
+### Changed
+
+- **compress `audit` on a clean tree** offers the confirmation-gated free
+  corpus audit (report-only) instead of the friendly no-op, matching the
+  sibling audit skills (#2734).
+
 ## [0.14.5]
 
 ### Fixed
