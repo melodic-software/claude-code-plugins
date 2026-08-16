@@ -14,7 +14,8 @@ their repo mid-session.
   the resolved sink behind an unconditional draft+confirm gate.
 - **Auditor agent** (`agents/auditor.md`) — the fresh-context specialist for steps 2–3. Tools:
   Read/Grep/Glob/WebFetch plus Bash — named honestly: Bash is there for `claude plugin validate`,
-  config-resolution probes, and the rung-1 `curl` of the raw-markdown docs channel, not mutation.
+  config-resolution probes, and the fetch ladder's rung-1 `curl` of the raw-markdown docs channel,
+  not mutation.
 - **Reference corpus** (`skills/audit/references/`) — the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.

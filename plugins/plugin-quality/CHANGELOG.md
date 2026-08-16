@@ -26,6 +26,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   match is recorded as **unverified**, never reconstructed from recall. Realized cost that motivated
   this: two fabricated load-bearing doc quotes reached filed-ready drafts in one audit chain, both
   attributed verbatim to the hooks reference, neither present in it.
+- **The step stands alone from a plugin cache.** The auditor runs from an installed plugin cache,
+  where this repo's convention file is not on disk — so a step that only pointed at it would have
+  been unexecutable. The rules the step needs are stated inline (the rung-1 route, the canonical-slug
+  and first-heading identity checks that make an absence assertable, the substring check), with the
+  convention named as the owning record for the full text rather than as a required dereference. The
+  agent's closing contract and its network clause were widened to match: both previously forbade the
+  fetch and the scratch file the new step requires.
 - **Doc citations now carry their retrieval channel.** The agent's output contract requires each
   harness-behavior citation to state the channel it came over and a byte count or line number
   alongside the URL and fetch date, and `skills/audit/SKILL.md` step 3 records a finding whose
