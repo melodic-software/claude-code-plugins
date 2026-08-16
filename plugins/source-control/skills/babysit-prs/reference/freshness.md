@@ -99,11 +99,10 @@ fix attempt). That contract — who resolves, who pushes, and every invariant ei
 
 Squash-merging while the head is behind its base can silently drop commits that landed on the
 base after the PR branched — including the tests that covered them — with CI green throughout.
-Two correct fixes were lost this way inside ten minutes (#2635 then #2639). Treat
-`branch_freshness.state == "behind"` as a hard stop on the merge path even when GitHub reports
-`mergeStateStatus` `CLEAN`/`HAS_HOOKS`: when the ruleset's `requiredStatusChecks.strict` is
-`false` (the setting that makes GitHub itself refuse stale-base merges; managed in
-the org's branch-protection / ruleset repo for this org), CLEAN does **not** imply an up-to-date base.
+Treat `branch_freshness.state == "behind"` as a hard stop on the merge path even when GitHub
+reports `mergeStateStatus` `CLEAN`/`HAS_HOOKS`: under a non-strict ruleset (this org's, per an
+accepted ADR), GitHub does not itself refuse a behind-base merge, so CLEAN does **not** imply an
+up-to-date base.
 
 Before any merge:
 
@@ -111,7 +110,11 @@ Before any merge:
 2. Re-check `branch_freshness` on the post-refresh head; do not merge while it is still
    `behind`.
 3. Prefer the repo CI gate `scripts/check-stale-base-overlap.sh --check` as the overlapping-path
-   tripwire when the durable `strict` setting is not yet on.
+   tripwire. It covers the stale-**base** class only — a head current in history but stale in
+   **content** passes it, and nothing on the merge path catches that separate class. It needs a
+   post-merge detector: this repo runs `scripts/check-silent-revert.sh`, itself a bounded
+   heuristic (large, recent deletions only) rather than class-wide coverage, and a consuming repo
+   may have no such detector at all.
 
 Official references:
 

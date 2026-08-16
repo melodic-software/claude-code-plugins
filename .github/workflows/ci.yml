@@ -674,9 +674,12 @@ jobs:
 
   # Stale-base squash merges can silently revert recently-landed fixes when a PR
   # is cut from a base that has since moved, and the squash deletes the tests
-  # that would have caught the drop (claude-code-plugins#2691). GitHub's
-  # requiredStatusChecks.strict (github-iac) is the durable prevention; this
-  # gate fails the PR while its merge-base is behind on overlapping paths.
+  # that would have caught the drop (claude-code-plugins#2691). This gate fails
+  # the PR while its merge-base is behind on overlapping paths. It covers the
+  # stale-BASE class only: a branch stale in content but current in history
+  # passes here, and that class belongs to the post-merge silent-revert canary
+  # (scripts/check-silent-revert.sh, silent-revert-canary.yml). The two are
+  # disjoint; neither subsumes the other.
   stale-base-overlap-gate:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
