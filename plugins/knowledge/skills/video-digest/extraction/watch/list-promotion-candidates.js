@@ -43,7 +43,7 @@ export function listPromotionCandidates(sliceDir) {
   const byFile = Object.fromEntries(selection.selectedFrames.map((f) => [f.file, f]));
   const durationSec = selection.durationSec;
 
-  /** @type {Map<string, { sourceFile: string, verdict: string, session: string, timestampSec: number|null, priorityScore: number }>} */
+  /** @type {Map<string, PromotionCandidate>} */
   const candidates = new Map();
 
   for (const sheet of manifest.sheets) {
@@ -72,13 +72,13 @@ export function listPromotionCandidates(sliceDir) {
     }
   }
 
-  const list = [...candidates.values()].sort(
-    (a, b) => (a.timestampSec ?? 0) - (b.timestampSec ?? 0),
-  );
+  // Snapshot BEFORE the backfill loop: top-ups added for one session must not
+  // count toward the ≥3 floor of a later session.
+  const triaged = [...candidates.values()];
 
   for (const session of sessions) {
     const end = session.endSec ?? durationSec;
-    const inSession = list.filter(
+    const inSession = triaged.filter(
       (c) => c.timestampSec != null && c.timestampSec >= session.startSec && c.timestampSec <= end,
     );
     if (inSession.length < 3) {

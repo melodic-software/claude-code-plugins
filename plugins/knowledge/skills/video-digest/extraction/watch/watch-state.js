@@ -49,7 +49,8 @@ import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-ses
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {object} [frameSelection]
  * @property {number} [frameSelection.selectedCount]
- * @property {number} [frameSelection.softCap]
+ * @property {number} [frameSelection.targetMinFrames]
+ * @property {boolean} [frameSelection.highVolume]
  * @property {boolean} [frameSelection.overCap]
  * @property {number} [frameSelection.candidateCount]
  * @property {number} [frameSelection.targetMinFrames]
@@ -232,6 +233,7 @@ export function continuationPromptPath(sliceDir) {
  * @param {string} sliceDir
  * @param {WatchState} state
  * @param {typeof fs.writeFile} [writeFile]
+ * @param {typeof fs.mkdir} [mkdir]
  */
 export async function writeWatchState(sliceDir, state, writeFile = fs.writeFile, mkdir = fs.mkdir) {
   const persisted = state.tempSession
@@ -259,6 +261,7 @@ export async function readWatchState(sliceDir, readFile = fs.readFile) {
  * @param {string} sliceDir
  * @param {WatchState} state
  * @param {typeof fs.writeFile} [writeFile]
+ * @param {typeof fs.mkdir} [mkdir]
  */
 export async function writeContinuationPrompt(
   sliceDir,

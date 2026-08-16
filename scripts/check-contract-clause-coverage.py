@@ -127,7 +127,7 @@ class GateError(Exception):
 @dataclass(frozen=True)
 class Qualifier:
     name: str
-    pattern: "re.Pattern[str]"
+    pattern: re.Pattern[str]
     hint: str
 
 
@@ -136,9 +136,9 @@ class Clause:
     id: str
     title: str
     canonical: str
-    detect: "re.Pattern[str]"
-    restates: "re.Pattern[str]"
-    qualifiers: "tuple[Qualifier, ...]"
+    detect: re.Pattern[str]
+    restates: re.Pattern[str]
+    qualifiers: tuple[Qualifier, ...]
 
 
 @dataclass
@@ -161,20 +161,20 @@ class Finding:
 
 @dataclass
 class Report:
-    findings: "list[Finding]" = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
     owned: int = 0
     restatements: int = 0
     pointers: int = 0
 
 
-def _compile(pattern: str, where: str) -> "re.Pattern[str]":
+def _compile(pattern: str, where: str) -> re.Pattern[str]:
     try:
         return re.compile(pattern, re.IGNORECASE)
     except re.error as exc:
         raise GateError(f"{where}: invalid regex {pattern!r} ({exc})") from exc
 
 
-def load_registry(path: Path) -> "tuple[Clause, ...]":
+def load_registry(path: Path) -> tuple[Clause, ...]:
     """Read the clause registry, or fail closed."""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -187,8 +187,8 @@ def load_registry(path: Path) -> "tuple[Clause, ...]":
     if not isinstance(entries, list) or not entries:
         raise GateError(f"registry {path} declares no clauses")
 
-    clauses: "list[Clause]" = []
-    seen: "set[str]" = set()
+    clauses: list[Clause] = []
+    seen: set[str] = set()
     for entry in entries:
         try:
             clause_id = entry["id"]
@@ -226,7 +226,7 @@ def load_registry(path: Path) -> "tuple[Clause, ...]":
     return tuple(clauses)
 
 
-def tracked_markdown(root: Path) -> "list[str]":
+def tracked_markdown(root: Path) -> list[str]:
     """Every tracked *.md path, repo-relative and sorted.
 
     Tracked-file discovery, not a filesystem walk: an untracked scratch file
@@ -243,7 +243,7 @@ def tracked_markdown(root: Path) -> "list[str]":
     return sorted(p for p in out.decode("utf-8").split("\0") if p)
 
 
-def _markers_on(line: str) -> "list[tuple[str | None, str]]":
+def _markers_on(line: str) -> list[tuple[str | None, str]]:
     """Every marker on one line, in order.
 
     All of them, not the first: a single-line passage that restates two
@@ -251,7 +251,7 @@ def _markers_on(line: str) -> "list[tuple[str | None, str]]":
     the second unchecked — the exact "well-formed but uninspected" shape this
     gate exists to close.
     """
-    found: "list[tuple[str | None, str]]" = []
+    found: list[tuple[str | None, str]] = []
     for match in MARKER_RE.finditer(line):
         groups = match.groupdict()
         kind = groups.get("kind_html") or groups.get("kind_line")
@@ -266,7 +266,7 @@ def _strip_markers(line: str) -> str:
     return MARKER_RE.sub(" ", line)
 
 
-def flatten(numbered: "list[tuple[int, str]]") -> "tuple[str, list[int]]":
+def flatten(numbered: list[tuple[int, str]]) -> tuple[str, list[int]]:
     """Marker-stripped text with every whitespace run collapsed to one space.
 
     Prose wraps wherever the column limit falls, so a qualifier phrase is
@@ -279,8 +279,8 @@ def flatten(numbered: "list[tuple[int, str]]") -> "tuple[str, list[int]]":
     The parallel `origins` list maps each character of the normalized text
     back to the line it came from, so a finding still cites a real line.
     """
-    parts: "list[str]" = []
-    origins: "list[int]" = []
+    parts: list[str] = []
+    origins: list[int] = []
     for lineno, line in numbered:
         collapsed = re.sub(r"\s+", " ", _strip_markers(line)).strip()
         if not collapsed:
@@ -293,10 +293,10 @@ def flatten(numbered: "list[tuple[int, str]]") -> "tuple[str, list[int]]":
     return "".join(parts), origins
 
 
-def collect_spans(path: str, lines: "list[str]", known: "set[str]") -> "list[Span]":
+def collect_spans(path: str, lines: list[str], known: set[str]) -> list[Span]:
     """Build every declared restatement span, or fail closed on a malformed one."""
-    spans: "list[Span]" = []
-    open_spans: "dict[str, int]" = {}
+    spans: list[Span] = []
+    open_spans: dict[str, int] = {}
     for index, line in enumerate(lines, start=1):
         for kind, clause_id in _markers_on(line):
             if clause_id not in known:
@@ -332,18 +332,18 @@ def collect_spans(path: str, lines: "list[str]", known: "set[str]") -> "list[Spa
     return spans
 
 
-def residual_chunks(lines: "list[str]", spans: "list[Span]") -> "list[tuple[str, list[int]]]":
+def residual_chunks(lines: list[str], spans: list[Span]) -> list[tuple[str, list[int]]]:
     """Every contiguous run of lines covered by no span, normalized.
 
     Chunked rather than concatenated: a `restates` pattern spanning the seam
     between two non-adjacent runs would report a restatement that no passage
     actually makes.
     """
-    covered: "set[int]" = set()
+    covered: set[int] = set()
     for span in spans:
         covered.update(range(span.start, span.end + 1))
-    chunks: "list[tuple[str, list[int]]]" = []
-    current: "list[tuple[int, str]]" = []
+    chunks: list[tuple[str, list[int]]] = []
+    current: list[tuple[int, str]] = []
     for index, line in enumerate(lines, start=1):
         if index in covered:
             if current:
@@ -360,8 +360,8 @@ def check_clause(
     clause: Clause,
     path: str,
     text: str,
-    lines: "list[str]",
-    all_spans: "list[Span]",
+    lines: list[str],
+    all_spans: list[Span],
     report: Report,
 ) -> None:
     spans = [s for s in all_spans if s.clause_id == clause.id]
@@ -461,7 +461,7 @@ def check_clause(
         report.pointers += 1
 
 
-def run(root: Path, registry_path: Path, excludes: "tuple[str, ...]") -> Report:
+def run(root: Path, registry_path: Path, excludes: tuple[str, ...]) -> Report:
     clauses = load_registry(registry_path)
     known = {clause.id for clause in clauses}
     report = Report()
@@ -496,7 +496,7 @@ def run(root: Path, registry_path: Path, excludes: "tuple[str, ...]") -> Report:
     return report
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=None, help="repository root (default: this checkout)")
     parser.add_argument("--registry", default=None, help=f"clause registry (default: {DEFAULT_REGISTRY})")

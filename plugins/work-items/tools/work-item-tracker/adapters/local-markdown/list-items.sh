@@ -39,12 +39,7 @@ emitted=0
   for n in $(wit_item_numbers); do
     ((emitted < limit)) || break
     item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
-    case "$state" in
-      all) ;;
-      open) [[ "$item_state" == '"open"' ]] || continue ;;
-      closed) [[ "$item_state" == '"closed"' ]] || continue ;;
-      *) ;; # unreachable: --state is validated to open|closed|all at parse time
-    esac
+    wit_state_matches "$state" "$item_state" || continue
     wit_emit_local_item "$n" true
     emitted=$((emitted + 1))
   done

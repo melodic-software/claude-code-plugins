@@ -61,11 +61,8 @@ function formatWindow(openIso, closeIso) {
   return `${fmt(a)} to ${fmt(b)} (~${days} days)`;
 }
 
-function asJsLiteral(v, indent = 0) {
-  return JSON.stringify(v, null, 2)
-    .split("\n")
-    .map((line, i) => (i === 0 ? line : " ".repeat(indent) + line))
-    .join("\n");
+function asJsLiteral(v) {
+  return JSON.stringify(v, null, 2);
 }
 
 /** Render slides-data.js source from emitted data. Pretty-printed, ESM. */
@@ -74,13 +71,13 @@ function renderModule({ meta, theme, providerLogos, slides }) {
 // Edit the source briefing markdown and re-run \`node emit-slides-data.js\`.
 // Brand tokens (theme + meta defaults) live in brand.js; provider logos in emit-slides-data.js.
 
-export const meta = ${asJsLiteral(meta, 0)};
+export const meta = ${asJsLiteral(meta)};
 
-export const theme = ${asJsLiteral(theme, 0)};
+export const theme = ${asJsLiteral(theme)};
 
-export const providerLogos = ${asJsLiteral(providerLogos, 0)};
+export const providerLogos = ${asJsLiteral(providerLogos)};
 
-export const slides = ${asJsLiteral(slides, 0)};
+export const slides = ${asJsLiteral(slides)};
 `;
 }
 
@@ -98,19 +95,9 @@ async function main() {
 
   // Resolve meeting number + window from state (or args)
   const state = await readState();
-  let meetingNumber = args.meetingN;
-  let windowStr = "";
   const dateStr = args.date || new Date().toISOString().slice(0, 10);
-
-  if (!meetingNumber) {
-    if (state?.current_meeting_window?.meeting_n) {
-      meetingNumber = state.current_meeting_window.meeting_n;
-    } else if (state?.meeting_n) {
-      meetingNumber = state.meeting_n;
-    } else {
-      meetingNumber = 1;
-    }
-  }
+  const meetingNumber =
+    args.meetingN || state?.current_meeting_window?.meeting_n || state?.meeting_n || 1;
 
   // Pick briefing path
   const briefingPath = args.briefing
@@ -143,6 +130,7 @@ async function main() {
   console.log(`Seen-items dates:  ${seenUrlDateMap.size} URL→date entries (final fallback)`);
 
   // Window from briefing.md header (preferred — reflects actual data)
+  let windowStr;
   if (briefing.meta.window) {
     // briefing.meta.window e.g. "2026-04-24T19:00:00Z → 2026-05-05T20:30:00Z (~11 days)"
     const m = briefing.meta.window.match(/([0-9T:Z\-]+)\s*[→-]+\s*([0-9T:Z\-]+)/);

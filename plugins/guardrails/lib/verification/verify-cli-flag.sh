@@ -112,10 +112,8 @@ CACHE_FILE="$CACHE_DIR/$CACHE_KEY.help"
 
 # Cache hit if file exists, mtime within 24h, non-empty.
 USE_CACHE=false
-if [[ -s "$CACHE_FILE" ]]; then
-  if find "$CACHE_FILE" -mmin -1440 2>/dev/null | grep -q .; then
-    USE_CACHE=true
-  fi
+if [[ -s "$CACHE_FILE" ]] && find "$CACHE_FILE" -mmin -1440 2>/dev/null | grep -q .; then
+  USE_CACHE=true
 fi
 
 HELP_OUTPUT=""

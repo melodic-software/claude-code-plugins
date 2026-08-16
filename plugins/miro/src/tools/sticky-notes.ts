@@ -26,6 +26,11 @@ export const STICKY_NOTE_COLORS = [
 
 export const STICKY_NOTE_SHAPES = ["square", "rectangle"] as const;
 
+export const POSITION_X_DESCRIPTION =
+  "X position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set";
+export const POSITION_Y_DESCRIPTION =
+  "Y position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set";
+
 const BOARD_ITEM_TYPES = [
   "sticky_note",
   "shape",
@@ -72,18 +77,8 @@ export function registerStickyNoteTools(
       board_id: z.string().describe("The board ID"),
       content: z.string().describe("Text content for the sticky note"),
       color: z.enum(STICKY_NOTE_COLORS).default("light_yellow").describe("Fill color"),
-      x: z
-        .number()
-        .default(0)
-        .describe(
-          "X position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
-        ),
-      y: z
-        .number()
-        .default(0)
-        .describe(
-          "Y position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
-        ),
+      x: z.number().default(0).describe(POSITION_X_DESCRIPTION),
+      y: z.number().default(0).describe(POSITION_Y_DESCRIPTION),
       shape: z.enum(STICKY_NOTE_SHAPES).default("square").describe("Sticky note shape"),
       parent_id: z
         .string()

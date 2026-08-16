@@ -145,6 +145,10 @@ else
   MARKER_RE='##\[(error|warning)\]'
 fi
 
+# Step-structure markers — shared by the per-job walk and the full-run
+# --groups section.
+GROUP_MARKER_RE='##\[(group|endgroup)\]'
+
 # Suspicious-pattern regex — case-insensitive grep targets commonly-missed
 # signal: retry loops, deprecation warnings, "0 tests" lies, timeouts,
 # exit-code mismatches not flagged as ##[error].
@@ -159,6 +163,19 @@ fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+have gh || {
+  printf 'fetch-failed-logs: gh CLI required\n' >&2
+  exit 5
+}
+have unzip || {
+  printf 'fetch-failed-logs: unzip required\n' >&2
+  exit 5
+}
+
+# file_size — byte count of a file, with the surrounding whitespace/CR some
+# `wc` builds emit stripped so the value compares numerically.
+file_size() { wc -c <"$1" | tr -d ' \r\n'; }
+
 # emit_group_timing — parse leading ISO 8601 timestamp on each line, compute
 # duration per ##[group]/##[endgroup] section. Pure awk for cross-platform.
 # GH Actions logs prefix every line with `2026-MM-DDThh:mm:ss.NZ ` followed
@@ -166,7 +183,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 emit_group_timing() {
   local file="$1"
   awk '
-    function ts_to_ms(ts,    s, ms, parts) {
+    function ts_to_ms(ts,    parts, n, time, hh, mm, ss, frac, f) {
       # Parse 2026-05-07T15:24:44.3187916Z → epoch_ms (approximate using only
       # hh:mm:ss.fff for relative duration; date arithmetic stays inside the
       # same UTC day for typical CI runs).
@@ -211,15 +228,6 @@ emit_group_timing() {
   ' "$file"
 }
 
-have gh || {
-  printf 'fetch-failed-logs: gh CLI required\n' >&2
-  exit 5
-}
-have unzip || {
-  printf 'fetch-failed-logs: unzip required\n' >&2
-  exit 5
-}
-
 MAX_BYTES="${MAX_BYTES_ARG:-52428800}"
 
 # --- Repo resolution ---------------------------------------------------------
@@ -260,7 +268,7 @@ if [[ -n "$JOB_ID" ]]; then
     rm -f "$out_path"
     exit 2
   fi
-  size=$(wc -c <"$out_path" | tr -d ' \r\n')
+  size=$(file_size "$out_path")
   if [[ "$size" -gt "$MAX_BYTES" ]]; then
     printf 'fetch-failed-logs: job log %s bytes > max %s — wrote to %s, not printing\n' \
       "$size" "$MAX_BYTES" "$out_path" >&2
@@ -272,7 +280,7 @@ if [[ -n "$JOB_ID" ]]; then
     grep -E "$MARKER_RE" "$out_path" || true
     if [[ "$SHOW_GROUPS" -eq 1 ]]; then
       printf '\n----- groups -----\n'
-      grep -E '##\[(group|endgroup)\]' "$out_path" || true
+      grep -E "$GROUP_MARKER_RE" "$out_path" || true
     fi
     if [[ "$TIMING" -eq 1 ]]; then
       printf '\n----- timing (per group) -----\n'
@@ -296,7 +304,7 @@ if ! gh api "repos/$REPO/actions/runs/$RUN_ID/logs" >"$ZIP_PATH" 2>/dev/null; th
   exit 2
 fi
 
-size=$(wc -c <"$ZIP_PATH" | tr -d ' \r\n')
+size=$(file_size "$ZIP_PATH")
 if [[ "$size" -gt "$MAX_BYTES" ]]; then
   printf 'fetch-failed-logs: run log ZIP %s bytes > max %s — file kept at %s, not extracted\n' \
     "$size" "$MAX_BYTES" "$ZIP_PATH" >&2
@@ -355,7 +363,7 @@ per_file_section() {
 }
 
 # shellcheck disable=SC2329  # invoked as a per_file_section extractor
-grep_group_markers() { grep -E '##\[(group|endgroup)\]' "$1" 2>/dev/null; }
+grep_group_markers() { grep -E "$GROUP_MARKER_RE" "$1" 2>/dev/null; }
 # shellcheck disable=SC2329  # invoked as a per_file_section extractor
 grep_suspicious() { grep -iE "$SUSPICIOUS_RE" "$1" 2>/dev/null; }
 
@@ -391,7 +399,7 @@ else
     largest_size=0
     for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
       [[ "${f##*/}" == "system.txt" ]] && continue
-      size=$(wc -c <"$f" 2>/dev/null | tr -d ' \r\n')
+      size=$(file_size "$f" 2>/dev/null)
       [[ -z "$size" ]] && continue
       if [[ "$size" -gt "$largest_size" ]]; then
         largest="$f"

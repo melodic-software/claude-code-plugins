@@ -83,20 +83,30 @@ export function resolveTempPath(serialized) {
   return serialized;
 }
 
+/** Session fields holding a temp path. Every one is always PRESENT on the result — set to
+ * `undefined` rather than omitted when the input had no value. */
+const TEMP_SESSION_DIR_KEYS = ["workDir", "framesDir", "contactSheetsDir"];
+
+/**
+ * @param {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }} session
+ * @param {(value: string) => string|undefined} transform
+ * @returns {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }}
+ */
+function mapTempSessionDirs(session, transform) {
+  if (!session) return session;
+  const mapped = { ...session };
+  for (const key of TEMP_SESSION_DIR_KEYS) {
+    mapped[key] = session[key] ? transform(session[key]) : undefined;
+  }
+  return mapped;
+}
+
 /**
  * @param {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }} session
  * @returns {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }}
  */
 export function serializeTempSession(session) {
-  if (!session) return session;
-  return {
-    ...session,
-    workDir: session.workDir ? normalizePortableTempPath(session.workDir) : undefined,
-    framesDir: session.framesDir ? normalizePortableTempPath(session.framesDir) : undefined,
-    contactSheetsDir: session.contactSheetsDir
-      ? normalizePortableTempPath(session.contactSheetsDir)
-      : undefined,
-  };
+  return mapTempSessionDirs(session, normalizePortableTempPath);
 }
 
 /**
@@ -104,15 +114,7 @@ export function serializeTempSession(session) {
  * @returns {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }}
  */
 export function resolveTempSession(session) {
-  if (!session) return session;
-  return {
-    ...session,
-    workDir: session.workDir ? resolveTempPath(session.workDir) : undefined,
-    framesDir: session.framesDir ? resolveTempPath(session.framesDir) : undefined,
-    contactSheetsDir: session.contactSheetsDir
-      ? resolveTempPath(session.contactSheetsDir)
-      : undefined,
-  };
+  return mapTempSessionDirs(session, resolveTempPath);
 }
 
 /**

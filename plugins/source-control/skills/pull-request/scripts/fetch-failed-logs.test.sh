@@ -108,25 +108,8 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
-run_script() {
-  PATH="$STUB_DIR:$PATH" \
-    FETCH_LOGS_REPO="example-org/example-repo" \
-    FETCH_LOGS_SCRATCH="$TEST_TMPDIR/scratch" \
-    bash "$SCRIPT" "$@" 2>&1
-}
-
-# Variant that lets a case pick its own scratch dir (case isolation for
-# size-cap / failure paths) and discards output. Returns exit code via $?.
-run_script_with_scratch_silent() {
-  local scratch="$1"
-  shift
-  PATH="$STUB_DIR:$PATH" \
-    FETCH_LOGS_REPO="example-org/example-repo" \
-    FETCH_LOGS_SCRATCH="$scratch" \
-    bash "$SCRIPT" "$@" >/dev/null 2>&1
-}
-
-# Variant that lets a case pick its own scratch dir and capture combined output.
+# Runs the script against the stub `gh` with a caller-chosen scratch dir (case
+# isolation for the size-cap / failure paths) and captures combined output.
 run_script_with_scratch() {
   local scratch="$1"
   shift
@@ -134,6 +117,16 @@ run_script_with_scratch() {
     FETCH_LOGS_REPO="example-org/example-repo" \
     FETCH_LOGS_SCRATCH="$scratch" \
     bash "$SCRIPT" "$@" 2>&1
+}
+
+# Default variant: the shared scratch dir most cases use.
+run_script() {
+  run_script_with_scratch "$TEST_TMPDIR/scratch" "$@"
+}
+
+# Variant that discards output; the exit code comes back via $?.
+run_script_with_scratch_silent() {
+  run_script_with_scratch "$@" >/dev/null 2>&1
 }
 
 # ---- Cases ------------------------------------------------------------------

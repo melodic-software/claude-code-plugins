@@ -61,6 +61,18 @@ carrying_plugin() {
     >"$fixture/plugins/$plugin/.claude-plugin/plugin.json"
 }
 
+# base_fixture → the starting state most cases mutate from: the v1 canonical,
+# its changelog, and two carrying plugins at 0.1.0. Prints the fixture dir.
+base_fixture() {
+  local dir
+  dir="$(new_fixture)"
+  canonical_v1 >"$dir/$CANONICAL"
+  changelog_v1 >"$dir/$CHANGELOG"
+  carrying_plugin "$dir" planning "$(canonical_v1)" 0.1.0
+  carrying_plugin "$dir" review "$(canonical_v1)" 0.1.0
+  printf '%s' "$dir"
+}
+
 # git_fixture <fixture> → init repo + commit everything as the base ref; prints base sha
 git_fixture() {
   local fixture="$1"
@@ -106,11 +118,7 @@ fi
 rm -rf "$f"
 
 # --- --check passes when identical -----------------------------------------
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 if out="$(run_mode "$f" --check 2>&1)"; then
   ok "--check passes when all copies match"
 else
@@ -136,11 +144,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: canonical unchanged vs base → pass ----------------------
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 base="$(git_fixture "$f")"
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   ok "--check-bump passes when the canonical is unchanged"
@@ -150,11 +154,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: change + frontmatter bump + changelog heading + manifest bumps → pass
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
@@ -168,11 +168,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: carrying plugin manifest not bumped → fail ---------------
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
@@ -190,11 +186,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: content changed but frontmatter semver did not → fail ----
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 base="$(git_fixture "$f")"
 canonical_v1_edited >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
@@ -212,11 +204,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: content changed but changelog gained no new heading → fail
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 # changelog untouched
@@ -234,11 +222,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: compound failure — all three stale conditions report ----
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+f="$(base_fixture)"
 base="$(git_fixture "$f")"
 canonical_v1_edited >"$f/$CANONICAL"       # content moved, frontmatter did not
 printf -- '# Changelog\n' >"$f/$CHANGELOG" # entry for the head version removed
@@ -257,12 +241,8 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: schema-only change still requires the bumps --------------
-f="$(new_fixture)"
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
+f="$(base_fixture)"
 printf '{"title":"standards concern file v1"}\n' >"$f/$SCHEMA"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
-carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
 base="$(git_fixture "$f")"
 printf '{"title":"standards concern file v1","description":"schema-only change"}\n' >"$f/$SCHEMA"
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then

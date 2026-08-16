@@ -22,6 +22,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_classify as bc
 
+# The caller's own posting identity, shared by every fixture that exercises
+# self-authored classification rows.
+SELF = bc.normalize_self_logins(["me[bot]"])
+
 
 class IsBotTests(unittest.TestCase):
     def test_authoritative_typename_is_a_bot(self) -> None:
@@ -86,31 +90,29 @@ class SelfLoginTests(unittest.TestCase):
 class FindingLifetimeTests(unittest.TestCase):
     """#465: only currently-open findings count toward decomposition."""
 
-    SELF = bc.normalize_self_logins(["me[bot]"])
-
     def test_resolved_and_outdated_markers_are_discounted(self) -> None:
         comments = [
             {"author": "codex[bot]", "body": "[CRITICAL] a", "isResolved": True},
             {"author": "codex[bot]", "body": "[CRITICAL] b", "isOutdated": True},
             {"author": "codex[bot]", "body": "[P1] c still open"},
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
 
     def test_open_thread_markers_all_count(self) -> None:
         comments = [
             {"author": "codex[bot]", "body": "CRITICAL a\nIMPORTANT b"},
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 2)
+        self.assertEqual(bc.count_findings(comments, SELF), 2)
 
     def test_self_classification_rows_do_not_mint_phantom_findings(self) -> None:
         comments = [
             {"author": "me[bot]", "body": "| 1 | CRITICAL null deref | VALID | fixed |"},
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 0)
+        self.assertEqual(bc.count_findings(comments, SELF), 0)
 
     def test_self_source_finding_still_counts(self) -> None:
         comments = [{"author": "me[bot]", "body": "Found a CRITICAL leak here"}]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
 
     def test_lowercase_self_classification_row_does_not_mint_phantom_finding(
         self,
@@ -122,12 +124,10 @@ class FindingLifetimeTests(unittest.TestCase):
         comments = [
             {"author": "me[bot]", "body": "| 1 | CRITICAL null deref | Valid | fixed |"},
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 0)
+        self.assertEqual(bc.count_findings(comments, SELF), 0)
 
 
 class ClassificationCountTests(unittest.TestCase):
-    SELF = bc.normalize_self_logins(["me[bot]"])
-
     def test_pipe_rows_with_tokens_count_once_per_line(self) -> None:
         comments = [
             {
@@ -135,11 +135,11 @@ class ClassificationCountTests(unittest.TestCase):
                 "body": "| 1 | a | VALID | x |\n| 2 | b | INCORRECT | y |\nprose VALID VALID",
             }
         ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 2)
+        self.assertEqual(bc.count_classified(comments, SELF), 2)
 
     def test_only_self_rows_count(self) -> None:
         comments = [{"author": "codex[bot]", "body": "| 1 | a | VALID | x |"}]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_classified(comments, SELF), 0)
 
     def test_lowercase_natural_language_disposition_counts(self) -> None:
         """#619: a worker reply that writes "Valid (defer)" instead of the
@@ -149,7 +149,7 @@ class ClassificationCountTests(unittest.TestCase):
         comments = [
             {"author": "me[bot]", "body": "| 1 | a | Valid (defer) | noted |"},
         ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+        self.assertEqual(bc.count_classified(comments, SELF), 1)
 
     def test_lowercase_invalid_does_not_false_match_valid(self) -> None:
         """Case-insensitive matching must stay whole-word: "invalid" must not
@@ -157,7 +157,7 @@ class ClassificationCountTests(unittest.TestCase):
         comments = [
             {"author": "me[bot]", "body": "| 1 | a | invalid claim, no fix | noted |"},
         ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_classified(comments, SELF), 0)
 
     def test_table_prose_containing_valid_is_not_a_classification(self) -> None:
         """#619: case-folding is anchored to the disposition CELL. A table row
@@ -170,7 +170,7 @@ class ClassificationCountTests(unittest.TestCase):
                 "body": "| 1 | a | VALID | fixed |\n| CI check | result is valid |",
             },
         ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+        self.assertEqual(bc.count_classified(comments, SELF), 1)
 
     def test_prose_opening_a_cell_is_not_a_classification(self) -> None:
         """#619: anchoring the token to the START of a cell is not enough --
@@ -184,7 +184,7 @@ class ClassificationCountTests(unittest.TestCase):
                 ),
             },
         ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+        self.assertEqual(bc.count_classified(comments, SELF), 1)
 
     def test_word_like_continuations_do_not_satisfy_the_token(self) -> None:
         """#619: digits and underscores are not letters, so a letters-only
@@ -195,7 +195,7 @@ class ClassificationCountTests(unittest.TestCase):
                 comments = [
                     {"author": "me[bot]", "body": f"| 1 | finding | {cell} | pending |"},
                 ]
-                self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+                self.assertEqual(bc.count_classified(comments, SELF), 0)
 
     def test_documented_annotated_dispositions_count(self) -> None:
         """#619: reference/review-discipline.md specifies `VALID -- fixing`,
@@ -207,14 +207,14 @@ class ClassificationCountTests(unittest.TestCase):
                 comments = [
                     {"author": "me[bot]", "body": f"| 1 | a | {cell} | evidence |"},
                 ]
-                self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+                self.assertEqual(bc.count_classified(comments, SELF), 1)
 
     def test_decorated_disposition_cell_still_counts(self) -> None:
         """The cell anchor permits leading non-letter decoration, so a bolded
         `| **VALID** |` cell -- countable before #619 under the
         anywhere-in-the-row match -- must not silently stop counting."""
         comments = [{"author": "me[bot]", "body": "| 1 | a | **VALID** | fixed |"}]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+        self.assertEqual(bc.count_classified(comments, SELF), 1)
 
     def test_resolved_thread_classification_is_discounted(self) -> None:
         """Mirrors `count_findings`'s #465 discount: a classification row
@@ -231,11 +231,11 @@ class ClassificationCountTests(unittest.TestCase):
             },
             {"author": "codex[bot]", "body": "[CRITICAL] new unclassified finding"},
         ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_classified(comments, SELF), 0)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
         self.assertLess(
-            bc.count_classified(comments, self.SELF),
-            bc.count_findings(comments, self.SELF),
+            bc.count_classified(comments, SELF),
+            bc.count_findings(comments, SELF),
         )
 
 
@@ -245,8 +245,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
     A resolved thread drops its finding and its in-thread classification
     together; a PR-level comment never resolves, so its rows must be confined to
     covering PR-level findings."""
-
-    SELF = bc.normalize_self_logins(["me[bot]"])
 
     def test_stale_pr_level_row_does_not_cover_open_thread_finding(self) -> None:
         # The exact #642 fail-open: a fresh finding raised in an OPEN review
@@ -265,14 +263,14 @@ class EffectiveClassifiedTests(unittest.TestCase):
                 "body": "| 1 | old resolved finding | VALID | fixed |",
             },
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
         # Raw counter still sees the stale row (documents the defect surface).
-        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+        self.assertEqual(bc.count_classified(comments, SELF), 1)
         # Per-surface credit closes the fail-open.
-        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
         self.assertLess(
-            bc.count_effective_classified(comments, self.SELF),
-            bc.count_findings(comments, self.SELF),
+            bc.count_effective_classified(comments, SELF),
+            bc.count_findings(comments, SELF),
         )
 
     def test_pr_level_finding_and_pr_level_classification_still_pass(self) -> None:
@@ -287,8 +285,8 @@ class EffectiveClassifiedTests(unittest.TestCase):
                 "body": "| 1 | a | VALID | fixed |\n| 2 | b | INCORRECT | refuted |",
             },
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 2)
-        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 2)
+        self.assertEqual(bc.count_findings(comments, SELF), 2)
+        self.assertEqual(bc.count_effective_classified(comments, SELF), 2)
 
     def test_open_thread_finding_covered_by_in_thread_classification(self) -> None:
         # A finding and its classification both carried in the same open thread
@@ -301,7 +299,7 @@ class EffectiveClassifiedTests(unittest.TestCase):
                 "in_review_thread": True,
             },
         ]
-        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, SELF), 1)
 
     def test_thread_state_free_input_collapses_to_min(self) -> None:
         # Convergence invariant: with no thread markers every comment is PR-level,
@@ -314,9 +312,9 @@ class EffectiveClassifiedTests(unittest.TestCase):
                 "body": "| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |",
             },
         ]
-        self.assertEqual(bc.count_findings(over, self.SELF), 1)
-        self.assertEqual(bc.count_classified(over, self.SELF), 2)
-        self.assertEqual(bc.count_effective_classified(over, self.SELF), 1)
+        self.assertEqual(bc.count_findings(over, SELF), 1)
+        self.assertEqual(bc.count_classified(over, SELF), 2)
+        self.assertEqual(bc.count_effective_classified(over, SELF), 1)
 
     def test_inline_type_tag_is_bucketed_as_thread_on_reuse_path(self) -> None:
         # The `--comments-json` reuse path is fed `fetch-all-pr-comments.sh`
@@ -332,8 +330,8 @@ class EffectiveClassifiedTests(unittest.TestCase):
         ]
         self.assertEqual(bc.comment_surface(comments[0]), bc.THREAD_SURFACE)
         self.assertEqual(bc.comment_surface(comments[1]), bc.PR_LEVEL_SURFACE)
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
-        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
     def test_explicit_stamp_wins_over_type_tag(self) -> None:
         # An explicit `in_review_thread: false` (a live PR-level comment) is
@@ -356,8 +354,8 @@ class EffectiveClassifiedTests(unittest.TestCase):
             {"type": "review", "author": "me[bot]", "body": "| 1 | x | VALID | y |"},
         ]
         self.assertEqual(bc.comment_surface(comments[0]), bc.UNKNOWN_SURFACE)
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
-        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
     def test_resolved_thread_contributes_to_neither_bucket(self) -> None:
         # A resolved thread's finding and classification both drop (thread_is_open
@@ -377,14 +375,12 @@ class EffectiveClassifiedTests(unittest.TestCase):
             },
             {"author": "claude[bot]", "body": "### [IMPORTANT] new PR-level finding"},
         ]
-        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
-        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_findings(comments, SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
 
 class ApprovalVerdictTests(unittest.TestCase):
     """#499: an Approve-with-nits review carries no live finding."""
-
-    SELF = bc.normalize_self_logins(["me[bot]"])
 
     def test_approve_with_nits_downgrades_and_has_no_severity_finding(self) -> None:
         body = (
@@ -394,7 +390,7 @@ class ApprovalVerdictTests(unittest.TestCase):
         self.assertTrue(bc.approval_downgrade(body))
         self.assertFalse(bc.has_blocking_severity(body))
         self.assertEqual(
-            bc.count_findings([{"author": "claude[bot]", "body": body}], self.SELF), 0
+            bc.count_findings([{"author": "claude[bot]", "body": body}], SELF), 0
         )
 
     def test_genuine_critical_finding_is_not_downgraded(self) -> None:

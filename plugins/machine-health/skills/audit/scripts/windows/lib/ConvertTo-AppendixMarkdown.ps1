@@ -90,7 +90,7 @@ function Format-AppendixDetail {
         [Parameter(Mandatory)] [string[]] $Column,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Row
     )
-    $divider = '|' + (($Column | ForEach-Object { '---' }) -join '|') + '|'
+    $divider = '|' + ('---|' * $Column.Count)
     return @"
 <details>
 <summary>$Summary</summary>

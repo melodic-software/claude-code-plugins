@@ -10,7 +10,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../tests/lib.sh"
+source "$SCRIPT_DIR/../../tests/lib.sh"
 
 # Binding sources cleanly and exposes the cb_setup/cb_teardown contract. The runner
 # defaults CB_REPO="" before sourcing a binding; mirror that so the assertion below

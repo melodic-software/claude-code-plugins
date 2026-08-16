@@ -16,20 +16,24 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
+# usage_error — the one spelling of the usage line every arg-parsing failure exits on.
+usage_error() {
+  echo "usage: e2e-probe.sh [--evidence <file>]" >&2
+  exit 2
+}
+
 EVIDENCE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --evidence)
-      [[ $# -ge 2 ]] || {
-        echo "usage: e2e-probe.sh [--evidence <file>]" >&2
-        exit 2
-      }
+      if [[ $# -lt 2 ]]; then
+        usage_error
+      fi
       EVIDENCE="$2"
       shift 2
       ;;
     *)
-      echo "usage: e2e-probe.sh [--evidence <file>]" >&2
-      exit 2
+      usage_error
       ;;
   esac
 done

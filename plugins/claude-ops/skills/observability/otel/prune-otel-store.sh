@@ -130,10 +130,13 @@ resolve_repo_root() {
 }
 
 # Route one store file's lines 3 ways by the batch's first timestamp field (single awk pass).
-# See prune-filter.awk for routing rules and count format.
+# See prune-filter.awk for routing rules and count format. Trace batches date from
+# startTimeUnixNano; logs and metrics from timeUnixNano.
 filter_file() {
   local src="$1" dst="$2" cutoff_seconds="$3" dropped_dst="${4:-}"
-  local body_cutoff_seconds="${5:-0}" surgery_dst="${6:-}" time_field="${7:-timeUnixNano}"
+  local body_cutoff_seconds="${5:-0}" surgery_dst="${6:-}"
+  local time_field="timeUnixNano"
+  [[ "${src##*/}" == cc-traces.json ]] && time_field="startTimeUnixNano"
   awk -v cutoff="$cutoff_seconds" -v body_cutoff="$body_cutoff_seconds" \
     -v dst="$dst" -v ddst="$dropped_dst" -v sdst="$surgery_dst" -v tf="$time_field" \
     -f "$SCRIPT_DIR/prune-filter.awk" "$src"
@@ -218,9 +221,7 @@ main() {
       continue
     fi
     present_files+=("$f")
-    local time_field="timeUnixNano"
-    [[ "$f" == cc-traces.json ]] && time_field="startTimeUnixNano"
-    counts="$(filter_file "$src" "" "$cutoff_seconds" "" "$body_cutoff_seconds" "" "$time_field")"
+    counts="$(filter_file "$src" "" "$cutoff_seconds" "" "$body_cutoff_seconds" "")"
     parse_counts "$counts"
     printf '%s: %s\n' "$f" "$counts"
     total_dropped=$((total_dropped + DROPPED))
@@ -290,9 +291,7 @@ main() {
     temp="$src.prune.tmp"
     dropped="$src.dropped.tmp"
     surgery_tmp="$src.surgery.tmp"
-    local time_field="timeUnixNano"
-    [[ "$f" == cc-traces.json ]] && time_field="startTimeUnixNano"
-    counts="$(filter_file "$src" "$temp" "$cutoff_seconds" "$dropped" "$body_cutoff_seconds" "$surgery_tmp" "$time_field")"
+    counts="$(filter_file "$src" "$temp" "$cutoff_seconds" "$dropped" "$body_cutoff_seconds" "$surgery_tmp")"
     # awk only opens dst when it prints a kept line, so a file with ZERO kept records (every
     # record older than the cutoff — the case retention exists for) leaves the temp absent.
     # Create it empty: an empty store is the correct all-aged-out end-state (append:true refills

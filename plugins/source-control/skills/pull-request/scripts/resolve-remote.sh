@@ -48,34 +48,40 @@ if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 fi
 
+# Read a remote-name config key, normalizing the CRLF a Git-for-Windows config
+# read can carry. A "." value names the local repo rather than a remote, so it
+# is reported as unset and the caller falls through to the next candidate.
+remote_config() {
+  local value
+  value=$(git config "$1" 2>/dev/null | tr -d '\r')
+  [[ "$value" == "." ]] && value=""
+  printf '%s' "$value"
+}
+
 REMOTE=""
 if [[ $PUSH -eq 1 ]]; then
   # Push precedence, ahead of the shared fetch order: branch.<name>.pushRemote
   # overrides remote.pushDefault, which overrides branch.<name>.remote for the
-  # push destination. A "." value names the local repo, not a publish target,
-  # so it is treated as unset and falls through.
-  REMOTE=$(git config "branch.${BRANCH}.pushRemote" 2>/dev/null | tr -d '\r')
-  [[ "$REMOTE" == "." ]] && REMOTE=""
+  # push destination.
+  REMOTE=$(remote_config "branch.${BRANCH}.pushRemote")
   if [[ -z "$REMOTE" ]]; then
-    REMOTE=$(git config "remote.pushDefault" 2>/dev/null | tr -d '\r')
-    [[ "$REMOTE" == "." ]] && REMOTE=""
+    REMOTE=$(remote_config "remote.pushDefault")
   fi
 fi
 
 if [[ -z "$REMOTE" ]]; then
-  REMOTE=$(git config "branch.${BRANCH}.remote" 2>/dev/null | tr -d '\r')
-  [[ "$REMOTE" == "." ]] && REMOTE=""
+  REMOTE=$(remote_config "branch.${BRANCH}.remote")
 fi
 
 if [[ -z "$REMOTE" ]]; then
   mapfile -t REMOTES < <(git remote)
-  if printf '%s\n' "${REMOTES[@]}" | grep -qx origin; then
+  if [[ ${#REMOTES[@]} -eq 0 ]]; then
+    echo "error: cannot resolve a remote for branch '${BRANCH}': no branch.${BRANCH}.remote is set and no remotes are configured." >&2
+    exit 1
+  elif printf '%s\n' "${REMOTES[@]}" | grep -qx origin; then
     REMOTE=origin
   elif [[ ${#REMOTES[@]} -eq 1 ]]; then
     REMOTE="${REMOTES[0]}"
-  elif [[ ${#REMOTES[@]} -eq 0 ]]; then
-    echo "error: cannot resolve a remote for branch '${BRANCH}': no branch.${BRANCH}.remote is set and no remotes are configured." >&2
-    exit 1
   else
     hint="Set branch.${BRANCH}.remote or add an 'origin' remote to disambiguate."
     [[ $PUSH -eq 1 ]] && hint="Set branch.${BRANCH}.pushRemote or remote.pushDefault (the push destination), or branch.${BRANCH}.remote, or add an 'origin' remote to disambiguate."

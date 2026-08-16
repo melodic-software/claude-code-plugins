@@ -21,6 +21,7 @@ import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { login as teachableLogin } from "../lib/auth/teachable-sso.js";
+import { fetchMetaTags } from "../lib/meta-tags.js";
 import {
   extractFrames as extractHotmartFrames,
   getHlsUrl,
@@ -151,9 +152,6 @@ export async function prepareLessonPage(page, platformCfg, lesson) {
   });
 }
 
-/**
- * Extract per-lesson resources from the Teachable DOM.
- */
 async function scrapeCodeSnippets(page, codeDisplaySelector) {
   return page.evaluate(
     ({ selector, languageSource }) => {
@@ -206,6 +204,9 @@ async function scrapeTextAttachments(page, textSelector) {
   }, textSelector);
 }
 
+/**
+ * Extract per-lesson resources from the Teachable DOM.
+ */
 export async function extractResources(page, platformCfg) {
   return timed("extract-resources", null, async () => {
     const selectors = {
@@ -313,18 +314,7 @@ export async function extractMetadata(page, _courseUrl, _platformCfg) {
   return timed("extract-metadata", null, async () => {
     const metadata = {};
 
-    const ogTags = await page
-      .evaluate(() => {
-        const tags = {};
-        for (const meta of document.querySelectorAll("meta")) {
-          const prop = meta.getAttribute("property") || meta.getAttribute("name");
-          if (prop?.startsWith("og:") || prop?.startsWith("twitter:")) {
-            tags[prop] = meta.getAttribute("content");
-          }
-        }
-        return tags;
-      })
-      .catch(() => ({}));
+    const ogTags = await fetchMetaTags(page);
 
     if (Object.keys(ogTags).length > 0) {
       metadata.ogTags = ogTags;

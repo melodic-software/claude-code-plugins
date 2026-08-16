@@ -142,6 +142,9 @@ def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) 
 
 def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
     """Stream-parse main JSONL transcript and collect metrics."""
+    if not filepath.is_file():
+        return None
+
     metrics: dict[str, Any] = {
         "assistant_turns": 0,
         "user_turns": 0,
@@ -168,9 +171,6 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
         "cache_read_tokens": 0,
         "queued_messages": 0,
     }
-
-    if not filepath.is_file():
-        return None
 
     with filepath.open(encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -387,11 +387,8 @@ def compute_session_duration(
     last_ts: str | None,
 ) -> dict[str, str | float | None]:
     """Compute session duration from first and last timestamp strings."""
-    if not first_ts or not last_ts:
-        return {"start": None, "end": None, "duration_minutes": 0}
-
-    start = parse_timestamp(first_ts)
-    end = parse_timestamp(last_ts)
+    start = parse_timestamp(first_ts or "")
+    end = parse_timestamp(last_ts or "")
 
     if not start or not end:
         return {"start": None, "end": None, "duration_minutes": 0}

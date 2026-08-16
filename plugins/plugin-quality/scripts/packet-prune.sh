@@ -205,7 +205,7 @@ escaped=0
 for packet in "$root_abs"/*/*/*; do
   [[ -d "$packet" ]] || continue
   scanned=$((scanned + 1))
-  nonce="$(basename "$packet")"
+  nonce="${packet##*/}"
 
   # Containment is re-established per candidate, not once for the root. Checking
   # only the root is insufficient: a symlink ANYWHERE on the way down — a

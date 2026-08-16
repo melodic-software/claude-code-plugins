@@ -72,6 +72,23 @@ run_state() {
     bash "$SCRIPT" "${ARGS[@]}" 2>&1
 }
 
+# Like run_state but with CLAUDE_PROJECT_DIR explicitly UNSET, for the cases that
+# exercise cwd-based project resolution. The caller must `cd` into the directory
+# under test itself — which directory that is IS the thing each such case
+# exercises — so this only carries the fixture env: extra `NAME=value` pairs (and
+# exported-function decoys) are passed through ahead of the FLEET_STATE_* vars.
+# Args: case_dir [env pair …]
+run_state_no_project_dir() {
+  local case_dir="$1"
+  shift
+  env -u CLAUDE_PROJECT_DIR "$@" \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    bash "$SCRIPT" --marketplace market1 2>&1
+}
+
 # ============================================================================
 # Case: dual-scope divergence
 # ============================================================================
@@ -358,14 +375,7 @@ write "$case_dir/installed_plugins.json" "$(
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
 [[ -f "$case_dir/user_settings.json" ]] || write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
-out=$(
-  cd "$project_dir/nested/subdir" && env -u CLAUDE_PROJECT_DIR \
-    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
-    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
-    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    bash "$SCRIPT" --marketplace market1 2>&1
-)
+out=$(cd "$project_dir/nested/subdir" && run_state_no_project_dir "$case_dir")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "git-fallback: CLAUDE_PROJECT_DIR unset, cwd inside a subdir, resolves via git toplevel" "true" "$current_flag"
 
@@ -388,14 +398,7 @@ write "$case_dir/installed_plugins.json" "$(
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
-out=$(
-  cd "$nonrepo_dir" && env -u CLAUDE_PROJECT_DIR \
-    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
-    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
-    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    bash "$SCRIPT" --marketplace market1 2>&1
-)
+out=$(cd "$nonrepo_dir" && run_state_no_project_dir "$case_dir")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "no-project-context: non-git cwd with CLAUDE_PROJECT_DIR unset manufactures no currentProject" "null" "$current_flag"
 
@@ -424,14 +427,7 @@ write "$case_dir/installed_plugins.json" "$(
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
-out=$(
-  cd "$nongit_proj" && env -u CLAUDE_PROJECT_DIR \
-    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
-    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
-    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    bash "$SCRIPT" --marketplace market1 2>&1
-)
+out=$(cd "$nongit_proj" && run_state_no_project_dir "$case_dir")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "non-git project: .claude marker preserves currentProject without CLAUDE_PROJECT_DIR or git" "true" "$current_flag"
 effective_val=$(jq -r '.enabled."alpha@market1"' <<<"$out" 2>/dev/null)
@@ -461,14 +457,7 @@ write "$case_dir/installed_plugins.json" "$(
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
-out=$(
-  cd "$fake_home" && env -u CLAUDE_PROJECT_DIR HOME="$fake_home" \
-    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
-    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
-    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    bash "$SCRIPT" --marketplace market1 2>&1
-)
+out=$(cd "$fake_home" && run_state_no_project_dir "$case_dir" HOME="$fake_home")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "home exclusion: \$HOME with .claude is user scope, not project context" "null" "$current_flag"
 
@@ -500,15 +489,8 @@ write "$case_dir/installed_plugins.json" "$(
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
-out=$(
-  cd "$proj_dir" && env -u CLAUDE_PROJECT_DIR HOME="$fake_home" \
-    "BASH_FUNC_cd%%=() { return 0; }" \
-    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
-    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
-    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    bash "$SCRIPT" --marketplace market1 2>&1
-)
+out=$(cd "$proj_dir" && run_state_no_project_dir "$case_dir" \
+  HOME="$fake_home" "BASH_FUNC_cd%%=() { return 0; }")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "cd shadow cannot collapse a real project onto \$HOME" "true" "$current_flag"
 

@@ -155,7 +155,8 @@ printf '%s\n' "$answers" | jq -Rn '
         + " -- the classifier reads only environment, allow, soft_deny and hard_deny. Nothing was drafted; fix the section name and rerun."
         | halt_error(2))
      else . end)
-    | (map(select(.section | IN("environment", "allow", "soft_deny", "hard_deny")))
+  # Past the gate above every remaining section name is one of the four, so no
+  # second filter is needed here -- an unknown one cannot reach this point.
   | group_by(.section)
   | map({
       key: .[0].section,
@@ -164,5 +165,5 @@ printf '%s\n' "$answers" | jq -Rn '
       # every shipped rule -- the exact defect the audit sibling reports.
       value: (["$defaults"] + map(render(.)))
     })
-  | from_entries)
+  | from_entries
 '

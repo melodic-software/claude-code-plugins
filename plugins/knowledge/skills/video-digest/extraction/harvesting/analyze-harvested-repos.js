@@ -6,14 +6,15 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   detectFrameworks,
   detectRepoStructure,
   parseGitHubUrl,
 } from "@melodic/repo-analysis";
+import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 /**
@@ -60,11 +61,7 @@ export function sanitizePathSegment(segment) {
  * @returns {string[]}
  */
 export function filterGitHubUrls(links) {
-  const urls = [];
-  for (const link of links) {
-    if (parseGitHubUrl(link.url)) urls.push(link.url);
-  }
-  return [...new Set(urls)];
+  return [...new Set(links.filter((link) => parseGitHubUrl(link.url)).map((link) => link.url))];
 }
 
 /**
@@ -145,31 +142,20 @@ export async function analyzeHarvestedRepos(
 export async function runAnalyzeHarvestedReposCli(argv) {
   const sliceDir = argv[2];
   if (!sliceDir) {
-    process.stderr.write(
-      "Usage: node harvesting/analyze-harvested-repos.js <slice-dir>\n",
-    );
+    writeStderr("Usage: node harvesting/analyze-harvested-repos.js <slice-dir>");
     return 1;
   }
 
   const analyses = await analyzeHarvestedRepos(sliceDir);
-  process.stdout.write(
-    `${JSON.stringify({ count: analyses.length, analyses }, null, 2)}\n`,
-  );
+  writeStdout(JSON.stringify({ count: analyses.length, analyses }, null, 2));
   return 0;
 }
 
-const isMain =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) ===
-    path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runAnalyzeHarvestedReposCli(process.argv)
     .then((code) => process.exit(code))
     .catch((err) => {
-      process.stderr.write(
-        `${err instanceof Error ? err.message : String(err)}\n`,
-      );
+      writeStderr(err instanceof Error ? err.message : String(err));
       process.exit(1);
     });
 }

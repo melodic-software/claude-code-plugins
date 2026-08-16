@@ -510,10 +510,11 @@ _modifier_optend='^--([[:space:]]|$)'
 # A leading redirection element (`> file cmd`, `< in cmd`, `2> f cmd`, `>& n cmd`):
 # bash permits redirections before the command word, so a producer can hide behind
 # one (`> real.txt echo x`). Peeled (operator + its target word) — like _cmd_prefix
-# — to expose the producer for _producer_head, while _echo_file_out and the
-# still run on the UN-peeled segment so the redirect itself remains the write
-# signal. Not anchored to stdout-to-file: any leading redirect is peeled for
-# producer exposure; whether a real file write exists is decided by _echo_file_out.
+# — to expose the producer for _producer_head, while _echo_file_out and
+# set_last_stdout_target still run on the UN-peeled segment so the redirect
+# itself remains the write signal. Not anchored to stdout-to-file: any leading
+# redirect is peeled for producer exposure; whether a real file write exists is
+# decided by _echo_file_out.
 _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
 # stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. A stdout discard

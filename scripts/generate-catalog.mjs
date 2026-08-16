@@ -10,6 +10,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 
+// scripts/lib/report-first-difference.mjs — the drift detail shared with
+// scripts/generate-cheatsheet.mjs, whose suite exercises it.
+import { reportFirstDifference } from "./lib/report-first-difference.mjs";
+
 const root = join(import.meta.dirname, "..");
 const outputPath = join(root, "docs", "CATALOG.md");
 const outputLabel = relative(root, outputPath).split(sep).join("/");
@@ -102,16 +106,9 @@ if (check) {
     console.log("Catalog is in sync with the manifests.");
     process.exit(0);
   }
-  const expectedLines = expected.split("\n");
-  const existingLines = existing.split("\n");
-  const at = expectedLines.findIndex((line, i) => line !== existingLines[i]);
   console.error(`Catalog drift: ${outputLabel} catalog block is stale.`);
   console.error(`Run \`node scripts/generate-catalog.mjs\` and commit ${outputLabel}.`);
-  if (at !== -1) {
-    console.error(`First difference at generated line ${at + 1}:`);
-    console.error(`  expected: ${JSON.stringify(expectedLines[at] ?? null)}`);
-    console.error(`  found:    ${JSON.stringify(existingLines[at] ?? null)}`);
-  }
+  reportFirstDifference(expected, existing);
   process.exit(1);
 }
 

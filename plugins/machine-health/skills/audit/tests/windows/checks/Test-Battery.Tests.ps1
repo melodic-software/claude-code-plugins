@@ -26,6 +26,7 @@ BeforeAll {
     $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
     . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
     function Invoke-BatteryAsObject {
         param([string]$ReportPath)
@@ -34,8 +35,7 @@ BeforeAll {
         } else {
             & $script:ScriptPath
         }
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
+        return ConvertFrom-CheckOutput $raw
     }
 
     function New-BatteryReportHtml {

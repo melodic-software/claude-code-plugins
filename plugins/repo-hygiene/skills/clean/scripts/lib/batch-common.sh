@@ -61,7 +61,8 @@ batch_resolve_repos() {
   BATCH_KEYS=()
   BATCH_INVALID=()
   BATCH_INVALID_REASONS=()
-  local input norm top key e seen
+  local input norm top key
+  local -A seen_keys=()
   for input in "$@"; do
     [[ -n "$input" ]] || continue
     norm="$(batch_normalize_input "$input")"
@@ -78,14 +79,8 @@ batch_resolve_repos() {
       continue
     fi
     key="$(clean_path_key "$top")"
-    seen=0
-    for e in "${BATCH_KEYS[@]}"; do
-      [[ "$e" == "$key" ]] && {
-        seen=1
-        break
-      }
-    done
-    ((seen)) && continue
+    [[ -n "${seen_keys[$key]:-}" ]] && continue
+    seen_keys["$key"]=1
     BATCH_TOPS+=("$top")
     BATCH_KEYS+=("$key")
   done

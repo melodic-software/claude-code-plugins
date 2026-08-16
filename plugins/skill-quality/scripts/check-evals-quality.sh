@@ -212,7 +212,7 @@ LINT_OUT="$(jq -r --arg u "$US" --arg vague "$VAGUE_RE" --arg neg "$NEGATIVE_RE"
   --arg prose_path "$PROSE_PATH_RE" --argjson min "$EXPECTED_OUTPUT_MIN" \
   "$JQ_PROG" "$@" 2>&1)"
 JQ_RC=$?
-LINT_OUT="$(printf '%s' "$LINT_OUT" | tr -d '\r')"
+LINT_OUT="${LINT_OUT//$'\r'/}"
 
 if [[ $JQ_RC -ne 0 ]]; then
   printf 'Error: jq failed (unparsable JSON or internal error) — run schema validation on the input first:\n%s\n' "$LINT_OUT" >&2

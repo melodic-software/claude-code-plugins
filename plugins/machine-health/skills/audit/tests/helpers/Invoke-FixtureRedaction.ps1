@@ -88,7 +88,7 @@ function Edit-RedactedValue {
         return $out
     }
 
-    if ($Value -is [array] -or $Value -is [System.Collections.IList]) {
+    if ($Value -is [System.Collections.IList]) {
         if ($Visited.Contains($Value)) { return $Value }
         [void]$Visited.Add($Value)
         return @($Value | ForEach-Object { Edit-RedactedValue -Value $_ -Context $Context -Visited $Visited })

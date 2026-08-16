@@ -66,11 +66,7 @@ export function summarizeFrameSelection(
     densificationWindowCount = 0,
   } = {},
 ) {
-  const selected = [...candidates].sort((a, b) => {
-    const aTs = a.timestampSec ?? 0;
-    const bTs = b.timestampSec ?? 0;
-    return aTs - bTs;
-  });
+  const selected = [...candidates].sort((a, b) => (a.timestampSec ?? 0) - (b.timestampSec ?? 0));
 
   const candidateCount = selected.length;
   const highVolume = isHighVolume({

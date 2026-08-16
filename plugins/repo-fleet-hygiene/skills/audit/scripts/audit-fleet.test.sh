@@ -1445,15 +1445,6 @@ assert_contains_file() {
     printf 'PASS: %s\n' "$label"
   fi
 }
-assert_not_contains_in() {
-  local label="$1" pattern="$2" file="$3"
-  if grep -Fq -- "$pattern" "$file"; then
-    printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
-    failures=$((failures + 1))
-  else
-    printf 'PASS: %s\n' "$label"
-  fi
-}
 
 assert_contains_file "header names configured melodic worktree root" \
   "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
@@ -1493,7 +1484,7 @@ else
 fi
 assert_contains_file "renamed-branch path counted conforming" \
   "2 conforming, 2 outside/wrong-layout, 1 tool-owned of 5 linked" "$conform_out"
-assert_not_contains_in "configured-root run does not claim unconfigured" \
+assert_not_contains_file "configured-root run does not claim unconfigured" \
   "Finding: worktree-root-unconfigured" "$conform_out"
 
 # CONFORM_NO_ORIGIN: sole non-origin GitHub remote must not invent <owner>-<repo>- layout;
@@ -1511,7 +1502,7 @@ if grep -Fq 'Finding: worktree-wrong-layout' "$no_origin_out" ||
 else
   printf 'PASS: no-origin create-shaped worktree is conforming (checkout-basename layout)\n'
 fi
-assert_not_contains_in "no-origin layout does not expect upstream owner/repo prefix" \
+assert_not_contains_file "no-origin layout does not expect upstream owner/repo prefix" \
   "other-upstream-repo" "$no_origin_out"
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"

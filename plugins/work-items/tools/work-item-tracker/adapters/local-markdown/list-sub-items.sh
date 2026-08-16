@@ -42,12 +42,7 @@ parent_quoted="$(jq -cn --arg p "$id" '$p')"
     file="$(wit_item_file "$n")"
     [[ "$(wit_fm_field "$file" parent)" == "$parent_quoted" ]] || continue
     item_state="$(wit_fm_field "$file" state)"
-    case "$state" in
-      all) ;;
-      open) [[ "$item_state" == '"open"' ]] || continue ;;
-      closed) [[ "$item_state" == '"closed"' ]] || continue ;;
-      *) ;; # unreachable: --state is validated to open|closed|all at parse time
-    esac
+    wit_state_matches "$state" "$item_state" || continue
     wit_emit_local_item "$n" true
   done
 } | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}'

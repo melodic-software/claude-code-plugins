@@ -169,31 +169,33 @@ function isReasonablePubDate(ms) {
  *    5. Date segments in authorized source URLs
  *       — caller applies via the URL inference pass, not here
  */
+/** Turn a [, monthName, day, year?] match into a plausible timestamp, else null.
+ *  Unknown month names and implausible dates both yield null so the caller falls
+ *  through to the next priority. */
+function monthNameMatchToMs(match) {
+  if (!match) return null;
+  const monthName = match[1].toLowerCase();
+  if (!(monthName in MONTHS)) return null;
+  const day = parseInt(match[2], 10);
+  const year = match[3] ? parseInt(match[3], 10) : new Date().getUTCFullYear();
+  const ms = Date.UTC(year, MONTHS[monthName], day);
+  return isReasonablePubDate(ms) ? ms : null;
+}
+
 function extractDate(body, headline) {
   const text = `${headline} ${body}`;
 
   // Priority 1: (Month Day) parenthetical in headline. Author signal.
-  const paren = headline.match(/\(([A-Za-z]+)\s+(\d{1,2})(?:[\s-–]+\d{1,2})?(?:,\s*(\d{4}))?\)/);
-  if (paren) {
-    const monthName = paren[1].toLowerCase();
-    if (monthName in MONTHS) {
-      const month = MONTHS[monthName];
-      const day = parseInt(paren[2], 10);
-      const year = paren[3] ? parseInt(paren[3], 10) : new Date().getUTCFullYear();
-      const ms = Date.UTC(year, month, day);
-      if (isReasonablePubDate(ms)) return ms;
-    }
-  }
+  const paren = monthNameMatchToMs(
+    headline.match(/\(([A-Za-z]+)\s+(\d{1,2})(?:[\s-–]+\d{1,2})?(?:,\s*(\d{4}))?\)/),
+  );
+  if (paren != null) return paren;
 
   // Priority 2: "Mon DD" / "Mon DD, YYYY" / "Mon DD-DD" anywhere
-  const m = text.match(/\b(January|February|March|April|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:[\s-–]+\d{1,2})?(?:,\s*(\d{4}))?\b/i);
-  if (m) {
-    const month = MONTHS[m[1].toLowerCase()];
-    const day = parseInt(m[2], 10);
-    const year = m[3] ? parseInt(m[3], 10) : new Date().getUTCFullYear();
-    const ms = Date.UTC(year, month, day);
-    if (isReasonablePubDate(ms)) return ms;
-  }
+  const named = monthNameMatchToMs(
+    text.match(/\b(January|February|March|April|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:[\s-–]+\d{1,2})?(?:,\s*(\d{4}))?\b/i),
+  );
+  if (named != null) return named;
 
   // Priority 3: "M/D" or "M/D/YY" or "M/D/YYYY" — SDK-bump shorthand like "(5/13)"
   const slash = text.match(/(?<![\w/])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![\w/])/);

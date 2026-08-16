@@ -48,26 +48,22 @@ export function exportSheetFrameIndex(sliceDir) {
   const byFile = Object.fromEntries(
     selection.selectedFrames.map((frame) => [
       frame.file,
-      { timestampSec: frame.timestampSec, path: frame.path, textDense: frame.textDense },
+      { timestampSec: frame.timestampSec, textDense: frame.textDense },
     ]),
   );
 
-  const sheets = selection.contactSheets.map((sheet, index) => {
-    const id = String(index + 1).padStart(3, "0");
-    return {
-      sheetId: `sheet_${id}`,
-      file: sheet.file,
-      path: sheet.path,
-      midTimestampSec: byFile[sheet.inputFiles[8]]?.timestampSec ?? null,
-      cells: sheet.inputFiles.map((file, cellIndex) => ({
-        cell: CELLS[cellIndex],
-        frame: file,
-        timestampSec: byFile[file]?.timestampSec ?? null,
-        framePath: byFile[file]?.path ?? null,
-        textDense: byFile[file]?.textDense ?? false,
-      })),
-    };
-  });
+  const sheets = selection.contactSheets.map((sheet, index) => ({
+    sheetId: `sheet_${String(index + 1).padStart(3, "0")}`,
+    file: sheet.file,
+    path: sheet.path ? serializeTempPath(sheet.path) : undefined,
+    midTimestampSec: byFile[sheet.inputFiles[8]]?.timestampSec ?? null,
+    cells: sheet.inputFiles.map((file, cellIndex) => ({
+      cell: CELLS[cellIndex],
+      frame: file,
+      timestampSec: byFile[file]?.timestampSec ?? null,
+      textDense: byFile[file]?.textDense ?? false,
+    })),
+  }));
 
   const resolvedSession = resolveTempSession(watch.tempSession ?? {});
   const sheetsDir = resolvedSession.contactSheetsDir
@@ -75,15 +71,7 @@ export function exportSheetFrameIndex(sliceDir) {
     : "{tmp}/video-sheets-unknown";
   const framesDir = resolvedSession.framesDir ? serializeTempPath(resolvedSession.framesDir) : null;
 
-  const payload = {
-    sheetsDir,
-    framesDir,
-    sheets: sheets.map((sheet) => ({
-      ...sheet,
-      path: sheet.path ? serializeTempPath(sheet.path) : undefined,
-      cells: sheet.cells.map((cell) => ({ ...cell, framePath: undefined })),
-    })),
-  };
+  const payload = { sheetsDir, framesDir, sheets };
   const outPath = lanePath(absSlice, LANES.keyFrames, "sheet-frame-index.json");
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");

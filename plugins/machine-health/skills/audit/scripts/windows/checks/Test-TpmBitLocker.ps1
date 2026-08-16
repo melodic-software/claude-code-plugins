@@ -21,8 +21,7 @@ $commands = @(
 )
 
 try {
-    $elevated = Test-IsElevated
-    if (-not $elevated) {
+    if (-not (Test-IsElevated)) {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'UNKNOWN' `
             -Summary 'TPM/BitLocker status requires admin (re-run elevated).' `

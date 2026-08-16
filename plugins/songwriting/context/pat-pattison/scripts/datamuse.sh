@@ -50,7 +50,7 @@ if [[ -z "$MODE" || -z "$ARG" ]]; then
 fi
 
 api="https://api.datamuse.com/words"
-word=$(printf %s "$ARG" | sed 's/ /+/g')
+word="${ARG// /+}"
 max="$LIMIT"
 
 case "$MODE" in

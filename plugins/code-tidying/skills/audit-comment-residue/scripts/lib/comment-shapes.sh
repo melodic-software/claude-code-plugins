@@ -28,9 +28,7 @@ cr_is_code_file() {
 
 cr_line_skipped() {
   local prev="$1" line="$2"
-  [[ "$prev" == *'comment-residue-ignore'* ]] && return 0
-  [[ "$line" == *'comment-residue-ignore'* ]] && return 0
-  return 1
+  [[ "$prev" == *'comment-residue-ignore'* || "$line" == *'comment-residue-ignore'* ]]
 }
 
 # Extract the comment portion of a line, or empty if the line carries no recognized comment

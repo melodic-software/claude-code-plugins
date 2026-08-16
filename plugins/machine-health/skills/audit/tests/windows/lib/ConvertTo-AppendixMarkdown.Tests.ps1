@@ -67,7 +67,7 @@ Describe 'ConvertTo-AppendixMarkdown' -Tag 'lib' {
                     recent_hotfixes = @(
                         [pscustomobject]@{
                             hotfix_id    = 'KB12345'
-                            description = 'Security Update'
+                            description  = 'Security Update'
                             installed_on = '2026-04-10T00:00:00'
                         }
                     )

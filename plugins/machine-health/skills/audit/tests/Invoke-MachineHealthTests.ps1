@@ -65,6 +65,31 @@ function Get-ErrorRecordMessage {
     if ($ErrorRecord.Exception) { $ErrorRecord.Exception.Message } else { "$ErrorRecord" }
 }
 
+# Emit one workflow-command annotation. Collapsing and escaping live here so no
+# call site can emit a raw message that terminates or injects a workflow command.
+function Write-WorkflowError {
+    param(
+        [Parameter(Mandatory)] [string] $Title,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Message
+    )
+    $safeTitle = ConvertTo-WorkflowCommandProperty $Title
+    $safeMessage = ConvertTo-WorkflowCommandMessage (ConvertTo-SingleLine $Message)
+    Write-Output("::error title=${safeTitle}::${safeMessage}")
+}
+
+# Append a multi-line message to the step summary as an indented fenced block.
+function Add-FencedBlock {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]] $Lines,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Text
+    )
+    $Lines.Add('  ```')
+    foreach ($ln in ($Text -split "`r?`n")) { $Lines.Add("  $ln") }
+    $Lines.Add('  ```')
+}
+
 $minPester = [version]'5.7.0'
 $pester = Get-Module Pester -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1
 if (-not $pester -or $pester.Version -lt $minPester) {
@@ -157,20 +182,16 @@ $result = Invoke-Pester -Configuration $config
 # CI diagnostics: when running under GitHub Actions and at least one test
 # failed, emit workflow-command annotations so the failure names and messages
 # surface on the run's check run page (accessible via the API without raw
-# log access). Helper functions come from
-# tools/shared/pester/PesterWorkflowAnnotation.ps1 (dot-sourced above). Localhost runs
-# are unaffected because $env:GITHUB_ACTIONS is only set inside the runner.
+# log access). Helper functions come from helpers/PesterWorkflowAnnotation.ps1
+# (dot-sourced above). Localhost runs are unaffected because $env:GITHUB_ACTIONS
+# is only set inside the runner.
 
 if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
     Write-Output('')
     Write-Output("::group::Pester failure summary ($($result.FailedCount) failed)")
     foreach ($t in $result.Failed) {
         $info = Get-FailedTestInfo -Test $t
-        # Single-line + escape reserved chars for safe annotation emission.
-        $collapsed = ConvertTo-SingleLine $info.Message
-        $safeTitle = ConvertTo-WorkflowCommandProperty ('Pester: ' + $info.Path)
-        $safeMessage = ConvertTo-WorkflowCommandMessage $collapsed
-        Write-Output("::error title=${safeTitle}::${safeMessage}")
+        Write-WorkflowError -Title ('Pester: ' + $info.Path) -Message $info.Message
     }
     Write-Output('::endgroup::')
 
@@ -180,10 +201,8 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
         foreach ($c in $result.Containers) {
             if ($c.Result -eq 'Failed' -and $c.ErrorRecord) {
                 foreach ($err in $c.ErrorRecord) {
-                    $collapsed = ConvertTo-SingleLine (Get-ErrorRecordMessage $err)
-                    $safeTitle = ConvertTo-WorkflowCommandProperty ('Pester-Container: ' + $c.Item)
-                    $safeMessage = ConvertTo-WorkflowCommandMessage $collapsed
-                    Write-Output("::error title=${safeTitle}::${safeMessage}")
+                    Write-WorkflowError -Title ('Pester-Container: ' + $c.Item) `
+                        -Message (Get-ErrorRecordMessage $err)
                 }
             }
         }
@@ -206,11 +225,7 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
             foreach ($t in $result.Failed) {
                 $info = Get-FailedTestInfo -Test $t
                 $lines.Add("- **$($info.Path)**")
-                $lines.Add('  ```')
-                foreach ($ln in ($info.Message -split "`r?`n")) {
-                    $lines.Add("  $ln")
-                }
-                $lines.Add('  ```')
+                Add-FencedBlock -Lines $lines -Text $info.Message
             }
         }
         if ($result.Containers) {
@@ -221,12 +236,7 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
                 foreach ($c in $failedContainers) {
                     $lines.Add("- **$($c.Item)**")
                     foreach ($err in $c.ErrorRecord) {
-                        $msg = Get-ErrorRecordMessage $err
-                        $lines.Add('  ```')
-                        foreach ($ln in ($msg -split "`r?`n")) {
-                            $lines.Add("  $ln")
-                        }
-                        $lines.Add('  ```')
+                        Add-FencedBlock -Lines $lines -Text (Get-ErrorRecordMessage $err)
                     }
                 }
             }

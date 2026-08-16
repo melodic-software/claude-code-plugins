@@ -67,7 +67,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         if spec.get("required"):
             bounds.insert(0, "required")
         if bounds:
-            typ = f"{typ}<br>*{', '.join(str(b) for b in bounds)}*"
+            typ = f"{typ}<br>*{', '.join(bounds)}*"
         default = spec.get("default", "")
         # MD049: this repo's markdownlint requires asterisk emphasis, not underscore.
         default = "*(none)*" if default == "" else f"`{json.dumps(default)}`"
@@ -90,7 +90,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "1. **Interactively** — Claude Code prompts for declared options when you enable the",
         f"   plugin. To change them later: `/plugin configure {plugin}@{marketplace}`.",
-        f"2. **Headless, at install time** — repeat `--config` for each option. Replace",
+        "2. **Headless, at install time** — repeat `--config` for each option. Replace",
         f"   `{marketplace}` with the marketplace you installed this plugin from:",
         "",
         "   ```shell",
@@ -132,10 +132,17 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     return "\n".join(lines)
 
 
+def split_block(readme: str) -> tuple[str, str] | None:
+    """Text before and after the generated block, or None when there is none."""
+    if BEGIN not in readme or END not in readme:
+        return None
+    return readme[: readme.index(BEGIN)], readme[readme.index(END) + len(END) :]
+
+
 def splice(readme: str, block: str) -> str:
-    if BEGIN in readme and END in readme:
-        head = readme[: readme.index(BEGIN)]
-        tail = readme[readme.index(END) + len(END) :]
+    halves = split_block(readme)
+    if halves is not None:
+        head, tail = halves
         return head + block + tail
     # First insertion: before the License heading when there is one, else at the end.
     marker = "\n## License"
@@ -143,6 +150,27 @@ def splice(readme: str, block: str) -> str:
         i = readme.index(marker)
         return readme[:i] + "\n" + block + "\n" + readme[i:]
     return readme.rstrip("\n") + "\n\n" + block + "\n"
+
+
+def strip_stale_block(readme: pathlib.Path, check: bool) -> str | None:
+    """Drop the generated block from a plugin that declares no options any more.
+
+    Returns "stale" when --check found a block to remove, "wrote" when one was
+    removed, and None when there was nothing to remove -- no README, or a README
+    that never carried a block.
+    """
+    if not readme.exists():
+        return None
+    halves = split_block(readme.read_text(encoding="utf-8"))
+    if halves is None:
+        return None
+    head, tail = halves
+    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
+    if check:
+        return "stale"
+    readme.write_text(stripped, encoding="utf-8", newline="\n")
+    print(f"  removed stale block: plugins/{readme.parent.name}/README.md (0 options)")
+    return "wrote"
 
 
 def main() -> int:
@@ -163,20 +191,13 @@ def main() -> int:
             # Skipping here left a stale block documenting options that no longer exist,
             # and --check never read the README on this branch, so the gate reported it
             # as up to date -- the one path where the gate silently fails at its own job.
-            if readme.exists():
-                current = readme.read_text(encoding="utf-8")
-                if BEGIN in current and END in current:
-                    head = current[: current.index(BEGIN)]
-                    tail = current[current.index(END) + len(END) :]
-                    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
-                    if check:
-                        stale.append(d.name)
-                    else:
-                        readme.write_text(stripped, encoding="utf-8", newline="\n")
-                        wrote += 1
-                        print(f"  removed stale block: plugins/{d.name}/README.md (0 options)")
-                    continue
-            skipped += 1
+            removal = strip_stale_block(readme, check)
+            if removal is None:
+                skipped += 1
+            elif removal == "stale":
+                stale.append(d.name)
+            else:
+                wrote += 1
             continue
         if not readme.exists():
             print(f"  MISSING README: {d.name} declares {len(options)} option(s)", file=sys.stderr)

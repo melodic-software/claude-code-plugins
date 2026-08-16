@@ -22,16 +22,18 @@ import { validateTriageSheet } from "../lib/watch-vision-validation.js";
 export function mergeTriageJson(sliceDir, batchPaths) {
   const absSlice = path.resolve(sliceDir);
   const batchesDir = lanePath(absSlice, LANES.keyFrames, "triage", "batches");
-  const paths =
-    batchPaths && batchPaths.length > 0
-      ? batchPaths.map((p) => path.resolve(p))
-      : fs.existsSync(batchesDir)
-        ? fs
-            .readdirSync(batchesDir)
-            .filter((n) => n.endsWith(".json"))
-            .sort()
-            .map((n) => path.join(batchesDir, n))
-        : [];
+  let paths;
+  if (batchPaths && batchPaths.length > 0) {
+    paths = batchPaths.map((p) => path.resolve(p));
+  } else if (fs.existsSync(batchesDir)) {
+    paths = fs
+      .readdirSync(batchesDir)
+      .filter((n) => n.endsWith(".json"))
+      .sort()
+      .map((n) => path.join(batchesDir, n));
+  } else {
+    paths = [];
+  }
 
   if (paths.length === 0) {
     throw new Error("no triage batch JSON files found");

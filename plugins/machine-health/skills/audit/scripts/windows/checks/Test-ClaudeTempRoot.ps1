@@ -43,23 +43,20 @@ function Resolve-ClaudeTempRoot {
     [OutputType([pscustomobject])]
     param()
 
+    # Precedence order is the order of this table; a base whose environment
+    # variable is unset or blank contributes no candidate.
+    $bases = @(
+        @{ Base = $env:CLAUDE_CODE_TMPDIR; Child = 'claude'; Source = 'CLAUDE_CODE_TMPDIR/claude' }
+        @{ Base = $env:TEMP; Child = 'claude'; Source = 'TEMP/claude' }
+        @{ Base = $env:LOCALAPPDATA; Child = 'Temp\claude'; Source = 'LOCALAPPDATA/Temp/claude' }
+    )
+
     $candidates = [System.Collections.Generic.List[pscustomobject]]::new()
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_CODE_TMPDIR)) {
+    foreach ($b in $bases) {
+        if ([string]::IsNullOrWhiteSpace($b.Base)) { continue }
         $candidates.Add([pscustomobject]@{
-                Path   = (Join-Path $env:CLAUDE_CODE_TMPDIR 'claude')
-                Source = 'CLAUDE_CODE_TMPDIR/claude'
-            })
-    }
-    if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) {
-        $candidates.Add([pscustomobject]@{
-                Path   = (Join-Path $env:TEMP 'claude')
-                Source = 'TEMP/claude'
-            })
-    }
-    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        $candidates.Add([pscustomobject]@{
-                Path   = (Join-Path $env:LOCALAPPDATA 'Temp\claude')
-                Source = 'LOCALAPPDATA/Temp/claude'
+                Path   = (Join-Path $b.Base $b.Child)
+                Source = $b.Source
             })
     }
 

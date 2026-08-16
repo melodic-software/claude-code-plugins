@@ -16,27 +16,30 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
+# usage_error — the one spelling of the usage line every arg-parsing failure exits on.
+usage_error() {
+  echo "usage: run-conformance.sh --binding <name>" >&2
+  exit 2
+}
+
 binding_name=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --binding)
-      [[ $# -ge 2 ]] || {
-        echo "usage: run-conformance.sh --binding <name>" >&2
-        exit 2
-      }
+      if [[ $# -lt 2 ]]; then
+        usage_error
+      fi
       binding_name="$2"
       shift 2
       ;;
     *)
-      echo "usage: run-conformance.sh --binding <name>" >&2
-      exit 2
+      usage_error
       ;;
   esac
 done
-[[ -n "$binding_name" ]] || {
-  echo "usage: run-conformance.sh --binding <name>" >&2
-  exit 2
-}
+if [[ -z "$binding_name" ]]; then
+  usage_error
+fi
 BINDING_FILE_SH="$SCRIPT_DIR/bindings/$binding_name.sh"
 [[ -f "$BINDING_FILE_SH" ]] || {
   echo "run-conformance: no binding at $BINDING_FILE_SH" >&2
@@ -100,20 +103,23 @@ FAKE_ID="$PROVIDER:conformance/x#1"
 
 # --- unsupported verbs degrade explicitly (exit 6), never silently ---
 
-for verb in create-item get-item claim renew-lease reclaim link-blocks add-sub-item; do
+# wit_case_if_unsupported <verb> <args…> — assert the exit-6 gate for a verb the
+# adapter's capabilities declare unsupported; a supported verb is skipped here and
+# exercised by its own section below.
+wit_case_if_unsupported() {
+  local verb="$1"
   if ! verb_supported "$verb"; then
-    case "$verb" in
-      create-item) wit_case "unsupported $verb → exit 6" 6 create-item --title x ;;
-      get-item) wit_case "unsupported $verb → exit 6" 6 get-item "$FAKE_ID" ;;
-      claim) wit_case "unsupported $verb → exit 6" 6 claim "$FAKE_ID" ;;
-      renew-lease) wit_case "unsupported $verb → exit 6" 6 renew-lease "$FAKE_ID" --lease-comment-id 1 ;;
-      reclaim) wit_case "unsupported $verb → exit 6" 6 reclaim "$FAKE_ID" ;;
-      link-blocks) wit_case "unsupported $verb → exit 6" 6 link-blocks "$FAKE_ID" --blocked-by "$FAKE_ID" ;;
-      add-sub-item) wit_case "unsupported $verb → exit 6" 6 add-sub-item "$FAKE_ID" --parent "$FAKE_ID" ;;
-      *) ;;
-    esac
+    wit_case "unsupported $verb → exit 6" 6 "$@"
   fi
-done
+}
+
+wit_case_if_unsupported create-item --title x
+wit_case_if_unsupported get-item "$FAKE_ID"
+wit_case_if_unsupported claim "$FAKE_ID"
+wit_case_if_unsupported renew-lease "$FAKE_ID" --lease-comment-id 1
+wit_case_if_unsupported reclaim "$FAKE_ID"
+wit_case_if_unsupported link-blocks "$FAKE_ID" --blocked-by "$FAKE_ID"
+wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi

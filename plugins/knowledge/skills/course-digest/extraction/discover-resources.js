@@ -22,7 +22,13 @@ import { createLogger } from "@melodic/video-digestion/shared/logger";
 import { createAdapter } from "./adapters/adapter-contract.js";
 import { resolveAuthStatePath } from "./lib/auth-store.js";
 import { checkAuthAge, closeBrowser, launchBrowser } from "./lib/browser.js";
-import { findFirstVideoLesson, loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
+import {
+  findFirstVideoLesson,
+  formatLessonLabel,
+  loadCourseDir,
+  parseCliArgs,
+  resolveLogLevel,
+} from "./utils.js";
 
 const args = parseCliArgs({
   sample: { type: "boolean", default: false },
@@ -50,8 +56,9 @@ function selectSample(modules) {
   return sampled;
 }
 
-function formatLessonLabel(mod, lesson) {
-  return `M${mod.position}L${lesson.position}`;
+// Fixed-width label + title columns shared by every per-lesson log line below.
+function lessonLogPrefix(label, title) {
+  return `  ${label.padEnd(7)}${title.substring(0, 46).padEnd(48)}`;
 }
 
 function recordNonVideoLesson(mod, lesson, report) {
@@ -79,9 +86,7 @@ async function inspectLesson({ module: mod, lesson }, ctx) {
 
   if (!lesson.duration || lesson.title === "Rate this course") {
     recordNonVideoLesson(mod, lesson, ctx.report);
-    log.info(
-      `  ${label.padEnd(7)}${lesson.title.substring(0, 46).padEnd(48)}(non-video — skipped)`,
-    );
+    log.info(`${lessonLogPrefix(label, lesson.title)}(non-video — skipped)`);
     return;
   }
 
@@ -89,15 +94,13 @@ async function inspectLesson({ module: mod, lesson }, ctx) {
   try {
     await navigateToLesson(ctx.page, url);
   } catch {
-    log.warn(`  ${label.padEnd(7)}${lesson.title.substring(0, 46).padEnd(48)}FAILED (nav error)`);
+    log.warn(`${lessonLogPrefix(label, lesson.title)}FAILED (nav error)`);
     return;
   }
 
   const resourceResult = await ctx.adapter.detectResources(ctx.page, ctx.platformCfg);
   if (!resourceResult.success) {
-    log.warn(
-      `  ${label.padEnd(7)}${lesson.title.substring(0, 46).padEnd(48)}FAILED (detect error)`,
-    );
+    log.warn(`${lessonLogPrefix(label, lesson.title)}FAILED (detect error)`);
     return;
   }
 
@@ -113,9 +116,7 @@ async function inspectLesson({ module: mod, lesson }, ctx) {
 
   const flag = (val) => (val ? "✓" : "·");
   log.info(
-    "  " +
-      label.padEnd(7) +
-      lesson.title.substring(0, 46).padEnd(48) +
+    lessonLogPrefix(label, lesson.title) +
       flag(resources.hasVideo).padEnd(7) +
       flag(resources.hasTranscript).padEnd(6) +
       flag(resources.hasDownload).padEnd(5) +
@@ -125,10 +126,9 @@ async function inspectLesson({ module: mod, lesson }, ctx) {
 }
 
 async function inspectAllLessons(lessonList, ctx) {
-  await lessonList.reduce(async (chain, entry) => {
-    await chain;
+  for (const entry of lessonList) {
     await inspectLesson(entry, ctx);
-  }, Promise.resolve());
+  }
 }
 
 async function main() {

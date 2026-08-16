@@ -330,6 +330,31 @@ write_lease_atomic() {
   mv -f "$tmp" "$dir/lease" || die "cannot replace lease under: $dir"
 }
 
+# parse_run_dir_arg <context> [args…] — the argument loop shared by the three
+# lease commands that take nothing but `--run-dir`. Sets RUN_DIR; <context> is
+# the subcommand name that appears in an unknown-argument refusal. It sets a
+# global rather than printing because `die` must exit the script, and a command
+# substitution would confine that exit to a subshell.
+#
+# Post-parse validation stays with each command: heartbeat and release require
+# an existing run dir, while classify must answer `missing` for one that is not
+# there rather than refusing.
+parse_run_dir_arg() {
+  local context="$1"
+  shift
+  RUN_DIR=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --run-dir)
+      [[ $# -ge 2 ]] || die "--run-dir needs a path"
+      RUN_DIR="$2"
+      shift 2
+      ;;
+    *) die "unknown argument to $context: $1" ;;
+    esac
+  done
+}
+
 require_run_dir() {
   local dir="$1"
   if [[ -z "$dir" ]]; then
@@ -523,17 +548,8 @@ skew_grace_s=$skew_grace
 }
 
 cmd_lease_heartbeat() {
-  local run_dir=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-    --run-dir)
-      [[ $# -ge 2 ]] || die "--run-dir needs a path"
-      run_dir="$2"
-      shift 2
-      ;;
-    *) die "unknown argument to lease heartbeat: $1" ;;
-    esac
-  done
+  parse_run_dir_arg "lease heartbeat" "$@"
+  local run_dir="$RUN_DIR"
   require_run_dir "$run_dir"
   if [[ ! -f "$run_dir/lease" ]]; then
     die "no lease to refresh at: $run_dir/lease"
@@ -572,17 +588,8 @@ skew_grace_s=$skew_grace
 }
 
 cmd_lease_release() {
-  local run_dir=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-    --run-dir)
-      [[ $# -ge 2 ]] || die "--run-dir needs a path"
-      run_dir="$2"
-      shift 2
-      ;;
-    *) die "unknown argument to lease release: $1" ;;
-    esac
-  done
+  parse_run_dir_arg "lease release" "$@"
+  local run_dir="$RUN_DIR"
   require_run_dir "$run_dir"
   if [[ ! -f "$run_dir/lease" ]]; then
     die "no lease to release at: $run_dir/lease"
@@ -615,17 +622,8 @@ skew_grace_s=$skew_grace
 }
 
 cmd_lease_classify() {
-  local run_dir=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-    --run-dir)
-      [[ $# -ge 2 ]] || die "--run-dir needs a path"
-      run_dir="$2"
-      shift 2
-      ;;
-    *) die "unknown argument to lease classify: $1" ;;
-    esac
-  done
+  parse_run_dir_arg "lease classify" "$@"
+  local run_dir="$RUN_DIR"
   if [[ -z "$run_dir" ]]; then
     die "--run-dir is required"
   fi

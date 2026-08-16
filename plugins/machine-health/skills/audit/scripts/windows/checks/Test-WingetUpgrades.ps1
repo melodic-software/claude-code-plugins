@@ -41,8 +41,7 @@ try {
     $wrapperResult = Get-WingetPackageUpdate
 
     # Contract: Get-WingetPackageUpdate always returns @{ upgrades; error }.
-    if ($null -eq $wrapperResult -or -not ($wrapperResult -is [hashtable] -or
-            $wrapperResult -is [System.Collections.IDictionary])) {
+    if ($wrapperResult -isnot [System.Collections.IDictionary]) {
         $actualType = if ($null -eq $wrapperResult) { '$null' } else { $wrapperResult.GetType().FullName }
         throw "Get-WingetPackageUpdate returned $actualType; expected hashtable."
     }
@@ -60,8 +59,7 @@ try {
     } else {
         $upgrades = @($upgrades)
 
-        $nonConformingIds = @($upgrades | Where-Object { $_.id -notmatch '\.' })
-        $nonConformingCount = $nonConformingIds.Count
+        $nonConformingCount = @($upgrades | Where-Object { $_.id -notmatch '\.' }).Count
 
         $kevMatches = [System.Collections.Generic.List[pscustomobject]]::new()
         $kevNotes = $null
@@ -120,9 +118,9 @@ try {
                     for ($i = $segments.Length; $i -ge 2; $i--) {
                         $candidate = ($segments[0..($i - 1)] -join '.')
                         if (-not $kevIndex.ContainsKey($candidate)) { continue }
+                        $upgradeString = ("$($u.name) $($u.current_version) " +
+                            "-> $($u.available_version)")
                         foreach ($vuln in $kevIndex[$candidate]) {
-                            $upgradeString = ("$($u.name) $($u.current_version) " +
-                                "-> $($u.available_version)")
                             $kevMatches.Add([pscustomobject]@{
                                     upgrade_id = $u.id
                                     upgrade    = $upgradeString

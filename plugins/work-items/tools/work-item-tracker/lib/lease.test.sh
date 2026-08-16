@@ -5,7 +5,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lease.sh
 source "$SCRIPT_DIR/lease.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
+source "$SCRIPT_DIR/../tests/lib.sh"
 
 assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 

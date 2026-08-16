@@ -290,7 +290,7 @@ def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
     return nodes
 
 
-def self_check(nodes, data: bytes) -> "None":
+def self_check(nodes, data: bytes) -> None:
     """Partition invariants; violation is a bug, fail loudly."""
     n = len(data)
     if not nodes:
@@ -353,7 +353,7 @@ def resolve_format(path: str, override: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext not in EXTENSION_FORMATS:
         fail(2, f"unknown snapshot extension '{ext}' for {path!r}; "
-                f"known: {', '.join(sorted(k for k in EXTENSION_FORMATS))}. "
+                f"known: {', '.join(sorted(EXTENSION_FORMATS))}. "
                 f"Pass --format to override.")
     fmt = EXTENSION_FORMATS[ext]
     if fmt is None:

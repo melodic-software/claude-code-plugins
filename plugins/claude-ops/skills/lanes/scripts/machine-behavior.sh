@@ -243,7 +243,6 @@ printf 'current-worktree: %s\n' "$CURRENT_WT"
 printf 'worktree-count: %s\n' "$WT_COUNT"
 if ((WT_COUNT)); then
   printf 'worktrees:\n'
-  local_line=""
   for local_line in "${WT_LINES[@]}"; do
     printf '  %s  [%s]\n' "${local_line%%|*}" "${local_line#*|}"
   done

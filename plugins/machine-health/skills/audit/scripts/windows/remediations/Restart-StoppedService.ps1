@@ -54,7 +54,7 @@ function Get-PropertyValue {
     # and ordered dictionary values returned by ConvertFrom-Json.
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $false)] $InputObject,
+        $InputObject,
         [Parameter(Mandatory = $true)] [string] $Name
     )
 
@@ -71,7 +71,7 @@ function Get-PropertyValue {
 function Resolve-FindingTarget {
     [CmdletBinding()]
     [OutputType([object[]])]
-    param([Parameter(Mandatory = $false)] $FindingData)
+    param($FindingData)
 
     if ($null -eq $FindingData) { return @() }
 

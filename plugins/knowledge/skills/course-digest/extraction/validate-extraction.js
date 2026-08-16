@@ -32,6 +32,15 @@ import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 const args = parseCliArgs();
 const log = createLogger(resolveLogLevel(args));
 
+function summarize(checks) {
+  return {
+    total: checks.length,
+    passed: checks.filter((c) => c.severity === "pass").length,
+    warnings: checks.filter((c) => c.severity === "warn").length,
+    failed: checks.filter((c) => c.severity === "fail").length,
+  };
+}
+
 function main() {
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const modulesDir = join(courseDir, "modules");
@@ -57,14 +66,8 @@ function main() {
     try {
       const previousReport = JSON.parse(readFileSync(reportPath, "utf-8"));
       log.info("  Running regression checks...");
-      const preSummary = {
-        total: allChecks.length,
-        passed: allChecks.filter((c) => c.severity === "pass").length,
-        warnings: allChecks.filter((c) => c.severity === "warn").length,
-        failed: allChecks.filter((c) => c.severity === "fail").length,
-      };
       const regressions = checkRegression(
-        { summary: preSummary, checks: allChecks },
+        { summary: summarize(allChecks), checks: allChecks },
         previousReport,
       );
       allChecks.push(...regressions);
@@ -75,12 +78,7 @@ function main() {
     log.debug("  No previous validation-report.json — skipping regression checks");
   }
 
-  const summary = {
-    total: allChecks.length,
-    passed: allChecks.filter((c) => c.severity === "pass").length,
-    warnings: allChecks.filter((c) => c.severity === "warn").length,
-    failed: allChecks.filter((c) => c.severity === "fail").length,
-  };
+  const summary = summarize(allChecks);
 
   const currentReport = {
     timestamp: new Date().toISOString(),
@@ -111,13 +109,13 @@ function main() {
   }
 
   log.info(
-    `\n  Summary: ${currentReport.summary.passed} passed, ${currentReport.summary.warnings} warnings, ${currentReport.summary.failed} failed (${currentReport.summary.total} total)`,
+    `\n  Summary: ${summary.passed} passed, ${summary.warnings} warnings, ${summary.failed} failed (${summary.total} total)`,
   );
 
   writeFileSync(reportPath, JSON.stringify(currentReport, null, 2), "utf-8");
   log.info(`  Report: ${reportPath}\n`);
 
-  if (currentReport.summary.failed > 0) {
+  if (summary.failed > 0) {
     process.exit(1);
   }
 }

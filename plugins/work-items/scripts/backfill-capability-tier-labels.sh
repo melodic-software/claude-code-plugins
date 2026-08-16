@@ -63,12 +63,6 @@ label_exists_in_repo() {
     | jq -e --arg want "$CAPABILITY_TIER_LABEL" '[.[] | .name] | index($want) != null' >/dev/null
 }
 
-item_has_capability_tier_label() {
-  local labels_json="$1"
-  jq -e --arg want "$CAPABILITY_TIER_LABEL" \
-    '[.[] | .name] | index($want) != null' <<<"$labels_json" >/dev/null 2>&1
-}
-
 list_open_items_without_label_json() {
   require_gh
   local items
@@ -85,17 +79,15 @@ list_open_items_without_label_json() {
     ]' <<<"$items"
 }
 
-filter_legacy_candidates() {
-  local items_json="$1"
-  jq -c '.[]' <<<"$items_json" | while IFS= read -r item; do
-    local body labels_json number
+# collect_candidates — one candidate issue/PR number per line: open items that
+# lack the capability-tier label (the jq select above already excludes labelled
+# ones) and whose body still carries a legacy frontier-tier stamp.
+collect_candidates() {
+  local items item body number
+  items="$(list_open_items_without_label_json)"
+  jq -c '.[]' <<<"$items" | while IFS= read -r item; do
     body="$(jq -r '.body // ""' <<<"$item")"
-    labels_json="$(jq -c '.labels // []' <<<"$item")"
     number="$(jq -r '.number' <<<"$item")"
-    # shellcheck disable=SC2310  # jq probe; false means "no label", not a fault
-    if item_has_capability_tier_label "$labels_json"; then
-      continue
-    fi
     # shellcheck disable=SC2310  # regex probe; false means "no legacy stamp", not a fault
     if wit_body_has_legacy_frontier_tier_signal "$body"; then
       printf '%s\n' "$number"
@@ -113,8 +105,7 @@ EOF
 
 case "$MODE" in
   check)
-    items="$(list_open_items_without_label_json)"
-    filter_legacy_candidates "$items"
+    collect_candidates
     ;;
   apply)
     # shellcheck disable=SC2310  # gh probe; false means "label missing", handled below
@@ -123,7 +114,7 @@ case "$MODE" in
       echo "Run /work-items:setup apply to provision the label axis first, or route to the label-as-code owner." >&2
       exit 1
     fi
-    mapfile -t candidates < <(items="$(list_open_items_without_label_json)"; filter_legacy_candidates "$items")
+    mapfile -t candidates < <(collect_candidates)
     if [[ "${#candidates[@]}" -eq 0 ]]; then
       echo "No legacy frontier-tier body stamps need backfill."
       exit 0

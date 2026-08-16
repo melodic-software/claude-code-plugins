@@ -105,19 +105,14 @@ class FatalRunReturnsTwo(unittest.TestCase):
                 "--state-dir",
                 td,
             ]
-            original_argv = sys.argv
-            original_build = snapshot.build_snapshot
-
-            def _raise(_args):
-                raise RuntimeError("discovery exploded before any snapshot existed")
-
-            sys.argv = argv
-            snapshot.build_snapshot = _raise
-            try:
+            with mock.patch.object(sys, "argv", argv), mock.patch.object(
+                snapshot,
+                "build_snapshot",
+                side_effect=RuntimeError(
+                    "discovery exploded before any snapshot existed"
+                ),
+            ):
                 self.assertEqual(snapshot.main(), 2)
-            finally:
-                sys.argv = original_argv
-                snapshot.build_snapshot = original_build
 
 
 class ResolveSelfLoginsTests(unittest.TestCase):

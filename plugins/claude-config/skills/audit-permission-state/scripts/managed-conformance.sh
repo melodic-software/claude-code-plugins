@@ -91,7 +91,8 @@ $1 == "rule" {
       managed_order[++n_managed] = key
     }
   } else {
-    lower[$4 SUBSEP text_of(5)] = ($4 SUBSEP text_of(5)) in lower ? lower[$4 SUBSEP text_of(5)] "," $2 : $2
+    lk = $4 SUBSEP text_of(5)
+    lower[lk] = (lk in lower) ? lower[lk] "," $2 : $2
   }
   next
 }
@@ -170,16 +171,16 @@ END {
       # same records: the merge reported `inert allow … removed_by=deny@Bash`
       # while this reported `enforced allow`. Of the two, the administrator-
       # facing one over-claimed, which is the direction that matters.
+      # Only the kinds evaluated EARLIER than this one can beat it, in
+      # evaluation order; each is tried on the exact rule text first, then on
+      # the whole-tool form of that rule.
       tk = tool_of(text)
+      earlier_kinds = (kind == "allow") ? "deny ask" : "deny"
+      n_earlier = split(earlier_kinds, earlier, " ")
       beaten = ""; beaten_key = ""
-      if (kind == "allow") {
-        if ((("deny") SUBSEP text) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP text }
-        else if (tk != text && (("deny") SUBSEP tk) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP tk }
-        else if ((("ask") SUBSEP text) in lower) { beaten = "ask"; beaten_key = ("ask") SUBSEP text }
-        else if (tk != text && (("ask") SUBSEP tk) in lower) { beaten = "ask"; beaten_key = ("ask") SUBSEP tk }
-      } else if (kind == "ask") {
-        if ((("deny") SUBSEP text) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP text }
-        else if (tk != text && (("deny") SUBSEP tk) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP tk }
+      for (e = 1; e <= n_earlier && beaten == ""; e++) {
+        if ((earlier[e] SUBSEP text) in lower) { beaten = earlier[e]; beaten_key = earlier[e] SUBSEP text }
+        else if (tk != text && (earlier[e] SUBSEP tk) in lower) { beaten = earlier[e]; beaten_key = earlier[e] SUBSEP tk }
       }
       if (beaten != "") {
         split(beaten_key, bk, SUBSEP)
@@ -208,17 +209,17 @@ END {
 
   # disableAutoMode is the one auto-mode-adjacent lever that IS a lock -- and
   # only when it carries the documented string.
-  k = ("managed") SUBSEP "disableAutoMode"
-  k2 = ("managed") SUBSEP "permissions.disableAutoMode"
   for (kk in conf) {
     split(kk, kf, SUBSEP)
     if (kf[1] != "managed") continue
     if (kf[2] != "disableAutoMode" && kf[2] != "permissions.disableAutoMode") continue
-    if (conf[kk] == "\"disable\"")
+    if (conf[kk] == "\"disable\"") {
       print "managed enforced lockout " kf[2] " is set to \"disable\" in managed settings, which prevents auto mode from being used at all"
-    else
+      n_enforced++
+    } else {
       print "managed loosenable lockout " kf[2] " is " conf[kk] " in managed settings, but the documented value is the STRING \"disable\" — any other value is accepted and silently does nothing, so auto mode is NOT disabled"
-    if (conf[kk] == "\"disable\"") n_enforced++; else n_loosenable++
+      n_loosenable++
+    }
   }
 
   print "managed conformance summary enforced=" n_enforced + 0 " loosenable=" n_loosenable + 0 " status=read"

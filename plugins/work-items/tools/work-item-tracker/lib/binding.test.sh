@@ -6,7 +6,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=binding.sh
 source "$SCRIPT_DIR/binding.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
+source "$SCRIPT_DIR/../tests/lib.sh"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT

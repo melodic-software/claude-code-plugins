@@ -32,6 +32,16 @@ function workDirComplete(workDir) {
 }
 
 /**
+ * @param {string|undefined} dir
+ * @param {(name: string) => boolean} matches
+ * @returns {number} 0 when the directory is unset or gone
+ */
+function countMatchingFiles(dir, matches) {
+  if (!dir || !fs.existsSync(dir)) return 0;
+  return fs.readdirSync(dir).filter(matches).length;
+}
+
+/**
  * @param {string} sliceDir
  * @returns {{
  *   recoverable: boolean,
@@ -63,27 +73,16 @@ export function detectRecoverableBootstrap(sliceDir) {
     };
   }
 
-  const tempSession = resolveTempSession(watch.tempSession ?? {});
-  const workDir = tempSession.workDir;
-  const framesDir = tempSession.framesDir;
-  const contactSheetsDir = tempSession.contactSheetsDir;
+  const { workDir, framesDir, contactSheetsDir } = resolveTempSession(watch.tempSession ?? {});
 
   const hasWork = workDirComplete(workDir);
-  const frameCount =
-    framesDir && fs.existsSync(framesDir)
-      ? fs.readdirSync(framesDir).filter((n) => n.endsWith(".png")).length
-      : 0;
-  const sheetCount =
-    contactSheetsDir && fs.existsSync(contactSheetsDir)
-      ? fs.readdirSync(contactSheetsDir).filter((n) => /^sheet_\d+\.jpg$/i.test(n)).length
-      : 0;
+  const frameCount = countMatchingFiles(framesDir, (n) => n.endsWith(".png"));
+  const sheetCount = countMatchingFiles(contactSheetsDir, (n) => /^sheet_\d+\.jpg$/i.test(n));
 
-  const hasFrames = frameCount > 0;
-  const hasSheets = sheetCount > 0;
   // recover-watch-bootstrap.js reads mp4/vtt/info.json from workDir and throws
   // when they are gone, so a slice is only recoverable when workDir survives
   // too — advertising recovery without it hands the user a command that fails.
-  const recoverable = hasFrames && hasSheets && hasWork;
+  const recoverable = frameCount > 0 && sheetCount > 0 && hasWork;
 
   const reason = recoverable
     ? "temp dirs have video, frames, and contact sheets"

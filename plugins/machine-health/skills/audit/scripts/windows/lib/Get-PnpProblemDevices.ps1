@@ -27,7 +27,6 @@ function Get-PnpProblemDevice {
         return @()
     }
 
-    $raw = $null
     try {
         $raw = (& pnputil /enum-devices /problem 2>&1) -join "`n"
     } catch {
@@ -43,11 +42,7 @@ function Get-PnpProblemDevice {
     # "no devices have problems" message) -- drop it. When pnputil emits no
     # device blocks at all, the split produces a single preamble element and
     # we correctly return @().
-    $split = $raw -split '(?m)^Instance ID:'
-    $blocks = @()
-    if ($split.Count -gt 1) {
-        $blocks = @($split | Select-Object -Skip 1 | Where-Object { $_.Trim() })
-    }
+    $blocks = @($raw -split '(?m)^Instance ID:' | Select-Object -Skip 1 | Where-Object { $_.Trim() })
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 
     foreach ($block in $blocks) {
@@ -62,11 +57,8 @@ function Get-PnpProblemDevice {
         if (-not $fields.ContainsKey('Instance ID')) { continue }
 
         $code = 0
-        if ($fields.ContainsKey('Problem Code')) {
-            $codeRaw = $fields['Problem Code']
-            if ($codeRaw -match '(\d+)') {
-                $code = [int]$Matches[1]
-            }
+        if ($fields['Problem Code'] -match '(\d+)') {
+            $code = [int]$Matches[1]
         }
         $out.Add([pscustomobject]@{
                 instance_id        = $fields['Instance ID']

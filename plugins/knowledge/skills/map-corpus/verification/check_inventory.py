@@ -23,8 +23,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from typing import NoReturn
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                os.pardir, "lib"))
+from gate_common import Failures, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
 
 MANIFEST_SCHEMA = "node-manifest/v1"
 INVENTORY_SCHEMA = "node-inventory/v1"
@@ -44,18 +49,6 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _reject_duplicate_keys(pairs):
-    """object_pairs_hook: json.loads is last-wins on duplicate keys, so a
-    duplicated field would let unvalidated bytes ride under a validated name
-    (parser-differential fail-open). Reject at any depth instead."""
-    seen = {}
-    for key, value in pairs:
-        if key in seen:
-            raise ValueError(f"duplicate JSON key {key!r}")
-        seen[key] = value
-    return seen
-
-
 def load_json(path: str, what: str):
     try:
         with open(path, "rb") as fh:
@@ -63,19 +56,10 @@ def load_json(path: str, what: str):
     except OSError as exc:
         fail(2, f"cannot read {what} {path!r}: {exc}")
     try:
-        return json.loads(raw, object_pairs_hook=_reject_duplicate_keys)
+        return json.loads(raw, object_pairs_hook=reject_duplicate_keys)
     except ValueError as exc:
         fail(2, f"{what} {path!r} is not parseable JSON: {exc}. "
                 f"An unparsable {what} is a failed run, not a clean one.")
-
-
-class Failures:
-    def __init__(self):
-        self.items = []
-
-    def add(self, message: str):
-        self.items.append(message)
-        sys.stderr.write(f"check_inventory: FAIL: {message}\n")
 
 
 def check_manifest(manifest, data: bytes, failures: Failures):
@@ -254,7 +238,7 @@ def main(argv=None) -> int:
     manifest = load_json(args.manifest, "manifest")
     inventory = load_json(args.inventory, "inventory")
 
-    failures = Failures()
+    failures = Failures("check_inventory")
     nodes_by_id = check_manifest(manifest, data, failures)
     rows = check_inventory_shape(inventory)
 

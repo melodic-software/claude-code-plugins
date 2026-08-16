@@ -192,23 +192,19 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
             if is_json_object(check)
         ]
     )
-    failing = [check["name"] for check in checks if check["category"] == "failing"]
-    pending = [check["name"] for check in checks if check["category"] == "pending"]
-    failing_identities = [
-        check_identity(check) for check in checks if check["category"] == "failing"
-    ]
-    pending_identities = [
-        check_identity(check) for check in checks if check["category"] == "pending"
-    ]
-    success = sum(check["category"] == "success" for check in checks)
+    # The name list and the identity list of each bucket are two views of the
+    # SAME filtered checks; deriving both from one filter keeps them from
+    # drifting out of index-for-index correspondence.
+    failing_checks = [check for check in checks if check["category"] == "failing"]
+    pending_checks = [check for check in checks if check["category"] == "pending"]
 
     return {
         "total": len(checks),
-        "success": success,
-        "failing": failing,
-        "pending": pending,
-        "failing_identities": failing_identities,
-        "pending_identities": pending_identities,
+        "success": sum(check["category"] == "success" for check in checks),
+        "failing": [check["name"] for check in failing_checks],
+        "pending": [check["name"] for check in pending_checks],
+        "failing_identities": [check_identity(check) for check in failing_checks],
+        "pending_identities": [check_identity(check) for check in pending_checks],
         "checks": checks,
     }
 

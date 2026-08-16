@@ -157,25 +157,29 @@ rename_count=$(echo "$rename_candidates" | grep -c . || true)
 
 # --- Render plan -------------------------------------------------------------
 
+# print_entries <bullet-indent> <newline-separated entries> — list one entry per
+# line, skipping the blank line an empty list expands to.
+print_entries() {
+  local indent="$1" entry
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    printf '%s- %s\n' "$indent" "$entry"
+  done <<<"$2"
+}
+
 printf '\n%sPlugin drift fix plan%s (mode: %s)\n' "$CYAN" "$RESET" "$MODE"
 printf 'Settings file: %s\n\n' "$SETTINGS"
 
 if [[ "$remove_count" -gt 0 ]]; then
   printf '%sAUTO-REMOVE%s %d orphan entries (enabled=false):\n' "$YELLOW" "$RESET" "$remove_count"
-  while IFS= read -r entry; do
-    [[ -z "$entry" ]] && continue
-    printf '  - %s\n' "$entry"
-  done <<<"$auto_remove"
+  print_entries '  ' "$auto_remove"
   echo
 fi
 
 if [[ "$add_count" -gt 0 ]]; then
   # shellcheck disable=SC2016  # backticks are intentional markdown literal in user-facing output
   printf '%sAUTO-ADD%s %d new upstream plugins as `false`:\n' "$CYAN" "$RESET" "$add_count"
-  while IFS= read -r entry; do
-    [[ -z "$entry" ]] && continue
-    printf '  - %s\n' "$entry"
-  done <<<"$auto_add"
+  print_entries '  ' "$auto_add"
   echo
 fi
 
@@ -183,19 +187,13 @@ if [[ "$manual_count" -gt 0 ]]; then
   printf '%sMANUAL REVIEW%s %d orphans currently enabled (true):\n' "$RED" "$RESET" "$manual_count"
   printf '  These plugins were intentionally enabled but are now gone upstream.\n'
   printf '  Auto-fix would silently break user intent — surfacing only:\n'
-  while IFS= read -r entry; do
-    [[ -z "$entry" ]] && continue
-    printf '    - %s\n' "$entry"
-  done <<<"$manual_orphans"
+  print_entries '    ' "$manual_orphans"
   echo
 fi
 
 if [[ "$rename_count" -gt 0 ]]; then
   printf '%sRENAME?%s %d possible rename pairs (heuristic — review manually):\n' "$YELLOW" "$RESET" "$rename_count"
-  while IFS= read -r entry; do
-    [[ -z "$entry" ]] && continue
-    printf '  - %s\n' "$entry"
-  done <<<"$rename_candidates"
+  print_entries '  ' "$rename_candidates"
   echo
 fi
 

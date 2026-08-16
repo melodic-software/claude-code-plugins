@@ -172,9 +172,10 @@ def glob_matches(subject: str, pattern: str) -> bool:
     """Case-insensitive glob match, on every platform.
 
     One matcher for every glob the engine evaluates — hints, consumer
-    protection globs, and the protection re-checks in the preview, verify, and
-    apply lanes — so discovery and protection cannot disagree about what a name
-    is. `fnmatch.fnmatch` is not that matcher: its case folding follows the host
+    protection globs, the baseline protected-name globs, and the protection
+    re-checks in the preview, verify, and apply lanes — so discovery and
+    protection cannot disagree about what a name is.
+    `fnmatch.fnmatch` is not that matcher: its case folding follows the host
     platform, so its verdict would change with where the scan runs.
 
     Casefolding is the safe direction for both roles. A protection glob that
@@ -316,8 +317,7 @@ def has_protected_name(path: Path, exact_names: set[str]) -> bool:
         name in {value.casefold() for value in exact_names}
         or name.startswith("ntuser.dat")
         or any(
-            fnmatch.fnmatchcase(name, pattern.casefold())
-            for pattern in baseline_protected_name_globs()
+            glob_matches(name, pattern) for pattern in baseline_protected_name_globs()
         )
     )
 
@@ -333,9 +333,10 @@ def has_protected_path_component(path: Path, exact_names: set[str]) -> bool:
 def _windows_env_roots() -> list[Path]:
     """The OS-install roots the environment names, absolute, skipping the unset.
 
-    Shared by system_roots() and os_drive_markers(): the two disagree about the
-    per-volume metadata names, never about which environment variables point at
-    the OS install, so naming them once keeps that half from drifting.
+    Shared by system_roots(), os_drive_markers(), and
+    volume_root_os_owned_names(): they disagree about the per-volume metadata
+    names, never about which environment variables point at the OS install, so
+    naming them once keeps that half from drifting.
     """
     return [
         Path(value).absolute()
@@ -1080,16 +1081,7 @@ def volume_root_os_owned_names(
             for name in (
                 WINDOWS_VOLUME_SYSTEM_NAMES
                 | WINDOWS_OS_ROOT_EXTRA_NAMES
-                | {
-                    Path(value).name
-                    for value in (
-                        os.environ.get("SystemRoot"),
-                        os.environ.get("ProgramFiles"),
-                        os.environ.get("ProgramFiles(x86)"),
-                        os.environ.get("ProgramData"),
-                    )
-                    if value
-                }
+                | {root.name for root in _windows_env_roots()}
             )
         }
     if current == "macos":
@@ -1828,15 +1820,14 @@ def same_identity(path: Path, entry: dict[str, Any]) -> bool:
 
 
 def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
-    kind = (
-        "link"
-        if is_linkish_stat(info)
-        else "directory"
-        if stat.S_ISDIR(info.st_mode)
-        else "file"
-        if stat.S_ISREG(info.st_mode)
-        else "other"
-    )
+    if is_linkish_stat(info):
+        kind = "link"
+    elif stat.S_ISDIR(info.st_mode):
+        kind = "directory"
+    elif stat.S_ISREG(info.st_mode):
+        kind = "file"
+    else:
+        kind = "other"
     checks = (
         kind == entry.get("kind"),
         info.st_size == entry.get("stat_size"),
@@ -2538,24 +2529,16 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
     globs = snapshot_protection_globs(snapshot)
-    if root_child_names_case_sensitive(snapshot.get("platform")):
-        selected_root_children = {
-            name
-            for name in snapshot.get("root_children_selected", [])
-            if isinstance(name, str)
-        }
+    root_children_sensitive = root_child_names_case_sensitive(snapshot.get("platform"))
 
-        def root_child_key(name: str) -> str:
-            return name
-    else:
-        selected_root_children = {
-            name.casefold()
-            for name in snapshot.get("root_children_selected", [])
-            if isinstance(name, str)
-        }
+    def root_child_key(name: str) -> str:
+        return name if root_children_sensitive else name.casefold()
 
-        def root_child_key(name: str) -> str:
-            return name.casefold()
+    selected_root_children = {
+        root_child_key(name)
+        for name in snapshot.get("root_children_selected", [])
+        if isinstance(name, str)
+    }
 
     results = []
     blocked = False
@@ -3000,18 +2983,34 @@ def anchored_remove(
         os.close(parent_fd)
 
 
+def apply_nothing_removed_report(
+    plan: dict[str, Any], target: Path, skipped: list[dict[str, str]]
+) -> dict[str, Any]:
+    """An apply report for a run that removed nothing and skipped every candidate."""
+    return {
+        "status": "completed-with-skips",
+        "tier": plan["tier"],
+        "target": str(target),
+        "removed": [],
+        "skipped": skipped,
+        "paths_removed": 0,
+        "empty_directories_removed": 0,
+        "logical_bytes_removed": 0,
+        "reclaimable_local_bytes_removed": 0,
+        "observed_free_space_delta_bytes": 0,
+    }
+
+
 def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
     platform_blockers = execution_blockers()
     if platform_blockers:
-        return {
-            "status": "completed-with-skips",
-            "tier": plan["tier"],
-            "target": str(target),
-            "removed": [],
-            "skipped": [
+        return apply_nothing_removed_report(
+            plan,
+            target,
+            [
                 {
                     "path": item["path"],
                     "outcome": "protected",
@@ -3019,21 +3018,14 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 }
                 for item in candidates
             ],
-            "paths_removed": 0,
-            "empty_directories_removed": 0,
-            "logical_bytes_removed": 0,
-            "reclaimable_local_bytes_removed": 0,
-            "observed_free_space_delta_bytes": 0,
-        }
+        )
     checked = preview(snapshot, plan)
     if checked["status"] != "ready-for-explicit-approval":
         by_path = {item["path"]: item for item in checked["candidates"]}
-        return {
-            "status": "completed-with-skips",
-            "tier": plan["tier"],
-            "target": str(target),
-            "removed": [],
-            "skipped": [
+        return apply_nothing_removed_report(
+            plan,
+            target,
+            [
                 {
                     "path": item["path"],
                     "outcome": "protected",
@@ -3041,12 +3033,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 }
                 for item in candidates
             ],
-            "paths_removed": 0,
-            "empty_directories_removed": 0,
-            "logical_bytes_removed": 0,
-            "reclaimable_local_bytes_removed": 0,
-            "observed_free_space_delta_bytes": 0,
-        }
+        )
     before = shutil.disk_usage(target).free
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []

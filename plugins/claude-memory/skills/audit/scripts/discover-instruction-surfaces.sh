@@ -91,6 +91,13 @@ emit() {
   printf '%s\t%s\t%s\n' "$1" "$2" "$3"
 }
 
+emit_rules() {
+  # $1 rules dir, $2 scope
+  while IFS= read -r rule; do
+    [[ -n "$rule" ]] && emit "$2" rule "$rule"
+  done < <(find "$1" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
+}
+
 # Canonical physical path of a directory, or empty when it does not resolve.
 # `pwd -P` because two dirs can be the SAME directory reached by two different
 # strings — see the overlap note below.
@@ -161,9 +168,7 @@ fi
 if [[ -d ".claude/rules" ]]; then
   proj_rule_scope=project
   [[ "$rules_overlap" -eq 1 ]] && proj_rule_scope=both
-  while IFS= read -r rule; do
-    [[ -n "$rule" ]] && emit "$proj_rule_scope" rule "$rule"
-  done < <(find ".claude/rules" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
+  emit_rules ".claude/rules" "$proj_rule_scope"
 fi
 
 # --- user scope --------------------------------------------------------------
@@ -180,9 +185,7 @@ if [[ -n "$config_root" && -d "$config_root" ]]; then
   # Suppressed entirely when the two rules dirs coincide — those files were already
   # emitted above, once, as `both`.
   if [[ -d "$config_root/rules" && "$rules_overlap" -eq 0 ]]; then
-    while IFS= read -r rule; do
-      [[ -n "$rule" ]] && emit user rule "$rule"
-    done < <(find "$config_root/rules" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
+    emit_rules "$config_root/rules" user
   fi
 fi
 

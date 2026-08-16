@@ -190,7 +190,9 @@ function main(argv) {
 
   let epicDir = resolveEpicDir();
   let maxAgeDays = DEFAULT_STALE_DAYS;
-  const positional = [];
+  /** First `--video-id` wins; a repeated flag is ignored. */
+  let videoId = null;
+  const rows = [];
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -203,10 +205,11 @@ function main(argv) {
       continue;
     }
     if (arg === "--video-id" && args[i + 1]) {
-      positional.push({ type: "videoId", value: args[++i] });
+      const value = args[++i];
+      if (videoId === null) videoId = value;
       continue;
     }
-    positional.push({ type: "raw", value: arg });
+    rows.push(arg);
   }
 
   if (command === "list") {
@@ -221,20 +224,17 @@ function main(argv) {
     return;
   }
 
-  const rowToken = positional.find((p) => p.type === "raw");
-  if (!rowToken) {
+  const rowToken = rows[0];
+  if (rowToken === undefined) {
     writeStderr(`Missing row for ${command}`);
     process.exit(1);
   }
 
-  const row = Number(rowToken.value);
+  const row = Number(rowToken);
   if (!Number.isInteger(row) || row < 1) {
-    writeStderr(`Invalid row: ${rowToken.value}`);
+    writeStderr(`Invalid row: ${rowToken}`);
     process.exit(1);
   }
-
-  const videoIdEntry = positional.find((p) => p.type === "videoId");
-  const videoId = videoIdEntry ? videoIdEntry.value : null;
 
   if (command === "claim") {
     try {

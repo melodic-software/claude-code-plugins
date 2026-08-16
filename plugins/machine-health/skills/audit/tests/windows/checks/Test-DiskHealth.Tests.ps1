@@ -33,6 +33,7 @@ BeforeAll {
     # exists inside the child script scope otherwise.
     . (Join-Path $script:LibRoot 'Get-PhysicalDiskReliability.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
     function Invoke-DiskHealthAsObject {
         param([switch]$Human)
@@ -40,9 +41,7 @@ BeforeAll {
             $raw = & $script:ScriptPath -Human
             return $raw
         }
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
+        return ConvertFrom-CheckOutput (& $script:ScriptPath)
     }
 }
 

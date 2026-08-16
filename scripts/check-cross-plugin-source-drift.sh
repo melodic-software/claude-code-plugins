@@ -60,9 +60,23 @@ for plugin_dir in plugins/*/; do
   done < <(find "$plugin_dir" -type f -print0)
 done
 
-for rel in "${!cluster_entries[@]}"; do
+# load_cluster <rel> -> populate the globals `entries` ("plugin:fullpath" pairs)
+# and `plugins_list` (plugin names only). Globals rather than stdout: the callers
+# need two arrays plus ${#entries[@]}, and a command substitution would both lose
+# the arrays and put a function call where .shellcheckrc's SC2310 warns about
+# set -e suppression.
+load_cluster() {
   # shellcheck disable=SC2206
-  entries=(${cluster_entries[$rel]})
+  entries=(${cluster_entries[$1]})
+  plugins_list=()
+  local entry
+  for entry in "${entries[@]}"; do
+    plugins_list+=("${entry%%:*}")
+  done
+}
+
+for rel in "${!cluster_entries[@]}"; do
+  load_cluster "$rel"
   ((${#entries[@]} >= 2)) || continue
 
   first_hash=""
@@ -104,12 +118,7 @@ esac
 
 if [[ "$mode" == "discover" ]]; then
   for rel in $(printf '%s\n' "${!cluster_status[@]}" | sort); do
-    # shellcheck disable=SC2206
-    entries=(${cluster_entries[$rel]})
-    plugins_list=()
-    for entry in "${entries[@]}"; do
-      plugins_list+=("${entry%%:*}")
-    done
+    load_cluster "$rel"
     reg=""
     [[ -n "${registered[$rel]:-}" ]] && reg=" [registered]"
     printf '%-10s %s  (plugins: %s)%s\n' "${cluster_status[$rel]}" "$rel" "${plugins_list[*]}" "$reg"
@@ -122,12 +131,7 @@ errors=0
 
 for rel in "${!cluster_status[@]}"; do
   if [[ "${cluster_status[$rel]}" == "IDENTICAL" && -z "${registered[$rel]:-}" ]]; then
-    # shellcheck disable=SC2206
-    entries=(${cluster_entries[$rel]})
-    plugins_list=()
-    for entry in "${entries[@]}"; do
-      plugins_list+=("${entry%%:*}")
-    done
+    load_cluster "$rel"
     echo "UNREGISTERED: $rel is byte-identical across ${#entries[@]} plugins (${plugins_list[*]}) with no entry in $registry." >&2
     echo "  Either give it a dedicated drift check and register it, or add it to $registry as accepted." >&2
     errors=$((errors + 1))

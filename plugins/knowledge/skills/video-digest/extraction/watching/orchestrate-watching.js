@@ -80,8 +80,7 @@ export async function orchestrateWatching(
   log.info("watching: pass-1 starting (probe → scene-detect → coverage plan)");
 
   const probe = await runProbe(videoPath);
-  const lastCue = cues.length > 0 ? cues[cues.length - 1] : null;
-  const durationSec = probe?.durationSec ?? lastCue?.endSec ?? 0;
+  const durationSec = probe?.durationSec ?? cues.at(-1)?.endSec ?? 0;
 
   const sceneResult = await runSceneDetect(videoPath, framesDir, {}, { log });
   const scenePaths = sceneResult.frames.map((frame) => frame.path);
@@ -95,13 +94,15 @@ export async function orchestrateWatching(
   });
 
   /** @type {number[]} */
-  let anchorTimestamps = [...densificationAnchorTimestamps(windows), ...cueAnchorTimestamps(cues)];
+  const anchorTimestamps = [
+    ...densificationAnchorTimestamps(windows),
+    ...cueAnchorTimestamps(cues),
+  ];
 
   if (coveragePlan.forceStratifiedPass) {
-    anchorTimestamps = [
-      ...anchorTimestamps,
+    anchorTimestamps.push(
       ...stratifiedSampleTimestamps(durationSec, coveragePlan.stratifiedIntervalSec),
-    ];
+    );
   }
 
   log.info(`watching: anchor extraction starting count=${anchorTimestamps.length}`);

@@ -220,6 +220,10 @@ END {
     # a false positive on the most ordinary rule shape there is.
     if (body == "") continue
 
+    # The `word` of a `word:value` body, computed once: the colon-star checks,
+    # the parameter-form checks and the content-field check all ask about it.
+    pfx = prefix_of(body)
+
     # A Windows-style path in a rule: rule paths are normalized to POSIX form
     # before matching, so `C:\Users\alice` never matches anything.
     #
@@ -282,23 +286,22 @@ END {
     # no command prefixes -- `Agent` -- the colonStar explanation is simply
     # wrong. The rule is dead either way; only one of the two says why.
     cs = index(body, ":*")
-    is_param_shape = (prefix_of(body) ~ /^[A-Za-z_][A-Za-z0-9_]*$/) && (value_of(body) !~ /[ \t]/)
+    mid_colon_star = (cs > 0 && cs + 1 < length(body))
+    is_param_shape = (pfx ~ /^[A-Za-z_][A-Za-z0-9_]*$/) && (value_of(body) !~ /[ \t]/)
     param_form = (kind != "allow") ? is_param_shape \
-      : (is_param_shape && (tool SUBSEP prefix_of(body)) in param_only)
-    if (cs > 0 && cs + 1 < length(body) && !param_form && !((tool SUBSEP prefix_of(body)) in documented_param))
+      : (is_param_shape && (tool SUBSEP pfx) in param_only)
+    if (mid_colon_star && !param_form && !((tool SUBSEP pfx) in documented_param))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
     # Mid-pattern `:*` with no trailing space is structurally identical to a live
     # parameter form (`Agent(model:*-haiku)`). Once the space is gone nothing in
     # the rule text distinguishes them; silence is fail-open on deny/ask rules.
-    if (cs > 0 && cs + 1 < length(body) && kind != "allow" && is_param_shape && !((tool SUBSEP prefix_of(body)) in documented_param) && !((tool SUBSEP prefix_of(body)) in param_only))
+    if (mid_colon_star && kind != "allow" && is_param_shape && !((tool SUBSEP pfx) in documented_param) && !((tool SUBSEP pfx) in param_only))
       finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a dead command prefix or a parameter wildcard — verify which you intended")
 
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.
     colon = index(body, ":")
     if (colon > 1) {
-      param = substr(body, 1, colon - 1)
-      sub(/[ \t]+$/, "", param)
-      if (tool in content_field && param == content_field[tool])
+      if (tool in content_field && pfx == content_field[tool])
         finding("error", "C6-contentField", scope, text " — a rule cannot match a tool primary content field by parameter (" tool " uses " content_field[tool] "); Claude Code ignores this rule and warns at startup")
       # "Deny and ask rules can match a top-level input parameter… An allow rule
       # for one parameter value would not establish that the call is safe
@@ -311,7 +314,7 @@ END {
       # `Bash(npm:*)` is a command prefix), so this fires only where the shape
       # is unambiguously the parameter form: a known top-level parameter name
       # on a tool whose own syntax is a path or a command.
-      else if (kind == "allow" && (tool SUBSEP param) in param_only)
+      else if (kind == "allow" && (tool SUBSEP pfx) in param_only)
         finding("warning", "C6-allowParam", scope, text " — parameter matching is documented for deny and ask rules only; an allow rule uses the specifier syntax its own tool defines, so this grant may not take effect as written")
     }
 

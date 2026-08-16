@@ -33,12 +33,15 @@ function Assert-CheckResult {
 
     $ctx = if ($Because) { " ($Because)" } else { '' }
 
+    # Flatten both accepted shapes into one case-insensitive field map so every
+    # rule below is a plain lookup instead of a shape-conditional accessor.
+    # A hashtable/ordered dictionary and a pscustomobject's property bag both
+    # key case-insensitively, so the map keys the same way either source did.
+    $fields = @{}
     if ($Result -is [System.Collections.IDictionary]) {
-        $getField = { param($n) if ($Result.Contains($n)) { $Result[$n] } else { $null } }
-        $hasField = { param($n) $Result.Contains($n) }
+        foreach ($k in $Result.Keys) { $fields[$k] = $Result[$k] }
     } else {
-        $getField = { param($n) $Result.PSObject.Properties[$n].Value }
-        $hasField = { param($n) $null -ne $Result.PSObject.Properties[$n] }
+        foreach ($p in $Result.PSObject.Properties) { $fields[$p.Name] = $p.Value }
     }
 
     $requiredKeys = @(
@@ -47,12 +50,12 @@ function Assert-CheckResult {
         'severity', 'summary', 'trend'
     )
     foreach ($k in $requiredKeys) {
-        if (-not (& $hasField $k)) {
+        if (-not $fields.ContainsKey($k)) {
             throw "CheckResult missing required field '$k'$ctx."
         }
     }
 
-    $id = & $getField 'id'
+    $id = $fields['id']
     if ($id -cnotmatch '^[a-z][a-z0-9-]*[a-z0-9]$') {
         throw "CheckResult.id '$id' is not valid kebab-case$ctx."
     }
@@ -61,23 +64,23 @@ function Assert-CheckResult {
         'config', 'drivers', 'network', 'power', 'reliability',
         'security', 'services', 'storage', 'updates'
     )
-    $category = & $getField 'category'
+    $category = $fields['category']
     if ($category -notin $validCategories) {
         throw "CheckResult.category '$category' not in allowed set$ctx."
     }
 
-    $os = & $getField 'os'
+    $os = $fields['os']
     if ($os -notin @('linux', 'macos', 'windows')) {
         throw "CheckResult.os '$os' not in allowed set$ctx."
     }
 
     $validSeverities = @('CRIT', 'INFO', 'OK', 'UNKNOWN', 'WARN')
-    $severity = & $getField 'severity'
+    $severity = $fields['severity']
     if ($severity -notin $validSeverities) {
         throw "CheckResult.severity '$severity' not in allowed set$ctx."
     }
 
-    $summary = & $getField 'summary'
+    $summary = $fields['summary']
     if ([string]::IsNullOrWhiteSpace($summary)) {
         throw "CheckResult.summary is empty$ctx."
     }
@@ -85,13 +88,13 @@ function Assert-CheckResult {
         throw "CheckResult.summary exceeds 240 chars ($($summary.Length))$ctx."
     }
 
-    $duration = & $getField 'duration_ms'
+    $duration = $fields['duration_ms']
     if ($duration -lt 0 -or $duration -gt 90000) {
         throw "CheckResult.duration_ms out of range [0,90000]: $duration$ctx."
     }
 
-    $ranSuccessfully = & $getField 'ran_successfully'
-    $errorField = & $getField 'error'
+    $ranSuccessfully = $fields['ran_successfully']
+    $errorField = $fields['error']
     if (-not $ranSuccessfully) {
         if ($severity -ne 'UNKNOWN') {
             throw "When ran_successfully is false, severity must be UNKNOWN (got '$severity')$ctx."
@@ -101,7 +104,7 @@ function Assert-CheckResult {
         }
     }
 
-    $commands = & $getField 'commands'
+    $commands = $fields['commands']
     foreach ($cmd in $commands) {
         if ([string]::IsNullOrWhiteSpace($cmd)) {
             throw "CheckResult.commands contains empty or whitespace entry$ctx."
@@ -111,7 +114,7 @@ function Assert-CheckResult {
     # trend is object-or-null with additionalProperties:false in the schema.
     # Enforce the sub-shape here so an emitter drift (e.g. a stray last_severity)
     # fails loudly instead of silently diverging from check-result.schema.json.
-    $trend = & $getField 'trend'
+    $trend = $fields['trend']
     if ($null -ne $trend) {
         $allowedTrendKeys = @('last_run', 'delta', 'adjusted_from')
         if ($trend -is [System.Collections.IDictionary]) {
