@@ -680,8 +680,11 @@ jobs:
   # passes here, and that class belongs to the post-merge silent-revert canary
   # (scripts/check-silent-revert.sh, silent-revert-canary.yml). The two are
   # disjoint; neither subsumes the other.
+  # The job itself never skips (a skipped required lane's result is not
+  # `success`, which the ci-status aggregate rejects) — only the PR overlap
+  # steps are event-gated. The detector self-test runs on every event so a
+  # broken detector cannot mask a regression behind a push-to-main skip.
   stale-base-overlap-gate:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -692,15 +695,18 @@ jobs:
           fetch-depth: 0
           # PR head, not the synthetic merge commit: overlap is computed against
           # the branch tip the author will squash, so merge-base math must match
-          # that tip rather than an already-merged-with-base tree.
-          ref: ${{ github.event.pull_request.head.sha }}
+          # that tip rather than an already-merged-with-base tree. Push falls
+          # back to github.sha so `ref` is never empty on main.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Test the stale-base overlap detector
         run: bash scripts/check-stale-base-overlap.test.sh
       - name: Fetch base ref
+        if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
       - name: Fail when behind base on overlapping paths
+        if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-stale-base-overlap.sh --check "origin/$BASE_REF"
