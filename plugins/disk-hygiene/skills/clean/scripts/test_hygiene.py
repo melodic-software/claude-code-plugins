@@ -6173,6 +6173,9 @@ class GuardTests(unittest.TestCase):
             "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
             "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(10).MoveHere($path)",
             "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
+            # #2850: the send-to-the-bin spelling names the item's PARENT folder,
+            # so no bin id appears anywhere in the command.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('delete')",
             "Move-Item C:/tmp/old C:/tmp/new",
             "Rename-Item C:/tmp/old C:/tmp/new",
             "Set-Content C:/tmp/file.txt 'overwrite'",
@@ -6321,6 +6324,7 @@ class GuardTests(unittest.TestCase):
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($path,'OnlyErrorDialogs','SendToRecycleBin')",
             "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
             "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('delete')",
         ):
             result = self.run_guard_powershell_disabled(command)
             assert result is not None, command
@@ -6363,14 +6367,59 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
+    def test_powershell_shell_app_send_to_bin_via_parent_folder_prompts(self) -> None:
+        """#2850: the send-to-the-bin spelling names the PARENT folder, not the bin.
+
+        `NameSpace()` takes the containing folder's path and the delete verb is
+        invoked on the item, so no Recycle Bin folder id (10 / 0xa) appears
+        anywhere in the command. The verdict must key on the delete verb.
+        """
+        for command in (
+            "$sh = New-Object -ComObject Shell.Application; "
+            "$item = $sh.NameSpace('C:\\some\\parent').ParseName('victim'); "
+            "$item.InvokeVerb('delete')",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('delete')",
+            '$sh.NameSpace("C:\\some\\parent").ParseName("victim").InvokeVerb("Delete")',
+            # A menu accelerator names the same verb.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('&Delete')",
+            # `InvokeVerbEx` is the same call with arguments; a word boundary
+            # closed immediately after `InvokeVerb` would not cover the suffixed
+            # spelling.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerbEx('delete')",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "ask",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+            self.assertRegex(
+                result["hookSpecificOutput"]["permissionDecisionReason"],
+                r"Recycle Bin",
+                command,
+            )
+
     def test_powershell_shell_app_without_bin_action_defers(self) -> None:
         """Listing the bin is not a deletion spelling; MoveHere/InvokeVerb is required."""
         for command in (
             "(New-Object -ComObject Shell.Application).NameSpace(10).Items()",
             "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(10)",
-            # MoveHere against a non-bin namespace is outside this Recycle Bin rule;
-            # Move-Item remains the catch-all for rename/move cmdlets.
+            # MoveHere into an ordinary (non-bin) folder is a MOVE, not a
+            # deletion, so it stays outside the Recycle Bin rule — including the
+            # verb-keyed half added for #2850. Nothing else on this lane covers
+            # it either: `_POWERSHELL_MUTATION_WORDS` matches neither `MoveHere`
+            # (the `move` entry's trailing `(?![\w-])` rejects the `here`) nor
+            # `InvokeVerb`, so `Move-Item` is not the catch-all for these COM
+            # spellings. Widening the mutation-word set is its own change.
             "(New-Object -ComObject Shell.Application).NameSpace('C:\\tmp').MoveHere($path)",
+            # CopyHere copies; the original is untouched.
+            "(New-Object -ComObject Shell.Application).NameSpace('C:\\tmp').CopyHere($path)",
+            # Non-delete verbs, and the omitted verb (the default, typically
+            # "open"), are not deletions.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('open')",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb()",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').Verbs()",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 

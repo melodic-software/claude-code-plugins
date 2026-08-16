@@ -725,6 +725,14 @@ fi
 
 should_skip_dir_name() {
   local name="$1" skip
+  # This arm is defence in depth, not a live guard: no input reaching the sole caller
+  # (discover_repositories' child loop) can match it. `.` and `..` can never BE a child basename —
+  # the loop's globs are "$dir"/* (no dotfiles), "$dir"/.[!.]* and "$dir"/..?*, none of which can
+  # yield `.` or `..`. And for `.git`, the nested-repository early return fires first on the
+  # identical path and predicate, so the loop never runs for a directory holding one. The arm is
+  # kept so a future refactor of that early return cannot silently start walking `.git` internals.
+  # Its contract is asserted directly in audit-fleet.test.sh, because no discovery-level test can
+  # observe it (#2844).
   case "$name" in
   . | .. | .git) return 0 ;;
   *) ;;
@@ -1279,9 +1287,11 @@ discover_repositories() {
     # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
     [[ -e "$child" || -L "$child" ]] || continue
     name="$(basename "$child")"
-    # Configurable skip list (--skip / fleet.skip). . , .. , and .git are always skipped; other
-    # names come from SKIP_NAMES (defaults, or an explicit replace list). See usage() for replace
-    # semantics.
+    # Configurable skip list (--skip / fleet.skip): names come from SKIP_NAMES (defaults, or an
+    # explicit replace list). See usage() for replace semantics. should_skip_dir_name also carries
+    # an unconditional . / .. / .git arm, but no child basename reaching here can match it — see
+    # the note on that arm. It is defence in depth, not what keeps discovery out of .git internals;
+    # the nested-repository early return above does that.
     if should_skip_dir_name "$name"; then
       continue
     fi
