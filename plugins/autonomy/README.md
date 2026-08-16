@@ -51,7 +51,8 @@ state and records that binding.
   prober — with `deferred-class` marking `join:` rows that have no identities yet. Per-identity
   facts live in each `v1` leaf; `generated/identity-prerequisites.json` is the drift-gated
   emission derived from those leaves (generator under `skills/setup/scripts/`);
-  `skills/setup/scripts/resolve-prerequisites.mjs` is the deterministic per-surface resolver.
+  `skills/setup/scripts/resolve-prerequisites.mjs` is the deterministic per-surface resolver;
+  the setup skill's prerequisite-resolution slice (`check` / `apply`) consumes it.
 - **Runner design pack** (`reference/runner.md`): the architect-ready design contract for the
   autonomous-drain runner — the composition spine and its eight seams, the lifecycle state
   model, the two-family stop-criteria taxonomy with terminal-handoff escalation and

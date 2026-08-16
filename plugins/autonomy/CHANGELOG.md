@@ -3,6 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **Prerequisite-resolution setup slice** (#2725). Extends `/autonomy:setup` with
+  `check` (per-identity verdicts + provenance across declared surfaces via
+  `scripts/check-prerequisite-resolution.mjs`; engine health-check liveness) and
+  `apply` (detect-diff-reconcile, prose-context proposals into non-security keys,
+  human ratify → additive `prerequisite_resolution` section with `surface_refs` and
+  no `surfaces` map; narrowing-only enablement; org-rung interviewed never
+  auto-written; security binding prepared never written). Spoke:
+  `context/prerequisite-resolution-slice.md`. Co-located slice test + evals 30–31.
+
 ## [0.21.0]
 
 ### Added

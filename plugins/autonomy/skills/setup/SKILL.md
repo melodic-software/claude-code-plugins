@@ -430,6 +430,35 @@ resolution order.
    `signal.routine`, an unresolvable surface, an identity↔surface mismatch, a raw link outside the
    ratified prefix, a `producer_identity` mismatch, or an unclassified class is a finding.
 
+## Prerequisite-resolution slice
+
+Extends this skill per its own extension model for
+[routine prerequisite resolution](${CLAUDE_PLUGIN_ROOT}/reference/prerequisite-resolution.md).
+Detail lives in
+[`context/prerequisite-resolution-slice.md`](context/prerequisite-resolution-slice.md).
+
+**Liveness.** The slice `check` is an engine health-check surface: it invokes
+[`scripts/resolve-prerequisites.mjs`](scripts/resolve-prerequisites.mjs) end-to-end and
+fails loud on internal failure — never a verdict-shaped fallback.
+
+1. **`check`** — for each scheduling surface already recorded under `triggers` / `routines`
+   (this slice declares no `surfaces` map of its own), report per-identity verdicts with
+   provenance via
+   [`scripts/check-prerequisite-resolution.mjs`](scripts/check-prerequisite-resolution.mjs).
+   A bare repo yields `unsupported` / `unknown` for every identity, never an error.
+2. **`apply`** — detect-diff-reconcile against existing `prerequisite_resolution`
+   declarations; a declaration contradicting a ran-negative probe is a finding (identity
+   stays negative while the finding is open — ADR 0011 Decision 2). The prose-context pass
+   reads `CLAUDE.md` / `AGENTS.md` (session-reachable only by reference) / `README` to
+   *propose* declarations into **non-security keys only**; the human ratifies; the slice
+   writes the additive section (`surface_refs` + `declarations`, no `surfaces` map).
+   Narrowing-only enablement: enable in `routines.enabled` only when the verdict clears;
+   negative/`unknown` routes to the advisory path. Org-rung entitlements are interviewed,
+   never auto-written. Non-interactive contexts skip ask-and-persist and report assumptions.
+   Security-binding changes are **prepared**, never written.
+   Wrapper:
+   [`scripts/apply-prerequisite-resolution.mjs`](scripts/apply-prerequisite-resolution.mjs).
+
 ## Runner note
 
 The [runner design pack](${CLAUDE_PLUGIN_ROOT}/reference/runner.md) is bindable-when-born:
@@ -454,7 +483,8 @@ surface recorded in two `surfaces` maps resolving as ambiguous — are catalogue
 ## What this skill does NOT do
 
 - Wire capability slices that have not shipped yet — each lands with its own work package and
-  extends this skill (the runner charter execution pack is the next such slice).
+  extends this skill (the runner charter execution pack remains the next such slice after
+  prerequisite-resolution).
 - Estimate, impute, or backfill the two human-attested return fields — ever.
 - Mutate platform settings, user settings, or `pluginConfigs`.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or
