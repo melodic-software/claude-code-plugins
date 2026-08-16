@@ -85,7 +85,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" \
 | `watch` | **Active** | Dequeue first `pending` queue row (FIFO) — claim stub → bootstrap → full skill pipeline. |
 | `watch <n>` | **Active** | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | **Active** | Full pipeline: ≤1080p download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
-| `resume <slice-slug>` | **Active** | Continue interrupted watch from `watch.json` phase-map state in `.work/<watch-epic>/<slice-slug>/`. |
+| `resume <slice-slug>` | **Active** | Continue interrupted watch from `watch.json` phase-map state in the named slice under `.work/<watch-epic>/` (same directory documented elsewhere in this skill as `<video-slug>`). |
 
 `--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its own) — see "Synthesis target resolution".
 
@@ -322,7 +322,7 @@ Deterministic frame-selection stages (`orchestrate-watching.js`), the standalone
 node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<slice-slug>"
 ```
 
-Reads `.work/<watch-epic>/<video-slug>/watch.json`, identifies the next incomplete phase (`acquire` → `transcript` → `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`, and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run `run-watch.js` before vision.
+Reads `.work/<watch-epic>/<slice-slug>/watch.json`, identifies the next incomplete phase (`acquire` → `transcript` → `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`, and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run `run-watch.js` before vision.
 
 **Handoff ritual** (context pressure or session end):
 
