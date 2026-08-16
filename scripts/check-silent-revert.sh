@@ -28,7 +28,7 @@
 # ------------------------------------------------------------------------------
 # The intuitive reading of #2691 is "stale base", whose fix is GitHub's
 # `strict_required_status_checks_policy` (require branches up to date before
-# merging). That reading does not survive the evidence. PR #2641's head commit
+# merging). That reading does not survive the evidence. pull request 2641's head commit
 # a1cc5cf6 has f603880d (#2639) IN ITS ANCESTRY -- `git merge-base --is-ancestor
 # f603880d refs/pull/2641/head` is true -- while its TREE carried zero
 # occurrences of #2639's marker strings. #2639 shows the identical shape against
