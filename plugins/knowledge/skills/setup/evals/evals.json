@@ -1,0 +1,41 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-read-only",
+      "prompt": "Run /knowledge:setup check in a repository whose CLAUDE.md declares a knowledge artifact convention, with the extraction node deps and Chromium not yet provisioned.",
+      "expected_output": "Reports a PASS/FAIL/INFO table: library_dir judged against the repository's declared convention (PASS on match, FAIL with the plugin-configuration remediation on mismatch), and the node-deps, Chromium, and OS media-tool probes reported as INFO with their remediations — without editing settings, writing config, or installing anything.",
+      "expectations": [
+        "No settings file, pluginConfigs entry, or dependency install is written or run",
+        "Missing extraction deps and Chromium are INFO with remediation 'apply install-deps', not FAIL",
+        "library_dir convention is read from CLAUDE.md/AGENTS.md/.claude/rules/artifact dirs, not inferred from .claude/topic-docs.yaml",
+        "Each FAIL row carries exactly one remediation line"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-mismatch-is-guidance-only",
+      "prompt": "Run /knowledge:setup apply where the observed library_dir is a machine-absolute path that contradicts the repository convention. Fix it.",
+      "expected_output": "Routes the fix to Claude Code's own configuration surface — /plugin configure knowledge interactively, or the uninstall-then-reinstall --config sequence headless at the scope claude plugin list reports — and warns that reinstalling must re-supply every non-default option value; it never hand-edits pluginConfigs or Claude Code settings, and defers verification of the new value to a fresh session.",
+      "expectations": [
+        "Does not write library_dir into any settings or pluginConfigs file",
+        "Headless path warns that uninstall drops stored options, so the reinstall re-supplies every non-default key and current values are recorded first",
+        "Recommends a portable value form (~ prefix or env-var reference) over a literal machine path",
+        "Does not claim the changed value is in effect this session"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "install-deps-verifies-by-reprobe",
+      "prompt": "Run /knowledge:setup apply install-deps on a machine where the vendored node deps and Chromium are absent but yt-dlp is also missing.",
+      "expected_output": "Runs both idempotent setup-deps.mjs provisioners (video-digest and course-digest) under CLAUDE_PLUGIN_ROOT, then re-runs the check probes and reports their actual post-install results rather than trusting exit codes; for the missing yt-dlp it gives the platform install command only, installing no system packages and running no ingestion pipeline.",
+      "expectations": [
+        "Both provisioners are invoked, not just one",
+        "Provisioned state is claimed only from re-run probe results, never from script exit codes alone",
+        "yt-dlp/ffmpeg/ImageMagick absence yields install guidance, not an attempted system install",
+        "No ingestion pipeline is started"
+      ]
+    }
+  ]
+}
