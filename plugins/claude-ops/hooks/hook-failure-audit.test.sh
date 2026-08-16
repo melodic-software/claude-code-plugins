@@ -97,6 +97,66 @@ assert_contains "no marker home -> still warns" "$OUT4" "PreToolUse:Bash"
 OUT5=$(env -u CLAUDE_PLUGIN_DATA bash "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$T2\",\"hook_event_name\":\"Stop\"}" 2>&1)
 assert_contains "no marker home -> re-warns rather than suppresses" "$OUT5" "PreToolUse:Bash"
 
+# --- Launch failure vs completed non-zero exit are DIFFERENT diagnoses ------
+# #2849: the "fails to launch" sentence was unconditional, so a hook that ran
+# to completion and exited non-zero was told it never launched and was handed a
+# restart-the-session remedy that changes nothing for it. The corpus behind that
+# issue (175 records, 2026-08-16) has zero records with an EMPTY stderr — the
+# harness synthesizes a sentence instead — so the empty-stderr placeholder the
+# #2593 fix shipped never fired, and the synthesized sentence reached operators
+# verbatim as though the hook had emitted it.
+HARNESS_NO_STDERR='Failed with non-blocking status code: No stderr output'
+
+custom_record() { # <hookName> <command> <stderr> <exitCode> <durationMs>
+  printf '{"parentUuid":"p","isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"%s","toolUseID":"toolu_x","hookEvent":"Stop","stderr":"%s","stdout":"","exitCode":%s,"command":"%s","durationMs":%s},"type":"attachment","uuid":"u","timestamp":"2026-08-13T13:56:38.155Z","session_id":"s","sessionId":"s","version":"2.1.228"}\n' \
+    "$1" "${3//\"/\\\"}" "$4" "$2" "$5"
+}
+
+# 2593's own record: ran 1190 ms, exited 1, carrying the harness placeholder.
+T_DONE="$TEST_TMPDIR/completed.jsonl"
+custom_record "Stop:ran-and-failed" "node stop-hook.mjs" "$HARNESS_NO_STDERR" 1 1190 >"$T_DONE"
+OUT_DONE=$(run_hook "$T_DONE" "$TEST_TMPDIR/data-done")
+RC_DONE=$?
+assert_exit "completed non-zero exit -> exit 0" 0 "$RC_DONE"
+assert_contains "completed record is still surfaced" "$OUT_DONE" "Stop:ran-and-failed"
+assert_contains "diagnosed as a completed non-zero exit" "$OUT_DONE" "completed non-zero exit"
+assert_absent "not described as a launch failure" "$OUT_DONE" "fails to launch"
+assert_absent "no restart-the-session remedy" "$OUT_DONE" "restart"
+assert_absent "harness placeholder not attributed to the hook" "$OUT_DONE" "$HARNESS_NO_STDERR"
+assert_contains "no-stderr rendered as an explicit marker" "$OUT_DONE" "last stderr: (none — hook produced no stderr)"
+
+# A real hook stderr must survive untouched — the placeholder rewrite is keyed
+# on the harness's exact sentence, not on "looks like there was no output".
+# Quote-free so the assertion compares the message text itself rather than the
+# emitting envelope's JSON escaping of it.
+REAL_STDERR='TypeError: Cannot read properties of undefined (reading cwd) at hooks/broken-stop.mjs:42:11'
+T_REAL="$TEST_TMPDIR/real-stderr.jsonl"
+custom_record "Stop:threw" "node broken-stop.mjs" "$REAL_STDERR" 1 640 >"$T_REAL"
+OUT_REAL=$(run_hook "$T_REAL" "$TEST_TMPDIR/data-real")
+assert_contains "real stderr passed through unchanged" "$OUT_REAL" "$REAL_STDERR"
+assert_absent "real stderr not replaced by the no-output marker" "$OUT_REAL" "hook produced no stderr"
+assert_absent "a hook that ran and threw is not a launch failure" "$OUT_REAL" "fails to launch"
+
+# The launch-failure wording must SURVIVE where it is correct. Both shapes:
+# exit 127 (the shell's own not-found code) and an execvpe signature.
+T_127="$TEST_TMPDIR/exit127.jsonl"
+custom_record "PreToolUse:Bash" "missing-binary --guard" "$HARNESS_NO_STDERR" 127 12 >"$T_127"
+OUT_127=$(run_hook "$T_127" "$TEST_TMPDIR/data-127")
+assert_contains "exit 127 is a launch failure" "$OUT_127" "launch failure"
+assert_contains "exit 127 keeps the fails-to-launch wording" "$OUT_127" "fails to launch"
+assert_contains "exit 127 keeps the restart remedy" "$OUT_127" "restart"
+
+T_EXECVPE="$TEST_TMPDIR/execvpe.jsonl"
+custom_record "PreToolUse:Bash" "bash relay-guard.sh" "$WSL_STDERR" 1 8 >"$T_EXECVPE"
+OUT_EXECVPE=$(run_hook "$T_EXECVPE" "$TEST_TMPDIR/data-execvpe")
+assert_contains "execvpe at exit 1 is still a launch failure" "$OUT_EXECVPE" "launch failure"
+assert_contains "execvpe keeps the fails-to-launch wording" "$OUT_EXECVPE" "fails to launch"
+
+# The maintainer-facing prose describing the #2593 fix is gone from the
+# operator-facing message (#2849).
+assert_absent "no maintainer-facing implementation prose" "$OUT_EXECVPE" "empty-stderr placeholder"
+assert_absent "no maintainer-facing implementation prose (completed)" "$OUT_DONE" "empty-stderr placeholder"
+
 # --- Bounded tail: a failure pushed past the window is not read -------------
 T3="$TEST_TMPDIR/t3.jsonl"
 DATA3="$TEST_TMPDIR/data3"

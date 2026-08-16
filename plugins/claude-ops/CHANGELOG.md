@@ -3,6 +3,37 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.5]
+
+### Fixed
+
+- **Hook-failure audit tells a launch failure apart from a completed non-zero exit (#2849).** The
+  `hook-failure-audit` Stop hook emitted one unconditional sentence — "A hook that fails to launch
+  enforces nothing" — plus a restart-the-session remedy, on every record, including a hook that ran
+  to completion and exited non-zero, the exact case #2593 was written for. Each record is now
+  classified and labelled `launch failure` or `completed non-zero exit`, and the diagnosis and
+  remedy follow the classification: the launch-failure wording and the restart remedy are kept
+  verbatim where they are correct and are simply not asserted about a hook that ran. A batch
+  carrying both classes gets both sentences; the per-record label says which record earned which.
+  The discriminator is the shell's own exec-failure surface — `exitCode` 126/127, or an
+  exec-failure signature (`execvpe`, `execve(`, `exec format error`, `not recognized as an internal
+  or external command`) in the record's FULL stderr, read before the 160-character truncation.
+  `exitCode` alone cannot carry the split: all 175 records in the measured corpus (2026-08-16) have
+  a non-null `exitCode`, and 1 is the code the WSL relay reports for its own exec failures. The
+  signature set deliberately excludes `command not found` and `cannot execute`, which a
+  successfully launched hook can print from a command it ran itself.
+- **The harness's synthesized "no stderr" sentence is no longer attributed to the hook (#2849).**
+  The empty-stderr placeholder shipped in 0.32.2 keyed on `.stderr == ""`, a shape Claude Code does
+  not emit — 0 of 175 measured records carry it, while 12 carry the literal
+  `Failed with non-blocking status code: No stderr output`, which passed through verbatim and read
+  as though the hook had emitted that sentence. Both shapes now render as
+  `last stderr: (none — hook produced no stderr)`. A real stderr is still passed through unchanged;
+  the match is exact, not a prefix.
+- **Maintainer-facing prose removed from the operator-facing message (#2849).** The sentence
+  "Includes exitCode and an empty-stderr placeholder so silent Stop failures remain attributable
+  (hookName + command)" explained the fix's implementation to an operator trying to act on an
+  incident, and is gone.
+
 ## [0.32.4]
 
 ### Changed

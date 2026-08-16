@@ -86,6 +86,21 @@ read_window() {
 # marketplace), and the attachment's command string is what tells them apart —
 # grouping by hookName alone would let registration B's first failure hide
 # behind registration A's earlier warning.
+#
+# `launch` classifies the record: a hook that never LAUNCHED and one that RAN
+# and exited non-zero are different incidents with different remedies, and only
+# the first is fixed by restarting the session (#2849). `exitCode` alone cannot
+# carry the split — every record in the observed corpus has a non-null exitCode
+# (175/175 on 2026-08-16), and 1 is the code the WSL relay reports for its exec
+# failures, so "exitCode is not null" and "exitCode != 1" both misclassify. The
+# discriminator is the shell's own exec-failure surface: 126/127, or an
+# exec-failure signature in stderr. The signature set stays narrow on purpose —
+# `command not found` and `cannot execute` are excluded because a hook that
+# launched fine can print either from a command it ran itself, which would
+# re-introduce this defect in a new shape; 126/127 already cover those for the
+# hook's own command. Classification reads the FULL stderr, before the 160-char
+# truncation below: the observed `execvpe` signature sits at offset 90-94 and
+# survives truncation today, but that is luck, not contract.
 SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
   jq -cRs '[
       split("\n")[] | fromjson?
@@ -94,11 +109,15 @@ SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
       | {hookName: (.hookName // "unknown"),
          command: ((.command // "") | .[0:120]),
          exitCode: (.exitCode // null),
+         launch: ((.exitCode == 126 or .exitCode == 127)
+                  or ((.stderr // "")
+                      | test("execvpe|execve\\(|exec format error|not recognized as an internal or external command"; "i"))),
          stderr: ((.stderr // "") | .[0:160])}
     ]
     | group_by(.hookName + "	" + .command)
     | map({hookName: .[0].hookName, command: .[0].command,
-           count: length, exitCode: last.exitCode, stderr: last.stderr})' 2>/dev/null)
+           count: length, exitCode: last.exitCode, launch: last.launch,
+           stderr: last.stderr})' 2>/dev/null)
 [[ -n "$SUMMARY" && "$SUMMARY" != "[]" ]] || exit 0
 
 # Once per session per hook name. Markers live under ${CLAUDE_PLUGIN_DATA}
@@ -126,14 +145,46 @@ NEW=$(jq -cn --argjson summary "$SUMMARY" --arg warned "$WARNED" '
 [[ -n "$NEW" && "$NEW" != "[]" ]] || exit 0
 
 TOTAL=$(jq -rn --argjson new "$NEW" '[$new[].count] | add')
-DETAIL=$(jq -rn --argjson new "$NEW" '
+
+# Claude Code synthesizes this exact sentence as the stderr of a hook that
+# produced none, so an empty `.stderr` is a shape the harness does not emit —
+# 0 of 175 observed records carry one, while 12 carry this literal (#2849).
+# Passing it through verbatim reads as though the HOOK emitted the sentence;
+# both shapes are rendered as the same explicit no-output marker instead. The
+# match is exact, not a prefix: the string is the whole stderr in every
+# observed record (12/12 exact, 0 needing whitespace trimming).
+NO_STDERR_PLACEHOLDER='Failed with non-blocking status code: No stderr output'
+
+DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
   [$new[] |
-    (if .stderr == "" then "(no stderr output)" else .stderr end) as $err |
+    (if (.stderr == "" or .stderr == $ph) then "(none — hook produced no stderr)"
+     else .stderr end) as $err |
     (if .exitCode == null then "?" else (.exitCode|tostring) end) as $ec |
-    "\(.hookName) [\(.command)] (\(.count)x; exit \($ec); last stderr: \($err))"
+    (if .launch then "launch failure" else "completed non-zero exit" end) as $kind |
+    "\(.hookName) [\(.command)] (\(.count)x; \($kind); exit \($ec); last stderr: \($err))"
   ] | join("; ")')
 
-MSG="claude-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}. A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open). Includes exitCode and an empty-stderr placeholder so silent Stop failures remain attributable (hookName + command). Confirm hook_failure_audit_enabled stays true via /plugin configure claude-ops@<marketplace> (default true). If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
+HAS_LAUNCH=$(jq -rn --argjson new "$NEW" '[$new[].launch] | any')
+HAS_COMPLETED=$(jq -rn --argjson new "$NEW" '[$new[].launch | not] | any')
+
+# The diagnosis and the remedy are per-class, so both sentences can appear when
+# one warning batches records of both classes; the per-record `$kind` above says
+# which record earned which. The launch-failure wording is kept VERBATIM where
+# it is correct — it is right for the 164 exec-failure records in the observed
+# corpus — and is simply not asserted about a hook that ran to completion. The
+# completed branch stays event-agnostic: 2593's record is a Stop hook, where
+# there is no guarded tool call to proceed.
+MSG="claude-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}."
+if [[ "$HAS_LAUNCH" == "true" ]]; then
+  MSG="${MSG} A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open)."
+fi
+if [[ "$HAS_COMPLETED" == "true" ]]; then
+  MSG="${MSG} A hook that ran to completion and exited non-zero enforced nothing either, and Claude Code told nobody — but it did launch, so the failure is in the hook's own logic: read the exit status and stderr above."
+fi
+MSG="${MSG} Confirm hook_failure_audit_enabled stays true via /plugin configure claude-ops@<marketplace> (default true)."
+if [[ "$HAS_LAUNCH" == "true" ]]; then
+  MSG="${MSG} If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
+fi
 
 hook::emit_system_message "$MSG"
 
