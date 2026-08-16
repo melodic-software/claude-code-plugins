@@ -2,7 +2,7 @@
 
 Starting values from RESEARCH lane 2 and `design-threads.md` D9. Host e2e on driver
 (`7zZy1QTvokM`, 2026-06-11): dynamic coverage plan replaces soft cap; stratified + cue-anchor
-frames merged with scene-detect. Variation smokes in `skills/youtube-digest/reference/variation-matrix-backlog.json`.
+frames merged with scene-detect. Variation smokes in `skills/video-digest/reference/variation-matrix-backlog.json`.
 
 **ffmpeg spawn:** local file inputs must omit `-user_agent`/`-headers` (ffmpeg 8+); remote
 HLS/HTTP URLs keep them (`isRemoteVideoInput` in `frames/scene-detect.js`).
@@ -26,7 +26,7 @@ HLS/HTTP URLs keep them (`isRemoteVideoInput` in `frames/scene-detect.js`).
 
 **Tune signal:** slide decks with minor animation may need tighter distance; mixed demos may need looser.
 
-## Densification (`youtube-extraction/watching/densification.js`)
+## Densification (`video-extraction/watching/densification.js`)
 
 | Constant | Default | Module export |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 
 **Tune signal:** driver video is mixed talking-head + on-screen prompts — expect moderate densification, not screencast-density.
 
-## Dynamic coverage (`youtube-extraction/watching/compute-coverage-plan.js`)
+## Dynamic coverage (`video-extraction/watching/compute-coverage-plan.js`)
 
 | Constant | Default | Module export |
 | --- | --- | --- |
@@ -52,7 +52,7 @@ No hard frame cap — `summarizeFrameSelection` sets `highVolume` when count > `
 
 ## Post-watch retune checklist (host)
 
-After `/youtube watch` on driver video:
+After `/video-digest watch` on driver video:
 
 1. Compare selected frame count vs soft cap.
 2. Note false-negative scene cuts (missed slide transitions) → adjust `DEFAULT_SCENE_THRESHOLD`.
