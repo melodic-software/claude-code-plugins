@@ -13,9 +13,19 @@
 # WHY THIS EXISTS (#2691)
 # ----------------------
 # On 2026-08-15, three squash merges each landed a tree that dropped work a
-# sibling PR had merged minutes earlier. #2633 dropped #2632's rollups (853
-# lines); #2639 dropped #2635's report-ordering fix (346); #2641 dropped
-# #2639's guard work (451) -- destructive_guard.py went 1643 -> 1424 lines.
+# sibling PR had merged minutes earlier. #2633 dropped #2644's finding rollups
+# (853 lines) AND #2642's aliased GraphQL merge evidence (301) in one squash --
+# plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh went 2178 ->
+# 1700 lines with every `rollup` and `graphql` marker at zero; #2639 dropped
+# #2635's report-ordering fix (346); #2641 dropped #2639's guard work (451) --
+# destructive_guard.py went 1643 -> 1424 lines.
+#
+# Every PARENTHESIZED line count above is a blame attribution: the number of
+# lines the reverting squash deleted that `git blame` credits to that one
+# culprit commit. It is not the squash's diffstat (cc58cbc53 removed 1165
+# lines in total) and not the number of lines the culprit added. The bare
+# `2178 -> 1700` and `1643 -> 1424` figures are a different measurement --
+# whole-file line counts before and after.
 #
 # Every check stayed green through all three, and that is the point: each
 # reverting squash removed the code AND the tests covering it in the same
@@ -49,10 +59,10 @@
 # chosen.
 #
 #   Curated marker strings (#2691's own suggestion 3). Catches only what
-#   somebody pre-registered. Nobody had registered #2632, #2635 or #2639 --
-#   registration happens after you already know a fix matters, which is exactly
-#   the knowledge the incident destroys. It also decays: the list is only as
-#   fresh as the last person who remembered to append to it.
+#   somebody pre-registered. Nobody had registered #2644, #2642, #2635 or
+#   #2639 -- registration happens after you already know a fix matters, which
+#   is exactly the knowledge the incident destroys. It also decays: the list is
+#   only as fresh as the last person who remembered to append to it.
 #
 #   Merge-base staleness (the PR's branch point vs. what landed since).
 #   Tested and REJECTED on evidence: it exonerates all three real incidents,
@@ -65,10 +75,12 @@
 #   open, so it fires on almost everything.
 #
 # What is left is content: blame the lines a merge deleted and see who had just
-# added them. Measured over the last 500 first-parent commits of main, the three
-# known incidents score 853 / 451 / 346 lines against a single recent commit,
-# and the highest verified-legitimate commit scores well below the threshold
-# below. The separation is what makes the canary livable.
+# added them. Measured over the last 500 first-parent commits of main, the
+# three known incidents score 853 / 451 / 346 lines against a single recent
+# commit -- plus a fourth attribution of 301 lines on the SAME #2633 squash,
+# whose deletions trace to two different culprits and are reported separately.
+# The highest verified-legitimate commit scores well below the threshold below.
+# The separation is what makes the canary livable.
 #
 # FALSE-POSITIVE STRATEGY (the whole design rests on this)
 # -------------------------------------------------------
@@ -101,8 +113,10 @@
 # THE RESIDUAL FALSE POSITIVE, MEASURED RATHER THAN ASSUMED
 # ---------------------------------------------------------
 # At these settings, over the last 500 first-parent commits of main, the canary
-# fires 5 times -- 1%. Three are the confirmed incidents. The other two are both
-# real, and neither is a bug in the detector:
+# fires on 5 commits -- 1%. (Six findings, not five: #2633's squash deleted
+# content from two different culprits and each attribution is reported on its
+# own.) Three of the five commits are the confirmed incidents. The other two
+# are both real, and neither is a bug in the detector:
 #
 #   6f0a31109 (#2640, 390 lines) is the manual RESTORE of #2633's revert. To
 #   put back what #2633 dropped it had to delete what #2633 had added, so a

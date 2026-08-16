@@ -4,11 +4,11 @@ name: silent-revert-canary
 # another recently-merged commit had just added.
 #
 # On 2026-08-15 three squash merges each landed a tree that dropped work a
-# sibling PR had merged minutes earlier (#2633 dropped #2632, #2639 dropped
-# #2635, #2641 dropped #2639). Every check stayed green through all three,
-# because each reverting squash removed the code AND its tests in the same
-# commit -- no suite can fail for a behavior whose tests are gone. Two issues
-# sat CLOSED as COMPLETED with their fixes absent from main.
+# sibling PR had merged minutes earlier (#2633 dropped both #2644 and #2642,
+# #2639 dropped #2635, #2641 dropped #2639). Every check stayed green through
+# all three, because each reverting squash removed the code AND its tests in
+# the same commit -- no suite can fail for a behavior whose tests are gone.
+# Two issues sat CLOSED as COMPLETED with their fixes absent from main.
 #
 # DETECTION, NOT PREVENTION -- and deliberately so.
 #
