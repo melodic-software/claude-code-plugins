@@ -10,7 +10,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Stale-base squash-merge hygiene (#2691).** Document the babysit/pull-request rule: never
   squash-merge while the head is behind its base (even when `mergeStateStatus` is CLEAN under
   a non-strict ruleset). Point at `scripts/check-stale-base-overlap.sh` and the durable
-  `requiredStatusChecks.strict` setting in `melodic-software/github-iac`.
+  `requiredStatusChecks.strict` setting in the org's branch-protection / ruleset repo.
 
 ## [0.54.6]
 
