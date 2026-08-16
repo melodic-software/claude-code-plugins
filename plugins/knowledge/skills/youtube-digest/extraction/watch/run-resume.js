@@ -2,7 +2,7 @@
 /**
  * CLI: resume interrupted `/youtube-digest watch` from phase-map state.
  *
- * Usage: node watch/run-resume.js <video-slug>
+ * Usage: node watch/run-resume.js <slice-slug>
  */
 
 import path from "node:path";
@@ -30,7 +30,7 @@ import {
 export async function runResumeCli(argv) {
   const videoSlug = argv[2];
   if (!videoSlug) {
-    writeStderr("Usage: node watch/run-resume.js <video-slug>");
+    writeStderr("Usage: node watch/run-resume.js <slice-slug>");
     return 1;
   }
 
