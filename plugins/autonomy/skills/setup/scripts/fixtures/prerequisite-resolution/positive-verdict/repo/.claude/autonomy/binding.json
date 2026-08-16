@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "triggers": {
+    "surfaces": {
+      "ci-cron": {
+        "class": "temporal",
+        "transport": "poll",
+        "scheduler_class": "ci-cron",
+        "execution_surface": "github-actions",
+        "merge_policy_capable": true
+      }
+    }
+  },
+  "prerequisite_resolution": {
+    "schema_version": "1.0",
+    "declarations": [
+      {
+        "surface": "ci-cron",
+        "need": "advisory_database",
+        "state": "present",
+        "rung": "repo-local"
+      },
+      {
+        "surface": "ci-cron",
+        "need": "upstream_changelog",
+        "state": "present",
+        "rung": "repo-local"
+      }
+    ]
+  }
+}

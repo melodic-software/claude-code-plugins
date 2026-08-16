@@ -3,6 +3,24 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **Deterministic prerequisite resolver** (#2724).
+  `skills/setup/scripts/resolve-prerequisites.mjs` resolves the verdict set for every
+  `v1` identity on a named scheduling surface, reading
+  `generated/identity-prerequisites.json` (never leaf prose). Repo-file and
+  harness-context probes compose `.claude/autonomy/binding.json` declarations,
+  `.claude/ecosystems/*.yaml` (resolved / `enabled: false` not configured),
+  `.work-item-tracker.json` + adapter `capabilities.json`, and `.mcp.json`
+  (presence vs enablement). Precedence follows ADR 0011 Decision 2: declaration
+  narrows; a ran-negative probe caps declarations (contradiction finding);
+  unprobeable stays distinct from absent. Output is wall-clock-free (byte-identical
+  consecutive runs). Liveness: engine health-check taxonomy row, fail-loud.
+  Seven graded fixtures under `skills/setup/scripts/fixtures/prerequisite-resolution/` with
+  co-located `*.test.sh` + manifest.
+
 ## [0.20.0]
 
 ### Added
