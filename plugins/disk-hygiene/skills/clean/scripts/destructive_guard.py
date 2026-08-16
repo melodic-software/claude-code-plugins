@@ -1371,17 +1371,95 @@ _POWERSHELL_VB_FILESYSTEM_DELETE = re.compile(
 _POWERSHELL_SHELL_APP_NAMESPACE_BIN = re.compile(
     r"(?i)NameSpace\s*\(\s*(?:10|0x0*a)\s*\)"
 )
+# `InvokeVerbEx` is the same call with arguments, so the stem carries the `Ex`
+# suffix here rather than being closed off by `\b` after `InvokeVerb` (which
+# does NOT match `InvokeVerbEx`): "This method is similar to InvokeVerb, but it
+# allows you to specify arguments to the command as well as the command itself"
+# (https://learn.microsoft.com/en-us/windows/win32/shell/invokeverbex, fetched
+# 2026-08-16).
 _POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
-    r"(?i)(?<![\w])(?:MoveHere|InvokeVerb)\b"
+    r"(?i)(?<![\w])(?:MoveHere|InvokeVerb(?:Ex)?)\b"
 )
+# The rule above is keyed on the bin's folder id, which the ordinary
+# send-an-item-to-the-bin spelling never mentions: there `NameSpace()` takes the
+# item's PARENT FOLDER path and the delete verb is invoked on the item —
+# `$sh.NameSpace('<folder>').ParseName('victim').InvokeVerb('delete')` (#2850).
+# That shape is keyed on the delete VERB instead of on the folder id.
+#
+# ENUMERATED, NOT IDENTITY-CHECKED — completeness is not implied. No identity
+# test exists for a COM shell verb: the argument is a name out of the item's own
+# verb collection, not a stable canonical token. Of `vVerb`, Microsoft's
+# `FolderItem.InvokeVerb` reference
+# (https://learn.microsoft.com/en-us/windows/win32/shell/folderitem-invokeverb,
+# fetched 2026-08-16) says: "A string that specifies the verb to be executed. It
+# must be one of the values returned by the item's FolderItemVerb.Name property.
+# If no verb is specified, the default verb will be invoked." `FolderItemVerb
+# .Name` in turn only "Contains the verb's name"
+# (https://learn.microsoft.com/en-us/windows/win32/shell/folderitemverb-name,
+# fetched 2026-08-16) — so a verb named anything other than the enumerated
+# spellings below (a localized name, for instance) is NOT covered.
+#
+# Deliberately outside this rule, each still deferring:
+#   - `MoveHere` into an ordinary (non-bin) folder — that is a MOVE, not a
+#     deletion;
+#   - a non-literal verb argument (`InvokeVerb($verb)`) — the verb is opaque;
+#   - the omitted verb (`InvokeVerb()`) — the default verb, "typically 'open'"
+#     per the `FolderItem.InvokeVerb` reference above.
+#
+# The lookbehind is `(?<![\w])`, not the cmdlet list's `(?<![\w./\\-])`: a
+# hyphen-prefixed relative (`My-InvokeVerb('delete')`, a wrapper function) still
+# matches, deliberately. Tightening it would buy precision by making a wrapper
+# that deletes go SILENT, which is the failure this rule exists to close;
+# prompting once on a wrapper is the cheaper error.
+_POWERSHELL_SHELL_APP_INVOKE_VERB_ARG = re.compile(
+    r"(?i)(?<![\w])InvokeVerb(?:Ex)?\s*\(\s*(?P<quote>[\"'])(?P<verb>[^\"']*)(?P=quote)"
+)
+_SHELL_APP_DELETE_VERB_NAMES = frozenset({"delete"})
 
 
-def _is_shell_application_recycle_bin_delete(command: str) -> bool:
-    """True for Shell.Application Recycle Bin MoveHere / InvokeVerb shapes."""
-    return (
+def _shell_verb_name_deletes(verb: str) -> bool:
+    """True when a shell verb NAME is one of the enumerated delete verbs.
+
+    A menu accelerator marks the same verb (`&Delete`, `De&lete`), so `&` is
+    dropped before the comparison, and surrounding whitespace is stripped so a
+    padded literal (`' delete '`) resolves to the same verb rather than slipping
+    past the enumeration.
+    """
+    return verb.replace("&", "").strip().casefold() in _SHELL_APP_DELETE_VERB_NAMES
+
+
+def _shell_application_recycle_bin_delete_reason(command: str) -> str | None:
+    """Reason for a COM shell deletion spelling, or None.
+
+    The bin-id branch is tested first so a command satisfying both (a bin-id
+    `NameSpace` whose item is deleted with `InvokeVerb`) keeps naming the folder
+    id in its verdict.
+
+    Only that first branch requires a `Shell.Application` context. The verb-arg
+    branch below is deliberately context-free: it matches a literal delete verb
+    passed to `InvokeVerb` on ANY COM object, with no `Shell.Application` or
+    `NameSpace` call required anywhere in the command. A caller reading only the
+    function name should not infer otherwise — the name is historical, and the
+    reason string the second branch returns says "COM shell delete verb" rather
+    than naming `Shell.Application` for exactly this reason.
+    """
+    if (
         _POWERSHELL_SHELL_APP_NAMESPACE_BIN.search(command) is not None
         and _POWERSHELL_SHELL_APP_BIN_ACTION.search(command) is not None
-    )
+    ):
+        return (
+            "disk-hygiene flagged a Shell.Application NameSpace(10) Recycle Bin "
+            "MoveHere/InvokeVerb deletion."
+        )
+    if any(
+        _shell_verb_name_deletes(match.group("verb"))
+        for match in _POWERSHELL_SHELL_APP_INVOKE_VERB_ARG.finditer(command)
+    ):
+        return (
+            "disk-hygiene flagged a COM shell delete verb "
+            "(InvokeVerb sends the item to the Recycle Bin)."
+        )
+    return None
 
 
 def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
@@ -1418,12 +1496,9 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
             "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
         )
-    if _is_shell_application_recycle_bin_delete(command):
-        return _powershell_mutation_verdict(
-            enabled,
-            "disk-hygiene flagged a Shell.Application NameSpace(10) Recycle Bin "
-            "MoveHere/InvokeVerb deletion.",
-        )
+    shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
+    if shell_app_recycle_bin is not None:
+        return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:
         return _powershell_mutation_verdict(
