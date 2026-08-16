@@ -272,7 +272,10 @@ if git rev-parse --verify --quiet "a6be07f9^{commit}" >/dev/null 2>&1; then
   fi
   rm -rf "$hist"
 else
-  ok "skip historical proof (a6be07f9 not in this clone)"
+  # Historical proof-of-red must fail closed when the anchor is unavailable —
+  # scoring the skip as ok would let a shallow clone or rewritten history
+  # report green while proving nothing (#2807).
+  fail "historical proof unavailable (a6be07f9 not in this clone)"
 fi
 
 # Live tree must pass.

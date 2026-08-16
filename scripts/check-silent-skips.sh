@@ -6,16 +6,25 @@
 # documented classification, never a default.
 #
 #   scripts/check-silent-skips.sh          fail if any hook entry script
-#                                          silently skips on a missing CLI
+#                                          silently skips on a missing CLI,
+#                                          or if a scripts/*.test.sh scores
+#                                          a skip as PASS without annotation
 #
 # Two shapes are flagged in plugins/*/hooks/*.sh (entry scripts only —
 # hook-utils.sh lib copies have their own sync gate and review; *.test.sh
-# files exercise these patterns as fixtures):
+# files under hooks/ exercise these patterns as fixtures):
 #
 #   1. same-line guard:   command -v X ... || exit 0    (also `return 0`, or
 #                         a skip-named helper such as `|| emit_skipped`)
 #   2. block guard:       if ! command -v X ...; then ... fi   where the block
 #                         reaches `exit 0` / `return 0`
+#
+# A third shape is flagged in scripts/*.test.sh (self-tests that own
+# load-bearing historical proofs — #2807):
+#
+#   3. skip-scored-as-pass:  ok "skip ..." / ok 'skip ...'
+#      A test that cannot run its assertion must fail (or declare the soft
+#      path with `# silent-skip-ok: <reason>`), never report PASS for the skip.
 #
 # A flagged site passes when the skip is visible — the guard line or block
 # carries one of the sanctioned visibility calls (hook::emit_skip_notice,
@@ -40,22 +49,17 @@
 # helper-function bodies and does not flag a positive-form
 # `if command -v X; then ... else exit 0` (the current corpus uses the
 # else-branch for its visible notice). Its job is to stop the historical
-# regression — a new hook quietly no-op'ing when an optional CLI is absent.
+# regression — a new hook quietly no-op'ing when an optional CLI is absent,
+# or a self-test quietly scoring an unrun proof as PASS.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 errors=0
 
-for hook in plugins/*/hooks/*.sh; do
-  base="${hook##*/}"
-  case "$base" in
-  hook-utils.sh | *.test.sh) continue ;;
-  *) ;;
-  esac
-  [[ -f "$hook" ]] || continue
-
-  out=$(awk '
+scan_hook() {
+  local hook="$1"
+  awk '
     function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_visible(l) {
@@ -111,15 +115,63 @@ for hook in plugins/*/hooks/*.sh; do
       if (in_block && block_skips && !block_visible && !block_annotated)
         printf "%d: silent block skip: unterminated `if ! command -v` block reaches exit/return 0 with no visible notice\n", block_start
     }
-  ' "$hook")
+  ' "$hook"
+}
 
+# Shape 3: a self-test that scores a skip as PASS. Message must start with
+# "skip " / 'skip ' (space-delimited) so descriptions like
+# `ok "skip-named-helper ... fails"` are not flagged.
+scan_test_skip_pass() {
+  local test_file="$1"
+  awk '
+    function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
+    function is_comment(l) { return l ~ /^[[:space:]]*#/ }
+    function is_skip_ok(l) {
+      return l ~ /^[[:space:]]*ok[[:space:]]+["'\'']skip[[:space:]]/
+    }
+    {
+      line = $0
+      annotated_above = pending_annot
+      if (is_comment(line)) {
+        if (is_annotated(line)) pending_annot = 1
+      } else {
+        pending_annot = 0
+      }
+      if (is_skip_ok(line) && !is_annotated(line) && !annotated_above)
+        printf "%d: skip scored as PASS via ok \"skip ...\" — fail closed or annotate with # silent-skip-ok:\n", NR
+    }
+  ' "$test_file"
+}
+
+report_hits() {
+  local path="$1"
+  local out="$2"
   if [[ -n "$out" ]]; then
     while IFS= read -r v; do
-      echo "SILENT SKIP: ${hook}:${v}" >&2
+      echo "SILENT SKIP: ${path}:${v}" >&2
       errors=$((errors + 1))
     done <<<"$out"
   fi
+}
+
+for hook in plugins/*/hooks/*.sh; do
+  base="${hook##*/}"
+  case "$base" in
+  hook-utils.sh | *.test.sh) continue ;;
+  *) ;;
+  esac
+  [[ -f "$hook" ]] || continue
+  report_hits "$hook" "$(scan_hook "$hook")"
 done
+
+shopt -s nullglob
+for test_file in scripts/*.test.sh; do
+  [[ -f "$test_file" ]] || continue
+  # The silent-skip unit suite embeds shape-1/2 fixtures as quoted strings;
+  # scanning it for hook guards would false-positive. Shape 3 still applies.
+  report_hits "$test_file" "$(scan_test_skip_pass "$test_file")"
+done
+shopt -u nullglob
 
 if ((errors > 0)); then
   {
@@ -130,7 +182,11 @@ if ((errors > 0)); then
     echo "'# silent-skip-ok: <reason>' at the site. A bare stderr write is"
     echo "NOT sufficient — stderr on exit 0 is never shown to the user or"
     echo "the agent (docs/conventions/hook-observability/)."
+    echo
+    echo "A scripts/*.test.sh that cannot run an assertion must fail closed"
+    echo "(or annotate with '# silent-skip-ok: <reason>'), never score the"
+    echo "skip as PASS via ok \"skip ...\"."
   } >&2
   exit 1
 fi
-echo "No silent prerequisite skips found in hook entry scripts."
+echo "No silent prerequisite skips found in hook entry scripts or scripts/*.test.sh."

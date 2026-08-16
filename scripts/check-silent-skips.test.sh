@@ -36,6 +36,13 @@ hook_file() {
   printf '%s\n' "$content" >"$fixture/plugins/$plugin/hooks/$name"
 }
 
+# script_test_file <fixture> <basename> <content>
+script_test_file() {
+  local fixture="$1" name="$2" content="$3"
+  mkdir -p "$fixture/scripts"
+  printf '%s\n' "$content" >"$fixture/scripts/$name"
+}
+
 run_check() (
   cd "$1" && bash scripts/check-silent-skips.sh
 )
@@ -212,6 +219,56 @@ if out="$(run_check "$f" 2>&1)"; then
   ok "hook-utils.sh and *.test.sh are excluded from the scan"
 else
   fail "excluded files should not be scanned, got: $out"
+fi
+rm -rf "$f"
+
+# --- scripts/*.test.sh: ok "skip ..." scored as PASS fails (#2807) ---------
+f="$(new_fixture)"
+script_test_file "$f" demo.test.sh 'ok "skip historical proof (deadbeef not in this clone)"'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "ok skip-scored-as-pass should fail, got success: $out"
+else
+  if echo "$out" | grep -q "SILENT SKIP: scripts/demo.test.sh:1" &&
+    echo "$out" | grep -q "skip scored as PASS"; then
+    ok "scripts/*.test.sh ok \"skip ...\" fails with file:line"
+  else
+    fail "expected SILENT SKIP skip-scored-as-pass, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- scripts/*.test.sh: annotated ok "skip ..." passes ---------------------
+f="$(new_fixture)"
+script_test_file "$f" demo.test.sh "$(printf '%s\n' \
+  '# silent-skip-ok: shallow clone lacks the historical anchor' \
+  'ok "skip historical proof (deadbeef not in this clone)"')"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "annotated scripts/*.test.sh ok \"skip ...\" passes"
+else
+  fail "annotated ok skip should pass, got: $out"
+fi
+rm -rf "$f"
+
+# --- scripts/*.test.sh: same-line annotation passes ------------------------
+f="$(new_fixture)"
+script_test_file "$f" demo.test.sh 'ok "skip historical proof" # silent-skip-ok: declared soft path'
+if run_check "$f" >/dev/null 2>&1; then
+  ok "same-line silent-skip-ok on ok \"skip ...\" passes"
+else
+  fail "same-line annotation on ok skip should pass"
+fi
+rm -rf "$f"
+
+# --- ok messages that merely mention skip are not flagged ------------------
+f="$(new_fixture)"
+script_test_file "$f" demo.test.sh "$(printf '%s\n' \
+  'ok "skip-named-helper guard (|| emit_skipped) fails"' \
+  'ok "same-line silent skip fails with file:line"' \
+  'ok "repository baseline passes --check"')"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "ok messages that mention skip without scoring a skip pass"
+else
+  fail "non skip-scored ok messages should pass, got: $out"
 fi
 rm -rf "$f"
 

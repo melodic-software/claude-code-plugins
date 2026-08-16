@@ -207,7 +207,10 @@ if git rev-parse --verify --quiet "cc58cbc5^{commit}" >/dev/null 2>&1 &&
   fi
   rm -rf "$hist"
 else
-  ok "skip historical proof (cc58cbc5/6f0a3110 not in this clone)"
+  # Historical proof-of-red must fail closed when the anchors are unavailable —
+  # scoring the skip as ok would let a shallow clone or rewritten history
+  # report green while proving nothing (#2807).
+  fail "historical proof unavailable (cc58cbc5/6f0a3110 not in this clone)"
 fi
 
 # Live tree with the real baseline must pass.
