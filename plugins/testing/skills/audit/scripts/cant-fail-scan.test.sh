@@ -228,7 +228,7 @@ else
   rc=0
   out="$(CANT_FAIL_SCAN_ROOT="$UNREAD" bash "$SCAN" --check 2>&1)" || rc=$?
   assert_exit "--check fails closed on an unreadable test file (exit 2)" 2 "$rc"
-  assert_contains "fail-closed message names the unread input" "$out" "could not be read"
+  assert_contains "fail-closed message names the unread input" "$out" "unreadable test file(s)"
 fi
 chmod 600 "$UNREAD/hidden.test.js" 2>/dev/null || true
 
