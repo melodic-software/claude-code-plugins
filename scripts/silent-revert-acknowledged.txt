@@ -26,9 +26,10 @@
 # the canary's first fire is a NEW event rather than known backlog.
 
 # #2640 is the manual restore of the content #2633's squash dropped. Putting
-# #2632's rollups back required deleting what #2633 had put in their place, so
-# a large removal of very recent content is precisely what this commit is.
-6f0a3110942375fb292112f5df5e2c39bbf56cb0  #2640 restores #2632's rollups; the removal undoes #2633's revert
+# #2644's finding rollups and #2642's aliased GraphQL merge evidence back
+# required deleting what #2633 had put in their place, so a large removal of
+# very recent content is precisely what this commit is.
+6f0a3110942375fb292112f5df5e2c39bbf56cb0  #2640 restores #2644's rollups and #2642's GraphQL merge evidence; the removal undoes #2633's revert
 
 # #2135's author noticed main move under the PR, merged origin/main into the
 # branch rather than force-pushing, and argued the disposition explicitly in the

@@ -30,11 +30,30 @@ fires f603880dad4003477ec7cac27654fce92c75eec8 #2639 dropped #2635 (346 lines), 
 # went to zero occurrences. #2618 was left CLOSED as COMPLETED.
 fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 #2641 dropped #2639 (451 lines), 10 minutes later
 
-# Found by this canary's own calibration run, NOT by the #2691 audit: the same
-# night, #2633's squash dropped #2632's finding rollups (853 lines). #2640 had
-# to restore them by hand. Nobody had filed it, which is the clearest argument
-# for automating the detection.
-fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff #2633 dropped #2632's rollups (853 lines) -- unfiled until now
+# The third merge from the same night, surfaced by this canary's own
+# calibration run rather than by the #2691 audit. #2633's squash dropped work
+# from TWO siblings at once, and the canary reports each culprit separately:
+#
+#   853 lines traced to bfb66beb8 (#2644, finding rollups and handoff plans)
+#   301 lines traced to eda5ae5ed (#2642, aliased GraphQL merge evidence)
+#
+# Both numbers are blame attributions -- the count of lines cc58cbc53 deleted
+# that `git blame` credits to that one culprit. Neither is the squash's
+# diffstat (it removed 1165 lines in total) and neither is what the culprit
+# itself added. plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh
+# went 2178 -> 1700 lines with every `rollup` and `graphql` marker at zero;
+# #2640 restored both surfaces by hand.
+#
+# This event was NOT unfiled. Issue #2656 recorded it, pinned to the same
+# commits, roughly 23 hours before this canary merged -- from the test-coverage
+# angle (the hand restore left `bare-repo-with-working-tree` uncovered) rather
+# than as a silent revert. What the canary adds is detection speed and
+# automation, not discovery.
+#
+# An earlier version of this row named #2632 as the victim. That was wrong:
+# #2632 never merged (closed unmerged, no merge commit, not an ancestor of
+# main) and its diff contains no rollup work at all.
+fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (301); already recorded in #2656
 
 # --- Verified-legitimate commits that must stay quiet -------------------------
 # The closest sub-threshold miss in 500 commits: 129 lines of a doc section that
