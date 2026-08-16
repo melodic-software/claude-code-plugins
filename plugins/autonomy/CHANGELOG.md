@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1]
+
+### Changed
+
+- **`cant-fail-test-repair` row amended: the detection portion is now built (#2684).** The Judgment
+  cell and the class-parameters bullet record the shipped `testing:audit` script detector as the
+  `DET` detect portion, which carries the no-agent-session property per the portion-split mapping
+  rule. The repair judgment — the routine itself — remains unbuilt, so Status stays
+  `join: proven recurring manual pattern`, the row does not flip to `v1`, and no `routines/` leaf
+  is added: `v1` means a proven manual pattern, and a detector proves detection, never the repair
+  pattern that trigger names.
+
 ## [0.19.0]
 
 ### Added

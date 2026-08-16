@@ -3,6 +3,35 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **New `/testing:audit` skill — the can't-fail test audit (#2684).** A deterministic script
+  detector (`cant-fail-scan.sh` driving `cant-fail-scan.awk`) for tests that cannot fail, with
+  three rules v1, each carrying a qualified rule id and a fixed threshold:
+  `testing/audit/rule-zero-assertion` (a runnable test body with 0 assertion tokens),
+  `testing/audit/rule-recomputed-expectation` (an equality assertion whose actual and expected
+  sides are the identical expression — the decidable core of the recomputed-expected-value class),
+  and `testing/audit/rule-mock-only-oracle` (every assertion in a mock-constructing test is a
+  mock-interaction assertion; advisory by default because deliberate interaction-style tests are
+  the known benign case, gating only under `--strict`). Ecosystems v1: JS/TS, Python, C#; bash
+  `*.test.sh` is deliberately excluded — the marketplace repo's discriminating-skip gate is the
+  incumbent for the skip-vacating shape there. Detection bias errs toward not firing (generous
+  assertion tokens, string/comment masking, skipped tests unjudged), guarded by a negative fixture
+  that must produce zero findings. `--check` is the fail-closed gate mode: exit 1 on a gating
+  finding, exit 2 when inputs could not be fully read or when 0 test files were examined (an
+  unread input is never a clean one, and a wrong or empty scan root must not share exit 0 with a
+  healthy suite), exit 0 only for a fully read clean scan of at least one test file — the
+  liveness-assertion contract's fail-loud limb.
+  `--persist-findings` (explicit override; bare invocation stays read-only per the `audit` verb
+  contract) writes a detector-findings-conforming file — `Tier` looked up flat per rule
+  (IMPORTANT), `Confidence` high or omitted (never low), root-relative `Location`, cell escaping,
+  `## Surfaces` coverage — that the `review:fanout` `fix` action consumes. Every run reports a
+  coverage denominator, so zero findings over zero examined files is named a scan of nothing
+  rather than a clean bill. Deliberate cases are recorded in-file with `cant-fail-ok: <reason>`,
+  counted and never silent.
+
 ## [0.5.2]
 
 ### Changed
