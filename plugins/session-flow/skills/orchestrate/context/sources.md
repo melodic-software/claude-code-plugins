@@ -130,7 +130,7 @@ which way it broke.
   null finding about fork parenting. Until a logged-in re-run records YES/NO
   with the child type and error text, keep treating the below-limit
   fork→non-fork path as **docs-implied, behavior-unconfirmed**. Recheck
-  trigger: a authenticated probe session, or a sub-agents page edit that states
+  trigger: an authenticated probe session, or a sub-agents page edit that states
   the child-type rule explicitly.
   Three riders on the concurrency limit (first two new since the 2026-07-29 read; third new since
   the 2026-08-10 read, verified 2026-08-15): "Sessions with
