@@ -132,7 +132,8 @@ build_data_json() {
 if ! command -v actionlint >/dev/null 2>&1; then
   emit_tel "skipped" '[]'
   if hook::notice_once "actionlint-missing" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' not found on PATH — workflow lint skipped for this session. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+    hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md
+PATH probed: ${PATH:-<unset>}"
   fi
   exit 0
 fi

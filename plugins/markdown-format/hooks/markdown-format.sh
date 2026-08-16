@@ -452,36 +452,56 @@ fi
 # this repository's node_modules tree. This rejects a checked-in or replaced
 # .bin symlink that escapes the repository trust boundary.
 resolve_repo_markdownlint() {
-  local candidate="$REPO_ROOT/node_modules/.bin/markdownlint-cli2"
-  local root_physical target link target_dir depth=0
-
-  [[ -f "$candidate" && -x "$candidate" ]] || return 1
+  # Walk from the edited file's directory up to $REPO_ROOT so a monorepo
+  # workspace install (packages/x/node_modules/.bin) is visible; the previous
+  # root-only probe left those installs invisible (#2732).
+  local start_dir candidate root_physical target link target_dir depth dir parent
+  local dir_physical
+  start_dir="$(dirname -- "$FILE")"
   root_physical="$(cd -P -- "$REPO_ROOT" 2>/dev/null && pwd -P)" || return 1
-  target="$candidate"
-
-  while [[ -L "$target" ]]; do
-    depth=$((depth + 1))
-    ((depth <= 32)) || return 1
-    link="$(readlink "$target" 2>/dev/null)" || return 1
-    case "$link" in
-    /*) target="$link" ;;
-    [A-Za-z]:[\\/]*)
-      command -v cygpath >/dev/null 2>&1 || return 1
-      target="$(cygpath -u "$link" 2>/dev/null)" || return 1
-      ;;
-    *) target="$(dirname -- "$target")/$link" ;;
-    esac
+  dir="$start_dir"
+  while [[ -n "$dir" ]]; do
+    candidate="$dir/node_modules/.bin/markdownlint-cli2"
+    if [[ -f "$candidate" && -x "$candidate" ]]; then
+      target="$candidate"
+      depth=0
+      while [[ -L "$target" ]]; do
+        depth=$((depth + 1))
+        ((depth <= 32)) || return 1
+        link="$(readlink "$target" 2>/dev/null)" || return 1
+        case "$link" in
+        /*) target="$link" ;;
+        [A-Za-z]:[\\/]*)
+          command -v cygpath >/dev/null 2>&1 || return 1
+          target="$(cygpath -u "$link" 2>/dev/null)" || return 1
+          ;;
+        *) target="$(dirname -- "$target")/$link" ;;
+        esac
+      done
+      if [[ -f "$target" && -x "$target" ]]; then
+        target_dir="$(cd -P -- "$(dirname -- "$target")" 2>/dev/null && pwd -P)" || true
+        if [[ -n "$target_dir" ]]; then
+          target="$target_dir/$(basename -- "$target")"
+          case "$target" in
+          "$root_physical"/node_modules/* | "$root_physical"/*/node_modules/*)
+            printf '%s' "$candidate"
+            return 0
+            ;;
+          *) ;;
+          esac
+        fi
+      fi
+    fi
+    # Stop at repo root (inclusive of its own node_modules, already tried).
+    dir_physical="$(cd -P -- "$dir" 2>/dev/null && pwd -P)" || true
+    if [[ -n "$dir_physical" && "$dir_physical" == "$root_physical" ]]; then
+      break
+    fi
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" == "$dir" ]] && break
+    dir="$parent"
   done
-
-  [[ -f "$target" && -x "$target" ]] || return 1
-  target_dir="$(cd -P -- "$(dirname -- "$target")" 2>/dev/null && pwd -P)" || return 1
-  target="$target_dir/$(basename -- "$target")"
-  case "$target" in
-  "$root_physical"/node_modules/*) ;;
-  *) return 1 ;;
-  esac
-
-  printf '%s' "$candidate"
+  return 1
 }
 
 MDLINT=()

@@ -3,6 +3,14 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.19]
+
+### Fixed
+
+- **Walk monorepo workspace `node_modules/.bin` for markdownlint-cli2 (#2732).** Previously only the repo root's `.bin` was probed; packages under
+  `packages/*/node_modules/.bin` are now found by walking from the edited file up to
+  `$REPO_ROOT`, keeping the per-directory symlink-containment check.
+
 ## [0.11.18]
 
 ### Fixed

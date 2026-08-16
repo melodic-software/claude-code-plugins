@@ -415,6 +415,36 @@ else
   fail "jq-absent out-of-scope edit (rc=$RC_OOS out=$OUT_OOS)"
 fi
 
+# --- Minimal PATH: actionlint absent -> accurate degraded notice (#2732) ----
+# Rebuild FAKEBIN without actionlint; keep coreutils so the notice path runs.
+MINBIN="$(mktemp -d "$WORK/minbin.XXXXXX")"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink rm; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$MINBIN/$t"
+  chmod +x "$MINBIN/$t"
+done
+MIN_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+OUT_MIN=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-min-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' \
+    "$REPO/.github/workflows/clean.yml" |
+    env -u CLAUDE_PROJECT_DIR PATH="$MINBIN" CLAUDE_PLUGIN_DATA="$MIN_DATA" \
+      CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+)
+RC_MIN=$?
+if [[ $RC_MIN -eq 0 ]]; then ok "actionlint-absent (minimal PATH) -> exit 0"; else fail "actionlint-absent exit $RC_MIN"; fi
+if printf '%s' "$OUT_MIN" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
+  (.systemMessage | contains("PATH probed:")) and
+  ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
+' >/dev/null 2>&1; then
+  ok "actionlint-absent -> notice-only latch + PATH diagnostic (#2732)"
+else
+  fail "actionlint-absent latch/PATH diagnostic wrong: $OUT_MIN"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
