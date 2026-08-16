@@ -9,10 +9,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Stale-base guidance no longer claims coverage it does not have, or recommends a
   forbidden setting (#2691).** The babysit/pull-request stale-base rule cited the
-  2026-08-15 incidents (#2635 then #2639, "inside ten minutes") as its motivating case.
-  Those were stale in **content** while up to date in **history** — `git merge-base
-  --is-ancestor f603880d refs/pull/2641/head` is true — so `check-stale-base-overlap.sh`
-  exits 0 on them; they belong to the post-merge `scripts/check-silent-revert.sh` class.
+  2026-08-15 incidents (quoted as "#2635 then #2639 ... inside ten minutes") as its
+  motivating case. All three of those merges (#2633, #2639, #2641) were stale in
+  **content** while up to date in **history** — `git merge-base --is-ancestor f603880d
+  refs/pull/2641/head` is true — so `check-stale-base-overlap.sh` exits 0 on them; they
+  belong to the post-merge `scripts/check-silent-revert.sh` class.
   `freshness.md` and `merge.md` now state the gate's real scope (stale **base** only) and
   point at the sibling detector for the disjoint class. Both files also dropped the
   "durable fix is `requiredStatusChecks.strict`" recommendation: it is barred by an
