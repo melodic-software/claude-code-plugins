@@ -228,6 +228,18 @@ enables; the cloud bootstrap installs (see
   snapshot's `~/.claude` actually reaches sessions is undocumented — after adding the line,
   rebuild the cache (edit saves the script) and verify with a fresh session whose *first*
   message is a plugin slash command.
+- **Harness residual — first-turn slash of just-installed plugins (#2733).** The "Unknown
+  command" outcome above is **not remediable inside any plugin in this repository**: the
+  command registry is a Claude Code harness property (built at process start, not re-read).
+  Track occurrences via `/claude-ops:known-issues` and, when reproducible on a fresh cloud
+  session after a confirmed pre-launch bootstrap, report upstream (`anthropics/claude-code`)
+  with the bootstrap log plus the first-turn transcript. In-session workarounds when a
+  first-turn slash returns `Unknown command:` (a) **resume** the session so the process
+  restarts and reloads the registry, or retry the slash on a later turn after a resume; (b)
+  **direct-file fallback** — read `plugins/<plugin>/skills/<skill>/SKILL.md` from the repo
+  working tree and follow it manually (note: this bypasses skill-load string substitutions
+  such as `${CLAUDE_EFFORT}`). Prefer fixing the environment so the setup-script path
+  pre-installs before process start; do not invent plugin-side registry hacks.
 - Being a `directory` source may compound it —
   [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
   and the carry-over note qualifies install-at-session-start with "requires network access to reach
