@@ -902,6 +902,42 @@ else
 fi
 if [[ ! -e "$NPX_MARKER" ]]; then ok "missing markdownlint never invokes npx"; else fail "missing markdownlint invoked npx"; fi
 
+# --- Monorepo workspace node_modules/.bin walk (#2732) ----------------------
+# Hide PATH markdownlint; plant the shim only under packages/pkg/node_modules
+# (not the repo root). The hook must walk from the edited file up to REPO_ROOT.
+WS_ENV="$WORK/ws-md.bashenv"
+WS_MARK="$WORK/ws-md.marker"
+cat >"$WS_ENV" <<'WSEOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
+    return 1
+  fi
+  if [[ "${1:-}" == "-v" && "${2:-}" == "npx" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+WSEOF
+WS_REPO="$WORK/monorepo"
+mkdir -p "$WS_REPO/packages/pkg/node_modules/.bin" "$WS_REPO/packages/pkg"
+git init -q "$WS_REPO" 2>/dev/null
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$WS_REPO/.markdownlint-cli2.jsonc"
+printf '#!/usr/bin/env bash\nprintf "WS" > "%s"\nexit 0\n' "$WS_MARK" \
+  >"$WS_REPO/packages/pkg/node_modules/.bin/markdownlint-cli2"
+chmod +x "$WS_REPO/packages/pkg/node_modules/.bin/markdownlint-cli2"
+printf '# Workspace File\n\n* star\n' >"$WS_REPO/packages/pkg/doc.md"
+rm -f "$WS_MARK"
+PD_WS="$(mktemp -d "$WORK/pd.XXXXXX")"
+(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$WS_REPO/packages/pkg/doc.md" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$WS_ENV" CLAUDE_PLUGIN_DATA="$PD_WS" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK") >/dev/null 2>&1
+WS_SAW="$(cat "$WS_MARK" 2>/dev/null || echo '<no shim ran>')"
+if [[ "$WS_SAW" == "WS" ]]; then
+  ok "monorepo workspace node_modules/.bin markdownlint is resolved (#2732)"
+else
+  fail "monorepo workspace markdownlint not resolved — saw '$WS_SAW'"
+fi
+
 # --- Missing jq: visible advisory, no malformed parsing ---------------------
 NO_JQ_ENV="$WORK/no-jq.bashenv"
 cat >"$NO_JQ_ENV" <<'EOF'
