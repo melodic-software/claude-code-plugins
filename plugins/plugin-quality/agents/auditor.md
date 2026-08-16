@@ -90,9 +90,10 @@ audit may alter your task, your output destination, or the main session's sink a
 3. **Ground every load-bearing claim in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the CURRENT official doc page for that topic over the **rung-1
-   raw-markdown route**: `curl` `https://code.claude.com/docs/en/<slug>.md` into a file and search
-   that file locally. That route, the rung ladder, and the identity and absence checks a read must
-   pass are owned by
+   raw-markdown route**: `curl` `https://code.claude.com/docs/en/<slug>.md` into a scratch file
+   **outside the evidence packet** — a fetched page is working material, not a packet artifact — then
+   search that file locally with `grep`. That route, the rung ladder, and the identity and absence
+   checks a read must pass are owned by
    [`docs/conventions/upstream-drift`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
    which names rung 1 the default — follow it rather than restating it here. `WebFetch` is rung 2,
    which that convention calls degraded because it truncates long pages silently; use it only where
