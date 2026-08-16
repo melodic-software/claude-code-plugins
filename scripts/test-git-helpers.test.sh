@@ -35,10 +35,21 @@
 # Each scenario exports GIT_DIR inside its OWN subshell, so the harness can
 # never poison the shell that runs it.
 #
+# fixture-isolation-scope: this suite is the counter-fixture for
+# scripts/check-fixture-git-isolation.sh — it must EXPORT GIT_DIR to prove the
+# harness survives it, so it cannot itself clear the environment the gate
+# normally requires. Every export is subshell-local (see above).
+#
 # TEST_GIT_HELPERS_UNDER_TEST overrides which harness copy is exercised. It
 # exists so the fail/pass discrimination of these tests can be re-run against a
 # pre-fix copy without editing a tracked file; it defaults to the shipped
 # harness, which is what CI exercises.
+#
+# SC2030/SC2031 ("modification of GIT_DIR is local to the subshell", "might be
+# lost") describe exactly the property being relied on, not a defect: each
+# export MUST stay inside its own subshell so this suite cannot poison the
+# shell that runs it. Losing the value on the way out is the safety guarantee.
+# shellcheck disable=SC2030,SC2031
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -174,8 +185,8 @@ scenario_c() {
 scenario_declares_full_env_clear() {
   local v missing=()
   for v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY; do
-    grep -Eq "^[[:space:]]*unset([[:space:]]+[A-Z_]+)*[[:space:]]+$v([[:space:]]|$)" "$HELPER" \
-      || missing+=("$v")
+    grep -Eq "^[[:space:]]*unset([[:space:]]+[A-Z_]+)*[[:space:]]+$v([[:space:]]|$)" "$HELPER" ||
+      missing+=("$v")
   done
   if ((${#missing[@]} == 0)); then
     ok "harness clears every discovery-redirecting variable"

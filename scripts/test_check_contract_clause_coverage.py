@@ -14,11 +14,30 @@ qualifier list.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+# FIXTURE ISOLATION (#2840). This suite builds its fixture with `git init`
+# under `cwd=`, with no path argument at all — so an exported ABSOLUTE GIT_DIR
+# does not merely misdirect the identity write, it makes `git init` initialize
+# the CALLER's gitdir and every later `git add -A` stage into the caller's
+# index. Cleared once at import, mirroring the variable list in
+# scripts/test-git-helpers.sh; scripts/check-fixture-git-isolation.sh keeps it
+# true.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
 
 GATE = Path(__file__).resolve().parent / "check-contract-clause-coverage.py"
 
