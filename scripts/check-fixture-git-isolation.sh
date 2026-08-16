@@ -119,9 +119,16 @@ scan() {
     # anything, and flagging it would conscript suites that only INSPECT an
     # identity. (A failing read is also the quiet half of this bug: it falls
     # through to ~/.gitconfig and still returns 0, while the write hard-fails.)
-    function ident_write(s) {
-      return s ~ /config[ \t]+(--[a-zA-Z-]+[ \t]+)*user\.(email|name)([ \t]|$)/ &&
-             s !~ /--(get|get-all|get-regexp|get-urlmatch|list)([ \t]|$)/
+    # The read spellings are removed EXTENT BY EXTENT rather than tested against
+    # the whole line. A line-wide `!~ /--get/` test would let one read suppress a
+    # real write sharing the line (`git -C d config user.email x && git config
+    # --get user.name`) — an under-selection, the direction this gate calls
+    # unsafe. Deleting each read occurrence first leaves any write on the line
+    # still visible.
+    function ident_write(s,   t) {
+      t = s
+      gsub(/config[ \t]+(--[a-zA-Z-]+[ \t]+)*--(get|get-all|get-regexp|get-urlmatch|list)([ \t]+--[a-zA-Z-]+)*[ \t]+user\.(email|name)/, " ", t)
+      return t ~ /config[ \t]+(--[a-zA-Z-]+[ \t]+)*user\.(email|name)([ \t]|$)/
     }
     function flush_py() {
       if (cur != "" && py_pop && py_gitdir && py_worktree) print "CLEARS\t" cur
@@ -242,16 +249,20 @@ declare -A STILL_VIOLATING=()
 mapfile -t suites < <(git ls-files '*.test.sh' '*test_*.py' '*_test.py' 2>/dev/null | sort -u)
 for t in "${suites[@]}"; do
   [[ -n "${IS_FIXTURE[$t]:-}" ]] || continue
-  # A declared scope is checked BEFORE the clearing test, because the files it
-  # covers are precisely the ones that must NOT clear.
-  if declared_scope "$t"; then
-    covered+=("$t")
-    [[ "$mode" == "list" ]] && printf 'declared    %s\n' "$t"
-    continue
-  fi
+  # Actually clearing outranks declaring. A file that clears is reported as
+  # `isolated` even if it also carries the token, which matters because a file
+  # holding the token as TEST DATA — this gate's own self-test writes fixture
+  # suites containing a declaration line — would otherwise be reported as
+  # merely declared and its real property hidden. Ordering this way keeps the
+  # accidental-token surface to files that genuinely do not clear.
   if clears_env "$t" || sources_isolating_harness "$t"; then
     covered+=("$t")
     [[ "$mode" == "list" ]] && printf 'isolated    %s\n' "$t"
+    continue
+  fi
+  if declared_scope "$t"; then
+    covered+=("$t")
+    [[ "$mode" == "list" ]] && printf 'declared    %s\n' "$t"
     continue
   fi
   STILL_VIOLATING["$t"]=1

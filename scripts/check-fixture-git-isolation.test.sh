@@ -299,6 +299,42 @@ else
   fail "identity read: rc=$rc out='$out'"
 fi
 
+# --- a read and a write on the SAME line: the write still wins ---------------
+# Guards the fail-OPEN a line-wide read exclusion would create: one `--get` on
+# the line must not suppress a real identity write sharing it.
+new_repo
+r="$REPO"
+cat >"$r/mixed-ident.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+git -C "$d" config user.email test@example.com && git config --get user.name
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"mixed-ident.test.sh"* ]]; then
+  ok "a read sharing a line does not suppress an identity write"
+else
+  fail "mixed read/write line: rc=$rc out='$out'"
+fi
+
+# --- `--local --get` is still a read -----------------------------------------
+# The read exclusion must survive an option word BEFORE the --get.
+new_repo
+r="$REPO"
+cat >"$r/local-read.test.sh" <<'SH'
+#!/usr/bin/env bash
+git config --local --get user.email >/dev/null 2>&1
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "'config --local --get user.email' is a read, not a fixture write"
+else
+  fail "local read: rc=$rc out='$out'"
+fi
+
 # --- `git -c <k>=<v> init` is caught -----------------------------------------
 # Anchoring the option run on `-C` alone missed this, and the form is live in
 # this corpus.
