@@ -224,8 +224,16 @@ hand-cleaning the zone.
   plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
   reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
   not referencing the engine, and no new capability beyond what the skill-scoped deployment already
-  did during active cleanup. Known costs, accepted: one launcher shell plus one Python launch per
-  Bash/PowerShell call, and on a machine where no Python 3 interpreter resolves at all the gate fails
+  did during active cleanup. Known costs, accepted, with the always-on share measured per the
+  [hook-budget convention](../../docs/conventions/hook-budget/README.md)'s method (`EPOCHREALTIME`
+  wall-clock around direct hook invocation with a benign representative payload; Windows 11 +
+  Git Bash dev host, 2026-08-16, 32 runs per variant): the engine-gate hook costs **≈ 190 ms per
+  Bash/PowerShell tool call** — ≈ 19% of the convention's ≤ 1 s typical per-tool-call ceiling, and
+  doubled to ≈ 380 ms while the `clean` skill's second frontmatter registration is loaded. Of that,
+  the launcher's read of the engine to recover `MIN_PYTHON` (a single early-quit `sed` since
+  0.20.13, held to one read by `hooks/run-python-hook.test.sh`) accounts for ≈ 24 ms, **≈ 13% of
+  the hook's cost**; the prior two-full-pass form measured ≈ 38 ms (≈ 19% of a ≈ 205 ms hook).
+  On a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call — the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
   argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
