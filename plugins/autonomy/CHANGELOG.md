@@ -3,6 +3,23 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.2]
+
+### Fixed
+
+- **lane-stop gate: the arm pre-filter now runs before the stdin buffer** (#2852). The `Stop`
+  hook buffered the entire payload and only then tested whether the gate was armed at all —
+  so an unarmed session (the interactive default) paid the full bounded stdin read against
+  the registration's 15s budget for a guaranteed no-op. `gate_maybe_configured` and its
+  `|| exit 0` call now sit above the `hook::buffer_stdin` assignment in
+  `hooks/lane-stop-gate.sh`. A pure reordering: the pre-filter reads two environment
+  presences and two settings-file locators already in scope at the new position, and
+  references the payload nowhere. Everything payload-derived —
+  `hook::require_jq`, `EVENT`, `SESSION_ID`, and the `SubagentStop`-versus-`Stop`
+  discrimination — stays below the buffer, unchanged. Two cases pin both halves by binding
+  stdin to a regular file and reading back what the hook left unconsumed: an unarmed session
+  leaves the whole payload unread, an armed one still drains it and still blocks.
+
 ## [0.22.1]
 
 ### Changed
