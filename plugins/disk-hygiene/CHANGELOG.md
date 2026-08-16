@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.9]
+
+### Fixed
+
+- **Re-land the engine half of tidiness-first reporting (#2590).** #2635 shipped
+  `empty_directory_count`, plan `provenance`/`risk` validation, and preview/apply
+  tidiness fields; a later stale-base squash deleted the engine while #2714 restored
+  only the skill prose. Snapshot, `validate_plan`, `preview`, and `apply` again keep
+  zero-byte directories first-class and require provenance/risk on every candidate.
+
 ## [0.20.8]
 
 ### Fixed
