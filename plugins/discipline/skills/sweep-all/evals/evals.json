@@ -41,24 +41,36 @@
       "id": 4,
       "name": "never-tier-excluded-invoked-directly",
       "prompt": "sweep all disciplines — and give the claims a deep verification pass too.",
-      "expected_output": "The batch excludes the never-tier correctors (the -deep fan-out siblings and scrutinize-dont-coast). The skill reports they exist and are invoked directly rather than folding them into the autonomous batch, and points the deep-verification request at do-your-research-deep as a direct invocation instead of adding it to the fan-out.",
+      "expected_output": "The batch excludes every corrector whose metadata.discipline-batch is never (resolved by globbing, not from an inline roster). The skill reports those never-tier correctors exist and are invoked directly rather than folding them into the autonomous batch, and points a deep-verification request at the matching never-tier deep skill as a direct invocation instead of adding it to the fan-out.",
       "files": [],
       "expectations": [
         "Keeps never-tier correctors out of the batch fan-out",
-        "Names the never-tier correctors as direct invocations, not batch members",
-        "Does not fold a -deep tier into the autonomous batch"
+        "Resolves the never set from tier metadata by globbing, not from hardcoded member names",
+        "Does not fold a never-tier corrector into the autonomous batch"
       ]
     },
     {
       "id": 5,
       "name": "userconfig-overlay-changes-resolved-set",
       "prompt": "sweep all disciplines (batch_exclude includes point-dont-copy; batch_promote includes pick-for-the-problem)",
-      "expected_output": "After resolving tiers from metadata, the skill applies the userConfig overlay: it drops point-dont-copy from the run (exclude) and treats pick-for-the-problem as always-run rather than relevance-gated (promote). It reports the net effect of the overlay on the resolved member set.",
+      "expected_output": "After resolving tiers from metadata, the skill applies the userConfig overlay: it drops point-dont-copy from the run (exclude) and treats pick-for-the-problem as always-run rather than relevance-gated (promote of a situational corrector). It reports the net effect of the overlay on the resolved member set.",
       "files": [],
       "expectations": [
         "Applies the userConfig exclude/promote/demote overlay after tier resolution",
         "Drops an excluded corrector and always-runs a promoted situational corrector",
         "Reports how the overlay changed the resolved set"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "batch-promote-non-situational-warns",
+      "prompt": "sweep all disciplines (batch_promote includes scrutinize-dont-coast, use-your-skills, and notaskill)",
+      "expected_output": "batch_promote is situational-only. After tier resolution the skill emits a visible warning for each non-situational promote entry: scrutinize-dont-coast (never) is not promoted and stays out of the batch; use-your-skills (core) is not promoted and stays core; notaskill (unknown) is warned and ignored. None of those three is reported as a successful promote. The batch membership otherwise follows declared tiers.",
+      "files": [],
+      "expectations": [
+        "Warns visibly for promote entries whose tier is never or core, and for unknown names",
+        "Does not promote never-tier or core correctors into always-run situational promotion",
+        "Reports those warnings in the overlay net-effect section rather than silently dropping them"
       ]
     },
     {

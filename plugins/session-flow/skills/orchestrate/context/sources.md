@@ -118,6 +118,20 @@ which way it broke.
   limit reached`, and the error tells Claude not to retry. Spawning succeeds again when the running
   count drops below the limit" (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+), plus the depth
   limit above. "A fork can't spawn further forks."
+  **Empirical fork→non-fork child probe (2026-08-15) — inconclusive (fixture
+  failure).** Auditor remediation on the narrowed fork-claim sentence asked
+  whether a below-limit Agent-tool fork can spawn a non-fork subagent (the
+  depth-limit carve-out implies a below-limit fork keeps `Agent`, but the docs
+  never state the child-type outcome). A headless `claude -p` probe on Claude
+  Code **2.1.232** was attempted in this environment to settle it; the CLI
+  exited immediately with `Not logged in · Please run /login` and never reached
+  an Agent-tool dispatch. That is a **fixture failure / authentication gap**,
+  not evidence that the spawn succeeds or fails — do not read "no result" as a
+  null finding about fork parenting. Until a logged-in re-run records YES/NO
+  with the child type and error text, keep treating the below-limit
+  fork→non-fork path as **docs-implied, behavior-unconfirmed**. Recheck
+  trigger: an authenticated probe session, or a sub-agents page edit that states
+  the child-type rule explicitly.
   Three riders on the concurrency limit (first two new since the 2026-07-29 read; third new since
   the 2026-08-10 read, verified 2026-08-15): "Sessions with
   [ultracode](https://code.claude.com/docs/en/model-config#adjust-effort-level) active are exempt:

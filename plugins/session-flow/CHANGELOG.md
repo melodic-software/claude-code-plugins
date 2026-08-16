@@ -1,5 +1,17 @@
 # Changelog — session-flow plugin
 
+## [0.23.8]
+
+### Changed
+
+- **`orchestrate`: dated fork→non-fork child probe note (#2738).**
+  `context/sources.md` records a 2026-08-15 empirical probe attempt on Claude Code
+  2.1.232 for whether a below-limit Agent-tool fork can spawn a non-fork child.
+  Outcome: **inconclusive (fixture failure)** — CLI not logged in (`Not logged in
+  · Please run /login`), so no Agent-tool dispatch ran. Documented as
+  authentication/fixture gap, not a null finding; docs-implied path remains
+  behavior-unconfirmed until a logged-in re-run.
+
 ## [0.23.7]
 
 ### Changed
