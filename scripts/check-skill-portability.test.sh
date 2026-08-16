@@ -669,16 +669,16 @@ cp "$SCRIPT" "$fx/scripts/"
 quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
-    git init -q &&
-    git config user.email test@example.com &&
-    git config user.name test &&
-    git commit -q --allow-empty -m base &&
-    base="$(git rev-parse HEAD)" &&
+    git -C "$fx" init -q &&
+    git -C "$fx" config user.email test@example.com &&
+    git -C "$fx" config user.name test &&
+    git -C "$fx" commit -q --allow-empty -m base &&
+    base="$(git -C "$fx" rev-parse HEAD)" &&
     mkdir -p 'plugins/p/skills/s' &&
     printf 'diff against origin/main\n' >'plugins/p/skills/s/plain.md' &&
     printf 'diff against origin/main\n' >"plugins/p/skills/s/${quoted_name}" &&
-    git add -A >/dev/null 2>&1 &&
-    git commit -q -m add-skills &&
+    git -C "$fx" add -A >/dev/null 2>&1 &&
+    git -C "$fx" commit -q -m add-skills &&
     SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh "$base" 2>&1
 )"
 rc=$?
