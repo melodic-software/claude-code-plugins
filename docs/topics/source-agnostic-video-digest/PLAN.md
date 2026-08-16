@@ -299,30 +299,31 @@ the adapter, pipeline-overridable.
 - [x] Three probe rows present with dated stub + outcome (grep `T5-ASR-` in this file → 3
   rows with `outcome:` filled)
 
-### Phase 4: Conformance suite + fixtures [TODO]
+### Phase 4: Conformance suite + fixtures [DONE]
 
-- [ ] Shared suite asserted once against the contract, star-imported into a thin per-adapter
+- [x] Shared suite asserted once against the contract, star-imported into a thin per-adapter
   test file each adapter owns (SQLAlchemy shape).
-- [ ] Capability declarations skew closed; **explicit test: a fixture adapter omitting every
+- [x] Capability declarations skew closed; **explicit test: a fixture adapter omitting every
   optional capability passes the suite** (absence is a declaration, not a failure).
-- [ ] Runtime `validateAdapter` covers Phase 0's checker holes (method arity, required-method
+- [x] Runtime `validateAdapter` covers Phase 0's checker holes (method arity, required-method
   presence, attribute shapes).
-- [ ] CI collision test: full-registry round-trip — each adapter's canonical example URL
+- [x] CI collision test: full-registry round-trip — each adapter's canonical example URL
   resolves to that adapter; duplicate/overlapping host claims fail (insurance for adapter
   three, stated as such).
-- [ ] X golden eval fixture under `evals/` with defined assertions: expected 0..N result
+- [x] X golden eval fixture under `evals/` with defined assertions: expected 0..N result
   shape, slice-key pair, provenance fields; wired into the offline CI eval gate.
-- [ ] Conformance = offline, fixture-based, CI-gated. Liveness lane = tracked follow-up work
+- [x] Conformance = offline, fixture-based, CI-gated. Liveness lane = tracked follow-up work
   item (never on the merge path); file it in the tracker at phase close.
 
 **Sanity Check:**
 
-- [ ] Mutation probes: deleting a required method from a test double fails the suite;
+- [x] Mutation probes: deleting a required method from a test double fails the suite;
   registering a second adapter claiming `x.com` fails the collision test
-- [ ] CI green with suite + X golden eval wired into the existing extraction test step
-- [ ] Tracker item for the liveness lane exists (search-before-create; record number here)
+- [x] CI green with suite + X golden eval wired into the existing extraction test step
+- [x] Tracker item for the liveness lane exists (search-before-create; record number here)
+  — **#2797** (2026-08-15; never-gates-merges constraint stated in the body)
 
-### Phase 5: Naming hygiene + env namespace [TODO]
+### Phase 5: Naming hygiene + env namespace [DONE]
 
 Runs AFTER Phase 3 lands (shares `run-watch.js` / `acquire.js` territory with P1–P3 — see
 Execution shape). Epic constant `YOUTUBE_WATCH_EPIC_DIR` **unchanged** per the storage
@@ -330,18 +331,18 @@ invariant.
 
 **Display/staged-artifact hygiene:**
 
-- [ ] `watch/watch-state.js:169,193` — resume-prompt paths render from the resolved slice dir,
+- [x] `watch/watch-state.js:169,193` — resume-prompt paths render from the resolved slice dir,
   never the epic constant
-- [ ] `watch/export-sheet-frame-index.js:75` — `"{tmp}/youtube-sheets-unknown"` → source-
+- [x] `watch/export-sheet-frame-index.js:75` — `"{tmp}/youtube-sheets-unknown"` → source-
   neutral literal
-- [ ] Temp prefixes → `video-*`: `watching/run-watching-pipeline.js:33-34`
+- [x] Temp prefixes → `video-*`: `watching/run-watching-pipeline.js:33-34`
   (`youtube-frames-` / `youtube-sheets-`), `watch/run-watch.js:83-85` (incl.
   `youtube-extraction-`), `transcript/run-transcript.js:30` (`youtube-extraction-`)
-- [ ] **KEEP** `acquisition/acquire-throttle.js:34` lock dir
+- [x] **KEEP** `acquisition/acquire-throttle.js:34` lock dir
   `youtube-extraction-acquire-locks` — stable cross-version coordination identifier (same
   A1 (4) rule as the epic constant; renaming it breaks mutual exclusion across the upgrade
   boundary and silently defeats `max_concurrent_acquires`). Recorded in Decisions table.
-- [ ] Repo-wide staged-artifact literal audit (not just `extraction/`): any `youtube-`-named
+- [x] Repo-wide staged-artifact literal audit (not just `extraction/`): any `youtube-`-named
   literal that can reach a **staged** artifact is fixed; every deliberate survivor gets a KEEP
   row with reason here
 
@@ -356,25 +357,25 @@ invariant.
 | `YOUTUBE_MAX_CONCURRENT_ACQUIRES` (`acquisition/acquire-throttle.js:23`) | `VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES` |
 | `YOUTUBE_ACQUIRE_PHASE_GAP_SEC` (`acquisition/acquire.js:24` — also enters the `run-args.js` flag map + docs, closing the sixth-knob gap) | `VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC` |
 
-- [ ] One shared `resolveEnvWithLegacy(newName, oldName)` helper in `lib/`; **every read site
+- [x] One shared `resolveEnvWithLegacy(newName, oldName)` helper in `lib/`; **every read site
   above** resolves through it (new wins; old works and warns once per process — note
   `run.mjs` re-execs a child, so "once" is per-process by design; state that in the helper's
   doc comment)
-- [ ] Writers updated: `lib/run-args.js` flag map sets the NEW names; `run.mjs` forwards new
+- [x] Writers updated: `lib/run-args.js` flag map sets the NEW names; `run.mjs` forwards new
   names
-- [ ] `userConfig` keys keep their names; the four `"… (youtube-digest)"` titles change in
+- [x] `userConfig` keys keep their names; the four `"… (youtube-digest)"` titles change in
   Phase 7
-- [ ] CHANGELOG deprecation for old names (folds into Phase 7's breaking entry)
-- [ ] SKILL.md work-root/env documentation updates are **handed to the Phase 6 lane** as a
+- [x] CHANGELOG deprecation for old names (folds into Phase 7's breaking entry)
+- [x] SKILL.md work-root/env documentation updates are **handed to the Phase 6 lane** as a
   reconciliation input (P6 owns skill markdown)
 
 **Sanity Check:**
 
-- [ ] `git grep -n "resolveEnvWithLegacy" -- plugins/knowledge/skills/youtube-digest/extraction` → ≥ 7 rows (helper + six read sites)
-- [ ] Env compat tests: old alone works + warns once per process; new wins when both set; all
+- [x] `git grep -n "resolveEnvWithLegacy" -- plugins/knowledge/skills/youtube-digest/extraction` → ≥ 7 rows (helper + six read sites)
+- [x] Env compat tests: old alone works + warns once per process; new wins when both set; all
   six reachable (flag map test covers `--acquire-phase-gap`)
-- [ ] `git grep -n -e "youtube-sheets-unknown" -e "youtube-frames-" -e "youtube-sheets-" -e "youtube-extraction-" -- plugins/knowledge/skills/youtube-digest/extraction ':!*acquire-throttle*'` → 0 rows (lock-dir KEEP excluded)
-- [ ] Fixture: X resume prompt contains resolved slice path; zero epic-constant prose
+- [x] `git grep -n -e "youtube-sheets-unknown" -e "youtube-frames-" -e "youtube-sheets-" -e "youtube-extraction-" -- plugins/knowledge/skills/youtube-digest/extraction ':!*acquire-throttle*'` → 0 rows (lock-dir KEEP excluded)
+- [x] Fixture: X resume prompt contains resolved slice path; zero epic-constant prose
   interpolations
 
 ### Phase 6: Hub split + widened description [TODO]
@@ -480,6 +481,9 @@ never re-runs pre-flight against the old paths.**
 - [ ] `extraction/package.json` — per the FALLBACK decision below (default: rename
   `@melodic/youtube-extraction` → `@melodic/video-extraction` + description; regen lockfile;
   ci.yml cache key rides the path change)
+- [ ] `extraction/setup-deps.mjs:64` — `.youtube-extraction.stamp` → `.video-extraction.stamp`
+  (added by the Phase 5 staged-literal audit — invisible to the `youtube-digest` sweep; rides
+  the npm package rename; costs one harmless dependency reinstall; DEVIATIONS.md)
 
 **`course-digest` mechanical refs (the exemption's exhaustive enumeration):**
 

@@ -39,6 +39,27 @@ dispatch moved into `adapters/registry.js`; `acquire.js` no longer imports the r
 graph is acyclic, and the registry consistency check runs at plain module init. Same intent
 (all acquisition routes through the adapter seam), sharper seam location. Landed `5020fd4a`.
 
+## 2026-08-15 — Phase 5: two granted fence extensions (env-table miss + acceptance-grep reach)
+
+- **Auth-lane env reads (behavioral):** the PLAN's six-var table named
+  `acquisition/build-yt-dlp-args.js` as the read site for the yt-dlp cookie vars, but
+  `acquisition/acquire-yt-dlp-auth.js` also reads two of them via the exported constants.
+  Renaming without routing those reads through `resolveEnvWithLegacy` silently broke the
+  auth-fallback lane for legacy-only users (proven by three failing tests before the fix:
+  the fallback loop fired 6 spawns instead of 1). Fence extended to those two expressions +
+  the co-located test; the warn-once set is keyed per legacy name process-wide so
+  builder+auth reads cannot double-warn.
+- **Fixture literals (mechanical):** the acceptance grep for `youtube-{frames,sheets,extraction}-`
+  literals reaches four test files whose production sources were outside the enumerated
+  fence (`lib/temp-session-paths.test.js`, `watch/detect-recoverable-bootstrap.test.js`,
+  `watch/snapshot-bootstrap.test.js`, `watch/sanitize-slice-temp-paths.test.js`). Literal-only
+  renames granted (applied by a scoped `sed` global replace; content verified by grep + full
+  suite).
+- **New P7 inventory row (from the staged-literal audit):** `setup-deps.mjs`
+  `.youtube-extraction.stamp` install stamp is invisible to the `youtube-digest` sweep and was
+  absent from the P7 inventory — added there (rename alongside the npm package rename; costs
+  one harmless dependency reinstall).
+
 ## 2026-08-15 — Phase 2: contract grew two review-driven declarations
 
 Security review (two independent reviewers; the cross-checked SSRF finding was CRITICAL) drove
