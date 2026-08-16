@@ -63,11 +63,6 @@ and fans out as sync PRs) and which own their copy `locally-owned`; read the man
 than a copy of it. Repo-specific steps go in a never-synced `.claude/cloud-bootstrap.local.sh`,
 never in an edit to a materialized script.
 
-> **Status (2026-08-16):** the component is in flight as
-> [standards#397](https://github.com/melodic-software/standards/pull/397). The two links above
-> resolve on its merge; until then the fleet's copies are hand-maintained and the manifest rows
-> do not exist yet.
-
 Out of scope: the three archived repos, and `kyle-sexton/prereq-cancelled-verify` +
 `kyle-sexton/autonomy-demo-scratch` (a session can attach repos from only one owner; audit those
 from a session started on a `kyle-sexton` repo if they ever matter).
@@ -171,8 +166,7 @@ and it lives in standards
 that README is the contract, and the
 [sync manifest](https://github.com/melodic-software/standards/blob/main/distribution/sync-manifest.yml)
 decides whether a repo takes it `managed` or owns it `locally-owned`. The script has exactly one
-copy; this doc does not carry a second one. Both links are subject to the
-[status note above](#bootstrap-adoption-2026-08-16) until standards#397 merges.
+copy; this doc does not carry a second one.
 
 Repo-specific steps — extra lockfile locations, pinned hygiene binaries, symlinks — go in a
 committed `.claude/cloud-bootstrap.local.sh`, which the canonical script runs after its generic
