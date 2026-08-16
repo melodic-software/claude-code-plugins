@@ -222,9 +222,9 @@ audit_noise_strip_inline_code() {
 # True when the line is a well-formed HTML opt-out marker comment (not a
 # prose mention of the marker name).
 audit_noise_is_ignore_line_marker() {
-  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore-line[[:space:]]*--\>[[:space:]]*$ ]]
+  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore-line[[:space:]]*--\>[[:space:]]*$ ]]  # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
 }
 
 audit_noise_is_ignore_para_marker() {
-  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore[[:space:]]*--\>[[:space:]]*$ ]]
+  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore[[:space:]]*--\>[[:space:]]*$ ]]  # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
 }
