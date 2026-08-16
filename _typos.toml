@@ -45,6 +45,10 @@ DUM = "DUM"
 FoD = "FoD"
 # NIC power-management registry value name — provisioning.
 PnPCapabilities = "PnPCapabilities"
+# Jasmine/Jest suite-skip global (the x-prefixed describe) — claude-code-plugins
+# testing detector and any consumer with JS tests. Corrected to "describe" by
+# default; whole-token, so prose "describe" is unaffected.
+xdescribe = "xdescribe"
 
 [files]
 # typos respects .gitignore by default, so only tracked paths that should never
