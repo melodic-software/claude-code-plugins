@@ -6,7 +6,9 @@
       "name": "default-compress-preserves-content",
       "prompt": "Compress this doc: read evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory and tighten it. Drop the flavor but keep everything load-bearing.",
       "expected_output": "Runs the default action: snapshot, mechanical compression backend (caveman or in-session Edit), a separate semantic-diff pass, revert of any semantic loss, then markdownlint. Filler ('basically', 'really', 'just', 'honestly', 'perhaps') is cut; the zero-warnings directive, the `MAX_UPLOAD_MB=25` value, and the 25 MB rejection threshold are preserved verbatim.",
-      "files": ["evals/fixtures/verbose-onboarding-snippet.md"],
+      "files": [
+        "evals/fixtures/verbose-onboarding-snippet.md"
+      ],
       "expectations": [
         "Output removes filler/hedging words (e.g. 'basically', 'really', 'just', 'honestly', 'perhaps')",
         "The literal `MAX_UPLOAD_MB=25` and the 25 MB rejection threshold are preserved, not dropped or altered",
@@ -17,7 +19,7 @@
     {
       "id": 2,
       "name": "audit-classification-table",
-      "prompt": "Run /compress audit against evals/fixtures/audit-fixture-dir (relative to the skill directory) — a directory of three files: an author-time-disciplined reference doc, a verbose prose doc, and a mixed doc.",
+      "prompt": "Run /compress audit against evals/fixtures/audit-fixture-dir (relative to the skill directory) \u2014 a directory of three files: an author-time-disciplined reference doc, a verbose prose doc, and a mixed doc.",
       "expected_output": "Runs the audit action only: a read-only dry-run using the author-time-signal heuristic in context/target-types.md. No file is edited and no semantic-diff subagent is dispatched. Output is a markdown table with columns target/expected_yield_pct/classify/reason, one row per file, sorted lexically. `lean.md` classifies SKIP (signal 4: explicit compression-discipline citation fires). `verbose.md` classifies COMPRESS (signal 5 fallback: verbose-prose baseline, no code-token or cross-reference density). `mixed.md` classifies UNCERTAIN or COMPRESS (signals 2/3 borderline on a small mixed-density file).",
       "files": [
         "evals/fixtures/audit-fixture-dir/lean.md",
@@ -37,20 +39,21 @@
     },
     {
       "id": 3,
-      "name": "semantic-diff-is-separate-not-self-audit",
-      "prompt": "Compress the prose in docs/architecture/overview.md. It's long and wordy.",
+      "name": "semantic-diff-is-separate-not-self-audit-narration",
+      "prompt": "Narration eval: describe how /docs-hygiene:compress verifies a compression of a long wordy markdown file (do not require a real path to exist).",
       "expected_output": "After producing the condensed edits, a SEPARATE fresh-context semantic-diff pass compares original vs condensed and reverts every SEMANTIC LOSS and AMBIGUITY finding. The model that produced the edits does not grade its own output, and the verifier does not re-add words to 'preserve clarity'.",
       "files": [],
       "expectations": [
         "The semantic-diff verification is described as a separate fresh-context pass, not a self-review by the editing model",
         "SEMANTIC LOSS and AMBIGUITY findings are reverted, not merely noted",
-        "The verifier is not used to re-expand or re-add removed words"
+        "The verifier is not used to re-expand or re-add removed words",
+        "This eval is narration-only \u2014 it grades the described procedure, not a fixture run"
       ]
     },
     {
       "id": 4,
       "name": "sub-3-percent-reverts-without-force",
-      "prompt": "Compress CLAUDE.md — it's already pretty tight but see if there's anything to cut.",
+      "prompt": "Compress an always-loaded instruction file such as CLAUDE.md at the repo root (if present) \u2014 already pretty tight; see if there is anything to cut.",
       "expected_output": "An already-disciplined always-loaded instruction file yields under 3% with zero semantic loss, so the default `<3% AND 0 semantic-loss -> REVERT` rule trips and the change is reverted. The run notes that `--force` would be required to keep a sub-3% diff.",
       "files": [],
       "expectations": [
@@ -62,7 +65,7 @@
     {
       "id": 5,
       "name": "refuse-code-file-target",
-      "prompt": "Compress apps/billing/src/fees.ts — trim the verbose comments and dead code.",
+      "prompt": "Compress apps/billing/src/fees.ts \u2014 trim the verbose comments and dead code.",
       "expected_output": "Declines: the methodology is markdown-specific and code / code-comment compression is out of scope. It does not run the compression pipeline on the TypeScript file and points to code-focused tooling instead.",
       "files": [],
       "expectations": [
@@ -74,8 +77,8 @@
     {
       "id": 6,
       "name": "ssot-relocation-not-flavor",
-      "prompt": "Compress docs/guide.md. One paragraph restates the full label taxonomy that already lives in .claude/rules/labels.md — collapse it down to a citation while you're compressing.",
-      "expected_output": "Recognizes that collapsing a passage which recaps a cited single source of truth is content RELOCATION, not flavor removal — the semantic-diff net would see the words gone from THIS file and revert them as semantic loss, blind to the SSOT. It treats the relocation as a manual editorial pass (verifying the SSOT actually holds the detail first), or routes multi-file duplication to /extract-ssot, rather than silently deleting the paragraph as flavor.",
+      "prompt": "Compress docs/guide.md. One paragraph restates the full label taxonomy that already lives in .claude/rules/labels.md \u2014 collapse it down to a citation while you're compressing.",
+      "expected_output": "Recognizes that collapsing a passage which recaps a cited single source of truth is content RELOCATION, not flavor removal \u2014 the semantic-diff net would see the words gone from THIS file and revert them as semantic loss, blind to the SSOT. It treats the relocation as a manual editorial pass (verifying the SSOT actually holds the detail first), or routes multi-file duplication to /extract-ssot, rather than silently deleting the paragraph as flavor.",
       "files": [],
       "expectations": [
         "Output distinguishes content relocation (recap of a cited SSOT) from flavor removal",
@@ -87,13 +90,13 @@
       "id": 7,
       "name": "repo-wide-interview-fallback",
       "prompt": "/compress",
-      "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining at any step exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then interviews on scope/concurrency with prescribed defaults (all COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded). No file is compressed before the final confirmation.",
+      "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining at any step exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then interviews on scope/concurrency with prescribed defaults (top-10 COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded). No file is compressed before the final confirmation.",
       "files": [],
       "expectations": [
         "Empty target + clean tree in an interactive session produces an AskUserQuestion offer, not an immediate no-op exit",
         "Declining the offer (or any later step) exits with the friendly no-op message rather than proceeding",
         "The mechanical audit runs BEFORE any compression and its inline output is bounded (aggregates + top-20 rows; full table to a file, never every row inline)",
-        "The interview presents prescribed defaults: all COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded",
+        "The interview presents prescribed defaults: top-10 COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded",
         "No file is edited before the user's explicit final confirmation",
         "Per-file hard rules (semantic-diff dispatch, revert pass, markdownlint, <3% rule) still apply to the confirmed run"
       ]
@@ -101,21 +104,23 @@
     {
       "id": 8,
       "name": "signal-6-density-skip",
-      "prompt": "Run /compress audit against docs/reference/api-lifecycle.md — a reference doc written tersely by an agent, with plain prose, no code fences, and no 'Prose compression discipline' citation.",
-      "expected_output": "The audit's signal 6 fires: no signal 1-4 matches, and the file's flavor-token density (the compress template's LATITUDE tokens per kilo-word) is below 5/kw, so the file classifies SKIP with expected yield <= 3% and a reason citing the density value and the disciplined-by-authorship baseline (9/9 reverted at 0.02-0.4%) — it does NOT fall through to signal 5's COMPRESS verbose-prose baseline.",
-      "files": [],
+      "prompt": "Run /docs-hygiene:compress audit against evals/fixtures/terse-agent.md relative to the skill directory \u2014 a terse agent-authored reference doc with plain prose, no code fences, and no Prose compression discipline citation.",
+      "expected_output": "The audit runs scripts/audit-scan.sh (or the equivalent heuristic). Signal 6 fires: no signal 1-4 matches, and the file's flavor-token density is below 5/kw, so the file classifies SKIP with expected yield <= 3% and a reason citing the density value and the disciplined-by-authorship baseline \u2014 it does NOT fall through to signal 5's COMPRESS verbose-prose baseline.",
+      "files": [
+        "evals/fixtures/terse-agent.md"
+      ],
       "expectations": [
         "A low-flavor-density file with no signal 1-4 match classifies SKIP, not COMPRESS",
         "The reason cites flavor-token density (N/kw < 5) and the disciplined-by-authorship empirical baseline",
-        "Signal 6 is computed as a gate on signal 5's fallback — the verbose-prose baseline is not applied to a file signal 6 catches",
+        "Signal 6 is computed as a gate on signal 5's fallback \u2014 the verbose-prose baseline is not applied to a file signal 6 catches",
         "No file is modified (audit is read-only)"
       ]
     },
     {
       "id": 9,
       "name": "fixture-path-skip-in-enumerated-sweep",
-      "prompt": "Compress plugins/docs-hygiene/skills/compress/ — the whole directory, everything markdown under it.",
-      "expected_output": "The directory target enumerates recursively, so target-validation gate 5 applies: every enumerated path under evals/fixtures/ skips with reason=fixture and is never edited (fixture verbosity is deliberate test input; compressing it corrupts the eval), while non-fixture markdown proceeds through the normal per-file pipeline. Gate 5 is scoped to the mutating action on ENUMERATED targets only — the empty-arg uncommitted-.md batch, directory expansion, and the repo-wide interview sweep — while an explicitly-named single fixture file (as in eval 1) and the read-only audit action (as in eval 2) bypass it.",
+      "prompt": "Compress the compress skill directory under the installed docs-hygiene plugin (the skill root that contains evals/fixtures/) \u2014 every markdown under it.",
+      "expected_output": "The directory target enumerates recursively, so target-validation gate 5 applies: every enumerated path under evals/fixtures/ skips with reason=fixture and is never edited (fixture verbosity is deliberate test input; compressing it corrupts the eval), while non-fixture markdown proceeds through the normal per-file pipeline. Gate 5 is scoped to the mutating action on ENUMERATED targets only \u2014 the empty-arg uncommitted-.md batch, directory expansion, and the repo-wide interview sweep \u2014 while an explicitly-named single fixture file (as in eval 1) and the read-only audit action (as in eval 2) bypass it.",
       "files": [],
       "expectations": [
         "Enumerated paths under evals/fixtures/ are skipped with reason=fixture before any dispatch",
@@ -127,13 +132,14 @@
     {
       "id": 10,
       "name": "fixture-skip-in-uncommitted-batch",
-      "prompt": "/docs-hygiene:compress (invoked with no target; the working tree has two uncommitted .md files: docs/notes/draft.md and plugins/docs-hygiene/skills/compress/evals/fixtures/verbose-onboarding-snippet.md, the latter touched by a formatter)",
+      "prompt": "/docs-hygiene:compress (invoked with no target; the working tree has two uncommitted .md files: docs/notes/draft.md and <skill-dir>/evals/fixtures/verbose-onboarding-snippet.md, the latter touched by a formatter)",
       "expected_output": "The empty-arg + uncommitted-.md batch enumerates its targets from git status, so target-validation gate 5 applies to it exactly as to directory expansion and the interview sweep: the fixture file skips with reason=fixture and is never edited, while docs/notes/draft.md proceeds through the normal per-file pipeline. The user never named the fixture file, so the explicit-naming bypass does not apply.",
       "files": [],
       "expectations": [
         "The uncommitted fixture file is skipped with reason=fixture, not compressed",
         "The non-fixture uncommitted file is processed normally",
-        "Output does not treat an uncommitted edit to a fixture as intentional naming — the bypass is only for a target path the user typed"
+        "Output does not treat an uncommitted edit to a fixture as intentional naming \u2014 the bypass is only for a target path the user typed",
+        "This eval is narration-only regarding the hypothetical working-tree state"
       ]
     }
   ]
