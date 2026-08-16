@@ -83,7 +83,7 @@ told:
    / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
    headroom is unobservable** — the `rate-limit-guard` tee is absent, stale, or missing
    `rate_limits`, which is the expected state in cloud / remote sessions with no statusline
-   producer (see that plugin's `reference/reader-contract.md`, "Cloud / remote sessions") — treat
+   producer (see rate-limit-guard's reader-contract, "Cloud / remote sessions") — treat
    headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
    waves over a wide tree, and do not invent window percentages. Scale further down on this
    session's own rate-limit errors or on live sibling-automation 429s already visible to the
