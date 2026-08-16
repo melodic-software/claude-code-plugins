@@ -17,6 +17,15 @@
 # regressed rather than that a tool is optional.
 set -uo pipefail
 
+# Fixture isolation (#2840). git exports GIT_DIR/GIT_WORK_TREE into every hook
+# it invokes, and `git config`'s default --local scope follows GIT_DIR ahead of
+# both `-C` and the working directory. A suite spawned with those inherited
+# writes its throwaway fixture identity into the CALLER's .git/config — shared
+# by every worktree of the clone — instead of into its fixture. Clearing them
+# once here isolates every suite this runner spawns, whatever idiom that suite
+# uses internally.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+
 strict_skips=0
 if [[ "${1:-}" == "--strict-skips" ]]; then
   strict_skips=1

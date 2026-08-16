@@ -7,6 +7,12 @@
 # Duplicated across plugins by design, not drift — see
 # docs/conventions/shell-test-helpers/README.md at the repo root.
 
+# Strip inherited git-hook context so a fixture `git init` in these tests
+# resolves to the mktemp fixture, never the real repo (a git-hook chain exports
+# GIT_DIR / GIT_INDEX_FILE etc., and `git config`'s default --local scope
+# follows GIT_DIR ahead of both `-C` and the working directory — #2840).
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+
 : "${PASS:=0}"
 : "${FAIL:=0}"
 

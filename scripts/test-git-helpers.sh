@@ -2,9 +2,24 @@
 # Shared helpers for test harnesses that build throwaway git repositories.
 # Sourced by repo-level *.test.sh files — not executed directly.
 #
-# git_test_config wraps git -C with throwaway identity and signing settings so
-# nothing is persisted into a repository's .git/config. git_init_safe refuses
-# to initialize inside the current checkout tree.
+# git_test_config wraps git -C with throwaway identity and signing settings.
+# git_init_safe refuses to initialize inside the current checkout tree.
+#
+# ISOLATION (#2840). `git -C <dir>` is a readability guard, not an isolation
+# guarantee: `git config`'s default --local scope and `git init`'s target both
+# follow GIT_DIR in preference to -C AND to the working directory. GIT_DIR is
+# exactly what git exports into every hook it invokes, so a suite run from a
+# hook — or from any process that inherited that environment — writes its
+# FIXTURE identity into the CALLER's .git/config and leaves the fixture with no
+# .git at all. Worktrees share the main clone's config, so one such leak
+# re-authors commits in every worktree at once; a poisoned user.email silently
+# re-authors a commit, which then fails this repo's required_signatures rule
+# with `no_user` and cannot be force-pushed over.
+#
+# Clearing the inherited git environment is the ONLY thing that isolates, so
+# this harness does it once, at source time, for the whole suite that sources
+# it. scripts/check-fixture-git-isolation.sh keeps that true.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
 
 git_test_config() {
   local dir="$1"
