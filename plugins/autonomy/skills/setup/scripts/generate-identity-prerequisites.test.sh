@@ -97,15 +97,15 @@ const emission = JSON.parse(fs.readFileSync(
 const leafIds = new Set();
 for (const name of fs.readdirSync(leavesDir).filter((n) => n.endsWith(".md"))) {
   const text = fs.readFileSync(path.join(leavesDir, name), "utf8");
-  const start = text.search(/^## Prerequisites\s*$/m);
+  const start = text.search(/^## Prerequisites[ \t]*$/m);
   if (start < 0) { console.error("missing Prerequisites in " + name); process.exit(1); }
   const after = text.slice(start);
   const endRel = after.slice(after.indexOf("\n") + 1).search(/^## /m);
   const section = endRel < 0 ? after : after.slice(0, after.indexOf("\n") + 1 + endRel);
-  const headings = [...section.matchAll(/^### `([^`]+)`\s*$/gm)].map((m) => m[1]);
+  const headings = [...section.matchAll(/^### `([^`]+)`[ \t]*$/gm)].map((m) => m[1]);
   if (headings.length) headings.forEach((id) => leafIds.add(id));
   else {
-    const m = section.match(/Single-posture identity:\s*`([^`]+)`/);
+    const m = section.match(/Single-posture identity:[ \t]*`([^`]+)`/);
     if (!m) { console.error("no identity in " + name); process.exit(1); }
     leafIds.add(m[1]);
   }
