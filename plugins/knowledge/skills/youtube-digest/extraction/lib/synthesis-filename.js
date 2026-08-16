@@ -4,7 +4,7 @@
 
 import path from "node:path";
 
-import { slugifyTitle } from "../transcript/derive-video-slug.js";
+import { capSlug } from "../transcript/derive-video-slug.js";
 
 export const MAX_SYNTHESIS_NAME_CHARS = 48;
 
@@ -63,7 +63,7 @@ const FORBIDDEN_SLUG_PREFIXES = [
  * @returns {boolean}
  */
 export function isForbiddenPipelineSessionSlug(sessionSlug) {
-  if (!sessionSlug || typeof sessionSlug !== "string") {
+  if (typeof sessionSlug !== "string") {
     return false;
   }
   const slug = sessionSlug.trim();
@@ -116,7 +116,7 @@ export function deriveSemanticNameFromGapNote(gapNote, reserved = new Set()) {
     .replace(/\s+not fully in transcript\.?$/i, "")
     .trim();
 
-  let slug = slugifyTitle(cleaned).slice(0, MAX_SYNTHESIS_NAME_CHARS).replace(/-+$/g, "");
+  let slug = capSlug(cleaned, MAX_SYNTHESIS_NAME_CHARS);
   for (const prefix of FORBIDDEN_SLUG_PREFIXES) {
     if (slug.startsWith(prefix)) {
       slug = slug.slice(prefix.length).replace(/^-+/, "");

@@ -16,27 +16,30 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
+# usage_error — the one spelling of the usage line every arg-parsing failure exits on.
+usage_error() {
+  echo "usage: run-conformance.sh --binding <name>" >&2
+  exit 2
+}
+
 binding_name=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --binding)
-      [[ $# -ge 2 ]] || {
-        echo "usage: run-conformance.sh --binding <name>" >&2
-        exit 2
-      }
+      if [[ $# -lt 2 ]]; then
+        usage_error
+      fi
       binding_name="$2"
       shift 2
       ;;
     *)
-      echo "usage: run-conformance.sh --binding <name>" >&2
-      exit 2
+      usage_error
       ;;
   esac
 done
-[[ -n "$binding_name" ]] || {
-  echo "usage: run-conformance.sh --binding <name>" >&2
-  exit 2
-}
+if [[ -z "$binding_name" ]]; then
+  usage_error
+fi
 BINDING_FILE_SH="$SCRIPT_DIR/bindings/$binding_name.sh"
 [[ -f "$BINDING_FILE_SH" ]] || {
   echo "run-conformance: no binding at $BINDING_FILE_SH" >&2

@@ -30,8 +30,9 @@ export function dedupeSynthesisDir(synthesisDir) {
 
   for (const file of files) {
     const hash = hashFile(path.join(absDir, file));
-    if (!byHash.has(hash)) byHash.set(hash, []);
-    byHash.get(hash).push(file);
+    const group = byHash.get(hash);
+    if (group) group.push(file);
+    else byHash.set(hash, [file]);
   }
 
   const kept = [];
@@ -42,11 +43,9 @@ export function dedupeSynthesisDir(synthesisDir) {
       kept.push(group[0]);
       continue;
     }
-    const sorted = [...group].sort(
-      (a, b) => synthesisNameQualityScore(b) - synthesisNameQualityScore(a),
-    );
-    kept.push(sorted[0]);
-    for (const file of sorted.slice(1)) {
+    group.sort((a, b) => synthesisNameQualityScore(b) - synthesisNameQualityScore(a));
+    kept.push(group[0]);
+    for (const file of group.slice(1)) {
       fs.unlinkSync(path.join(absDir, file));
       removed.push(file);
     }

@@ -8,10 +8,10 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { acquireYouTubeMedia } from "../acquisition/acquire.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "./derive-video-slug.js";
@@ -75,10 +75,7 @@ export async function runTranscriptCli(argv) {
   }
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runTranscriptCli(process.argv)
     .then((code) => {
       process.exitCode = code;

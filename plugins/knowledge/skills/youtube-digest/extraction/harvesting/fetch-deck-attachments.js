@@ -9,10 +9,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 /** Default cap on a single fetched attachment; links come from attacker-controlled video descriptions. */
@@ -140,10 +140,7 @@ export async function fetchDeckAttachments(
   return { fetched, skipped };
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   const dryRun = process.argv.includes("--dry-run");
   if (!sliceDir) {

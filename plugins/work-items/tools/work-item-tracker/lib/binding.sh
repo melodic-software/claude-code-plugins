@@ -27,6 +27,20 @@ wit_find_binding() {
   done
 }
 
+# wit_role_label <path> <role> <default> — echo the binding's configured label for
+# a canonical role, or <default> when the key is absent OR configured empty. jq's
+# `//` cannot carry the default on its own: it falls back on null/false only, so a
+# configured empty string would win over the shipped default.
+wit_role_label() {
+  local configured
+  configured="$(jq -r --arg role "$2" '.config.role_labels[$role] // empty' "$1")"
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured"
+  else
+    printf '%s\n' "$3"
+  fi
+}
+
 # wit_read_binding <path> — validate shape and export WIT_PROVIDER,
 # WIT_LEASE_TTL_HOURS, WIT_STORAGE_DIR, WIT_HUMAN_GATED_LABEL,
 # WIT_AUTONOMOUS_ELIGIBLE_LABEL, WIT_RECURRING_MAINTENANCE_LABEL. lease_ttl_hours is
@@ -60,12 +74,9 @@ wit_read_binding() {
   fi
   # Canonical roles (label-taxonomy.md); config.role_labels lets a repo remap the
   # literal label strings. Absent keys fall back to shipped defaults.
-  human_gated="$(jq -r '.config.role_labels["human-gated"] // empty' "$path")"
-  [[ -n "$human_gated" ]] || human_gated="needs-human"
-  autonomous_eligible="$(jq -r '.config.role_labels["autonomous-eligible"] // empty' "$path")"
-  [[ -n "$autonomous_eligible" ]] || autonomous_eligible="agent-ready"
-  recurring_maintenance="$(jq -r '.config.role_labels["recurring-maintenance"] // empty' "$path")"
-  [[ -n "$recurring_maintenance" ]] || recurring_maintenance="recurring"
+  human_gated="$(wit_role_label "$path" "human-gated" "needs-human")"
+  autonomous_eligible="$(wit_role_label "$path" "autonomous-eligible" "agent-ready")"
+  recurring_maintenance="$(wit_role_label "$path" "recurring-maintenance" "recurring")"
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
   WIT_LEASE_TTL_MINUTES="$minutes"

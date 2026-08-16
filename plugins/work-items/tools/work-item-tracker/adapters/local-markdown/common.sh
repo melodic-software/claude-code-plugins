@@ -217,7 +217,7 @@ wit_active_lease_json() {
   while IFS= read -r line; do
     json="$(wit_lease_json "$line")"
     [[ -n "$json" ]] || continue
-    [[ "$(jq -r '.superseded_at // empty' <<<"$json")" == "" ]] || continue
+    [[ -z "$(jq -r '.superseded_at // empty' <<<"$json")" ]] || continue
     active="$json"
   done <<<"$lines"
   printf '%s\n' "$active"

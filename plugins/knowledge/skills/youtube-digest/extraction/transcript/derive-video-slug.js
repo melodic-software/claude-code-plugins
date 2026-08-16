@@ -22,6 +22,17 @@ export function slugifyTitle(text) {
 }
 
 /**
+ * Slugify, cap at `maxChars`, then re-trim the trailing `-` the cut can expose.
+ *
+ * @param {string} text
+ * @param {number} maxChars
+ * @returns {string}
+ */
+export function capSlug(text, maxChars) {
+  return slugifyTitle(text).slice(0, maxChars).replace(/-+$/g, "");
+}
+
+/**
  * Build the per-video work slice slug: kebab-case title (40-char cap) + video id suffix.
  *
  * @param {string} title
@@ -29,7 +40,7 @@ export function slugifyTitle(text) {
  * @returns {string}
  */
 export function deriveVideoSlug(title, videoId) {
-  const base = slugifyTitle(title).slice(0, MAX_TITLE_CHARS).replace(/-+$/g, "");
+  const base = capSlug(title, MAX_TITLE_CHARS);
   const prefix = base || "video";
   return `${prefix}-${videoId}`;
 }
