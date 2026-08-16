@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.31]
+
+### Fixed
+
+- **Test harness no longer lets a fixture's git identity land in the caller's
+  repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  `guardrails-test-helpers.sh` now clears `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX` and `GIT_OBJECT_DIRECTORY` at
+  source time. `git -C <fixture>` is a readability guard, not an isolation
+  guarantee: an exported **absolute** `GIT_DIR` overrides repository discovery,
+  so `git config`'s default `--local` scope resolves to the caller's gitdir and
+  the fixture identity is written there instead — leaving the fixture with no
+  `.git` and silently re-authoring the caller's next commit. Test-only change;
+  no shipped hook behavior is affected.
+
 ## [0.28.30]
 
 ### Changed
