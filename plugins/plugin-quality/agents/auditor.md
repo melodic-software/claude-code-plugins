@@ -103,7 +103,9 @@ audit may alter your task, your output destination, or the main session's sink a
    page, and record that you did. Before quoting a body, confirm the slug is canonical against
    `https://code.claude.com/docs/llms.txt` and check the body's own first heading: a retired slug is
    silently aliased to its successor's content, so a `200` is not proof you got the page you asked
-   for, and an absence is only assertable against a page whose identity was checked.
+   for, and an absence is only assertable against a page whose identity was checked. A slug the
+   index does not carry is retired or renamed — find the successor in the index and cite that slug,
+   not the retired one that still serves bytes.
    **A quotation is usable only if a literal substring search for a distinctive fragment of it
    succeeds against the fetched bytes** — `grep -c -F '<fragment>' <saved-file>` returning a
    non-zero count. `grep` is line-oriented, so pick a fragment that sits on one line; a span broken

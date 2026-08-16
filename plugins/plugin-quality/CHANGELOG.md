@@ -15,8 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `docs/conventions/upstream-drift/README.md`, which the convention labels *degraded* and which
   truncates long pages silently — and "not in the response" is indistinguishable from "not on the
   page". The step now names the convention's rung-1 route (`curl` the `.md` channel to a file,
-  search the file locally) as the default, points at the convention for the ladder and the identity
-  and absence checks rather than restating them, and keeps `WebFetch` only for pages with no
+  search the file locally) as the default, cites `docs/conventions/upstream-drift/README.md` as the
+  owning record, and keeps `WebFetch` only for pages with no
   raw-markdown channel. The tool-honesty note was amended in step: the step-3 `curl` joins Bash's
   enumerated uses, and the network clause now permits it alongside `WebFetch` instead of capping
   network reach at `WebFetch`.
