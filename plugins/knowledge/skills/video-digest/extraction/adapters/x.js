@@ -7,7 +7,7 @@
  * Acquisition is two-phase by design: a metadata/captions probe (never media)
  * runs first, and every yt-dlp invocation carries the adapter's extractor
  * allow-list (`--use-extractors`), so a delegated foreign URL from a link post
- * (yt-dlp/yt-dlp#9715) is refused by yt-dlp itself WITHOUT any fetch — the
+ * is refused by yt-dlp itself WITHOUT any fetch — the
  * refusal is parsed from stderr and the post resolves as a well-formed 0-media
  * result with the blocked link recorded. The info-JSON extractor check remains
  * as defense-in-depth: a foreign info JSON on disk means the allow-list failed
@@ -197,7 +197,7 @@ const SNOWFLAKE_ALIAS_THRESHOLD_MS = 60 * 60 * 1000;
 /**
  * Parse an x.com / twitter.com status URL. Pure; returns null for anything
  * that is not a status URL on an owned host (profiles, spaces, foreign hosts,
- * unparseable input).
+ * unparsable input).
  *
  * @param {string} url
  * @returns {XStatusUrlParts|null}

@@ -81,7 +81,7 @@ function normalizeHostname(hostname) {
 }
 
 /**
- * Resolve the adapter owning a URL's host. Fails closed: an unparseable URL or
+ * Resolve the adapter owning a URL's host. Fails closed: an unparsable URL or
  * a host no adapter owns throws {@link UnsupportedSourceError} listing the
  * supported sources.
  *

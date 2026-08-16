@@ -54,7 +54,7 @@ describe("osaDistance", () => {
   it("counts adjacent transposition as one edit (the mishearing shape)", () => {
     expect(osaDistance("clawed", "claude")).toBe(2);
     expect(osaDistance("abc", "abc")).toBe(0);
-    expect(osaDistance("ab", "ba")).toBe(1);
+    expect(osaDistance("ab", "ba")).toBe(1); // spellchecker:disable-line
   });
 });
 

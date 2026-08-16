@@ -15,7 +15,7 @@ Owned hosts are `youtube.com` and `youtu.be`. Host matching is suffix-aware, so 
 `music.` subdomains all resolve here, while lookalikes (`notyoutube.com`,
 `youtube.com.evil.example`) do not.
 
-Slice key = the 11-character video id (`[\w-]{11}`), derived from the URL rather than from
+Slice key = the 11-character video id (`[A-Za-z0-9_-]{11}`), derived from the URL rather than from
 post-redirect metadata; metadata `id` is a fallback only when the URL yields none. One id → one
 slice; the id is also the `QUEUE.md` dedupe key. Canonicalization is identity — every claimed
 variant is acquired verbatim.

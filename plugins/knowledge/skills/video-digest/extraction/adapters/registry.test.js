@@ -54,7 +54,7 @@ describe("resolveSourceAdapter", () => {
     );
   });
 
-  it("fails closed on an unparseable URL", () => {
+  it("fails closed on an unparsable URL", () => {
     expect(() => resolveSourceAdapter("not a url")).toThrow(UnsupportedSourceError);
   });
 
