@@ -88,6 +88,7 @@ else
 fi
 
 # --- case: leaf_emission_parity ---------------------------------------------
+# shellcheck disable=SC2016 # intentional: JS regex anchors/$ stay literal in single-quoted -e
 parity_out="$(node -e '
 const fs = require("node:fs");
 const path = require("node:path");
@@ -127,6 +128,7 @@ else
 fi
 
 # --- case: posture_divergence -----------------------------------------------
+# shellcheck disable=SC2016 # intentional: JS identifiers in single-quoted -e
 div="$(node -e '
 const e = require(process.argv[1]);
 const mech = e.identities.find((i) => i.identity === "dependency-update-wave/mechanical");
