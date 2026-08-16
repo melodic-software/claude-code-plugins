@@ -84,7 +84,8 @@ bash -c 'MSYS_NO_PATHCONV=1 git ... /d/a; git ... /d/b'          ->  '/d/a' then
 
 So, in preference order:
 
-1. **Use Windows-native paths** (`D:/repos/...`) for path arguments, and the question never arises.
+1. **Use Windows-native paths** (`<drive>:/<repo-root>/...`) for path arguments, and the question
+   never arises.
 2. If a suppressor is genuinely needed, use it as a **per-command prefix** —
    `MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"` — which scopes it to that one
    command and nothing after it.

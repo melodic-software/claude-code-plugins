@@ -136,7 +136,7 @@ block() {
     'A later path argument then reaches a Windows-native program unconverted, and git resolves a leading / against the CURRENT DRIVE:' \
     '  git worktree add /d/worktrees/x   ->   <current-drive>:/d/worktrees/x   (a phantom tree, and a run that measured the wrong thing)' \
     'Fix, in preference order:' \
-    '  1. Use Windows-native paths for path arguments -- git -C D:/repos/... show ... -- so the question does not arise.' \
+    '  1. Use Windows-native paths for path arguments -- git -C <repo-root> show ... -- so the question does not arise.' \
     '  2. If you need the suppressor for a <rev>:<path> argument, use it as a PER-COMMAND PREFIX, which scopes it to that one command:' \
     '       MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"' \
     'A bare assignment (MSYS_NO_PATHCONV=1; ...) has no effect at all -- the MSYS runtime reads the environment, so only export leaks.' \

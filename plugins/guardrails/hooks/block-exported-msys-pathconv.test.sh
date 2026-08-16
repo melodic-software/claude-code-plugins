@@ -64,7 +64,7 @@ run_win "export MSYS2_ARG_CONV_EXCL (blocked)" "export MSYS2_ARG_CONV_EXCL='*'; 
 run_win "the real #2870 incident shape (blocked)" \
   'unset GIT_DIR GIT_WORK_TREE; export MSYS_NO_PATHCONV=1; cd /d/worktrees/calib && git worktree add --detach /d/worktrees/ccp-measure2 origin/main' 2
 run_win "export chained with && (blocked)" \
-  'cd "D:/repos/x" && export MSYS_NO_PATHCONV=1 && git show "origin/main:.github/workflows/ci.yml"' 2
+  'cd "<repo-root>" && export MSYS_NO_PATHCONV=1 && git show "origin/main:.github/workflows/ci.yml"' 2
 run_win "export of both variables at once (blocked)" \
   "export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'; git status" 2
 run_win "export with a leading unrelated assignment (blocked)" \
@@ -82,7 +82,7 @@ run_win "per-command prefix (allowed)" \
 run_win "per-command prefix, both variables (allowed)" \
   "MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' git show 'origin/main:.claude/settings.json'" 0
 run_win "per-command prefix mid-chain (allowed)" \
-  'cd "D:/repos/x" && MSYS_NO_PATHCONV=1 git show "origin/main:.github/x.yml" | head -5' 0
+  'cd "<repo-root>" && MSYS_NO_PATHCONV=1 git show "origin/main:.github/x.yml" | head -5' 0
 run_win "bare assignment, not exported (allowed)" 'MSYS_NO_PATHCONV=1; git status' 0
 run_win "bare assignment with && (allowed)" 'MSYS2_ARG_CONV_EXCL=1 && git status' 0
 
@@ -113,7 +113,7 @@ run_win "ordinary command (allowed)" 'ls -la /c/Users' 0
 # PowerShell has no `export`, but an agent can invoke bash from it.
 run_win_pwsh "PowerShell wrapping bash -c with an export (blocked)" \
   "bash -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
-run_win_pwsh "ordinary PowerShell (allowed)" 'Get-ChildItem D:\repos' 0
+run_win_pwsh "ordinary PowerShell (allowed)" 'Get-ChildItem <repo-root>' 0
 
 # --- 7. Fail-closed inputs ---------------------------------------------------
 run_win "over-length command naming the variable fails closed" \
