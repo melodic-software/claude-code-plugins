@@ -37,7 +37,9 @@ describe("isCookieProfileRetryableError", () => {
 
 describe("hasExplicitYtDlpCookieConfig", () => {
   it("detects cookies file env", () => {
-    expect(hasExplicitYtDlpCookieConfig({ YOUTUBE_YT_DLP_COOKIES_FILE: "/tmp/c.txt" })).toBe(true);
+    expect(hasExplicitYtDlpCookieConfig({ VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/c.txt" })).toBe(
+      true,
+    );
   });
 
   it("is false when unset", () => {
@@ -48,7 +50,7 @@ describe("hasExplicitYtDlpCookieConfig", () => {
 describe("browserCookieFallbackProfiles", () => {
   it("returns explicit browser when env is set", () => {
     expect(
-      browserCookieFallbackProfiles({ YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "firefox" }),
+      browserCookieFallbackProfiles({ VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "firefox" }),
     ).toEqual(["firefox"]);
   });
 
@@ -56,5 +58,26 @@ describe("browserCookieFallbackProfiles", () => {
     const profiles = browserCookieFallbackProfiles({});
     expect(profiles.length).toBeGreaterThan(0);
     expect(profiles).toContain("chrome");
+  });
+});
+
+describe("deprecated YOUTUBE_-prefixed cookie config still reaches the auth lane", () => {
+  it("legacy-only cookies file is detected as explicit config", () => {
+    expect(hasExplicitYtDlpCookieConfig({ YOUTUBE_YT_DLP_COOKIES_FILE: "/tmp/c.txt" })).toBe(true);
+  });
+
+  it("legacy-only browser profile is honored as the explicit fallback profile", () => {
+    expect(
+      browserCookieFallbackProfiles({ YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "firefox" }),
+    ).toEqual(["firefox"]);
+  });
+
+  it("the new spelling wins when both are set", () => {
+    expect(
+      browserCookieFallbackProfiles({
+        VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "edge",
+        YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "firefox",
+      }),
+    ).toEqual(["edge"]);
   });
 });

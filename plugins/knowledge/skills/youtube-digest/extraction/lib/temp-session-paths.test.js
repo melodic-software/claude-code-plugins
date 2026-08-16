@@ -13,21 +13,21 @@ import {
 
 describe("temp-session-paths", () => {
   it("round-trips paths under os tmpdir", () => {
-    const abs = path.join(os.tmpdir(), "youtube-frames-abc");
+    const abs = path.join(os.tmpdir(), "video-frames-abc");
     const serialized = serializeTempPath(abs);
-    expect(serialized).toBe("{tmp}/youtube-frames-abc");
+    expect(serialized).toBe("{tmp}/video-frames-abc");
     expect(resolveTempPath(serialized)).toBe(abs);
   });
 
   it("serializes temp session block", () => {
-    const abs = path.join(os.tmpdir(), "youtube-sheets-x");
+    const abs = path.join(os.tmpdir(), "video-sheets-x");
     const out = serializeTempSession({ contactSheetsDir: abs, acquiredAt: "t" });
-    expect(out.contactSheetsDir).toBe("{tmp}/youtube-sheets-x");
+    expect(out.contactSheetsDir).toBe("{tmp}/video-sheets-x");
     expect(resolveTempSession(out).contactSheetsDir).toBe(abs);
   });
 
   it("strips accidental prefix before embedded {tmp}", () => {
-    const broken = `/repos/foo/{tmp}/youtube-frames-neUPQR`;
-    expect(normalizePortableTempPath(broken)).toBe("{tmp}/youtube-frames-neUPQR");
+    const broken = `/repos/foo/{tmp}/video-frames-neUPQR`;
+    expect(normalizePortableTempPath(broken)).toBe("{tmp}/video-frames-neUPQR");
   });
 });

@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { refreshSlot, withAcquireThrottle } from "./acquire-throttle.js";
+import { refreshSlot, resolveMaxConcurrentAcquires, withAcquireThrottle } from "./acquire-throttle.js";
 
 /** @type {string} */
 let baseDir;
@@ -80,5 +80,28 @@ describe("refreshSlot", () => {
 
   it("returns false for a missing slot", async () => {
     expect(await refreshSlot(path.join(baseDir, "nope"))).toBe(false);
+  });
+});
+
+describe("resolveMaxConcurrentAcquires env resolution", () => {
+  afterEach(() => {
+    delete process.env.VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES;
+    delete process.env.YOUTUBE_MAX_CONCURRENT_ACQUIRES;
+  });
+
+  it("reads the new VIDEO_DIGEST_ name", () => {
+    process.env.VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES = "2";
+    expect(resolveMaxConcurrentAcquires()).toBe(2);
+  });
+
+  it("still honors the deprecated YOUTUBE_ name", () => {
+    process.env.YOUTUBE_MAX_CONCURRENT_ACQUIRES = "3";
+    expect(resolveMaxConcurrentAcquires()).toBe(3);
+  });
+
+  it("prefers the new name when both are set", () => {
+    process.env.VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES = "2";
+    process.env.YOUTUBE_MAX_CONCURRENT_ACQUIRES = "3";
+    expect(resolveMaxConcurrentAcquires()).toBe(2);
   });
 });

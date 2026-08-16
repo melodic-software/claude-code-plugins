@@ -8,7 +8,13 @@
  */
 
 import { classifyErrorDetail } from "../adapters/adapter-contract.js";
-import { YT_DLP_COOKIES_FILE_ENV, YT_DLP_COOKIES_FROM_BROWSER_ENV } from "./build-yt-dlp-args.js";
+import { resolveEnvWithLegacy } from "../lib/env-compat.js";
+import {
+  LEGACY_YT_DLP_COOKIES_FILE_ENV,
+  LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
+  YT_DLP_COOKIES_FILE_ENV,
+  YT_DLP_COOKIES_FROM_BROWSER_ENV,
+} from "./build-yt-dlp-args.js";
 
 /** @type {readonly RegExp[]} */
 export const YOUTUBE_BOT_CHALLENGE_PATTERNS = [
@@ -49,7 +55,12 @@ export function isCookieProfileRetryableError(detail, errorPatterns) {
  */
 export function hasExplicitYtDlpCookieConfig(env = process.env) {
   return Boolean(
-    env[YT_DLP_COOKIES_FILE_ENV]?.trim() || env[YT_DLP_COOKIES_FROM_BROWSER_ENV]?.trim(),
+    resolveEnvWithLegacy(YT_DLP_COOKIES_FILE_ENV, LEGACY_YT_DLP_COOKIES_FILE_ENV, env)?.trim() ||
+      resolveEnvWithLegacy(
+        YT_DLP_COOKIES_FROM_BROWSER_ENV,
+        LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
+        env,
+      )?.trim(),
   );
 }
 
@@ -60,7 +71,11 @@ export function hasExplicitYtDlpCookieConfig(env = process.env) {
  * @returns {readonly string[]}
  */
 export function browserCookieFallbackProfiles(env = process.env) {
-  const explicit = env[YT_DLP_COOKIES_FROM_BROWSER_ENV]?.trim();
+  const explicit = resolveEnvWithLegacy(
+    YT_DLP_COOKIES_FROM_BROWSER_ENV,
+    LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
+    env,
+  )?.trim();
   if (explicit) {
     return [explicit];
   }

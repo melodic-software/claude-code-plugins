@@ -107,7 +107,7 @@ describe("runWatchCli envelope consumption", () => {
   beforeEach(async () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-root-"));
     fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-fix-"));
-    process.env.YOUTUBE_WORK_ROOT = workRoot;
+    process.env.VIDEO_DIGEST_WORK_ROOT = workRoot;
     captured.stderr.length = 0;
     captured.stdout.length = 0;
     vi.mocked(acquireMedia).mockReset();
@@ -122,7 +122,7 @@ describe("runWatchCli envelope consumption", () => {
   });
 
   afterEach(async () => {
-    delete process.env.YOUTUBE_WORK_ROOT;
+    delete process.env.VIDEO_DIGEST_WORK_ROOT;
     await fs.rm(workRoot, { recursive: true, force: true });
     await fs.rm(fixtureDir, { recursive: true, force: true });
   });

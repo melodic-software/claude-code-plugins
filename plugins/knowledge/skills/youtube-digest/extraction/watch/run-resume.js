@@ -43,7 +43,7 @@ export async function runResumeCli(argv) {
   }
 
   const nextPhase = findNextPhase(state.phases);
-  const continuationPrompt = buildContinuationPrompt(state);
+  const continuationPrompt = buildContinuationPrompt(state, sliceDir);
   await writeContinuationPrompt(sliceDir, state);
   const recovery = detectRecoverableBootstrap(sliceDir);
 

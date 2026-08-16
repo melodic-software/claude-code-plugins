@@ -13,7 +13,6 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
-import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
 
 /**
  * @typedef {Object} PhaseRecord
@@ -154,10 +153,15 @@ export function findNextPhase(phases) {
 /**
  * Build a continuation prompt for `/youtube-digest resume`.
  *
+ * Prompt paths render from the resolved slice dir the caller already holds —
+ * never re-derived from the epic-dir constant — so a non-default `--work-root`
+ * always yields resumable paths (storage invariant A1 (4)).
+ *
  * @param {WatchState} state
+ * @param {string} sliceDir - resolved slice directory
  * @returns {string}
  */
-export function buildContinuationPrompt(state) {
+export function buildContinuationPrompt(state, sliceDir) {
   const next = findNextPhase(state.phases);
   const completed = Object.entries(state.phases)
     .filter(([, value]) => value !== null)
@@ -176,7 +180,7 @@ ${completed.length > 0 ? completed.map((p) => `- ${p}`).join("\n") : "- (none ye
 
 ## Next phase
 
-**${next ?? "complete"}** — resume from \`.work/${YOUTUBE_WATCH_EPIC_DIR}/${state.videoSlug}/\` artifacts.
+**${next ?? "complete"}** — resume from \`${sliceDir}\` artifacts.
 
 ## Synthesis target
 
@@ -200,7 +204,7 @@ ${state.tempSession ? `- Frames temp: \`${normalizePortableTempPath(state.tempSe
 
 ## Instructions
 
-1. Read \`.work/${YOUTUBE_WATCH_EPIC_DIR}/${state.videoSlug}/run-state/watch.json\` for phase markers
+1. Read \`${watchStatePath(sliceDir)}\` for phase markers
 2. Read \`source/transcript.txt\` and the existing lane deliverables (\`research/\`, \`key-frames/\`, \`recommendations/\`)
 3. Continue from the **${next ?? "synthesis"}** phase per SKILL.md watch protocol
 4. Default-on research stage unless user passed \`--skip-research\`
@@ -262,7 +266,7 @@ export async function writeContinuationPrompt(
   writeFile = fs.writeFile,
   mkdir = fs.mkdir,
 ) {
-  const prompt = buildContinuationPrompt(state);
+  const prompt = buildContinuationPrompt(state, sliceDir);
   await mkdir(lanePath(sliceDir, LANES.runState), { recursive: true });
   await writeFile(continuationPromptPath(sliceDir), prompt, "utf8");
   return prompt;

@@ -119,26 +119,43 @@ describe("buildYtDlpArgs", () => {
   });
 
   it("uses cookies-from-browser when configured", () => {
-    const args = resolveYtDlpAuthArgs({ YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "chrome" });
+    const args = resolveYtDlpAuthArgs({ VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" });
     expect(args).toEqual(["--cookies-from-browser", "chrome", "--js-runtimes", "node"]);
   });
 
   it("prefers cookies file over browser", () => {
     const args = resolveYtDlpAuthArgs({
-      YOUTUBE_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt",
-      YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "chrome",
+      VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt",
+      VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome",
     });
     expect(args).toEqual(["--cookies", "/tmp/cookies.txt", "--js-runtimes", "node"]);
   });
 
   it("omits js runtimes when disabled", () => {
-    const args = resolveYtDlpAuthArgs({ YOUTUBE_YT_DLP_JS_RUNTIMES: "off" });
+    const args = resolveYtDlpAuthArgs({ VIDEO_DIGEST_YT_DLP_JS_RUNTIMES: "off" });
     expect(args).toEqual([]);
+  });
+
+  it("still honors the deprecated YOUTUBE_-prefixed spellings", () => {
+    const args = resolveYtDlpAuthArgs({
+      YOUTUBE_YT_DLP_COOKIES_FILE: "/tmp/legacy-cookies.txt",
+      YOUTUBE_YT_DLP_JS_RUNTIMES: "off",
+    });
+    expect(args).toEqual(["--cookies", "/tmp/legacy-cookies.txt"]);
+  });
+
+  it("prefers the new spelling when both old and new are set", () => {
+    const args = resolveYtDlpAuthArgs({
+      VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/new-cookies.txt",
+      YOUTUBE_YT_DLP_COOKIES_FILE: "/tmp/legacy-cookies.txt",
+      VIDEO_DIGEST_YT_DLP_JS_RUNTIMES: "off",
+    });
+    expect(args).toEqual(["--cookies", "/tmp/new-cookies.txt"]);
   });
 
   it("auth override wins over env for browser cookies", () => {
     const args = resolveYtDlpAuthArgs(
-      { YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
+      { VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
       { cookiesFromBrowser: "edge" },
     );
     expect(args).toEqual(["--cookies-from-browser", "edge", "--js-runtimes", "node"]);

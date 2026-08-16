@@ -30,9 +30,9 @@ describe("detectRecoverableBootstrap", () => {
 
   it("detects recoverable temp artifacts", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "detect-recover-"));
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-extraction-"));
-    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-frames-"));
-    const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-sheets-"));
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-extraction-"));
+    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-frames-"));
+    const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-sheets-"));
 
     fs.writeFileSync(path.join(workDir, "video.mp4"), "x");
     fs.writeFileSync(path.join(workDir, "captions.vtt"), "WEBVTT\n");
@@ -56,9 +56,9 @@ describe("detectRecoverableBootstrap", () => {
 
   it("accepts an auto-caption-only workDir (*-orig.vtt)", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "detect-recover-"));
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-extraction-"));
-    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-frames-"));
-    const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-sheets-"));
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-extraction-"));
+    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-frames-"));
+    const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-sheets-"));
 
     fs.writeFileSync(path.join(workDir, "video.mp4"), "x");
     fs.writeFileSync(path.join(workDir, "captions.en-orig.vtt"), "WEBVTT\n");
@@ -80,8 +80,8 @@ describe("detectRecoverableBootstrap", () => {
 
   it("is not recoverable when workDir is gone even if frames+sheets survive", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "detect-recover-"));
-    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-frames-"));
-    const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-sheets-"));
+    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-frames-"));
+    const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-sheets-"));
 
     fs.writeFileSync(path.join(framesDir, "anchor_00010000_0001.png"), "x");
     fs.writeFileSync(path.join(sheetsDir, "sheet_001.jpg"), "x");
@@ -92,7 +92,7 @@ describe("detectRecoverableBootstrap", () => {
       JSON.stringify({
         phases: {},
         tempSession: {
-          workDir: path.join(os.tmpdir(), "youtube-extraction-gone-9999"),
+          workDir: path.join(os.tmpdir(), "video-extraction-gone-9999"),
           framesDir,
           contactSheetsDir: sheetsDir,
         },
@@ -107,7 +107,7 @@ describe("detectRecoverableBootstrap", () => {
 
 describe("resolveWorkArtifacts", () => {
   it("resolves an auto-caption-only workDir via the *-orig.vtt fallback", () => {
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-extraction-"));
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-extraction-"));
     fs.writeFileSync(path.join(workDir, "video.mp4"), "x");
     fs.writeFileSync(path.join(workDir, "captions.en-orig.vtt"), "WEBVTT\n");
     fs.writeFileSync(path.join(workDir, "meta.info.json"), "{}");
@@ -117,7 +117,7 @@ describe("resolveWorkArtifacts", () => {
   });
 
   it("prefers a cleaned .vtt over the -orig auto-caption when both exist", () => {
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-extraction-"));
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-extraction-"));
     fs.writeFileSync(path.join(workDir, "video.mp4"), "x");
     fs.writeFileSync(path.join(workDir, "captions.en-orig.vtt"), "WEBVTT\n");
     fs.writeFileSync(path.join(workDir, "captions.en.vtt"), "WEBVTT\n");

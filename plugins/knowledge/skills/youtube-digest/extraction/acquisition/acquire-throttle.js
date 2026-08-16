@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { resolveEnvWithLegacy } from "../lib/env-compat.js";
 import { sleepMs } from "./acquire-retry-policy.js";
 
 const DEFAULT_MAX_CONCURRENT = 1;
@@ -20,7 +21,10 @@ const SLOT_HEARTBEAT_MS = 5 * 60 * 1000;
  * @returns {number}
  */
 export function resolveMaxConcurrentAcquires() {
-  const raw = process.env.YOUTUBE_MAX_CONCURRENT_ACQUIRES;
+  const raw = resolveEnvWithLegacy(
+    "VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES",
+    "YOUTUBE_MAX_CONCURRENT_ACQUIRES",
+  );
   if (!raw) return DEFAULT_MAX_CONCURRENT;
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_MAX_CONCURRENT;

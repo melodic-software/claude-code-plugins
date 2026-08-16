@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { acquireYouTubeMedia, listWorkDirFiles, resolveMediaArtifacts } from "./acquire.js";
+import {
+  acquireYouTubeMedia,
+  listWorkDirFiles,
+  resolveAcquirePhaseGapMs,
+  resolveMediaArtifacts,
+} from "./acquire.js";
 
 const DRIVER_WATCH_URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
 const DRIVER_VIDEO_ID = "7zZy1QTvokM";
@@ -91,5 +96,28 @@ describe("listWorkDirFiles", () => {
   it("lists files in the real temp directory for integration smoke", async () => {
     const files = await listWorkDirFiles("/tmp");
     expect(Array.isArray(files)).toBe(true);
+  });
+});
+
+describe("resolveAcquirePhaseGapMs env resolution", () => {
+  afterEach(() => {
+    delete process.env.VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC;
+    delete process.env.YOUTUBE_ACQUIRE_PHASE_GAP_SEC;
+  });
+
+  it("reads the new VIDEO_DIGEST_ name", () => {
+    process.env.VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC = "1.5";
+    expect(resolveAcquirePhaseGapMs()).toBe(1500);
+  });
+
+  it("still honors the deprecated YOUTUBE_ name", () => {
+    process.env.YOUTUBE_ACQUIRE_PHASE_GAP_SEC = "2";
+    expect(resolveAcquirePhaseGapMs()).toBe(2000);
+  });
+
+  it("prefers the new name when both are set", () => {
+    process.env.VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC = "1";
+    process.env.YOUTUBE_ACQUIRE_PHASE_GAP_SEC = "9";
+    expect(resolveAcquirePhaseGapMs()).toBe(1000);
   });
 });

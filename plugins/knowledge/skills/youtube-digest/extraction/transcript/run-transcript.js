@@ -56,7 +56,7 @@ export async function runTranscriptCli(argv) {
     throw error;
   }
 
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-extraction-"));
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
 
   try {
     /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */

@@ -116,9 +116,9 @@ export async function runWatchCli(argv) {
     return 1;
   }
 
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-extraction-"));
-  const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-frames-"));
-  const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-sheets-"));
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
+  const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-frames-"));
+  const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
 
   try {
     /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */

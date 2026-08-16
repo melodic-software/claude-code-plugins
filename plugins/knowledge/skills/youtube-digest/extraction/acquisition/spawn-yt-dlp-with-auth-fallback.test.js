@@ -85,7 +85,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
     const buildArgs = () => ["--cookies-from-browser", "chrome", "https://example.com"];
 
     await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
-      env: { YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
+      env: { VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
       source: FALLBACK_SOURCE,
     });
 

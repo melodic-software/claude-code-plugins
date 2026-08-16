@@ -4,7 +4,7 @@
  * The launcher accepts OPTIONAL leading flags ahead of the target script that
  * wire the knowledge plugin's personal userConfig options (`library_dir` and the
  * yt-dlp / throttle scalars) into the pipeline WITHOUT a shell-specific env prefix:
- * `YOUTUBE_WORK_ROOT=… node …` is bash-only (it fails under PowerShell), so each
+ * `VIDEO_DIGEST_WORK_ROOT=… node …` is bash-only (it fails under PowerShell), so each
  * option is passed as a cross-platform double-quoted CLI arg and translated here
  * into the environment variable the extraction child already reads. The env vars
  * are an internal launcher-to-child interface, not a consumer-facing channel.
@@ -19,17 +19,30 @@
  * missing-value error message.
  */
 const LEADING_FLAGS = {
-  "--work-root": { key: "workRoot", env: "YOUTUBE_WORK_ROOT", valueLabel: "directory value" },
-  "--js-runtimes": { key: "jsRuntimes", env: "YOUTUBE_YT_DLP_JS_RUNTIMES", valueLabel: "value" },
-  "--cookies-file": { key: "cookiesFile", env: "YOUTUBE_YT_DLP_COOKIES_FILE", valueLabel: "value" },
+  "--work-root": { key: "workRoot", env: "VIDEO_DIGEST_WORK_ROOT", valueLabel: "directory value" },
+  "--js-runtimes": {
+    key: "jsRuntimes",
+    env: "VIDEO_DIGEST_YT_DLP_JS_RUNTIMES",
+    valueLabel: "value",
+  },
+  "--cookies-file": {
+    key: "cookiesFile",
+    env: "VIDEO_DIGEST_YT_DLP_COOKIES_FILE",
+    valueLabel: "value",
+  },
   "--cookies-from-browser": {
     key: "cookiesFromBrowser",
-    env: "YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER",
+    env: "VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER",
     valueLabel: "value",
   },
   "--max-concurrent-acquires": {
     key: "maxConcurrentAcquires",
-    env: "YOUTUBE_MAX_CONCURRENT_ACQUIRES",
+    env: "VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES",
+    valueLabel: "value",
+  },
+  "--acquire-phase-gap": {
+    key: "acquirePhaseGap",
+    env: "VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC",
     valueLabel: "value",
   },
 };
@@ -41,6 +54,7 @@ const LEADING_FLAGS = {
  * @property {string} [cookiesFile]
  * @property {string} [cookiesFromBrowser]
  * @property {string} [maxConcurrentAcquires]
+ * @property {string} [acquirePhaseGap]
  * @property {string} [script]
  * @property {string[]} rest
  */

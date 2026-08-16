@@ -2,6 +2,8 @@
  * yt-dlp CLI argument construction for media acquisition.
  */
 
+import { resolveEnvWithLegacy } from "../lib/env-compat.js";
+
 export const YT_DLP_SUB_LANGS = "en.*,-live_chat";
 export const YT_DLP_SUB_FORMAT = "vtt";
 // biome-ignore lint/security/noSecrets: yt-dlp format selector string, not a credential
@@ -12,9 +14,15 @@ export const YT_DLP_SLEEP_REQUESTS_SEC = "1";
 export const YT_DLP_SLEEP_SUBTITLES_SEC = "2";
 export const YT_DLP_CAPTION_ONLY_SLEEP_SUBTITLES_SEC = "10";
 
-export const YT_DLP_COOKIES_FILE_ENV = "YOUTUBE_YT_DLP_COOKIES_FILE";
-export const YT_DLP_COOKIES_FROM_BROWSER_ENV = "YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER";
-export const YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
+export const YT_DLP_COOKIES_FILE_ENV = "VIDEO_DIGEST_YT_DLP_COOKIES_FILE";
+export const YT_DLP_COOKIES_FROM_BROWSER_ENV = "VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER";
+export const YT_DLP_JS_RUNTIMES_ENV = "VIDEO_DIGEST_YT_DLP_JS_RUNTIMES";
+
+// Deprecated pre-rename spellings, resolved through `resolveEnvWithLegacy` at
+// every read site so existing environments keep working (with a warning).
+export const LEGACY_YT_DLP_COOKIES_FILE_ENV = "YOUTUBE_YT_DLP_COOKIES_FILE";
+export const LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV = "YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER";
+export const LEGACY_YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
 
 /**
  * @typedef {'full' | 'video-only' | 'transcript' | 'captions-only'} AcquisitionMode
@@ -48,9 +56,10 @@ export const YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
  * These variables are the launcher-to-child interface, set by `run.mjs` from the
  * knowledge plugin's `yt_dlp_cookies_file` / `yt_dlp_cookies_from_browser` /
  * `yt_dlp_js_runtimes` userConfig options — not a consumer-facing env channel:
- * `YOUTUBE_YT_DLP_COOKIES_FILE` — path to Netscape cookies.txt
- * `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER` — e.g. `chrome`, `firefox`, `edge` (file wins if both set)
- * `YOUTUBE_YT_DLP_JS_RUNTIMES` — default `node`; `off` omits `--js-runtimes`
+ * `VIDEO_DIGEST_YT_DLP_COOKIES_FILE` — path to Netscape cookies.txt
+ * `VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER` — e.g. `chrome`, `firefox`, `edge` (file wins if both set)
+ * `VIDEO_DIGEST_YT_DLP_JS_RUNTIMES` — default `node`; `off` omits `--js-runtimes`
+ * (deprecated `YOUTUBE_`-prefixed spellings of each still resolve, with a warning)
  *
  * Override wins over env when `authOverride` fields are set (used for automatic browser fallback).
  *
@@ -65,11 +74,15 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
   const cookiesFile =
     authOverride.cookiesFile !== undefined
       ? authOverride.cookiesFile
-      : env[YT_DLP_COOKIES_FILE_ENV]?.trim();
+      : resolveEnvWithLegacy(YT_DLP_COOKIES_FILE_ENV, LEGACY_YT_DLP_COOKIES_FILE_ENV, env)?.trim();
   const cookiesBrowser =
     authOverride.cookiesFromBrowser !== undefined
       ? authOverride.cookiesFromBrowser
-      : env[YT_DLP_COOKIES_FROM_BROWSER_ENV]?.trim();
+      : resolveEnvWithLegacy(
+          YT_DLP_COOKIES_FROM_BROWSER_ENV,
+          LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
+          env,
+        )?.trim();
 
   if (cookiesFile) {
     args.push("--cookies", cookiesFile);
@@ -77,7 +90,11 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
     args.push("--cookies-from-browser", cookiesBrowser);
   }
 
-  const jsRuntimes = env[YT_DLP_JS_RUNTIMES_ENV]?.trim();
+  const jsRuntimes = resolveEnvWithLegacy(
+    YT_DLP_JS_RUNTIMES_ENV,
+    LEGACY_YT_DLP_JS_RUNTIMES_ENV,
+    env,
+  )?.trim();
   if (jsRuntimes === "off" || jsRuntimes === "0") {
     return args;
   }

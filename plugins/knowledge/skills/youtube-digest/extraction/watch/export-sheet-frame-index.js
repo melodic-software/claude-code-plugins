@@ -72,7 +72,7 @@ export function exportSheetFrameIndex(sliceDir) {
   const resolvedSession = resolveTempSession(watch.tempSession ?? {});
   const sheetsDir = resolvedSession.contactSheetsDir
     ? serializeTempPath(resolvedSession.contactSheetsDir)
-    : "{tmp}/youtube-sheets-unknown";
+    : "{tmp}/video-sheets-unknown";
   const framesDir = resolvedSession.framesDir ? serializeTempPath(resolvedSession.framesDir) : null;
 
   const payload = {

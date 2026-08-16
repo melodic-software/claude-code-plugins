@@ -12,7 +12,7 @@ describe("snapshotBootstrapContactSheets", () => {
 
   beforeEach(() => {
     sliceDir = mkdtempSync(join(tmpdir(), "slice-"));
-    sheetsDir = mkdtempSync(join(tmpdir(), "youtube-sheets-"));
+    sheetsDir = mkdtempSync(join(tmpdir(), "video-sheets-"));
     writeFileSync(join(sheetsDir, "sheet_001.jpg"), "fake-jpg-bytes");
   });
 

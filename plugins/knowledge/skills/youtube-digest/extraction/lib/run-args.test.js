@@ -31,6 +31,8 @@ describe("parseRunArgs", () => {
       "off",
       "--cookies-file",
       "/tmp/cookies.txt",
+      "--acquire-phase-gap",
+      "1.5",
       "watch/run-watch.js",
       "https://x",
     ]);
@@ -40,6 +42,7 @@ describe("parseRunArgs", () => {
       cookiesFile: "/tmp/cookies.txt",
       cookiesFromBrowser: "firefox",
       maxConcurrentAcquires: "3",
+      acquirePhaseGap: "1.5",
       script: "watch/run-watch.js",
       rest: ["https://x"],
     });
@@ -69,12 +72,12 @@ describe("parseRunArgs", () => {
 });
 
 describe("buildChildEnv", () => {
-  it("layers YOUTUBE_WORK_ROOT on top of the inherited env when a root is given", () => {
+  it("layers VIDEO_DIGEST_WORK_ROOT on top of the inherited env when a root is given", () => {
     const base = { PATH: "/usr/bin", CLAUDE_PROJECT_DIR: "/proj" };
     expect(buildChildEnv(base, { workRoot: "/proj/docs/knowledge" })).toEqual({
       PATH: "/usr/bin",
       CLAUDE_PROJECT_DIR: "/proj",
-      YOUTUBE_WORK_ROOT: "/proj/docs/knowledge",
+      VIDEO_DIGEST_WORK_ROOT: "/proj/docs/knowledge",
     });
   });
 
@@ -86,13 +89,15 @@ describe("buildChildEnv", () => {
         cookiesFile: "/tmp/cookies.txt",
         cookiesFromBrowser: "firefox",
         maxConcurrentAcquires: "3",
+        acquirePhaseGap: "1.5",
       }),
     ).toEqual({
       PATH: "/usr/bin",
-      YOUTUBE_YT_DLP_JS_RUNTIMES: "off",
-      YOUTUBE_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt",
-      YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER: "firefox",
-      YOUTUBE_MAX_CONCURRENT_ACQUIRES: "3",
+      VIDEO_DIGEST_YT_DLP_JS_RUNTIMES: "off",
+      VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt",
+      VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "firefox",
+      VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES: "3",
+      VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC: "1.5",
     });
   });
 

@@ -25,6 +25,11 @@ const sampleTalk = () =>
     title: "Talk",
   });
 
+// Resolved slice dir passed to the prompt builder — deliberately free of the
+// epic-dir literal so the prompt tests prove paths come from the caller's
+// resolved dir, not from the storage constant.
+const SLICE_DIR = path.join("/custom-root", ".work", "any-epic", "talk-abc");
+
 describe("watch state phase map", () => {
   it("creates empty phase map", () => {
     const state = sampleTalk();
@@ -42,10 +47,25 @@ describe("watch state phase map", () => {
   it("builds continuation prompt with next phase", () => {
     let state = sampleTalk();
     state = markPhaseComplete(state, "acquire");
-    const prompt = buildContinuationPrompt(state);
+    const prompt = buildContinuationPrompt(state, SLICE_DIR);
     expect(prompt).toContain("talk-abc");
     expect(prompt).toContain("transcript");
     expect(prompt).toContain("recommendations/");
+  });
+
+  it("renders resume paths from the resolved slice dir, never the epic constant", () => {
+    let state = createWatchState({
+      videoId: "1001551417340022785",
+      videoSlug: "post-1001551623938805763",
+      sourceUrl: "https://x.com/lispower1/status/1001551623938805763",
+      title: "Post",
+    });
+    state = markPhaseComplete(state, "acquire");
+    const sliceDir = path.join("/custom-root", ".work", "any-epic", "post-1001551623938805763");
+    const prompt = buildContinuationPrompt(state, sliceDir);
+    expect(prompt).toContain(sliceDir);
+    expect(prompt).toContain(watchStatePath(sliceDir));
+    expect(prompt).not.toContain("youtube-watch");
   });
 
   it("surfaces high-volume frame selection in continuation prompt", () => {
@@ -57,7 +77,7 @@ describe("watch state phase map", () => {
     for (const phase of ["acquire", "transcript", "watching"]) {
       state = markPhaseComplete(state, phase);
     }
-    const prompt = buildContinuationPrompt(state);
+    const prompt = buildContinuationPrompt(state, SLICE_DIR);
     expect(prompt).toContain("high volume");
     expect(findNextPhase(state.phases)).toBe("vision");
   });
@@ -103,7 +123,7 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
       target: "acme/webapp",
     });
     state = markPhaseComplete(state, "acquire");
-    const prompt = buildContinuationPrompt(state);
+    const prompt = buildContinuationPrompt(state, SLICE_DIR);
     expect(prompt).toContain("Resolved: `acme/webapp`");
     expect(prompt).toContain("do not re-ask");
   });
@@ -111,7 +131,7 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   it("tells a resumed session to resolve the target when none was recorded", () => {
     let state = sampleTalk();
     state = markPhaseComplete(state, "acquire");
-    const prompt = buildContinuationPrompt(state);
+    const prompt = buildContinuationPrompt(state, SLICE_DIR);
     expect(prompt).toContain("Not yet resolved");
   });
 
@@ -265,8 +285,8 @@ describe("watch state persistence (resume scaffolding)", () => {
 
 describe("watch state temp-path tokenization", () => {
   function stateWithTempSession() {
-    const framesDir = path.join(os.tmpdir(), "youtube-frames-abc");
-    const contactSheetsDir = path.join(os.tmpdir(), "youtube-sheets-abc");
+    const framesDir = path.join(os.tmpdir(), "video-frames-abc");
+    const contactSheetsDir = path.join(os.tmpdir(), "video-sheets-abc");
     let state = createWatchState({
       videoId: "abc",
       videoSlug: "talk-abc",
@@ -276,7 +296,7 @@ describe("watch state temp-path tokenization", () => {
     state = {
       ...state,
       tempSession: {
-        workDir: path.join(os.tmpdir(), "youtube-extraction-abc"),
+        workDir: path.join(os.tmpdir(), "video-extraction-abc"),
         framesDir,
         contactSheetsDir,
         acquiredAt: "2026-06-16T00:00:00.000Z",
@@ -300,9 +320,9 @@ describe("watch state temp-path tokenization", () => {
     );
 
     const persisted = JSON.parse(captured);
-    expect(persisted.tempSession.framesDir).toBe("{tmp}/youtube-frames-abc");
-    expect(persisted.tempSession.contactSheetsDir).toBe("{tmp}/youtube-sheets-abc");
-    expect(persisted.tempSession.workDir).toBe("{tmp}/youtube-extraction-abc");
+    expect(persisted.tempSession.framesDir).toBe("{tmp}/video-frames-abc");
+    expect(persisted.tempSession.contactSheetsDir).toBe("{tmp}/video-sheets-abc");
+    expect(persisted.tempSession.workDir).toBe("{tmp}/video-extraction-abc");
     // In-memory state stays absolute — the pipeline writes frames there at runtime.
     expect(state.tempSession.framesDir).toBe(framesDir);
   });
@@ -313,9 +333,9 @@ describe("watch state temp-path tokenization", () => {
       state = markPhaseComplete(state, phase);
     }
 
-    const prompt = buildContinuationPrompt(state);
-    expect(prompt).toContain("{tmp}/youtube-frames-abc");
-    expect(prompt).toContain("{tmp}/youtube-sheets-abc");
+    const prompt = buildContinuationPrompt(state, SLICE_DIR);
+    expect(prompt).toContain("{tmp}/video-frames-abc");
+    expect(prompt).toContain("{tmp}/video-sheets-abc");
     expect(prompt).not.toContain(framesDir);
     expect(prompt).not.toContain(contactSheetsDir);
   });
@@ -452,7 +472,7 @@ describe("skip-research phase map (resume routing)", () => {
       state = markPhaseComplete(state, phase);
     }
     state = markPhaseComplete(state, "research", { skipped: true });
-    expect(buildContinuationPrompt(state)).toContain("research (skipped)");
+    expect(buildContinuationPrompt(state, SLICE_DIR)).toContain("research (skipped)");
   });
 });
 

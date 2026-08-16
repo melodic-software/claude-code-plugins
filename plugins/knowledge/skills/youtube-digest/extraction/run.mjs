@@ -14,7 +14,7 @@
  * OPTIONAL leading flags let the invoking skill wire the knowledge plugin's
  * personal userConfig options into the pipeline the same cross-platform way: each
  * double-quoted CLI arg (safe in bash and PowerShell) is translated here into the
- * env var the extraction child reads — `--work-root` → `YOUTUBE_WORK_ROOT`
+ * env var the extraction child reads — `--work-root` → `VIDEO_DIGEST_WORK_ROOT`
  * (`resolveWorkRoot()`), plus the yt-dlp / throttle scalars. Omit a flag to keep
  * the child's own default; for `--work-root` the repo-root fallback chain applies.
  * The `--work-root` value may use the portable `library_dir` forms — a leading `~`
@@ -22,7 +22,8 @@
  * so machine-varying roots never require a literal path in stored configuration.
  *
  * Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>]
- *   [--cookies-from-browser <name>] [--max-concurrent-acquires <n>] <relative-script.js> [args…]
+ *   [--cookies-from-browser <name>] [--max-concurrent-acquires <n>]
+ *   [--acquire-phase-gap <sec>] <relative-script.js> [args…]
  */
 import { spawnSync } from "node:child_process";
 import os from "node:os";
@@ -36,7 +37,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 let parsed;
 const usage =
   "Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>] " +
-  "[--cookies-from-browser <name>] [--max-concurrent-acquires <n>] <relative-script.js> [args…]\n";
+  "[--cookies-from-browser <name>] [--max-concurrent-acquires <n>] " +
+  "[--acquire-phase-gap <sec>] <relative-script.js> [args…]\n";
 
 try {
   parsed = parseRunArgs(process.argv.slice(2));

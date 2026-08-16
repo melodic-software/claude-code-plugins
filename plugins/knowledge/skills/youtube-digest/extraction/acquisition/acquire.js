@@ -10,6 +10,7 @@ import path from "node:path";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { fail, ok } from "@melodic/video-digestion/shared/result";
 
+import { resolveEnvWithLegacy } from "../lib/env-compat.js";
 import { CAPTION_ONLY_SLEEP_SUBTITLES_SEC, sleepMs } from "./acquire-retry-policy.js";
 import { withAcquireThrottle } from "./acquire-throttle.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
@@ -51,7 +52,8 @@ export function adapterSourceDeclarations(adapter) {
 }
 
 const DEFAULT_ACQUIRE_PHASE_GAP_MS = 3000;
-const ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
+const ACQUIRE_PHASE_GAP_ENV = "VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC";
+const LEGACY_ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
 
 /**
  * @typedef {Object} AcquisitionResult
@@ -83,7 +85,7 @@ const DEFAULT_DEPS = {
  * @returns {number}
  */
 export function resolveAcquirePhaseGapMs() {
-  const raw = process.env[ACQUIRE_PHASE_GAP_ENV];
+  const raw = resolveEnvWithLegacy(ACQUIRE_PHASE_GAP_ENV, LEGACY_ACQUIRE_PHASE_GAP_ENV);
   if (!raw) return DEFAULT_ACQUIRE_PHASE_GAP_MS;
   const parsed = Number.parseFloat(raw);
   if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_ACQUIRE_PHASE_GAP_MS;
