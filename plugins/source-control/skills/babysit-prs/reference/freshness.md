@@ -111,8 +111,10 @@ Before any merge:
    `behind`.
 3. Prefer the repo CI gate `scripts/check-stale-base-overlap.sh --check` as the overlapping-path
    tripwire. It covers the stale-**base** class only — a head current in history but stale in
-   content passes it; that separate class is caught post-merge by
-   `scripts/check-silent-revert.sh`.
+   **content** passes it, and nothing on the merge path catches that separate class. It needs a
+   post-merge detector: this repo runs `scripts/check-silent-revert.sh`, itself a bounded
+   heuristic (large, recent deletions only) rather than class-wide coverage, and a consuming repo
+   may have no such detector at all.
 
 Official references:
 
