@@ -42,11 +42,17 @@
 # hooks rather than one overloaded matcher. See that file's header for the
 # reciprocal note.
 #
+# TWO LEAKING FORMS ARE MATCHED, not one: the `export` family, and a prefix
+# whose command word is a SHELL (`MSYS_NO_PATHCONV=1 bash -c '...'`), which
+# leaks into every command inside that child. See `leaks_into_child_shell`.
+#
 # DECLARED COVERAGE GAPS (out of scope, documented rather than hidden): a
 # suppressor exported by a SCRIPT the command invokes rather than in the command
 # string; `set -a` followed by a bare assignment; a value assembled through an
-# expansion; and any spawner outside the Bash/PowerShell tool surfaces (CI
-# runners, Node/Python `subprocess`), which no PreToolUse hook can see.
+# expansion; a prefix on a non-shell interpreter that itself spawns native
+# children (`MSYS_NO_PATHCONV=1 python script.py`); and any spawner outside the
+# Bash/PowerShell tool surfaces (CI runners, Node/Python `subprocess`), which no
+# PreToolUse hook can see.
 #
 # Kill switch: block_exported_msys_pathconv_enabled userConfig option.
 #
@@ -161,8 +167,29 @@ is_exported_suppressor() {
   [[ "$s" =~ (^|[^[:alnum:]_.-])(export|declare[[:space:]]+-x|typeset[[:space:]]+-x)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)([=[:space:]\;\|\&]|$) ]]
 }
 
+# A prefix whose command word is a SHELL leaks just as far, because the child
+# shell inherits the suppressor for every command inside it — the prefix scopes
+# to one PROCESS, and when that process is an interpreter, "one process" is the
+# whole script. Measured behaviorally:
+#
+#   bash -c 'MSYS_NO_PATHCONV=1 git ... /d/a; git ... /d/b'  -> '/d/a' then 'D:/b'  scoped
+#   MSYS_NO_PATHCONV=1 bash -c 'git ... /d/a; git ... /d/b'  -> '/d/a' then '/d/b'  LEAKS
+#   env MSYS_NO_PATHCONV=1 bash -c '...'                     -> leaks the same way
+#
+# Cost of covering it, measured on the same 14,234-command corpus: ONE match,
+# which the export rule above already blocks. So this closes a real gap for no
+# additional false positives.
+leaks_into_child_shell() {
+  local s="$1"
+  [[ "$s" =~ (^|[^[:alnum:]_./-])(env[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)?(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)=[^[:space:]]*[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(env[[:space:]]+)?[^[:space:]]*(bash|sh|dash|zsh|ksh)(\.exe)?([[:space:]]|$) ]]
+}
+
 if is_exported_suppressor "$COMMAND"; then
   block "export"
+fi
+
+if leaks_into_child_shell "$COMMAND"; then
+  block "child-shell"
 fi
 
 emit_tel "ok" ""

@@ -17,7 +17,7 @@
     },
     "form": {
       "type": "string",
-      "description": "The matched form when blocked: \"export\" (an exported MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, including the declare -x / typeset -x spellings) | \"too-long\" (command named one of the variables but exceeded the parse cap, so it was blocked fail-closed). Empty string when the command was allowed (status ok)."
+      "description": "The matched form when blocked: \"export\" (an exported MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, including the declare -x / typeset -x spellings) | \"child-shell\" (a per-command prefix whose command word is a shell, which leaks the suppressor into every command inside that child) | \"too-long\" (command named one of the variables but exceeded the parse cap, so it was blocked fail-closed). Empty string when the command was allowed (status ok)."
     }
   }
 }

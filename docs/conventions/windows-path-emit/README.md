@@ -91,6 +91,14 @@ So, in preference order:
    command and nothing after it.
 3. Never `export` it, and never `declare -x` / `typeset -x` it. A bare assignment is not a middle
    ground either: it has no effect at all, because the MSYS runtime reads the *environment*.
+4. A prefix is only scoped when its command word is **not a shell**. `MSYS_NO_PATHCONV=1 bash -c
+   '…'` (and `env MSYS_NO_PATHCONV=1 sh -c '…'`) leaks into every command inside that child, because
+   a prefix scopes to one *process* and an interpreter's process is the whole script. Measured:
+
+   ```text
+   bash -c 'MSYS_NO_PATHCONV=1 git ... /d/a; git ... /d/b'  ->  '/d/a' then 'D:/b'   scoped
+   MSYS_NO_PATHCONV=1 bash -c 'git ... /d/a; git ... /d/b'  ->  '/d/a' then '/d/b'   leaks
+   ```
 
 [`plugins/guardrails/hooks/block-exported-msys-pathconv.sh`](../../../plugins/guardrails/hooks/block-exported-msys-pathconv.sh)
 enforces this as a `PreToolUse` block.

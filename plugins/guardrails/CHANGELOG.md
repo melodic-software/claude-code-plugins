@@ -21,6 +21,17 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   variable seven segments earlier to work around an unrelated problem (MSYS
   mangling a `<rev>:<path>` argument).
 
+  A second leaking form is matched too: a prefix whose command word is a
+  **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env MSYS_NO_PATHCONV=1 sh -c
+  '…'`). The prefix scopes to one *process*, and when that process is an
+  interpreter, one process is every command in the script — verified
+  behaviorally, where the same prefix on `git` directly leaves only the first
+  argument unconverted. An adversarial review found this as an undeclared false
+  negative; closing it cost **zero** additional false positives on the same
+  14,234-command corpus (its single match was already blocked by the export
+  rule). A prefix on a non-shell command word — the safe idiom, 193 corpus
+  uses — stays allowed.
+
   The guard deliberately does **not** match a path shape. The incident command's
   path argument was textually identical to one the same lane had already run
   successfully, so a `/[a-z]/` matcher has a false negative on the real defect —

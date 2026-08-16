@@ -86,6 +86,27 @@ run_win "per-command prefix mid-chain (allowed)" \
 run_win "bare assignment, not exported (allowed)" 'MSYS_NO_PATHCONV=1; git status' 0
 run_win "bare assignment with && (allowed)" 'MSYS2_ARG_CONV_EXCL=1 && git status' 0
 
+# --- 3b. A prefix on a CHILD SHELL leaks, so it blocks -----------------------
+# The prefix scopes to one PROCESS; when that process is an interpreter, "one
+# process" is every command in the script. Verified behaviorally on a Git Bash
+# host: `MSYS_NO_PATHCONV=1 bash -c 'git ... /d/a; git ... /d/b'` leaves BOTH
+# unconverted, where the same prefix on `git` directly converts the second.
+run_win "prefix on bash -c (blocked)" \
+  "MSYS_NO_PATHCONV=1 bash -c 'git worktree add /d/worktrees/x'" 2
+run_win "env prefix on bash -c (blocked)" \
+  "env MSYS_NO_PATHCONV=1 bash -c 'git worktree add /d/worktrees/x'" 2
+run_win "prefix on sh -c (blocked)" \
+  "MSYS2_ARG_CONV_EXCL='*' sh -c 'git worktree add /d/worktrees/x'" 2
+run_win "prefix on an absolute bash path (blocked)" \
+  "MSYS_NO_PATHCONV=1 /usr/bin/bash -c 'git worktree add /d/worktrees/x'" 2
+# ...but a prefix on a NON-shell command word stays allowed: that is the safe
+# idiom the corpus uses 193 times, and narrowing it would be the false-positive
+# tail that gets a guard disabled.
+run_win "prefix on git itself stays allowed" \
+  'MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"' 0
+run_win "prefix on gh stays allowed" \
+  "MSYS_NO_PATHCONV=1 gh pr view 2878 --json body" 0
+
 # --- 4. Mentions that are not settings (allowed) -----------------------------
 # The variable name appears constantly in this repo's own docs, issues, commit
 # messages and greps. None of those set anything.

@@ -58,7 +58,7 @@
     "block_exported_msys_pathconv_enabled": {
       "type": "boolean",
       "title": "block-exported-msys-pathconv guard",
-      "description": "Block an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL on Windows, which switches off MSYS path conversion for every later command in the same command string and lets an unconverted /d/... reach git as <current-drive>:\\d\\...; the per-command prefix form and a bare assignment are not matched",
+      "description": "Block a leaking MSYS path-conversion suppressor on Windows: an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, or a prefix on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). Either switches off conversion for later commands, letting an unconverted /d/... reach git as <current-drive>:\\d\\...; a prefix on a non-shell command word and a bare assignment are not matched",
       "default": true
     },
     "block_noncanonical_commit_enabled": {
