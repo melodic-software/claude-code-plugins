@@ -55,10 +55,9 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
    merged-PR queries) contacts only `github.com` and transmits repository identity plus the
    non-default local branch names under audit for that repository. No file content, report, commit
    content, diff, environment value, or absolute local path is sent. Non-GitHub hosts are not
-   contacted, and every `gh` call has a `GH_TIMEOUT_SECONDS` deadline plus a `GH_KILL_AFTER_SECONDS`
-   KILL grace. Compatible
-   coreutils is feature-detected; a finite Bash watchdog covers other supported platforms and has a
-   TERM-ignoring regression test. **Accepted** as necessary first-party metadata lookup. The
+   contacted, and every `gh` call has a `GH_TIMEOUT_SECONDS` deadline plus a
+   `GH_KILL_AFTER_SECONDS` KILL grace. Compatible coreutils is feature-detected; a finite Bash
+   watchdog covers other supported platforms and has a TERM-ignoring regression test. **Accepted** as necessary first-party metadata lookup. The
    collector pins `GH_HOST=github.com` and disables GitHub CLI prompting, update checks, extension
    update checks, spinners, color, and telemetry for every invocation. Rate cost for the aliased
    GraphQL page is documented as bounded (cost measured live at 1 per call for at least 40 aliases;
