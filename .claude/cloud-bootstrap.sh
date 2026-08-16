@@ -11,6 +11,10 @@
 #      and resume as drift repair — the environment cache can be ~7 days
 #      stale. Plugin installs made by a hook run go live at the next resume,
 #      not in the session that ran the hook.
+# First-turn slash of plugins installed only by the SessionStart caller can
+# still return "Unknown command" (harness residual — claude-code-plugins#2733):
+# resume so the process reloads the registry, or follow the skill's SKILL.md
+# from the working tree. Prefer the pre-launch caller so turn one is populated.
 # Local sessions exit immediately via the CLAUDE_CODE_REMOTE guard — a local
 # machine is presumed provisioned by its owner, and this script must never
 # mutate one.

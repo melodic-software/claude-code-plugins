@@ -97,7 +97,10 @@ edit **Default** (one environment per account; see the rationale at the end):
    `/var/log/melodic-env-setup.log` shows what the build did; and a populated
    `~/.claude/plugins/installed_plugins.json` alongside an unloaded catalog means the snapshot's
    `~/.claude` did not reach the session — a platform limitation to report upstream (resume is
-   the standing workaround).
+   the standing workaround). If SessionStart alone just installed plugins and the first slash
+   returns `Unknown command`, that is the harness residual documented in
+   [CLOUD-SESSIONS.md](../docs/CLOUD-SESSIONS.md) (#2733): resume, or read the skill's
+   `SKILL.md` from the working tree — do not expect a plugin-side fix.
 
 ## Part 3 — every repo (the copy-paste migration prompt)
 
