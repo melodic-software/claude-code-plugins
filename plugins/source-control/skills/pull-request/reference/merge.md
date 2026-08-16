@@ -37,7 +37,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
    off, GitHub can still report `CLEAN` while the head is behind, and a stale-base squash
    can silently revert recently-landed fixes (the tests travel with the reverted code, so
    CI stays green). Repo CI runs `scripts/check-stale-base-overlap.sh --check` as the
-   overlapping-path tripwire; the durable fix is `strict: true` in `melodic-software/github-iac`.
+   overlapping-path tripwire; the durable fix is `strict: true` in the org's branch-protection / ruleset repo.
 3. **Comprehension quiz (default-on, self-enforced)** — when the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing — self-enforced, no tooling gate; "skip quiz" skips it explicitly. Exemption is calibrated by size and blast radius, NOT by file type: exempt only diffs the user can genuinely review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) gets the quiz even though it is docs-only — instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
 4. Wait for user approval — merge is an irreversible action
 

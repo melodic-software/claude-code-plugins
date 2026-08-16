@@ -103,7 +103,7 @@ Two correct fixes were lost this way inside ten minutes (#2635 then #2639). Trea
 `branch_freshness.state == "behind"` as a hard stop on the merge path even when GitHub reports
 `mergeStateStatus` `CLEAN`/`HAS_HOOKS`: when the ruleset's `requiredStatusChecks.strict` is
 `false` (the setting that makes GitHub itself refuse stale-base merges; managed in
-`melodic-software/github-iac` for this org), CLEAN does **not** imply an up-to-date base.
+the org's branch-protection / ruleset repo for this org), CLEAN does **not** imply an up-to-date base.
 
 Before any merge:
 
