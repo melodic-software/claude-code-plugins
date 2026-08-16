@@ -48,7 +48,9 @@ state and records that binding.
 - **Routine prerequisite resolution** (`reference/prerequisite-resolution.md`): fail-closed,
   per-identity-per-surface verdicts (`supported` / `conditional` / `unsupported` / `unknown`) for
   which catalog identities can run against a repository, composing owning seams rather than a new
-  prober — with `deferred-class` marking `join:` rows that have no identities yet.
+  prober — with `deferred-class` marking `join:` rows that have no identities yet. Per-identity
+  facts live in each `v1` leaf; `generated/identity-prerequisites.json` is the drift-gated
+  emission derived from those leaves (generator under `skills/setup/scripts/`).
 - **Runner design pack** (`reference/runner.md`): the architect-ready design contract for the
   autonomous-drain runner — the composition spine and its eight seams, the lifecycle state
   model, the two-family stop-criteria taxonomy with terminal-handoff escalation and
