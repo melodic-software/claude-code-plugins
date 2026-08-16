@@ -234,8 +234,8 @@ if ((status != 0)); then
     ;;
   3)
     gate::refuse \
-      'set the melodic.worktreeroot git config key (git config --global melodic.worktreeroot <dir>) or the worktree_root plugin option to a directory outside every repository, then retry' \
-      'the helper found no usable external root (exit 3) and refused rather than falling back to the in-repo default'
+      'set the melodic.worktreeroot git config key (git config --global melodic.worktreeroot <dir>) or the worktree_root plugin option to a directory outside every repository and on the same drive as the repository (Windows), then retry' \
+      'the helper refused with exit 3 — no usable external root, a root inside a repository, or a cross-drive root on Windows'
     ;;
   4)
     gate::refuse \
