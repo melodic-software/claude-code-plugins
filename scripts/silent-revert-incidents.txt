@@ -59,7 +59,14 @@ fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce9
 # from TWO siblings at once, and the canary reports each culprit separately:
 #
 #   853 lines traced to bfb66beb8 (#2644, finding rollups and handoff plans)
-#   301 lines traced to eda5ae5ed (#2642, aliased GraphQL merge evidence)
+#   298 lines traced to eda5ae5ed (#2642, aliased GraphQL merge evidence)
+#
+# The second figure read 301 before #2837. That was the same attribution
+# measured under `diff.algorithm = histogram`; git's default `myers` gives 298,
+# and the detector used to inherit whichever setting the caller's config
+# happened to carry. attribute_file now pins the flags, so 298 is the
+# reproducible number everywhere. Do not "correct" it back after re-measuring
+# on a machine that sets histogram.
 #
 # Both numbers are blame attributions -- the count of lines cc58cbc53 deleted
 # that `git blame` credits to that one culprit. Neither is the squash's
@@ -77,7 +84,7 @@ fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce9
 # An earlier version of this row named #2632 as the victim. That was wrong:
 # #2632 never merged (closed unmerged, no merge commit, not an ancestor of
 # main) and its diff contains no rollup work at all.
-fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [bfb66beb8c1a6cdb52957a9a2614c6d2593739dd=853,eda5ae5ed5c2b54fdf2db5fd3b620a9272c46da5=301] #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (301); already recorded in #2656
+fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [bfb66beb8c1a6cdb52957a9a2614c6d2593739dd=853,eda5ae5ed5c2b54fdf2db5fd3b620a9272c46da5=298] #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (298); already recorded in #2656
 
 # --- Verified-legitimate commits that must stay quiet -------------------------
 # The closest sub-threshold miss in 500 commits: 129 lines of a doc section that

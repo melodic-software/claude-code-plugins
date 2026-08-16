@@ -14,7 +14,7 @@
 # ----------------------
 # On 2026-08-15, three squash merges each landed a tree that dropped work a
 # sibling PR had merged minutes earlier. #2633 dropped #2644's finding rollups
-# (853 lines) AND #2642's aliased GraphQL merge evidence (301) in one squash --
+# (853 lines) AND #2642's aliased GraphQL merge evidence (298) in one squash --
 # plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh went 2178 ->
 # 1700 lines with every `rollup` and `graphql` marker at zero; #2639 dropped
 # #2635's report-ordering fix (346); #2641 dropped #2639's guard work (451) --
@@ -26,6 +26,14 @@
 # lines in total) and not the number of lines the culprit added. The bare
 # `2178 -> 1700` and `1643 -> 1424` figures are a different measurement --
 # whole-file line counts before and after.
+#
+# Every count here is measured with the diff flags attribute_file now pins
+# explicitly (`--diff-algorithm=myers -M`, both git's defaults). #2642's figure
+# reads 298 rather than the 301 recorded before #2837: 301 is the same
+# attribution measured under `diff.algorithm = histogram`, which a developer may
+# carry in global config, and the detector used to inherit whichever setting the
+# caller happened to have. Do not "correct" 298 back to 301 after re-measuring
+# on a machine that sets histogram -- pin the flags and re-measure instead.
 #
 # Every check stayed green through all three, and that is the point: each
 # reverting squash removed the code AND the tests covering it in the same
@@ -77,7 +85,7 @@
 # What is left is content: blame the lines a merge deleted and see who had just
 # added them. Measured over the last 500 first-parent commits of main, the
 # three known incidents score 853 / 451 / 346 lines against a single recent
-# commit -- plus a fourth attribution of 301 lines on the SAME #2633 squash,
+# commit -- plus a fourth attribution of 298 lines on the SAME #2633 squash,
 # whose deletions trace to two different culprits and are reported separately.
 # The highest verified-legitimate commit scores well below the threshold below.
 # The separation is what makes the canary livable.
@@ -302,12 +310,33 @@ attribute_file() {
 
   # Old-side hunk ranges (the parent's line numbers) with at least one deleted
   # line. --unified=0 keeps each hunk tight to its own deletions.
+  #
+  # --diff-algorithm and -M are pinned so the measurement cannot drift with
+  # AMBIENT GIT CONFIG. Both are the git defaults, so this changes nothing about
+  # what CI detects; it makes a local run match CI rather than the reverse.
+  #
+  # This is not defensive decoration. The algorithm choice changes which lines a
+  # hunk calls deleted, and therefore the per-culprit counts this canary
+  # thresholds on: measured on cc58cbc53, the eda5ae5ed attribution is 298 lines
+  # under git's default `myers` and 301 under `diff.algorithm = histogram`, a
+  # setting plenty of developers carry globally. Three lines is harmless; the
+  # principle is not, because the same drift can carry a count across the
+  # 200-line threshold and make a commit fire on one machine and stay silent on
+  # another. The header's whole calibration -- "fires on 5 commits over 500, 1%"
+  # -- describes one algorithm, and this is what keeps the shipped detector and
+  # that number talking about the same thing. Found via #2833, whose exact-count
+  # replay assertions turned a silent divergence into a red build.
+  #
+  # -M pins the same exposure for rename detection, which the note above calls
+  # load-bearing: `diff.renames = false` in a developer's config would decompose
+  # a `git mv` into delete + add and make relocating a large recent file fire.
   while read -r start count; do
     [[ -n "$start" ]] || continue
     [[ "$count" -gt 0 ]] || continue
     ranges+=(-L "$start,$((start + count - 1))")
   done < <(
-    git diff --unified=0 --no-color "$parent" "$commit" -- "$file" 2>/dev/null |
+    git diff --unified=0 --no-color --diff-algorithm=myers -M \
+      "$parent" "$commit" -- "$file" 2>/dev/null |
       awk '/^@@ /{
              split($2, a, ",")
              start = substr(a[1], 2) + 0
@@ -389,7 +418,10 @@ scan_commit() {
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" |
       awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' >>"$attributed"
-  done < <(git diff --name-only -z --diff-filter=MD "$parent" "$sha")
+    # -M pinned here for the same reason as in attribute_file: the enumeration
+    # relies on a rename reporting as R so --diff-filter=MD skips it, and that
+    # is git's default only until someone sets diff.renames = false.
+  done < <(git diff --name-only -z -M --diff-filter=MD "$parent" "$sha")
 
   # Keep only lines whose culprit is inside the recency window.
   local in_window
