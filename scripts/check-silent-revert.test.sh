@@ -46,11 +46,33 @@ trap cleanup EXIT
 # A repo laid out the way the incident was: a base file, then a "culprit" commit
 # that adds a block of content, then optional filler commits, then whatever the
 # test wants to do to that block.
+#
+# It must NEVER return an empty path. Callers invoke it as `repo="$(mk_repo)"`,
+# so a `return 1` from inside the command substitution cannot abort the suite --
+# the caller just gets "" and carries on. And "" is not inert: `git -C ""`
+# operates on the CALLER's repository, so the very next `add -A` + `commit`
+# stages and commits whatever the developer happened to be working on, authored
+# as `test <t@t.test>`. That is not hypothetical -- it happened during #2837's
+# development when mktemp transiently failed under load, and the resulting
+# commit cannot be pushed here because it fails required_signatures.
+#
+# So a failure yields a path that does not exist. Every git call against it then
+# fails loudly and the assertions go red, which is the correct fail-closed
+# outcome for a harness that cannot build its fixture. The path is derived from
+# SELF_DIR rather than written as a drive-root absolute like /nonexistent/...,
+# which MSYS rewrites into the Git installation prefix on Windows.
+MK_REPO_FAILED="$SELF_DIR/.mk-repo-failed-this-path-does-not-exist"
 mk_repo() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d)" || {
+    printf '%s' "$MK_REPO_FAILED"
+    return 0
+  }
   TMPDIRS+=("$dir")
-  git_init_test_repo "$dir" >/dev/null || return 1
+  git_init_test_repo "$dir" >/dev/null || {
+    printf '%s' "$MK_REPO_FAILED"
+    return 0
+  }
   mkdir -p "$dir/scripts"
   cp "$SCRIPT" "$dir/scripts/check-silent-revert.sh"
   printf 'base line %s\n' $(seq 1 5) >"$dir/feature.txt"
@@ -254,12 +276,38 @@ t_declared_forms() {
     "$(printf 'refactor: drop the alpha guard (#99)\n\nIntentional-removal: superseded by the shared guard in #100\n')" 0
 }
 
-# The reason why matching is constrained rather than a substring search: a body
-# that merely mentions reverting must NOT silence a real finding, or the
-# false-positive fix becomes a false-negative hole.
+# The Conventional-Commits revert type (#2837). This is the ONLY revert subject
+# this repo's required PR-title gate admits, and squash_merge_commit_title:
+# PR_TITLE puts the PR title on main verbatim -- so without these three forms a
+# deliberate revert reaches main wearing a subject the detector cannot read.
+t_conventional_revert_subject_is_declared() {
+  assert_declared 'a bare "revert:" subject silences the canary' \
+    'revert: remove the alpha guard (#99)' 0
+  assert_declared 'a scoped "revert(scope):" subject silences the canary' \
+    'revert(disk-hygiene): remove the alpha guard (#99)' 0
+  assert_declared 'a breaking "revert!:" subject silences the canary' \
+    'revert!: remove the alpha guard (#99)' 0
+  assert_declared 'a scoped breaking "revert(scope)!:" subject silences the canary' \
+    'revert(disk-hygiene)!: remove the alpha guard (#99)' 0
+}
+
+# The reason why matching is constrained rather than a substring search: a
+# message that merely mentions reverting must NOT silence a real finding, or the
+# false-positive fix becomes a false-negative hole. Both halves are covered --
+# the body (the original case) and the SUBJECT, which is what the new
+# Conventional-Commits form reads and therefore what a substring bug would
+# widen. `revert` must be the type token at position zero, nothing else.
 t_prose_mentioning_revert_still_fires() {
   assert_declared 'prose mentioning "revert" does not silence the canary' \
     "$(printf 'feat: unrelated feature (#99)\n\nThis does not revert anything; the guard work is untouched.\n')" 1
+  assert_declared 'a subject merely containing "revert" does not silence the canary' \
+    'feat: do not revert the alpha guard (#99)' 1
+  assert_declared 'a subject whose type merely starts with "revert" does not silence the canary' \
+    'reverted: drop the alpha guard (#99)' 1
+  assert_declared 'an uppercase "Revert:" subject the title gate would reject does not silence the canary' \
+    'Revert: drop the alpha guard (#99)' 1
+  assert_declared 'a "revert:" with no description does not silence the canary' \
+    'revert:' 1
 }
 
 # An empty trailer would be a blanket mute with no accountability.
@@ -472,6 +520,107 @@ t_replay_fails_on_broken_expectation() {
   fi
 }
 
+# The attribution field is the difference between "this commit still fires" and
+# "this commit still fires FOR THE RECORDED REASON" (#2833). Exit status alone
+# passes a row whose culprit or line count has silently moved, so each of those
+# regressions is pinned here directly.
+t_replay_asserts_the_recorded_attribution() {
+  local repo out culprit other
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  other="$(git -C "$repo" rev-parse HEAD~1)"
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+  local sha
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  # Baseline: the true culprit and the true count pass.
+  printf 'fires %s [%s=40] a real drop\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'attribution(s) reproduced exactly'; then
+    ok "replay passes when the recorded culprit and line count both reproduce"
+  else
+    fail "replay should have passed on a correct attribution, rc=$RC: $out"
+  fi
+
+  # Right commit, right count, WRONG culprit. Exit status alone would pass this.
+  printf 'fires %s [%s=40] wrong culprit\n' "$sha" "$other" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'fires, but NOT as recorded'; then
+    ok "replay fails when the finding is attributed to a different culprit"
+  else
+    fail "a wrong recorded culprit must fail the replay, rc=$RC: $out"
+  fi
+
+  # Right commit, right culprit, WRONG count.
+  printf 'fires %s [%s=39] wrong count\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'fires, but NOT as recorded'; then
+    ok "replay fails when the recorded line count no longer reproduces"
+  else
+    fail "a wrong recorded line count must fail the replay, rc=$RC: $out"
+  fi
+
+  # A recorded attribution the run does not produce at all -- the two-culprit
+  # shape from cc58cbc53, where the surviving finding used to carry the row.
+  printf 'fires %s [%s=40,%s=301] one attribution never reproduces\n' \
+    "$sha" "$culprit" "$other" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'fires, but NOT as recorded'; then
+    ok "replay fails when one of two recorded attributions stops reproducing"
+  else
+    fail "a missing recorded attribution must fail the replay, rc=$RC: $out"
+  fi
+
+  # A malformed field must be exit 2 (cannot run), never a FAIL and never a
+  # pass: an expectation silently misread is the same false green the canary
+  # exists to remove.
+  local bad
+  for bad in "[${culprit:0:9}=40]" "[$culprit=many]" "[$culprit]" "[]"; do
+    printf 'fires %s %s malformed\n' "$sha" "$bad" >"$repo/scripts/inc.txt"
+    SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+      run_canary "$repo" --verify-known-incidents
+    out="$OUT"
+    if [[ "$RC" -eq 2 ]]; then
+      ok "a malformed attribution field '$bad' exits 2 rather than passing or failing"
+    else
+      fail "expected rc=2 on malformed attribution '$bad', got rc=$RC: $out"
+    fi
+  done
+
+  # An attribution on a `clean` row is nonsense -- clean rows have no findings.
+  printf 'clean %s [%s=40] attribution on a clean row\n' "$sha" "$culprit" \
+    >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]]; then
+    ok "an attribution recorded on a 'clean' row exits 2"
+  else
+    fail "expected rc=2 for an attribution on a clean row, got rc=$RC: $out"
+  fi
+
+  # And a `fires` row with no attribution keeps working -- the field is optional
+  # so a row can be pinned before its attribution has been measured.
+  printf 'fires %s no attribution recorded\n' "$sha" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'fires as recorded'; then
+    ok "a fires row with no attribution field still replays on exit status alone"
+  else
+    fail "an attribution-less row must still work, rc=$RC: $out"
+  fi
+}
+
 # The shipped data files must parse and be non-empty, so a truncated or
 # malformed file cannot quietly turn the replay into a no-op.
 t_shipped_data_files_are_wellformed() {
@@ -494,6 +643,23 @@ t_shipped_data_files_are_wellformed() {
     fail "silent-revert-incidents.txt is malformed or has too few rows (n=$n)"
   fi
 
+  # The attribution field is optional in the grammar, so nothing above would
+  # notice a shipped `fires` row that quietly lost one and fell back to
+  # asserting exit status alone -- which is exactly the weakness #2833 closed.
+  # Every shipped `fires` row must carry a well-formed one.
+  local fires_rows
+  fires_rows="$(grep -cE '^fires[[:space:]]' "$inc")"
+  bad=0
+  [[ "$fires_rows" -ge 1 ]] || bad=1
+  grep -E '^fires[[:space:]]' "$inc" |
+    grep -qvE '^fires[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' &&
+    bad=1
+  if [[ "$bad" -eq 0 ]]; then
+    ok "every shipped fires row carries a well-formed attribution field ($fires_rows rows)"
+  else
+    fail "a shipped fires row is missing or has a malformed [<sha>=<lines>] attribution field"
+  fi
+
   bad=0
   if [[ -f "$ack" ]]; then
     grep -vE '^[[:space:]]*(#|$)' "$ack" |
@@ -513,6 +679,7 @@ t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
 t_declared_forms
+t_conventional_revert_subject_is_declared
 t_prose_mentioning_revert_still_fires
 t_empty_trailer_still_fires
 t_acknowledged_commit_is_cleared
@@ -524,6 +691,7 @@ t_unresolvable_range_fails_closed
 t_root_commit_is_handled
 t_empty_range_is_clean
 t_replay_fails_on_broken_expectation
+t_replay_asserts_the_recorded_attribution
 t_shipped_data_files_are_wellformed
 
 echo

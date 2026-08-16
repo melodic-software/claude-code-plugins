@@ -14,21 +14,45 @@
 # real history, since that is the row that breaks first if someone lowers the
 # threshold to chase recall.
 #
-# Format: <expectation> <full-sha> <note>. `fires` = the canary must report a
-# finding; `clean` = it must not. Blank lines and `#` lines ignored.
+# Format: <expectation> <full-sha> [<attribution>] <note>. `fires` = the canary
+# must report a finding; `clean` = it must not. Blank lines and `#` lines
+# ignored.
 #
-# Do NOT relax a row to make CI pass. A row that no longer holds means the
-# canary stopped detecting the thing it exists to detect; fix the canary.
+# The bracketed ATTRIBUTION field is what makes a `fires` row an assertion
+# rather than a claim (#2833). Without it the replay proved only that the
+# commit still produces SOME finding, while the note beside it named a specific
+# culprit and a specific line count that nothing checked. On the cc58cbc53 row
+# that gap was load-bearing: its deletions trace to two culprits, so losing the
+# eda5ae5ed attribution entirely would still have printed `ok` on the surviving
+# bfb66beb8 finding -- the canary announcing a reproduction it did not perform.
+#
+#   [<culprit-full-sha>=<blamed-lines>,<culprit-full-sha>=<blamed-lines>]
+#
+# The replay asserts the run's findings are EXACTLY this set: same culprits,
+# same per-culprit counts, no extras and no omissions. Full 40-character
+# culprit shas only, the same discipline silent-revert-acknowledged.txt uses.
+# The field is optional -- a row can be pinned before its attribution is
+# measured -- but every `fires` row below carries one, and a malformed field is
+# exit 2 rather than a failure or a pass.
+#
+# Every count is a BLAME ATTRIBUTION: the number of lines the reverting squash
+# deleted that `git blame` credits to that one culprit. Not the squash's
+# diffstat, and not what the culprit itself added.
+#
+# Do NOT relax a row to make CI pass, and do NOT loosen a count to a minimum or
+# a tolerance. A row that no longer holds means the canary stopped detecting the
+# thing it exists to detect; fix the canary. If a number legitimately moves,
+# measure the new one and record why -- that is a decision, not a threshold.
 
 # --- The incidents from #2691 -------------------------------------------------
 # #2639's squash dropped #2635's report-ordering fix wholesale while landing its
 # own (correct) work. #2590 was left CLOSED as COMPLETED with the fix absent.
-fires f603880dad4003477ec7cac27654fce92c75eec8 #2639 dropped #2635 (346 lines), 13 minutes later
+fires f603880dad4003477ec7cac27654fce92c75eec8 [a95f240f7502ff9f1e5411602e79ccbd4b9056c0=346] #2639 dropped #2635 (346 blamed lines), 13 minutes later
 
 # Ten minutes after that, #2641's squash dropped #2639's guard work.
 # destructive_guard.py went 1643 -> 1424 lines and every #2639 marker string
 # went to zero occurrences. #2618 was left CLOSED as COMPLETED.
-fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 #2641 dropped #2639 (451 lines), 10 minutes later
+fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce92c75eec8=451] #2641 dropped #2639 (451 blamed lines), 10 minutes later
 
 # The third merge from the same night, surfaced by this canary's own
 # calibration run rather than by the #2691 audit. #2633's squash dropped work
@@ -53,7 +77,7 @@ fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 #2641 dropped #2639 (451 lines), 
 # An earlier version of this row named #2632 as the victim. That was wrong:
 # #2632 never merged (closed unmerged, no merge commit, not an ancestor of
 # main) and its diff contains no rollup work at all.
-fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (301); already recorded in #2656
+fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [bfb66beb8c1a6cdb52957a9a2614c6d2593739dd=853,eda5ae5ed5c2b54fdf2db5fd3b620a9272c46da5=301] #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (301); already recorded in #2656
 
 # --- Verified-legitimate commits that must stay quiet -------------------------
 # The closest sub-threshold miss in 500 commits: 129 lines of a doc section that

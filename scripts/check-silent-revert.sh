@@ -101,10 +101,20 @@
 #      maintenance) and costs a lot of noise.
 #
 #   3. INTENT, matched in CONSTRAINED FORMS ONLY -- a `Revert "` subject, a
-#      `This reverts commit <sha>` line, or an explicit `Intentional-removal:`
-#      trailer. Deliberately NOT a substring search for "revert": a body
+#      Conventional-Commits `revert:` / `revert(<scope>):` / `revert!:` subject,
+#      a `This reverts commit <sha>` line, or an explicit `Intentional-removal:`
+#      trailer. Deliberately NOT a substring search for "revert": a message
 #      reading "this does not revert X" would silence a real finding, turning
-#      the false-positive fix into a false-negative hole.
+#      the false-positive fix into a false-negative hole. Every form is anchored
+#      at the start of the subject or of a body line for that reason.
+#
+#      The `revert:` form was added by #2837, which measured that the other
+#      three cannot describe a revert that actually merges here. Squash-only
+#      with squash_merge_commit_title: PR_TITLE makes the PR title the squash
+#      subject, and the required Conventional-Commits title gate admits
+#      `revert:` but has no entry a `Revert "…"` subject could match -- so the
+#      one deliberate revert in main's 1527-commit history (1d1fca6e8, #1839)
+#      was reported as a suspected silent revert by the shipped detector.
 #
 #   4. NON-BLOCKING. It runs post-merge on main only, never as a PR gate, and
 #      is never wired into ci-status's needs. Detection, not prevention. A
@@ -207,6 +217,23 @@ declares_removal() {
       ;;
     *) ;;
   esac
+  # The Conventional-Commits revert type, and the ONLY revert spelling that can
+  # reach main here (#2837). This repo is squash-only with
+  # squash_merge_commit_title: PR_TITLE, so the squash subject is the PR title,
+  # and .github/workflows/pr-title.yml gates every title through a required
+  # Conventional-Commits check whose default type list is all-lowercase and
+  # contains `revert` but nothing a `Revert "…"` subject could match. Measured
+  # over all 1527 first-parent commits of main: `Revert "` 0, `revert:` 1.
+  #
+  # Kept exactly as constrained as the three forms around it: anchored at the
+  # start of the SUBJECT, the literal lowercase type token, its optional
+  # `(scope)` and/or `!`, its colon, and a non-empty description. Never a
+  # substring search for "revert" -- `feat: do not revert the guard` must still
+  # fire, which is what the FALSE-POSITIVE STRATEGY note above is protecting.
+  if printf '%s\n' "$subject" | grep -Eq '^revert(\([^()]+\))?!?:[[:space:]]*[^[:space:]]'; then
+    printf 'the subject carries the Conventional-Commits revert type\n'
+    return 0
+  fi
   if printf '%s\n' "$msg" | grep -Eq '^This reverts commit [0-9a-f]{7,40}'; then
     printf 'the body carries a "This reverts commit <sha>" line\n'
     return 0
@@ -393,10 +420,21 @@ scan_commit() {
 # report_finding <sha> <subject> <parent> <culprit> <count> <attributed-file>
 # Names WHAT disappeared, WHICH commit removed it, and WHICH commit had added
 # it -- a finding that says only "something changed" is not worth having.
+#
+# When FINDINGS_SINK names a file, each finding is ALSO appended to it as
+# `<full-culprit-sha> <count>`. That is the machine-readable channel
+# verify_known_incidents asserts against (#2833); nothing else sets it, so
+# --commit and range mode are byte-identical to before. Parsing the human
+# report back would couple the replay to the report's wording and to the
+# 9-character abbreviation it prints, which is not enough sha to assert on.
 report_finding() {
   local sha="$1" subject="$2" parent="$3" culprit="$4" count="$5" data="$6"
   local distance
   distance="$(git rev-list --first-parent --count "${culprit}..${parent}" 2>/dev/null)"
+
+  if [[ -n "${FINDINGS_SINK:-}" ]]; then
+    printf '%s %s\n' "$culprit" "$count" >>"$FINDINGS_SINK"
+  fi
 
   printf '\n'
   printf 'SILENT REVERT SUSPECTED\n'
@@ -441,12 +479,72 @@ report_finding() {
 # real thing rather than merely being plausible: the shipped thresholds are run
 # against the actual merges from #2691 and must fire, and against a verified
 # legitimate commit and must not.
+#
+# WHAT A `fires` ROW ACTUALLY ASSERTS (#2833)
+# ------------------------------------------
+# Exit status alone proves only "this commit still produces at least one
+# finding" -- while the row PRINTS a note claiming a specific culprit and a
+# specific line count. The gap is not academic: cc58cbc53's deletions trace to
+# two different culprits, so if the eda5ae5ed attribution ever stopped
+# reproducing, the row would still pass on the surviving bfb66beb8 finding and
+# announce a reproduction it did not perform.
+#
+# So a row may carry a bracketed ATTRIBUTION EXPECTATION after its sha:
+#
+#   fires <sha> [<culprit-sha>=<lines>,<culprit-sha>=<lines>] <note>
+#
+# and the replay then asserts the run's findings are EXACTLY that set -- same
+# culprits, same per-culprit line counts, no extras and no omissions. Full
+# 40-character culprit shas, the same discipline the acknowledgment file uses,
+# so an abbreviation can never widen to a commit nobody recorded. The counts
+# come from FINDINGS_SINK, which report_finding writes, rather than from
+# scraping the human report.
+#
+# The field is optional so a row can be recorded before its attribution is
+# measured, but every shipped `fires` row carries one. A malformed field is
+# exit 2 (cannot run), never a FAIL and never a pass: an expectation silently
+# misread is the same false-green this whole file exists to remove.
+#
+# Do NOT loosen a count to a minimum or a tolerance to make CI pass. If a
+# number legitimately changes, measure the new one and record it with the
+# reason -- that is a decision, not a threshold.
 # ---------------------------------------------------------------------------
+
+# Parses `[<sha>=<n>,<sha>=<n>]` into normalized `<sha> <n>` lines on stdout.
+# Exits 2 on anything that is not exactly that grammar.
+#
+# Call it with a plain redirect, never through a pipe or `$(...)`: those run it
+# in a subshell where `die`'s exit 2 would be swallowed and a malformed row
+# would degrade into a confusing comparison failure instead of a hard stop.
+parse_attribution_field() {
+  local field="$1" entry
+  field="${field#\[}"
+  field="${field%\]}"
+  [[ -n "$field" ]] || die "empty attribution field in $INCIDENTS_FILE"
+  local IFS=','
+  for entry in $field; do
+    case "$entry" in
+      *=*) ;;
+      *) die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)" ;;
+    esac
+    local culprit="${entry%%=*}" lines="${entry#*=}"
+    [[ "$culprit" =~ ^[0-9a-f]{40}$ ]] ||
+      die "attribution culprit '$culprit' in $INCIDENTS_FILE is not a full 40-character sha"
+    [[ "$lines" =~ ^[0-9]+$ ]] ||
+      die "attribution line count '$lines' for $culprit in $INCIDENTS_FILE is not a number"
+    printf '%s %s\n' "$culprit" "$lines"
+  done
+}
+
 verify_known_incidents() {
   [[ -f "$INCIDENTS_FILE" ]] || die "incident file not found: $INCIDENTS_FILE"
 
-  local rc=0 expect sha note
-  while read -r expect sha note; do
+  local rc=0 expect sha rest note attribution
+  local expected_file observed_file
+  expected_file="$(mktemp)" || die "mktemp failed"
+  observed_file="$(mktemp)" || die "mktemp failed"
+
+  while read -r expect sha rest; do
     case "$expect" in
       '' | '#'*) continue ;;
       *) ;;
@@ -454,17 +552,50 @@ verify_known_incidents() {
     if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
       die "incident commit $sha is unreachable -- the canary self-check needs full history (fetch-depth: 0)"
     fi
+
+    # Split the optional bracketed attribution field off the free-text note.
+    attribution=""
+    note="$rest"
+    if [[ "$rest" == \[*\]* ]]; then
+      attribution="${rest%%\]*}]"
+      note="${rest#*\]}"
+      note="${note# }"
+    fi
+
+    : >"$expected_file"
+    if [[ -n "$attribution" ]]; then
+      [[ "$expect" = "fires" ]] ||
+        die "row for $sha in $INCIDENTS_FILE records an attribution on a '$expect' row; only 'fires' rows have findings"
+      parse_attribution_field "$attribution" >"$expected_file"
+      sort -o "$expected_file" "$expected_file"
+    fi
+
     local out status
-    out="$(scan_commit "$sha" 2>&1)"
+    : >"$observed_file"
+    out="$(FINDINGS_SINK="$observed_file" scan_commit "$sha" 2>&1)"
     status=$?
+    sort -o "$observed_file" "$observed_file"
+
     case "$expect" in
       fires)
-        if [[ "$status" -eq 1 ]]; then
-          printf 'ok   %s fires as recorded  (%s)\n' "${sha:0:9}" "$note"
-        else
+        if [[ "$status" -ne 1 ]]; then
           printf 'FAIL %s should fire and did not  (%s)\n' "${sha:0:9}" "$note"
           printf '%s\n' "$out"
           rc=1
+        elif [[ -n "$attribution" ]] && ! cmp -s "$expected_file" "$observed_file"; then
+          printf 'FAIL %s fires, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
+          printf '     recorded attribution:\n'
+          sed 's/^/       /' "$expected_file"
+          printf '     what the detector reported:\n'
+          sed 's/^/       /' "$observed_file"
+          printf '     A row that fires for the wrong reason is not a reproduction.\n'
+          printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+          rc=1
+        elif [[ -n "$attribution" ]]; then
+          printf 'ok   %s fires as recorded, %s attribution(s) reproduced exactly  (%s)\n' \
+            "${sha:0:9}" "$(wc -l <"$expected_file" | tr -d '[:space:]')" "$note"
+        else
+          printf 'ok   %s fires as recorded  (%s)\n' "${sha:0:9}" "$note"
         fi
         ;;
       clean)
@@ -479,6 +610,8 @@ verify_known_incidents() {
       *) die "unknown expectation '$expect' in $INCIDENTS_FILE" ;;
     esac
   done <"$INCIDENTS_FILE"
+
+  rm -f "$expected_file" "$observed_file"
 
   if [[ "$rc" -ne 0 ]]; then
     echo

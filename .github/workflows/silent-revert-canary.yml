@@ -12,8 +12,11 @@ name: silent-revert-canary
 #
 # DETECTION, NOT PREVENTION -- and deliberately so.
 #
-#   * It runs on `push` to main only. There is no `pull_request` trigger, so it
-#     can never gate a PR. By the time it speaks, the merge has happened; the
+#   * Scanning runs on `push` to main only. There IS a `pull_request` trigger
+#     below, but it exists solely to run the detector's own unit tests (see the
+#     note above `on:`); both scan steps are gated
+#     `if: github.event_name != 'pull_request'`, so no PR is ever inspected for
+#     silent reverts. By the time the canary speaks, the merge has happened; the
 #     value is that a human learns within minutes instead of during a
 #     from-scratch content audit weeks later.
 #   * It is NOT in ci.yml and is NOT wired into that workflow's `ci-status`
