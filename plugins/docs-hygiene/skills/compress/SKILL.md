@@ -12,13 +12,11 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep '\.md$' | head -10 || echo "none"`
+Uncommitted .md files: !`{ git status --porcelain 2>/dev/null | grep '\.md$' || echo "none"; } | head -10`
 
 ## Purpose
 
-Markdown in `docs/`, README files, onboarding docs, third-party pasted prose, and drifted skill bodies accumulates FLAVOR — filler ("just", "really", "basically"), hedging ("perhaps", "might"), articles, pleasantries, redundant restatement. `context/flavor-vs-content-matrix.md` defines FLAVOR (safe to cut) vs CONTENT (never cut); this skill applies that taxonomy AT EDIT TIME to content where author-time discipline does NOT apply.
-
-Always-loaded instruction files (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) bound empirically at 2-3% yield (see ## Sources). Likely 5-15% yield on author-time-undisciplined content.
+Markdown in `docs/`, README files, onboarding docs, third-party pasted prose, and drifted skill bodies accumulates FLAVOR — filler ("just", "really", "basically"), hedging ("perhaps", "might"), articles, pleasantries. `context/flavor-vs-content-matrix.md` defines FLAVOR (safe to cut) vs CONTENT (never cut). The **batch fan-out path** (Phase A LATITUDE) is a word-level trimmer: mechanical drops + passive→active + nominalization only — no sentence-level restatement deletion. The **single-file in-session Edit fallback** may apply the full matrix taxonomy (including redundant restatement of bold rule names) behind the same semantic-diff net. Always-loaded instruction files (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) bound empirically at 2-3% yield (see ## Sources). Likely 5-15% yield on author-time-undisciplined content when the Edit fallback's broader latitude applies; batch fan-out yields are correspondingly smaller.
 
 Methodology: snapshot original → backend mechanical compression (the `caveman` plugin via `/caveman:compress`, OR in-session Edit fallback) → spawn semantic-diff subagent comparing original vs condensed (output: SEMANTIC LOSS / AMBIGUITY / FALSE POSITIVE per finding with verbatim citations) → revert every SEMANTIC LOSS + AMBIGUITY → run `markdownlint-cli2` → ship or revert.
 
@@ -26,28 +24,34 @@ Methodology: snapshot original → backend mechanical compression (the `caveman`
 
 Default-action Step B picks the mechanical-compression backend: the `caveman` plugin (marketplace `caveman`, invoked as `/caveman:compress`) when present, otherwise the in-session Edit-based fallback. Caveman performs the mechanical flavor cuts (articles, fillers, hedging, verbose-verb collapses) as the compression backend — it is NOT the verification gate. Fallback policy is graceful: the in-session Edit-based path substitutes whenever caveman is absent or unwanted. Subsequent steps (semantic-diff dispatch, revert pass, markdownlint) wrap the output regardless of backend choice.
 
+ `disable-model-invocation: false` is deliberate: compress is model-invocable with interview confirmation gates and permission-governed Edit/Bash; not an oversight relative to D1 guidance that mutating skills often set the flag true.
+
 Note the distinction inside that plugin: `/caveman:compress` is a function-call skill (this skill's backend); `/caveman:caveman` is a session-wide response formatter — unrelated to this skill.
 
 **Step A — detect caveman plugin:** `bash "${CLAUDE_SKILL_DIR}/scripts/detect-caveman.sh"`
+Tri-state: `available` → prefer caveman; `absent` OR `unknown` → treat as absent and use the Edit fallback (`unknown` means `claude`/`jq` missing from PATH — fail open to Edit, not a hard error).
 
-**Step B — caveman backend (preferred):**
+**Step B — caveman backend (preferred when available):** cross-tool-call steps (Bash state does not persist across tool calls — no `trap … EXIT`, no relying on `$tempdir` in a later call):
 
-```bash
-tempdir=$(mktemp -d)
-trap 'rm -rf "$tempdir"' EXIT
-cp "$target" "$tempdir/$(basename "$target")"
-# Invoke caveman via Skill tool on tempdir copy:
-#   Skill(caveman:compress, args="$tempdir/$(basename "$target")")
-# Caveman writes compressed output to tempdir/basename and backup to tempdir/<basename>.original.md.
-# Both stay inside tempdir; trap cleans on EXIT.
-cp "$tempdir/$(basename "$target")" "$target"  # only on caveman success
-```
+1. **Bash call 1** — create a temp copy and echo its absolute path (no EXIT trap):
+   ```bash
+   tempdir=$(mktemp -d)
+   cp "$target" "$tempdir/$(basename "$target")"
+   printf '%s\n' "$tempdir/$(basename "$target")"
+   ```
+2. **Skill call** — `Skill(caveman:compress, args="<absolute-path-from-step-1>")` on that temp copy. Caveman may write `<file>.original.md` beside the copy inside the tempdir.
+3. **Bash call 2** — on caveman success, copy the compressed file back and remove the tempdir explicitly:
+   ```bash
+   cp "<absolute-path-from-step-1>" "$target"
+   rm -rf "$(dirname "<absolute-path-from-step-1>")"
+   ```
+   On caveman failure, skip the `cp` and still `rm -rf` the tempdir so the real target is untouched.
 
-Tempdir wrapper contains caveman's hardcoded `<file>.original.md` backup write. Real-path file replaced atomically on success. Consumers may add a defensive `**/*.original.md` entry to their `.gitignore` as belt-and-suspenders against tempdir cleanup races or future caveman backup-path-convention changes.
+Tempdir wrapper contains caveman's hardcoded `<file>.original.md` backup write. Real-path file replaced only on success. Consumers may add a defensive `**/*.original.md` entry to their `.gitignore` as belt-and-suspenders against cleanup races or future caveman backup-path-convention changes.
 
-**Step B fallback — in-session Edit (caveman absent or disabled):**
+**Step B fallback — in-session Edit (caveman absent, unknown, or unwanted):**
 
-Agent applies Edit ops directly on `$target` per the `context/flavor-vs-content-matrix.md` taxonomy. Same flavor-vs-content rules; no backend indirection.
+Agent applies Edit ops directly on `$target` per the `context/flavor-vs-content-matrix.md` taxonomy (full matrix, including restatement deletion). Same flavor-vs-content rules; no backend indirection.
 
 **Step C+ unchanged:** semantic-diff dispatch (mandatory hard rule), revert pass for SEMANTIC LOSS / AMBIGUITY / UNCERTAIN findings, markdownlint-cli2, summary.
 
@@ -56,7 +60,7 @@ Agent applies Edit ops directly on `$target` per the `context/flavor-vs-content-
 | Action | Args | Behavior |
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` from `git status`; file path → single-file; dir path → batch | snapshot → backend → dispatch → revert-pass → markdownlint verify → summary |
-| `audit [target]` | same target rules | read-only dry-run; compute expected-yield heuristic per `context/target-types.md`; classify SKIP/COMPRESS/UNCERTAIN |
+| `audit [target]` | same target rules | read-only dry-run; run `scripts/audit-scan.sh` (six-signal heuristic in `context/target-types.md`); classify SKIP/COMPRESS/UNCERTAIN |
 
 Flags (apply to both actions):
 
@@ -80,7 +84,7 @@ Instead of dead-ending, offer a repo-wide run — confirmation-gated at every st
 1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
 2. **Audit first** (free — mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and a top-20 excerpt of COMPRESS rows selected deterministically: expected-yield band descending, then word count descending, then lexical path (band strings tie; the two tie-breaks keep the excerpt stable run-to-run). Write the full per-file table to a file — destination `${CLAUDE_PLUGIN_DATA}/audit/<branch-or-scope>-audit.md` when that dir is writable, otherwise a temp path echoed to the user — lexically sorted per the "Summary output deterministic" hard rule — and point at it. Never render every row inline — on a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds. **Stop here when the invocation was the audit action** (report-only).
 3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first) — default (mutating) action only:
-   - **Scope** — default: all COMPRESS-classified files, highest expected yield first; alternates: top-N highest-yield subset, include UNCERTAIN, stop after audit (report only).
+   - **Scope** — default: **top-10** COMPRESS-classified files, highest expected yield first (report-only / decline remains available); alternates: top-N (user picks N), all COMPRESS, include UNCERTAIN, stop after audit (report only). Downgraded from "all COMPRESS" after the 2026-08-15 calibration run (87 consecutive auto-reverts) — see `context/fan-out-orchestration.md` circuit breaker.
    - **Concurrency** — default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
    - **Always-loaded files** — default: excluded (SKIP per the 2-3% empirical baseline); including them requires the same explicit opt-in as `--force`.
 4. **Confirm and run**: batch default action over the confirmed set, waves per `context/fan-out-orchestration.md`. Every per-file hard rule — semantic-diff dispatch, revert pass, markdownlint, `<3% AND 0 semantic-loss → REVERT` — applies unchanged.

@@ -1,6 +1,6 @@
 # Compress fan-out orchestration
 
-Read this when batch-compressing N markdown files via parallel subagents. Codifies the multi-phase split that keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor. Before Claude Code v2.1.172 a subagent could not spawn the verifier at all (no nested Agent tool); as of v2.1.172 a foreground subagent can, but nested spawning is version-dependent and a fresh-context verifier beats self-critique regardless — so the auditor phase stays a main-session dispatch.
+Read this when batch-compressing N markdown files via parallel subagents. Codifies the multi-phase split that keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor. Nested subagent spawning has been version- and settings-dependent since v2.1.172 (defaults have moved across releases); a fresh-context verifier beats self-critique regardless — so the auditor phase stays a main-session dispatch.
 
 **Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context — self-audit by the same model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed; an observed failure — see ## History). Fix: move the semantic-diff into a separate fresh-context subagent dispatched by the main session.
 
@@ -18,6 +18,7 @@ Compress exactly ONE file: <ABSOLUTE-PATH>
 LATITUDE:
 - Mechanical drops: articles (the/a/an) before clear nouns, filler (just/really/basically/actually/simply), hedging (perhaps/somewhat/might in factually-direct statements), pleasantries, verbose verb phrases (in order to → to, due to the fact that → because, make use of → use)
 - Prose playbook: passive → active voice, nominalization collapse ("performs analysis of" → "analyzes", "is responsible for" → "owns")
+- Batch fan-out does NOT delete sentence-level restatements (that latitude is Edit-fallback / single-file only — see SKILL.md Purpose).
 
 HARD RULES:
 - NEVER add words. EVER.
@@ -67,6 +68,7 @@ Per FINDING block returned in Phase B:
 - **Phase A scope fence** — each compressor subagent's prompt names exactly ONE allowed file; any other file, git operation, or path is forbidden (the template above encodes this)
 - **Phase A does NOT invoke `/docs-hygiene:compress`** as a slash command from subagents — self-audit in the compressor context caused reverse-direction edits (see ## History)
 - **Refuse-fast threshold** — 5 consecutive Phase A or Phase B ERROR returns aborts the batch
+- **Yield circuit breaker** — 5 consecutive auto-reverts in a wave (sub-3% / 0-SL successful outcomes that still discard the edit) → pause, report observed yield, and re-confirm with the user before the next wave. Reverts are not ERRORs; without this breaker a misclassified COMPRESS cohort burns two Opus dispatches per file to completion (2026-08-15 calibration: 87 consecutive auto-reverts).
 - **Phase B returns are unverified synthesis** — the main session reverts per finding rather than verifying each by hand; a forbidden citation token invalidates the whole dispatch
 
 ## History
