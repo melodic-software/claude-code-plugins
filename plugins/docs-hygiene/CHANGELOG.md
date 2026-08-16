@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## [0.15.1]
+
+### Fixed
+
+- **audit-derivability route follow-ups:** point the status board's
+  `templates/sources.md` row at the knowledge skill's renamed `video-digest`
+  path.
+
 ## [0.15.0]
 
 ### Fixed
