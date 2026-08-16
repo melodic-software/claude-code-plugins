@@ -112,8 +112,10 @@ emit_tel() {
 # into evaluation, where the trusted sources decide.
 #
 # Everything this reads is already in scope above: the two env presences, and
-# the two settings-file locators from lane-stop-gate-lib.sh, which derive from
-# the GATE_* globals gate_resolve_install established at the top of this file.
+# the two settings-file locators from lane-stop-gate-lib.sh — gate_user_settings_file,
+# which derives from the GATE_CONFIG_ROOT that gate_resolve_install establishes
+# at the top of this file, and gate_managed_settings_files, which depends on
+# nothing but `uname -s` and fixed absolute paths.
 # Nothing here is payload-derived, so it MUST stay above the buffer — and
 # everything payload-derived (hook::require_jq, EVENT, SESSION_ID, and the
 # SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).

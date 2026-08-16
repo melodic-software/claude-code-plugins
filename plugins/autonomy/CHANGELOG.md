@@ -13,8 +13,8 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   the registration's 15s budget for a guaranteed no-op. `gate_maybe_configured` and its
   `|| exit 0` call now sit above the `hook::buffer_stdin` assignment in
   `hooks/lane-stop-gate.sh`. A pure reordering: the pre-filter reads two environment
-  presences and two settings-file locators whose `GATE_*` globals are already established
-  above it, and references the payload nowhere. Everything payload-derived —
+  presences and two settings-file locators already in scope at the new position, and
+  references the payload nowhere. Everything payload-derived —
   `hook::require_jq`, `EVENT`, `SESSION_ID`, and the `SubagentStop`-versus-`Stop`
   discrimination — stays below the buffer, unchanged. Two cases pin both halves by binding
   stdin to a regular file and reading back what the hook left unconsumed: an unarmed session

@@ -846,7 +846,7 @@ fi
 # from it — an unarmed session paying a bounded stdin read against a 15s Stop
 # budget for a guaranteed no-op.
 #
-# probe_run <payload-file> [KEY=VAL ...] — invoke the staged hook with stdin
+# probe_run <payload-file> — invoke the staged hook with stdin
 # bound to a REGULAR FILE on fd 3 instead of a pipe, then read what is LEFT on
 # that same open file description afterwards. The file offset is shared across
 # the fork/exec, so the leftover is exactly the bytes the hook did not consume:
@@ -858,7 +858,6 @@ PROBE_RC=0
 PROBE_LEFT=""
 probe_run() {
   local payload="$1"
-  shift
   PROBE_OUT=""
   PROBE_RC=0
   PROBE_LEFT=""
@@ -870,7 +869,6 @@ probe_run() {
         -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
         -u CLAUDE_PLUGIN_DATA \
         CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-        ${@+"$@"} \
         bash "$HOOK" 0<&3 2>/dev/null)
     PROBE_RC=$?
     PROBE_LEFT=$(cat <&3)
