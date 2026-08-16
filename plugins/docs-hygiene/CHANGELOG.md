@@ -1,5 +1,16 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.7]
+
+### Added
+
+- **audit-derivability route follow-ups:** in-tree status board
+  (`context/derivability-route-followups.md`) for the 174 route-to-sibling
+  annotations from the 2026-08-15 repo-wide sweep — noise routes closed after
+  re-scan + one Sources relocation; extract-ssot routes triaged
+  (synced-cluster / functional-scaffold / changelog-parity / pending) without
+  opening new issues (#2735).
+
 ## [0.14.6]
 
 ### Added
