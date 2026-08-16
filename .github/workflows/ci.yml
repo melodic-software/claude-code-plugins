@@ -686,6 +686,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          # PR head, not the synthetic merge commit: overlap is computed against
+          # the branch tip the author will squash, so merge-base math must match
+          # that tip rather than an already-merged-with-base tree.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Test the stale-base overlap detector
         run: bash scripts/check-stale-base-overlap.test.sh
       - name: Fetch base ref
@@ -1263,6 +1267,7 @@ jobs:
       - hook-exec-form-gate
       - plugin-options-docs-gate
       - silent-skip-gate
+      - stale-base-overlap-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - fleet-finding-test-coverage-gate

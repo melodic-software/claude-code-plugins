@@ -68,16 +68,22 @@ if [[ "$merge_base" == "$base_tip" ]]; then
   exit 0
 fi
 
-# Name-status so renames still surface under both old and new paths.
-base_paths="$(
-  git diff --name-only --diff-filter=ACDMRTUXB "$merge_base" "$base_tip" | LC_ALL=C sort -u
-)" || {
+# Name-status so renames/copies contribute BOTH the old and new path.
+# --name-only alone would keep only the destination and miss overlaps on the
+# pre-rename path when the other side still touches the old name.
+list_paths() {
+  local a="$1" b="$2"
+  git diff --name-status --diff-filter=ACDMRTUXB "$a" "$b" | awk -F '	' '
+    /^[CR][0-9]*/ { print $2; print $3; next }
+    NF >= 2 { print $2 }
+  ' | LC_ALL=C sort -u
+}
+
+base_paths="$(list_paths "$merge_base" "$base_tip")" || {
   echo "check-stale-base-overlap: cannot list paths changed on $base_ref since merge-base" >&2
   exit 2
 }
-head_paths="$(
-  git diff --name-only --diff-filter=ACDMRTUXB "$merge_base" HEAD | LC_ALL=C sort -u
-)" || {
+head_paths="$(list_paths "$merge_base" HEAD)" || {
   echo "check-stale-base-overlap: cannot list paths changed on HEAD since merge-base" >&2
   exit 2
 }
