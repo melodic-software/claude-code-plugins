@@ -48,11 +48,11 @@ case "$mode" in
   ;;
 esac
 
-if ! git rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null; then
+if ! git rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
   echo "check-stale-base-overlap: base ref not resolvable: $base_ref" >&2
   exit 2
 fi
-if ! git rev-parse --verify --quiet HEAD^{commit} >/dev/null; then
+if ! git rev-parse --verify --quiet "HEAD^{commit}" >/dev/null; then
   echo "check-stale-base-overlap: HEAD not resolvable" >&2
   exit 2
 fi
@@ -61,7 +61,7 @@ merge_base="$(git merge-base HEAD "$base_ref" 2>/dev/null)" || {
   echo "check-stale-base-overlap: cannot compute merge-base of HEAD and $base_ref" >&2
   exit 2
 }
-base_tip="$(git rev-parse "$base_ref^{commit}")" || exit 2
+base_tip="$(git rev-parse "${base_ref}^{commit}")" || exit 2
 
 if [[ "$merge_base" == "$base_tip" ]]; then
   echo "check-stale-base-overlap: HEAD is up to date with $base_ref"
