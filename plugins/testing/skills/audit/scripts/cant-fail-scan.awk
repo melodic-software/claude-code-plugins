@@ -27,7 +27,7 @@ BEGIN {
   file_mock = 0
   prev_raw = ""
   FATAL = 0
-  sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only
+  sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only  # spellchecker:disable-line
   sr_depth = 0
   last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
 
@@ -50,7 +50,7 @@ BEGIN {
     STRIP_ERE = "expect[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)[[:space:]]*(\\.[[:space:]]*not)?[[:space:]]*\\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|sinon\\.assert\\.[A-Za-z]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)"
     TEST_START_ERE = "(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\\.[[:space:]]*(only|concurrent|failing|sequential))*[[:space:]]*(\\.[[:space:]]*each[[:space:]]*\\([^)]*\\)[[:space:]]*)?\\("
     TEST_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xit|xtest)[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\\.[[:space:]]*(skip|todo)"
-    SUITE_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\\.[[:space:]]*skip)[[:space:]]*\\("
+    SUITE_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\\.[[:space:]]*skip)[[:space:]]*\\("  # spellchecker:disable-line
   } else if (LANG_ID == "py") {
     ANY_ERE = "[Aa]ssert|\\.raises|\\.warns|self\\.fail|[Ee]xpect|[Vv]erify|[Ss]hould|[Cc]heck|[Ee]nsure|[Vv]alidate"
     MOCKA_ERE = "assert_called|assert_any_call|assert_has_calls|assert_not_called|assert_awaited|call_count|mock_calls|\\.called([^A-Za-z0-9_]|$)"

@@ -129,7 +129,7 @@ line above it, or inside the body — the same recorded-decision shape as the re
   line (chains spanning lines are deliberately not matched, and only the first `expect` per line is
   examined). `x = f(a); assert x == f(a)` is the same defect and is not yet detected.
 - **Skips are honored at both levels** — test-level (`it.skip`/`x`-prefixed/`@skip`/`[Fact(Skip=…)]`)
-  and suite-level (`xdescribe`/`describe.skip`/`context.skip`/`suite.skip`): a test that does not
+  and suite-level (<!-- spellchecker:off -->`xdescribe`<!-- spellchecker:on -->/`describe.skip`/`context.skip`/`suite.skip`): a test that does not
   run is not judged.
 - **Fixture corpora under `evals/fixtures/` are pruned** — a detector's planted-defect fixtures are
   not the consumer's defects. Point `$CANT_FAIL_SCAN_ROOT` at one explicitly to scan it.
