@@ -31,7 +31,11 @@ resume on their own after the reset. Four parts:
   JSON (temp file + rename, with a brief retry for the Windows rename-over-open-target case).
 - **Fail-open capability detection.** Sessions whose auth exposes no `rate_limits` (API-key,
   enterprise) tee an honest snapshot without the key; consumers treat that as unknown and run
-  reactive-only rather than throttling on fabricated data.
+  reactive-only rather than throttling on fabricated data. Cloud / remote sessions with no
+  statusline producer typically have no tee file at all — the same unknown → reactive-only
+  classification, documented as the expected degraded mode in
+  [`reference/reader-contract.md`](reference/reader-contract.md) ("Cloud / remote sessions"), with
+  a documented residual that a live cloud producer is out of scope until one exists.
 - **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
   identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
   feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6

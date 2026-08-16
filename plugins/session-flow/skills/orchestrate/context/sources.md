@@ -212,6 +212,14 @@ Part-sourced, part authoring convention — the boundary is called out per facto
   they scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
   is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
   rate-limit headroom is a hard ceiling on parallel workers).
+- **Unobservable headroom → thin-by-default (cloud / remote).** The rate-limit-guard reader
+  contract classifies a missing, stale, or `rate_limits`-less tee as **unknown → reactive-only**,
+  and states that cloud / remote containers typically have no statusline producer so the tee path
+  is absent by expectation. Imperative 7's thin-by-default concurrent cap, sibling-429 backoff, and
+  "never invent window percentages" clauses are the orchestration consumption of that
+  classification — not a second contract. —
+  `plugins/rate-limit-guard/reference/reader-contract.md` ("Cloud / remote sessions", capability
+  detection).
 - **Per-worker model tier is an explicit spawn decision.** The subagents doc names cost control as
   a purpose of subagents: "Control costs by routing tasks to faster, cheaper models like Haiku"
   *(verbatim, verified)*, and documents the model-resolution order — `CLAUDE_CODE_SUBAGENT_MODEL`
