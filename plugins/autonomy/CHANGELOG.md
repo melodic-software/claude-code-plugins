@@ -8,10 +8,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 ### Changed
 
 - **Join-row marker parameterized: `deferred-class` → `deferred(<trigger>)`** (#2717). The
-  naming ruling on #2717 landed after the contract document shipped; it ratified the verdict
-  tokens as shipped and required the deferred marker to carry the row's own join trigger — a
-  bare marker discards the condition under which a deferral is revisited, the half that makes
-  it auditable. Updated in `reference/prerequisite-resolution.md` and the README bullet;
+  naming ruling on #2717 landed after the contract document shipped; the subsequent
+  reconciliation ratified the verdict tokens as shipped and adopted the ruling's requirement
+  that the deferred marker carry the row's own join trigger — a bare marker discards the
+  condition under which a deferral is revisited, the half that makes it auditable. Updated in `reference/prerequisite-resolution.md` and the README bullet;
   ADR 0011 carries the reconciliation amendment.
 
 ## [0.22.0]
