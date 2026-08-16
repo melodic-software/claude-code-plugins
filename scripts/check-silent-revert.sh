@@ -631,7 +631,8 @@ parse_incidents_file() {
         ;;
       marker)
         # The parsed view below is SEP-delimited, so a row already carrying
-        # that byte is refused up front rather than silently mis-split. It is a
+        # that byte is refused up front rather than split at the wrong field
+        # boundary without anyone noticing. It is a
         # control character no editor writes by accident; the check exists so
         # the invariant is stated rather than assumed.
         case "$line" in
@@ -642,8 +643,27 @@ parse_incidents_file() {
           die "marker row sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
         [[ -n "$path" ]] ||
           die "marker row for $sha in $INCIDENTS_FILE records no path"
+        # The path names a file INSIDE this repository, relative to its root.
+        # An absolute path or a `..` component would reach outside the tree the
+        # assertion is about, so a marker could be satisfied by content that is
+        # not on main at all. Refused here rather than at resolution time, so
+        # both modes are held to it identically.
         case "$path" in
           \[*) die "marker row for $sha in $INCIDENTS_FILE has a disposition where its path should be" ;;
+          /* | [A-Za-z]:[/\\]* | \\*)
+            die "marker path '$path' for $sha in $INCIDENTS_FILE is absolute -- use a path relative to the repository root" ;;
+          .. | ../* | */../* | */..)
+            die "marker path '$path' for $sha in $INCIDENTS_FILE escapes the repository with '..'" ;;
+          # Glob and pathspec metacharacters are refused rather than resolved.
+          # They are the widening vectors, and refusing them at parse time is
+          # what keeps BOTH modes answering identically: `git cat-file` would
+          # simply not find such a path (absent, exit 1) while `git ls-files`
+          # would expand it (present, exit 0). A marker path is a literal file
+          # path or it is a corpus error.
+          :*)
+            die "marker path '$path' for $sha in $INCIDENTS_FILE uses pathspec magic -- a marker binds to one literal file path" ;;
+          *[*?[]*)
+            die "marker path '$path' for $sha in $INCIDENTS_FILE contains a glob character -- a marker binds to one literal file path" ;;
           *) ;;
         esac
 
@@ -715,7 +735,14 @@ marker_present() {
     content="$(git cat-file blob "${rev}:${path}" 2>/dev/null)" ||
       die "could not read '$path' at $rev"
   else
-    [[ -e "$path" ]] || return 1
+    # Working-tree mode must stay REPO-SCOPED, or the two modes disagree about
+    # what they are asserting. Reading the filesystem directly would let a
+    # marker be satisfied by an untracked file, a .gitignore'd file, or a
+    # symlink pointing outside the repository entirely -- content that is not
+    # on main and never will be. `git ls-files --error-unmatch` is the cheap
+    # form of "is this a tracked path", and it makes the default mode assert
+    # the same universe the explicit-rev mode does.
+    git ls-files --error-unmatch -- "$path" >/dev/null 2>&1 || return 1
     [[ -f "$path" ]] ||
       die "marker path '$path' is not a regular file -- bind a marker to exactly one file"
     content="$(<"$path")" || die "could not read '$path'"
@@ -743,7 +770,27 @@ verify_restoration() {
   local fires markers
   fires="$(mktemp)" || die "mktemp failed"
   markers="$(mktemp)" || die "mktemp failed"
+  # Every refusal below leaves through `die`, and there are a dozen of them, so
+  # cleanup is a trap rather than a straight-line rm at the end -- the same
+  # pairing scripts/affected-tests.sh and scripts/check-fleet-audit-doc-grammar.sh
+  # use. Without it the self-test alone leaks two files per refusal path.
+  #
+  # EXIT, not RETURN: `die` exits the shell rather than returning, so a RETURN
+  # trap would never fire on exactly the paths that leak. verify_restoration is
+  # called once and the script exits straight after, so the global trap is not
+  # shared with anything.
+  # shellcheck disable=SC2064  # expand the paths now, while they are in scope.
+  trap "rm -f '$fires' '$markers'" EXIT
   parse_incidents_file "$fires" "$markers"
+
+  # A corpus with no `fires` row at all must not report a serene pass. The
+  # marker-per-fires-row rule below only bites while a `fires` row exists, so
+  # deleting a row together with its markers would otherwise leave
+  # "Every recorded incident has its content (0 marker(s))" and exit 0 -- the
+  # mute button this corpus exists in order not to have, reached by removal
+  # instead of by editing.
+  [[ -s "$fires" ]] ||
+    die "$INCIDENTS_FILE records no 'fires' row -- the restoration assertion would pass while covering nothing"
 
   # The whole file is validated, and both directions of the sha binding are
   # checked, BEFORE any marker is resolved -- so a corpus problem can never
@@ -751,6 +798,12 @@ verify_restoration() {
   local sha
   while read -r sha; do
     [[ -n "$sha" ]] || continue
+    # The incident has to be a real commit. A well-formed sha nobody can
+    # resolve is either a shallow clone (in which case this mode cannot run) or
+    # a typo, and a matched typo on a row and its marker would otherwise assert
+    # content for an incident that never happened.
+    git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null ||
+      die "incident commit $sha is unreachable -- the restoration assertion needs full history (fetch-depth: 0)"
     # A `fires` row with no marker is refused rather than skipped. Skipping it
     # would let this whole assertion be satisfied by recording markers for one
     # historical incident while silently covering no future one -- a green
@@ -797,8 +850,6 @@ verify_restoration() {
       printf '        NOT RESTORED: %s\n' "$mtext"
     fi
   done <"$markers"
-
-  rm -f "$fires" "$markers"
 
   if [[ "$rc" -ne 0 ]]; then
     printf '\n'

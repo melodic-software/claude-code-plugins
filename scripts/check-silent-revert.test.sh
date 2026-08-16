@@ -649,6 +649,42 @@ an-unknown-disposition-keyword guarded.txt [ignored: why] RESTORED_MARKER_SENTIN
 an-unterminated-disposition guarded.txt [not-restored: why RESTORED_MARKER_SENTINEL
 BAD_ROWS
 
+  # A corpus with no `fires` row at all must not report a serene pass. The
+  # marker-per-fires-row rule only bites while a `fires` row exists, so removing
+  # a row together with its markers is a mute button reached by deletion rather
+  # than by editing.
+  printf '# only comments here\n' >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "no 'fires' row"; then
+    ok "a corpus with no fires row exits 2 rather than passing while covering nothing"
+  else
+    fail "an empty corpus must exit 2, rc=$RC: $out"
+  fi
+  printf 'clean %s only a clean row\n' "$sha" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]]; then
+    ok "a corpus of only 'clean' rows exits 2"
+  else
+    fail "a clean-only corpus must exit 2, rc=$RC: $out"
+  fi
+
+  # A well-formed sha nobody can resolve is a shallow clone or a typo. A matched
+  # typo on a row AND its marker would otherwise assert content for an incident
+  # that never happened.
+  {
+    printf 'fires 0123456789abcdef0123456789abcdef01234567 not a real commit\n'
+    printf 'marker 0123456789abcdef0123456789abcdef01234567 guarded.txt RESTORED_MARKER_SENTINEL\n'
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'unreachable'; then
+    ok "a fires row naming an unreachable commit exits 2 even with a resolving marker"
+  else
+    fail "an unreachable incident commit must exit 2, rc=$RC: $out"
+  fi
+
   # An abbreviated sha would let a marker widen to a commit nobody recorded --
   # the same discipline the acknowledgment file holds.
   {
@@ -738,19 +774,62 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     fail "a directory marker path must exit 2, rc=$RC: $out"
   fi
 
-  # A glob that would match the bound file under a pathspec must not match it
-  # under an exact lookup -- it simply does not name a file, so: absent.
+  # Working-tree mode must stay REPO-SCOPED. Reading the filesystem directly
+  # would let an untracked file -- content that is not on main and never was --
+  # satisfy a marker in exactly the mode the canary job runs, while the same row
+  # reports NOT RESTORED at an explicit rev. The two modes must agree.
+  printf 'RESTORED_MARKER_SENTINEL\n' >"$repo/untracked.txt"
   {
     printf 'fires %s a real drop\n' "$sha"
-    printf 'marker %s guarded*.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    printf 'marker %s untracked.txt RESTORED_MARKER_SENTINEL\n' "$sha"
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
   if [[ "$RC" -eq 1 ]]; then
-    ok "a glob marker path resolves to no file and reports the marker absent"
+    ok "an untracked file cannot satisfy a marker in working-tree mode"
   else
-    fail "a glob marker path must not resolve, rc=$RC: $out"
+    fail "an untracked path must not satisfy a marker, rc=$RC: $out"
   fi
+  rm -f "$repo/untracked.txt"
+
+  # A path that leaves the repository is refused outright, in both modes,
+  # because a marker resolved outside the tree asserts nothing about main.
+  local escaping
+  for escaping in "/etc/hostname" "../guarded.txt" "a/../../guarded.txt" ".."; do
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s %s RESTORED_MARKER_SENTINEL\n' "$sha" "$escaping"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    if [[ "$RC" -eq 2 ]]; then
+      ok "a marker path escaping the repository ('$escaping') exits 2"
+    else
+      fail "escaping path '$escaping' must exit 2, rc=$RC: $out"
+    fi
+  done
+
+  # A glob that WOULD match the bound file under a pathspec is a corpus error,
+  # refused at parse time so both modes answer identically. Left to resolution,
+  # `git cat-file` would report absent (exit 1) while `git ls-files` would
+  # expand the glob and report present (exit 0) -- the two modes disagreeing on
+  # the same row is how a false green gets in.
+  local globbed
+  for globbed in "guarded*.txt" "guarded?.txt" "guarded[0-9].txt" ":(glob)guarded.txt"; do
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s %s RESTORED_MARKER_SENTINEL\n' "$sha" "$globbed"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    local wt_rc="$RC"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration "$sha"
+    if [[ "$wt_rc" -eq 2 ]] && [[ "$RC" -eq 2 ]]; then
+      ok "a glob marker path '$globbed' is refused identically in both modes"
+    else
+      fail "glob path '$globbed' must exit 2 in both modes (worktree=$wt_rc, rev=$RC): $out"
+    fi
+  done
 }
 
 # The two modes read the SAME file and must not disturb each other. The replay
