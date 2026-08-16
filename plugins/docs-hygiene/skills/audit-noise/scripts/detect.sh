@@ -12,6 +12,8 @@ source "$SCRIPT_DIR/lib/noise-shapes.sh"
 
 PATHS_FILE=""
 TARGETS=()
+OFFSET=0
+LIMIT=0
 
 usage() {
   cat <<'EOF'
@@ -20,17 +22,41 @@ detect.sh — emit markdown noise findings for /audit-noise.
 Usage:
   detect.sh <file.md>...
   detect.sh --paths-file <file>
+  detect.sh --offset N --limit N   # chunk affordance over the sorted target list
   detect.sh --help
 
 When no paths are given, audits the uncommitted .md files of the repository
 it runs in (from git status). Exit: 0 on audit, 2 on unknown arguments.
+
+--offset / --limit slice the sorted unique target list after directory
+expansion (0-based offset; limit 0 means no cap). Repo-wide orchestration can
+invoke one detect.sh process per chunk without a per-file shell loop.
 EOF
+}
+
+require_opt_value() {
+  local opt="$1"
+  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
+    echo "detect.sh: $opt requires a value" >&2
+    exit 2
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    PATHS_FILE="${2:-}"
+    require_opt_value "$@"
+    PATHS_FILE="$2"
+    shift 2
+    ;;
+  --offset)
+    require_opt_value "$@"
+    OFFSET="$2"
+    shift 2
+    ;;
+  --limit)
+    require_opt_value "$@"
+    LIMIT="$2"
     shift 2
     ;;
   -h | --help)
@@ -54,6 +80,15 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+# Reject non-integer offset/limit early (unknown-arg class → exit 2).
+if [[ ! "$OFFSET" =~ ^[0-9]+$ || ! "$LIMIT" =~ ^[0-9]+$ ]]; then
+  echo "detect.sh: --offset and --limit require non-negative integers" >&2
+  exit 2
+fi
+# Strip leading zeros so values like 08 are decimal, not octal, under arithmetic.
+OFFSET=$((10#$OFFSET))
+LIMIT=$((10#$LIMIT))
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 if [[ -n "$repo_root" ]]; then
@@ -99,6 +134,35 @@ fi
 
 mapfile -t SORTED < <(printf '%s\n' "${TARGETS[@]}" | LC_ALL=C sort -u)
 
+# Chunk affordance: slice the sorted list so a parent can fan out without a
+# per-file shell loop (hook-bypass-safe single process per chunk).
+if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
+  CHUNKED=()
+  idx=0
+  for file in "${SORTED[@]}"; do
+    if [[ "$idx" -ge "$OFFSET" ]]; then
+      if [[ "$LIMIT" -eq 0 || ${#CHUNKED[@]} -lt "$LIMIT" ]]; then
+        CHUNKED+=("$file")
+      else
+        break
+      fi
+    fi
+    idx=$((idx + 1))
+  done
+  SORTED=(${CHUNKED[@]+"${CHUNKED[@]}"})
+fi
+
+if [[ ${#SORTED[@]} -eq 0 ]]; then
+  echo "Summary total: files=0 T1=0 T2=0 T3=0"
+  echo "Note: chunk offset/limit selected no targets"
+  exit 0
+fi
+
+# Hoist convention-root resolution once per run (also repairs F6: contract
+# root must survive into the ghost-ref exemption check).
+AUDIT_NOISE_REPO_ROOT="${AUDIT_NOISE_REPO_ROOT:-${repo_root:-.}}"
+audit_noise_resolve_convention_roots
+
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
 audit_file() {
@@ -110,8 +174,10 @@ audit_file() {
   files_audited=$((files_audited + 1))
 
   local t1=0 t2=0 t3=0
-  local in_exempt=0 current_section="" line_num=0 shapes shape tier excerpt
+  local in_exempt=0 current_section="" line_num=0
   local in_ignored_para=0 skip_next=0
+  local -a shapes=()
+  local shape tier excerpt line
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
@@ -146,12 +212,12 @@ audit_file() {
       skip_next=0
       continue
     fi
-    shapes="$(audit_noise_detect_shapes "$line" || true)"
-    if [[ -n "$shapes" ]]; then
-      excerpt="$(audit_noise_trim_excerpt "$line")"
-      while IFS= read -r shape; do
+    # Hot path: nameref APIs only — no per-line command substitutions.
+    if audit_noise_detect_shapes_into shapes "$line"; then
+      audit_noise_trim_excerpt "$line" excerpt
+      for shape in "${shapes[@]}"; do
         [[ -z "$shape" ]] && continue
-        tier="$(audit_noise_shape_tier "$shape")"
+        audit_noise_shape_tier_into "$shape" tier
         printf 'File: %s\n' "$file"
         printf 'Finding tier: %s\n' "$tier"
         printf 'Finding shape: %s\n' "$shape"
@@ -163,7 +229,7 @@ audit_file() {
         2) t2=$((t2 + 1)) total_t2=$((total_t2 + 1)) ;;
         *) t3=$((t3 + 1)) total_t3=$((total_t3 + 1)) ;;
         esac
-      done <<<"$shapes"
+      done
     fi
   done <"$file"
 

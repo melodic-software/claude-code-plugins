@@ -69,7 +69,9 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 1. Empty arg AND clean tree → OFFER the repo-wide audit instead of silently no-opping; run only on
    the user's confirmation. The offer carries prescribed defaults (overridable): corpus = all
    tracked `.md` minus `**/evals/fixtures/**` and `CHANGELOG.md`; slice-scoped files (contract and
-   memory tiers) sectioned separately in the report; scan via a chunked `detect.sh` pass; on a
+   memory tiers) sectioned separately in the report; scan via a chunked `detect.sh` pass
+   (`detect.sh --paths-file <list> --offset N --limit M` — one process per chunk, no
+   per-file shell loop); on a
    large corpus, judge only scanner-flagged files, fanning out a small number of concurrent
    subagents with one fresh-context verification pass over the merged verdicts; report first —
    this skill stays read-only either way, and the author applies any treatment edits only after

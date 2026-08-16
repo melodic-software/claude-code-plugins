@@ -1,5 +1,21 @@
 # Changelog — docs-hygiene plugin
 
+## [0.14.4]
+
+### Fixed
+
+- **audit-noise detect:** hoist + export convention-root resolution once per
+  run so `AUDIT_NOISE_CONTRACT_ROOT` survives into the ghost-ref exemption
+  check (auditor F6 — a configured contract root's bare `reviews/` /
+  `handoffs/` / `running-retros/` child no longer inherits the memory-root
+  exemption). Per-line shape detection now uses nameref helpers instead of
+  command substitutions in the hot loop (the root cause of repo-wide scan
+  timeouts). `--offset` / `--limit` chunk the sorted target list so
+  orchestration can fan out one process per chunk without a per-file shell
+  loop (#2741).
+  Missing values for `--offset`/`--limit`/`--paths-file` now exit 2 instead of
+  hanging; leading-zero chunk values are normalized as decimal before arithmetic.
+
 ## [0.14.3]
 
 ### Fixed
