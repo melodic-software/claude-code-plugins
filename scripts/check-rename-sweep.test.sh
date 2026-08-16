@@ -13,7 +13,7 @@ trap 'rm -f "$seed"' EXIT
 
 check() {
   local name="$1" expected="$2" actual="$3"
-  if [ "$actual" = "$expected" ]; then
+  if [[ "$actual" == "$expected" ]]; then
     echo "ok: $name"
     pass=$((pass + 1))
   else
@@ -37,4 +37,4 @@ esac
 rm -f "$seed"
 
 echo "PASS=$pass FAIL=$fail"
-[ "$fail" -eq 0 ]
+[[ "$fail" -eq 0 ]]

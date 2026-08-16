@@ -40,7 +40,7 @@ violations="$(printf '%s\n' "$hits" | grep -v \
   -e '^docs/adr/0013-keep-storage-format-identifiers-stable-across-renames\.md:' \
   | grep -v '^$')" || true
 
-if [ -n "$violations" ]; then
+if [[ -n "$violations" ]]; then
   printf 'FAIL: stale youtube-digest reference(s) outside the allowlist:\n%s\n' "$violations" >&2
   exit 1
 fi
