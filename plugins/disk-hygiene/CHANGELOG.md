@@ -14,8 +14,17 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   recorded incident. The README's overview, approval-contract bullet, and deletion-report
   paragraph lead with tidiness again, and eval 12
   (`empty-directories-remain-first-class-tidiness-findings`) is back alongside eval 1's
-  provenance-first expectation. The approval bullet is rewritten rather than restored verbatim:
-  #2635's own hunk was malformed and would have re-introduced a duplicated, truncated bullet.
+  provenance-first expectation.
+- **Three of the restored surfaces are corrected rather than restored verbatim (#2590).** Eval 1's
+  expectation is byte-identical to #2635; the other three are not, and each deviation is
+  deliberate. (a) The README approval bullet: #2635's own hunk was malformed and would have
+  re-introduced a duplicated, truncated bullet; the replacement follows `SKILL.md` §5, which is the
+  authority on what the approval table names. (b) The README deletion-report paragraph keeps the
+  locked / changed / protected / needs-elevation / unverified enumeration that #2635's wording
+  would have collapsed to "skips". (c) Eval 12's prompt is retargeted through the documented
+  `--root-children` selection: as #2635 wrote it the prompt scanned `C:\` directly, which the
+  engine has always refused, so the eval's expected output was reachable only by bypassing the
+  confirmation gate.
 
 ## [0.20.9]
 
