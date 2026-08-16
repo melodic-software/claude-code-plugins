@@ -671,6 +671,32 @@ jobs:
       - name: Check audit skill grammar matches the parser
         run: scripts/check-fleet-audit-doc-grammar.sh --check
 
+  # Stale-base squash merges can silently revert recently-landed fixes when a PR
+  # is cut from a base that has since moved, and the squash deletes the tests
+  # that would have caught the drop (claude-code-plugins#2691). GitHub's
+  # requiredStatusChecks.strict (github-iac) is the durable prevention; this
+  # gate fails the PR while its merge-base is behind on overlapping paths.
+  stale-base-overlap-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test the stale-base overlap detector
+        run: bash scripts/check-stale-base-overlap.test.sh
+      - name: Fetch base ref
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
+      - name: Fail when behind base on overlapping paths
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-stale-base-overlap.sh --check "origin/$BASE_REF"
+
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
   # version heading does not outrun the manifest (static --check), a PR that
   # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
