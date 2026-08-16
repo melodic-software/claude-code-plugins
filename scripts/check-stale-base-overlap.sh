@@ -6,11 +6,17 @@
 # Why: squash-merging a PR cut from a stale base can silently drop commits that
 # landed on the base after the PR branched — including the tests that would have
 # caught the drop. CI stays green because the reverting squash deletes those
-# tests in the same commit (claude-code-plugins#2691: #2635 then #2639 lost
-# inside ten minutes). GitHub's `requiredStatusChecks.strict` (managed in
-# melodic-software/github-iac for this org) is the durable prevention; this
-# check is the repo-local detector that fails while that setting is off or as
-# defense in depth behind it.
+# tests in the same commit.
+#
+# SCOPE — the stale-BASE class only, and only that class. The
+# claude-code-plugins#2691 audit surfaced two distinct classes; this gate covers
+# the one where the merge-base is genuinely behind the target tip. It does NOT
+# cover the 2026-08-15 incidents (#2633, #2639, #2641), which were stale in
+# CONTENT while up to date in HISTORY: `git merge-base --is-ancestor f603880d
+# refs/pull/2641/head` is true, yet that tree carried none of #2639's work. Run
+# against those exact branches this check exits 0 ("fresh"). That class belongs
+# to scripts/check-silent-revert.sh. The two cover disjoint classes and neither
+# subsumes the other, so a green run here is not evidence about the other class.
 #
 # Agreement is established by comparing path lists only:
 #   1. merge-base(HEAD, <base-ref>) == tip(<base-ref>) → fresh, exit 0.
@@ -112,5 +118,6 @@ echo >&2
 echo "Refresh before merge: integrate origin/$base_ref (merge or update-branch)," >&2
 echo "re-run CI, then merge. A stale-base squash can silently revert recently" >&2
 echo "landed fixes on the overlapping paths (claude-code-plugins#2691)." >&2
-echo "Durable prevention: set requiredStatusChecks.strict=true in github-iac." >&2
+echo "Scope: stale BASE only. A branch stale in content but current in history" >&2
+echo "passes this check — that class is scripts/check-silent-revert.sh." >&2
 exit 1
