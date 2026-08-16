@@ -9,31 +9,50 @@ audit_noise_trim_excerpt() {
   if ((${#line} > 120)); then
     line="${line:0:117}..."
   fi
+  # Prefer nameref when the caller wants to avoid a command-substitution subshell.
+  if [[ -n "${2:-}" ]]; then
+    local -n _audit_noise_excerpt_out="$2"
+    _audit_noise_excerpt_out="$line"
+    return 0
+  fi
   printf '%s' "$line"
 }
 
-# Configured convention roots: when the consuming repo's concern file
-# (.claude/topic-docs.yaml) overrides memory_dir/contract_dir, those roots
-# are ghost-ref surfaces too. Resolved once per process; defaults always
-# scan (a doc may cite the defaults regardless of local config).
-audit_noise_convention_roots_pattern() {
-  if [[ -z "${AUDIT_NOISE_ROOTS_PATTERN:-}" ]]; then
-    local pattern='\.work|docs/topics' key val yaml lib_dir
-    yaml="${AUDIT_NOISE_REPO_ROOT:-.}/.claude/topic-docs.yaml"
-    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [[ -f "$yaml" ]]; then
-      for key in memory_dir contract_dir; do
-        val=$("$lib_dir/parse-concern-value.sh" "$yaml" "$key")
-        if [[ "$key" == 'contract_dir' && -n "$val" ]]; then
-          AUDIT_NOISE_CONTRACT_ROOT="$val"
-        fi
-        if [[ -n "$val" && "$val" != '.' && "$val" != '.work' && "$val" != 'docs/topics' ]]; then
-          pattern+="|$(printf '%s' "$val" | sed "s/[.[\\*^\$()+?{|]/\\\\&/g")"
-        fi
-      done
-    fi
-    AUDIT_NOISE_ROOTS_PATTERN="$pattern"
+# Resolve configured convention roots once per process and export them.
+# Calling this (or the legacy pattern helper) inside a command substitution used
+# to set AUDIT_NOISE_CONTRACT_ROOT only in the subshell — so a configured
+# contract root's bare reviews/handoffs/running-retros child was silently
+# exempt against the lib's stated intent (auditor F6).
+audit_noise_resolve_convention_roots() {
+  if [[ -n "${AUDIT_NOISE_ROOTS_RESOLVED:-}" ]]; then
+    return 0
   fi
+  local pattern='\.work|docs/topics' key val yaml lib_dir
+  yaml="${AUDIT_NOISE_REPO_ROOT:-.}/.claude/topic-docs.yaml"
+  lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Default contract root matches the built-in pattern default.
+  AUDIT_NOISE_CONTRACT_ROOT="${AUDIT_NOISE_CONTRACT_ROOT:-docs/topics}"
+  if [[ -f "$yaml" ]]; then
+    for key in memory_dir contract_dir; do
+      val=$("$lib_dir/parse-concern-value.sh" "$yaml" "$key")
+      if [[ "$key" == 'contract_dir' && -n "$val" ]]; then
+        AUDIT_NOISE_CONTRACT_ROOT="$val"
+      fi
+      if [[ -n "$val" && "$val" != '.' && "$val" != '.work' && "$val" != 'docs/topics' ]]; then
+        pattern+="|$(printf '%s' "$val" | sed "s/[.[\\*^\$()+?{|]/\\\\&/g")"
+      fi
+    done
+  fi
+  AUDIT_NOISE_ROOTS_PATTERN="$pattern"
+  AUDIT_NOISE_ROOTS_RESOLVED=1
+  export AUDIT_NOISE_ROOTS_PATTERN AUDIT_NOISE_CONTRACT_ROOT AUDIT_NOISE_ROOTS_RESOLVED
+}
+
+# Back-compat wrapper: ensure roots are resolved, then print the pattern.
+# Prefer audit_noise_resolve_convention_roots + $AUDIT_NOISE_ROOTS_PATTERN in
+# hot paths so the assignment cannot be lost to a subshell.
+audit_noise_convention_roots_pattern() {
+  audit_noise_resolve_convention_roots
   printf '%s' "$AUDIT_NOISE_ROOTS_PATTERN"
 }
 
@@ -45,14 +64,16 @@ audit_noise_convention_roots_pattern() {
 # <memory_dir>/running-retros/ — reserved first-level names under the memory
 # root per docs/conventions/topic-docs/) are exempt only in bare form — a
 # concrete child under them flags. Configured non-default roots from the
-# concern file scan alongside the defaults.
+# concern file scan alongside the defaults. The bare-root exemption is for
+# memory roots only — never for the contract root (default or configured).
 audit_noise_line_has_ghost_ref() {
   local rest="$1" path root seg after roots
+  audit_noise_resolve_convention_roots
   # Retired locations: stale even in placeholder form.
   [[ "$rest" == *'.claude/notes/'* ||
     "$rest" == *'.claude/handoffs/'* ||
     "$rest" == *'.claude/review/'* ]] && return 0
-  roots="$(audit_noise_convention_roots_pattern)"
+  roots="$AUDIT_NOISE_ROOTS_PATTERN"
   while [[ "$rest" =~ ($roots)/([a-z0-9][a-z0-9_-]*)/ ]]; do
     path="${BASH_REMATCH[0]}"
     root="${BASH_REMATCH[1]}"
@@ -62,7 +83,7 @@ audit_noise_line_has_ghost_ref() {
     # sentence-ending period (`.work/running-retros/.`) starts with `.` but is
     # punctuation, not a hidden child — only `.` followed by a path segment
     # character counts as concrete (`.gitignore`-style names still flag).
-    if [[ "$root" != 'docs/topics' && "$root" != "${AUDIT_NOISE_CONTRACT_ROOT:-docs/topics}" ]] &&
+    if [[ "$root" != 'docs/topics' && "$root" != "$AUDIT_NOISE_CONTRACT_ROOT" ]] &&
       [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' ]] &&
       { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
@@ -73,41 +94,51 @@ audit_noise_line_has_ghost_ref() {
   return 1
 }
 
-# Emit zero or more shape names (one per line on stdout).
-audit_noise_detect_shapes() {
-  local line="$1"
-  local found=0
+# Append matching shape names into the nameref array (avoids a per-line
+# command-substitution subshell in the detect hot loop).
+audit_noise_detect_shapes_into() {
+  local -n _audit_noise_shapes_out="$1"
+  local line="$2"
+  _audit_noise_shapes_out=()
   if audit_noise_line_has_ghost_ref "$line"; then
-    printf '%s\n' 'ghost-ref'
-    found=1
+    _audit_noise_shapes_out+=('ghost-ref')
   fi
   if [[ "$line" =~ ^##[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists ]]; then
-    printf '%s\n' 'preamble'
-    found=1
+    _audit_noise_shapes_out+=('preamble')
   fi
   if [[ "$line" =~ [Ee]mpirically[[:space:]]+observed ]] ||
     [[ "$line" =~ [Ww]e[[:space:]]+pivoted[[:space:]]+from ]] ||
     [[ "$line" =~ [Ww]as[[:space:]]+renamed[[:space:]]+to ]] ||
     [[ "$line" =~ [Pp]re-convention ]] ||
     [[ "$line" =~ [Ll]egacy[[:space:]]+layout ]]; then
-    printf '%s\n' 'citation'
-    found=1
+    _audit_noise_shapes_out+=('citation')
   fi
   if [[ "$line" =~ [Ff]ollowing[[:space:]]+(five|four|three|six|seven|eight|nine|ten|[0-9]+)[[:space:]]+(skills|consumers|agents|modules) ]]; then
-    printf '%s\n' 'enum-list'
-    found=1
+    _audit_noise_shapes_out+=('enum-list')
   fi
   if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+\`?/[a-z][a-z0-9_-]*\`?[[:space:]]— ]]; then
-    printf '%s\n' 'enum-list'
-    found=1
+    _audit_noise_shapes_out+=('enum-list')
   fi
   if [[ "$line" =~ [Pp]ath-scoped[[:space:]]+to ]] ||
     [[ "$line" =~ [Ll]oads[[:space:]]+on[[:space:]]+[Rr]ead[[:space:]]+of ]] ||
     [[ "$line" =~ [Aa]uto-loads[[:space:]]+when ]]; then
-    printf '%s\n' 'scope-meta'
-    found=1
+    _audit_noise_shapes_out+=('scope-meta')
   fi
-  return "$found"
+  ((${#_audit_noise_shapes_out[@]} > 0))
+}
+
+# Emit zero or more shape names (one per line on stdout). Prefer
+# audit_noise_detect_shapes_into in hot loops.
+audit_noise_detect_shapes() {
+  local shapes=()
+  if audit_noise_detect_shapes_into shapes "$1"; then
+    local s
+    for s in "${shapes[@]}"; do
+      printf '%s\n' "$s"
+    done
+    return 0
+  fi
+  return 1
 }
 
 audit_noise_shape_tier() {
@@ -116,6 +147,17 @@ audit_noise_shape_tier() {
   ghost-ref | preamble) printf '2' ;;
   citation | enum-list | scope-meta) printf '1' ;;
   *) printf '3' ;;
+  esac
+}
+
+# Set nameref to the tier digit without a subshell.
+audit_noise_shape_tier_into() {
+  local shape="$1"
+  local -n _audit_noise_tier_out="$2"
+  case "$shape" in
+  ghost-ref | preamble) _audit_noise_tier_out=2 ;;
+  citation | enum-list | scope-meta) _audit_noise_tier_out=1 ;;
+  *) _audit_noise_tier_out=3 ;;
   esac
 }
 

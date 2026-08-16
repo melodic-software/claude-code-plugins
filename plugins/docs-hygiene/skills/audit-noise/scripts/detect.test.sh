@@ -307,6 +307,21 @@ assert_contains "configured memory root flags concrete slices" "$conf_out" ".scr
 assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
 assert_not_contains "configured bare running-retros root stays exempt" "$conf_out" ".scratch/running-retros/"
 
+# F6 regression: a configured contract root's bare reviews/handoffs child must
+# NOT inherit the memory-root exemption. AUDIT_NOISE_CONTRACT_ROOT used to be
+# set only inside a command-substitution subshell and lost, so product/topics/
+# reviews/ was incorrectly treated like .work/reviews/.
+CONF_CONTRACT_BARE="$TEST_TMPDIR/configured-contract-bare.md"
+cat >"$CONF_CONTRACT_BARE" <<'EOF'
+# Configured-contract bare-root fixture
+
+product/topics/reviews/ must flag — contract roots have no bare-child exemption.
+product/topics/handoffs/ likewise.
+EOF
+conf_bare_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONF_CONTRACT_BARE")"
+assert_contains "configured contract bare reviews/ flags (F6)" "$conf_bare_out" "product/topics/reviews/"
+assert_contains "configured contract bare handoffs/ flags (F6)" "$conf_bare_out" "product/topics/handoffs/"
+
 # A quoted memory_dir with an interior '#' and a trailing comment: the old
 # hand-rolled `${val%%#*}`-first strip truncated this to `.scratch` (dropping
 # everything from the interior '#' on, including the closing quote), so the
@@ -326,6 +341,24 @@ EOF
 conf_quoted_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT_QUOTED" bash "$DETECT" "$CONFIGURED_QUOTED")"
 assert_contains "quoted memory_dir with interior # and trailing comment flags concrete slice" \
   "$conf_quoted_out" ".scratch#dir/foo/"
+
+# --- Chunk affordance: --offset / --limit over the sorted target list ----------------
+
+CHUNK_A="$TEST_TMPDIR/chunk-a.md"
+CHUNK_B="$TEST_TMPDIR/chunk-b.md"
+CHUNK_C="$TEST_TMPDIR/chunk-c.md"
+printf '# a\n\nEmpirically observed in chunk-a.\n' >"$CHUNK_A"
+printf '# b\n\nEmpirically observed in chunk-b.\n' >"$CHUNK_B"
+printf '# c\n\nEmpirically observed in chunk-c.\n' >"$CHUNK_C"
+chunk_out="$(bash "$DETECT" --offset 1 --limit 1 "$CHUNK_A" "$CHUNK_B" "$CHUNK_C")"
+assert_contains "chunk selects middle file only" "$chunk_out" "Summary file: $CHUNK_B"
+assert_not_contains "chunk skips earlier file" "$chunk_out" "Summary file: $CHUNK_A"
+assert_not_contains "chunk skips later file" "$chunk_out" "Summary file: $CHUNK_C"
+assert_contains "chunk still emits findings for selected file" "$chunk_out" "chunk-b"
+
+bad_chunk_exit=0
+bash "$DETECT" --offset -1 "$CLEAN" >/dev/null 2>&1 || bad_chunk_exit=$?
+assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
 
 # --- Final report --------------------------------------------------------------------
 
