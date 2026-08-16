@@ -20,10 +20,12 @@
 # #2635's report-ordering fix (346); #2641 dropped #2639's guard work (451) --
 # destructive_guard.py went 1643 -> 1424 lines.
 #
-# Every line count above is a BLAME ATTRIBUTION: the number of lines the
-# reverting squash deleted that `git blame` credits to that one culprit
-# commit. It is not the squash's diffstat (cc58cbc53 removed 1165 lines in
-# total) and not the number of lines the culprit added.
+# Every PARENTHESIZED line count above is a blame attribution: the number of
+# lines the reverting squash deleted that `git blame` credits to that one
+# culprit commit. It is not the squash's diffstat (cc58cbc53 removed 1165
+# lines in total) and not the number of lines the culprit added. The bare
+# `2178 -> 1700` and `1643 -> 1424` figures are a different measurement --
+# whole-file line counts before and after.
 #
 # Every check stayed green through all three, and that is the point: each
 # reverting squash removed the code AND the tests covering it in the same
