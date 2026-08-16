@@ -1,5 +1,22 @@
 # Changelog — docs-hygiene plugin
 
+## [0.15.0]
+
+### Fixed
+
+- **compress (plugin-quality audit #2745):** rewrite caveman Step B as
+  cross-tool-call steps (no EXIT trap / non-persistent `$tempdir`); map
+  detector `unknown` → Edit fallback; require `enabled: true` (prefer
+  `caveman@caveman`) in `detect-caveman.sh`; fix pre-computed `|| echo none`
+  pipeline; name audit-table destination under `${CLAUDE_PLUGIN_DATA}/audit/`;
+  reword signal 6 as an owned curated token list; annotate taxonomy/LATITUDE
+  drift (batch = word-level; Edit fallback = full matrix); note drifted-skill
+  matrix niche is unreachable via signal 1; add yield circuit breaker + top-10
+  interview default; ship `scripts/audit-scan.sh` + contract tests; point eval 8
+  at `evals/fixtures/terse-agent.md`; widen fixture-gate conventions; soft-block
+  wording in `integration.md`; record deliberate `disable-model-invocation:
+  false`.
+
 ## [0.14.7]
 
 ### Added
