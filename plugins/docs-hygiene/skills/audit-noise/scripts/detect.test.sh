@@ -342,6 +342,84 @@ conf_quoted_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT_QUOTED" bash "$DETECT" "$CO
 assert_contains "quoted memory_dir with interior # and trailing comment flags concrete slice" \
   "$conf_quoted_out" ".scratch#dir/foo/"
 
+# --- Exemption gaps (frontmatter / marker / fence / section-state) -------------------
+
+FM_FIXTURE="$TEST_TMPDIR/frontmatter.md"
+cat >"$FM_FIXTURE" <<'EOF'
+---
+name: noisy
+description: Empirically observed Path-scoped to src/** loads on Read of X
+---
+
+# Body
+
+Body prose with no noise shapes.
+EOF
+fm_out="$(bash "$DETECT" "$FM_FIXTURE")"
+assert_not_contains "frontmatter citation not flagged" "$fm_out" "Finding shape: citation"
+assert_not_contains "frontmatter scope-meta not flagged" "$fm_out" "Finding shape: scope-meta"
+
+PROSE_MARKER="$TEST_TMPDIR/prose-marker.md"
+cat >"$PROSE_MARKER" <<'EOF'
+# Prose marker fixture
+
+Hard rules mention markdown-discipline-ignore as a substring; that must not
+suppress the next paragraph.
+
+Empirically observed after a prose mention of the marker name.
+EOF
+prose_out="$(bash "$DETECT" "$PROSE_MARKER")"
+assert_contains "prose marker mention does not suppress citation" "$prose_out" "Finding shape: citation"
+
+FENCE_FIXTURE="$TEST_TMPDIR/fence.md"
+cat >"$FENCE_FIXTURE" <<'EOF'
+# Fence fixture
+
+```text
+Empirically observed inside a fence.
+Path-scoped to `src/**` in the example.
+.work/foo-slice/PLAN.md
+```
+
+After the fence Empirically observed in real prose.
+EOF
+fence_out="$(bash "$DETECT" "$FENCE_FIXTURE")"
+assert_not_contains "fenced citation not flagged" "$fence_out" "inside a fence"
+assert_not_contains "fenced ghost-ref not flagged" "$fence_out" "foo-slice"
+assert_contains "post-fence citation still flagged" "$fence_out" "real prose"
+
+INLINE_FIXTURE="$TEST_TMPDIR/inline-code.md"
+cat >"$INLINE_FIXTURE" <<'EOF'
+# Inline fixture
+
+Use `Empirically observed` as the shape name in the table.
+See `.work/real-slice/PLAN.md` for the live path.
+EOF
+inline_out="$(bash "$DETECT" "$INLINE_FIXTURE")"
+assert_not_contains "inline-code citation example not flagged" "$inline_out" "Finding shape: citation"
+assert_contains "backticked live path still ghost-ref" "$inline_out" "Finding shape: ghost-ref"
+
+SECTION_LEAK="$TEST_TMPDIR/section-leak.md"
+cat >"$SECTION_LEAK" <<'EOF'
+# Section leak fixture
+
+## Sources
+
+Was renamed to something in Sources.
+
+# Body resumes
+
+Was renamed to something after an H1 closed Sources.
+
+### Sources
+
+Was renamed to something under H3 Sources.
+EOF
+leak_out="$(bash "$DETECT" "$SECTION_LEAK")"
+assert_contains "H1 closes Sources exemption" "$leak_out" "after an H1 closed Sources"
+assert_not_contains "H3 Sources is exempt" "$leak_out" "under H3 Sources"
+assert_not_contains "H2 Sources body stays exempt" "$leak_out" "in Sources"
+
 # --- Chunk affordance: --offset / --limit over the sorted target list ----------------
 
 CHUNK_A="$TEST_TMPDIR/chunk-a.md"

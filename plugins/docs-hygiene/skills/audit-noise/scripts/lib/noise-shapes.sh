@@ -96,32 +96,39 @@ audit_noise_line_has_ghost_ref() {
 
 # Append matching shape names into the nameref array (avoids a per-line
 # command-substitution subshell in the detect hot loop).
+# Ghost-ref scans an unwrap (ticks removed, content kept); other shapes scan a
+# strip (inline-code spans removed) so schema examples do not self-match.
 audit_noise_detect_shapes_into() {
   local -n _audit_noise_shapes_out="$1"
   local line="$2"
+  local unwrapped="" stripped=""
   _audit_noise_shapes_out=()
-  if audit_noise_line_has_ghost_ref "$line"; then
+  audit_noise_unwrap_backticks "$line" unwrapped
+  audit_noise_strip_inline_code "$line" stripped
+  if audit_noise_line_has_ghost_ref "$unwrapped"; then
     _audit_noise_shapes_out+=('ghost-ref')
   fi
-  if [[ "$line" =~ ^##[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists ]]; then
+  if [[ "$stripped" =~ ^##[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists ]]; then
     _audit_noise_shapes_out+=('preamble')
   fi
-  if [[ "$line" =~ [Ee]mpirically[[:space:]]+observed ]] ||
-    [[ "$line" =~ [Ww]e[[:space:]]+pivoted[[:space:]]+from ]] ||
-    [[ "$line" =~ [Ww]as[[:space:]]+renamed[[:space:]]+to ]] ||
-    [[ "$line" =~ [Pp]re-convention ]] ||
-    [[ "$line" =~ [Ll]egacy[[:space:]]+layout ]]; then
+  if [[ "$stripped" =~ [Ee]mpirically[[:space:]]+observed ]] ||
+    [[ "$stripped" =~ [Ww]e[[:space:]]+pivoted[[:space:]]+from ]] ||
+    [[ "$stripped" =~ [Ww]as[[:space:]]+renamed[[:space:]]+to ]] ||
+    [[ "$stripped" =~ [Pp]re-convention ]] ||
+    [[ "$stripped" =~ [Ll]egacy[[:space:]]+layout ]]; then
     _audit_noise_shapes_out+=('citation')
   fi
-  if [[ "$line" =~ [Ff]ollowing[[:space:]]+(five|four|three|six|seven|eight|nine|ten|[0-9]+)[[:space:]]+(skills|consumers|agents|modules) ]]; then
+  if [[ "$stripped" =~ [Ff]ollowing[[:space:]]+(five|four|three|six|seven|eight|nine|ten|[0-9]+)[[:space:]]+(skills|consumers|agents|modules) ]]; then
     _audit_noise_shapes_out+=('enum-list')
   fi
-  if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+\`?/[a-z][a-z0-9_-]*\`?[[:space:]]— ]]; then
+  # Enum roster lines often wrap the slash-command in backticks; match the
+  # unwrapped form so `- `/skill`` still counts after tick removal.
+  if [[ "$unwrapped" =~ ^[[:space:]]*-[[:space:]]+/[a-z][a-z0-9_-]*[[:space:]]— ]]; then
     _audit_noise_shapes_out+=('enum-list')
   fi
-  if [[ "$line" =~ [Pp]ath-scoped[[:space:]]+to ]] ||
-    [[ "$line" =~ [Ll]oads[[:space:]]+on[[:space:]]+[Rr]ead[[:space:]]+of ]] ||
-    [[ "$line" =~ [Aa]uto-loads[[:space:]]+when ]]; then
+  if [[ "$stripped" =~ [Pp]ath-scoped[[:space:]]+to ]] ||
+    [[ "$stripped" =~ [Ll]oads[[:space:]]+on[[:space:]]+[Rr]ead[[:space:]]+of ]] ||
+    [[ "$stripped" =~ [Aa]uto-loads[[:space:]]+when ]]; then
     _audit_noise_shapes_out+=('scope-meta')
   fi
   ((${#_audit_noise_shapes_out[@]} > 0))
@@ -161,12 +168,63 @@ audit_noise_shape_tier_into() {
   esac
 }
 
+# True when an ATX heading's visible title (any level) is an exempt section.
+# Callers pass the text after the opening hashes; trailing closing hashes and
+# surrounding whitespace are stripped here.
 audit_noise_section_exempt() {
   local heading="$1"
+  heading="${heading#"${heading%%[![:space:]]*}"}"
+  heading="${heading%"${heading##*[![:space:]]}"}"
+  # ATX may close with trailing hashes: "## Sources ##"
+  if [[ "$heading" =~ ^(.*[^#[:space:]])[[:space:]]*#+[[:space:]]*$ ]]; then
+    heading="${BASH_REMATCH[1]}"
+  fi
+  heading="${heading%"${heading##*[![:space:]]}"}"
   case "$heading" in
   "Recheck triggers" | "Cross-references" | "Sources" | "History" | "External authority") return 0 ;;
   *) ;;
   esac
   [[ "$heading" == *"amendment"* ]] && return 0
   return 1
+}
+
+# Remove backtick characters only (unwrap inline code) so path cites like
+# `.work/foo/PLAN.md` still reach the ghost-ref detector.
+audit_noise_unwrap_backticks() {
+  local line="$1"
+  local -n _audit_noise_unwrapped_out="$2"
+  _audit_noise_unwrapped_out="${line//\`/}"
+}
+
+# Strip inline `code` spans entirely so citation / enum / scope detectors do
+# not self-match examples. Fence blocks are skipped by the caller.
+audit_noise_strip_inline_code() {
+  local line="$1"
+  local -n _audit_noise_stripped_out="$2"
+  local out="" rest="$line" pre
+  while [[ "$rest" == *'`'* ]]; do
+    pre="${rest%%\`*}"
+    rest="${rest#*\`}"
+    if [[ "$rest" == *'`'* ]]; then
+      out+="$pre"
+      rest="${rest#*\`}"
+    else
+      # Unclosed tick — keep the remainder literally.
+      out+="$pre\`$rest"
+      rest=""
+      break
+    fi
+  done
+  out+="$rest"
+  _audit_noise_stripped_out="$out"
+}
+
+# True when the line is a well-formed HTML opt-out marker comment (not a
+# prose mention of the marker name).
+audit_noise_is_ignore_line_marker() {
+  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore-line[[:space:]]*--\>[[:space:]]*$ ]]
+}
+
+audit_noise_is_ignore_para_marker() {
+  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore[[:space:]]*--\>[[:space:]]*$ ]]
 }

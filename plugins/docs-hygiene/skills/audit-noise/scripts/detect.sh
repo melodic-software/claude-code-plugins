@@ -91,25 +91,59 @@ OFFSET=$((10#$OFFSET))
 LIMIT=$((10#$LIMIT))
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-if [[ -n "$repo_root" ]]; then
-  cd "$repo_root" 2>/dev/null || true
-fi
+
+# Resolve relative CLI / paths-file targets against the caller's cwd BEFORE any
+# cd into the repo root (F10: cd-before-target-resolution used to silently skip
+# relative paths given from another working directory).
+resolve_existing_path() {
+  local raw="$1"
+  if [[ "$raw" == /* ]]; then
+    printf '%s' "$raw"
+    return 0
+  fi
+  local abs
+  abs="$(pwd)/$raw"
+  printf '%s' "$abs"
+}
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   if [[ -n "$PATHS_FILE" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line//$'\r'/}"
       [[ -z "$line" ]] && continue
-      TARGETS+=("$line")
+      TARGETS+=("$(resolve_existing_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted .md files: modified/added/renamed/untracked, per git status.
+    # Uncommitted .md files: modified/added/renamed/untracked. Parse porcelain
+    # without $NF so paths containing spaces survive (F10).
     while IFS= read -r line; do
       line="${line//$'\r'/}"
       [[ -z "$line" ]] && continue
-      TARGETS+=("$line")
-    done < <(git status --porcelain 2>/dev/null | awk '/\.md$/ {print $NF}')
+      # XY + space + path; rename shows "old -> new" — take the new path.
+      local_path="${line:3}"
+      if [[ "$local_path" == *" -> "* ]]; then
+        local_path="${local_path##* -> }"
+      fi
+      # Untracked / quoted paths: git may wrap as "path with spaces.md"
+      if [[ "$local_path" == \"*\" ]]; then
+        local_path="${local_path#\"}"
+        local_path="${local_path%\"}"
+        local_path="${local_path//\\\"/\"}"
+      fi
+      [[ "$local_path" == *.md ]] || continue
+      TARGETS+=("$local_path")
+    done < <(git status --porcelain 2>/dev/null)
   fi
+else
+  RESOLVED=()
+  for target in "${TARGETS[@]}"; do
+    RESOLVED+=("$(resolve_existing_path "$target")")
+  done
+  TARGETS=("${RESOLVED[@]}")
+fi
+
+if [[ -n "$repo_root" ]]; then
+  cd "$repo_root" 2>/dev/null || true
 fi
 
 # Expand directory targets to the .md files inside them (recursive), so
@@ -174,17 +208,49 @@ audit_file() {
   files_audited=$((files_audited + 1))
 
   local t1=0 t2=0 t3=0
-  local in_exempt=0 current_section="" line_num=0
+  local in_exempt=0 line_num=0
   local in_ignored_para=0 skip_next=0
+  local in_frontmatter=0 in_fence=0
   local -a shapes=()
-  local shape tier excerpt line
+  local shape tier excerpt line heading_text
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
-    if [[ "$line" =~ ^##[[:space:]]+ ]]; then
-      current_section="${line#'## '}"
-      current_section="${current_section%%$'\r'*}"
-      if audit_noise_section_exempt "$current_section"; then
+
+    # YAML frontmatter: opening --- on line 1 (or immediately after a BOM-less
+    # blank? — SKILL exempts frontmatter; require the conventional start).
+    if [[ $line_num -eq 1 && "$line" == '---' ]]; then
+      in_frontmatter=1
+      continue
+    fi
+    if [[ $in_frontmatter -eq 1 ]]; then
+      if [[ "$line" == '---' ]]; then
+        in_frontmatter=0
+      fi
+      continue
+    fi
+
+    # Fenced code blocks (``` or ~~~): never scan fence lines or their body.
+    if [[ "$line" =~ ^(\`\`\`|~~~) ]]; then
+      if [[ $in_fence -eq 1 ]]; then
+        in_fence=0
+      else
+        in_fence=1
+      fi
+      in_ignored_para=0
+      continue
+    fi
+    if [[ $in_fence -eq 1 ]]; then
+      continue
+    fi
+
+    # Any ATX heading level toggles section exemption (F7: ##-only toggles let
+    # an exempt ## Sources followed by an H1 stay exempt to EOF, and ### Sources
+    # was never recognized).
+    if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
+      heading_text="${BASH_REMATCH[2]}"
+      heading_text="${heading_text%%$'\r'*}"
+      if audit_noise_section_exempt "$heading_text"; then
         in_exempt=1
       else
         in_exempt=0
@@ -193,15 +259,14 @@ audit_file() {
       # blank line (unreachable in MD022-clean markdown; robustness only).
       in_ignored_para=0
     fi
-    # Opt-out markers per SKILL.md: the -line form covers the next line; the
-    # bare form covers the next paragraph (through the next blank line).
-    # Marker lines themselves never flag. Order matters: -line first, since
-    # the bare pattern is a substring of it.
-    if [[ "$line" == *'markdown-discipline-ignore-line'* ]]; then
+    # Opt-out markers: require a well-formed HTML comment line (F4). Prose that
+    # merely mentions the marker name must not act as a live marker. Order
+    # matters: -line first.
+    if audit_noise_is_ignore_line_marker "$line"; then
       skip_next=1
       continue
     fi
-    if [[ "$line" == *'markdown-discipline-ignore'* ]]; then
+    if audit_noise_is_ignore_para_marker "$line"; then
       in_ignored_para=1
       continue
     fi
@@ -213,6 +278,7 @@ audit_file() {
       continue
     fi
     # Hot path: nameref APIs only — no per-line command substitutions.
+    # Shape helpers unwrap/strip inline code internally (ghost-ref vs others).
     if audit_noise_detect_shapes_into shapes "$line"; then
       audit_noise_trim_excerpt "$line" excerpt
       for shape in "${shapes[@]}"; do
