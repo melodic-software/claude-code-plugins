@@ -3,15 +3,43 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.2]
+
+### Changed
+
+- **The `.git` discovery skip is documented as defence in depth, and defended by a test that can
+  actually fail (#2844).** `should_skip_dir_name`'s unconditional `.` / `..` / `.git` arm is
+  unreachable from its only caller: the child loop's globs (`*`, `.[!.]*`, `..?*`) can never
+  yield `.` or `..`, and for `.git` the nested-repository early return fires first on the
+  identical path and predicate. The arm stays as defence in depth against a future refactor of
+  that early return, and both it and its call site now say so. The discovery-level case
+  `--skip omitting .git still skips .git and reaches vendor/` was replaced by a direct
+  `should_skip_dir_name` contract assertion, because that case passed identically with the `.git`
+  change reverted — as did all nine cases in the skip block. No runtime behavior changes.
+- **`security-review.md` names the `gh` timeout constants instead of restating them as literals
+  (#2845).** The Accepted data-egress item said "a 30-second deadline plus a five-second KILL
+  grace"; it now names `GH_TIMEOUT_SECONDS` and `GH_KILL_AFTER_SECONDS`, the constants that own
+  those values — the same drift vector #2709 and #2825 closed elsewhere in that document. The
+  aliased-GraphQL rate claim is qualified to the alias count it was actually measured at.
+- **Declared in-place correction to the released `## [0.23.1]` section (#2388 sanction).** Its
+  `.git` bullet moved from `### Fixed` to `### Changed`, and its causal clause ("so reaching a
+  repo under `vendor/` cannot start walking `.git` internals") was replaced: the end state was
+  true, but the claim presented as newly established a guarantee the nested-repository early
+  return already provided, and the behavioral delta was zero. No other released entry is touched.
+
 ## [0.23.1]
+
+### Changed
+
+- **`.git` is now an unconditional discovery skip (#2826).** The nested-repository early return
+  already stopped discovery descending into any directory holding a `.git` marker, so this
+  changes no observable behavior; making `.git` unconditional is defence in depth against a
+  future refactor of that return, not a fix for a reachable exposure. Replace semantics are
+  unchanged; the replaceable default list is `node_modules`, `vendor`, `.venv`; to extend, pass
+  those three plus extra names. (Corrected in 0.23.2 — see #2844.)
 
 ### Fixed
 
-- **`.git` stays skipped when `--skip` / `fleet.skip` shrinks the discovery list (#2826).**
-  Replace semantics are unchanged, but `.git` now joins `.` and `..` as an unconditional skip
-  so reaching a repo under `vendor/` cannot start walking `.git` internals. The replaceable
-  default list is `node_modules`, `vendor`, `.venv`; to extend, pass those three plus extra
-  names.
 - **security-review.md no longer restates the aliased-GraphQL page size as a literal `100`
   in a current-state claim (#2825).** The Accepted egress sentence now names
   `MERGED_PR_GRAPHQL_ALIAS_PAGE`, matching the live collector constant (historical literals
