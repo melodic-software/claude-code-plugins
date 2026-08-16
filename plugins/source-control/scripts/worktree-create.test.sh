@@ -848,9 +848,9 @@ else
 fi
 assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
 
-# --- Unit: same-drive policy (#2764) -----------------------------------------
+# --- Unit: same-drive policy (#2764/#2806) ------------------------------------
 # Path-shape gate is pure string work; extract the helpers so Linux CI can prove
-# refuse / warn / inert / same-drive without a second volume. Integration coverage
+# refuse / inert / same-drive without a second volume. Integration coverage
 # on a real NTFS dual-drive host is the Windows backslash block's sibling.
 eval "$(awk '/same-drive helpers \(begin\)/{p=1; next} /same-drive helpers \(end\)/{p=0} p' "$HELPER")"
 # shellcheck disable=SC2034 # consumed by check_same_drive, eval'd in above from worktree-create.sh
@@ -910,13 +910,13 @@ assert_exit "rung-3 (--fallback-root) cross-drive refuses exit 3" 3 "$?"
 err=$(check_same_drive 'C:/repos/acme' '/cygdrive/d/worktrees/acme-x' 1 2>&1 >/dev/null)
 assert_exit "rung-1 Cygwin foreign drive refuses exit 3" 3 "$?"
 
-# rung 4 warns and proceeds (fixture paths stay drive-letter-only — no Users/ home literals)
+# rung 4 refuses like rungs 1–3 (#2806; fixture paths stay drive-letter-only — no Users/ home literals)
 err=$(check_same_drive 'C:/repos/acme' 'D:/claude/plugins/cache/worktrees/acme-x' 4 2>&1 >/dev/null)
-assert_exit "rung-4 cross-drive warns but proceeds (exit 0)" 0 "$?"
-assert_contains "rung-4 warning is loud" "$err" "WARNING"
-assert_contains "rung-4 warning names both drives" "$err" "drive D:"
-assert_contains "rung-4 warning names the repo drive" "$err" "drive C:"
-assert_contains "rung-4 warning names the remedy" "$err" "melodic.worktreeroot"
-assert_contains "rung-4 warning explains proceeding" "$err" "Proceeding anyway"
+assert_exit "rung-4 cross-drive refuses exit 3" 3 "$?"
+assert_contains "rung-4 refuse names both drives" "$err" "drive C:"
+assert_contains "rung-4 refuse names the foreign drive" "$err" "drive D:"
+assert_contains "rung-4 refuse is remedy-first (melodic.worktreeroot)" "$err" "melodic.worktreeroot"
+assert_contains "rung-4 refuse names EXDEV" "$err" "EXDEV"
+assert_contains "rung-4 refuse names Improper link" "$err" "Improper link"
 
 [[ $FAILED -eq 0 ]] || exit 1

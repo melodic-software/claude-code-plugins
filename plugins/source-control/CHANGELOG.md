@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.8]
+
+### Fixed
+
+- **Worktree create refuses a cross-drive unconfigured default on Windows (#2806).**
+  `scripts/worktree-create.sh` same-drive guard now fails closed at rung 4 (plugin
+  data-dir default) with the same remedy-first exit 3 as rungs 1–3, instead of
+  warn-and-proceed. An unconfigured cross-drive machine no longer creates a
+  worktree that `git worktree move` will fail on with EXDEV / Improper link; the
+  refusal is visible on the `WorktreeCreate` hook path (non-zero stderr), where
+  the previous exit-0 warning was dropped to the debug log. Skill create contract
+  (`skills/worktree/SKILL.md`, `context/create.md`, evals) documents cross-drive
+  as an exit-3 case alongside missing/nested roots.
+
 ## [0.54.7]
 
 ### Added

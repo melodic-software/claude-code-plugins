@@ -39,12 +39,11 @@
 # (machine-parseable); all diagnostics go to stderr.
 #
 # Exit codes:
-#   0  success — worktree created; path on stdout (a rung-4 cross-drive default
-#      still exits 0 after a loud stderr warning — see same-drive check below)
+#   0  success — worktree created; path on stdout
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
-#   3  refuse — no usable external root, root inside a repository, or an
-#      explicit/configured (rungs 1–3) cross-drive root on Windows (guidance on
-#      stderr); nothing created
+#   3  refuse — no usable external root, root inside a repository, or a
+#      cross-drive root on Windows at any resolution rung including the
+#      unconfigured plugin-data-dir default (guidance on stderr); nothing created
 #   4  environment error — not a git repo, or `git worktree add` failed
 
 set -uo pipefail
@@ -86,43 +85,29 @@ windows_drive_letter() {
 }
 
 # check_same_drive <repo-toplevel> <worktree-path> <root-rung> — enforce the
-# same-drive-on-Windows invariant for worktree placement (#2764).
+# same-drive-on-Windows invariant for worktree placement (#2764, #2806).
 #
 # `git worktree move` is `rename()` and cannot cross a volume boundary on
-# Windows (EXDEV / "Invalid cross-device link"). Rungs 1–3 are an
-# explicit/configured choice → refuse (return 3). Rung 4 is the unconfigured
-# plugin-data-dir default → warn on stderr and return 0: refusing would fail
-# every harness WorktreeCreate on a cross-drive machine (#1852). Inert when
-# either path lacks a drive letter.
+# Windows (EXDEV / "Invalid cross-device link" / "Improper link"). Every
+# resolution rung refuses (return 3), including rung 4 — the unconfigured
+# plugin-data-dir default. Warn-and-proceed at rung 4 left unconfigured
+# cross-drive machines creating worktrees that `git worktree move` cannot
+# relocate; a non-zero exit is also the only channel that surfaces on the
+# WorktreeCreate hook path (exit-0 stderr is dropped to the debug log).
+# Inert when either path lacks a drive letter.
+#
+# <root-rung> labels which resolution arm supplied the foreign root for
+# callers/tests; policy is identical for every rung.
 #
 # Returns 0 to proceed, 3 to refuse. Caller exits on non-zero.
 check_same_drive() {
   local repo_path="$1" wt_path="$2" rung="$3"
   local repo_drive wt_drive
+  # Retained for call-site labeling; policy does not branch on it (#2806).
+  : "$rung"
   repo_drive=$(windows_drive_letter "$repo_path") || return 0
   wt_drive=$(windows_drive_letter "$wt_path") || return 0
   [[ "$repo_drive" == "$wt_drive" ]] && return 0
-
-  if (( rung == 4 )); then
-    # Channel asymmetry is intentional: this warning reaches the /worktree
-    # create skill path (Bash-tool stderr) but is dropped on the WorktreeCreate
-    # hook path, where exit-0 stderr goes to the debug log only. Refusing at
-    # rung 4 was considered and rejected for that blast radius.
-    cat >&2 <<EOF
-$PROG: WARNING: default worktree root is on drive ${wt_drive}: but the repository is on drive ${repo_drive}: — git worktree move will fail across drives (EXDEV / Invalid cross-device link).
-
-  repository: $repo_path
-  worktree:   $wt_path
-
-Set the \`melodic.worktreeroot\` git config key to a same-drive external root:
-
-  git config --global melodic.worktreeroot <same-drive-root>
-
-Proceeding anyway — refusing the unconfigured default would break every
-harness-driven WorktreeCreate on a cross-drive machine.
-EOF
-    return 0
-  fi
 
   cat >&2 <<EOF
 $PROG: set \`melodic.worktreeroot\` (or the plugin's \`worktree_root\` option) to a directory on drive ${repo_drive}: — refusing a cross-drive root.
@@ -415,7 +400,7 @@ canonicalize_root() {
 # Unconfigured root: detected here, resolved after the repository is known below
 # (the melodic.worktreeroot rung needs the repository, and the data-dir rung
 # stays last). root_rung tracks which resolution arm supplied the root so the
-# same-drive check (#2764) can refuse rungs 1–3 and only warn on rung 4.
+# same-drive check (#2764/#2806) can label the refusing arm in diagnostics.
 root_unset=0
 root_rung=0
 if root_is_unset "$root"; then
@@ -754,9 +739,10 @@ EOF
   fi
 fi
 
-# Same-drive-on-Windows invariant (#2764). Stated in plugin.json and the
+# Same-drive-on-Windows invariant (#2764/#2806). Stated in plugin.json and the
 # containment message above; enforced here. Path-shape gate (both sides must
-# match <letter>:/) so POSIX and UNC stay inert. Rungs 1–3 refuse; rung 4 warns.
+# match <letter>:/) so POSIX and UNC stay inert. Every rung refuses, including
+# the unconfigured plugin-data-dir default.
 check_same_drive "$toplevel" "$worktree_path" "$root_rung" || exit $?
 
 if [[ -e "$worktree_path" ]]; then
