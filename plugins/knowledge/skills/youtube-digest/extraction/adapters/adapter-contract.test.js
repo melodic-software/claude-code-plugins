@@ -199,6 +199,14 @@ describe("validateAdapter", () => {
     badHosts.hosts = ["https://youtube.com"];
     expect(validateAdapter(badHosts).some((v) => v.includes("hosts"))).toBe(true);
 
+    const duplicateHosts = validSpec();
+    duplicateHosts.hosts = ["stub.example", "stub.example"];
+    expect(validateAdapter(duplicateHosts).some((v) => v.includes("twice"))).toBe(true);
+
+    const badId = validSpec();
+    badId.id = "Not A Slug";
+    expect(validateAdapter(badId).some((v) => v.includes('"id"'))).toBe(true);
+
     const badExtractor = validSpec();
     badExtractor.extractorArgs = 42;
     expect(validateAdapter(badExtractor).some((v) => v.includes("extractorArgs"))).toBe(true);
@@ -206,6 +214,22 @@ describe("validateAdapter", () => {
     const badAllowList = validSpec();
     badAllowList.allowedExtractors = 42;
     expect(validateAdapter(badAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);
+
+    // An empty string is truthiness-skipped by the arg builders — for
+    // allowedExtractors that would silently drop the SSRF guard.
+    const emptyAllowList = validSpec();
+    emptyAllowList.allowedExtractors = "";
+    expect(validateAdapter(emptyAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);
+    const emptyExtractorArgs = validSpec();
+    emptyExtractorArgs.extractorArgs = "";
+    expect(validateAdapter(emptyExtractorArgs).some((v) => v.includes("extractorArgs"))).toBe(true);
+
+    const statefulPattern = validSpec();
+    statefulPattern.errorPatterns = { retryable: [], fatal: [/gone/g], loginRequired: [] };
+    expect(validateAdapter(statefulPattern).some((v) => v.includes("lastIndex"))).toBe(true);
+    const stickyPattern = validSpec();
+    stickyPattern.errorPatterns = { retryable: [/429/y], fatal: [], loginRequired: [] };
+    expect(validateAdapter(stickyPattern).some((v) => v.includes("lastIndex"))).toBe(true);
 
     const badStrategy = validSpec();
     badStrategy.transcriptStrategy = "telepathy";

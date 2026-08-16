@@ -112,6 +112,22 @@
       "files": [
         "evals/fixtures/driver-video-goldens.json"
       ]
+    },
+    {
+      "id": 10,
+      "name": "watch-x-status-golden",
+      "prompt": "Run /knowledge:youtube-digest watch https://x.com/someuser/status/1720000000000000000",
+      "expected_output": "Dispatches through the X source adapter: canonical status URL re-derived, slice key = the URL's status id, 0..N media entries consumed as an acquisition envelope, source:* provenance (counts, snowflake aliasing, blocked delegations) persisted into watch.json.",
+      "expectations": [
+        "Resolves the x adapter from the registry (never YouTube semantics) and probes the canonical https://x.com/... status URL",
+        "Uses the URL's status id as the slice key; the media id stays a metadata discriminator, never a directory name",
+        "A 0-media post produces a well-formed text-only slice with populated provenance, not a failure",
+        "watch.json sourceMetadata carries the source:* fields defined in the golden fixture, including source:snowflakeAliasing when media is minted far before the status id",
+        "X and YouTube slices share one queue root with no source directory level"
+      ],
+      "files": [
+        "evals/fixtures/x-status-goldens.json"
+      ]
     }
   ]
 }

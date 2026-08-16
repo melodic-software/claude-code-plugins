@@ -413,6 +413,7 @@ const KNOWN_CAPABILITIES = Object.freeze([
 ]);
 const ERROR_PATTERN_CLASSES = Object.freeze(["retryable", "fatal", "loginRequired"]);
 const HOST_KEY_PATTERN = /^[a-z0-9][a-z0-9.-]*$/;
+const ADAPTER_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 /**
  * Validate an adapter spec against the contract. Returns violation messages
@@ -445,8 +446,8 @@ export function validateAdapter(spec) {
     }
   }
 
-  if (typeof record.id !== "string" || record.id.length === 0) {
-    violations.push('attribute "id" must be a non-empty string');
+  if (typeof record.id !== "string" || !ADAPTER_ID_PATTERN.test(record.id)) {
+    violations.push('attribute "id" must be a lowercase slug (e.g. "youtube")');
   }
   if (
     !Array.isArray(record.hosts) ||
@@ -458,12 +459,18 @@ export function validateAdapter(spec) {
     violations.push(
       'attribute "hosts" must be a non-empty array of lowercase bare hostnames (no scheme, no path)',
     );
+  } else if (new Set(record.hosts).size !== record.hosts.length) {
+    violations.push('attribute "hosts" must not declare the same host twice');
   }
-  if (record.extractorArgs !== null && typeof record.extractorArgs !== "string") {
-    violations.push('attribute "extractorArgs" must be a string or null');
+  // The arg builders push these flags with a truthiness check, so an empty
+  // string silently disables the declaration — for allowedExtractors that
+  // would silently drop the SSRF guard. Fail loud instead: null is the one
+  // way to declare "none".
+  if (record.extractorArgs !== null && (typeof record.extractorArgs !== "string" || record.extractorArgs.length === 0)) {
+    violations.push('attribute "extractorArgs" must be a non-empty string or null');
   }
-  if (record.allowedExtractors !== null && typeof record.allowedExtractors !== "string") {
-    violations.push('attribute "allowedExtractors" must be a string or null');
+  if (record.allowedExtractors !== null && (typeof record.allowedExtractors !== "string" || record.allowedExtractors.length === 0)) {
+    violations.push('attribute "allowedExtractors" must be a non-empty string or null');
   }
   if (
     typeof record.captionClass !== "string" ||
@@ -493,6 +500,12 @@ export function validateAdapter(spec) {
       const list = patternRecord[cls];
       if (!Array.isArray(list) || !list.every((entry) => entry instanceof RegExp)) {
         violations.push(`errorPatterns.${cls} must be an array of RegExp`);
+      } else if (list.some((entry) => entry.global || entry.sticky)) {
+        // A g/y-flagged RegExp carries lastIndex state, so repeated .test()
+        // calls in classifyErrorDetail would alternate results.
+        violations.push(
+          `errorPatterns.${cls} must not use the g or y RegExp flags (stateful lastIndex breaks repeated classification)`,
+        );
       }
     }
     for (const key of Object.keys(patternRecord)) {

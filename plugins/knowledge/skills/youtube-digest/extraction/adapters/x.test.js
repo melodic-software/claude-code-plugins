@@ -147,6 +147,13 @@ describeSourceAdapterContract(adapter, {
     "https://x.com.evil.example/someuser/status/1720000000000000000",
     "not a url",
   ],
+  harvestMetadata: {
+    id: MEDIA_ID,
+    title: "Fixture Post",
+    description: "Read https://example.com/paper and https://example.com/paper again",
+    "source:displayId": TWID,
+    "source:blockedDelegations": [{ url: REFUSED_URL, extractor: "refused-before-fetch" }],
+  },
 });
 
 describe("x adapter declarations", () => {
@@ -715,6 +722,27 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.data.acquireMetrics?.captionCleanup).toBe("converted");
   });
 
+  it("a cleanup pass that SUCCEEDS but produces no .srt fails the acquisition too", async () => {
+    const { deps, files } = createFixtureDeps(workDir, [
+      {
+        addFiles: {
+          [`${MEDIA_ID}.info.json`]: twitterInfoJson(),
+          [`${MEDIA_ID}.en.vtt`]: TAGGED_VTT,
+        },
+      },
+      // Exit 0, but yt-dlp wrote nothing for the post's media — a silent
+      // no-op cleanup must fail loud, never continue with lost captions.
+      { addFiles: {} },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Caption cleanup failed");
+    expect(result.error).toContain("produced no .srt output");
+    // The tagged original survives as a backup for the no-output branch too.
+    expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
+  });
+
   it("a failed caption cleanup pass fails the acquisition — captions are never silently lost", async () => {
     const { deps, files } = createFixtureDeps(workDir, [
       {
@@ -731,6 +759,24 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.error).toContain("Caption cleanup failed");
     // The tagged original survives as a backup until cleanup succeeds.
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
+  });
+});
+
+describe("harvestLinks blocked-delegation scheme gate", () => {
+  it("drops non-http(s) and malformed blocked-delegation URLs (javascript: never harvested)", () => {
+    const links = adapter.harvestLinks({
+      id: MEDIA_ID,
+      title: "Fixture Post",
+      description: "",
+      "source:blockedDelegations": [
+        { url: "javascript:alert(1)", extractor: "refused-before-fetch" },
+        { url: "file:///etc/passwd", extractor: "refused-before-fetch" },
+        { url: "not a url", extractor: "refused-before-fetch" },
+        { url: 42, extractor: "refused-before-fetch" },
+        { url: "https://ok.example.com/paper", extractor: "refused-before-fetch" },
+      ],
+    });
+    expect(links.map((link) => link.url)).toEqual(["https://ok.example.com/paper"]);
   });
 });
 

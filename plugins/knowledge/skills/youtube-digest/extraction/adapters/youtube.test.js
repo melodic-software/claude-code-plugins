@@ -18,6 +18,14 @@ describeSourceAdapterContract(adapter, {
     "https://example.com/not-youtube",
     "not a url",
   ],
+  harvestMetadata: {
+    id: "7zZy1QTvokM",
+    title: "T",
+    description: "Docs at https://example.com/docs and https://example.com/docs again",
+    chapters: [{ startSec: 30, title: "Intro https://chapter.example.com" }],
+    heatmap: null,
+    comments: [{ text: "pinned https://pinned.example.com/resources", is_pinned: true }],
+  },
 });
 
 describe("youtube adapter declarations", () => {
