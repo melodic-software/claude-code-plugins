@@ -40,13 +40,13 @@ than read from the environment, which does not carry it. An empty value means
 
 --skip NAME (repeatable) and config fleet.skip (repeatable) REPLACE the default
 discovery skip list rather than appending to it. With neither supplied, discovery
-skips . , .. , .git , node_modules , vendor , and .venv. Supplying any --skip or
-fleet.skip entry replaces that set entirely — to extend, pass the six defaults
-plus your names; to shrink (e.g. reach a repo under vendor/), omit the names you
-want walked. CLI and config entries compose additively with each other the same
-way other scope inputs do. Values must be bare directory names (no empty value,
-no path separator). . and .. stay skipped unconditionally even when an explicit
-list omits them.
+skips node_modules, vendor, and .venv. Supplying any --skip or fleet.skip entry
+replaces that set entirely — to extend, pass those three defaults plus your names;
+to shrink (e.g. reach a repo under vendor/), omit the names you want walked. CLI
+and config entries compose additively with each other the same way other scope
+inputs do. Values must be bare directory names (no empty value, no path separator).
+. , .. , and .git stay skipped unconditionally even when an explicit list omits
+them.
 EOF
 }
 
@@ -708,25 +708,25 @@ fi
 # Discovery skip names (--skip / fleet.skip). Explicit entries REPLACE the default set rather than
 # appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
 # config compose additively with each other like other scope inputs; with neither supplied, keep
-# today's six-name default. . and .. stay skipped unconditionally even when an explicit list omits
-# them.
+# today's three-name default. . , .. , and .git stay skipped unconditionally even when an explicit
+# list omits them (#2826).
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
     # `skip =` line that git-config returns as an empty string. Do not silently drop them:
-    # an empty-only list would otherwise restore the six defaults and quietly omit vendor/.
+    # an empty-only list would otherwise restore the three defaults and quietly omit vendor/.
     validate_skip_name "$value" "fleet.skip"
     SKIP_NAMES+=("$value")
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
 fi
 if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-  SKIP_NAMES=(. .. .git node_modules vendor .venv)
+  SKIP_NAMES=(node_modules vendor .venv)
 fi
 
 should_skip_dir_name() {
   local name="$1" skip
   case "$name" in
-  . | ..) return 0 ;;
+  . | .. | .git) return 0 ;;
   *) ;;
   esac
   for skip in "${SKIP_NAMES[@]}"; do
@@ -1279,8 +1279,9 @@ discover_repositories() {
     # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
     [[ -e "$child" || -L "$child" ]] || continue
     name="$(basename "$child")"
-    # Configurable skip list (--skip / fleet.skip). . and .. are always skipped; other names come
-    # from SKIP_NAMES (defaults, or an explicit replace list). See usage() for replace semantics.
+    # Configurable skip list (--skip / fleet.skip). . , .. , and .git are always skipped; other
+    # names come from SKIP_NAMES (defaults, or an explicit replace list). See usage() for replace
+    # semantics.
     if should_skip_dir_name "$name"; then
       continue
     fi
