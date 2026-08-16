@@ -38,10 +38,10 @@ states the fired condition in the run's own values.
 | `testing/audit/rule-recomputed-expectation` | an equality assertion's actual and expected sides are the identical expression — the expected value is recomputed by the code under test rather than stated | >= 1 self-identical equality assertion | `high` | yes |
 | `testing/audit/rule-mock-only-oracle` | a mock-constructing test whose every assertion is a mock-interaction assertion, none on a real collaborator | 100% of assertions are mock-interaction | omitted | only with `--strict` |
 
-- **`Tier` is IMPORTANT for every rule — a flat, rule-keyed map.** All three make the same claim: a
-  coverage claim no test actually backs, which is IMPORTANT's behavior-no-test-covers limb. CRITICAL
-  never applies — no input, caller, or subsequent otherwise-correct change produces a wrong result;
-  the defect is evidence about the tests, not the source.
+- **`Tier` is looked up from each rule's row in the detector-findings severity crosswalk** (the
+  contract cited under Persisting findings) — IMPORTANT on every row, flat per producer. The
+  argument for each mapping lives in the crosswalk row, not here; a per-finding tier choice is
+  exactly what the rule-keyed lookup forbids.
 - **`mock-only-oracle` omits `Confidence` and is advisory by default.** The pattern match is certain;
   its defect-hood is not — deliberate interaction-style (London-school) tests are the known benign
   case. Per the detector-findings contract the field is `high` or omitted, never `low`.

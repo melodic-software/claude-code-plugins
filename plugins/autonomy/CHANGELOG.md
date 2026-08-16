@@ -45,6 +45,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   scheduled runs read committed surfaces only. One pointer in `routines.md` §Access to
   prerequisites; one README bullet. Implementation (leaf sections, generated emission, resolver,
   setup slice) remains in follow-on issues.
+
 ## [0.17.0]
 
 ### Added
