@@ -5,7 +5,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../tests/lib.sh"
+source "$SCRIPT_DIR/../../tests/lib.sh"
 # shellcheck source=github.sh
 source "$SCRIPT_DIR/github.sh"
 

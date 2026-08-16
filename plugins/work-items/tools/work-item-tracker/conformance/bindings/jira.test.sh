@@ -11,7 +11,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../tests/lib.sh"
+source "$SCRIPT_DIR/../../tests/lib.sh"
 
 CB_REPO=""
 # shellcheck source=jira.sh

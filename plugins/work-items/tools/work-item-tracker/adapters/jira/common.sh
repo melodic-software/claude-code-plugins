@@ -90,6 +90,20 @@ readonly WIT_JIRA_CLOUD_SUFFIX='.atlassian.net'
 # be a valid shell variable name.
 readonly WIT_JIRA_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 
+# wit_jira_nonempty_array <json-text> — 0 when the text is a non-empty JSON array.
+# Type is checked before length so a scalar such as "project_keys":"ABC" cannot pass on
+# its string length; jq's `and` short-circuits, so `length` never runs on a non-array.
+wit_jira_nonempty_array() {
+  [[ "$(jq -r 'if (type == "array" and length > 0) then "yes" else "no" end' <<<"$1")" == "yes" ]]
+}
+
+# wit_jira_bad_keys <anchored-regex> <json-array> — the array's elements that are not
+# strings matching the allowlist, as a JSON array (`[]` when all are valid). The type
+# guard sits left of the `or` so test() never runs on a non-string.
+wit_jira_bad_keys() {
+  jq -rc --arg re "$1" '[.[] | select((type != "string") or (test($re) | not))]' <<<"$2"
+}
+
 # Set by wit_jira_http; declared here so a read before the first call does not trip
 # `set -u`.
 WIT_JIRA_BODY=""
@@ -156,15 +170,13 @@ wit_need_jira_config() {
   # project_keys must be a non-empty ARRAY, not merely truthy: a scalar such as
   # "project_keys":"ABC" would satisfy a bare `length > 0` (string length 3), then
   # `.[]`/`map(...)` would jq-error into an empty clause (`project in ()`) that this
-  # non-`set -e` script would otherwise ignore. Type-check first, then length.
-  [[ "$(jq -r 'type' <<<"$WIT_JIRA_PROJECT_KEYS")" == "array" ]] &&
-    [[ "$(jq -r 'length' <<<"$WIT_JIRA_PROJECT_KEYS")" -gt 0 ]] ||
+  # non-`set -e` script would otherwise ignore.
+  wit_jira_nonempty_array "$WIT_JIRA_PROJECT_KEYS" ||
     missing+=" config.jira.project_keys[](non-empty array)"
   # done_category_keys defaults when absent, but a present non-array OR EMPTY value is a
   # misconfiguration: an empty set builds `statusCategory not in ()` — invalid JQL Jira
   # rejects with 400 — not a silent fall-through to the default.
-  [[ "$(jq -r 'type' <<<"$WIT_JIRA_DONE_KEYS")" == "array" ]] &&
-    [[ "$(jq -r 'length' <<<"$WIT_JIRA_DONE_KEYS")" -gt 0 ]] ||
+  wit_jira_nonempty_array "$WIT_JIRA_DONE_KEYS" ||
     missing+=" config.jira.done_category_keys(non-empty array)"
   if [[ -n "$missing" ]]; then
     printf '%s: jira binding missing/invalid required config:%s — see CONTRACT.md "jira adapter"\n' "$name" "$missing" >&2
@@ -200,9 +212,9 @@ wit_need_jira_config() {
   # jq's test() uses the same anchored allowlist; a non-string element fails the
   # type guard. Bad elements are echoed back for the diagnostic.
   local bad_pk bad_dk
-  bad_pk="$(jq -rc --arg re "$WIT_JIRA_PROJECT_KEY_RE" '[.[] | select((type != "string") or (test($re) | not))]' <<<"$WIT_JIRA_PROJECT_KEYS")"
+  bad_pk="$(wit_jira_bad_keys "$WIT_JIRA_PROJECT_KEY_RE" "$WIT_JIRA_PROJECT_KEYS")"
   [[ "$bad_pk" == "[]" ]] || bad+=" project_keys:$bad_pk"
-  bad_dk="$(jq -rc --arg re "$WIT_JIRA_CATEGORY_KEY_RE" '[.[] | select((type != "string") or (test($re) | not))]' <<<"$WIT_JIRA_DONE_KEYS")"
+  bad_dk="$(wit_jira_bad_keys "$WIT_JIRA_CATEGORY_KEY_RE" "$WIT_JIRA_DONE_KEYS")"
   [[ "$bad_dk" == "[]" ]] || bad+=" done_category_keys:$bad_dk"
   if [[ -n "$bad" ]]; then
     printf '%s: invalid jira config value(s):%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
