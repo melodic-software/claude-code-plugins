@@ -48,11 +48,10 @@ this skill's content as `${user_config.library_dir}`:
 The `setup-deps.mjs` install step is exempt — it installs node dependencies into
 `${CLAUDE_PLUGIN_DATA}`, not the work root.
 
-<!-- RECONCILE(P5-env): the extraction env-var namespace is still `YOUTUBE_`-prefixed
-(`YOUTUBE_YT_DLP_COOKIES_FILE`, `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER`,
-`YOUTUBE_YT_DLP_JS_RUNTIMES`, `YOUTUBE_ACQUIRE_PHASE_GAP_SEC`). Phase 5 renames it with a
-compatibility read; the forwarded variable is named generically above for that reason. Waits on
-P5 to settle the landed names and whether any operator-facing surface must state them. -->
+`run.mjs` translates `--work-root` into `VIDEO_DIGEST_WORK_ROOT` — the variable
+`resolveWorkRoot()` reads before the fallbacks above. Every extraction variable lives in that
+`VIDEO_DIGEST_` namespace; each one's pre-rename `YOUTUBE_` spelling is still honored, warning
+once per process, and the new name wins when both are set.
 
 **Scope of the seam.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source

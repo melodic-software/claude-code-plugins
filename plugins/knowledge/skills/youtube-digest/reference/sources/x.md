@@ -122,12 +122,8 @@ cannot run there at all — a caption-absent `transcript` run always degrades.
 `captions+repair` runs proper-noun repair over the platform VTT, using the post text
 (`description`) plus harvested links as the lexicon. The ASR rung is faster-whisper large-v3 at
 `batch_size=8`, an optional closed-by-default capability delivered as a documented prerequisite
-plus runtime detection — **never auto-installed**.
-
-<!-- RECONCILE(P3-probes): whether `asr` stays the caption-absent default rests on probe
-`[T5-ASR-TIMESTAMPS]`. If word-level timestamps prove unusable for frame alignment, the
-caption-absent rows collapse into the degradation row. Waits on that probe; the seam itself,
-the ladder's class consumption, and the `transcriptDegradation` field are settled. -->
+plus runtime detection — **never auto-installed**. The lexicon is repair-only: feeding it to ASR
+as an `initial_prompt` was probed and made proper-noun accuracy worse, so the rung runs without one.
 
 ## Failure patterns
 

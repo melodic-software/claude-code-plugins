@@ -150,12 +150,6 @@ it carries depends on which 0-case it is — see `reference/sources/x.md`.
 
 ## Resume action
 
-<!-- RECONCILE(P5-naming): the `resume <video-slug>` argument name (frontmatter `argument-hint`,
-the action router, and the handoff-ritual message below) is source-neutral in fact but named for
-YouTube — an X status with no video still resolves to a slug. Waits on Phase 5 (naming hygiene) to
-decide whether to rename the user-facing argument; Phase 7 (rename) is the fallback owner. Neither
-has inventoried it. -->
-
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<video-slug>"
 ```
@@ -208,9 +202,13 @@ Verify before starting (stop and route to the fix path on failure):
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node
 dependencies; the media binaries are OS-level installs via your platform's package manager.
 
-<!-- RECONCILE(P3-probes): the ASR rung's optional, closed-by-default faster-whisper prerequisite
-(never auto-installed) gets a row here only if probe `[T5-ASR-TIMESTAMPS]` leaves `asr` default-on
-for caption-absent entries. Waits on that probe. -->
+**Optional — faster-whisper** (`large-v3`, `batch_size=8`): enables the `asr` transcript rung,
+which runs for caption-absent entries under `watch` only — the `transcript` action never
+downloads media, and ASR needs the media file. Detected at runtime through the machine's Python
+(`python`, `python3`, or `py` — whichever imports `faster_whisper`) and **never auto-installed**.
+When it is absent the digest still completes, without a transcript, and the reason is recorded in
+the `transcriptDegradation` field (`watch.json` phase metrics and the CLI's stdout JSON) — never
+silently.
 
 ## Eval fixtures
 
