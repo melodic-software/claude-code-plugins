@@ -1,0 +1,39 @@
+# Reviewed-and-cleared commits for scripts/check-silent-revert.sh.
+#
+# The canary fires when a merge deletes a large block of content another commit
+# had just landed. Sometimes that is exactly what the author meant to do, and a
+# commit message cannot be amended once it is on main -- so this file is the
+# retrospective half of the disposition path. The prospective half is an
+# `Intentional-removal:` trailer in the PR body, which costs one line and means
+# the canary never fires in the first place; prefer it.
+#
+# This is an AUDIT TRAIL, not a mute list. Every row records a human decision
+# about one specific merge, and a reader should be able to reconstruct from the
+# note why the removal was judged intentional. Rows are matched on the full
+# 40-character sha, never an abbreviation, so one entry can never widen to cover
+# a commit nobody reviewed.
+#
+# Before adding a row, confirm the content is genuinely meant to be gone --
+# `git diff <culprit> <commit> -- <file>` -- rather than adding the row because
+# CI is red. The whole failure mode this canary exists for is a green signal
+# that had stopped meaning anything.
+#
+# Format: <full-40-char-sha>  <why the removal was intended>
+# Blank lines and lines beginning with `#` are ignored.
+
+# The two verified-legitimate fires found while calibrating the canary against
+# 500 commits of real history (#2691). Recorded here so main starts green and
+# the canary's first fire is a NEW event rather than known backlog.
+
+# #2640 is the manual restore of the content #2633's squash dropped. Putting
+# #2632's rollups back required deleting what #2633 had put in their place, so
+# a large removal of very recent content is precisely what this commit is.
+6f0a3110942375fb292112f5df5e2c39bbf56cb0  #2640 restores #2632's rollups; the removal undoes #2633's revert
+
+# #2135's author noticed main move under the PR, merged origin/main into the
+# branch rather than force-pushing, and argued the disposition explicitly in the
+# PR body -- a deliberate reconciliation, not a lost tree. At 340 lines this is
+# the largest measured false positive, six lines below the smallest real
+# incident (346), which is why no threshold can separate the two shapes and why
+# this file exists.
+91e77fc16f62bc0ce99b36565053636fb4a21d9e  #2135 deliberately reconciled a merge of origin/main; disposition argued in the PR body

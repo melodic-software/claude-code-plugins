@@ -166,6 +166,7 @@ jobs:
             .github/workflows/link-check.yml
             .github/workflows/pr-issue-linkage.yml
             .github/workflows/pr-title.yml
+            .github/workflows/silent-revert-canary.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
