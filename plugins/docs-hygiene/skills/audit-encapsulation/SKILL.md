@@ -44,6 +44,10 @@ One action per response.
 
 ### No inherited scope — confirm before a repo-wide run
 
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+This skill's trigger is "no inherited scope" (not only "clean tree") — a dirty tree with unrelated
+edits still needs the confirm when nothing names the detect surface.
+
 The default action's domain is the whole repo, but a bare invocation does not prove the user meant
 that. When the invocation arrives with NO inherited working set — no diff in flight, no prior audit
 notes, nothing in the conversation narrowing the scope — ask ONE confirmation before running the

@@ -66,6 +66,8 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 
 ## Auto-detect default
 
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+
 1. Empty arg AND clean tree → OFFER the repo-wide audit instead of silently no-opping; run only on
    the user's confirmation. The offer carries prescribed defaults (overridable): corpus = all
    tracked `.md` minus `**/evals/fixtures/**` and `CHANGELOG.md`; slice-scoped files (contract and
