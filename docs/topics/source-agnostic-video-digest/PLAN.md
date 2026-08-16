@@ -378,49 +378,54 @@ invariant.
 - [x] Fixture: X resume prompt contains resolved slice path; zero epic-constant prose
   interpolations
 
-### Phase 6: Hub split + widened description [TODO]
+### Phase 6: Hub split + widened description [DONE]
 
 Warrant: **body** 37,620 chars ≈ 9,405 est. tokens ≈ 1.9× the < 5,000-token recommendation
 (chars/4; the repo's own fleet-measurement method). The 200-line soft cap is NOT the warrant.
 
-- [ ] Execute the hub-split-budget.md moves table (the single authoritative partition):
+- [x] Execute the hub-split-budget.md moves table (the single authoritative partition):
   Watch action 148 → ~30-line phase spine (rest → `context/watch-pipeline.md`); Queue 61 → ~8
   (→ `context/watch-queue.md`); Output contract + artifact landing → new spoke; yt-dlp &
   throttle overrides → `reference/sources/youtube.md`; slug derivation + eval fixtures trimmed
-- [ ] Source spokes: `reference/sources/{youtube,x}.md`; any spoke > 100 lines gets a TOC
-- [ ] Hub routing table: **explicit conditional rows** — "read `reference/sources/x.md` when
+- [x] Source spokes: `reference/sources/{youtube,x}.md`; any spoke > 100 lines gets a TOC
+- [x] Hub routing table: **explicit conditional rows** — "read `reference/sources/x.md` when
   the URL is an x.com/twitter.com status", "read `reference/sources/youtube.md` when the URL
   is YouTube", "read `context/watch-pipeline.md` for the watch action only". A `transcript`
   run loads no watch spoke; a YouTube run loads no X file; `/x:read` reply-chain harvest
   routed here as optional
-- [ ] `reference/variation-matrix-backlog.json` disposition decided (KEEP in place —
+- [x] `reference/variation-matrix-backlog.json` disposition decided (KEEP in place —
   `vendor/video-digestion/TUNING.md:5` points at it; if it moves, Phase 7 inventory gains
   that row)
-- [ ] Widened `description` (T2a, `xlsx` shape): four literal hosts + **natural-language
+- [x] Widened `description` (T2a, `xlsx` shape): four literal hosts + **natural-language
   triggers** ("watch this video", "digest this video/post", etc.) + explicit `Do NOT` clause
   naming course platforms (preserves `course-digest` boundary); retains `youtube` /
   `youtu.be` tokens; third person
-- [ ] **Record the pre-change trigger-token baseline** (the current description's token set)
+- [x] **Record the pre-change trigger-token baseline** (the current description's token set)
   to `.work/source-agnostic-video-digest/evidence/phase6/trigger-token-baseline.md` — Phase
   7's manual continuity check validates against this artifact
-- [ ] X source section added to the hub within budget
-- [ ] **Reconciliation gate (before Phase 7):** after P3 lands, diff the spokes' claims
+- [x] X source section added to the hub within budget
+- [x] **Reconciliation gate (before Phase 7):** after P3 lands, diff the spokes' claims
   (adapter behavior, error semantics, ASR/degradation, env-var names from P5) against the
   final contract + fixtures; fix drift. Parallel drafting is allowed; this gate is what makes
   it safe
 
 **Sanity Check:**
 
-- [ ] Body size: chars after frontmatter ÷ 4 < 5,000 (small Node/awk snippet, checked in with
+- [x] Body size: chars after frontmatter ÷ 4 < 5,000 (small Node/awk snippet, checked in with
   the sweep script or run in Git Bash; record the number here)
-- [ ] `check-skill.sh` exit 0 on the skill
-- [ ] Blocking routing assertion (not check 15, which only warns): every file under
+- [x] `check-skill.sh` exit 0 on the skill
+- [x] Blocking routing assertion (not check 15, which only warns): every file under
   `reference/sources/` and every `context/*.md` spoke is cited in SKILL.md **with a
   conditional "when" clause** — script-checked, not eyeballed
-- [ ] Description: contains all four hosts, ≥ 2 natural-language trigger phrases, a `Do NOT`
+- [x] Description: contains all four hosts, ≥ 2 natural-language trigger phrases, a `Do NOT`
   line naming course platforms, `youtube`, `youtu.be`; combined `description` +
   `when_to_use` frontmatter fields ≤ 1,536 chars (the check-skill DESC_CHAR_CAP definition)
-- [ ] Reconciliation gate outcome recorded here (dated line)
+- [x] Reconciliation gate outcome recorded here (dated line)
+  — **2026-08-16: gate PASS.** All 12 draft markers resolved across two passes (pre-reconciliation
+  `c5730c6b` after P1/P2; final gate `78f521b5`+`d7975e00`+`b8217201` after P3/P5); body 13,328
+  chars ≈ 3,332 est. tokens; check-skill 0 errors / 4 pre-existing warning classes; routing
+  assertion 10/10 conditional citations; fresh-context verification PASS 9/9 including an
+  11-claim spoke-vs-code audit with zero contradictions.
 
 ### Phase 7: Rename `youtube-digest` → `video-digest` [TODO]
 
