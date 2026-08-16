@@ -1,0 +1,11 @@
+{
+  "disposition": "ok",
+  "metadata": {
+    "extractor": "twitter",
+    "extractor_key": "Twitter",
+    "id": "1001551623938805763",
+    "display_id": "1001551623938805763",
+    "title": "Offline fixture — verified public X status",
+    "formats": [{ "format_id": "http-2176" }]
+  }
+}

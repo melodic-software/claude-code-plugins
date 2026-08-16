@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.12.5]
+
+### Added
+
+- **Scheduled source-adapter liveness lane for the video-digest pipeline (#2797).**
+  Offline hermetic harness under `skills/youtube-digest/extraction/liveness/`
+  (`run-source-liveness.js`, `probes.json`, fixtures) plus advisory workflow
+  `.github/workflows/video-digest-source-liveness.yml` (schedule / dispatch live
+  probes; PR path runs `--offline` only). Never wired into `ci.yml` / `ci-status`;
+  a red live run files a rolling tracking issue. Auth-required X rows skip without
+  cookies. Owner doc: `docs/topics/source-agnostic-video-digest/LIVENESS.md`.
+
 ## [0.12.4]
 
 ### Added

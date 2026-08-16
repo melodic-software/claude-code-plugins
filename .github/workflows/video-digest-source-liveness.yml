@@ -1,0 +1,186 @@
+name: video-digest-source-liveness
+
+# Advisory source-adapter liveness lane for the video-digest pipeline (#2797).
+# Offline conformance stays the CI merge gate; this lane only detects live
+# upstream drift (yt-dlp / YouTube / X). It is deliberately NOT in ci.yml and
+# NOT in the ci-status aggregate — a red run files a rolling tracking issue
+# instead of blocking merges. Same posture as link-check.yml.
+#
+# pull_request: hermetic --offline self-test only (no network).
+# schedule / workflow_dispatch: live yt-dlp probes + tracking issue on failure.
+
+on:
+  schedule:
+    # Weekly Monday 07:17 UTC — staggered off the link-check Monday 06:23 slot.
+    - cron: '17 7 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'plugins/knowledge/skills/youtube-digest/extraction/liveness/**'
+      - '.github/workflows/video-digest-source-liveness.yml'
+      - 'docs/topics/source-agnostic-video-digest/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-digest-source-liveness-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-self-test:
+    name: Offline liveness self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+
+      - name: Install extraction deps
+        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh install
+
+      - name: Replay offline fixtures
+        run: >
+          node plugins/knowledge/skills/youtube-digest/extraction/liveness/run-source-liveness.js
+          --offline
+
+      - name: Unit-test the liveness harness
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: npx vitest run liveness/run-source-liveness.test.js
+
+  live-probe:
+    name: Live source-adapter probes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+
+      - name: Install extraction deps
+        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh install
+
+      - name: Install yt-dlp
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user 'yt-dlp>=2026.6'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          yt-dlp --version
+
+      - name: Probe live sources
+        id: probe
+        env:
+          VIDEO_DIGEST_YT_DLP_COOKIES_FILE: ${{ secrets.VIDEO_DIGEST_YT_DLP_COOKIES_FILE }}
+        run: |
+          set -euo pipefail
+          set +e
+          node plugins/knowledge/skills/youtube-digest/extraction/liveness/run-source-liveness.js --live \
+            | tee liveness-report.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          if ((status == 0)); then
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift_detected=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
+
+      - name: Build tracking-issue body
+        if: failure() && steps.probe.outputs.drift_detected == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo '<!-- claude-code-plugins:video-digest-source-liveness:v1:active -->'
+            echo
+            echo '## Video-digest source-adapter liveness drift'
+            echo
+            echo "Scheduled/live probe failed on \`${GITHUB_SHA}\` (run"
+            echo "[${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}))."
+            echo
+            echo 'Offline conformance remains the merge gate; this issue tracks fixture /'
+            echo 'upstream drift only. See'
+            echo '`docs/topics/source-agnostic-video-digest/LIVENESS.md`.'
+            echo
+            echo '### Probe output'
+            echo
+            echo '```'
+            cat liveness-report.txt
+            echo '```'
+            echo
+            echo '---'
+            echo '*Updated automatically by `.github/workflows/video-digest-source-liveness.yml`.*'
+            echo '*Closing without refreshing fixtures/`probes.json` reopens on the next red run.*'
+          } > liveness-issue.md
+
+      - name: Find existing tracking issue
+        id: find-issue
+        if: failure() && steps.probe.outputs.drift_detected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MARKER: '<!-- claude-code-plugins:video-digest-source-liveness:v1:active -->'
+          ISSUE_TITLE: '[Maintenance] Video-digest source-adapter liveness drift'
+          ISSUE_AUTHOR_LOGIN: 'github-actions[bot]'
+        run: |
+          set -euo pipefail
+          open_issues="$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100")"
+          : "${MARKER:?MARKER is required}"
+          : "${ISSUE_TITLE:?ISSUE_TITLE is required}"
+          : "${ISSUE_AUTHOR_LOGIN:?ISSUE_AUTHOR_LOGIN is required}"
+          : "${open_issues:?open_issues is required}"
+          matches="$(jq -ce --arg marker "$MARKER" --arg author "$ISSUE_AUTHOR_LOGIN" '
+            [.[][]
+              | select(.pull_request? == null)
+              | select(.user.login == $author and .user.type == "Bot")
+              | select((.body // "") | contains($marker))
+              | .number]
+          ' <<<"$open_issues")"
+          count="$(jq -r 'length' <<<"$matches")"
+          if ((count > 1)); then
+            echo "::error::found ${count} issues carrying marker '${MARKER}'; reconcile them manually."
+            exit 1
+          fi
+          if ((count == 0)); then
+            matches="$(jq -ce --arg title "$ISSUE_TITLE" --arg author "$ISSUE_AUTHOR_LOGIN" '
+              [.[][]
+                | select(.pull_request? == null)
+                | select(.user.login == $author and .user.type == "Bot")
+                | select(.title == $title)
+                | .number]
+            ' <<<"$open_issues")"
+            count="$(jq -r 'length' <<<"$matches")"
+            if ((count > 1)); then
+              echo "::error::found ${count} pre-marker issues titled '${ISSUE_TITLE}'; reconcile them manually."
+              exit 1
+            fi
+          fi
+          jq -r 'if length == 1 then "issue-number=" + (.[0] | tostring) else "issue-number=" end' <<<"$matches" >>"${GITHUB_OUTPUT:?}"
+
+      - name: Open or update tracking issue
+        if: failure() && steps.probe.outputs.drift_detected == 'true'
+        uses: peter-evans/create-issue-from-file@fca9117c27cdc29c6c4db3b86c48e4115a786710 # v6.0.0
+        with:
+          issue-number: ${{ steps.find-issue.outputs.issue-number }}
+          title: '[Maintenance] Video-digest source-adapter liveness drift'
+          content-filepath: ./liveness-issue.md
+          labels: automated, needs-triage
