@@ -131,8 +131,10 @@ line above it, or inside the body — the same recorded-decision shape as the re
   defect and are not yet detected.
 - **The JS regex-literal masker triggers only after an operator or opening delimiter** — never after
   an identifier, so a regex directly after `return` is not masked. Wrongly reading division as a
-  regex would mask real code, which is the worse direction; no false positive has been observed
-  from the narrow set.
+  regex would mask real code, which is the worse direction. The known cost of that narrow set is a
+  premature-block-closure false positive when an unmasked regex after `return` contains a brace
+  (e.g. `return /}/;` inside a test) — `brace_delta` treats the `}` as code and closes the test
+  before later assertions, so `rule-zero-assertion` can fire on a body that still has assertions.
 - **Skips are honored at both levels** — test-level (`it.skip`/`x`-prefixed/`@skip`/`[Fact(Skip=…)]`)
   and suite-level (<!-- spellchecker:off -->`xdescribe`<!-- spellchecker:on -->/`describe.skip`/`context.skip`/`suite.skip`): a test that does not
   run is not judged.
