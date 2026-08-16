@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.23.5]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
 ## [0.23.4]
 
 ### Fixed
