@@ -97,6 +97,30 @@ jobs:
       - name: Replay the recorded incidents
         run: scripts/check-silent-revert.sh --verify-known-incidents
 
+      # The other half of the proof (#2855). The step above asserts every
+      # recorded incident is still DETECTED; this one asserts the content those
+      # incidents deleted is on the tree TODAY. Both are needed, and the gap
+      # between them has already cost 31h28m: #2828's two files were missing
+      # from main while the replay above printed `ok` and exited 0, two re-lands
+      # each missed them, and a hand audit found it rather than this lane.
+      #
+      # UNGATED, exactly like the two steps above it, for the same reason. The
+      # failure that produced #2828 is "nobody thought to check", so an
+      # on-demand mode or a `push`-only gate would reproduce it. Running on
+      # pull_request events too is not a merge gate: this workflow is not in
+      # ci.yml and not in that workflow's `ci-status` aggregate, which is the
+      # single required check the org ci-gate ruleset keys on -- and it is
+      # `paths`-scoped to the canary's own files, so it is inert on every other
+      # PR. What it buys is that a PR editing this corpus proves its markers
+      # resolve before the merge rather than after.
+      #
+      # No rev argument: the assertion resolves against the checked-out tree,
+      # which is the question worth asking here -- is the content on main RIGHT
+      # NOW. The explicit-rev form exists so a reviewer can replay the
+      # assertion against the historical tree an incident was measured on.
+      - name: Assert the recorded incidents' content is restored
+        run: scripts/check-silent-revert.sh --verify-restoration
+
       # Resolve the pushed range. `github.event.before` is all-zeros on a first
       # push or after a history rewrite, and absent entirely on
       # workflow_dispatch; in both cases fall back to the head commit and SAY

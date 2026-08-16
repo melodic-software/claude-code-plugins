@@ -7,6 +7,10 @@
 #   scripts/check-silent-revert.sh --commit <sha> scan one commit
 #   scripts/check-silent-revert.sh --verify-known-incidents
 #                                                 replay the recorded incidents
+#   scripts/check-silent-revert.sh --verify-restoration [<rev>]
+#                                                 assert the recorded incidents'
+#                                                 content is back (default: the
+#                                                 working tree)
 #
 # Exit 0 clean, 1 findings, 2 the canary could not run (never a quiet pass).
 #
@@ -152,6 +156,58 @@
 # records a human decision about a specific commit, and a reviewer can read
 # back exactly which removals were judged intentional and why.
 #
+# DETECTION IS NOT RESTORATION (#2855)
+# ------------------------------------
+# Everything above answers one question about a recorded incident -- does this
+# commit still produce a finding -- and never the other one: is the content it
+# deleted on main TODAY. #2828 is the proof that the gap is real rather than
+# theoretical. The f603880da row printed `ok  f603880da fires as recorded` and
+# the replay exited 0 for 31h28m while the content #2635 had added to
+# plugins/disk-hygiene/README.md and
+# plugins/disk-hygiene/skills/clean/evals/evals.json was absent from main. Two
+# separate re-lands (#2714, #2803) each missed it, and a hand audit found it,
+# not this canary.
+#
+# Say CONTENT rather than "files", precisely. Both files existed at every rev in
+# that window -- #2829 shows as `README.md | 14 ++---` and `evals.json | 15 ++-`,
+# modifications, not additions. That is exactly why the gap survived: a
+# file-level or path-level check sees two present, recently-touched files and
+# has nothing to report.
+#
+# So a `fires` row also carries one or more CONTENT MARKERS, each bound to the
+# path it must be found in, and --verify-restoration asserts every one of them
+# still resolves path-scoped against a rev (the working tree by default).
+#
+# This is NOT the curated-marker design rejected above, and the distinction is
+# the whole reason it works. That rejection is about DISCOVERY: a marker list
+# cannot find an incident nobody registered, because registration happens after
+# you already know a fix matters. These markers hang off a row that is ALREADY
+# in scripts/silent-revert-incidents.txt -- the knowledge exists and recording
+# it costs one line. #2691's own suggestion 3 asked for exactly this; only
+# suggestion 2's shape was ever built.
+#
+# Two cheaper designs were measured against the real instance and both fail:
+#
+#   PATH-LEVEL ("was this path revisited since?") is a false NEGATIVE here.
+#   9239f1541 touched BOTH files ten minutes after the incident, so the answer
+#   is yes for both on a tree where the content is gone.
+#
+#   VERBATIM HUNK ("is the deleted diff back byte-for-byte?") is permanently
+#   RED on the README half. #2828 records that #2635's README hunk was
+#   malformed and must NOT be restored byte-for-byte, and #2829 restored the
+#   intent instead. A marker survives that rewrite; the hunk cannot.
+#
+# Markers resolve PATH-SCOPED, which is load-bearing rather than tidy. Both
+# markers on the f603880da row also occur elsewhere in the same plugin on
+# current main -- the engine script, its test file, CHANGELOG.md -- so a
+# repo-wide `git grep` would have reported both files restored while both were
+# missing.
+#
+# Cost: one path-scoped `git grep` per marker over a four-row corpus, which is
+# why it runs in the same `push: main` job as the replay instead of behind an
+# on-demand flag. "Nobody thought to check" is the failure that produced #2828,
+# so an on-demand-only mode would reproduce it.
+#
 # The self-test (scripts/check-silent-revert.test.sh) runs BEFORE this script in
 # CI, so a broken detector cannot mask a regression behind a green canary --
 # the same never-skip, self-test-first, fail-closed shape the ci.yml gates use.
@@ -174,6 +230,19 @@ SAMPLE_MIN_LEN=25
 INCIDENTS_FILE="${SILENT_REVERT_INCIDENTS:-scripts/silent-revert-incidents.txt}"
 ACK_FILE="${SILENT_REVERT_ACK:-scripts/silent-revert-acknowledged.txt}"
 
+# Field separator of the parsed marker view (ASCII Unit Separator).
+#
+# Deliberately NOT a tab. A tab is an IFS *whitespace* character, so `IFS=$'\t'
+# read -r a b c d` collapses runs of tabs into one delimiter and drops empty
+# fields -- which silently shifts every field left whenever the optional
+# disposition reason is empty, i.e. on the ordinary row. Measured here: the
+# marker text landed in the reason variable and the marker came back as the
+# empty string, which `grep -F` matches against everything, so every marker
+# reported present. That is precisely the false green this file exists to
+# remove, so the separator is a non-whitespace character whose empty fields
+# survive.
+SEP=$'\037'
+
 die() {
   echo "check-silent-revert: $*" >&2
   exit 2
@@ -185,6 +254,7 @@ usage:
   scripts/check-silent-revert.sh <range>                  e.g. abc123..def456
   scripts/check-silent-revert.sh --commit <sha>
   scripts/check-silent-revert.sh --verify-known-incidents
+  scripts/check-silent-revert.sh --verify-restoration [<rev>]
 EOF
   exit 2
 }
@@ -449,6 +519,11 @@ verify_known_incidents() {
   while read -r expect sha note; do
     case "$expect" in
       '' | '#'*) continue ;;
+      # Restoration markers (#2855) are a different assertion about the same
+      # incident and belong to --verify-restoration. Skipped HERE, above the
+      # reachability check, because a marker row's second field is a path
+      # rather than a sha -- reading it as one would die on every marker row.
+      marker) continue ;;
       *) ;;
     esac
     if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
@@ -492,12 +567,274 @@ verify_known_incidents() {
 }
 
 # ---------------------------------------------------------------------------
+# The restoration assertion (#2855). See DETECTION IS NOT RESTORATION above for
+# why a `fires` row alone is only half a proof.
+# ---------------------------------------------------------------------------
+# A `marker` row records one line of the content an incident removed, and the
+# path it must live in:
+#
+#   marker <incident-full-sha> <path> <marker text to end of line>
+#   marker <incident-full-sha> <path> [not-restored: <reason>] <marker text>
+#
+# The marker text is the whole tail of the line, unparsed and matched with
+# `grep -F`, so it may contain any character -- no separator is reserved inside
+# it. Interior whitespace is preserved exactly; only leading and trailing
+# whitespace is trimmed, by the field read itself. That is why a marker must be
+# chosen as a line of content rather than as indentation-sensitive text: a
+# marker whose distinguishing feature is its leading spaces would be recorded
+# without them and match more loosely than the reader intended.
+# The ONE reserved position is a LEADING `[`, which commits the row to
+# carrying a disposition, in the same positional slot-after-the-key the
+# attribution field uses on a `fires` row. An unterminated `[` is exit 2 rather
+# than being re-read as ordinary marker text: a row that quietly degrades into
+# "no disposition, strange marker" is the false green this file exists to
+# remove, reached by the one route nobody would look at.
+#
+# The disposition requires a NON-EMPTY reason, exactly as declares_removal()
+# requires of `Intentional-removal:`. `[not-restored:]` is rejected, not read as
+# a mute -- a marker nobody has to justify is a mute button, and this corpus is
+# an audit trail.
+
+# parse_incidents_file <fires-shas-out> <markers-out>
+#
+# Validates every row and writes the two views the assertion needs: one sha per
+# line for `fires` rows, and `<sha><SEP><path><SEP><reason><SEP><marker>` for
+# `marker` rows, where an empty reason field means "no disposition recorded".
+#
+# Call it with plain arguments, never through `$(...)` or a pipe: those run it
+# in a subshell where `die`'s exit 2 is swallowed, and a malformed corpus would
+# degrade into a confusing empty-result pass instead of a hard stop.
+#
+# Fields after the sha on a `fires` / `clean` row are free text to this parser,
+# which is what keeps it forward-compatible with the bracketed attribution
+# field #2833 adds in that position.
+parse_incidents_file() {
+  local fires_out="$1" markers_out="$2"
+  : >"$fires_out"
+  : >"$markers_out"
+
+  local line kind sha path rest reason marker
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      '' | '#'*) continue ;;
+      *) ;;
+    esac
+    read -r kind sha path rest <<<"$line"
+
+    case "$kind" in
+      fires | clean)
+        [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+          die "incident sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
+        if [[ "$kind" = "fires" ]]; then
+          printf '%s\n' "$sha" >>"$fires_out"
+        fi
+        ;;
+      marker)
+        # The parsed view below is SEP-delimited, so a row already carrying
+        # that byte is refused up front rather than silently mis-split. It is a
+        # control character no editor writes by accident; the check exists so
+        # the invariant is stated rather than assumed.
+        case "$line" in
+          *"$SEP"*) die "marker row for $sha in $INCIDENTS_FILE contains a control character" ;;
+          *) ;;
+        esac
+        [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+          die "marker row sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
+        [[ -n "$path" ]] ||
+          die "marker row for $sha in $INCIDENTS_FILE records no path"
+        case "$path" in
+          \[*) die "marker row for $sha in $INCIDENTS_FILE has a disposition where its path should be" ;;
+          *) ;;
+        esac
+
+        reason=""
+        marker="$rest"
+        if [[ "$rest" == \[* ]]; then
+          [[ "$rest" == \[*\]* ]] ||
+            die "unterminated disposition on the marker row for $sha in $INCIDENTS_FILE (no closing ']'): $rest"
+          local disposition="${rest%%\]*}"
+          disposition="${disposition#\[}"
+          printf '%s\n' "$disposition" |
+            grep -Eq '^not-restored:[[:space:]]*[^[:space:]]' ||
+            die "disposition '[$disposition]' on the marker row for $sha in $INCIDENTS_FILE must be [not-restored: <non-empty reason>]"
+          reason="${disposition#not-restored:}"
+          reason="${reason#"${reason%%[![:space:]]*}"}"
+          marker="${rest#*\]}"
+          marker="${marker#"${marker%%[![:space:]]*}"}"
+        fi
+        [[ -n "$marker" ]] ||
+          die "marker row for $sha in $INCIDENTS_FILE records no marker text"
+
+        printf '%s%s%s%s%s%s%s\n' \
+          "$sha" "$SEP" "$path" "$SEP" "$reason" "$SEP" "$marker" >>"$markers_out"
+        ;;
+      *) die "unknown row kind '$kind' in $INCIDENTS_FILE" ;;
+    esac
+  done <"$INCIDENTS_FILE"
+}
+
+# marker_present <rev> <path> <marker>
+# 0 present, 1 absent. An empty rev means the working tree.
+#
+# The path is resolved to EXACTLY ONE FILE, never handed to a pathspec.
+#
+# That is the difference between this assertion meaning something and meaning
+# nothing, and it is not theoretical. `git grep -- <path>` reads its argument as
+# a PATHSPEC, so a path that is a directory (`plugins/disk-hygiene`), a glob
+# (`plugins/*`), a bare `.`, or pathspec magic (`:/`, `:(glob)**`) silently
+# widens the search to a SUPERSET of the file the marker is bound to. Nothing
+# about such a row looks wrong to a reviewer.
+#
+# The amplifier that makes it fatal: every marker string is, by construction,
+# also present in scripts/silent-revert-incidents.txt itself, because that is
+# where the marker is written down. So a widened path does not merely risk a
+# stray match -- it makes the assertion TAUTOLOGICALLY satisfiable by its own
+# corpus. Measured: with every shipped path replaced by `.`, all five markers
+# report restored on a tree with plugins/disk-hygiene and
+# plugins/repo-fleet-hygiene deleted outright.
+#
+# `git cat-file <rev>:<path>` has no pathspec semantics at all -- it is an exact
+# object lookup -- so the widening class cannot be expressed. A path that names
+# no object at the rev returns 1 (absent), which is a legitimate finding: content
+# cannot be restored to a file that is not there. A path that resolves to a tree
+# rather than a blob is a corpus error, not a finding, and exits 2.
+#
+# grep's exit status is then read explicitly rather than through `if`, because 1
+# (no match) and >1 (could not run) must not collapse. A broken invocation
+# reported as "marker absent" would be the false-RED twin of the false green the
+# rest of this script exists to remove. grep reads a here-string rather than a
+# pipe from cat-file: under `set -o pipefail`, `grep -q` exiting early on a match
+# SIGPIPEs the upstream and the pipeline status becomes 141, which would take
+# that very cannot-run branch on a marker that is present.
+marker_present() {
+  local rev="$1" path="$2" marker="$3" status kind content
+  if [[ -n "$rev" ]]; then
+    kind="$(git cat-file -t "${rev}:${path}" 2>/dev/null)" || return 1
+    [[ "$kind" = "blob" ]] ||
+      die "marker path '$path' resolves to a $kind at $rev, not a file -- bind a marker to exactly one file"
+    content="$(git cat-file blob "${rev}:${path}" 2>/dev/null)" ||
+      die "could not read '$path' at $rev"
+  else
+    [[ -e "$path" ]] || return 1
+    [[ -f "$path" ]] ||
+      die "marker path '$path' is not a regular file -- bind a marker to exactly one file"
+    content="$(<"$path")" || die "could not read '$path'"
+  fi
+  grep -qF -e "$marker" <<<"$content"
+  status=$?
+  case "$status" in
+    0) return 0 ;;
+    1) return 1 ;;
+    *) die "grep failed (status $status) resolving a marker in $path at ${rev:-the working tree}" ;;
+  esac
+}
+
+verify_restoration() {
+  local rev="${1:-}"
+  [[ -f "$INCIDENTS_FILE" ]] || die "incident file not found: $INCIDENTS_FILE"
+
+  local where="the working tree"
+  if [[ -n "$rev" ]]; then
+    git rev-parse --verify --quiet "${rev}^{commit}" >/dev/null ||
+      die "cannot resolve rev '$rev' -- the restoration assertion needs full history (fetch-depth: 0)"
+    where="$rev"
+  fi
+
+  local fires markers
+  fires="$(mktemp)" || die "mktemp failed"
+  markers="$(mktemp)" || die "mktemp failed"
+  parse_incidents_file "$fires" "$markers"
+
+  # The whole file is validated, and both directions of the sha binding are
+  # checked, BEFORE any marker is resolved -- so a corpus problem can never
+  # pre-empt the walk and leave a partially reported failure looking complete.
+  local sha
+  while read -r sha; do
+    [[ -n "$sha" ]] || continue
+    # A `fires` row with no marker is refused rather than skipped. Skipping it
+    # would let this whole assertion be satisfied by recording markers for one
+    # historical incident while silently covering no future one -- a green
+    # signal that has stopped meaning what a reader takes it to mean, which is
+    # #2691 wearing a new hat.
+    # cut's delimiter is SEP, never its TAB default: the parsed view is
+    # SEP-delimited, so `cut -f1` would hand back the WHOLE line and the
+    # `grep -qxF` below could never match -- turning "does this fires row have
+    # a marker" into "no fires row has a marker" and dying on every corpus.
+    cut -d"$SEP" -f1 "$markers" | grep -qxF "$sha" ||
+      die "the 'fires' row for ${sha:0:9} in $INCIDENTS_FILE carries no marker. Record at least one: marker $sha <path> <a line of the content it removed>"
+  done <"$fires"
+
+  local mpath mreason mtext
+  while IFS="$SEP" read -r sha mpath mreason mtext; do
+    [[ -n "$sha" ]] || continue
+    # And the reverse: a marker on a `clean` row, or on a sha with no row at
+    # all, is a typo rather than coverage. Only a removal has content to
+    # restore.
+    grep -qxF "$sha" "$fires" ||
+      die "marker row for $sha in $INCIDENTS_FILE names no recorded 'fires' incident"
+  done <"$markers"
+
+  local rc=0 checked=0 absent=0 excused=0
+  printf 'Restoration of recorded incident content, resolved at %s:\n\n' "$where"
+  while IFS="$SEP" read -r sha mpath mreason mtext; do
+    [[ -n "$sha" ]] || continue
+    checked=$((checked + 1))
+    if marker_present "$rev" "$mpath" "$mtext"; then
+      printf 'ok    %s  %s\n' "${sha:0:9}" "$mpath"
+      printf '        present: %s\n' "$mtext"
+    elif [[ -n "$mreason" ]]; then
+      excused=$((excused + 1))
+      printf 'noted %s  %s\n' "${sha:0:9}" "$mpath"
+      printf '        deliberately not restored: %s\n' "$mreason"
+      printf '        marker: %s\n' "$mtext"
+    else
+      # Never break out of the walk on the first failure: the point of the
+      # report is WHICH content is still missing, and a run that stops at the
+      # first one answers a question nobody asked.
+      absent=$((absent + 1))
+      rc=1
+      printf 'FAIL  %s  %s\n' "${sha:0:9}" "$mpath"
+      printf '        NOT RESTORED: %s\n' "$mtext"
+    fi
+  done <"$markers"
+
+  rm -f "$fires" "$markers"
+
+  if [[ "$rc" -ne 0 ]]; then
+    printf '\n'
+    printf '%s of %s recorded marker(s) are absent from %s.\n' "$absent" "$checked" "$where"
+    echo "Those incidents still FIRE as recorded, which is only half the proof:"
+    echo "the removal was detected and never fully undone. Re-land the content."
+    echo "If it is deliberately staying out, say so on its marker row -- with a"
+    echo "reason, the same shape an Intentional-removal: trailer needs:"
+    echo "  marker <incident-sha> <path> [not-restored: <why>] <marker text>"
+    echo "Do NOT delete the marker row. That is the mute button this corpus"
+    echo "exists in order not to have."
+    return 1
+  fi
+
+  printf '\n'
+  printf 'Every recorded incident has its content at %s (%s marker(s), %s dispositioned).\n' \
+    "$where" "$checked" "$excused"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 main() {
   [[ $# -ge 1 ]] || usage
 
   case "$1" in
     --verify-known-incidents)
       verify_known_incidents
+      exit $?
+      ;;
+    --verify-restoration)
+      # The rev is optional and defaults to the working tree, which is what the
+      # canary workflow wants (is the content on main RIGHT NOW) while the
+      # explicit form is what lets a reviewer replay the assertion against the
+      # historical tree an incident was measured on.
+      [[ $# -le 2 ]] || usage
+      verify_restoration "${2:-}"
       exit $?
       ;;
     --commit)
