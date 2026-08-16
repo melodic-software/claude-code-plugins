@@ -3,6 +3,26 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.11]
+
+### Fixed
+
+- **Flag the ordinary send-an-item-to-the-Recycle-Bin spelling (#2850).** The `Shell.Application`
+  rule shipped for #2595 required the literal bin folder id — `NameSpace(10)` / `NameSpace(0xa)` —
+  so `$sh.NameSpace('<parent folder>').ParseName('victim').InvokeVerb('delete')`, which addresses
+  the item through its parent folder and never names the bin, returned no verdict and raised no
+  prompt. That shape is now keyed on the delete VERB rather than on the folder id, and returns
+  `ask` (or `deny` in audit-only mode) like every other recognized deletion spelling. The suffixed
+  `InvokeVerbEx` spelling is covered by the same token, which a word boundary closed after
+  `InvokeVerb` had excluded.
+- **What the rule deliberately still does not catch (#2850).** `MoveHere` into an ordinary
+  (non-bin) folder is a MOVE, not a deletion, and keeps deferring; so do `CopyHere`, non-delete
+  verbs such as `InvokeVerb('open')`, the omitted default verb, and an opaque verb argument
+  (`InvokeVerb($verb)`). The delete-verb set is enumerated, not identity-checked — a COM shell verb
+  is named by the item's own verb collection, so completeness is not implied — and the pattern set
+  now says so. The test note claiming `Move-Item` is the catch-all for these COM spellings is
+  corrected: `_POWERSHELL_MUTATION_WORDS` matches neither `MoveHere` nor `InvokeVerb`.
+
 ## [0.20.10]
 
 ### Fixed
