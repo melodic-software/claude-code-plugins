@@ -782,8 +782,9 @@ export async function acquireXMedia(url, context) {
   }
   if (taggedVtts.length > 0) {
     // Originals move aside (yt-dlp only re-downloads absent subtitles) and are
-    // unlinked ONLY after the cleanup pass succeeds and produced output; a
-    // failed cleanup fails the acquisition instead of silently losing captions.
+    // unlinked ONLY after the cleanup pass succeeds and produced a converted
+    // counterpart for EVERY tagged original; a failed or partial cleanup fails
+    // the acquisition instead of silently losing captions.
     for (const filePath of taggedVtts) {
       await writeFile(
         `${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`,
@@ -804,9 +805,17 @@ export async function acquireXMedia(url, context) {
         entry.endsWith(".srt") &&
         [...mediaIds].some((id) => path.basename(entry).startsWith(`${id}.`)),
     );
-    if (!cleanupPass.success || srtPaths.length === 0) {
+    // Backups are deletable only when every tagged VTT has its own converted
+    // .srt — a partial conversion (multi-video post) must not pass on the
+    // strength of the entries that did convert.
+    const unconverted = taggedVtts.filter(
+      (filePath) => !srtPaths.includes(filePath.replace(/\.vtt$/, ".srt")),
+    );
+    if (!cleanupPass.success || unconverted.length > 0) {
       const detail = cleanupPass.success
-        ? "cleanup pass produced no .srt output for the post's media"
+        ? `cleanup pass produced no .srt output for the post's media: ${unconverted
+            .map((filePath) => path.basename(filePath))
+            .join(", ")}`
         : spawnFailureDetail(cleanupPass);
       return failX(`Caption cleanup failed after word-timing tags were detected: ${detail}`);
     }

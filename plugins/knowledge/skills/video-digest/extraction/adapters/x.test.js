@@ -743,6 +743,61 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
   });
 
+  it("a PARTIAL cleanup conversion on a multi-video post fails the acquisition with every backup intact", async () => {
+    const { deps, files } = createFixtureDeps(workDir, [
+      {
+        addFiles: {
+          [`${MEDIA_ID}.info.json`]: twitterInfoJson(),
+          [`${SECOND_MEDIA_ID}.info.json`]: twitterInfoJson({ id: SECOND_MEDIA_ID }),
+          [`${MEDIA_ID}.en.vtt`]: TAGGED_VTT,
+          [`${SECOND_MEDIA_ID}.en.vtt`]: TAGGED_VTT,
+        },
+      },
+      // Cleanup exits 0 but converts only the FIRST entry's captions — one
+      // matching .srt must never license deleting the other entry's backup.
+      { addFiles: { [`${MEDIA_ID}.en.srt`]: CLEANUP_SRT } },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Caption cleanup failed");
+    expect(result.error).toContain(`${SECOND_MEDIA_ID}.en.vtt`);
+    // BOTH tagged originals survive as backups — including the converted entry's.
+    expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
+    expect(files.get(path.join(workDir, `${SECOND_MEDIA_ID}.en.vtt.tagged-original`))).toBe(
+      TAGGED_VTT,
+    );
+  });
+
+  it("a multi-video cleanup that converts EVERY tagged caption succeeds and clears the backups", async () => {
+    const { deps, files } = createFixtureDeps(workDir, [
+      {
+        addFiles: {
+          [`${MEDIA_ID}.info.json`]: twitterInfoJson(),
+          [`${SECOND_MEDIA_ID}.info.json`]: twitterInfoJson({ id: SECOND_MEDIA_ID }),
+          [`${MEDIA_ID}.en.vtt`]: TAGGED_VTT,
+          [`${SECOND_MEDIA_ID}.en.vtt`]: TAGGED_VTT,
+        },
+      },
+      {
+        addFiles: {
+          [`${MEDIA_ID}.en.srt`]: CLEANUP_SRT,
+          [`${SECOND_MEDIA_ID}.en.srt`]: CLEANUP_SRT,
+        },
+      },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "transcript", deps });
+
+    expect(result.success).toBe(true);
+    expect(result.data.acquireMetrics?.captionCleanup).toBe("converted");
+    for (const mediaId of [MEDIA_ID, SECOND_MEDIA_ID]) {
+      const rebuilt = files.get(path.join(workDir, `${mediaId}.en.vtt`));
+      expect(rebuilt).toContain("WEBVTT");
+      expect(rebuilt).not.toContain("<X-word-ms");
+      expect(files.get(path.join(workDir, `${mediaId}.en.vtt.tagged-original`))).toBeUndefined();
+    }
+  });
+
   it("a failed caption cleanup pass fails the acquisition — captions are never silently lost", async () => {
     const { deps, files } = createFixtureDeps(workDir, [
       {
