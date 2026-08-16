@@ -1405,6 +1405,12 @@ _POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
 #   - a non-literal verb argument (`InvokeVerb($verb)`) — the verb is opaque;
 #   - the omitted verb (`InvokeVerb()`) — the default verb, "typically 'open'"
 #     per the `FolderItem.InvokeVerb` reference above.
+#
+# The lookbehind is `(?<![\w])`, not the cmdlet list's `(?<![\w./\\-])`: a
+# hyphen-prefixed relative (`My-InvokeVerb('delete')`, a wrapper function) still
+# matches, deliberately. Tightening it would buy precision by making a wrapper
+# that deletes go SILENT, which is the failure this rule exists to close;
+# prompting once on a wrapper is the cheaper error.
 _POWERSHELL_SHELL_APP_INVOKE_VERB_ARG = re.compile(
     r"(?i)(?<![\w])InvokeVerb(?:Ex)?\s*\(\s*(?P<quote>[\"'])(?P<verb>[^\"']*)(?P=quote)"
 )
@@ -1415,7 +1421,9 @@ def _shell_verb_name_deletes(verb: str) -> bool:
     """True when a shell verb NAME is one of the enumerated delete verbs.
 
     A menu accelerator marks the same verb (`&Delete`, `De&lete`), so `&` is
-    dropped before the comparison.
+    dropped before the comparison, and surrounding whitespace is stripped so a
+    padded literal (`' delete '`) resolves to the same verb rather than slipping
+    past the enumeration.
     """
     return verb.replace("&", "").strip().casefold() in _SHELL_APP_DELETE_VERB_NAMES
 
@@ -1440,7 +1448,7 @@ def _shell_application_recycle_bin_delete_reason(command: str) -> str | None:
         for match in _POWERSHELL_SHELL_APP_INVOKE_VERB_ARG.finditer(command)
     ):
         return (
-            "disk-hygiene flagged a Shell.Application delete verb "
+            "disk-hygiene flagged a COM shell delete verb "
             "(InvokeVerb sends the item to the Recycle Bin)."
         )
     return None

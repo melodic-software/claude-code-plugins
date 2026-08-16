@@ -16,9 +16,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `InvokeVerbEx` spelling is covered by the same token, which a word boundary closed after
   `InvokeVerb` had excluded.
 - **What the rule deliberately still does not catch (#2850).** `MoveHere` into an ordinary
-  (non-bin) folder is a MOVE, not a deletion, and keeps deferring; so do `CopyHere`, non-delete
-  verbs such as `InvokeVerb('open')`, the omitted default verb, and an opaque verb argument
-  (`InvokeVerb($verb)`). The delete-verb set is enumerated, not identity-checked — a COM shell verb
+  (non-bin) folder is a MOVE, not a deletion, and keeps deferring; so do `CopyHere` into an
+  ordinary folder, non-delete verbs such as `InvokeVerb('open')`, the omitted default verb, and an
+  opaque verb argument (`InvokeVerb($verb)`). The delete-verb set is enumerated, not identity-checked — a COM shell verb
   is named by the item's own verb collection, so completeness is not implied — and the pattern set
   now says so. The test note claiming `Move-Item` is the catch-all for these COM spellings is
   corrected: `_POWERSHELL_MUTATION_WORDS` matches neither `MoveHere` nor `InvokeVerb`.
