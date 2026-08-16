@@ -696,7 +696,7 @@ BAD_ROWS
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
   if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'ambiguous disposition'; then
-    ok "a disposition reason containing ']' is refused instead of silently mis-split"
+    ok "a disposition reason containing ']' is refused instead of splitting wrongly"
   else
     fail "an ambiguous disposition must exit 2, rc=$RC: $out"
   fi
