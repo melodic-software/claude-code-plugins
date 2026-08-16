@@ -95,6 +95,18 @@ describe("parseArgs", () => {
   it("rejects unknown flags", () => {
     expect(() => parseArgs(["--network"])).toThrow(/unknown argument/);
   });
+
+  it("rejects --probes without a path", () => {
+    expect(() => parseArgs(["--probes"])).toThrow(/--probes requires a path/);
+  });
+
+  it("rejects --probes followed by another flag", () => {
+    expect(() => parseArgs(["--probes", "--live"])).toThrow(/--probes requires a path/);
+  });
+
+  it("accepts --probes with a path", () => {
+    expect(parseArgs(["--probes", "/tmp/probes.json"]).probesPath).toBe("/tmp/probes.json");
+  });
 });
 
 describe("runAllProbes offline", () => {

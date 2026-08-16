@@ -398,7 +398,11 @@ export function parseArgs(argv) {
     } else if (arg === "--help" || arg === "-h") {
       help = true;
     } else if (arg === "--probes") {
-      probesPath = argv[i + 1] ?? null;
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        throw new Error("--probes requires a path argument");
+      }
+      probesPath = next;
       i += 1;
     } else {
       throw new Error(`unknown argument: ${arg}`);

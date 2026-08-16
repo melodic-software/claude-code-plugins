@@ -46,7 +46,8 @@ node plugins/knowledge/skills/youtube-digest/extraction/liveness/run-source-live
 node plugins/knowledge/skills/youtube-digest/extraction/liveness/run-source-liveness.js --live
 ```
 
-Optional cookies (new name wins; legacy still read):
+Optional cookies (secret holds Netscape cookie-jar **contents**; the workflow
+materializes them to a temp file before probing):
 
 - `VIDEO_DIGEST_YT_DLP_COOKIES_FILE`
 - `YOUTUBE_YT_DLP_COOKIES_FILE`
