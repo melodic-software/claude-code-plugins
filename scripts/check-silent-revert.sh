@@ -213,9 +213,26 @@ command -v git >/dev/null 2>&1 || die "git is required"
 # Intent markers. Constrained forms only -- see FALSE-POSITIVE STRATEGY above.
 # ---------------------------------------------------------------------------
 # Returns 0 when the commit declares the removal, printing the clause matched.
+#
+# --no-show-signature is a pin, and this call is the one that makes it matter.
+# The branch ruleset REQUIRES signed commits, so every commit this canary
+# scans on main carries a signature. `log.showSignature = true` in the caller's
+# config -- ordinary reviewer configuration -- makes git print its verification
+# verdict ON STDOUT ahead of the formatted output, which is precisely what
+# `$(...)` captures. The subject below then reads `Good "git" signature for
+# ...` instead of the commit's own subject, both SUBJECT-anchored intent forms
+# stop matching, and the one deliberate revert in main's history fires as a
+# false positive with gpg noise printed where the report's subject belongs.
+# (The two BODY-anchored forms survive it: they grep the whole message with ^
+# anchors, so the extra leading lines are harmless.)
+#
+# It fails toward firing, so it is not a false green -- but it is a wrong
+# answer, and unlike the pins in attribute_file it touches no diff and no
+# blame, so it moves no count in either direction. The other `git log` reads in
+# this file carry it too; there the damage is only a garbled report.
 declares_removal() {
   local sha="$1" msg subject
-  msg="$(git log -1 --format=%B "$sha")" || return 1
+  msg="$(git log -1 --no-show-signature --format=%B "$sha")" || return 1
   subject="$(printf '%s\n' "$msg" | head -n 1)"
 
   case "$subject" in
@@ -311,10 +328,60 @@ attribute_file() {
   # Old-side hunk ranges (the parent's line numbers) with at least one deleted
   # line. --unified=0 keeps each hunk tight to its own deletions.
   #
-  # EVERY config knob that can move a count is pinned on the command line, in
-  # BOTH the diff below and the blame beneath it -- see the blame call for its
-  # own pins. All of them are the git defaults, so this changes nothing about
-  # what CI detects; it makes a local run match CI rather than the reverse.
+  # WHAT THE PINS BELOW CLAIM, AND WHAT THEY DO NOT
+  # -----------------------------------------------
+  # The claim is deliberately narrow, and it is exactly the claim
+  # `t_counts_are_immune_to_ambient_git_config` checks: two runs of the same
+  # commit produce IDENTICAL per-culprit counts regardless of the CALLER'S git
+  # configuration. Not "every knob that could ever matter is pinned" -- that is
+  # a claim nobody can hold true against a program with as many configuration
+  # surfaces as git, and this file is not the place to ship an assertion it
+  # cannot defend. Each pin's flags are git's own defaults, so pinning them
+  # changes nothing about what CI detects; it makes a local run match CI rather
+  # than the reverse.
+  #
+  # Pinned, with the call site each one is MEASURED to be load-bearing at
+  # (scripts/check-silent-revert.test.sh strips each in turn and asserts the
+  # outcome moves, so none of them is decoration a future tidy can delete):
+  #
+  #   --diff-algorithm=myers   this diff. Changes which lines a hunk calls
+  #                            deleted -- the numbers below.
+  #   --no-ext-diff            this diff. `diff.external` replaces git's output
+  #                            wholesale, no @@ headers arrive, and the canary
+  #                            reports `ok` on a real incident. Measured inert
+  #                            on the --name-only enumeration, which runs no
+  #                            diff driver, so it is not pinned there.
+  #   --no-textconv            this diff AND the blame. A `diff.<name>.textconv`
+  #                            reaches BOTH, and --no-ext-diff does not cover it.
+  #   -M                       the --name-only enumeration in scan_commit, which
+  #                            relies on a rename reporting as R. Measured INERT
+  #                            here: this diff is pathspec-limited to one
+  #                            old-side file, so no rename pair can form. It is
+  #                            written here anyway for symmetry, not for effect.
+  #   --no-ignore-revs-file    the blame. Reassigns authorship outright.
+  #   --no-show-signature      the `git log` reads. Protects INTENT DETECTION,
+  #                            not the counts -- see declares_removal.
+  #
+  # NOT covered, stated rather than implied:
+  #
+  #   The repository's own tracked .gitattributes. `-diff` on *.lock and
+  #   `binary` on assets make those paths produce zero hunks, so their deletions
+  #   contribute nothing -- they are enumerated and then attributed at zero. NO
+  #   command-line flag overrides an attribute; `--text` does force hunks and is
+  #   deliberately NOT used, because on a genuinely binary blob it manufactures
+  #   hundred-line attributions out of random bytes. This is a recall gap, not a
+  #   calibration one: no path of that class appears in any calibration commit.
+  #   It is also not the exposure the pins address -- attributes are tracked in
+  #   the repository, so CI and every developer read the same ones and nothing
+  #   diverges machine to machine.
+  #
+  #   git's own defaults, as opposed to the caller's overrides of them.
+  #   `diff.renameLimit` (default 1000) is the live one: a relocation of more
+  #   than ~1000 files that also edits their content decomposes into adds plus
+  #   deletes and can fire, with no hostile configuration anywhere. `-l0` would
+  #   lift it, but that OVERRIDES a git default rather than pinning one -- a
+  #   behaviour change on every machine including CI, and one that removes a
+  #   bound on an O(N^2) cost -- so it is filed rather than smuggled in here.
   #
   # This is not defensive decoration. The algorithm choice changes which lines a
   # hunk calls deleted, and therefore the per-culprit counts this canary
@@ -334,16 +401,18 @@ attribute_file() {
   # numbers talking about the same thing. Found via #2833, whose exact-count
   # replay assertions turned a silent divergence into a red build.
   #
-  # -M pins the same exposure for rename detection, which the note above calls
-  # load-bearing: `diff.renames = false` in a developer's config would decompose
-  # a `git mv` into delete + add and make relocating a large recent file fire.
+  # The rename-detection exposure the note above calls load-bearing is real --
+  # `diff.renames = false` in a developer's config decomposes a `git mv` into
+  # delete + add and makes relocating a large recent file fire -- but it is the
+  # ENUMERATION in scan_commit that -M actually defends, not this diff. See the
+  # pin table above.
   while read -r start count; do
     [[ -n "$start" ]] || continue
     [[ "$count" -gt 0 ]] || continue
     ranges+=(-L "$start,$((start + count - 1))")
   done < <(
-    git diff --unified=0 --no-color --diff-algorithm=myers -M \
-      "$parent" "$commit" -- "$file" 2>/dev/null |
+    git diff --no-ext-diff --no-textconv --unified=0 --no-color \
+      --diff-algorithm=myers -M "$parent" "$commit" -- "$file" 2>/dev/null |
       awk '/^@@ /{
              split($2, a, ",")
              start = substr(a[1], 2) + 0
@@ -382,7 +451,20 @@ attribute_file() {
   # value fully in effect (853 -> 259 with the reset supposedly applied). The
   # negated option is the only form that actually resets, so the obvious
   # symmetry with the -c pins above is wrong here and is deliberately not used.
-  git blame --no-ignore-revs-file --line-porcelain \
+  #
+  # --no-textconv is here for a reason that its own command's help will not
+  # tell you: `git blame -h` lists neither --textconv nor --no-textconv and
+  # git-blame's manual page never uses the word, yet blame applies textconv by
+  # DEFAULT and both spellings are accepted. Pinning only the diff is worse
+  # than pinning neither: attribute_file computes -L ranges from the DIFF's view
+  # of the file and hands them to blame, so two disagreeing views point the
+  # ranges at the wrong lines. Measured with a textconv prepending ten lines, an
+  # 80-line single-culprit finding silently re-cut into 60 against the real
+  # culprit and 20 against the base commit -- no error, just a wrong answer, and
+  # at the shipped threshold that is how a true finding slips under the line.
+  # --no-ext-diff is deliberately NOT here: blame accepts it but never runs an
+  # external diff driver, so it would be decoration.
+  git blame --no-ignore-revs-file --no-textconv --line-porcelain \
     "${ranges[@]}" "$parent" -- "$file" 2>/dev/null |
     awk '
       /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
@@ -398,7 +480,7 @@ scan_commit() {
   local sha subject parent
   sha="$(git rev-parse --verify "${commit}^{commit}" 2>/dev/null)" ||
     die "not a commit: $commit"
-  subject="$(git log -1 --format=%s "$sha")"
+  subject="$(git log -1 --no-show-signature --format=%s "$sha")"
 
   # Root commits delete nothing. Merge commits cannot occur here (the branch
   # ruleset requires linear history) but are handled rather than crashed on:
@@ -411,7 +493,7 @@ scan_commit() {
   local why
   if why="$(declares_removal "$sha")"; then
     printf 'declared %s %s\n' "${sha:0:9}" "$subject"
-    printf '         removal is declared: %s' "$why"
+    printf '         removal is declared: %s\n' "$why"
     return 0
   fi
 
@@ -496,10 +578,11 @@ report_finding() {
   printf 'SILENT REVERT SUSPECTED\n'
   printf '\n'
   printf '  removed by   %s  %s\n' "${sha:0:9}" "$subject"
-  printf '               %s\n' "$(git log -1 --format=%ci "$sha")"
-  printf '  content from %s  %s\n' "${culprit:0:9}" "$(git log -1 --format=%s "$culprit")"
+  printf '               %s\n' "$(git log -1 --no-show-signature --format=%ci "$sha")"
+  printf '  content from %s  %s\n' "${culprit:0:9}" \
+    "$(git log -1 --no-show-signature --format=%s "$culprit")"
   printf '               %s  (%s commit(s) earlier on main)\n' \
-    "$(git log -1 --format=%ci "$culprit")" "$((distance + 1))"
+    "$(git log -1 --no-show-signature --format=%ci "$culprit")" "$((distance + 1))"
   printf '  lines lost   %s  (threshold %s, window %s commits)\n' \
     "$count" "$THRESHOLD" "$WINDOW"
   printf '\n'
