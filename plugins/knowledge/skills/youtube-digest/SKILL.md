@@ -322,7 +322,7 @@ Deterministic frame-selection stages (`orchestrate-watching.js`), the standalone
 node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<slice-slug>"
 ```
 
-Reads `.work/<watch-epic>/<slice-slug>/watch.json`, identifies the next incomplete phase (`acquire` → `transcript` → `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`, and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run `run-watch.js` before vision.
+Reads the named slice's `watch.json` under `.work/<watch-epic>/` (see the directory note above), identifies the next incomplete phase (`acquire` → `transcript` → `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`, and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run `run-watch.js` before vision.
 
 **Handoff ritual** (context pressure or session end):
 
