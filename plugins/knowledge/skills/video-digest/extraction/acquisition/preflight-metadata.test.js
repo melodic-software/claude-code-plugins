@@ -141,13 +141,24 @@ describe("buildPreflightArgs", () => {
     expect(args).toContain("--js-runtimes");
   });
 
-  it("threads a cookies-from-browser override into the probe", () => {
+  it("threads a cookies-from-browser override into the probe for a capability-declaring source", () => {
+    // Production only supplies this override from the fallback loop, which is
+    // itself gated on the same capability the argv gate reads.
+    const args = buildPreflightArgs(DRIVER_WATCH_URL, {
+      env: {},
+      authOverride: { cookiesFromBrowser: "edge" },
+      source: { allowBrowserCookieProfileFallback: true },
+    });
+    expect(args).toContain("--cookies-from-browser");
+    expect(args).toContain("edge");
+  });
+
+  it("drops a cookies-from-browser override for a source without the capability", () => {
     const args = buildPreflightArgs(DRIVER_WATCH_URL, {
       env: {},
       authOverride: { cookiesFromBrowser: "edge" },
     });
-    expect(args).toContain("--cookies-from-browser");
-    expect(args).toContain("edge");
+    expect(args).not.toContain("--cookies-from-browser");
   });
 });
 

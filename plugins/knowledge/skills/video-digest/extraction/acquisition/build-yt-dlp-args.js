@@ -48,6 +48,10 @@ export const LEGACY_YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
  * @property {boolean} [ignoreNoFormatsError] - push `--ignore-no-formats-error` so a
  *   0-media post resolves as a metadata-only result instead of a fatal spawn
  * @property {string} [convertSubs] - push `--convert-subs <format>` (caption cleanup pass)
+ * @property {boolean} [allowBrowserCookieProfileFallback] - permit `--cookies-from-browser`
+ *   in the argv; the SAME adapter capability (`capabilities.browserCookieFallback`) that
+ *   gates the automatic browser-profile fallback loop, so a cookies-file-only source
+ *   never carries a browser-cookie argument — env-configured or otherwise
  */
 
 /**
@@ -63,11 +67,20 @@ export const LEGACY_YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
  *
  * Override wins over env when `authOverride` fields are set (used for automatic browser fallback).
  *
+ * A cookies FILE is always allowed; `--cookies-from-browser` is emitted only when the
+ * source declares the browser-cookie capability (closed by default), keeping
+ * cookies-file-only sources free of browser-cookie arguments on every argv path.
+ *
  * @param {NodeJS.ProcessEnv} [env]
  * @param {YtDlpAuthOverride} [authOverride]
+ * @param {boolean} [allowBrowserCookieProfileFallback]
  * @returns {string[]}
  */
-export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
+export function resolveYtDlpAuthArgs(
+  env = process.env,
+  authOverride = {},
+  allowBrowserCookieProfileFallback = false,
+) {
   /** @type {string[]} */
   const args = [];
 
@@ -86,7 +99,7 @@ export function resolveYtDlpAuthArgs(env = process.env, authOverride = {}) {
 
   if (cookiesFile) {
     args.push("--cookies", cookiesFile);
-  } else if (cookiesBrowser) {
+  } else if (cookiesBrowser && allowBrowserCookieProfileFallback) {
     args.push("--cookies-from-browser", cookiesBrowser);
   }
 
@@ -180,7 +193,9 @@ export function buildYtDlpArgs(
     args.push("-f", YT_DLP_VIDEO_FORMAT, "--remux-video", "mp4");
   }
 
-  args.push(...resolveYtDlpAuthArgs(env, authOverride));
+  args.push(
+    ...resolveYtDlpAuthArgs(env, authOverride, source.allowBrowserCookieProfileFallback === true),
+  );
   // End-of-options sentinel: the URL can never be parsed as a flag, so the
   // argv boundary defends itself instead of relying on upstream URL vetting.
   args.push("--", url);

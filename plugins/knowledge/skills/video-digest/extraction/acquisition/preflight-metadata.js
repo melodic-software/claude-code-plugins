@@ -167,7 +167,7 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     ...(source.ignoreNoFormatsError ? ["--ignore-no-formats-error"] : []),
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
-    ...resolveYtDlpAuthArgs(env, authOverride),
+    ...resolveYtDlpAuthArgs(env, authOverride, source.allowBrowserCookieProfileFallback === true),
     // End-of-options sentinel: the URL can never be parsed as a flag.
     "--",
     url,

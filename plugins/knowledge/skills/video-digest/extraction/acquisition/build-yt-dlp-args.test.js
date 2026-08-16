@@ -118,16 +118,34 @@ describe("buildYtDlpArgs", () => {
     expect(args.at(-1)).toBe(URL);
   });
 
-  it("uses cookies-from-browser when configured", () => {
-    const args = resolveYtDlpAuthArgs({ VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" });
+  it("uses cookies-from-browser when configured and the source declares the capability", () => {
+    const args = resolveYtDlpAuthArgs(
+      { VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
+      {},
+      true,
+    );
     expect(args).toEqual(["--cookies-from-browser", "chrome", "--js-runtimes", "node"]);
   });
 
+  it("ignores the browser-cookie env without the capability (closed by default)", () => {
+    const args = resolveYtDlpAuthArgs({ VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" });
+    expect(args).toEqual(["--js-runtimes", "node"]);
+  });
+
+  it("a cookies FILE stays allowed without the browser-cookie capability", () => {
+    const args = resolveYtDlpAuthArgs({ VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt" });
+    expect(args).toEqual(["--cookies", "/tmp/cookies.txt", "--js-runtimes", "node"]);
+  });
+
   it("prefers cookies file over browser", () => {
-    const args = resolveYtDlpAuthArgs({
-      VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt",
-      VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome",
-    });
+    const args = resolveYtDlpAuthArgs(
+      {
+        VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt",
+        VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome",
+      },
+      {},
+      true,
+    );
     expect(args).toEqual(["--cookies", "/tmp/cookies.txt", "--js-runtimes", "node"]);
   });
 
@@ -157,6 +175,7 @@ describe("buildYtDlpArgs", () => {
     const args = resolveYtDlpAuthArgs(
       { VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" },
       { cookiesFromBrowser: "edge" },
+      true,
     );
     expect(args).toEqual(["--cookies-from-browser", "edge", "--js-runtimes", "node"]);
   });

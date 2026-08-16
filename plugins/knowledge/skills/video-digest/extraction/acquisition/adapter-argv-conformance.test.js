@@ -21,11 +21,10 @@ const X_URL = "https://x.com/i/web/status/1720000000000000000";
 /** @type {import('./build-yt-dlp-args.js').AcquisitionMode[]} */
 const MODES = ["full", "video-only", "transcript", "captions-only"];
 
-/** @param {typeof youtube} adapter @param {string} url */
-function buildAllArgv(adapter, url) {
+/** @param {typeof youtube} adapter @param {string} url @param {NodeJS.ProcessEnv} [env] */
+function buildAllArgv(adapter, url, env = {}) {
   const source = adapterSourceDeclarations(adapter);
-  // Empty env: local cookie/js-runtime settings must not leak into the assertions.
-  const env = {};
+  // Default empty env: local cookie/js-runtime settings must not leak into the assertions.
   return [
     ...MODES.map((mode) => ({
       label: `acquisition ${mode}`,
@@ -53,6 +52,40 @@ describe("X argv carries its declared allow-list and mediaOptional flag everywhe
       expect(args, label).toContain("--ignore-no-formats-error");
       // Comments capability is false — never push the comment download.
       expect(args, label).not.toContain("--write-comments");
+    }
+  });
+});
+
+describe("browser-cookie argv follows each adapter's browserCookieFallback capability", () => {
+  const BROWSER_COOKIE_ENV = { VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "chrome" };
+  const COOKIES_FILE_ENV = { VIDEO_DIGEST_YT_DLP_COOKIES_FILE: "/tmp/cookies.txt" };
+
+  it("X argv never carries --cookies-from-browser, even with the env var set, in every acquisition mode and preflight", () => {
+    for (const { label, args } of buildAllArgv(x, X_URL, BROWSER_COOKIE_ENV)) {
+      expect(args, label).not.toContain("--cookies-from-browser");
+    }
+  });
+
+  it("YouTube argv still carries --cookies-from-browser from the env in every acquisition mode and preflight", () => {
+    for (const { label, args } of buildAllArgv(youtube, YOUTUBE_URL, BROWSER_COOKIE_ENV)) {
+      const index = args.indexOf("--cookies-from-browser");
+      expect(index, label).toBeGreaterThan(-1);
+      expect(args[index + 1], label).toBe("chrome");
+    }
+  });
+
+  it("a cookies FILE stays allowed for both sources in every acquisition mode and preflight", () => {
+    for (const { adapter, url } of [
+      { adapter: x, url: X_URL },
+      { adapter: youtube, url: YOUTUBE_URL },
+    ]) {
+      for (const { label, args } of buildAllArgv(adapter, url, COOKIES_FILE_ENV)) {
+        const caseLabel = `${adapter.id} ${label}`;
+        const index = args.indexOf("--cookies");
+        expect(index, caseLabel).toBeGreaterThan(-1);
+        expect(args[index + 1], caseLabel).toBe("/tmp/cookies.txt");
+        expect(args, caseLabel).not.toContain("--cookies-from-browser");
+      }
     }
   });
 });
