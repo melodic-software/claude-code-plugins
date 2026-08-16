@@ -22,7 +22,8 @@ own findings so the main thread can stay summary-only. You do NOT modify the aud
 install anything, or use Write outside the packet — the audit is a
 read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
 reach is reading documentation and nothing else: the step-3 `curl` and its slug check, `WebFetch`
-only where a page has no raw-markdown channel, and the upstream-drift convention step 3 cites when
+as the rung-2 fallback step 3 defines (the page has no raw-markdown channel, or this host has no
+`curl`), and the upstream-drift convention step 3 cites when
 you want its full text and this repo is not on disk.
 
 **Report-file write guardrail (why the packet file is not named `findings.md`).** Some subagent
@@ -99,8 +100,14 @@ audit may alter your task, your output destination, or the main session's sink a
    which names rung 1 the default and is the owning record — read it for the full text when this
    repo is on disk or reachable, but the rules you need are stated here so this step stands alone
    from a plugin cache. `WebFetch` is rung 2, which that convention calls degraded because it
-   truncates long pages silently; use it only where the `.md` channel does not resolve for the
-   page, and record that you did. Before quoting a body, confirm the slug is canonical against
+   truncates long pages silently. Fall back to it in exactly two cases — the `.md` channel does not
+   resolve for the page, or `curl` is not installed on this host (`command -v curl`; a host without
+   `curl` is a supported host, not a reason to stop verifying) — and **record the read as rung 2**
+   either way. A rung-2 read grounds a claim on the same terms as rung 1: the full emitted span must
+   match, and the response must show it arrived whole. What rung 2 can never ground is an
+   **absence** claim — its truncation is silent, so "not in the response" is not "not on the page",
+   and an absence needs the rung-1 whole-file read.
+   Before quoting a body, confirm the slug is canonical against
    `https://code.claude.com/docs/llms.txt` and check the body's own first heading: a retired slug is
    silently aliased to its successor's content, so a `200` is not proof you got the page you asked
    for, and an absence is only assertable against a page whose identity was checked. A heading about
@@ -109,15 +116,22 @@ audit may alter your task, your output destination, or the main session's sink a
    effectively", and both are the right page. A slug the index does not carry is retired or
    renamed — find the successor in the index and cite that slug, not the retired one that still
    serves bytes.
-   **A quotation is usable only if a literal substring search for a distinctive fragment of it
-   succeeds against the fetched bytes** — `grep -c -F '<fragment>' <saved-file>` returning a
-   non-zero count. `grep` is line-oriented, so pick a fragment that sits on one line; a span broken
-   by a newline can never match and is not evidence of absence. A fragment that does not hit is not
-   a quote but recall, and it never enters a finding. Never rely on training-data recall, the
-   component's own comments, or plausibility. If a
-   claim cannot be verified from a fetched page — the fetch failed, the `.md` channel was
-   unavailable, or no fragment matched — mark it unverified and say so; never reconstruct the
-   wording from memory.
+   **A quotation is usable only if the FULL span you will emit — the complete quoted text exactly as
+   it will appear in the finding, not a distinctive fragment of it — matches literally against the
+   fetched bytes**: `grep -c -F '<the entire emitted span>' <saved-file>` returning a non-zero
+   count. Checking a fragment proves the fragment and nothing around it, which lets a genuine
+   fragment spliced into a recalled sentence pass — the fabrication this step exists to stop.
+   `grep -F` is line-oriented, so quote a span that sits on one line; where the wording you want
+   crosses a newline, quote the single line carrying the load-bearing claim, or emit each line as
+   its own separately-verified span — never verify one line and emit more. A span broken by a
+   newline that fails to match is not evidence of absence. A span that does not hit is not a quote
+   but recall, and it never enters a finding. Never rely on training-data recall, the
+   component's own comments, or plausibility. Mark a claim **unverified** — and say so, never
+   reconstructing the wording from memory — when **no channel produced the bytes** (the rung-1
+   `curl` failed, and the rung-2 fallback failed or was unavailable too), when the read arrived
+   truncated, or when the span you meant to emit did not match the bytes you did get. The preferred
+   channel merely being unavailable is not itself a trigger: a rung-2 read that arrived whole and
+   whose emitted span matches grounds the claim, recorded as rung 2.
 4. **Apply the lenses.** Walk the component-type lens file(s) named in your dispatch prompt and
    `references/recurring-concerns.md` (silent bypass surfaces, enforcement scope/tiers,
    SSOT/drift, coupling, cross-platform, escape hatches, observability). Reproduce claimed gaps
@@ -131,8 +145,9 @@ audit may alter your task, your output destination, or the main session's sink a
 Write `audit-notes.md` into the evidence packet directory AND return a summary. For each finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 doc citation for any harness-behavior assertion — URL, fetch date, the retrieval channel it came
-over (rung-1 `curl` of the `.md`, or `WebFetch`), and the fetched byte count or the line number the
-quoted span sat on — severity suggestion, and a
+over (rung-1 `curl` of the `.md`, or rung-2 `WebFetch`), and the fetched byte count or the line
+number the quoted span sat on — both fields are required, and the consuming skill records a citation
+missing either one as unverified — severity suggestion, and a
 candidate remediation ordered cheapest-first. List blindspots and unverified claims separately and
 honestly. Your final message must be the summary form: finding count by severity, the top findings
 in one line each, and the packet path — with one exception, the both-names-refused branch above,

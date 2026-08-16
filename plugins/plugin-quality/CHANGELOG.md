@@ -5,6 +5,37 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5]
+
+### Changed
+
+- **The quote check now covers the span that is actually emitted, not a fragment of it.** Step 3 of
+  `agents/auditor.md` asked only that a *distinctive fragment* of a quotation hit under
+  `grep -c -F`. A genuine fragment spliced into a recalled surrounding sentence cleared that check,
+  which is the fabrication the whole change exists to stop. The step now requires the **full quoted
+  span exactly as it will appear in the finding** to match literally against the fetched bytes, and
+  says what to do when the wording crosses a newline (`grep -F` is line-oriented): quote the single
+  line carrying the load-bearing claim, or emit each line as its own separately-verified span —
+  never verify one line and emit more.
+- **A successful rung-2 read grounds a claim, recorded as rung 2.** The unverified-trigger list
+  named "the `.md` channel was unavailable" as a standalone reason a claim could not be verified,
+  which cancelled the `WebFetch` fallback the same step sanctions: a complete, matching fallback
+  read was forced to unverified. A claim is unverified when **no** channel produced the bytes, when
+  the read arrived truncated, or when the emitted span did not match — not when the preferred
+  channel was merely unavailable. Rung 2 still never grounds an **absence** claim, because its
+  truncation is silent.
+- **Hosts without `curl` keep doc verification.** The rung-1 command is mandatory but not universally
+  installed, and `WebFetch` was permitted only where a page lacked a raw-markdown channel — so a
+  Linux or Git Bash host without `curl` lost doc grounding entirely, having previously worked
+  through the built-in fetch tool. The fallback now covers both cases (`command -v curl`), records
+  either as rung 2, and `README.md`'s Requirements section declares `curl` in the same
+  optional-with-degradation shape it already uses for `gh` and `jq`.
+- **The consumer-side check enforces both citation fields.** `skills/audit/SKILL.md` step 3 demoted
+  a finding to unverified only when its citation omitted the **retrieval channel**, while the
+  preceding sentence and the auditor's own output contract require the channel **and** a byte count
+  or line number. A citation carrying a channel but no count and no line passed. Either field
+  missing now demotes the finding, and the agent's output contract says so at the producing end too.
+
 ## [0.6.4]
 
 ### Changed
@@ -16,8 +47,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   truncates long pages silently — and "not in the response" is indistinguishable from "not on the
   page". The step now names the convention's rung-1 route (`curl` the `.md` channel to a file,
   search the file locally) as the default, cites `docs/conventions/upstream-drift/README.md` as the
-  owning record, and keeps `WebFetch` only for pages with no
-  raw-markdown channel. The tool-honesty note was amended in step: the step-3 `curl` joins Bash's
+  owning record, and keeps `WebFetch` as the rung-2
+  fallback. The tool-honesty note was amended in step: the step-3 `curl` joins Bash's
   enumerated uses, and the network clause now permits it alongside `WebFetch` instead of capping
   network reach at `WebFetch`.
 - **A quotation must survive a literal substring search of the fetched bytes.** The same step states

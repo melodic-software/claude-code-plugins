@@ -329,7 +329,8 @@ does or does not inherit, which is contested (see the plan's caveat on #1258).
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what
 the audit framing missed), and candidate remediations ordered cheapest → most ambitious. Every doc
 citation states the retrieval channel it came over plus a byte count or line number; a finding whose
-citation omits the channel is recorded as **unverified**, however confidently it is worded.
+citation omits **either** field is recorded as **unverified**, however confidently worded — "rung-1
+`curl`, `<url>`, fetched `<date>`" with no count and no line is a half-citation, not a grounded one.
 
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet — one silently empty packet among six is exactly the loss

@@ -58,7 +58,9 @@ config.
 
 `gh` (authenticated) for the issue sink — optional; without it the ladder ends in a local
 markdown item. `jq` for the context-gate probe — optional; without it dispatch is conservative.
-Works on Git Bash (Windows), macOS, and Linux shells.
+`curl` for the auditor's rung-1 raw-markdown doc fetch — optional; without it the auditor falls
+back to `WebFetch` and records the read as rung 2, which still grounds a claim but never an
+absence. Works on Git Bash (Windows), macOS, and Linux shells.
 
 ## License
 
