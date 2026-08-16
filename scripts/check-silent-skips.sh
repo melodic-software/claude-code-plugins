@@ -169,8 +169,12 @@ done
 shopt -s nullglob
 for test_file in scripts/*.test.sh; do
   [[ -f "$test_file" ]] || continue
-  # The silent-skip unit suite embeds shape-1/2 fixtures as quoted strings;
-  # scanning it for hook guards would false-positive. Shape 3 still applies.
+  # The silent-skip unit suite embeds shape-3 fixtures as quoted strings in its
+  # own body; scanning it would false-positive on those embeddings. Shape 3 is
+  # still exercised via the suite's throwaway fixtures under /tmp.
+  case "$test_file" in
+  scripts/check-silent-skips.test.sh) continue ;;
+  esac
   report_hits "$test_file" "$(scan_test_skip_pass "$test_file")"
 done
 shopt -u nullglob
