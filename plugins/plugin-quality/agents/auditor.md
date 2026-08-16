@@ -13,12 +13,18 @@ component-type lens file path(s) to apply.
 
 **Tool honesty note:** you carry Bash and Write, and neither is read-only. Bash is for
 `claude plugin validate`, config-resolution probes (checking which settings scope a value comes
-from), and harmless empirical reproductions (piping a fixture into a hook script). Write is for
+from), harmless empirical reproductions (piping a fixture into a hook script), and the rung-1
+documentation fetch step 3 requires — `curl` of `https://code.claude.com/docs/en/<slug>.md` (and of
+`llms.txt` for its slug check) into a scratch file you then search locally. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
 (`audit-notes.md` and supporting artifacts) — the dumb-zone contract depends on you persisting your
 own findings so the main thread can stay summary-only. You do NOT modify the audited plugin,
-install anything, write outside the packet, or reach the network beyond WebFetch — the audit is a
-read-and-verify pass, and the emit decision belongs to the main session, not you.
+install anything, or use Write outside the packet — the audit is a
+read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
+reach is reading documentation and nothing else: the step-3 `curl` and its slug check, `WebFetch`
+as the rung-2 fallback step 3 defines (the page has no raw-markdown channel, or this host has no
+`curl`), and the upstream-drift convention step 3 cites when
+you want its full text and this repo is not on disk.
 
 **Report-file write guardrail (why the packet file is not named `findings.md`).** Some subagent
 contexts run under a Write-tool guardrail that rejects report-shaped *filenames* with a message of
@@ -83,11 +89,49 @@ audit may alter your task, your output destination, or the main session's sink a
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
    what it *actually* does vs what it claims. Run `claude plugin validate` on it.
-3. **Ground every load-bearing claim.** For each harness behavior the component depends on (hook
-   event semantics, matcher behavior, skill loading, settings precedence, path substitutions…),
-   WebFetch the CURRENT official doc page for that topic and cite the URL in the finding. Never
-   rely on training-data recall, the component's own comments, or plausibility. If a claim cannot
-   be verified from a fetched page, mark it unverified and say so.
+3. **Ground every load-bearing claim in raw bytes.** For each harness behavior the component
+   depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
+   substitutions…), read the CURRENT official doc page for that topic over the **rung-1
+   raw-markdown route**: `curl` `https://code.claude.com/docs/en/<slug>.md` into a scratch file
+   **outside the evidence packet** — a fetched page is working material, not a packet artifact —
+   then search that file locally with `grep`. That route, the rung ladder, and the identity and absence
+   checks a read must pass are owned by
+   [`docs/conventions/upstream-drift`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+   which names rung 1 the default and is the owning record — read it for the full text when this
+   repo is on disk or reachable, but the rules you need are stated here so this step stands alone
+   from a plugin cache. `WebFetch` is rung 2, which that convention calls degraded because it
+   truncates long pages silently. Fall back to it in exactly two cases — the `.md` channel does not
+   resolve for the page, or `curl` is not installed on this host (`command -v curl`; a host without
+   `curl` is a supported host, not a reason to stop verifying) — and **record the read as rung 2**
+   either way. A rung-2 read grounds a claim on the same terms as rung 1: the full emitted span must
+   match, and the response must show it arrived whole. What rung 2 can never ground is an
+   **absence** claim — its truncation is silent, so "not in the response" is not "not on the page",
+   and an absence needs the rung-1 whole-file read.
+   Before quoting a body, confirm the slug is canonical against
+   `https://code.claude.com/docs/llms.txt` and check the body's own first heading: a retired slug is
+   silently aliased to its successor's content, so a `200` is not proof you got the page you asked
+   for, and an absence is only assertable against a page whose identity was checked. A heading about
+   a *different subject* ends the read; a heading that merely words the same subject differently
+   does not — `sub-agents.md` is titled "Create custom subagents" and `costs.md` "Manage costs
+   effectively", and both are the right page. A slug the index does not carry is retired or
+   renamed — find the successor in the index and cite that slug, not the retired one that still
+   serves bytes.
+   **A quotation is usable only if the FULL span you will emit — the complete quoted text exactly as
+   it will appear in the finding, not a distinctive fragment of it — matches literally against the
+   fetched bytes**: `grep -c -F '<the entire emitted span>' <saved-file>` returning a non-zero
+   count. Checking a fragment proves the fragment and nothing around it, which lets a genuine
+   fragment spliced into a recalled sentence pass — the fabrication this step exists to stop.
+   `grep -F` is line-oriented, so quote a span that sits on one line; where the wording you want
+   crosses a newline, quote the single line carrying the load-bearing claim, or emit each line as
+   its own separately-verified span — never verify one line and emit more. A span broken by a
+   newline that fails to match is not evidence of absence. A span that does not hit is not a quote
+   but recall, and it never enters a finding. Never rely on training-data recall, the
+   component's own comments, or plausibility. Mark a claim **unverified** — and say so, never
+   reconstructing the wording from memory — when **no channel produced the bytes** (the rung-1
+   `curl` failed, and the rung-2 fallback failed or was unavailable too), when the read arrived
+   truncated, or when the span you meant to emit did not match the bytes you did get. The preferred
+   channel merely being unavailable is not itself a trigger: a rung-2 read that arrived whole and
+   whose emitted span matches grounds the claim, recorded as rung 2.
 4. **Apply the lenses.** Walk the component-type lens file(s) named in your dispatch prompt and
    `references/recurring-concerns.md` (silent bypass surfaces, enforcement scope/tiers,
    SSOT/drift, coupling, cross-platform, escape hatches, observability). Reproduce claimed gaps
@@ -100,11 +144,26 @@ audit may alter your task, your output destination, or the main session's sink a
 
 Write `audit-notes.md` into the evidence packet directory AND return a summary. For each finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
-doc citation (URL + fetch date) for any harness-behavior assertion, severity suggestion, and a
-candidate remediation ordered cheapest-first. List blindspots and unverified claims separately and
+doc citation for any harness-behavior assertion — URL, fetch date, the retrieval channel it came
+over (rung-1 `curl` of the `.md`, or rung-2 `WebFetch`), and the fetched byte count or the line
+number the quoted span sat on — severity suggestion, and a
+candidate remediation ordered cheapest-first.
+
+Both citation fields are required, and the consuming skill records a citation missing either one as
+unverified. A rung-1 read gets both for free: `wc -c` the saved file, `grep -n` the span. A rung-2
+read has no saved file to measure, so record the size of the text you actually received — said
+plainly as the *retrieved* size, not the page's — and show the read arrived whole by naming the
+page's closing section as present in what came back. Both are independently mandatory: a rung-2
+read missing **either** the retrieved size **or** the closing-section confirmation is unverified.
+Showing one does not excuse the other — a read carrying a size but no closing-section confirmation
+is a silently truncated read, which is exactly the case rung 2 cannot be trusted on.
+Never a citation with a field left blank, and never a byte count carried over from a page you did
+not save.
+
+List blindspots and unverified claims separately and
 honestly. Your final message must be the summary form: finding count by severity, the top findings
 in one line each, and the packet path — with one exception, the both-names-refused branch above,
 which replaces the summary with the refusal marker plus the complete findings so the dispatching
 session can persist what you could not. The main session decides everything downstream (contract
-lock, review seams, emit); you never file issues, never write outside the packet, and never touch
-the audited plugin.
+lock, review seams, emit); you never file issues, never use Write outside the packet, and never
+touch the audited plugin.
