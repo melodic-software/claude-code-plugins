@@ -685,6 +685,72 @@ BAD_ROWS
     fail "an unreachable incident commit must exit 2, rc=$RC: $out"
   fi
 
+  # A disposition reason containing `]` splits at the WRONG bracket, truncating
+  # the reason and corrupting the marker text -- and because the reason stays
+  # non-empty, the row would report "deliberately not restored" about content
+  # that may be present. Undecidable from the row, so it is refused.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt [not-restored: see note (ref] for detail)] RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'ambiguous disposition'; then
+    ok "a disposition reason containing ']' is refused instead of silently mis-split"
+  else
+    fail "an ambiguous disposition must exit 2, rc=$RC: $out"
+  fi
+
+  # But an ORDINARY marker's text may contain `]` freely -- only a
+  # dispositioned row pays for the ambiguity.
+  printf 'expectations: ["a", "b"]\n' >>"$repo/guarded.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: content with a bracket"
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt expectations: ["a", "b"]\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]]; then
+    ok "an undispositioned marker's text may contain ']'"
+  else
+    fail "a bracket in ordinary marker text must be fine, rc=$RC: $out"
+  fi
+
+  # Three readers parse this one file -- the replay, the restoration assertion,
+  # and the shipped-data grammar check -- and they must agree about what a
+  # comment is. An indented comment or a whitespace-only line is a
+  # formatting-only edit and must not turn the canary red.
+  {
+    printf '# leading comment\n'
+    printf '   # an INDENTED comment\n'
+    printf '   \n'
+    printf '\n'
+    printf 'fires %s a real drop\n' "$sha"
+    printf '  # indented comment between rows\n'
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]]; then
+    ok "indented comments and whitespace-only lines are skipped, not called unknown rows"
+  else
+    fail "a formatting-only corpus edit must not fail the assertion, rc=$RC: $out"
+  fi
+  # The replay reads the same corpus. It may legitimately report FAIL here (the
+  # fixture's `fires` row names a commit that adds rather than removes), but it
+  # must never exit 2 -- that is the "cannot parse" status, and reaching it
+  # would mean the two readers disagree about what a comment is.
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -ne 2 ]]; then
+    ok "the replay parses the same indented comments the restoration assertion does"
+  else
+    fail "the two readers disagree about comments, rc=$RC: $out"
+  fi
+
   # An abbreviated sha would let a marker widen to a commit nobody recorded --
   # the same discipline the acknowledgment file holds.
   {
@@ -791,6 +857,32 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     fail "an untracked path must not satisfy a marker, rc=$RC: $out"
   fi
   rm -f "$repo/untracked.txt"
+
+  # A TRACKED symlink is tracked as the link, but a filesystem read follows it,
+  # so a link committed into the repo could be answered with content from
+  # outside it -- while at a rev the same row reads the link's blob (its target
+  # string). Refused, so the two modes cannot answer different questions.
+  # Symlink creation needs privileges on Windows, so this case skips rather than
+  # fails when the fixture cannot be built.
+  if ln -s "$PWD/../outside-target.txt" "$repo/linked.txt" 2>/dev/null &&
+    [[ -L "$repo/linked.txt" ]]; then
+    git_test_config "$repo" add -A >/dev/null 2>&1
+    git_test_config "$repo" commit -qm "chore: a symlink" >/dev/null 2>&1
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s linked.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    if [[ "$RC" -ne 0 ]]; then
+      ok "a tracked symlink cannot satisfy a marker in working-tree mode"
+    else
+      fail "a symlinked marker path must not report present, rc=$RC: $out"
+    fi
+    rm -f "$repo/linked.txt"
+    git_test_config "$repo" add -A >/dev/null 2>&1
+    git_test_config "$repo" commit -qm "chore: drop the symlink" >/dev/null 2>&1
+  fi
 
   # A path that leaves the repository is refused outright, in both modes,
   # because a marker resolved outside the tree asserts nothing about main.

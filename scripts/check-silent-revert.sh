@@ -615,13 +615,20 @@ parse_incidents_file() {
 
   local line kind sha path rest reason marker
   while IFS= read -r line || [[ -n "$line" ]]; do
-    case "$line" in
-      '' | '#'*) continue ;;
-      *) ;;
-    esac
+    # Split FIRST, then decide what the row is, so blank/comment recognition is
+    # done on the trimmed leading field rather than on the raw line.
+    #
+    # Testing the raw line instead would make an INDENTED comment ("  # note")
+    # or a whitespace-only line an "unknown row kind" and exit 2 -- while
+    # verify_known_incidents (which reads the same file through `read`) skips
+    # both, and t_shipped_data_files_are_wellformed explicitly accepts
+    # `^[[:space:]]*(#|$)`. Three readers of one file must not disagree about
+    # what a comment is: a formatting-only edit to this corpus would otherwise
+    # turn the canary red for a reason having nothing to do with the canary.
     read -r kind sha path rest <<<"$line"
 
     case "$kind" in
+      '' | '#'*) continue ;;
       fires | clean)
         [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
           die "incident sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
@@ -681,6 +688,19 @@ parse_incidents_file() {
           reason="${reason#"${reason%%[![:space:]]*}"}"
           marker="${rest#*\]}"
           marker="${marker#"${marker%%[![:space:]]*}"}"
+          # The split above takes the FIRST `]`, so a reason that itself
+          # contains one would silently truncate the reason AND corrupt the
+          # marker text with a stray leading `]`. That combination is quietly
+          # WRONG rather than merely odd: the corrupted marker stops matching,
+          # while the still-non-empty reason makes the row report
+          # "deliberately not restored" -- announcing a recorded decision about
+          # content that may be sitting right there. Undecidable from the row
+          # alone, so it is refused. Only a DISPOSITIONED row pays this cost;
+          # an ordinary marker's text may contain `]` freely.
+          case "$marker" in
+            *\]*) die "ambiguous disposition on the marker row for $sha in $INCIDENTS_FILE: a '[not-restored: ...]' reason may not contain ']'" ;;
+            *) ;;
+          esac
         fi
         [[ -n "$marker" ]] ||
           die "marker row for $sha in $INCIDENTS_FILE records no marker text"
@@ -743,6 +763,14 @@ marker_present() {
     # form of "is this a tracked path", and it makes the default mode assert
     # the same universe the explicit-rev mode does.
     git ls-files --error-unmatch -- "$path" >/dev/null 2>&1 || return 1
+    # A tracked SYMLINK is tracked as the link, but `-f` and the read below
+    # follow it -- so a link committed into the repo could still be answered
+    # with content from outside it. At a rev the same row reads the link's
+    # blob (its target string) instead. Refuse rather than let the two modes
+    # answer a different question.
+    if [[ -L "$path" ]]; then
+      die "marker path '$path' is a symlink -- bind a marker to the file that holds the content"
+    fi
     [[ -f "$path" ]] ||
       die "marker path '$path' is not a regular file -- bind a marker to exactly one file"
     content="$(<"$path")" || die "could not read '$path'"
