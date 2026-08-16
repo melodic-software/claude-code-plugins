@@ -74,7 +74,8 @@ own surface declaration**, which is narrower than the partition for some checks.
 their own surface sets and are not run outside them; this partition never widens a row.
 
 I15 (cross-surface conflict) carries its own narrower routing on the same convention, drawn from the
-population `claude-memory:audit`'s C6 actually enumerates rather than from the name of the layer.
+population `claude-memory:audit`'s C6 actually enumerates via `discover-instruction-surfaces`
+(project **and** user root-level CLAUDE.md / rules) rather than from the name of the layer.
 [reference/conflict-criteria.md](reference/conflict-criteria.md) states that boundary and owns it.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
@@ -402,9 +403,9 @@ Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last
 bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
 
-It prints `<repo-identity>/<worktree-discriminator>` — `audit-pass`'s scheme, per
-[its run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3, which
-`audit-prompting-postures` also uses. Run it and use the result. Do **not** express the path as a
+It prints `<repo-identity>/<worktree-discriminator>` — the state-key scheme the marketplace's
+`plugin-data-report-keying` convention defines, implemented once in the shared `lib/state-key.sh`,
+which `audit-prompting-postures` also uses. Run it and use the result. Do **not** express the path as a
 condition over `${CLAUDE_PROJECT_DIR}` "when set": that placeholder is substituted inline before this
 file reaches you, so the literal token is never visible and the condition is not yours to evaluate.
 
@@ -486,8 +487,10 @@ catalog).
 - Not memory-layer hygiene — checks I1–I5 on CLAUDE.md/rules route to `claude-memory`'s `audit`
   skill when installed, and upstream-owned plugin-cache or managed materializations route to the
   owning repository rather than being edited here.
-- Does not grade a contradiction whose two halves both sit in **root-level** project `CLAUDE.md` /
-  `CLAUDE.local.md` / `.claude/rules/**` — that is `claude-memory:audit`'s C6. A **nested**
-  `CLAUDE.md` / `CLAUDE.local.md` side keeps the pair here, because C6 never discovers that file;
+- Does not grade a contradiction whose two halves both sit in the
+  **discover-instruction-surfaces** population — root-level project **or user** `CLAUDE.md` /
+  `CLAUDE.local.md` / rules, including **user↔project** pairs — that is `claude-memory:audit`'s C6.
+  A **nested** `CLAUDE.md` / `CLAUDE.local.md` side, an auto-memory side, or any surface outside that
+  population keeps the pair here;
   [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its
   evidence.

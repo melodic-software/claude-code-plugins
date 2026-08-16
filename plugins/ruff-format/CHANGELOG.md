@@ -3,7 +3,7 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.16]
+## [0.6.17]
 
 ### Changed
 
@@ -11,6 +11,13 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.6.16]
+
+### Fixed
+
+- **Accurate PATH-miss notices with probe latch wording + `PATH probed:` diagnostic (#2732).** Skip is for this edit (probe re-runs; only the notice latches). Names
+  Claude Code environment inheritance vs profile PATH; does not probe nvm layouts.
 
 ## [0.6.15]
 

@@ -248,13 +248,7 @@ export function validateBody(body, policy) {
   for (const section of policy.body.requiredSections) {
     const content = extractSection(rendered, section);
     if (content === null) {
-      findings.push(
-        finding(
-          "section-missing",
-          "body",
-          `Missing a "## ${section}" section. List related PRs, ADRs, or decision-log entries this PR does not close.`,
-        ),
-      );
+      findings.push(finding("section-missing", "body", `Missing a "## ${section}" section.`));
     } else if (content.length === 0) {
       findings.push(finding("section-empty", "body", `The "## ${section}" section is empty.`));
     }

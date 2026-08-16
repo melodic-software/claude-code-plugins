@@ -8,9 +8,10 @@
 # MACHINE: every run from every repository overwrites the last, and a skill that
 # READS it back can serve one project's findings as another's.
 #
-# This prints the missing segment. The scheme is `audit-pass`'s, reused rather
-# than reinvented — see
-# skills/audit-pass/reference/run-state-and-resumability.md §3:
+# This prints the missing segment. The scheme is canonically defined by the
+# marketplace's plugin-data-report-keying convention (rule 1); this header keeps
+# a named operational duplicate of that definition so the executable ships
+# self-described:
 #
 #   <state-key> = <repo-identity>/<worktree-discriminator>
 #

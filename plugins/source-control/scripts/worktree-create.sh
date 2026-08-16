@@ -41,12 +41,89 @@
 # Exit codes:
 #   0  success — worktree created; path on stdout
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
-#   3  refuse — no usable external root (guidance on stderr); nothing created
+#   3  refuse — no usable external root, root inside a repository, or a
+#      cross-drive root on Windows at any resolution rung including the
+#      unconfigured plugin-data-dir default (guidance on stderr); nothing created
 #   4  environment error — not a git repo, or `git worktree add` failed
 
 set -uo pipefail
 
 PROG=${0##*/}
+
+# --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
+# windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
+# drive-anchored; otherwise return non-zero. Recognized shapes (#2764):
+#   - `X:/...` — git / Windows absolute
+#   - `/cygdrive/x/...` — Cygwin (unambiguous on every host)
+#   - `/x/...` — MSYS/Git Bash single-letter drive form, only when uname is
+#     MINGW*/MSYS*/CYGWIN* (same gate as landed-work.sh path_key). On POSIX a
+#     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
+#     never mistaken for drive U:.
+windows_drive_letter() {
+  local path="$1" d
+  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]]; then
+    d="${BASH_REMATCH[1]}"
+    printf '%s' "${d^^}"
+    return 0
+  fi
+  if [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
+    d="${BASH_REMATCH[1]}"
+    printf '%s' "${d^^}"
+    return 0
+  fi
+  case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*)
+    if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
+      d="${BASH_REMATCH[1]}"
+      printf '%s' "${d^^}"
+      return 0
+    fi
+    ;;
+  *) ;;
+  esac
+  return 1
+}
+
+# check_same_drive <repo-toplevel> <worktree-path> <root-rung> — enforce the
+# same-drive-on-Windows invariant for worktree placement (#2764, #2806).
+#
+# `git worktree move` is `rename()` and cannot cross a volume boundary on
+# Windows (EXDEV / "Invalid cross-device link" / "Improper link"). Every
+# resolution rung refuses (return 3), including rung 4 — the unconfigured
+# plugin-data-dir default. Warn-and-proceed at rung 4 left unconfigured
+# cross-drive machines creating worktrees that `git worktree move` cannot
+# relocate; a non-zero exit is also the only channel that surfaces on the
+# WorktreeCreate hook path (exit-0 stderr is dropped to the debug log).
+# Inert when either path lacks a drive letter.
+#
+# <root-rung> labels which resolution arm supplied the foreign root for
+# callers/tests; policy is identical for every rung.
+#
+# Returns 0 to proceed, 3 to refuse. Caller exits on non-zero.
+check_same_drive() {
+  local repo_path="$1" wt_path="$2" rung="$3"
+  local repo_drive wt_drive
+  # Retained for call-site labeling; policy does not branch on it (#2806).
+  : "$rung"
+  repo_drive=$(windows_drive_letter "$repo_path") || return 0
+  wt_drive=$(windows_drive_letter "$wt_path") || return 0
+  [[ "$repo_drive" == "$wt_drive" ]] && return 0
+
+  cat >&2 <<EOF
+$PROG: set \`melodic.worktreeroot\` (or the plugin's \`worktree_root\` option) to a directory on drive ${repo_drive}: — refusing a cross-drive root.
+
+  repository: $repo_path  (drive ${repo_drive}:)
+  worktree:   $wt_path  (drive ${wt_drive}:)
+
+git worktree move uses rename(), which cannot cross volumes on Windows
+(EXDEV / Improper link). The includeIf-capable \`melodic.worktreeroot\` key
+is the per-repository remedy:
+
+  git config melodic.worktreeroot <same-drive-root>
+EOF
+  return 3
+}
+# --- same-drive helpers (end) ---
 
 usage() {
   cat >&2 <<EOF
@@ -322,13 +399,16 @@ canonicalize_root() {
 
 # Unconfigured root: detected here, resolved after the repository is known below
 # (the melodic.worktreeroot rung needs the repository, and the data-dir rung
-# stays last).
+# stays last). root_rung tracks which resolution arm supplied the root so the
+# same-drive check (#2764/#2806) can label the refusing arm in diagnostics.
 root_unset=0
+root_rung=0
 if root_is_unset "$root"; then
   root_unset=1
 else
   canonicalize_root "$root" --root
   root="$CANONICAL_ROOT"
+  root_rung=1
 fi
 
 # Resolve the source repository top level.
@@ -369,6 +449,7 @@ if (( root_unset )); then
     canonicalize_root "$config_root" "melodic.worktreeroot"
     root="$CANONICAL_ROOT"
     root_unset=0
+    root_rung=2
     printf '%s: worktree root resolved from the melodic.worktreeroot git config key\n' "$PROG" >&2
   fi
 fi
@@ -380,6 +461,7 @@ if (( root_unset )) && ! root_is_unset "$fallback_root"; then
   canonicalize_root "$fallback_root" --fallback-root
   root="$CANONICAL_ROOT"
   root_unset=0
+  root_rung=3
 fi
 
 # Rung 4: the plugin's own data directory, delivered by the caller through
@@ -442,6 +524,7 @@ EOF
   fi
 
   root="${data_root%/}/worktrees"
+  root_rung=4
   printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
   # SC2016: the backticks are literal markdown in guidance text, not a command
   # substitution — expansion is exactly what must NOT happen here.
@@ -655,6 +738,12 @@ EOF
     exit 3
   fi
 fi
+
+# Same-drive-on-Windows invariant (#2764/#2806). Stated in plugin.json and the
+# containment message above; enforced here. Path-shape gate (both sides must
+# match <letter>:/) so POSIX and UNC stay inert. Every rung refuses, including
+# the unconfigured plugin-data-dir default.
+check_same_drive "$toplevel" "$worktree_path" "$root_rung" || exit $?
 
 if [[ -e "$worktree_path" ]]; then
   printf '%s: target path already exists: %s\n' "$PROG" "$worktree_path" >&2

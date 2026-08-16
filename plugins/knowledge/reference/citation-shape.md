@@ -7,7 +7,7 @@ committed.
 
 Any `knowledge` skill adopting the cite-never-copy rule conforms to this shape for the
 citations it emits into tracked outputs. One shipped emitter predates this contract and does
-not yet conform: `youtube-digest`'s staged `research/sources.md` records URLs without retrieval
+not yet conform: `video-digest`'s staged `research/sources.md` records URLs without retrieval
 dates or hashes — a known, not-yet-migrated exception; migrating it is a separate decision, not
 implied by this document. Skill-internal hashes (node span hashes, slug hashes) remain owned by
 their skill's own format docs; this document owns only the citation that leaves the slice.

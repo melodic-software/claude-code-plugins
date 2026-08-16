@@ -29,8 +29,21 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
    - Security scan disposition (all findings classified)
    - Comment coverage (all reviewers processed)
    - Any deferred items (tracked work items)
-2. **Comprehension quiz (default-on, self-enforced)** — when the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing — self-enforced, no tooling gate; "skip quiz" skips it explicitly. Exemption is calibrated by size and blast radius, NOT by file type: exempt only diffs the user can genuinely review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) gets the quiz even though it is docs-only — instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
-3. Wait for user approval — merge is an irreversible action
+2. **Stale-base guard (#2691):** confirm the PR head is not behind its base on overlapping
+   paths before squash-merging. `gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid`
+   plus `gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>` — if
+   `behind_by > 0`, update the branch (merge-forward / `gh pr update-branch`) and re-run
+   readiness; do **not** squash-merge a behind head. Under a non-strict ruleset (this org's,
+   per an accepted ADR), GitHub can still report `CLEAN` while the head is behind, and a
+   stale-base squash can silently revert recently-landed fixes (the tests travel with the
+   reverted code, so CI stays green). Repo CI runs `scripts/check-stale-base-overlap.sh --check`
+   as the overlapping-path tripwire. It covers the stale-**base** class only — a head current in
+   history but stale in **content** passes it. That separate class needs its own post-merge
+   detector; nothing on the merge path here catches it. This repo runs
+   `scripts/check-silent-revert.sh` for it, itself a bounded heuristic (large, recent deletions
+   only) rather than class-wide coverage, and a consuming repo may have no such detector at all.
+3. **Comprehension quiz (default-on, self-enforced)** — when the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing — self-enforced, no tooling gate; "skip quiz" skips it explicitly. Exemption is calibrated by size and blast radius, NOT by file type: exempt only diffs the user can genuinely review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) gets the quiz even though it is docs-only — instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
+4. Wait for user approval — merge is an irreversible action
 
 ## 4.2 Squash merge
 

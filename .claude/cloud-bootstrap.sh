@@ -11,6 +11,10 @@
 #      and resume as drift repair — the environment cache can be ~7 days
 #      stale. Plugin installs made by a hook run go live at the next resume,
 #      not in the session that ran the hook.
+# First-turn slash of plugins installed only by the SessionStart caller can
+# still return "Unknown command" (harness residual — claude-code-plugins#2733):
+# resume so the process reloads the registry, or follow the skill's SKILL.md
+# from the working tree. Prefer the pre-launch caller so turn one is populated.
 # Local sessions exit immediately via the CLAUDE_CODE_REMOTE guard — a local
 # machine is presumed provisioned by its owner, and this script must never
 # mutate one.
@@ -21,7 +25,7 @@
 # In-repo manifests stay the single source of truth where one exists:
 #   Node               — .node-version (standards-synced)
 #   ruff               — .github/requirements-ci.txt (hash-locked)
-#   claude CLI / Biome — root package-lock.json (installed via npm ci)
+#   claude CLI / Biome / markdownlint-cli2 — root package-lock.json (npm ci)
 # Tools with no in-repo manifest are pinned in the VERSION PINS block below.
 #
 # Idempotent by design: every step checks before it installs, so re-runs on
@@ -68,7 +72,8 @@ gitleaks_pin="8.28.0"
 gitleaks_sha="a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"
 shfmt_pin="v3.12.0" # bash-format plugin hook; optional in CI by design
 shfmt_sha="d9fbb2a9c33d13f47e7618cf362a914d029d02a6df124064fff04fd688a745ea"
-markdownlint_pin="0.23.1"     # matches the .markdownlint-cli2.jsonc schema pin
+# markdownlint-cli2: root package-lock.json (npm ci) — never npm -g into the
+# nvm prefix; hook processes do not inherit that PATH segment (#2739 / #2748).
 check_jsonschema_pin="0.37.4" # pip/uv installs carry registry integrity checks
 
 # --- Node (required) ---------------------------------------------------------
@@ -108,9 +113,12 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
 fi
 
 # --- Root npm toolchain (required) --------------------------------------------
-# Provides the pinned claude CLI and Biome that scripts/validate-plugins.sh and
-# the biome-format contract tests expect. Skipped when node_modules is already
-# in sync with package-lock.json, so resume-time re-runs are free.
+# Provides the pinned claude CLI, Biome, and markdownlint-cli2 that
+# scripts/validate-plugins.sh, the biome-format contract tests, and the
+# markdown-format hook expect. markdownlint-cli2 must stay a root
+# package-lock install: npm -g lands in the nvm prefix, which hook processes
+# do not inherit (#2739 / #2748). Skipped when node_modules is already in sync
+# with package-lock.json, so resume-time re-runs are free.
 if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
   npm ci --no-audit --no-fund
 fi
@@ -297,15 +305,23 @@ fetch_release_tool shfmt \
   "https://github.com/mvdan/sh/releases/download/${shfmt_pin}/shfmt_${shfmt_pin}_linux_amd64" \
   "$shfmt_sha" "-"
 
-# The npm and pip/uv installs below carry no committed hash: both registries
-# verify package integrity against registry metadata (npm `_integrity`
-# sha512, PyPI digests), a weaker trust anchor than the committed SHA-256s
-# above but an accepted one — npm -g has no --require-hashes equivalent.
-if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
-  npm install -g --no-audit --no-fund "markdownlint-cli2@${markdownlint_pin}" ||
-    echo "cloud-bootstrap: warning: markdownlint-cli2 install failed" >&2
+# markdownlint-cli2 comes from root npm ci (devDependency in package.json),
+# not npm -g. Hook processes inherit Claude Code's environ — they see
+# ~/.local/bin (where shellcheck lands) but NOT the nvm prefix that npm -g
+# would write into, and CLAUDE_ENV_FILE PATH repairs reach subsequent Bash
+# tool calls only (#2739 / #2748). Symlink the repo-local shim into
+# ~/.local/bin so PATH-based hook resolution matches the filesystem probe
+# markdown-format already uses (`node_modules/.bin`).
+repo_mdlint="$repo_root/node_modules/.bin/markdownlint-cli2"
+if [[ -x "$repo_mdlint" ]]; then
+  ln -sfn "$repo_mdlint" "$bin_dir/markdownlint-cli2"
+elif [[ ! -e "$bin_dir/markdownlint-cli2" ]]; then
+  echo "cloud-bootstrap: warning: markdownlint-cli2 missing from node_modules/.bin after npm ci; markdown-format will skip until it is present" >&2
 fi
 
+# pip/uv installs carry no committed hash: the registry verifies package
+# integrity against metadata (PyPI digests), a weaker trust anchor than the
+# committed SHA-256s above but an accepted one.
 if ! command -v check-jsonschema >/dev/null 2>&1; then
   if command -v uv >/dev/null 2>&1; then
     uv tool install --quiet "check-jsonschema==${check_jsonschema_pin}" ||
@@ -331,17 +347,43 @@ git fetch --quiet origin "+main:refs/remotes/origin/main" ||
   echo "cloud-bootstrap: warning: could not fetch origin/main" >&2
 
 # --- Report --------------------------------------------------------------------
+# Hook processes do not inherit this script's nvm-augmented PATH or
+# CLAUDE_ENV_FILE repairs (#2739). Build a hook-equivalent PATH: keep
+# ~/.local/bin and every other entry, drop only the nvm node_bin prefix this
+# script may have activated, so the startup report cannot go false-green for a
+# tool hooks cannot resolve.
+hook_safe_path="$PATH"
+if [[ -n "${node_bin:-}" ]]; then
+  hook_safe_path="$(
+    PATH="$PATH" bash -c '
+      IFS=:
+      out=
+      for p in $PATH; do
+        [[ "$p" == "$0" ]] && continue
+        out="${out:+$out:}$p"
+      done
+      printf "%s" "$out"
+    ' "$node_bin"
+  )"
+fi
+
 report_tool() {
   # report_tool <cmd-name> <version-args...>
-  local name="$1"
+  # Resolves and versions under hook_safe_path; prints the resolved path.
+  local name="$1" resolved ver
   shift
-  if command -v "$name" >/dev/null 2>&1; then
-    echo "cloud-bootstrap: $name $("$name" "$@" 2>/dev/null | head -1)"
+  resolved="$(PATH="$hook_safe_path" command -v "$name" 2>/dev/null || true)"
+  if [[ -z "$resolved" && "$name" == "markdownlint-cli2" && -x "$repo_mdlint" ]]; then
+    resolved="$repo_mdlint"
+  fi
+  if [[ -n "$resolved" ]]; then
+    ver="$(PATH="$hook_safe_path" "$resolved" "$@" 2>/dev/null | head -1 || true)"
+    echo "cloud-bootstrap: $name ($resolved)${ver:+ $ver}"
   else
-    echo "cloud-bootstrap: $name ABSENT (its checks will SKIP)"
+    echo "cloud-bootstrap: $name ABSENT on hook-visible PATH (its checks will SKIP)"
   fi
 }
-echo "cloud-bootstrap: bootstrap complete in $repo_root"
+echo "cloud-bootstrap: bootstrap complete in $repo_root (report_tool uses hook-safe PATH; nvm prefix excluded)"
 report_tool node --version
 report_tool ruff --version
 report_tool shellcheck --version

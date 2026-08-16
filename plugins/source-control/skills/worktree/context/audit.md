@@ -30,9 +30,11 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 ### Worktree Health
 - 3 worktrees total
 - 1 stranded (4 commits at risk) — push before any cleanup
+- 0 unproven (Work axis unavailable)
+- 0 in-progress — cleanup refuses (sequencer / conflict state dies with the directory)
+- 0 dirty — cleanup refuses (uncommitted edits, or status unreadable)
 - 1 stale (> 14 days, no PR) — consider `/source-control:worktree cleanup`
 - 0 prunable
-- 0 unproven (Work axis unavailable)
 
 ### Recommendations
 - Push the stranded worktree's branch: `git -C <path> push -u origin HEAD`
@@ -40,4 +42,4 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 - Run `/source-control:worktree cleanup` to remove the stale worktree
 ```
 
-Stranded and unproven counts lead the health list and are reported even when zero — a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow.
+Stranded and unproven counts lead the health list and are reported even when zero — a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.

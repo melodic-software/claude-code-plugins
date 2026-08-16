@@ -495,6 +495,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |
+| Detector findings (non-fanout producers reaching the apply relay) | [`docs/conventions/detector-findings/`](conventions/detector-findings/README.md) |
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 

@@ -1,0 +1,11 @@
+{
+  "disposition": "ok",
+  "metadata": {
+    "extractor": "youtube",
+    "extractor_key": "Youtube",
+    "id": "7zZy1QTvokM",
+    "display_id": "7zZy1QTvokM",
+    "title": "Offline fixture — youtube canonical probe",
+    "formats": [{ "format_id": "18" }, { "format_id": "22" }]
+  }
+}

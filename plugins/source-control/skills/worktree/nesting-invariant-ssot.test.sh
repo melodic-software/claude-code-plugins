@@ -75,6 +75,101 @@ assert_contains "the owner names the arm as disputed rather than settled" \
 assert_contains "the owner points at the fixture that would adjudicate it" \
   "$owner_text" "nesting-invariant-probe.sh"
 
+# 3b. The unconditional expiry must be able to fire (#2767).
+#
+# The literal-presence checks above guard the stamp's *shape*. They never parse
+# a date, so the suite stays green forever after the expiry passes — the one
+# failure mode the stamp exists to prevent. Parse both arms out of the owner;
+# enforce the date arm against an injectable "today"; assert the version arm is
+# present and shaped (CI has no live Claude Code version to compare against).
+
+# nesting_invariant_expiry_date_passed <expiry-YYYY-MM-DD> <today-YYYY-MM-DD>
+# — return 0 when today is on or after the expiry (stamp is stale), 1 when still
+# fresh. Pure string compare of ISO dates.
+nesting_invariant_expiry_date_passed() {
+  local expiry="$1" today="$2"
+  [[ "$today" > "$expiry" || "$today" == "$expiry" ]]
+}
+
+# Parse: as-of **YYYY-MM-DD** — require the stamp delimiters so a nearby date
+# cannot satisfy the check as a substring.
+if [[ "$owner_text" =~ as-of[[:space:]]+\*\*([0-9]{4}-[0-9]{2}-[0-9]{2})\*\* ]]; then
+  as_of_date="${BASH_REMATCH[1]}"
+  pass "as-of date is parseable ($as_of_date)"
+else
+  fail "as-of date is parseable (YYYY-MM-DD)" "matched" "no match"
+  as_of_date=""
+fi
+
+# Parse unconditional expiry arms from the owner sentence:
+#   **Unconditional expiry.** **2.1.244, or 2026-11-07 — whichever comes first.**
+# Match the complete bold arm (not an arbitrary substring) so malformed tokens
+# such as `2.1.244.1`, `v2.1.244`, or overlong dates cannot pass shape checks.
+expiry_version=""
+expiry_date=""
+if [[ "$owner_text" =~ Unconditional[[:space:]]+expiry\.\*\*[[:space:]]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+[—-] ]]; then
+  expiry_version="${BASH_REMATCH[1]}"
+  expiry_date="${BASH_REMATCH[2]}"
+elif [[ "$owner_text" =~ Unconditional[[:space:]]+expiry[^\n]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2}) ]]; then
+  # Same whole-arm capture with slightly looser heading markup tolerance.
+  expiry_version="${BASH_REMATCH[1]}"
+  expiry_date="${BASH_REMATCH[2]}"
+fi
+
+if [[ -n "$expiry_version" && -n "$expiry_date" ]]; then
+  pass "unconditional expiry version arm is parseable ($expiry_version)"
+  pass "unconditional expiry date arm is parseable ($expiry_date)"
+else
+  fail "unconditional expiry carries a parseable version arm (N.N.N)" "matched" "no match"
+  fail "unconditional expiry carries a parseable date arm (YYYY-MM-DD)" "matched" "no match"
+fi
+
+# Version arm: present and shaped — do not evaluate against a live Claude Code
+# version (CI does not have one). The shape guard stops the arm vanishing.
+if [[ -n "$expiry_version" && "$expiry_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  pass "expiry version arm matches N.N.N shape ($expiry_version)"
+else
+  fail "expiry version arm matches N.N.N shape" "N.N.N" "${expiry_version:-empty}"
+fi
+
+# Date arm: enforce. Inject today so the red path is exercised in-suite.
+if [[ -n "$expiry_date" ]]; then
+  today="$(date -u +%Y-%m-%d)"
+  if nesting_invariant_expiry_date_passed "$expiry_date" "$today"; then
+    fail "nesting-invariant stamp date arm is still fresh (today < $expiry_date)" \
+      "fresh (today before $expiry_date)" "EXPIRED (today=$today) — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
+  else
+    pass "nesting-invariant stamp date arm is still fresh (today=$today < $expiry_date)"
+  fi
+
+  # Red path: a synthetic post-expiry "today" must be detected. A comparison
+  # nobody has exercised is the same class of defect as the one being fixed.
+  if nesting_invariant_expiry_date_passed "$expiry_date" "2099-01-01"; then
+    pass "expiry date comparison detects a synthetic post-expiry today"
+  else
+    fail "expiry date comparison detects a synthetic post-expiry today" \
+      "expired-detected" "still-fresh"
+  fi
+
+  # Sanity: a synthetic pre-expiry today must NOT trip.
+  if nesting_invariant_expiry_date_passed "$expiry_date" "2000-01-01"; then
+    fail "expiry date comparison stays fresh for a synthetic pre-expiry today" \
+      "still-fresh" "expired-detected"
+  else
+    pass "expiry date comparison stays fresh for a synthetic pre-expiry today"
+  fi
+
+  # as-of should not sit after the expiry (stamp would be born stale).
+  if [[ -n "$as_of_date" ]]; then
+    if [[ "$as_of_date" > "$expiry_date" ]]; then
+      fail "as-of date is not after the unconditional expiry date" \
+        "as-of <= $expiry_date" "as-of=$as_of_date"
+    else
+      pass "as-of date is not after the unconditional expiry date"
+    fi
+  fi
+fi
+
 # 4. The restatements became pointers rather than being deleted outright.
 mapfile -t POINTERS < <(grep_sites "The nesting invariant, verified")
 if ((${#POINTERS[@]} >= 5)); then

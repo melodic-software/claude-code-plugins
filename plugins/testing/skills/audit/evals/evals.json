@@ -1,0 +1,90 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "detect-happy-path",
+      "prompt": "Audit my test suite for tests that cannot fail.",
+      "expected_output": "Runs the cant-fail-scan.sh detector (never eyeballs the suite), reports findings under the qualified rule ids testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation, and testing/audit/rule-mock-only-oracle with each fired threshold, and presents the coverage denominator alongside the findings.",
+      "files": ["evals/fixtures/positive/cant-fail-js.test.js", "evals/fixtures/positive/test_cant_fail_py.py", "evals/fixtures/positive/CantFailTests.cs"],
+      "expectations": [
+        "Output runs the bundled cant-fail-scan.sh script rather than judging test files by reading them",
+        "Output reports findings under the qualified testing/audit/rule-* ids with the threshold that fired",
+        "Output includes the scan's coverage denominator (files examined, blocks parsed), not findings alone"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "clean-suite-is-a-claim-not-an-absence",
+      "prompt": "Run the can't-fail test audit — I believe my tests are genuinely discriminating.",
+      "expected_output": "Runs the detector; on zero findings reports a clean result WITH the denominator (how many test files and blocks were actually examined), and never presents a scan that examined nothing as a clean bill.",
+      "files": ["evals/fixtures/negative/discriminating-js.test.js", "evals/fixtures/negative/test_discriminating_py.py", "evals/fixtures/negative/DiscriminatingTests.cs"],
+      "expectations": [
+        "Output runs the bundled cant-fail-scan.sh detector rather than reading and judging the test files directly",
+        "Output reports zero findings without inventing any",
+        "Output states the denominator — how many test files and test blocks the scan examined",
+        "Output distinguishes a clean scan from a scan that examined nothing"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "check-gate-fail-closed",
+      "prompt": "Wire the can't-fail test audit into CI as a gate. What are the exit semantics?",
+      "expected_output": "Recommends cant-fail-scan.sh --check: exit 1 when a gating rule fired, exit 2 when the scan could not run or could not fully read its inputs (fail closed — an unread input is never a clean one), exit 0 only for a fully read finding-free scan; notes mock-only-oracle is advisory unless --strict.",
+      "files": ["evals/fixtures/sanity/one-assertion-free.test.js"],
+      "expectations": [
+        "Output names --check with exit 1 on gating findings and exit 0 only for a fully read clean scan",
+        "Output states the fail-closed branch: unreadable inputs or walk errors exit 2 rather than passing",
+        "Output notes mock-only-oracle findings gate only under --strict"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "persist-resolves-destination-from-contract",
+      "prompt": "Run the can't-fail audit and persist the findings so the review fix pass picks them up.",
+      "expected_output": "Reads the detector-findings contract by its raw URL, resolves the destination through the contract's rung order with the non-interactive collapse and self-ignore guard (never a hardcoded .work path assumed blindly), generates content via --findings, writes without overwriting any existing file, and does not write at all if the contract cannot be fetched.",
+      "files": ["evals/fixtures/sanity/one-assertion-free.test.js"],
+      "expectations": [
+        "Output resolves the findings destination via the detector-findings contract's rung order rather than assuming a hardcoded path",
+        "Output writes the --findings output to a timestamped file and never overwrites an existing path",
+        "Output refuses to write when the producer contract cannot be read, rather than guessing a destination"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repair-not-pruning",
+      "prompt": "The audit found three tests that can never fail. Delete them for me.",
+      "expected_output": "Declines to delete: a test that cannot fail is a false coverage claim, and deleting it removes the claim and the coverage together. Proposes repairing each test with a real assertion instead — routing authoring to the test-writing lane — and notes this skill itself never edits or deletes tests.",
+      "files": ["evals/fixtures/positive/cant-fail-js.test.js"],
+      "expectations": [
+        "Output does not delete or offer to delete the tests",
+        "Output proposes adding a discriminating assertion per finding (repair posture)",
+        "Output notes the skill is read-only on the suite and routes repair to the appropriate lane"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "mock-only-is-advisory-with-exemption-route",
+      "prompt": "The audit flagged my London-style interaction test as mock-only-oracle, but asserting the interaction IS the point of that test. Is the detector broken?",
+      "expected_output": "Explains the rule is a deliberate advisory: the pattern is certain but its defect-hood is not, which is why it carries no Confidence value, and it does not gate --check unless --strict. Offers the cant-fail-ok: <reason> in-file annotation to record the deliberate case, which is counted in coverage rather than silently dropped.",
+      "files": ["evals/fixtures/mock-only/mock-only-js.test.js", "evals/fixtures/exempt/exempted-js.test.js"],
+      "expectations": [
+        "Output explains mock-only-oracle is advisory by default and gates only under --strict",
+        "Output offers the cant-fail-ok: annotation with a reason for the deliberate interaction test",
+        "Output does not call the detector broken or disable it wholesale"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "boundary-routes-out",
+      "prompt": "Should I use this audit or mutation testing? And can it check our bash test suites for vacuous skips too?",
+      "expected_output": "Explains the boundary: this skill is static, execution-free detection of tests that cannot fail by construction; mutation-testing:audit is the dynamic complement proving tests fail to detect change — complements, not rivals. Bash *.test.sh is out of scope; the repo's check-discriminating-test-skips.sh gate owns the skip-vacating shape there.",
+      "files": [],
+      "expectations": [
+        "Output distinguishes static can't-fail detection from dynamic mutation analysis and presents them as complements",
+        "Output does not claim to audit bash test files",
+        "Output names the discriminating-skip gate as the incumbent for bash skip shapes"
+      ]
+    }
+  ]
+}

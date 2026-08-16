@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.11.4]
+## [0.15.2]
 
 ### Changed
 
@@ -8,6 +8,264 @@
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.15.1]
+
+### Fixed
+
+- **audit-derivability route follow-ups:** point the status board's
+  `templates/sources.md` row at the knowledge skill's renamed `video-digest`
+  path.
+
+## [0.15.0]
+
+### Fixed
+
+- **compress (plugin-quality audit #2745):** rewrite caveman Step B as
+  cross-tool-call steps (no EXIT trap / non-persistent `$tempdir`); map
+  detector `unknown` → Edit fallback; require `enabled: true` (prefer
+  `caveman@caveman`) in `detect-caveman.sh`; fix pre-computed `|| echo none`
+  pipeline; name audit-table destination under `${CLAUDE_PLUGIN_DATA}/audit/`;
+  reword signal 6 as an owned curated token list; annotate taxonomy/LATITUDE
+  drift (batch = word-level; Edit fallback = full matrix); note drifted-skill
+  matrix niche is unreachable via signal 1; add yield circuit breaker + top-10
+  interview default; ship `scripts/audit-scan.sh` + contract tests; point eval 8
+  at `evals/fixtures/terse-agent.md`; widen fixture-gate conventions; soft-block
+  wording in `integration.md`; record deliberate `disable-model-invocation:
+  false`.
+
+## [0.14.7]
+
+### Added
+
+- **audit-derivability route follow-ups:** in-tree status board
+  (`context/derivability-route-followups.md`) for the 174 route-to-sibling
+  annotations from the 2026-08-15 repo-wide sweep — noise routes closed after
+  re-scan + one Sources relocation; extract-ssot routes triaged
+  (synced-cluster / functional-scaffold / changelog-parity / pending) without
+  opening new issues (#2735).
+
+## [0.14.6]
+
+### Added
+
+- **Shared clean-tree / no-scope fallback contract**
+  (`context/clean-tree-fallback.md`): the offer → confirm → prescribed-defaults
+  → decline-or-silence-no-op skeleton that audit-noise 0.12.0 introduced, now
+  cited by `audit-noise`, `audit-derivability`, `audit-encapsulation`,
+  `compress`, and `extract-ssot`, with deliberate divergences recorded
+  (compress stays mutating/audit-first; encapsulation triggers on "no inherited
+  scope", not only a clean tree).
+
+### Changed
+
+- **compress `audit` on a clean tree** offers the confirmation-gated free
+  corpus audit (report-only) instead of the friendly no-op, matching the
+  sibling audit skills (#2734).
+
+## [0.14.5]
+
+### Fixed
+
+- **audit-noise detect:** scanner exemption gaps — skip YAML frontmatter; require
+  opt-out markers to be well-formed HTML comment lines (prose mentions no longer
+  swallow following content); skip fenced code blocks and strip inline-code spans
+  for citation/enum/scope matching (ghost-ref still sees unwrapped path text);
+  toggle section exemption on any ATX heading level so `### Sources` exempts and
+  an H1 after `## Sources` ends the exemption. Also resolve relative targets
+  before `cd` to the repo root and parse spaced filenames from `git status`
+  porcelain without `$NF` (#2742).
+
+## [0.14.4]
+
+### Fixed
+
+- **audit-noise detect:** hoist + export convention-root resolution once per
+  run so `AUDIT_NOISE_CONTRACT_ROOT` survives into the ghost-ref exemption
+  check (auditor F6 — a configured contract root's bare `reviews/` /
+  `handoffs/` / `running-retros/` child no longer inherits the memory-root
+  exemption). Per-line shape detection now uses nameref helpers instead of
+  command substitutions in the hot loop (the root cause of repo-wide scan
+  timeouts). `--offset` / `--limit` chunk the sorted target list so
+  orchestration can fan out one process per chunk without a per-file shell
+  loop (#2741).
+  Missing values for `--offset`/`--limit`/`--paths-file` now exit 2 instead of
+  hanging; leading-zero chunk values are normalized as decimal before arithmetic.
+
+## [0.14.3]
+
+### Fixed
+
+- **audit-encapsulation detect:** relative-path cites into skill-private surfaces
+  are no longer invisible. The detector matches bare `skills/<x>/...` (plugin
+  README short links, including heading anchors) and `../`-prefixed cites whose
+  lexical resolution lands on a private skill surface (sibling-skill links that
+  never spell `skills/` in the cite text). Scripts/ carve-out and self-citation
+  filtering cover the relative forms; scripts/ carve-out matches citation text
+  only (not the citing file path). Regression fixtures pin both shapes so a
+  future pattern regression cannot return a silent empty again (#2716).
+
+## [0.14.2]
+
+### Fixed
+
+- **audit-encapsulation detect:** treat `detect.sh` as a candidate enumerator —
+  summary keys are `raw` / `mech-filtered` / `candidates`, exit 1 means
+  candidates exist (not adjudicated violations), and contract/SKILL/`--help`
+  language no longer invites hard-gating CI on that exit code alone. Widen the
+  ERE path class so uppercase / single-char / digit-leading / underscore-leading
+  skill and subdir names match (F3), while restricting segments to
+  `[A-Za-z0-9_.-]+` so multi-root prose lists cannot span whitespace/punctuation
+  into a false hit. Document `plugins/` in the scan-scope
+  sentence and add a Recheck-triggers row for detect.sh scope drift (F5). Drop
+  the unreachable `plugins/cache/` mechanical-filter branch and fix the docs
+  that claimed it fired (F7). Disclose the relative-path blind spot as #2716
+  (not fixed here) (#2728).
+
+## [0.14.1]
+
+### Fixed
+
+- **audit-noise:** bare concern-scoped root exemption now includes
+  `.work/running-retros/` alongside `.work/handoffs/` and `.work/reviews/`,
+  matching the topic-docs Memory, concern-scoped tier roster (convention 2.4.4).
+  Concrete children under any of those roots still flag as ghost-refs. A
+  sentence-ending period after the trailing slash (`.work/running-retros/.`)
+  stays bare; a hidden-file child (`.work/running-retros/.keep`) still flags
+  (#2730).
+
+## [0.14.0]
+
+### Added
+
+- **extract-ssot: bare invocations confirm scope before surveying.** A bare
+  `/docs-hygiene:extract-ssot` with no working notes, no argument, and no conversation-implied
+  scope now asks the user (prescribed defaults, recommended option first) instead of
+  auto-dispatching the exhaustive survey; non-interactive sessions without an explicit scope report
+  options and stop.
+- **extract-ssot: orchestrated whole-repo mode (`context/orchestrated-mode.md`).** Defaults for
+  multi-agent batches at whole-repo scale: single-survey inventory, worker tiering, a static
+  conservative concurrency ceiling (default 2 — subscription rate-limit windows are shared and
+  usually unobservable), the verbatim-inlined rate-limit-guard operable floor with
+  between-dispatch checks when the guard's snapshot is present, and wave-committed cadence.
+  `actions/batch.md` Step 6 and the identify pre-flight now route through it.
+- **extract-ssot:** eval 7 covers the bare confirm-scope gate (no auto-dispatch; prescribed
+  defaults including path/glob-scoped survey; orchestrated-mode reference).
+- **extract-ssot orchestrated-mode:** rate-limit capability detection matches the reader
+  contract's per-window fail-open (one malformed window does not suppress a valid sibling trip)
+  and reactive-only mode consumes `stop-events.jsonl` as well as local error text.
+
+## [0.13.0]
+
+### Changed
+
+- **`audit-derivability`: the empty-target no-op now offers a repo-wide sweep.** With no argument
+  and a clean tree the skill previously dead-ended ("no uncommitted .md files"). It now reports
+  that, then offers — confirmation-gated, never unprompted — escalation to a corpus sweep of all
+  tracked markdown, with prescribed defaults (tracked `.md` scope, batched read-only subagents, low
+  bounded concurrency, capped spot-tests) presented as pre-filled interview answers. Decline or
+  silence preserves the old no-op outcome.
+- **`audit-derivability`: `sweep` batches large corpora.** Doc-by-doc fan-out stays for a small
+  corpus; a large one now groups ~15-25 documents per subagent by directory affinity, so a
+  1000-doc repo needs tens of agents rather than a thousand. Default concurrency is pinned low
+  (3-4) — rate-limit headroom over wall-clock.
+- **`audit-derivability`: fixes from a plugin-quality audit of the skill's first full-repo run**
+  (1131 docs; 7 of 11 actionable verdicts were judged wrong or inapplicable on apply). The scoped
+  `sweep` enumeration used two OR'd pathspecs and silently escalated to the whole repo — now one
+  combined pathspec, with the trap named, plus a report-scope-and-count-before-fan-out guard.
+  Functional artifacts (checklist templates, eval fixtures, scaffolds a component consumes at
+  runtime) are now an explicit `out-of-scope` disposition with a one-line test — the source of five
+  wrong verdicts. Actionable verdicts on empty/near-empty files now require a `git log`
+  deliberate-state check (the empty unhobble-baseline `CLAUDE.md` case). `convert-to-pointer`
+  verdicts must verify their recommended anchor exists (one shipped citing nonexistent scripts).
+  Sweeps route same-basename/near-identical files into one batch and reconcile divergent verdicts
+  (the linux/macos placeholder split), sample keep verdicts so false-keeps are bounded, and defer
+  scope exclusions to `extract-ssot`'s codified list instead of a drifted paraphrase. The
+  read-only hard rule is scoped to the repository (scratchpad ledgers are sanctioned); concurrency
+  is a ceiling the runtime may cap below; the internal #1258 citation is qualified as internal;
+  the pre-computed pipeline's dead `|| echo` fallback is fixed; the aggregate line gains
+  routed-to-sibling and out-of-scope slots; three regression evals added (scaffold, deliberate
+  state, anchor verification) and eval ids reordered.
+- **`audit-derivability`: corpus output is bounded and the spot-test cap defers, never waives.**
+  Sweep subagents write per-document detail to batch ledger files; the reply carries only the
+  aggregate, the actionable subset (confirmed vs provisional), and ledger pointers — so a large
+  corpus cannot blow the parent context or one reply. A load-bearing `delete`/`convert-to-pointer`
+  verdict past the spot-test cap is provisional and excluded from actionable routing until its
+  deferred spot-test runs, reconciling the cap with the mandatory spot-test hard rule (Codex
+  review, #2695).
+
+## [0.12.2]
+
+### Added
+
+- **compress:** Audit heuristic signal 6 — flavor-token density per kilo-word. A repo authored
+  under standing prose discipline is lean without citing any convention: the 2026-08-15
+  authoring-repo run sent 9 signal-5-classified files (0-7 flavor-tokens/kw) to compression and
+  all 9 reverted at 0.02-0.4% yield, while the skill's deliberately-verbose fixtures measure
+  50-60/kw. Density < 5/kw now forces SKIP (expected ≤ 3%). This is the "add a 6th signal"
+  branch of the pre-existing recheck trigger for consistently under-yielding signal-5 files.
+- **compress:** Target-validation gate 5 — during the mutating action's ENUMERATED sweeps
+  (any target set the user did not name file-by-file: the empty-arg uncommitted-`.md` batch,
+  directory expansion, or the repo-wide interview), paths under `evals/fixtures/` skip with
+  `reason=fixture`. Fixture verbosity is deliberate test input; compressing it corrupts the eval.
+  Explicitly-named single-file targets and the read-only audit action bypass the gate (naming a
+  fixture is an intentional act, same philosophy as `--force`).
+- **compress:** Eval scenarios 7-9 covering the three new branches: the interview fallback
+  (offer, decline-exits-no-op, bounded audit output, no edit before confirmation), a signal-6
+  density SKIP, and a fixture-path skip (review finding on #2700).
+
+### Changed
+
+- **compress:** Empty-target + clean-tree invocations in interactive sessions now fall back to a
+  confirmation-gated repo-wide interview — offer, free mechanical audit (aggregates + a
+  deterministic top-20 excerpt inline; full per-file table lexically sorted to a file, per the
+  determinism hard rule), scope/concurrency interview with prescribed defaults
+  (all COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files
+  excluded) — instead of dead-ending at the friendly no-op. Non-interactive contexts (subagent,
+  headless/CI) keep the no-op. Entry path only; per-file hard rules (semantic-diff dispatch,
+  revert pass, markdownlint, `<3%` rule) are unchanged.
+- **compress:** The interview fallback's audit step bounds its inline output — aggregate counts,
+  dispatch-cost estimate, and top-20 highest-yield rows inline; the full per-file table goes to a
+  file. On a large repo the full table runs to hundreds of KB and would truncate the confirmation
+  prompt it feeds (Codex review finding on #2700).
+
+## [0.12.1]
+
+### Added
+
+- **`audit-encapsulation`: no-scope confirmation + `sweep` action.** A bare invocation with no
+  inherited working set — no diff in flight, no prior audit notes, nothing narrowing the scope —
+  now asks ONE confirmation before the repo-wide run, presenting prescribed defaults (scope: entire
+  tracked repo; mode: detect + classify only; worker fan-out: off, capped at 2–3 concurrent workers
+  when the user opts in and no rate-limit telemetry is readable — pacing resolves from the
+  `rate-limit-guard` plugin's reader contract when its snapshot is present). The new `sweep`
+  argument is the explicit opt-in that skips the confirmation and runs the repo-wide detect
+  immediately. Eval cases 7–8 pin both behaviors.
+
+## [0.12.0]
+
+### Fixed
+
+- **audit-noise:** `detect.sh` now honors the documented scope of the opt-out markers.
+  `<!-- markdown-discipline-ignore -->` suppresses the whole next paragraph (through the next blank
+  line) instead of only the next line, and `<!-- markdown-discipline-ignore-line -->` is
+  distinguished from the bare form. Found when repo-wide-run markers on multi-line paragraphs
+  failed to suppress their wrapped lines.
+
+### Changed
+
+- **audit-noise:** hard rules tightened from first-run findings — Tier 3 explicitly carries no
+  treatment; the `-line` opt-out marker's exact-next-line semantics are documented; the ghost-ref
+  treatment accepts a carrying/pruning PR number as a durable pointer alongside commit-SHA
+  permalinks; the judgment pass's recurring dismissal grounds (fictional example slugs, vendored
+  baselines, delete-instruction targets, self-matches) are codified; and `detect.sh` now skips
+  `CHANGELOG.md` by basename, matching the long-documented exemption.
+- **audit-noise:** the clean-tree default is no longer a silent no-op. With no target and a clean
+  tree the skill now offers a confirmation-gated repo-wide audit with prescribed defaults
+  (fixture/changelog exclusions, slice sectioning, chunked scan, flagged-files-only judgment
+  fan-out with a fresh-context verification pass, report-first order). Unattended runs surface the
+  offer as blocked instead of launching. Shaped by the first repo-wide run (2026-08-15: 1027 files,
+  55 scanner candidates, 37 verified findings).
 
 ## [0.11.3]
 

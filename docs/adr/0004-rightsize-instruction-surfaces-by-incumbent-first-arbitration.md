@@ -443,3 +443,23 @@ output styles).
 so this ADR does not depend on another to be actionable; the full option analysis and the cost that
 placement carries — Phase A must first gain a plugin-source surface, since it enumerates only the
 user and project `.claude/**` roots today — are recorded in ADR 0005 on the sweep boundary.
+
+## Addendum (2026-08-15): C6 population widened — user↔project now operationally covered
+
+**Status: superseding note only.** The ratified decision text above is preserved. What changed is
+C6's *operational* population, not the reuse predicate.
+
+`claude-memory:audit` 0.8.0 replaced the bare `find . -maxdepth 1` discovery with
+`scripts/discover-instruction-surfaces.sh`, which emits **project and user** scope and whose Step 3
+compares user surfaces against project ones as live C6 conflicts. Operator ratification for #2705
+(2026-08-15) confirms the boundary that follows:
+
+- **C6 owns** instruction-content conflicts across scopes — **including user↔project** — when both
+  anchors are in the discover-instruction-surfaces population.
+- **I15 owns** memory-layer precedence adjudication, settings, and every conflict pair with an
+  anchor outside that population (nested `CLAUDE.md`, auto-memory, hooks, skills, agents, output
+  styles).
+
+The coverage-predicate rule in this ADR and ADR 0005 still binds: route on what C6 enumerates, never
+on the layer name. The table in `audit-instructions`' `conflict-criteria.md` was updated to match the
+widened population so the two plugins no longer double-cover user↔project pairs.

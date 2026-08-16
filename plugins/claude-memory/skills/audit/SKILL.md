@@ -38,10 +38,13 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
 | Settings, hooks, MCP, agents, skills | Various | Various | No — use `claude-config`'s `audit` / `automation-gaps` |
 
-The two user-scope rows are in scope because they load in every session regardless of where it starts,
-and because `claude-config`'s `audit-instructions` partitions memory-layer surfaces here **by name**,
-`~/.claude/rules/` included. Discovery tags every file with its scope so project-scoped criteria (C9)
-skip personal files rather than reporting a repo-scoped finding against one.
+The two user-scope rows are in scope because they load in every session regardless of where it starts.
+Discovery tags every file with its scope so project-scoped criteria (C9) skip personal files rather
+than reporting a repo-scoped finding against one. **C6 Consistency** owns instruction-content
+conflicts across that discover-instruction-surfaces population — including **user↔project** pairs.
+`claude-config:audit-instructions` I15 owns memory-layer precedence adjudication and every conflict
+pair with an anchor outside that population (nested `CLAUDE.md`, auto-memory, settings, hooks,
+skills, agents, output styles).
 
 ## Scope boundary (route out)
 

@@ -166,6 +166,7 @@ jobs:
             .github/workflows/link-check.yml
             .github/workflows/pr-issue-linkage.yml
             .github/workflows/pr-title.yml
+            .github/workflows/silent-revert-canary.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
@@ -193,7 +194,8 @@ jobs:
           # Code's own [DEBUG] narration, which prints native Windows settings
           # paths — rewriting those would make the fixture stop matching what
           # the parser has to survive. The paths are invented (`alice`, `x`),
-          # not any operator's.
+          # not any operator's. source-control's same-drive unit tests need
+          # literal `C:/` / `D:/` drive fixtures to exercise the gate (#2764).
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
@@ -202,6 +204,7 @@ jobs:
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
+            :(exclude)plugins/source-control/scripts/worktree-create.test.sh
 
       - name: Check index-level EOL drift
         id: eol
@@ -310,6 +313,30 @@ jobs:
           persist-credentials: false
       - name: Run shared lib tests on Windows
         run: bash lib/hook-utils.test.sh
+
+  # #2774: the disk-hygiene read-only Bash allowlist is NT-specific (MSYS path
+  # mapping, .exe basename stripping, ProgramFiles trust roots). Linux CI cannot
+  # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
+  # POSIX — which is how an inert Windows allowlist shipped green. Keep this
+  # job SMALL: GuardTests only, not the full hygiene suite.
+  disk-hygiene-guard-windows:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Run disk-hygiene GuardTests on Windows
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene.GuardTests
 
   hook-utils-sync:
     runs-on: ubuntu-24.04
@@ -441,6 +468,20 @@ jobs:
         run: scripts/check-cross-plugin-source-drift.sh --check
       - name: Run cross-plugin-source-drift tests
         run: bash scripts/check-cross-plugin-source-drift.test.sh
+
+  detector-findings-crosswalk-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Self-test first, so a broken detector cannot mask a regression.
+      - name: Run detector-findings-crosswalk tests
+        run: bash scripts/check-detector-findings-crosswalk.test.sh
+      - name: Check every crosswalk row argues its disposition from a stated test
+        run: scripts/check-detector-findings-crosswalk.sh --check
 
   skill-leaf-name-gate:
     runs-on: ubuntu-24.04
@@ -610,6 +651,65 @@ jobs:
         run: bash scripts/check-fleet-finding-test-coverage.test.sh
       - name: "Check every emitted fleet finding kind has a Finding: assertion"
         run: scripts/check-fleet-finding-test-coverage.sh --check
+
+  # The audit skill's documented argument grammar must match what audit-fleet.sh
+  # actually accepts. Lives outside both SKILL.md and the collector so a
+  # docs-only silent revert (#2646) cannot delete its own defender (#2713).
+  # Probes the script (never pattern-matches the parser) under a sealed env.
+  fleet-audit-doc-grammar-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so the self-test can prove the gate goes red on the
+          # historical commit that shipped the docs-only grammar revert (#2713).
+          fetch-depth: 0
+      - name: Test the fleet audit doc-grammar detector
+        run: bash scripts/check-fleet-audit-doc-grammar.test.sh
+      - name: Check audit skill grammar matches the parser
+        run: scripts/check-fleet-audit-doc-grammar.sh --check
+
+  # Stale-base squash merges can silently revert recently-landed fixes when a PR
+  # is cut from a base that has since moved, and the squash deletes the tests
+  # that would have caught the drop (claude-code-plugins#2691). This gate fails
+  # the PR while its merge-base is behind on overlapping paths. It covers the
+  # stale-BASE class only: a branch stale in content but current in history
+  # passes here, and that class belongs to the post-merge silent-revert canary
+  # (scripts/check-silent-revert.sh, silent-revert-canary.yml). The two are
+  # disjoint; neither subsumes the other.
+  # The job itself never skips (a skipped required lane's result is not
+  # `success`, which the ci-status aggregate rejects) — only the PR overlap
+  # steps are event-gated. The detector self-test runs on every event so a
+  # broken detector cannot mask a regression behind a push-to-main skip.
+  stale-base-overlap-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          # PR head, not the synthetic merge commit: overlap is computed against
+          # the branch tip the author will squash, so merge-base math must match
+          # that tip rather than an already-merged-with-base tree. Push falls
+          # back to github.sha so `ref` is never empty on main.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Test the stale-base overlap detector
+        run: bash scripts/check-stale-base-overlap.test.sh
+      - name: Fetch base ref
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
+      - name: Fail when behind base on overlapping paths
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-stale-base-overlap.sh --check "origin/$BASE_REF"
 
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
   # version heading does not outrun the manifest (static --check), a PR that
@@ -874,7 +974,7 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the miro plugin build cannot be affected — reporting success."
 
-  # The knowledge plugin's youtube-digest extraction pipeline is a Node package
+  # The knowledge plugin's video-digest extraction pipeline is a Node package
   # with a typecheck and vitest suite no other lane installs or runs. Its
   # committed lockfile pins the shared vendor/ packages as packed installs
   # (install-links via the package's .npmrc), so manifest/lockfile drift breaks
@@ -883,7 +983,7 @@ jobs:
   # fail-closed docs-only gate as plugin-gate and miro-plugin. (Scoping this
   # lane to its own paths — skipping it on unrelated diffs — is the same
   # separately-tracked optimization noted on miro-plugin.)
-  youtube-extraction:
+  video-extraction:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -907,22 +1007,21 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
+          cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run build
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh build
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the video extraction suite cannot be affected — reporting success."
 
   # ai-briefing's build/render pipeline is a Node package (native `node --test`
   # suite) no other lane installs or runs — including test/url-policy.test.js,
@@ -933,7 +1032,7 @@ jobs:
   # that suite runs locally only, so a future refactor could silently break the
   # predicate with nothing red in CI (#1488). Same never-skip, self-test-first,
   # fail-closed docs-only gate as plugin-gate, miro-plugin and
-  # youtube-extraction. (Scoping this lane to its own paths — skipping it on
+  # video-extraction. (Scoping this lane to its own paths — skipping it on
   # unrelated diffs — is the same separately-tracked optimization noted on
   # miro-plugin.)
   ai-briefing-build:
@@ -960,28 +1059,28 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/ai-briefing/skills/generate/output/build
+        run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/ai-briefing/skills/generate/output/build
+        run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
 
   # The knowledge plugin's course-digest extraction pipeline is a Node package
   # (typecheck + vitest suite) no other lane installs or runs — same shape as
-  # youtube-extraction, including the shared vendor/ packages pulled in as
+  # video-extraction, including the shared vendor/ packages pulled in as
   # file: dependencies via the package's .npmrc install-links=true. Without
   # this lane the suite (utils, the adapter contract, the dometrain/teachable
   # adapters, clerk/teachable-sso auth, config, and the hotmart/mux players)
   # runs locally only, so a future refactor could silently break it with
   # nothing red in CI (#1507). Same never-skip, self-test-first, fail-closed
-  # docs-only gate as plugin-gate, miro-plugin, youtube-extraction and
+  # docs-only gate as plugin-gate, miro-plugin, video-extraction and
   # ai-briefing-build. (Scoping this lane to its own paths — skipping it on
   # unrelated diffs — is the same separately-tracked optimization noted on
   # miro-plugin.)
@@ -1009,19 +1108,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/course-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run build
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the course-digest extraction suite cannot be affected — reporting success."
@@ -1111,14 +1209,16 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-skill-portability.sh "origin/$BASE_REF"
 
-  # Shell-portability lint (#1491): flags GNU-only constructs in changed
-  # **/*.sh files — a class neither shellcheck (syntax/style) nor
-  # portability-lint (skill-coupling tokens, skill files only) covers, and no
-  # runner here uses BSD userland (macOS system grep/sed/date/stat/mktemp/sort
-  # — a Windows runner's Git Bash still ships GNU grep/sed, so it would not
-  # help either). Same shape as portability-lint: changed-file scoped so
-  # enabling a class never red-lines main, self-test-first so a broken
-  # detector cannot mask a regression behind a green gate, job never skips.
+  # Shell-portability lint (#1491 / #2704): flags GNU-only constructs in
+  # changed **/*.sh files and skill markdown under plugins/*/skills/ — a class
+  # neither shellcheck (syntax/style) nor portability-lint (skill-coupling
+  # tokens, skill files only) covers, and no runner here uses BSD userland
+  # (macOS system grep/sed/date/stat/mktemp/sort — a Windows runner's Git Bash
+  # still ships GNU grep/sed, so it would not help either). Same shape as
+  # portability-lint: changed-file scoped so enabling a class never red-lines
+  # main, self-test-first so a broken detector cannot mask a regression behind
+  # a green gate, job never skips. Skill-md backlog is grandfathered in
+  # scripts/shell-portability-skill-md-baseline.txt.
   shell-portability-lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1131,7 +1231,7 @@ jobs:
           fetch-depth: 0
       - name: Test the shell-portability gate
         run: bash scripts/check-shell-portability.test.sh
-      - name: Gate changed shell files for GNU-only constructs
+      - name: Gate changed shell and skill-md files for GNU-only constructs
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -1166,24 +1266,28 @@ jobs:
       - hygiene
       - hook-utils-sync
       - hook-utils-windows
+      - disk-hygiene-guard-windows
       - parse-concern-value-sync
       - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
+      - detector-findings-crosswalk-gate
       - skill-leaf-name-gate
       - userconfig-argv-gate
       - hook-exec-form-gate
       - plugin-options-docs-gate
       - silent-skip-gate
+      - stale-base-overlap-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - fleet-finding-test-coverage-gate
+      - fleet-audit-doc-grammar-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
       - plugin-gate
       - miro-plugin
-      - youtube-extraction
+      - video-extraction
       - ai-briefing-build
       - course-digest-extraction
       - runner-policy

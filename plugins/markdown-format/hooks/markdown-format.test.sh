@@ -883,12 +883,60 @@ OUT_NO_MDLINT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "
   env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_MDLINT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_NO_MDLINT=$?
 if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("neither on PATH nor available as a contained repository-local")' >/dev/null 2>&1; then
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("was not found on this hook'"'"'s PATH or as a contained repository-local")' >/dev/null 2>&1; then
   ok "missing markdownlint emits visible additionalContext"
 else
   fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
 fi
+# #2740: notice must not claim a session-long skip latch, and must carry the
+# probed PATH so a PATH-layer miss (nvm prefix, cloud harness env) is diagnosable.
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
+  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+  (.systemMessage | contains("PATH probed:")) and
+  ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
+' >/dev/null 2>&1; then
+  ok "missing markdownlint notice: notice-only latch + PATH diagnostic"
+else
+  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
+fi
 if [[ ! -e "$NPX_MARKER" ]]; then ok "missing markdownlint never invokes npx"; else fail "missing markdownlint invoked npx"; fi
+
+# --- Monorepo workspace node_modules/.bin walk (#2732) ----------------------
+# Hide PATH markdownlint; plant the shim only under packages/pkg/node_modules
+# (not the repo root). The hook must walk from the edited file up to REPO_ROOT.
+WS_ENV="$WORK/ws-md.bashenv"
+WS_MARK="$WORK/ws-md.marker"
+cat >"$WS_ENV" <<'WSEOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
+    return 1
+  fi
+  if [[ "${1:-}" == "-v" && "${2:-}" == "npx" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+WSEOF
+WS_REPO="$WORK/monorepo"
+mkdir -p "$WS_REPO/packages/pkg/node_modules/.bin" "$WS_REPO/packages/pkg"
+git init -q "$WS_REPO" 2>/dev/null
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$WS_REPO/.markdownlint-cli2.jsonc"
+printf '#!/usr/bin/env bash\nprintf "WS" > "%s"\nexit 0\n' "$WS_MARK" \
+  >"$WS_REPO/packages/pkg/node_modules/.bin/markdownlint-cli2"
+chmod +x "$WS_REPO/packages/pkg/node_modules/.bin/markdownlint-cli2"
+printf '# Workspace File\n\n* star\n' >"$WS_REPO/packages/pkg/doc.md"
+rm -f "$WS_MARK"
+PD_WS="$(mktemp -d "$WORK/pd.XXXXXX")"
+(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$WS_REPO/packages/pkg/doc.md" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$WS_ENV" CLAUDE_PLUGIN_DATA="$PD_WS" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK") >/dev/null 2>&1
+WS_SAW="$(cat "$WS_MARK" 2>/dev/null || echo '<no shim ran>')"
+if [[ "$WS_SAW" == "WS" ]]; then
+  ok "monorepo workspace node_modules/.bin markdownlint is resolved (#2732)"
+else
+  fail "monorepo workspace markdownlint not resolved — saw '$WS_SAW'"
+fi
 
 # --- Missing jq: visible advisory, no malformed parsing ---------------------
 NO_JQ_ENV="$WORK/no-jq.bashenv"

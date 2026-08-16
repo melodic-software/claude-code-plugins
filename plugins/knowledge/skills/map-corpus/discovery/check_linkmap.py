@@ -103,7 +103,7 @@ def main(argv=None) -> int:
         fail(2, "at least one --discovery output is required: a link map with "
                 "no discovery basis cannot demonstrate coverage. Two cases "
                 "land here: (1) an origin seed resolved neither llms.txt nor "
-                "a sitemap -- stop loudly (rung 3 is deferred by Q19); "
+                "a sitemap -- stop loudly (rung 3 is deferred, user-reserved); "
                 "(2) a corpus of resource seeds only -- outside V1 gate scope "
                 "by recorded deferral (see link-map-format.md); route those "
                 "URLs to direct docpage-digest runs instead.")

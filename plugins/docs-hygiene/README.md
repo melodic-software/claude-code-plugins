@@ -1,12 +1,12 @@
 # docs-hygiene
 
-A Claude Code plugin bundling six documentation-hygiene skills — one cohesive
+A Claude Code plugin bundling documentation-hygiene skills — one cohesive
 capability: keeping a repository's tracked markdown lean, deduplicated, and
 free of decayed references. Each skill is invocable on its own; together they
 cover the flavor, noise, duplication, boundary, rename, and worth axes of doc
 upkeep.
 
-## The six skills
+## The skills
 
 | Skill | What it does |
 |---|---|
@@ -39,6 +39,11 @@ upkeep.
 
 ## How the skills adapt to your repo
 
+Bare invocations with no target share a confirmation-gated clean-tree /
+no-scope fallback (`context/clean-tree-fallback.md`): offer a corpus run with
+prescribed defaults, never auto-start, and no-op on decline or silence.
+
+<!-- markdown-discipline-ignore -->
 The bundled defaults are repo-agnostic: detectors run against the repository
 they are invoked in, output destinations default to conventional locations
 (e.g. `.claude/rules/<topic>.md` for an extracted rule), and ephemeral-path

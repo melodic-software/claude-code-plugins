@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.23.5]
+## [0.23.9]
 
 ### Changed
 
@@ -8,6 +8,54 @@
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.23.8]
+
+### Changed
+
+- **`orchestrate`: dated fork→non-fork child probe note (#2738).**
+  `context/sources.md` records a 2026-08-15 empirical probe attempt on Claude Code
+  2.1.232 for whether a below-limit Agent-tool fork can spawn a non-fork child.
+  Outcome: **inconclusive (fixture failure)** — CLI not logged in (`Not logged in
+  · Please run /login`), so no Agent-tool dispatch ran. Documented as
+  authentication/fixture gap, not a null finding; docs-implied path remains
+  behavior-unconfirmed until a logged-in re-run.
+
+## [0.23.7]
+
+### Changed
+
+- **`orchestrate`: cloud / unobservable rate-limit headroom fallback.** Imperative 7 now treats a
+  missing/stale/`rate_limits`-less `rate-limit-guard` tee (the expected cloud / remote state) as
+  thin headroom by default: small concurrent-worker cap, short waves, scale only on own-session
+  rate-limit errors or live sibling-automation 429s — never invent window percentages. Gotchas and
+  sources cite the reader contract's degraded-mode section; the live cloud statusline producer
+  remains that contract's documented residual (#2697, #2736, #2747).
+
+## [0.23.6]
+
+### Changed
+
+- **`orchestrate`: harness-claim corrections from a plugin-quality audit.** (1) "A fork is a leaf,
+  never an intermediate tier" overreached the docs — the sub-agents page states only "A fork can't
+  spawn further forks", and its depth-limit carve-out implies a below-limit fork holds a working
+  Agent tool; the sentence now carries the narrow documented claim with citation. (2) The cap
+  inventory said two env-var caps remain, but workflow agents and agent-team teammates "follow
+  their own limits instead" — including the CPU-dependent, non-overridable workflow concurrency
+  bound that actually bound an 88-agent evidence run at 2 concurrent on a 4-CPU container; the
+  tiered-delegation section and `sources.md` now carry the current quotes (re-verified
+  2026-08-15), the third concurrency rider (resumed subagents take a fresh slot), the
+  Large-workflow threshold riders, and the v2.1.232 fork-default note. (3) The `${CLAUDE_EFFORT}`
+  priming addendum now self-detects the direct-read fallback (a literal placeholder means the
+  substitution never ran) instead of degrading silently.
+
+## [0.23.5]
+
+### Changed
+
+- **README:** the Network section's closed roster of network-free skills is reopened to a category
+  statement ("every skill not named above"), so skill additions no longer silently drift the list
+  (repo-wide `/docs-hygiene:audit-noise` run, 2026-08-15).
 
 ## [0.23.4]
 

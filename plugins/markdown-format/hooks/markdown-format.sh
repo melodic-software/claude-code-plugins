@@ -452,36 +452,56 @@ fi
 # this repository's node_modules tree. This rejects a checked-in or replaced
 # .bin symlink that escapes the repository trust boundary.
 resolve_repo_markdownlint() {
-  local candidate="$REPO_ROOT/node_modules/.bin/markdownlint-cli2"
-  local root_physical target link target_dir depth=0
-
-  [[ -f "$candidate" && -x "$candidate" ]] || return 1
+  # Walk from the edited file's directory up to $REPO_ROOT so a monorepo
+  # workspace install (packages/x/node_modules/.bin) is visible; the previous
+  # root-only probe left those installs invisible (#2732).
+  local start_dir candidate root_physical target link target_dir depth dir parent
+  local dir_physical
+  start_dir="$(dirname -- "$FILE")"
   root_physical="$(cd -P -- "$REPO_ROOT" 2>/dev/null && pwd -P)" || return 1
-  target="$candidate"
-
-  while [[ -L "$target" ]]; do
-    depth=$((depth + 1))
-    ((depth <= 32)) || return 1
-    link="$(readlink "$target" 2>/dev/null)" || return 1
-    case "$link" in
-    /*) target="$link" ;;
-    [A-Za-z]:[\\/]*)
-      command -v cygpath >/dev/null 2>&1 || return 1
-      target="$(cygpath -u "$link" 2>/dev/null)" || return 1
-      ;;
-    *) target="$(dirname -- "$target")/$link" ;;
-    esac
+  dir="$start_dir"
+  while [[ -n "$dir" ]]; do
+    candidate="$dir/node_modules/.bin/markdownlint-cli2"
+    if [[ -f "$candidate" && -x "$candidate" ]]; then
+      target="$candidate"
+      depth=0
+      while [[ -L "$target" ]]; do
+        depth=$((depth + 1))
+        ((depth <= 32)) || return 1
+        link="$(readlink "$target" 2>/dev/null)" || return 1
+        case "$link" in
+        /*) target="$link" ;;
+        [A-Za-z]:[\\/]*)
+          command -v cygpath >/dev/null 2>&1 || return 1
+          target="$(cygpath -u "$link" 2>/dev/null)" || return 1
+          ;;
+        *) target="$(dirname -- "$target")/$link" ;;
+        esac
+      done
+      if [[ -f "$target" && -x "$target" ]]; then
+        target_dir="$(cd -P -- "$(dirname -- "$target")" 2>/dev/null && pwd -P)" || true
+        if [[ -n "$target_dir" ]]; then
+          target="$target_dir/$(basename -- "$target")"
+          case "$target" in
+          "$root_physical"/node_modules/* | "$root_physical"/*/node_modules/*)
+            printf '%s' "$candidate"
+            return 0
+            ;;
+          *) ;;
+          esac
+        fi
+      fi
+    fi
+    # Stop at repo root (inclusive of its own node_modules, already tried).
+    dir_physical="$(cd -P -- "$dir" 2>/dev/null && pwd -P)" || true
+    if [[ -n "$dir_physical" && "$dir_physical" == "$root_physical" ]]; then
+      break
+    fi
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" == "$dir" ]] && break
+    dir="$parent"
   done
-
-  [[ -f "$target" && -x "$target" ]] || return 1
-  target_dir="$(cd -P -- "$(dirname -- "$target")" 2>/dev/null && pwd -P)" || return 1
-  target="$target_dir/$(basename -- "$target")"
-  case "$target" in
-  "$root_physical"/node_modules/*) ;;
-  *) return 1 ;;
-  esac
-
-  printf '%s' "$candidate"
+  return 1
 }
 
 MDLINT=()
@@ -493,9 +513,18 @@ else
   # Never invoke a package runner here: hooks must not download or execute an
   # unpinned package as a side effect of editing a file. Degrade visibly on
   # both channels, once per session.
+  #
+  # Wording is load-bearing (#2740): only the NOTICE latches (skip-notices/
+  # marker via hook::notice_once). The binary probe re-runs on every Markdown
+  # edit and recovers silently mid-session when the tool becomes resolvable —
+  # there is no skip latch. Saying "skipped for this session" made operators
+  # and agents stop retrying. The trailing PATH line is the probe diagnostic
+  # (what this hook process actually searched); do not widen the probe to
+  # nvm/rbenv layout guesses — that is a separate environment/bootstrap fix.
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 is neither on PATH nor available as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this session. Install it explicitly; this hook does not invoke npx or download tools."
+      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools.
+PATH probed: ${PATH:-<unset>}"
   fi
   emit_tel "skipped" '[]'
   exit 0

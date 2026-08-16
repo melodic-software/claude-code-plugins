@@ -1,0 +1,9 @@
+{
+  "_comment": "Case manifest for generate-identity-prerequisites.test.sh. Each name is a scenario the harness must exercise; the orphaned-fixtures gate does not apply (no evals/fixtures/), but the harness fails if a named case is missing from this list or unhandled.",
+  "cases": [
+    "generate_and_check_clean",
+    "drift_fixture",
+    "leaf_emission_parity",
+    "posture_divergence"
+  ]
+}

@@ -57,6 +57,25 @@ The row is derived through the catalog-to-matrix mapping rules in the
 
 Derived row: `C1` in the [guardrail matrix](../guardrails.md).
 
+## Prerequisites
+
+Per-identity needs under
+[routine prerequisite resolution](../prerequisite-resolution.md). Axes derive through the
+catalog mapping rules; the isolation floor and `executor_class` merge cap are cited from the
+guardrail slice, never re-derived. Resolution verdicts use `supported` | `conditional` |
+`unsupported` | `unknown`.
+
+Single-posture identity: `issue-triage-sweep` (bare class token).
+
+| Axis | Value |
+|---|---|
+| Access class | `repo` |
+| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| Repo needs | tracker binding via the work-item tracker seam (`.work-item-tracker.json` + adapter `capabilities.json`); a deterministic repo-file probe that finds those files absent is `unsupported`; `unknown` only when the work-item seam cannot establish the fact (composition fallback) |
+
 ## Admission and escalation
 
 Admission disposition, caps, and fail-closed behavior are imported by citation from the

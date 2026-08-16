@@ -1,0 +1,108 @@
+{
+  "note": "Golden conformance fixtures for the X source adapter. Consumed offline by extraction/evals/check-x-status-goldens.test.js (CI-gated, no network): each case defines the yt-dlp pass outputs the acquisition observes and the exact envelope the adapter must produce — 0..N result shape, the slice-key pair (canonical identity = the URL's status id / display_id; the media id rides as the source:displayId discriminator's counterpart in metadata.id), and the source:* provenance fields that persist into watch.json via sourceMetadataSubset.",
+  "statusUrl": "https://twitter.com/SomeUser/status/1720000000000000000?s=20&t=tracking",
+  "canonicalUrl": "https://x.com/someuser/status/1720000000000000000",
+  "sliceKey": "1720000000000000000",
+  "cases": [
+    {
+      "name": "single-video",
+      "passes": [
+        {
+          "files": {
+            "1719999748341760000.info.json": {
+              "extractor": "twitter",
+              "extractor_key": "Twitter",
+              "id": "1719999748341760000",
+              "display_id": "1720000000000000000",
+              "title": "Golden Post",
+              "description": "Read https://example.com/paper for details",
+              "like_count": 12,
+              "repost_count": 3,
+              "comment_count": 4,
+              "view_count": 900,
+              "formats": [{ "format_id": "http-2176" }]
+            },
+            "1719999748341760000.en.vtt": "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nhello from x\n"
+          }
+        },
+        { "files": { "1719999748341760000.mp4": "binary" } }
+      ],
+      "expected": {
+        "entryCount": 1,
+        "metadataId": "1719999748341760000",
+        "persistedSourceMetadata": {
+          "source:displayId": "1720000000000000000",
+          "source:counts": {
+            "likeCount": 12,
+            "repostCount": 3,
+            "commentCount": 4,
+            "viewCount": 900
+          }
+        },
+        "aliasingRecorded": false,
+        "harvestedLinks": ["https://example.com/paper"]
+      }
+    },
+    {
+      "name": "quote-tweet-aliasing",
+      "passes": [
+        {
+          "files": {
+            "1718912836403200000.info.json": {
+              "extractor": "twitter",
+              "extractor_key": "Twitter",
+              "id": "1718912836403200000",
+              "display_id": "1720000000000000000",
+              "title": "Golden Quote",
+              "description": "",
+              "like_count": 1,
+              "repost_count": 0,
+              "comment_count": 0,
+              "view_count": 5,
+              "formats": [{ "format_id": "http-2176" }]
+            }
+          }
+        },
+        { "files": { "1718912836403200000.mp4": "binary" } }
+      ],
+      "expected": {
+        "entryCount": 1,
+        "metadataId": "1718912836403200000",
+        "persistedSourceMetadata": {
+          "source:displayId": "1720000000000000000",
+          "source:snowflakeAliasing": {
+            "urlStatusId": "1720000000000000000",
+            "resultId": "1718912836403200000",
+            "urlTimestampMs": 1698914930711,
+            "resultTimestampMs": 1698655730711,
+            "deltaMs": 259200000,
+            "aliasSuspected": true
+          }
+        },
+        "aliasingRecorded": true,
+        "harvestedLinks": []
+      }
+    },
+    {
+      "name": "blocked-delegation-zero-result",
+      "passes": [
+        {
+          "success": false,
+          "stderr": "ERROR: No suitable extractor found for URL https://blog.example.com/outbound-post"
+        }
+      ],
+      "expected": {
+        "entryCount": 0,
+        "metadataId": "1720000000000000000",
+        "persistedSourceMetadata": {
+          "source:displayId": "1720000000000000000",
+          "source:blockedDelegations": [
+            { "url": "https://blog.example.com/outbound-post", "extractor": "refused-before-fetch" }
+          ]
+        },
+        "aliasingRecorded": false,
+        "harvestedLinks": ["https://blog.example.com/outbound-post"]
+      }
+    }
+  ]
+}

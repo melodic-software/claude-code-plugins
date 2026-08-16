@@ -3,7 +3,7 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.11]
+## [0.15.12]
 
 ### Changed
 
@@ -11,6 +11,22 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.15.11]
+
+### Fixed
+
+- **Eval-quality Q4 no longer silent on `files: []` + prose-only paths (#2746).**
+  `check-evals-quality.sh` still FAILs unresolvable/`..`/absolute entries in the
+  declared `files` array. It now also WARNs when `files` is empty/absent, the case
+  is not `narration: true`, and `prompt`/`expected_output` contain a path-shaped
+  token (`dir/…/file.ext`) that resolves to nothing under the skill or evals
+  directory — the dodge that let compress evals 3/8/10 clear the gate while naming
+  unreachable paths. Opt out with `narration: true` (schema field added) or declare
+  a real fixture in `files`. Branch-like tokens and bare filenames stay out of scope.
+  Host-shaped skips require a DNS-like first segment ending in an alphabetic label
+  (so `v1.2/schema/config.json` stays in scope); the PROSE escape gate keeps only
+  the reachable `../` check before the existence WARN.
 
 ## [0.15.10]
 

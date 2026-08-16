@@ -31,10 +31,11 @@
 # unapproved `settings.json` does not run headlessly.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# STATUS: WRITTEN, NOT YET RUN. Nothing in fixtures/README.md's nesting section
-# is claimed on this script's authority. It is the recheck PROCEDURE; running it
-# is what converts the disputed arm into a settled one. Record the outcome in
-# fixtures/README.md — including a null result, which is a finding here.
+# STATUS: RUN 2026-08-15 on Claude Code 2.1.232 — INCONCLUSIVE. All four arms
+# completed the fixture setup, but the InstructionsLoaded hook produced zero
+# trace events on every arm (`claude -p` reported "Not logged in"). That is a
+# fixture failure, not evidence of absence — see fixtures/README.md. Re-run
+# under an authenticated CLI and refresh the record with the outcome.
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Costs one `claude -p` turn per arm. Network and an authenticated CLI required.
@@ -53,8 +54,19 @@ command -v claude >/dev/null 2>&1 || {
   exit 1
 }
 
+CLAUDE_VERSION="$(claude --version 2>&1)"
 printf 'workdir: %s\n' "$WORKDIR"
-printf 'claude version: %s\n\n' "$(claude --version 2>&1)"
+printf 'claude version: %s\n\n' "$CLAUDE_VERSION"
+
+# Pinned discriminators — recorded here so a README entry can cite them without
+# re-deriving from the script body. Changing any of these is a new probe run.
+printf 'Pinned discriminators:\n'
+printf '  creation:     plain git-worktree-add (not claude --worktree / EnterWorktree)\n'
+printf '  launch:       cd <worktree> && claude -p … --settings <file> (bare cd into git-worktree-add dir)\n'
+printf '  paths glob:   src/** (anchored at each rule file'\''s own repo root)\n'
+printf '  parent rule:  COMMITTED in the parent checkout\n'
+printf '  hook form:    InstructionsLoaded exec (args-array) via --settings\n'
+printf '  placements:   dot-nested | plain-nested | external | unrelated-nested\n\n'
 
 # The instrument. Appends every InstructionsLoaded payload verbatim, so the
 # analysis reads what the harness said rather than what the probe inferred.
@@ -117,8 +129,9 @@ arm() {
   }
   mkdir -p "$(dirname "$wt/$readpath")"
   printf 'worktree target\n' >"$wt/$readpath"
+  local claude_err="$TRACE_DIR/$label.claude.err"
   ( cd "$wt" && claude -p "Read $readpath and reply with exactly: OK" \
-      --settings "$SETTINGS" >/dev/null 2>&1 )
+      --settings "$SETTINGS" >"$TRACE_DIR/$label.claude.out" 2>"$claude_err" )
   if [[ -s "$TRACE_DIR/trace.jsonl" ]]; then
     printf 'rule files named in the trace:\n'
     grep -oE '"[^"]*scoped\.md"' "$TRACE_DIR/trace.jsonl" | sort -u | sed 's/^/  /'
@@ -133,6 +146,13 @@ arm() {
     printf 'failure, NOT evidence of absence. Fix the hook before reading any\n'
     printf 'arm as a null result; mistaking one for the other is how the\n'
     printf 'original dispute arose.\n'
+    # claude may put the failure on stdout or stderr depending on the path
+    # (auth refusal was observed on stdout on 2.1.232).
+    if [[ -s "$TRACE_DIR/$label.claude.out" || -s "$claude_err" ]]; then
+      printf 'claude output (first lines):\n'
+      { head -n 5 "$TRACE_DIR/$label.claude.out" 2>/dev/null; head -n 5 "$claude_err" 2>/dev/null; } \
+        | sed '/^$/d' | head -n 5 | sed 's/^/  /'
+    fi
   fi
   cp -f "$TRACE_DIR/trace.jsonl" "$TRACE_DIR/$label.jsonl" 2>/dev/null || true
   printf '\n'

@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.6]
+## [0.20.11]
 
 ### Changed
 
@@ -11,6 +11,115 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.20.10]
+
+### Fixed
+
+- **Restore the last two files #2635 never got back (#2590).** #2635 changed seven files; the
+  stale-base squash in #2639 deleted them, #2714 restored four and #2803 restored four, and the
+  overlap left `README.md` and `skills/clean/evals/evals.json` unrestored on `main` — a partial
+  recovery the silent-revert canary cannot detect, because the deleting commit is already a
+  recorded incident. The README's overview, approval-contract bullet, and deletion-report
+  paragraph lead with tidiness again, and eval 12
+  (`empty-directories-remain-first-class-tidiness-findings`) is back alongside eval 1's
+  provenance-first expectation.
+- **Three of the restored surfaces are corrected rather than restored verbatim (#2590).** Eval 1's
+  expectation is byte-identical to #2635; the other three are not, and each deviation is
+  deliberate. (a) The README approval bullet: #2635's own hunk was malformed and would have
+  re-introduced a duplicated, truncated bullet; the replacement follows `SKILL.md` §5, which is the
+  authority on what the approval table names. (b) The README deletion-report paragraph keeps the
+  locked / changed / protected / needs-elevation / unverified enumeration that #2635's wording
+  would have collapsed to "skips". (c) Eval 12's prompt is retargeted through the documented
+  `--root-children` selection: as #2635 wrote it the prompt scanned `C:\` directly, which the
+  engine has always refused, so the eval's expected output was reachable only by bypassing the
+  confirmation gate.
+
+## [0.20.9]
+
+### Fixed
+
+- **Re-land the engine half of tidiness-first reporting (#2590).** #2635 shipped
+  `empty_directory_count`, plan `provenance`/`risk` validation, and preview/apply
+  tidiness fields; a later stale-base squash deleted the engine while #2714 restored
+  only the skill prose. Snapshot, `validate_plan`, `preview`, and `apply` again keep
+  zero-byte directories first-class and require provenance/risk on every candidate.
+
+## [0.20.8]
+
+### Fixed
+
+- **Windows read-only Bash allowlist was inert — 0 commands accepted (#2774).** Two
+  compounding defects: (A1) MSYS path reinterpretation ran *after* `Path.is_absolute()`,
+  which is False for POSIX-style heads on Windows-native Python, so `/usr/bin/ls` never
+  reached the Git-root mapping; (A2) `_readonly_supporting_basename` did not strip
+  `.exe`/`.EXE`, so real Git-for-Windows binaries never matched the allowlist. Move the
+  MSYS branch ahead of the absolute gate and strip Windows executable extensions.
+- **Engine-gate hard-`allow` leak for allowlisted inspection commands (#2774).** In
+  `--mode engine-gate`, an allowlisted command that also names the engine path emitted
+  `permissionDecision: "allow"`, bypassing the user's prompt in every consumer session.
+  Downgrade that path to `ask`; belt mode still hard-allows.
+- **Exclude user-writable `%LOCALAPPDATA%\\Programs\\Git` from NT trust roots (#2774)**
+  and reword the trust-root comments so they no longer claim independence from
+  environment-derived input.
+
+### Changed
+
+- **CI:** add a focused `disk-hygiene-guard-windows` lane (`windows-2025`, GuardTests
+  only) so NT trust/MSYS/basename branches cannot regress silently on Linux-only CI.
+
+## [0.20.7]
+
+### Fixed
+
+- **Re-landed the belt's read-only allowlist and session-honest docstring, and anchored
+  its trust check (#2618, #2691).** PR #2641 merged from a tree predating PR #2639 and its
+  squash merge reverted #2639 wholesale; CI stayed green because the revert removed the
+  tests with the code. `resolve_mode()` again documents that a skill-frontmatter
+  `PreToolUse` hook stays armed for the rest of the session rather than only while cleanup
+  is the active work, and the read-only supporting Bash allowlist (`ls`, `test`, `stat`,
+  `du`, `pwd`, `basename`, `dirname`, `find`, `file`, `[`) is restored as absolute paths
+  under trusted system directories — `find` gated by the full GNU/BSD side-effect primary
+  set, everything else still deny-by-default.
+- **Recycle Bin deletion spellings are recognized on the PowerShell belt (#2595).**
+  `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` and
+  `Shell.Application` `NameSpace(10)`/`NameSpace(0xa)` with `MoveHere`/`InvokeVerb` now
+  prompt like `Remove-Item`. The skill's own manual-handoff lane recommends Recycle Bin
+  removal, so these were the one deletion route the belt never saw.
+
+### Security
+
+- **Trusted-binary matching is anchored to a resolved installation root, not a path
+  substring (#2618).** `_TRUSTED_READONLY_BIN_SUBSTRINGS_NT` matched fragments such as
+  `/git/usr/bin/` and `/windows/system32/` anywhere in a path, so a repository-controlled
+  `D:/anyrepo/git/usr/bin/find` was trusted and a planted binary carrying an allowlisted
+  basename was hard-`allow`ed, bypassing even the user's own permission prompt. Trust now
+  derives from independently located Git installation roots (`ProgramFiles`,
+  `ProgramFiles(x86)`, `LocalAppData\\Programs`) and from `%SystemRoot%`, compared as an
+  anchored case-insensitive path prefix — never from a `PATH`-selected `git.exe`.
+- **`[` must clear the same executable-identity check as every other head (#2618).** The
+  `[ ... ]` branch returned before the trusted-binary check, so `[` was trusted on name
+  alone — the shell-function-shadowing exposure the guard itself cites to deny bare
+  `python`/`python3`. It is now allowed only as an absolute trusted `/usr/bin/[ ... ]`
+  form.
+- **Bare allowlisted heads are denied (#2618).** `shutil.which("ls")` finds the system
+  binary while Bash still executes an exported `BASH_FUNC_ls%%` first; only absolute
+  paths under trusted system directories (MSYS `/usr/bin/...` mapped through the known
+  Git root on Windows) can hard-`allow`.
+
+## [0.20.6]
+
+### Fixed
+
+- **Re-landed tidiness-first reporting and corrected the belt's documented posture (#2590,
+  #2618).** PR #2639 and then #2641 squash-merged from stale bases and silently reverted the
+  prior markdown fixes (#2691). Reports are again ordered by tier and evidence strength — never
+  by byte size — with empty directories as first-class findings; `provenance` and `risk` return
+  to the plan schema; preview and apply lead with tidiness. The skill and safety-model docs now
+  state that skill-frontmatter `PreToolUse` hooks stay armed for the rest of the session, drop
+  the false exec-form claim (shell form since 0.17.9 / #2568), name the long-path Recycle Bin
+  hard-stop, declare relocation out of scope, and thin Gotchas harness duplication into
+  `safety-model.md` pointers. Guard-code recovery remains in the sibling lane.
 
 ## [0.20.5]
 

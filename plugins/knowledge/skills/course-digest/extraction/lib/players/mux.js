@@ -14,7 +14,7 @@
  */
 export async function getHlsUrl(page, selector) {
   const url = await page.evaluate((sel) => {
-    const player = document.querySelector(sel);
+    const player = /** @type {(Element & {src?: string}) | null} */ (document.querySelector(sel));
     return player?.src || null;
   }, selector);
 

@@ -3,7 +3,7 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.2]
+## [0.23.2]
 
 ### Changed
 
@@ -11,6 +11,83 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.23.1]
+
+### Fixed
+
+- **`.git` stays skipped when `--skip` / `fleet.skip` shrinks the discovery list (#2826).**
+  Replace semantics are unchanged, but `.git` now joins `.` and `..` as an unconditional skip
+  so reaching a repo under `vendor/` cannot start walking `.git` internals. The replaceable
+  default list is `node_modules`, `vendor`, `.venv`; to extend, pass those three plus extra
+  names.
+- **security-review.md no longer restates the aliased-GraphQL page size as a literal `100`
+  in a current-state claim (#2825).** The Accepted egress sentence now names
+  `MERGED_PR_GRAPHQL_ALIAS_PAGE`, matching the live collector constant (historical literals
+  in the 2026-07-31 re-check paragraph are unchanged).
+
+## [0.23.0]
+
+### Added
+
+- **Configurable discovery skip list via `--skip` / `fleet.skip` (#2712).** Repeatable CLI
+  `--skip <name>` and config `fleet.skip` replace the default directory-name skip list
+  (`.`, `..`, `.git`, `node_modules`, `vendor`, `.venv`) rather than appending — so an operator
+  can shrink (reach a repo under `vendor/`) or extend (skip a differently named vendored tree).
+  CLI and config compose additively with each other like other scope inputs. Values must be bare
+  directory names; empty values (including a bare `skip =` config line) and path separators
+  hard-fail. `.` and `..` stay skipped
+  unconditionally. Nested-repository early return (stop descending when a directory carries a
+  `.git` marker) is documented in the audit skill. Setup `apply --skip` writes `fleet.skip`.
+
+## [0.22.5]
+
+### Fixed
+
+- **Symlinked/junctioned intermediate directories under discovery are disclosed, not silent (#2711).**
+  Discovery still does not follow links. Each skipped intermediate symlink (or Windows directory
+  junction, which tests as a symlink under Git Bash) becomes an `UNKNOWN` `discovery-symlink-skip`
+  finding and is counted on the `Discovery skips:` header line. Symlinked discovery roots remain
+  refused as before. Fleet-level `UNKNOWN` findings (including these skips) now also move the
+  overall `Fleet verdict` off `CLEAN`, so a root whose only content is a skipped symlink cannot
+  report a clean walk.
+
+## [0.22.4]
+
+### Fixed
+
+- **Audit `Scope:` header no longer conflates `--root` and `--repo` counts (#2710).**
+  Provenance now reports each flag's count separately (omitting zeros) so a
+  `--repo`-only invocation cannot read as mixed `--root/--repo` scope.
+
+## [0.22.3]
+
+### Fixed
+
+- **security-review.md no longer names deleted REST-era `MERGED_PR_BATCH_LIMIT` /
+  `MERGED_PR_HEAD_LIMIT` constants (#2709).** The live GraphQL collector constants
+  (`MERGED_PR_GRAPHQL_ALIAS_PAGE`, `MERGED_PR_GRAPHQL_JQ`) are documented instead,
+  with historical wording for the retired names so an auditor is not sent looking
+  for symbols that do not exist.
+
+## [0.22.2]
+
+### Fixed
+
+- **Exact-OID merged evidence on a protected branch is no longer computed and discarded (#2687).**
+  A branch carrying a `MERGED` PR whose `headRefOid` equals the local tip fell through both arms
+  of the match block when it was also protected: `merged-worktree` requires a non-main worktree,
+  and `merged-local-branch` requires `protected=false`, so a branch checked out in the main
+  worktree — or the canonical checkout's current branch — satisfied neither and emitted nothing.
+  The weaker `merged-pr-tip-drift` below carries no protection guard and did emit, so silence on
+  the strong path read as "nothing merged" rather than "merged, but protected". A new `HIGH`
+  `merged-protected-branch` finding reports it and names which protection applies — `HIGH` because
+  the evidence is the same successful `MERGED` PR with an exact `headRefOid` match that the
+  sibling kinds carry, and the confidence model separates evidence strength from disposition. The
+  protection rule is unchanged: the kind is absent from `branch_action_kind()`, so it never becomes
+  a cleanup candidate, inflates a rollup count, or enters an action plan. Only the main-worktree
+  and current-branch protections are reachable; the default branch is excluded from merge-evidence
+  collection upstream and never reaches this classification.
 
 ## [0.22.1]
 

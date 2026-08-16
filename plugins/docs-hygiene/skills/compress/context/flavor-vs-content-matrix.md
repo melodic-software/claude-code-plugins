@@ -10,9 +10,9 @@ Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-di
 - Filler (just/really/basically/actually/simply)
 - Hedging (perhaps/somewhat/might)
 - Pleasantries
-- Redundant restatement of bold rule names
+- Redundant restatement of bold rule names (single-file Edit fallback only — batch Phase A LATITUDE does not delete sentences)
 - "in order to" / "due to the fact that" verbose forms
-- Conversational connectives ("that said", "in other words")
+- Conversational connectives ("that said", "in other words") (Edit fallback; batch LATITUDE is word-level)
 - Verbose verb phrases ("make use of" → "use")
 
 ### Content (NEVER cut)
@@ -37,7 +37,7 @@ The taxonomy is invariant across content types. What varies is the EXPECTED YIEL
 | **Always-loaded instruction file** (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) | 2-3% | (a) directives, (d) scope qualifiers, (e) rule-unique rationale, (f) cross-references | Author-time-disciplined. Default action will revert per SKILL.md "Hard rules" (<3% AND 0SL → REVERT). `--force` only when a targeted sub-3% diff is intentional. Empirical baseline: 3/3 attempts reverted |
 | **Onboarding doc** (README onboarding, `docs/onboarding-*.md`, contributor guides) | 8-15% | (b) prohibited-pattern tokens, (c) counter-examples, (h) thresholds | Verbose-prose baseline. Hedging + pleasantries dense; restatement of policy across sections common. Revert-pass strictness: keep every "X not Y" pair intact (counter-example loss = ambiguity in onboarding) |
 | **README** (`README.md`, `*/README.md` at app/lib/service roots) | 5-12% | (f) cross-references, (g) exception clauses, (j) inline-code tokens | Project-front-door surface. Inline-code density usually high (commands, paths); revert any (j) drop. Cross-references load-bearing for navigation |
-| **Drifted skill body** (`**/SKILL.md` past ~250 lines AND not author-time-disciplined) | 4-7% | (a) directives, (e) rule-unique rationale, (i) enumeration items | Skill bodies tend to accumulate procedural prose during evolution. Revert any directive softening ("must" → "should"); revert any enumeration-item drop. Often a single revert-pass produces a final ship |
+| **Drifted skill body** (`**/SKILL.md` past ~250 lines AND not author-time-disciplined) | 4-7% (Edit-fallback / explicit target only) | (a) directives, (e) rule-unique rationale, (i) enumeration items | **Unreachable via the audit gate's batch path:** signal 1 unconditionally SKIPs every `**/SKILL.md`. Drifted skill bodies require an explicitly-named single-file target (or Edit fallback); the matrix row remains for that niche. Revert any directive softening ("must" → "should"); revert any enumeration-item drop |
 | **Third-party pasted prose** (vendor docs, external policy text, copied research notes) | 10-20% | (b) prohibited-pattern tokens, (h) thresholds, (j) inline-code tokens | Highest yield + highest risk. Pasted prose carries verbose flavor authors did not edit. Inline-code tokens (CLI flags, schema field names) MUST survive verbatim; treat any (j) loss as SEMANTIC LOSS not AMBIGUITY |
 
 ## Variants never relax the preservation contract
@@ -49,8 +49,8 @@ The (a)–(j) Content list defines the universal preservation contract. Per-cont
 `/docs-hygiene:compress audit <target>` classifies SKIP / COMPRESS / UNCERTAIN per `context/target-types.md` "Author-time-signal heuristic". The "Expected yield" column above feeds that heuristic's output:
 
 - Expected yield < 3% (always-loaded instruction files) → audit emits **SKIP** with empirical-baseline citation
-- Expected yield 3-7% (drifted skill bodies) → audit emits **UNCERTAIN**; user gates via `--force` or skip
-- Expected yield ≥ 8% (onboarding / README / third-party) → audit emits **COMPRESS**
+- Expected yield 3-7% (density-narrow files, or an explicitly-targeted drifted skill body) → audit emits **UNCERTAIN**; user gates via `--force` or skip. Note: `**/SKILL.md` never reaches this band through the mechanical audit gate (signal 1 wins).
+- Expected yield ≥ 8% (onboarding / README / third-party) → audit emits **COMPRESS**; the matrix's 8-15% / 10-20% bands assume Edit-fallback latitude on restatement-heavy prose and over-predict batch fan-out yield
 
 Numeric ranges drift; revisit the variant table as empirical evidence accumulates.
 

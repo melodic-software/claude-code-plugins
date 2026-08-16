@@ -3,7 +3,7 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.4.4]
+## [1.4.5]
 
 ### Changed
 
@@ -11,6 +11,15 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [1.4.4]
+
+### Changed
+
+- **Doc noise treatments** from the repo-wide `/docs-hygiene:audit-noise` run (2026-08-15):
+  `song-forms-examples.md`'s "Why this file exists" preamble collapsed to a one-sentence
+  orientation, and the suno drift-audit ledger's founding provenance (issue citations and the
+  never-created memory-tier path) relocated to a `## History` footer.
 
 ## [1.4.3]
 

@@ -62,9 +62,9 @@ cat >"$CLEAN" <<'EOF'
 
 Plain prose with no noise shapes. The schema uses .work/<slug>/PLAN.md as a
 slot-variable example, which is not a ghost ref. Contract slices land in
-docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/ and review
-reports in .work/reviews/<branch-slug>/; .claude/topic-docs.yaml is the tracked
-concern file.
+docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/, review
+reports in .work/reviews/<branch-slug>/, and running-retro ledgers in
+.work/running-retros/; .claude/topic-docs.yaml is the tracked concern file.
 
 ## Cross-references
 
@@ -80,6 +80,16 @@ Empirically observed during the bar-rollout window.
 
 <!-- markdown-discipline-ignore-line -->
 We pivoted from the 2026-05-01 incident layout.
+
+<!-- markdown-discipline-ignore -->
+First line of a wrapped paragraph with no noise,
+was renamed to something on its second line —
+paragraph scope must cover every line to the blank.
+
+<!-- markdown-discipline-ignore -->
+Marked paragraph followed directly by a heading.
+## Heading closes the marker scope
+We pivoted from the heading-scope layout.
 
 Path-scoped to `docs/**` per the loader.
 EOF
@@ -117,6 +127,8 @@ assert_not_contains "exempt section suppressed" "$clean_out" "Finding shape: cit
 opt_out="$(bash "$DETECT" "$OPTOUT")"
 assert_not_contains "opt-out citation suppressed" "$opt_out" "bar-rollout"
 assert_not_contains "opt-out line suppressed" "$opt_out" "2026-05-01 incident"
+assert_not_contains "opt-out paragraph scope covers wrapped lines" "$opt_out" "was renamed to something on its second"
+assert_contains "heading ends marker scope even without a blank" "$opt_out" "heading-scope layout"
 assert_contains "scope-meta still detected" "$opt_out" "Finding shape: scope-meta"
 
 # --- 5. Backtick-wrapped slash-command roster detected ------------------------------
@@ -127,6 +139,18 @@ cat >"$BT_FIXTURE" <<'EOF'
 EOF
 bt_out="$(bash "$DETECT" "$BT_FIXTURE")"
 assert_contains "backtick enum-list detected" "$bt_out" "Finding shape: enum-list"
+
+# --- 5b. CHANGELOG.md skipped by basename (exempt per SKILL.md hard rules) ----------
+
+CL_FIXTURE="$TEST_TMPDIR/CHANGELOG.md"
+cat >"$CL_FIXTURE" <<'EOF'
+# Changelog
+
+Was renamed to something. Empirically observed. `.work/some-slice/PLAN.md` cited.
+EOF
+cl_out="$(bash "$DETECT" "$CL_FIXTURE")"
+assert_not_contains "CHANGELOG.md emits no findings" "$cl_out" "Finding shape:"
+assert_not_contains "CHANGELOG.md not counted as audited" "$cl_out" "Summary file: $CL_FIXTURE"
 
 # --- 6. Directory target expands to its .md files ------------------------------------
 
@@ -236,9 +260,21 @@ cat >"$BARE_ROOT" <<'EOF'
 # Bare-root fixture
 
 .work/reviews/ is self-ignoring
+.work/running-retros/ holds session ledgers
+The ledgers live in .work/running-retros/.
 EOF
 bare_out="$(bash "$DETECT" "$BARE_ROOT")"
 assert_not_contains "bare concern root is not a ghost ref" "$bare_out" "Finding shape: ghost-ref"
+assert_not_contains "bare concern root with terminal period stays exempt" "$bare_out" "Finding shape: ghost-ref"
+
+RUNNING_RETRO_CHILD="$TEST_TMPDIR/running-retro-child.md"
+cat >"$RUNNING_RETRO_CHILD" <<'EOF'
+# Running-retro child fixture
+
+Ledger kept at .work/running-retros/20260101T000000Z-running-retro-auth.md for posterity.
+EOF
+rr_out="$(bash "$DETECT" "$RUNNING_RETRO_CHILD")"
+assert_contains "concrete child under .work/running-retros/ is a ghost ref" "$rr_out" "Finding shape: ghost-ref"
 
 PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
 cat >"$PLACEHOLDER" <<'EOF'
@@ -263,11 +299,28 @@ cat >"$CONFIGURED" <<'EOF'
 
 Plan kept at product/topics/foo/PLAN.md and notes at .scratch/foo/EXPLORE.md.
 .scratch/reviews/ is self-ignoring
+.scratch/running-retros/ holds session ledgers
 EOF
 conf_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
 assert_contains "configured contract root flags concrete slices" "$conf_out" "product/topics/foo/"
 assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
 assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
+assert_not_contains "configured bare running-retros root stays exempt" "$conf_out" ".scratch/running-retros/"
+
+# F6 regression: a configured contract root's bare reviews/handoffs child must
+# NOT inherit the memory-root exemption. AUDIT_NOISE_CONTRACT_ROOT used to be
+# set only inside a command-substitution subshell and lost, so product/topics/
+# reviews/ was incorrectly treated like .work/reviews/.
+CONF_CONTRACT_BARE="$TEST_TMPDIR/configured-contract-bare.md"
+cat >"$CONF_CONTRACT_BARE" <<'EOF'
+# Configured-contract bare-root fixture
+
+product/topics/reviews/ must flag — contract roots have no bare-child exemption.
+product/topics/handoffs/ likewise.
+EOF
+conf_bare_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONF_CONTRACT_BARE")"
+assert_contains "configured contract bare reviews/ flags (F6)" "$conf_bare_out" "product/topics/reviews/"
+assert_contains "configured contract bare handoffs/ flags (F6)" "$conf_bare_out" "product/topics/handoffs/"
 
 # A quoted memory_dir with an interior '#' and a trailing comment: the old
 # hand-rolled `${val%%#*}`-first strip truncated this to `.scratch` (dropping
@@ -288,6 +341,102 @@ EOF
 conf_quoted_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT_QUOTED" bash "$DETECT" "$CONFIGURED_QUOTED")"
 assert_contains "quoted memory_dir with interior # and trailing comment flags concrete slice" \
   "$conf_quoted_out" ".scratch#dir/foo/"
+
+# --- Exemption gaps (frontmatter / marker / fence / section-state) -------------------
+
+FM_FIXTURE="$TEST_TMPDIR/frontmatter.md"
+cat >"$FM_FIXTURE" <<'EOF'
+---
+name: noisy
+description: Empirically observed Path-scoped to src/** loads on Read of X
+---
+
+# Body
+
+Body prose with no noise shapes.
+EOF
+fm_out="$(bash "$DETECT" "$FM_FIXTURE")"
+assert_not_contains "frontmatter citation not flagged" "$fm_out" "Finding shape: citation"
+assert_not_contains "frontmatter scope-meta not flagged" "$fm_out" "Finding shape: scope-meta"
+
+PROSE_MARKER="$TEST_TMPDIR/prose-marker.md"
+cat >"$PROSE_MARKER" <<'EOF'
+# Prose marker fixture
+
+Hard rules mention markdown-discipline-ignore as a substring; that must not
+suppress the next paragraph.
+
+Empirically observed after a prose mention of the marker name.
+EOF
+prose_out="$(bash "$DETECT" "$PROSE_MARKER")"
+assert_contains "prose marker mention does not suppress citation" "$prose_out" "Finding shape: citation"
+
+FENCE_FIXTURE="$TEST_TMPDIR/fence.md"
+cat >"$FENCE_FIXTURE" <<'EOF'
+# Fence fixture
+
+```text
+Empirically observed inside a fence.
+Path-scoped to `src/**` in the example.
+.work/foo-slice/PLAN.md
+```
+
+After the fence Empirically observed in real prose.
+EOF
+fence_out="$(bash "$DETECT" "$FENCE_FIXTURE")"
+assert_not_contains "fenced citation not flagged" "$fence_out" "inside a fence"
+assert_not_contains "fenced ghost-ref not flagged" "$fence_out" "foo-slice"
+assert_contains "post-fence citation still flagged" "$fence_out" "real prose"
+
+INLINE_FIXTURE="$TEST_TMPDIR/inline-code.md"
+cat >"$INLINE_FIXTURE" <<'EOF'
+# Inline fixture
+
+Use `Empirically observed` as the shape name in the table.
+See `.work/real-slice/PLAN.md` for the live path.
+EOF
+inline_out="$(bash "$DETECT" "$INLINE_FIXTURE")"
+assert_not_contains "inline-code citation example not flagged" "$inline_out" "Finding shape: citation"
+assert_contains "backticked live path still ghost-ref" "$inline_out" "Finding shape: ghost-ref"
+
+SECTION_LEAK="$TEST_TMPDIR/section-leak.md"
+cat >"$SECTION_LEAK" <<'EOF'
+# Section leak fixture
+
+## Sources
+
+Was renamed to something in Sources.
+
+# Body resumes
+
+Was renamed to something after an H1 closed Sources.
+
+### Sources
+
+Was renamed to something under H3 Sources.
+EOF
+leak_out="$(bash "$DETECT" "$SECTION_LEAK")"
+assert_contains "H1 closes Sources exemption" "$leak_out" "after an H1 closed Sources"
+assert_not_contains "H3 Sources is exempt" "$leak_out" "under H3 Sources"
+assert_not_contains "H2 Sources body stays exempt" "$leak_out" "in Sources"
+
+# --- Chunk affordance: --offset / --limit over the sorted target list ----------------
+
+CHUNK_A="$TEST_TMPDIR/chunk-a.md"
+CHUNK_B="$TEST_TMPDIR/chunk-b.md"
+CHUNK_C="$TEST_TMPDIR/chunk-c.md"
+printf '# a\n\nEmpirically observed in chunk-a.\n' >"$CHUNK_A"
+printf '# b\n\nEmpirically observed in chunk-b.\n' >"$CHUNK_B"
+printf '# c\n\nEmpirically observed in chunk-c.\n' >"$CHUNK_C"
+chunk_out="$(bash "$DETECT" --offset 1 --limit 1 "$CHUNK_A" "$CHUNK_B" "$CHUNK_C")"
+assert_contains "chunk selects middle file only" "$chunk_out" "Summary file: $CHUNK_B"
+assert_not_contains "chunk skips earlier file" "$chunk_out" "Summary file: $CHUNK_A"
+assert_not_contains "chunk skips later file" "$chunk_out" "Summary file: $CHUNK_C"
+assert_contains "chunk still emits findings for selected file" "$chunk_out" "chunk-b"
+
+bad_chunk_exit=0
+bash "$DETECT" --offset -1 "$CLEAN" >/dev/null 2>&1 || bad_chunk_exit=$?
+assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
 
 # --- Final report --------------------------------------------------------------------
 

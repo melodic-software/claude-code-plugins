@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.2]
+## [0.10.3]
 
 ### Changed
 
@@ -11,6 +11,15 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.10.2]
+
+### Changed
+
+- **`tidy` no longer path-cites `source-control`'s private reference.** The §2.4.1 parenthetical
+  and a §2.6 prose cite into `pull-request/reference/create.md` are removed (encapsulation audit,
+  Path B); the `/source-control:pull-request create` invocation already in the sentence is the
+  public reference.
 
 ## [0.10.1]
 

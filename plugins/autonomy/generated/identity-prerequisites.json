@@ -1,0 +1,314 @@
+{
+  "_comment": "GENERATED — do not hand-edit. Regenerate with plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs",
+  "schema_version": 1,
+  "identities": [
+    {
+      "identity": "advisory-cve-triage",
+      "class": "advisory-cve-triage",
+      "posture": null,
+      "leaf": "reference/routines/advisory-cve-triage.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "advisory_database",
+          "probe_class": "harness-context"
+        },
+        {
+          "id": "dependency_manifests",
+          "probe_class": "repo-file"
+        }
+      ]
+    },
+    {
+      "identity": "backlog-readiness-check",
+      "class": "backlog-readiness-check",
+      "posture": null,
+      "leaf": "reference/routines/backlog-readiness-check.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "ci-health-review/advisory",
+      "class": "ci-health-review",
+      "posture": "advisory",
+      "leaf": "reference/routines/ci-health-review.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "ci_config",
+          "probe_class": "repo-file",
+          "owner": "resolution-contract"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "ci-health-review/ci-config-change",
+      "class": "ci-health-review",
+      "posture": "ci-config-change",
+      "leaf": "reference/routines/ci-health-review.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "ci_config",
+          "probe_class": "repo-file",
+          "owner": "resolution-contract"
+        },
+        {
+          "id": "merge_path",
+          "probe_class": "harness-context"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "dependency-update-wave/changelog-informed",
+      "class": "dependency-update-wave",
+      "posture": "changelog-informed",
+      "leaf": "reference/routines/dependency-update-wave.md",
+      "access_class": "repo",
+      "isolation_floor": "L3",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "ci_config",
+          "probe_class": "repo-file",
+          "owner": "resolution-contract"
+        },
+        {
+          "id": "dependency_manifests",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "ecosystems",
+          "probe_class": "repo-file",
+          "seam": "toolchain"
+        },
+        {
+          "id": "upstream_changelog",
+          "probe_class": "harness-context"
+        }
+      ]
+    },
+    {
+      "identity": "dependency-update-wave/mechanical",
+      "class": "dependency-update-wave",
+      "posture": "mechanical",
+      "leaf": "reference/routines/dependency-update-wave.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "ci_config",
+          "probe_class": "repo-file",
+          "owner": "resolution-contract"
+        },
+        {
+          "id": "dependency_manifests",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "ecosystems",
+          "probe_class": "repo-file",
+          "seam": "toolchain"
+        }
+      ]
+    },
+    {
+      "identity": "doc-freshness-sweep/advisory",
+      "class": "doc-freshness-sweep",
+      "posture": "advisory",
+      "leaf": "reference/routines/doc-freshness-sweep.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "documentation_corpus",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "doc-freshness-sweep/docs-change",
+      "class": "doc-freshness-sweep",
+      "posture": "docs-change",
+      "leaf": "reference/routines/doc-freshness-sweep.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "documentation_corpus",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "merge_path",
+          "probe_class": "harness-context"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "duplicate-detection-sweep",
+      "class": "duplicate-detection-sweep",
+      "posture": null,
+      "leaf": "reference/routines/duplicate-detection-sweep.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "eng-metrics-digest",
+      "class": "eng-metrics-digest",
+      "posture": null,
+      "leaf": "reference/routines/eng-metrics-digest.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "activity_signals",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "ci_config",
+          "probe_class": "repo-file",
+          "owner": "resolution-contract"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "issue-triage-sweep",
+      "class": "issue-triage-sweep",
+      "posture": null,
+      "leaf": "reference/routines/issue-triage-sweep.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "pr-queue-tending",
+      "class": "pr-queue-tending",
+      "posture": null,
+      "leaf": "reference/routines/pr-queue-tending.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "ci_config",
+          "probe_class": "repo-file",
+          "owner": "resolution-contract"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
+      "identity": "tech-debt-sweep",
+      "class": "tech-debt-sweep",
+      "posture": null,
+      "leaf": "reference/routines/tech-debt-sweep.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "ecosystems",
+          "probe_class": "repo-file",
+          "seam": "toolchain"
+        },
+        {
+          "id": "source_tree",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    }
+  ]
+}

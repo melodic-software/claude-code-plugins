@@ -220,7 +220,7 @@ ERR="$(payload "feat/bad..name" "$REPO9" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
 assert_contains "an illegal branch name is reported as a name problem" "$ERR" "worktree name git accepts"
 assert_not_contains "an illegal name is not reported as a missing root" \
-  "$ERR" "found no usable external root"
+  "$ERR" "refused with exit 3"
 
 # An empty payload is its own cause, not "carried no .name".
 ERR="$(printf '' | CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"

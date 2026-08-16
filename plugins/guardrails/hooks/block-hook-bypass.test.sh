@@ -590,6 +590,37 @@ run_pwsh "PS: numeric expression > file (blocked)" "36 > out.txt" 2
 run_pwsh "PS: cast expression > file (blocked)" "[char]65 > out.txt" 2
 run_pwsh "PS: & computed writer name (fail-closed block)" \
   "& ('Set-'+'Content') -Path f.txt -Value x" 2
+# #2722: a bare computed call/dot-source with NO write indicator is not a write.
+# The shape alone must not enter the fail-closed sink — same residual the git
+# lane documents for `& $tool …` in has_dynamic_invocation.
+run_pwsh "PS: . \$PROFILE reload (allowed — no write indicator)" \
+  ". \$PROFILE" 0
+run_pwsh "PS: & \$py script.py (allowed — no write indicator)" \
+  "& \$py script.py" 0
+run_pwsh "PS: & \$tool --version (allowed — no write indicator)" \
+  "& \$tool --version" 0
+run_pwsh "PS: . \$env:MY_PROFILE (allowed — no write indicator)" \
+  ". \$env:MY_PROFILE" 0
+run_pwsh "PS: & \$python -m unittest discover (allowed — no write indicator)" \
+  "& \$python -m unittest discover" 0
+# Still fail-closed when a write signal accompanies the computed variable target.
+run_pwsh "PS: & \$w -Value computed writer (blocked)" \
+  "& \$w -Path f.txt -Value x" 2
+run_pwsh "PS: & \$w > file computed call redirect (blocked)" \
+  "& \$w > f.txt" 2
+# Positional Path+Value / pipeline Out-File shapes lack -Value and `>` but still write.
+run_pwsh "PS: & \$w positional Path+Value (blocked)" \
+  "& \$w f.txt x" 2
+run_pwsh "PS: pipeline into & \$w path (blocked)" \
+  "\$data | & \$w out.txt" 2
+# Quoted `>` / `-value` text must not trip the write-signal probes.
+run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
+  "& \$tool -Message \"CPU > 90%\"" 0
+run_pwsh "PS: & \$tool quoted -value substring (allowed)" \
+  "& \$tool -Message \"please -value this\"" 0
+# fd-dup merge is plumbing, not a file write — must not trip the redirect gate.
+run_pwsh "PS: & \$tool 2>&1 stream merge (allowed — no file write)" \
+  "& \$tool 2>&1" 0
 run_pwsh "PS: spaced numeric is a value write, tool redirect still allowed" \
   "git diff 2> err.txt" 0
 # Review round 6: non-success stream producers and separator-adjacent calls.
@@ -1246,6 +1277,40 @@ assert_absent "#2663: PowerShell lane has no unbound ps:: on stderr" \
   "$pwsh_trace_err" "command not found"
 run_pwsh "#2663: PowerShell write still blocked after lazy source" \
   "Set-Content -Path f.txt -Value x" 2
+
+# --- #2731: same-command staged-write mv|cp detector --------------------------
+# Unmodeled producer redirects into a path that a later mv|cp reuses as SOURCE.
+# Path-identity keeps ordinary renames unblocked; scratch-root dest stays staging.
+run "#2731: jq > tmp && mv tmp repo-file (blocked)" \
+  "jq . f > /tmp/x && mv /tmp/x plugins/guardrails/.claude-plugin/plugin.json" 2
+run "#2731: curl > tmp && cp tmp dest (blocked)" \
+  "curl -s https://example.com > /tmp/page && cp /tmp/page out.html" 2
+run "#2731: sort > tmp && mv -f tmp dest (blocked)" \
+  "sort f > /tmp/sorted && mv -f /tmp/sorted out.txt" 2
+run "#2731: mv -t dest form (blocked)" \
+  "jq . f > /tmp/x && mv -t plugins/x.json /tmp/x" 2
+run "#2731: ordinary rename, no prior redirect (allowed)" \
+  "mv old.txt new.txt" 0
+run "#2731: data-pipeline mv of a path never redirected here (allowed)" \
+  "jq . f > /tmp/other && mv /tmp/unrelated dest.txt" 0
+run "#2731: redirect alone, no later move (allowed — producer residual)" \
+  "jq . f > plugins/guardrails/.claude-plugin/plugin.json" 0
+run "#2731: staged move into configured scratch (allowed)" \
+  "jq . f > /tmp/scratch/x && mv /tmp/scratch/x /tmp/scratch/y" 0 \
+  "$SCRATCH_ENV=/tmp/scratch"
+run "#2731: staged move from scratch path to repo (blocked)" \
+  "jq . f > /tmp/scratch/x && mv /tmp/scratch/x out.json" 2 \
+  "$SCRATCH_ENV=/tmp/scratch"
+run "#2731: install mover residual (allowed — not mv|cp)" \
+  "jq . f > /tmp/x && install /tmp/x dest.txt" 0
+run "#2731: multi-source cp keeps sources distinct (blocked)" \
+  "jq . f > /tmp/x && cp /tmp/x /tmp/other destdir/" 2
+# Scope note names the new lane and the residuals it still cannot see.
+scopeout=$(bash "$HOOK" <<<"$(command_json 'jq . f > /tmp/x && mv /tmp/x dest')" 2>&1 >/dev/null) || true
+assert_contains "#2731: block names staged-write-move form" "$scopeout" "staged write"
+assert_contains "#2731: scope names same-command staged move" "$scopeout" "same-command staged"
+assert_contains "#2731: scope names cross-tool-call residual" "$scopeout" "cross-tool-call"
+assert_contains "#2731: scope names other movers residual" "$scopeout" "install, rsync, dd"
 
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 nul_rc=0

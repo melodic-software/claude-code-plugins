@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.5]
+## [0.7.6]
 
 ### Changed
 
@@ -11,6 +11,18 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.7.5]
+
+### Added
+
+- **Reader contract: cloud / remote degraded mode.** Documents that cloud and remote-session
+  containers typically have no statusline producer and an ephemeral filesystem, so the tee path is
+  absent by expectation and capability detection classifies **unknown → reactive-only**. Names the
+  reactive signals a cloud consumer may use (own-session rate-limit errors, live sibling-automation
+  429s, `stop-events.jsonl` when present), the orchestration thin-by-default fallback when headroom
+  is unobservable, and the documented residual that a live cloud statusline/producer path is out of
+  scope until one exists (#2697, #2736, #2747).
 
 ## [0.7.4]
 

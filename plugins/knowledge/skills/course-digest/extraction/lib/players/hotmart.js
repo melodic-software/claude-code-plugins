@@ -98,20 +98,22 @@ async function captureCanvasFrame(hotmartFrame, seekTime, maxWidth) {
         if (!v) return null;
 
         v.currentTime = time;
-        await new Promise((resolve) => {
-          const handler = () => {
-            v.removeEventListener("seeked", handler); // spellchecker:disable-line
-            resolve();
-          };
-          v.addEventListener("seeked", handler); // spellchecker:disable-line
-          setTimeout(resolve, 3000);
-        });
+        await /** @type {Promise<void>} */ (
+          new Promise((resolve) => {
+            const handler = () => {
+              v.removeEventListener("seeked", handler); // spellchecker:disable-line
+              resolve();
+            };
+            v.addEventListener("seeked", handler); // spellchecker:disable-line
+            setTimeout(resolve, 3000);
+          })
+        );
         await new Promise((r) => setTimeout(r, 200));
 
         const canvas = document.createElement("canvas");
         canvas.width = Math.min(v.videoWidth, mw);
         canvas.height = Math.round((canvas.width / v.videoWidth) * v.videoHeight);
-        const ctx2d = canvas.getContext("2d");
+        const ctx2d = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
         ctx2d.drawImage(v, 0, 0, canvas.width, canvas.height);
         return canvas.toDataURL("image/png");
       },
@@ -163,7 +165,9 @@ async function readVideoSrcHls(hotmartFrame) {
 async function readVjsHls(hotmartFrame, subtitleLang) {
   return hotmartFrame.evaluate((lang) => {
     const v = document.querySelector("video");
-    const vjsEl = v?.closest(".video-js");
+    const vjsEl = /** @type {(Element & {__vjs_player__?: any, player?: any}) | null | undefined} */ (
+      v?.closest(".video-js")
+    );
     const vjsPlayer = vjsEl?.__vjs_player__ ?? vjsEl?.player;
     if (!vjsPlayer) return {};
 
@@ -198,7 +202,11 @@ async function readVjsHls(hotmartFrame, subtitleLang) {
 async function readHlsJsData(hotmartFrame, subtitleLang) {
   return hotmartFrame.evaluate((lang) => {
     const v = document.querySelector("video");
-    const hlsInstance = v?._hls || window.hls || window.Hls?.instances?.[0];
+    const win = /** @type {Window & {hls?: any, Hls?: {instances?: any[]}}} */ (window);
+    const hlsInstance =
+      /** @type {(HTMLVideoElement & {_hls?: any}) | null} */ (v)?._hls ||
+      win.hls ||
+      win.Hls?.instances?.[0];
     if (!hlsInstance) return {};
 
     const result = { hasHlsJs: true };
@@ -347,7 +355,7 @@ export function installInterceptors(page, subtitleLang) {
  *
  * @param {import('playwright').Page} page
  * @param {string} subtitleLang — e.g. "eng"
- * @param {number} manifestTimeoutMs
+ * @param {number} _manifestTimeoutMs
  * @returns {Promise<{ hasVideo: boolean, hotmartFrame?: object, hlsMasterUrl?: string, subtitleSegments?: number, warning?: string }>}
  */
 export async function preparePage(page, subtitleLang, _manifestTimeoutMs) {

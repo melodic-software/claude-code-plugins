@@ -35,6 +35,11 @@ relaxes no discipline.
 - **Self-contained.** The research discipline file (source tiers, recency gates,
   falsification recipes, failure patterns) and the per-ecosystem discovery
   reference ship inside the plugin and are referenced via `${CLAUDE_PLUGIN_ROOT}`.
+  Explore composes `/toolchain:check`'s covered-ecosystem detection and root
+  adjacency when that plugin is installed (documented fallback table when it is
+  not; explore-owned inventories for build configs, runtime probes, and
+  ecosystems the seam does not cover stay explore-owned) — it does not bake a
+  second covered-ecosystem inventory.
 - **Reads your conventions, assumes none.** Project rules, preferred-source
   rosters, per-ecosystem source mappings, and any stated direction come from your
   own project's `CLAUDE.md` and rules; where none exist, the skills self-discover

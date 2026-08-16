@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Tests for check_inventory.py. Stdlib unittest; run: python test_check_inventory.py
 
-The fail-loud cases here are the Brief's acceptance criterion 4: this gate is
-proven to fail loudly on unparsable and malformed input BEFORE it is made a
-required artifact.
+The fail-loud cases here are why this file exists: the gate is proven to fail
+loudly on unparsable and malformed input BEFORE it is made a required artifact.
 """
 
 import copy

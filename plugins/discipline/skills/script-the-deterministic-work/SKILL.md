@@ -80,7 +80,7 @@ model output for judgment; the structure is deterministic.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - a count, total, or tally produced by reading and adding in prose rather
   than by a command whose output was read back;

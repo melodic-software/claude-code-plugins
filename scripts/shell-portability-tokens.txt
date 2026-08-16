@@ -1,14 +1,16 @@
 # Shell-portability-lint token list (issue #1491). Each ACTIVE line is one ERE
 # pattern that scripts/check-shell-portability.sh matches, line-by-line, against
-# changed **/*.sh files. Detects GNU-only constructs that a BSD userland (macOS
-# system grep/sed/date/stat/mktemp/sort — the one platform no CI runner in this
-# repo covers; a Windows runner's Git Bash still ships GNU grep/sed) either
-# rejects outright or silently reinterprets. The motivating near-miss: a
-# `grep -Eq '\brequire\b'` word-boundary escape in
-# plugins/markdown-format/hooks/markdown-format.sh would have made a security
-# predicate fail OPEN (return "nothing unpinnable found" for every input) on
-# BSD grep, with no test on a GNU runner able to catch it. The fix (now on
-# main) is the reference implementation this gate self-tests against.
+# changed **/*.sh files and skill markdown under plugins/*/skills/ (#2704).
+# Detects GNU-only constructs that a BSD userland (macOS system grep/sed/date/
+# stat/mktemp/sort — the one platform no CI runner in this repo covers; a
+# Windows runner's Git Bash still ships GNU grep/sed) either rejects outright
+# or silently reinterprets. The motivating near-miss: a `grep -Eq '\brequire\b'`
+# word-boundary escape in plugins/markdown-format/hooks/markdown-format.sh
+# would have made a security predicate fail OPEN (return "nothing unpinnable
+# found" for every input) on BSD grep, with no test on a GNU runner able to
+# catch it. The fix (now on main) is the reference implementation this gate
+# self-tests against. Skill-markdown backlog lives in
+# scripts/shell-portability-skill-md-baseline.txt, not here.
 #
 # Ownership / growth: this list is the gate's data, deliberately kept OUT of the
 # script — the same shape as scripts/skill-portability-tokens.txt for the

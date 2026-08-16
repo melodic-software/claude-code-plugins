@@ -61,7 +61,7 @@ Workflows and git hooks needing logic that ALSO lives in a skill consume the ski
 | Mature, repo-external reuse | **Plugin packaging** — graduate the skill to a plugin; the manifest declares interfaces |
 | LLM-shaped CI work (not a mechanical gate) | **Headless invocation** — CI runs `claude -p '/skill <action>'`. Reserve for non-mechanical work |
 
-The choice is per-cite. Enforcement split: the bundled `scripts/detect.sh` is the detector this plugin ships; any hard gate (pre-commit hook, CI job, drift comparison) is whatever the consuming repo wires around it.
+The choice is per-cite. Enforcement split: the bundled `scripts/detect.sh` is a candidate enumerator this plugin ships — exit 1 means candidates exist after mechanical filters, not adjudicated violations. Classify via the skill filter taxonomy before treating hits as illegal. Do not hard-gate CI or pre-commit on that exit code alone; a consuming repo that wants a gate must adjudicate (or maintain an explicit baseline) rather than wiring the raw enumerator exit.
 
 ## What this contract does NOT cover
 

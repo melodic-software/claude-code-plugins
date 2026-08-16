@@ -30,7 +30,7 @@ This topic:
 
 ### Settled prerequisites (do not re-litigate)
 
-- `docs/topics/boris-video-absorption/PLAN.md` — its "Extend existing
+- `docs/topics/boris-video-absorption/PLAN.md` (slice pruned in #1459) — its "Extend existing
   seams, no new skill" lock is scoped to the `testing:run-e2e` /
   `verification:confirm` lane, **not** a repo-wide bar. The repo-wide
   posture is extend-over-add per `docs/PLUGIN-PHILOSOPHY.md`.
@@ -264,8 +264,9 @@ deferred-with-trigger shape `boris-video-absorption` already records.
 Recorded here because the memory tier is gitignored and does not survive the
 checkout; each is unclaimed work with a named owner surface.
 
-- **`docs/topics/github-plugin-candidates/` still cites the retired
-  `consumer-config-layering` path** (~6 sites). This topic's scope named only
+- **`docs/topics/github-plugin-candidates/` cited the retired
+  `consumer-config-layering` path** (~6 sites; that slice has since been pruned in #1459, so the
+  follow-up is void unless it returns). This topic's scope named only
   `boris-video-absorption`. Changelog mentions of the old name are historical
   and stay.
 - **The `worktree_root` config key is unset on this machine**, so

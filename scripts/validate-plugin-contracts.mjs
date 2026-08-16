@@ -136,15 +136,26 @@ for (const path of lifecycleProtocolCopies) {
 }
 
 const aiBriefingRoot = join(pluginRoot, "ai-briefing");
-for (const legacyPath of [
-  join(aiBriefingRoot, "skills", "generate", "scripts"),
-  join(aiBriefingRoot, "skills", "generate", "seed"),
-]) {
-  // filesUnder, not filesIn: this probes paths that must NOT exist, so it has
-  // to look at the filesystem rather than at a walk that already excluded them.
-  if (filesUnder(legacyPath).length > 0) {
-    fail(legacyPath, "legacy automated-X collectors must not be shipped");
-  }
+// skills/generate/scripts once held the automated-X collectors and stays
+// tombstoned, with one carve-out: run-tests.sh, the skill's public test entry
+// facade over the private output/build package (encapsulation contract, #2701).
+// The automatedXTokens content scan below covers the carved-out file too, so a
+// collector cannot return under the allowed name.
+const legacyScriptsPath = join(aiBriefingRoot, "skills", "generate", "scripts");
+// filesUnder, not filesIn: this probes paths that must NOT exist, so it has
+// to look at the filesystem rather than at a walk that already excluded them.
+const legacyScriptsExtras = filesUnder(legacyScriptsPath).filter(
+  (path) => relative(legacyScriptsPath, path) !== "run-tests.sh",
+);
+if (legacyScriptsExtras.length > 0) {
+  fail(
+    legacyScriptsPath,
+    "legacy automated-X collectors must not be shipped (only the run-tests.sh entry facade may live here)",
+  );
+}
+const legacySeedPath = join(aiBriefingRoot, "skills", "generate", "seed");
+if (filesUnder(legacySeedPath).length > 0) {
+  fail(legacySeedPath, "legacy automated-X collectors must not be shipped");
 }
 
 const automatedXTokens =

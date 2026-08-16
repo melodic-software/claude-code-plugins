@@ -11,6 +11,10 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
   "$TMP/ref-fail" "$TMP/rref-fail" "$TMP/dup-a" "$TMP/new-clone" \
   "$TMP/root/acme/root-repo/.git" \
+  "$TMP/skip-root/keep/visible-repo/.git" \
+  "$TMP/skip-root/keep/visible-repo/.git/modules/nested-decoy/.git" \
+  "$TMP/skip-root/vendor/under-vendor/.git" \
+  "$TMP/skip-root/third_party/under-third/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
   "$TMP/wt-status-fail" \
@@ -69,7 +73,8 @@ rev-parse)
     # Gate for melodic.worktreeroot reads (#2606).
     case "$base" in
     discovered-a | canonical-a | repo-b | old-repo | wt-old | bad-discovered | bad-canonical | \
-      wt-fail | ref-fail | rref-fail | dup-a | new-clone | root-repo | discovered-c | \
+      wt-fail | ref-fail | rref-fail | dup-a | new-clone | root-repo | visible-repo | \
+      under-vendor | under-third | discovered-c | \
       canonical-c | gone-repo | lost-repo | net-repo | aaa-linked | bbb-linked | zzz-canonical | \
       sub-wt | sep-wt | nested | husk | prefix-fail | wt-a | wt-mismatch | wt-status-fail | \
       conform-canon | acme-conform-feature-ok | acme-conform-feature-old | conform-sibling | \
@@ -94,6 +99,9 @@ rev-parse)
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a" ;;
     new-clone) printf '%s\n' "$TEST_ROOT/new-clone" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
+    visible-repo) printf '%s\n' "$TEST_ROOT/skip-root/keep/visible-repo" ;;
+    under-vendor) printf '%s\n' "$TEST_ROOT/skip-root/vendor/under-vendor" ;;
+    under-third) printf '%s\n' "$TEST_ROOT/skip-root/third_party/under-third" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo" ;;
@@ -166,6 +174,9 @@ rev-parse)
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a/.git" ;;
     new-clone) printf '%s\n' "$TEST_ROOT/new-clone/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
+    visible-repo) printf '%s\n' "$TEST_ROOT/skip-root/keep/visible-repo/.git" ;;
+    under-vendor) printf '%s\n' "$TEST_ROOT/skip-root/vendor/under-vendor/.git" ;;
+    under-third) printf '%s\n' "$TEST_ROOT/skip-root/third_party/under-third/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
@@ -204,6 +215,9 @@ remote)
     dup-a) printf '%s\n' 'https://github.com/acme/repo-b.git' ;;
     new-clone) printf '%s\n' 'https://github.com/new/repo.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
+    visible-repo) printf '%s\n' 'https://github.com/acme/visible-repo.git' ;;
+    under-vendor) printf '%s\n' 'https://github.com/acme/under-vendor.git' ;;
+    under-third) printf '%s\n' 'https://github.com/acme/under-third.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
     lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
@@ -230,7 +244,13 @@ worktree)
   [[ "${1:-}" == "list" ]] || exit 97
   case "$base" in
   canonical-a)
-    printf 'worktree %s\0HEAD main-a\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-a"
+    # F2: the MAIN worktree (record 0 => is_main) checked out on a branch that is
+    # NOT the default branch. It is protected via is_main, so merged-local-branch
+    # declines it; merged-worktree requires a NON-main worktree, so that declines it
+    # too. Both the default branch and a non-first record fail to reach that arm --
+    # the default branch is excluded from merge-evidence collection upstream, and a
+    # later record has is_main=false, which routes to merged-worktree instead.
+    printf 'worktree %s\0HEAD main-attached-tip\0branch refs/heads/feature/main-attached\0\0' "$TEST_ROOT/canonical-a"
     printf 'worktree %s\0HEAD sha-a\0branch refs/heads/feature/shared\0\0' "$TEST_ROOT/wt-a"
     printf 'worktree %s\0HEAD mismatch\0branch refs/heads/feature/mismatch\0\0' "$TEST_ROOT/wt-mismatch"
     printf 'worktree %s\0HEAD evil\0prunable missing\0\0' "$EVIL_PATH"
@@ -288,6 +308,15 @@ worktree)
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
+  visible-repo)
+    printf 'worktree %s\0HEAD vis-main\0branch refs/heads/main\0\0' "$TEST_ROOT/skip-root/keep/visible-repo"
+    ;;
+  under-vendor)
+    printf 'worktree %s\0HEAD vend-main\0branch refs/heads/main\0\0' "$TEST_ROOT/skip-root/vendor/under-vendor"
+    ;;
+  under-third)
+    printf 'worktree %s\0HEAD third-main\0branch refs/heads/main\0\0' "$TEST_ROOT/skip-root/third_party/under-third"
+    ;;
   canonical-c)
     printf 'worktree %s\0HEAD main-c\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-c"
     ;;
@@ -338,7 +367,7 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo | prefix-auth) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | visible-repo | under-vendor | under-third | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo | prefix-auth) printf '%s\n' main ;;
   conform-canon) printf '%s\n' main ;;
   no-origin-canon) printf '%s\n' main ;;
   aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
@@ -372,7 +401,7 @@ for-each-ref)
     # stale/gone: GraphQL returns a merged PR at a different OID (drift) and the branch has no
     # remote-tracking ref -- the drift finding must state tip/headRefOid differ without claiming
     # the commits were never pushed (they may still be on the remote).
-    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\n'
+    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\nfeature/main-attached\tmain-attached-tip\0\n'
     ;;
   repo-b)
     printf 'main\tmain-b\0\nfeature/shared\tsha-b\0\n'
@@ -384,6 +413,9 @@ for-each-ref)
   dup-a) printf 'main\tdup-main\0\n' ;;
   new-clone) printf 'main\tnc-main\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
+  visible-repo) printf 'main\tvis-main\0\n' ;;
+  under-vendor) printf 'main\tvend-main\0\n' ;;
+  under-third) printf 'main\tthird-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
   gone-repo) printf 'main\tgone-main\0\n' ;;
   lost-repo) printf 'main\tlost-main\0\n' ;;
@@ -512,6 +544,8 @@ api)
         feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
         feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
         feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
+        # F2: exact-OID merged evidence on a main-worktree-attached branch.
+        feature/main-attached) printf '47|main-attached-tip|2026-07-07T00:00:00Z|https://github.com/acme/repo-a/pull/47' ;;
         *) printf '' ;;
         esac
         ;;
@@ -543,7 +577,8 @@ api)
         *) printf '' ;;
         esac
         ;;
-      acme/repo-b | acme/root-repo | acme/repo-c | acme/rref-fail | acme/ref-fail | acme/sub-mod | acme/sep-mod)
+      acme/repo-b | acme/root-repo | acme/visible-repo | acme/under-vendor | acme/under-third | \
+        acme/repo-c | acme/rref-fail | acme/ref-fail | acme/sub-mod | acme/sep-mod)
         printf ''
         ;;
       *) return 1 ;;
@@ -574,6 +609,9 @@ api)
   repos/other/upstream-repo) printf 'other/upstream-repo\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
+  repos/acme/visible-repo) printf 'acme/visible-repo\tmain' ;;
+  repos/acme/under-vendor) printf 'acme/under-vendor\tmain' ;;
+  repos/acme/under-third) printf 'acme/under-third\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
@@ -727,6 +765,25 @@ assert_kind_targets "moved-remote still emits merged-worktree on resolved identi
   merged-worktree "old-repo :: feature/moved-merged" "new-clone"
 assert_kind_targets "moved-remote still emits merged-local-branch on resolved identity" \
   merged-local-branch "old-repo :: feature/moved-local" "new-clone"
+
+# F2: exact-OID merged evidence on a PROTECTED branch must be reported, not discarded.
+# Neither the merged-worktree arm (needs a non-main worktree) nor the
+# merged-local-branch arm (needs protected=false) accepts a main-worktree-attached
+# branch, so before the else arm existed the collector's strongest evidence produced
+# no finding at all -- while the weaker merged-pr-tip-drift, which carries no
+# protection guard, still emitted. Silence read as "nothing merged".
+assert_contains "protected branch with exact-OID merge evidence is reported" \
+  "Finding: merged-protected-branch"
+assert_contains "merged-protected-branch names the protection reason" \
+  "attached to the main worktree"
+# The protection rule is unchanged: it must never become a cleanup candidate.
+if grep -A6 -F "Finding: merged-protected-branch" "$output" |
+  grep -Fq "Run /repo-hygiene:clean git"; then
+  printf 'FAIL: merged-protected-branch must not route to branch cleanup\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: merged-protected-branch does not route to branch cleanup\n'
+fi
 
 # #2607: remote heads that still exist after a MERGED PR are a distinct finding from local cleanup.
 assert_contains "merged remote-tracking head is reported" "Finding: merged-remote-branch"
@@ -1106,10 +1163,10 @@ else
   failures=$((failures + 1))
 fi
 
-# Bare path ≡ --root (#2599).
+# Bare path ≡ --root (#2599). Scope attributes bare paths to the root count (#2710).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/root" >"$ladder_out" 2>&1 &&
   grep -Fq "Repo: $TMP/root/acme/root-repo" "$ladder_out" &&
-  grep -Fq "Scope: command line (1 --root/--repo argument(s))" "$ladder_out"; then
+  grep -Fq "Scope: command line (1 --root/bare-path)" "$ladder_out"; then
   printf 'PASS: bare path is accepted as --root\n'
 else
   printf 'FAIL: bare path is accepted as --root\n' >&2
@@ -1198,11 +1255,30 @@ else
 fi
 # Scope provenance is computed, not asserted: this run's scope came from a CLI --root, so the header
 # must say so rather than printing the old fixed "current-project scope" literal that contradicted
-# the run's own inputs two lines later.
-if grep -Fq "Scope: command line (1 --root/--repo argument(s))" "$ladder_out"; then
+# the run's own inputs two lines later. --root and --repo counts stay distinct (#2710).
+if grep -Fq "Scope: command line (1 --root/bare-path)" "$ladder_out"; then
   printf 'PASS: header attributes scope to the command line when --root supplied it\n'
 else
   printf 'FAIL: header attributes scope to the command line when --root supplied it\n' >&2
+  failures=$((failures + 1))
+fi
+# --repo-only and mixed CLI scope must not collapse into one ambiguous --root/--repo total (#2710).
+# Use a separate capture file so later assertions against the wt-root ladder_out stay intact.
+scope_out="$TMP/scope-provenance.out"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --repo "$TMP/discovered-a" >"$scope_out" 2>&1
+if grep -Fq "Scope: command line (1 --repo)" "$scope_out"; then
+  printf 'PASS: header attributes --repo-only scope without a root segment\n'
+else
+  printf 'FAIL: header attributes --repo-only scope without a root segment\n' >&2
+  failures=$((failures + 1))
+fi
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --repo "$TMP/discovered-a" --root "$TMP/emptyroot" >"$scope_out" 2>&1
+if grep -Fq "Scope: command line (1 --repo, 1 --root/bare-path)" "$scope_out"; then
+  printf 'PASS: header lists --repo and --root counts distinctly when both are supplied\n'
+else
+  printf 'FAIL: header lists --repo and --root counts distinctly when both are supplied\n' >&2
   failures=$((failures + 1))
 fi
 assert_not_contains_file() {
@@ -1782,6 +1858,31 @@ else
   printf 'FAIL: symlink discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$symlink_out")" >&2
   failures=$((failures + 1))
 fi
+
+# Intermediate symlink/junction dirs under --root are skipped without descending, but must be
+# disclosed (#2711). Linux symlinks are the portable fixture; Windows junctions take the same
+# -d/-L arm under Git Bash.
+sym_mid_root="$TMP/sym-mid-root"
+sym_mid_hidden="$TMP/sym-mid-hidden"
+mkdir -p "$sym_mid_root/keep" "$sym_mid_hidden/buried-repo/.git"
+ln -s "$sym_mid_hidden" "$sym_mid_root/via-link"
+sym_mid_out="$TMP/sym-mid-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1; then
+  if grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
+    grep -Fq "Target: $sym_mid_root/via-link" "$sym_mid_out" &&
+    grep -Fq "Windows directory junctions" "$sym_mid_out" &&
+    grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
+    grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
+    ! grep -Fq "buried-repo" "$sym_mid_out"; then
+    printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
+  else
+    printf 'FAIL: intermediate symlink under --root is disclosed without descending\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
+  failures=$((failures + 1))
+fi
 # Unreadable/non-executable roots are the same false-empty class.
 unreadable_root="$TMP/unreadable-root"
 mkdir -p "$unreadable_root"
@@ -1820,6 +1921,153 @@ elif [[ "$SECONDS" -gt 4 ]]; then
   failures=$((failures + 1))
 else
   printf 'PASS: portable watchdog killed a TERM-ignoring gh within the finite bound\n'
+fi
+
+# Configurable discovery skip list (#2712): defaults skip vendor/; --skip replaces (shrink/extend);
+# fleet.skip composes additively with CLI; invalid values hard-fail.
+skip_out="$TMP/skip-out.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
+    grep -Fq "Repo: $TMP/skip-root/third_party/under-third" "$skip_out" &&
+    ! grep -Fq "under-vendor" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 2" "$skip_out"; then
+    printf 'PASS: default skip list hides vendor/ and keeps third_party/ reachable\n'
+  else
+    printf 'FAIL: default skip list hides vendor/ and keeps third_party/ reachable\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: default skip discovery unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+# Shrink: omit vendor from an explicit list so a repo under vendor/ is discovered.
+# .git is omitted on purpose (#2826): shrinking must not start walking .git internals.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
+  --skip node_modules --skip .venv >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 3" "$skip_out"; then
+    printf 'PASS: --skip replace shrink reaches a repository under vendor/\n'
+  else
+    printf 'FAIL: --skip replace shrink reaches a repository under vendor/\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: --skip shrink unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+# #2826: shrinking with --skip node_modules (omitting .git) still reaches vendor/ and
+# must not surface a decoy planted under a discovered repo's .git tree.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
+  --skip node_modules >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
+    grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
+    ! grep -Fq "nested-decoy" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 3" "$skip_out"; then
+    printf 'PASS: --skip omitting .git still skips .git and reaches vendor/\n'
+  else
+    printf 'FAIL: --skip omitting .git still skips .git and reaches vendor/\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: --skip omitting .git unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+# Extend: pass the three replaceable defaults plus third_party so that tree is skipped.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
+  --skip node_modules --skip vendor --skip .venv \
+  --skip third_party >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
+    ! grep -Fq "under-third" "$skip_out" &&
+    ! grep -Fq "under-vendor" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 1" "$skip_out"; then
+    printf 'PASS: --skip replace extend skips a differently named vendored tree\n'
+  else
+    printf 'FAIL: --skip replace extend skips a differently named vendored tree\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: --skip extend unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+# Config fleet.skip composes with CLI --skip (both replace defaults together).
+cat >"$TMP/config/skip-fleet.conf" <<EOF
+[fleet]
+    root = ../skip-root
+    skip = node_modules
+    skip = .venv
+EOF
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/skip-fleet.conf" \
+  --skip third_party >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
+    ! grep -Fq "under-third" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 2" "$skip_out"; then
+    printf 'PASS: CLI --skip and fleet.skip compose additively and replace defaults\n'
+  else
+    printf 'FAIL: CLI --skip and fleet.skip compose additively and replace defaults\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: CLI/config skip compose unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+skip_err="$TMP/skip-err.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" --skip 'vendor/lib' \
+  >"$skip_out" 2>"$skip_err"; then
+  printf 'FAIL: path-separator --skip unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "invalid --skip value (expected a bare directory name, no path separator): vendor/lib" "$skip_err"; then
+  printf 'PASS: path-separator --skip hard-fails with a named error\n'
+else
+  printf 'FAIL: path-separator --skip hard-fails with a named error\n%s\n' "$(cat "$skip_err" "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" --skip '' \
+  >"$skip_out" 2>"$skip_err"; then
+  printf 'FAIL: empty --skip unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "invalid --skip value (expected a bare directory name): (empty)" "$skip_err"; then
+  printf 'PASS: empty --skip hard-fails with a named error\n'
+else
+  printf 'FAIL: empty --skip hard-fails with a named error\n%s\n' "$(cat "$skip_err" "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+cat >"$TMP/config/bad-skip.conf" <<EOF
+[fleet]
+    root = ../skip-root
+    skip = nested/path
+EOF
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/bad-skip.conf" \
+  >"$skip_out" 2>"$skip_err"; then
+  printf 'FAIL: path-separator fleet.skip unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "invalid fleet.skip value (expected a bare directory name, no path separator): nested/path" "$skip_err"; then
+  printf 'PASS: path-separator fleet.skip hard-fails with a named error\n'
+else
+  printf 'FAIL: path-separator fleet.skip hard-fails with a named error\n%s\n' "$(cat "$skip_err" "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+cat >"$TMP/config/empty-skip.conf" <<EOF
+[fleet]
+    root = ../skip-root
+    skip =
+EOF
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/empty-skip.conf" \
+  >"$skip_out" 2>"$skip_err"; then
+  printf 'FAIL: empty fleet.skip unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "invalid fleet.skip value (expected a bare directory name): (empty)" "$skip_err"; then
+  printf 'PASS: empty fleet.skip hard-fails with a named error\n'
+else
+  printf 'FAIL: empty fleet.skip hard-fails with a named error\n%s\n' "$(cat "$skip_err" "$skip_out")" >&2
+  failures=$((failures + 1))
 fi
 
 if [[ "$failures" -ne 0 ]]; then

@@ -154,12 +154,19 @@ The environment side stays generic (Default environment, Trusted network, no var
 | Tool | Pin source | Required? |
 |---|---|---|
 | Node | `.node-version` (via the VM's nvm) | required — CI pins a major the VM image doesn't ship |
-| claude CLI + Biome | root `package-lock.json` (`npm ci`) | required |
+| claude CLI + Biome + markdownlint-cli2 | root `package-lock.json` (`npm ci`) | required — markdownlint stays repo-local so the `markdown-format` hook's `node_modules/.bin` probe (and a `~/.local/bin` symlink the bootstrap adds for PATH-based resolution) can see it; `npm -g` into the nvm prefix is invisible to hooks (#2739 / #2748) |
 | ruff, pytest, pyyaml | `.github/requirements-ci.txt` (hash-locked) | required — `--require-hashes` fails closed |
-| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries) | best effort — warns and continues |
-| markdownlint-cli2, check-jsonschema | pinned in the bootstrap (npm -g / uv tool) | best effort |
+| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries → `~/.local/bin`) | best effort — warns and continues |
+| check-jsonschema | pinned in the bootstrap (uv tool / pip `--user`) | best effort |
 | full git history + `origin/main` | `git fetch` | best effort — the base-ref diff gates need it |
 | the enabled plugin catalog | `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
+
+The bootstrap's startup `report_tool` resolves each binary under a **hook-safe PATH**
+(the process PATH with the nvm prefix stripped) and prints the resolved path, so an
+`npm -g` install that only the SessionStart shell can see cannot print false-green
+again. `CLAUDE_ENV_FILE` PATH repairs still reach subsequent Bash tool calls only —
+hook processes inherit Claude Code's own environ, which includes `~/.local/bin` but
+not the nvm global prefix.
 
 Best-effort rather than required, deliberately: the plugin contract suites SKIP visibly when an
 optional tool is absent and CI remains the enforcing gate, while a required install failure would
@@ -167,11 +174,12 @@ block the session from starting. GitHub release-asset downloads are additionally
 because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
 documents that release assets from repositories not attached to the session can return 403.
 
-Not installed at session start (install on demand when working in those areas): the four plugin
-npm roots (`plugins/miro`, `plugins/knowledge/skills/youtube-digest/extraction`,
-`plugins/knowledge/skills/course-digest/extraction`,
-`plugins/ai-briefing/skills/generate/output/build`) and
-`.github/standards/runner-policy` — each is an `npm ci` in that directory; the heavy ones pull
+Not installed at session start (install on demand when working in those areas): the plugin npm
+packages — `plugins/miro` and `.github/standards/runner-policy` are each an `npm ci` in their
+own directory, while the video-digest, course-digest, and ai-briefing suites install through
+their skills' entry scripts (`plugins/knowledge/skills/video-digest/scripts/run-tests.sh
+install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,
+`plugins/ai-briefing/skills/generate/scripts/run-tests.sh install`); the heavy ones pull
 Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
 
 ### Plugins in sessions on this repo
@@ -220,6 +228,18 @@ enables; the cloud bootstrap installs (see
   snapshot's `~/.claude` actually reaches sessions is undocumented — after adding the line,
   rebuild the cache (edit saves the script) and verify with a fresh session whose *first*
   message is a plugin slash command.
+- **Harness residual — first-turn slash of just-installed plugins (#2733).** The "Unknown
+  command" outcome above is **not remediable inside any plugin in this repository**: the
+  command registry is a Claude Code harness property (built at process start, not re-read).
+  Track occurrences via `/claude-ops:known-issues` and, when reproducible on a fresh cloud
+  session after a confirmed pre-launch bootstrap, report upstream (`anthropics/claude-code`)
+  with the bootstrap log plus the first-turn transcript. In-session workarounds when a
+  first-turn slash returns `Unknown command:` (a) **resume** the session so the process
+  restarts and reloads the registry, or retry the slash on a later turn after a resume; (b)
+  **direct-file fallback** — read `plugins/<plugin>/skills/<skill>/SKILL.md` from the repo
+  working tree and follow it manually (note: this bypasses skill-load string substitutions
+  such as `${CLAUDE_EFFORT}`). Prefer fixing the environment so the setup-script path
+  pre-installs before process start; do not invent plugin-side registry hacks.
 - Being a `directory` source may compound it —
   [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
   and the carry-over note qualifies install-at-session-start with "requires network access to reach

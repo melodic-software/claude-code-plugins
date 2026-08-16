@@ -593,6 +593,12 @@ persisted_alias_expansions() {
 # walk at the same order as a chain twice that long. It sits far above real usage —
 # a chain deeper than a couple of hops is already exotic, and every legitimate
 # command measured spends single digits.
+# Residual: this budget bounds WORK (analysis count), not wall clock. Each
+# analysis can fork git probes, so on a pathologically slow filesystem the
+# harness's per-hook timeout (hooks.json, 60s) can strike first — and a
+# timed-out hook fails OPEN per the hooks reference, inverting this guard's
+# fail-closed posture for that edge. Accepted residual; revisit with an
+# in-hook wall-clock check if it is ever observed in a session record.
 HOOK_ALIAS_WORK_MAX=128
 
 # Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this exact

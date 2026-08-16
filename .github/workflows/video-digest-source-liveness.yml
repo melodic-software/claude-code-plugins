@@ -1,0 +1,157 @@
+name: video-digest-source-liveness
+
+# Advisory source-adapter liveness lane for the video-digest pipeline (#2797).
+# Offline conformance stays the CI merge gate; this lane only detects live
+# upstream drift (yt-dlp / YouTube / X). It is deliberately NOT in ci.yml and
+# NOT in the ci-status aggregate — a red run annotates the job, writes a step
+# summary, and uploads the probe report as an artifact. It never opens or
+# updates GitHub issues (drain forbids filing). Same non-blocking posture as
+# link-check.yml, without the tracker-item side effect.
+#
+# pull_request: hermetic --offline self-test only (no network).
+# schedule / workflow_dispatch: live yt-dlp probes + annotate/upload on failure.
+
+on:
+  schedule:
+    # Weekly Monday 07:17 UTC — staggered off the link-check Monday 06:23 slot.
+    - cron: '17 7 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'plugins/knowledge/skills/video-digest/extraction/liveness/**'
+      - '.github/workflows/video-digest-source-liveness.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-digest-source-liveness-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-self-test:
+    name: Offline liveness self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
+
+      - name: Install extraction deps
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
+
+      - name: Replay offline fixtures
+        run: >
+          node plugins/knowledge/skills/video-digest/extraction/liveness/run-source-liveness.js
+          --offline
+
+      - name: Unit-test the liveness harness
+        working-directory: plugins/knowledge/skills/video-digest/extraction
+        run: npx vitest run liveness/run-source-liveness.test.js
+
+  live-probe:
+    name: Live source-adapter probes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
+
+      - name: Install extraction deps
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
+
+      - name: Install yt-dlp
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --only-binary=:all: --require-hashes \
+            --requirement .github/requirements-video-digest-liveness.txt
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          yt-dlp --version
+
+      - name: Materialize yt-dlp cookies file (optional)
+        id: cookies
+        env:
+          COOKIES_SECRET: ${{ secrets.VIDEO_DIGEST_YT_DLP_COOKIES_FILE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COOKIES_SECRET}" ]]; then
+            echo "path=" >> "${GITHUB_OUTPUT:?}"
+            exit 0
+          fi
+          cookies_file="$(mktemp)"
+          # Secret holds Netscape cookie-jar contents, not a host path.
+          printf '%s\n' "${COOKIES_SECRET}" > "${cookies_file}"
+          chmod 600 "${cookies_file}"
+          echo "path=${cookies_file}" >> "${GITHUB_OUTPUT:?}"
+
+      - name: Probe live sources
+        id: probe
+        env:
+          VIDEO_DIGEST_YT_DLP_COOKIES_FILE: ${{ steps.cookies.outputs.path }}
+        run: |
+          set -euo pipefail
+          set +e
+          node plugins/knowledge/skills/video-digest/extraction/liveness/run-source-liveness.js --live \
+            | tee liveness-report.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          if ((status == 0)); then
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift_detected=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
+
+      - name: Annotate drift and write job summary
+        if: failure() && steps.probe.outputs.drift_detected == 'true'
+        run: |
+          set -euo pipefail
+          fence=$(printf '\140\140\140')
+          {
+            echo "## Video-digest source-adapter liveness drift"
+            echo
+            echo "Scheduled/live probe failed on \`${GITHUB_SHA}\` (run"
+            echo "[${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+            echo
+            echo "Offline conformance remains the merge gate. This run does not"
+            echo "open or update GitHub issues — see the uploaded"
+            echo "liveness-report artifact and the annotations on this job."
+            echo "Owner doc:"
+            echo "plugins/knowledge/skills/video-digest/extraction/liveness/LIVENESS.md"
+            echo
+            echo "### Probe output"
+            echo
+            echo "${fence}"
+            cat liveness-report.txt
+            echo "${fence}"
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "::error::Video-digest source-adapter liveness drift detected on ${GITHUB_SHA}. See job summary and liveness-report artifact (no tracking issue filed)."
+
+      - name: Upload liveness report artifact
+        if: failure() && steps.probe.outputs.drift_detected == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: liveness-report
+          path: liveness-report.txt
+          if-no-files-found: error

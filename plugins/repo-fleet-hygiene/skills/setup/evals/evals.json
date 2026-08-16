@@ -64,6 +64,19 @@
         "Writes maxDepth into the [fleet] section",
         "Does not instruct the user to edit the config by hand"
       ]
+    },
+    {
+      "id": 6,
+      "name": "skip-replaces-default-discovery-list",
+      "prompt": "/repo-fleet-hygiene:setup apply --root <fleet-root> --skip node_modules --skip vendor --skip .venv --skip third_party\n\nI need discovery to skip a differently named vendored tree without losing the defaults.",
+      "expected_output": "Setup validates each --skip as a bare directory name, writes repeatable [fleet] skip entries, and states that fleet.skip replaces the audit default skip list rather than appending — which is why the three replaceable defaults were included alongside third_party. It notes that . / .. / .git stay skipped unconditionally so they do not need to be written. It does not tell the user to hand-edit the config.",
+      "files": [],
+      "expectations": [
+        "Validates bare directory names and rejects path separators",
+        "Writes repeatable fleet.skip entries including the three replaceable defaults plus third_party",
+        "States replace semantics (not append) when writing skip",
+        "Does not instruct the user to edit the config by hand"
+      ]
     }
   ]
 }

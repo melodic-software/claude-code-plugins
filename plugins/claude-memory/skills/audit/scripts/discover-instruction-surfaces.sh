@@ -6,9 +6,10 @@
 # current directory (`find . -maxdepth 1 -name CLAUDE.md`, `find .claude/rules ...`), so it
 # could only ever see PROJECT-scope files. The user-global surfaces — `~/.claude/CLAUDE.md`
 # and `~/.claude/rules/*.md` — load in every session and were reachable by neither this
-# skill nor `claude-config:audit-instructions`, whose surface partition explicitly hands
-# `~/.claude/rules/` here by name. One skill delegated a user-global surface; the receiving
-# skill's discovery could not reach it, so nothing audited it.
+# skill nor `claude-config:audit-instructions` (I15 now defers to C6 once both anchors are
+# in this population, including user↔project; at the time this comment was written, neither
+# check reached them). One skill's conflict pass deferred a user-global surface; the
+# receiving skill's discovery could not reach it, so nothing audited it.
 #
 # Scope tagging is not cosmetic. Several criteria are project-scoped (C9 is the live case),
 # and widening discovery WITHOUT a scope field would make them fire on personal files that

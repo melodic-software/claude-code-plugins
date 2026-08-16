@@ -95,6 +95,45 @@ session sees; resume timing comes from that error text where available, otherwis
 backoff-and-retry. A later fresh snapshot with plausible windows upgrades the mode back to
 proactive.
 
+## Cloud / remote sessions (expected degraded mode)
+
+The tee path and the StopFailure detection file are **machine-local and statusline-driven**. Cloud
+and remote-session containers (Claude Code on the web, remote-control targets, and similar
+ephemeral environments) typically have **no statusline wiring** and an **ephemeral filesystem**:
+`~/.claude/rate-limit-guard/` is absent, so there is no fresh snapshot and usually no
+`stop-events.jsonl` either. Verified empirically in a live cloud session (2026-08-15).
+
+That observation is **not a misconfiguration**. Under the capability-detection table above it
+classifies as **unknown → reactive-only**. Consumers must not invent window percentages, pause
+ends, or "healthy headroom" from the absence of the tee — fabricating proactive state is exactly
+what fail-open forbids.
+
+**What a cloud / remote consumer may use as signal (reactive only):**
+
+1. **This session's own rate-limit errors** — API / harness text that names a rate limit or carries
+   a reset time. Prefer the reset time in that text when present; otherwise backoff-and-retry.
+2. **Sibling automation 429s visible to the session** — machine-readable infra comments or CI
+   annotations on PRs/issues this session is already reading (for example review-lane comments that
+   classify `api_error_status: 429` as `rate-limit`). Treat a live cluster of sibling 429s as thin
+   headroom: shrink concurrency further; restore width only after those signals stop, never on a
+   guessed recovery.
+3. **`stop-events.jsonl` when present** — same read cadence as the reactive fallback below. In a
+   typical cloud container the file is absent; absence is not evidence of healthy windows.
+
+**Orchestration fallback when headroom is unobservable.** Sessions that size fan-out width from
+rate-limit headroom (notably `session-flow`'s `/session-flow:orchestrate` imperative 7) treat
+unobservable headroom as **thin by default**: start at a small conservative concurrent-worker cap,
+prefer shorter waves over a wide tree, and scale only on the reactive signals above — never on the
+missing tee. The orchestrate skill owns the imperative wording; this contract owns the
+classification that makes the fallback mandatory rather than optional.
+
+**Documented residual (not closed here):** a live statusline (or equivalent) producer that would
+write the tee inside cloud / remote containers does not exist in those environments today. Shipping
+that producer — fleet `cloud-environment` wiring, a synced snapshot, or a harness/API exposure —
+is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only plus the
+orchestration fallback above is the complete honest contract. Do not open a tracking issue solely
+to restate this residual; the residual is this paragraph.
+
 ## Detection records (reactive fallback)
 
 `~/.claude/rate-limit-guard/stop-events.jsonl` — one JSON line per `StopFailure(rate_limit)` event,

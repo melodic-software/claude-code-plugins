@@ -58,9 +58,21 @@ Optional renames after creation:
 **Directory renaming via `git worktree move`:** rename at any time with `git worktree move <old-path> <new-path>` — updates Git's internal references automatically. Run it from outside the worktree being moved (e.g., from main). Caveats:
 
 - **Session history**: Claude Code's `~/.claude/projects/` directory is keyed by worktree filesystem path. Moving the directory orphans the old project key — `--resume`/`--continue` from a new session won't find the old transcript. Auto-memory and project config are shared at repo level and are NOT affected.
-- **Windows**: works on Git Bash/NTFS with no known issues. Use forward slashes or quote paths with spaces.
+- **Windows**: works on Git Bash/NTFS within one drive. Use forward slashes or quote paths with spaces. `git worktree move` is `rename()` and cannot cross a volume boundary (EXDEV / "Invalid cross-device link").
 - **Cannot move**: the main worktree, or worktrees containing submodules.
 - **Locked worktrees**: `git worktree move` refuses them, and every helper-created worktree is locked at creation (the liveness guard). `git worktree unlock <path>` before the move, then re-lock with `git worktree lock --reason "<why>" <new-path>` after; `move --force --force` is the blunt alternative that discards the claim.
+- **Cross-drive / move unavailable (no submodules)**: when `git worktree move` cannot run because of a cross-drive placement on Windows — and the worktree has **no initialized submodules** — do **not** leave the directory relocated by a plain filesystem copy or OS move — that orphans Git's admin metadata. Unlock, copy the directory to the new path, repair, then re-lock:
+
+  ```bash
+  git worktree unlock <old-path>
+  cp -a <old-path> <new-path>    # or an equivalent recursive copy; then remove <old-path> once repair succeeds
+  git worktree repair <new-path> # re-points the worktree's .git file and the repo's gitdir link
+  git worktree lock --reason "<why>" <new-path>
+  ```
+
+  Run `git worktree repair <new-path>` from the main worktree (or any linked worktree that still sees the repository). `git worktree repair` is git's documented remedy when the directory was moved by something other than `git worktree move`. See `git help worktree`.
+
+  **Do not use this fallback when the worktree contains initialized submodules.** `repair` only rewrites superproject metadata; each submodule's `.git` file still points at `.git/worktrees/<id>/modules/...` for the old path, so removing `<old-path>` leaves submodule commands failing with `cannot chdir`. Re-initialize or migrate submodules explicitly instead.
 
 ## Create the worktree
 
@@ -96,7 +108,7 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
 
    The helper prints the created worktree path as its **sole stdout line**; capture it. Resolution is most-specific-first: `melodic.worktreeroot` (if set on the target repository) outranks the plugin option in `--fallback-root-file`. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, the helper reads it as "unconfigured", and the root resolves from the data-root file instead (`<data-dir>/worktrees`, announced on stderr, exit 0) unless the git config key already supplied one. Only when no rung yields a usable root does it refuse. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
 
-2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path the nesting invariant forbids — [SKILL.md § The nesting invariant, verified](../SKILL.md#the-nesting-invariant-verified)). An unset `worktree_root` is NOT an error when another rung resolves: the helper may use `melodic.worktreeroot` or fall back to `<data-dir>/worktrees` and notes it on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** means no usable root at all — neither configured nor supplied, or one the containment guard rejects for landing inside a repository: surface the helper's guidance verbatim — the user needs to set `melodic.worktreeroot` or `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
+2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path the nesting invariant forbids — [SKILL.md § The nesting invariant, verified](../SKILL.md#the-nesting-invariant-verified)). An unset `worktree_root` is NOT an error when another rung resolves: the helper may use `melodic.worktreeroot` or fall back to `<data-dir>/worktrees` and notes it on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** means no usable root — neither configured nor supplied, one the containment guard rejects for landing inside a repository, **or** (on Windows) a root on a different drive from the repo (including the unconfigured plugin-data-dir default at rung 4): surface the helper's guidance verbatim — the user needs to set `melodic.worktreeroot` or `worktree_root` to a same-drive external path (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
 
 3. **Enter the worktree** — call `EnterWorktree(path: "<printed-path>")` as the **final action**. Nothing may execute after it: the working directory changes and session state transitions. Because the path is outside `.claude/worktrees/`, Claude Code prompts for approval first (see the explain block); if the user **declines**, the worktree already exists on disk but the session did not enter it — tell them they can retry (approve the prompt) or `cd` into `<printed-path>` in a new session.
 

@@ -101,7 +101,7 @@ export function loadCourseDir(args, { logger } = {}) {
     process.exit(1);
   }
 
-  const courseDir = resolve(args["course-dir"]);
+  const courseDir = resolve(/** @type {string} */ (args["course-dir"]));
   const courseJsonPath = join(courseDir, "course.json");
 
   if (!existsSync(courseJsonPath)) {

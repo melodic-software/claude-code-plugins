@@ -781,6 +781,103 @@ def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
     return total
 
 
+
+def entry_is_empty_directory(
+    entry: dict[str, Any],
+    inventory: dict[str, dict[str, Any]] | list[dict[str, Any]] | set[str] | None = None,
+    *,
+    parents_with_children: set[str] | None = None,
+    unknown_paths: set[str] | None = None,
+) -> bool:
+    """True when a walked directory has no inventoried descendants.
+
+    Truncated (`not-walked`) directories are unknown, not empty — their
+    `logical_size` is null. A walked parent whose only children were cut off by
+    `--max-depth` can still show `logical_size` 0; requiring no snapshot
+    descendants keeps that case out of the empty-directory tidiness count so
+    zero-byte residue stays visible without mislabeling uninventoried trees.
+    Directories whose scandir failed (or that appear in ``unknown_paths``) are
+    likewise unknown: a coverage gap is not empty residue.
+    """
+    if entry.get("kind") != "directory":
+        return False
+    qualifiers = entry.get("size_qualifiers") or []
+    if "not-walked" in qualifiers:
+        return False
+    if entry.get("logical_size") != 0:
+        return False
+    relative = entry.get("path")
+    if not isinstance(relative, str) or not relative:
+        return False
+    if unknown_paths and relative in unknown_paths:
+        return False
+    if parents_with_children is not None:
+        return relative not in parents_with_children
+    if inventory is None:
+        paths: Iterable[str] = ()
+    elif isinstance(inventory, dict):
+        paths = inventory
+    elif isinstance(inventory, set):
+        paths = inventory
+    else:
+        paths = (
+            item["path"]
+            for item in inventory
+            if isinstance(item, dict) and isinstance(item.get("path"), str)
+        )
+    prefix = relative + "/"
+    return not any(path.startswith(prefix) for path in paths)
+
+
+def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
+    """Return every inventory path that has at least one inventoried descendant.
+
+    Built in one linear pass over ``paths`` so empty-directory counting stays
+    O(entries) rather than O(directories × entries).
+    """
+    parents: set[str] = set()
+    for path in paths:
+        if not isinstance(path, str) or "/" not in path:
+            continue
+        parent = path.rsplit("/", 1)[0]
+        while parent:
+            if parent in parents:
+                break
+            parents.add(parent)
+            if "/" not in parent:
+                break
+            parent = parent.rsplit("/", 1)[0]
+    return parents
+
+
+def empty_directory_count(
+    entries: list[dict[str, Any]],
+    *,
+    error_paths: Iterable[str] | None = None,
+) -> int:
+    """Count walked empty directories in a snapshot inventory.
+
+    ``error_paths`` are scan-error relatives that must not count as empty even
+    when they were recorded with ``logical_size`` 0 and no descendants.
+    """
+    by_path = {
+        entry["path"]: entry
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+    }
+    parents_with_children = inventory_parent_paths(by_path)
+    unknown = {path for path in (error_paths or ()) if isinstance(path, str) and path}
+    return sum(
+        1
+        for entry in by_path.values()
+        if entry_is_empty_directory(
+            entry,
+            parents_with_children=parents_with_children,
+            unknown_paths=unknown,
+        )
+    )
+
+
 def discover_enclosing_git(target: Path) -> tuple[list[Path], list[str]]:
     marker_root = next(
         (
@@ -1202,7 +1299,7 @@ def scan_tree(
     else:
         allowed_root_children = {name.casefold() for name in root_children}
 
-    def visit(directory: Path, depth: int = 1) -> int:
+    def visit(directory: Path, depth: int = 1) -> int | None:
         total = 0
         try:
             with os.scandir(directory) as iterator:
@@ -1211,7 +1308,8 @@ def scan_tree(
             errors.append(
                 {"path": directory.relative_to(target).as_posix(), "error": str(exc)}
             )
-            return 0
+            # Unknown coverage — not an empty directory. Caller marks not-walked.
+            return None
         for child in children:
             path = Path(child.path)
             # Root-children mode never walks the volume root as a whole: only
@@ -1272,6 +1370,9 @@ def scan_tree(
                             subtotal = 0
                     else:
                         subtotal = visit(path, depth + 1)
+                        if subtotal is None:
+                            # scandir failed inside this child: unknown, not empty.
+                            walked = False
                     data = metadata(path, kind, subtotal, walked=walked)
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
@@ -1305,6 +1406,9 @@ def scan_tree(
         return total
 
     total_size = visit(target)
+    if total_size is None:
+        total_size = 0
+        truncated.append(".")
     repositories = sorted(set(repositories))
     annotate_tracked(entries, target, repositories, truncated, repo_errors)
     reclaimable = reclaimable_local_bytes(entries)
@@ -1316,6 +1420,11 @@ def scan_tree(
         target_identity["size_qualifiers"] = sorted(
             set(target_identity["size_qualifiers"] + ["not-walked"])
         )
+    error_paths = {
+        item["path"]
+        for item in errors
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -1326,6 +1435,9 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
+        "empty_directory_count": empty_directory_count(
+            entries, error_paths=error_paths
+        ),
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -1489,9 +1601,11 @@ def validate_plan(
         required = {
             "path",
             "tier",
+            "provenance",
             "reason",
             "evidence",
             "why_not_work_product",
+            "risk",
             "owner",
         }
         if not required.issubset(candidate):
@@ -1514,6 +1628,11 @@ def validate_plan(
         ):
             raise HygieneError(f"candidate paths overlap: {relative}")
         seen.append(pure)
+        if (
+            not isinstance(candidate["provenance"], str)
+            or not candidate["provenance"].strip()
+        ):
+            raise HygieneError(f"candidate needs provenance: {relative}")
         if not isinstance(candidate["reason"], str) or not candidate["reason"].strip():
             raise HygieneError(f"candidate needs a reason: {relative}")
         if (
@@ -1521,6 +1640,8 @@ def validate_plan(
             or not candidate["why_not_work_product"].strip()
         ):
             raise HygieneError(f"candidate needs work-product analysis: {relative}")
+        if not isinstance(candidate["risk"], str) or not candidate["risk"].strip():
+            raise HygieneError(f"candidate needs a risk assessment: {relative}")
         if (
             not isinstance(candidate["evidence"], list)
             or not candidate["evidence"]
@@ -2481,6 +2602,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                     )
                 )
         blockers = sorted(set(blockers))
+        candidate_entry = entries[relative]
         logical_bytes = sum(
             entry_logical_file_bytes(entries[name]) for name in expected_paths
         )
@@ -2493,6 +2615,11 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             {
                 "path": relative,
                 "tier": plan["tier"],
+                "provenance": candidate["provenance"],
+                "reason": candidate["reason"],
+                "why_not_work_product": candidate["why_not_work_product"],
+                "risk": candidate["risk"],
+                "empty_directory": entry_is_empty_directory(candidate_entry, entries),
                 "logical_bytes": logical_bytes,
                 "reclaimable_local_bytes": reclaimable_bytes,
                 "handle_state": state,
@@ -2506,12 +2633,17 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         "tier": plan["tier"],
         "target": str(target),
         "candidates": results,
+        "empty_directories": sum(1 for item in results if item["empty_directory"]),
         "logical_bytes": sum(item["logical_bytes"] for item in results),
         "reclaimable_local_bytes": sum(
             item["reclaimable_local_bytes"] for item in results
         ),
         "approval_token": None if blocked else approval_token(snapshot, plan),
-        "warning": "Approval is valid only for this tier, exact plan, and snapshot. Re-preview after any change.",
+        "warning": (
+            "Safe tidiness is the primary objective; reclaimable bytes are "
+            "secondary. Approval is valid only for this tier, exact plan, and "
+            "snapshot. Re-preview after any change."
+        ),
     }
     return payload
 
@@ -2861,6 +2993,8 @@ def apply_nothing_removed_report(
         "target": str(target),
         "removed": [],
         "skipped": skipped,
+        "paths_removed": 0,
+        "empty_directories_removed": 0,
         "logical_bytes_removed": 0,
         "reclaimable_local_bytes_removed": 0,
         "observed_free_space_delta_bytes": 0,
@@ -3007,6 +3141,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             removed.append(
                 {
                     "path": relative,
+                    "empty_directory": entry_is_empty_directory(entry, entries),
                     "logical_bytes": logical,
                     "reclaimable_local_bytes": reclaimable,
                 }
@@ -3019,6 +3154,10 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         "target": str(target),
         "removed": removed,
         "skipped": skipped,
+        "paths_removed": len(removed),
+        "empty_directories_removed": sum(
+            1 for item in removed if item["empty_directory"]
+        ),
         "logical_bytes_removed": logical_removed,
         "reclaimable_local_bytes_removed": reclaimable_removed,
         "observed_free_space_delta_bytes": after - before,
@@ -3277,6 +3416,7 @@ def main(argv: list[str] | None = None) -> int:
                     "snapshot": str(output_path),
                     "entries": len(snapshot["entries"]),
                     "hinted_entries": hinted,
+                    "empty_directory_count": snapshot["empty_directory_count"],
                     "target_logical_bytes": snapshot["target_logical_bytes"],
                     "target_reclaimable_local_bytes": snapshot[
                         "target_reclaimable_local_bytes"
@@ -3286,7 +3426,11 @@ def main(argv: list[str] | None = None) -> int:
                     "policy_sources": policy["policy_sources"],
                     "os_autoclean": advisory,
                     "note": (
-                        "Hints are discovery signals, never cleanup verdicts. "
+                        "Safe tidiness is the primary objective; reclaimable "
+                        "bytes are a secondary signal. empty_directory_count "
+                        "names walked empty directories (logical_size 0, not "
+                        "truncated) so zero-byte residue stays visible. Hints "
+                        "are discovery signals, never cleanup verdicts. "
                         "target_reclaimable_local_bytes excludes every entry "
                         "whose size_qualifiers is non-empty (cloud-placeholder, "
                         "hardlinked, sparse, not-walked); target_logical_bytes "

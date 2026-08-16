@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.54.1]
+## [0.54.10]
 
 ### Changed
 
@@ -11,6 +11,115 @@ All notable changes to the `source-control` plugin are documented here. Format f
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.54.9]
+
+### Fixed
+
+- **Stale-base guidance no longer claims coverage it does not have, or recommends a
+  forbidden setting (#2691).** The babysit/pull-request stale-base rule cited the
+  2026-08-15 incidents (quoted as "#2635 then #2639 ... inside ten minutes") as its
+  motivating case. All three of those merges (#2633, #2639, #2641) were stale in
+  **content** while up to date in **history** — `git merge-base --is-ancestor f603880d
+  refs/pull/2641/head` is true — so `check-stale-base-overlap.sh` exits 0 on them; they
+  belong to the post-merge `scripts/check-silent-revert.sh` class.
+  `freshness.md` and `merge.md` now state the gate's real scope (stale **base** only) and
+  point at the sibling detector for the disjoint class. Both files also dropped the
+  "durable fix is `requiredStatusChecks.strict`" recommendation: it is barred by an
+  accepted ADR in the org's IaC repo, and the same evidence shows strict would have passed
+  all three incidents anyway. No behavior change — wording only.
+
+## [0.54.8]
+
+### Fixed
+
+- **Worktree create refuses a cross-drive unconfigured default on Windows (#2806).**
+  `scripts/worktree-create.sh` same-drive guard now fails closed at rung 4 (plugin
+  data-dir default) with the same remedy-first exit 3 as rungs 1–3, instead of
+  warn-and-proceed. An unconfigured cross-drive machine no longer creates a
+  worktree that `git worktree move` will fail on with EXDEV / Improper link; the
+  refusal is visible on the `WorktreeCreate` hook path (non-zero stderr), where
+  the previous exit-0 warning was dropped to the debug log. Skill create contract
+  (`skills/worktree/SKILL.md`, `context/create.md`, evals) documents cross-drive
+  as an exit-3 case alongside missing/nested roots.
+
+## [0.54.7]
+
+### Added
+
+- **Stale-base squash-merge hygiene (#2691).** Document the babysit/pull-request rule: never
+  squash-merge while the head is behind its base (even when `mergeStateStatus` is CLEAN under
+  a non-strict ruleset). Point at `scripts/check-stale-base-overlap.sh` as the overlapping-path
+  tripwire. (The coverage and prevention framing shipped with this entry was corrected in
+  0.54.9.)
+
+## [0.54.6]
+
+### Changed
+
+- **Nesting-invariant probe run recorded as inconclusive (#2768).**
+  `fixtures/nesting-invariant-probe.sh` was executed on Claude Code **2.1.232** with every
+  discriminator pinned (creation=`git worktree add`, launch=`cd`+`claude -p --settings`,
+  glob=`src/**`, parent rule committed, four placements). All four arms hit the script's
+  fixture-failure trap — zero `InstructionsLoaded` events because the CLI was
+  unauthenticated — which is **not** a null finding about the leak. README and SKILL.md
+  stamp refreshed; arm statuses remain disputed/untested. Probe now prints pinned
+  discriminators and surfaces `claude` stderr on a zero-event arm.
+
+## [0.54.5]
+
+### Fixed
+
+- **Nesting-invariant SSOT test enforces the unconditional expiry date arm (#2767).**
+  `nesting-invariant-ssot.test.sh` previously only asserted the literal strings
+  `as-of **2026-08-07**` and `Unconditional expiry` — so the stamp could pass its
+  expiry and the suite stayed green forever. It now parses the as-of date and both
+  expiry arms, fails when today is on or after the date arm, asserts the version
+  arm is present and `N.N.N`-shaped (not evaluated — CI has no live Claude Code
+  version), and proves the red path with an injected post-expiry "today".
+
+## [0.54.4]
+
+### Changed
+
+- **Docs:** `/worktree audit` no longer enumerates a subset of non-`safe` Work values
+  (#2766). SKILL.md Step 1 flags any Work value other than `safe` (owned by
+  `context/status.md`), so the list cannot drift when the axis gains a value.
+  `context/audit.md` health presentation adds `in-progress` and `dirty` — the two
+  classes `cleanup` refuses — alongside stranded/unproven. Docs-only.
+
+## [0.54.3]
+
+### Changed
+
+- **Docs:** `/worktree create` and `/worktree cleanup` now document `git worktree repair`
+  (#2765). `context/create.md` adds a cross-drive / move-unavailable caveat with the
+  unlock → copy → `repair` → re-lock sequence (helper-created worktrees are locked).
+  `context/cleanup.md` Step 5 names `repair` alongside `prune` and states the
+  distinction. Docs-only; no behavior change.
+
+## [0.54.2]
+
+### Fixed
+
+- **Worktree create enforces the same-drive-on-Windows invariant (#2764).**
+  `scripts/worktree-create.sh` now compares the repository and resolved worktree
+  path drive letters (path-shape gate: both sides must match `<letter>:/`, so
+  POSIX and UNC stay inert). An explicit or configured root on a different drive
+  (rungs 1–3: `--root` / `melodic.worktreeroot` / `--fallback-root`) is refused
+  with exit 3 and a remedy-first message. The unconfigured plugin-data-dir
+  default (rung 4) warns loudly and still creates — refusing would fail every
+  harness-driven `WorktreeCreate` on a cross-drive machine. Closes the gap where
+  the invariant was stated in `plugin.json` and the containment message but never
+  enforced; `git worktree move` cannot cross volumes (`rename()` / EXDEV).
+
+## [0.54.1]
+
+### Changed
+
+- **setup:** Two articles dropped from the local-overlay fixture's prose comment
+  (`.claude/source-control.local.md`) by the repo-wide `/docs-hygiene:compress` pass —
+  semantic-diff verified (0 semantic loss). No behavior change.
 
 ## [0.54.0]
 

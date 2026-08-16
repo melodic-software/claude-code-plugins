@@ -8,7 +8,7 @@ usage() {
   cat <<'EOF'
 Usage: audit-fleet.sh [DIR]... [--root DIR]... [--repo DIR]... [--config FILE]
                       [--canonical github.com/owner/repo=PATH]...
-                      [--max-depth 1..12] [--project-dir DIR]
+                      [--skip NAME]... [--max-depth 1..12] [--project-dir DIR]
                       [--detail] [--plan-file PATH]
        audit-fleet.sh --apply-plan PATH
 
@@ -37,6 +37,16 @@ names how to set scope — it does not audit the session project directory.
 config rung only (not as an implicit audit target). It is passed in rather
 than read from the environment, which does not carry it. An empty value means
 "no project directory": the project config rung is skipped.
+
+--skip NAME (repeatable) and config fleet.skip (repeatable) REPLACE the default
+discovery skip list rather than appending to it. With neither supplied, discovery
+skips node_modules, vendor, and .venv. Supplying any --skip or fleet.skip entry
+replaces that set entirely — to extend, pass those three defaults plus your names;
+to shrink (e.g. reach a repo under vendor/), omit the names you want walked. CLI
+and config entries compose additively with each other the same way other scope
+inputs do. Values must be bare directory names (no empty value, no path separator).
+. , .. , and .git stay skipped unconditionally even when an explicit list omits
+them.
 EOF
 }
 
@@ -138,7 +148,8 @@ git_probe_allowed() {
       return
     fi
     if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
-      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ]]
+      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ||
+        "$6" == "fleet.skip" ]]
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
@@ -400,6 +411,7 @@ ROOT_ARGS=()
 REPO_ARGS=()
 OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
+SKIP_NAMES=()
 CONFIG_FILE=""
 MAX_DEPTH=""
 PROJECT_DIR_ARG=""
@@ -407,6 +419,19 @@ DETAIL=false
 PLAN_FILE=""
 APPLY_PLAN=""
 PLAN_FILE_EXPLICIT=false
+
+# Bare directory-name validation for --skip / fleet.skip. Reject empty values and anything with a
+# path separator so a mistaken path cannot silently widen or narrow discovery.
+validate_skip_name() {
+  local name="$1" origin="$2"
+  [[ -n "$name" ]] || fail "invalid ${origin} value (expected a bare directory name): (empty)"
+  case "$name" in
+  */* | *\\*)
+    fail "invalid ${origin} value (expected a bare directory name, no path separator): $name"
+    ;;
+  *) ;;
+  esac
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -440,6 +465,12 @@ while [[ $# -gt 0 ]]; do
       fail "invalid --canonical value: $pair"
     OVERRIDE_KEYS+=("$key")
     OVERRIDE_PATHS+=("$value")
+    shift 2
+    ;;
+  --skip)
+    [[ $# -ge 2 ]] || fail "--skip requires a bare directory name"
+    validate_skip_name "$2" "--skip"
+    SKIP_NAMES+=("$2")
     shift 2
     ;;
   --max-depth)
@@ -492,8 +523,8 @@ done
 # artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
 if [[ -n "$APPLY_PLAN" ]]; then
   if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
-    ${#OVERRIDE_KEYS[@]} -gt 0 || -n "$MAX_DEPTH" || -n "$PROJECT_DIR_ARG" ||
-    "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
+    ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || -n "$MAX_DEPTH" ||
+    -n "$PROJECT_DIR_ARG" || "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
     fail "--apply-plan cannot be combined with audit discovery flags"
   fi
   [[ -f "$APPLY_PLAN" ]] || fail "apply-plan file not found: $APPLY_PLAN"
@@ -674,6 +705,36 @@ if [[ -n "$CONFIG_FILE" ]]; then
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.ackUnavailable 2>/dev/null || true)
 fi
 
+# Discovery skip names (--skip / fleet.skip). Explicit entries REPLACE the default set rather than
+# appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
+# config compose additively with each other like other scope inputs; with neither supplied, keep
+# today's three-name default. . , .. , and .git stay skipped unconditionally even when an explicit
+# list omits them (#2826).
+if [[ -n "$CONFIG_FILE" ]]; then
+  while IFS= read -r -d '' value; do
+    # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
+    # `skip =` line that git-config returns as an empty string. Do not silently drop them:
+    # an empty-only list would otherwise restore the three defaults and quietly omit vendor/.
+    validate_skip_name "$value" "fleet.skip"
+    SKIP_NAMES+=("$value")
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
+fi
+if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
+  SKIP_NAMES=(node_modules vendor .venv)
+fi
+
+should_skip_dir_name() {
+  local name="$1" skip
+  case "$name" in
+  . | .. | .git) return 0 ;;
+  *) ;;
+  esac
+  for skip in "${SKIP_NAMES[@]}"; do
+    [[ -n "$skip" && "$name" == "$skip" ]] && return 0
+  done
+  return 1
+}
+
 is_acked() {
   local key a
   key="$(lower "$1")"
@@ -696,12 +757,17 @@ fi
 # question from which config FILE was consumed, and the header used to answer it with a fixed
 # literal that could contradict the run's own inputs two lines later. Config-supplied scope is
 # ADDITIVE to any CLI-supplied scope, so both contributions are named rather than one masking the
-# other. Bare positional paths count as command-line --root equivalents.
-cli_scope_count=$((CLI_ROOT_COUNT + CLI_REPO_COUNT))
+# other. Bare positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the
+# command-line segment attributes them as --root/bare-path rather than conflating with --repo.
 config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
+cli_scope_label=""
+[[ "$CLI_REPO_COUNT" -gt 0 ]] && cli_scope_label="${CLI_REPO_COUNT} --repo"
+if [[ "$CLI_ROOT_COUNT" -gt 0 ]]; then
+  [[ -n "$cli_scope_label" ]] && cli_scope_label="${cli_scope_label}, "
+  cli_scope_label="${cli_scope_label}${CLI_ROOT_COUNT} --root/bare-path"
+fi
 SCOPE_PROVENANCE=""
-[[ "$cli_scope_count" -gt 0 ]] &&
-  SCOPE_PROVENANCE="command line ($cli_scope_count --root/--repo argument(s))"
+[[ -n "$cli_scope_label" ]] && SCOPE_PROVENANCE="command line ($cli_scope_label)"
 if [[ "$config_scope_count" -gt 0 ]]; then
   [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
   SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
@@ -1012,6 +1078,10 @@ DISCOVERY_SKIP_PATHS=()
 DISCOVERY_SKIP_REASONS=()
 DISCOVERY_NONREPO_COUNT=0
 DISCOVERY_UNREADABLE_COUNT=0
+# Intermediate directories that are symbolic links (or Windows junctions that test as symlinks
+# under Git Bash). Discovery still does not follow them; each path is disclosed rather than omitted
+# silently (#2711).
+DISCOVERY_SYMLINK_PATHS=()
 
 # Paths where core.bare=true coincides with working-tree content and/or linked worktrees. Rejecting
 # these as "not a Git working tree" would omit the one administrative anomaly this collector exists
@@ -1197,18 +1267,32 @@ discover_repositories() {
     return 0
   fi
   if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
-    # Discovery origin: a .git marker that is not a usable working tree degrades per-entry.
+    # Nested-repository early return: a .git marker means this directory is a repository (or a husk
+    # that degrades per-entry below). Discovery stops descending here — children under a nested
+    # checkout are never walked, so a repo buried inside another repo's tree never appears as its
+    # own audit target (#2712).
     add_target "$dir" discovery
     return 0
   fi
   [[ "$depth" -lt "$MAX_DEPTH" ]] || return 0
   for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
-    [[ -d "$child" && ! -L "$child" ]] || continue
+    # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
+    [[ -e "$child" || -L "$child" ]] || continue
     name="$(basename "$child")"
-    case "$name" in
-    . | .. | .git | node_modules | vendor | .venv) continue ;;
-    *) discover_repositories "$child" $((depth + 1)) ;;
-    esac
+    # Configurable skip list (--skip / fleet.skip). . , .. , and .git are always skipped; other
+    # names come from SKIP_NAMES (defaults, or an explicit replace list). See usage() for replace
+    # semantics.
+    if should_skip_dir_name "$name"; then
+      continue
+    fi
+    # Symlinked/junctioned intermediate dirs: do not descend, but record for disclosure (#2711).
+    # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
+    if [[ -L "$child" && -d "$child" ]]; then
+      DISCOVERY_SYMLINK_PATHS+=("$child")
+      continue
+    fi
+    [[ -d "$child" ]] || continue
+    discover_repositories "$child" $((depth + 1))
   done
 }
 
@@ -1262,7 +1346,7 @@ done
 # contains no repositories is a valid empty audit ("0 repositories found"), not an error — the
 # operator named that tree (#2599). Hard-fail only when nothing was ever in scope: no roots walked,
 # no repos, and no stale/skip/bare-live entry to report.
-if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 && ${#ROOT_LABELS[@]} -eq 0 ]]; then
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#DISCOVERY_SYMLINK_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 && ${#ROOT_LABELS[@]} -eq 0 ]]; then
   fail "no Git working trees found in the requested scope"
 fi
 
@@ -1663,7 +1747,7 @@ analyze_repo() {
   local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short
-  local repo_pr_rows="" repo_pr_available=false protected=false
+  local repo_pr_rows="" repo_pr_available=false protected=false protection_reason=""
   local remote_inventory_failed=false
   local gql_owner="" gql_name="" gql_owner_esc="" gql_name_esc="" gql_query="" gql_page_rows=""
   local gql_page_start=0 gql_page_end=0 gql_alias_i=0 gql_bi=0 gql_branch_esc=""
@@ -2231,6 +2315,32 @@ analyze_repo() {
         emit_finding HIGH merged-local-branch "$canonical :: $branch" \
           "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url)" \
           "Candidate per-repository branch-audit handoff" "Run /repo-hygiene:clean git in $canonical"
+      else
+        # Protected AND exact-OID merged. Without this arm the evidence is computed
+        # and then discarded: neither branch above fires, so the strongest merge
+        # evidence the collector has produces no finding at all. The weaker
+        # merged-pr-tip-drift below carries no protection guard and DOES emit, so
+        # silence here reads as "nothing merged" rather than "merged but protected".
+        # Reported, never a cleanup candidate -- the protection rule is unchanged
+        # and this kind is deliberately absent from branch_action_kind().
+        # The default branch cannot reach here: pr_match is populated only under
+        # [[ "$branch" != "$default_branch" ]] at the collection guard above, and is
+        # reset every iteration, so a default branch never enters this block. Only
+        # the current-branch and main-worktree protections are reachable.
+        protection_reason="branch is protected"
+        if [[ "$is_main" == "true" ]]; then
+          protection_reason="attached to the main worktree"
+        elif [[ "$branch" == "$current_branch" ]]; then
+          protection_reason="current branch of the canonical checkout"
+        fi
+        # HIGH, matching merged-local-branch and merged-worktree: the evidence is the
+        # same successful MERGED PR with an exact headRefOid match. The confidence
+        # model separates evidence strength from disposition, so protection belongs in
+        # the disposition, not in a downgraded tier.
+        emit_finding HIGH merged-protected-branch "$canonical :: $branch" \
+          "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url); $protection_reason" \
+          "Informational only; protected branches are never branch-cleanup candidates" \
+          "Switch off this branch in $canonical, then rerun to reclassify it"
       fi
     elif [[ -n "$pr_any" && "$branch" != "$default_branch" ]]; then
       IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
@@ -2399,8 +2509,8 @@ done
 # (or a directory is unreadable), the path is skipped rather than aborting. Report the counts so
 # silence is not mistaken for a complete walk.
 if [[ ${#ROOT_LABELS[@]} -gt 0 ]]; then
-  printf 'Discovery skips: %s non-repository, %s unreadable\n' \
-    "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT"
+  printf 'Discovery skips: %s non-repository, %s unreadable, %s symlink\n' \
+    "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT" "${#DISCOVERY_SYMLINK_PATHS[@]}"
 fi
 
 # Config-sourced entries that failed per-entry validation during argument processing (the header
@@ -2421,6 +2531,15 @@ for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); 
     "${DISCOVERY_SKIP_REASONS[$skip_index]}" \
     "Path skipped; the rest of the fleet was audited" \
     "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun"
+done
+
+# Symlinked/junctioned intermediate directories under --root: still not followed, but never silent (#2711).
+for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink_index++)); do
+  printf '\n'
+  emit_finding UNKNOWN discovery-symlink-skip "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}" \
+    "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
+    "Path skipped; the rest of the fleet was audited" \
+    "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
 done
 
 # Bare repositories that still have working-tree content or linked worktrees (#2602). Reported
@@ -2517,16 +2636,24 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
   printf '%s\n' '---'
 done
 
-# Fleet-level findings (stale config, duplicate-checkout) get their own rollup row.
+# Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
+# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
+# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))
 done
+fleet_level_verdict="$(repo_verdict -1)"
 if [[ "$fleet_level_count" -gt 0 ]]; then
   printf 'Repo: fleet-level\n'
-  print_field Verdict "$(repo_verdict -1)"
+  print_field Verdict "$fleet_level_verdict"
   print_field 'Kind counts' "$(repo_kind_counts_text -1)"
   printf '%s\n' '---'
+  case "$fleet_level_verdict" in
+  BLOCKED*) fleet_blocked=$((fleet_blocked + 1)) ;;
+  CLEAN) ;;
+  *) fleet_candidates=$((fleet_candidates + 1)) ;;
+  esac
 fi
 
 case "$fleet_blocked" in

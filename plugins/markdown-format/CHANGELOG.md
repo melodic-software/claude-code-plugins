@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.17]
+## [0.11.20]
 
 ### Changed
 
@@ -11,6 +11,44 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   duplicated helpers folded, dead code and redundant constructs removed, no functional
   change. Every group was verified by a fresh-context verifier agent against the
   plugin's own test suite.
+
+## [0.11.19]
+
+### Fixed
+
+- **Walk monorepo workspace `node_modules/.bin` for markdownlint-cli2 (#2732).** Previously only the repo root's `.bin` was probed; packages under
+  `packages/*/node_modules/.bin` are now found by walking from the edited file up to
+  `$REPO_ROOT`, keeping the per-directory symlink-containment check.
+
+## [0.11.18]
+
+### Fixed
+
+- **Missing-tool notice: latch wording + probed-PATH diagnostic (#2740).** 0.11.17 already dropped
+  the "Install it explicitly" misdirection, but the notice still understated the latch: only the
+  notice itself latches (`skip-notices/` via `hook::notice_once`); the binary probe re-runs on every
+  Markdown edit and recovers mid-session when the tool becomes resolvable. The notice now says
+  "skipped for this edit", names that there is no skip latch, and appends a one-line
+  `PATH probed: …` diagnostic so a PATH-layer miss (cloud harness / nvm prefix) is diagnosable
+  without guessing. Deliberately does **not** widen the probe into nvm layout guesses — that is an
+  environment/bootstrap fix (#2739 / #2748), not a hook-side search expansion.
+
+## [0.11.17]
+
+### Changed
+
+- **Skip notice no longer claims session-long semantics or misdirects the fix.** A plugin-quality
+  audit root-caused a cloud-session outage: hook processes inherit Claude Code's own environment
+  (per the hooks reference), not the interactive shell's profile, so an nvm-provisioned global
+  markdownlint-cli2 was visible to the Bash tool but invisible to every hook probe — while the old
+  notice said "skipped for this session. Install it explicitly", implying a cached negative (none
+  exists; the probe re-runs per edit and recovers silently) and telling the user to redo an install
+  they had already done. The notice now states the re-check semantics and the environment
+  inheritance, and points at a repo-local `npm i -D` install as the reliable route (the
+  `node_modules/.bin` probe is filesystem-based and PATH-independent). Known residual, recorded:
+  `resolve_repo_markdownlint` checks only the repo root's `node_modules/.bin`, so monorepo
+  workspace-level installs are still invisible; sibling formatters that probe `command -v` share
+  the PATH-layer failure mode (fleet-wide sweep candidate).
 
 ## [0.11.16]
 

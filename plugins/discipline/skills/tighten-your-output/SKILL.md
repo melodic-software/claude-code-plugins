@@ -55,7 +55,7 @@ in-thread rather than hand-rolling criteria here.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - prose padded with filler, hedging, or a restatement of what an adjacent
   sentence already said;

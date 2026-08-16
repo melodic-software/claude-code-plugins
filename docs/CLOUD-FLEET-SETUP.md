@@ -191,10 +191,19 @@ if [ -f .node-version ]; then
 fi
 
 # --- npm dependencies, skipped when already in sync --------------------------
+# Put hook-consumed npm CLIs (e.g. markdownlint-cli2) in the root package-lock
+# and, after npm ci, symlink them into ~/.local/bin — hook processes inherit
+# Claude Code's environ (which includes ~/.local/bin) but not the nvm prefix
+# npm -g would use, and CLAUDE_ENV_FILE PATH repairs reach Bash tools only.
 if [ -f package-lock.json ]; then
   if [ ! -f node_modules/.package-lock.json ] ||
     [ package-lock.json -nt node_modules/.package-lock.json ]; then
     npm ci --no-audit --no-fund || warn "npm ci failed"
+  fi
+  mkdir -p "$HOME/.local/bin"
+  if [ -x node_modules/.bin/markdownlint-cli2 ]; then
+    ln -sfn "$PWD/node_modules/.bin/markdownlint-cli2" \
+      "$HOME/.local/bin/markdownlint-cli2"
   fi
 fi
 
