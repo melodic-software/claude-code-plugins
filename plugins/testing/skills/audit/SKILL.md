@@ -138,3 +138,8 @@ line above it, or inside the body — the same recorded-decision shape as the re
   run is not judged.
 - **Fixture corpora under `evals/fixtures/` are pruned** — a detector's planted-defect fixtures are
   not the consumer's defects. Point `$CANT_FAIL_SCAN_ROOT` at one explicitly to scan it.
+- **A platform-skipped assertion is unverified on the platform that skips it** — a green local run is
+  not evidence about a case only another platform executes. That is the same defect family this
+  detector hunts, approached from the environment side, and it is out of the detector's reach: a
+  visible skip is not an assertion-free body. The uncovered axis of the dropped skip rule is
+  platform as well as ecosystem.
