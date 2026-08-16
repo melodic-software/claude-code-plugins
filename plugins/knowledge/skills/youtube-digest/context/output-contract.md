@@ -176,6 +176,7 @@ artifact already listed:
   and echoed on CLI output.
 - X blocked delegations — the refused outbound link is harvested, so it lands in
   `source/harvested-links.json`; the acquire phase detail carries the count.
-- X snowflake-aliasing flag (`source:snowflakeAliasing`) — acquisition-envelope only. **No slice
-  artifact persists it**, so it is unreadable after the run. Whether that is acceptable or a gap
-  worth a row is a live question, not a settled one.
+- `source:`-prefixed envelope metadata (`source:snowflakeAliasing`, `source:blockedDelegations`,
+  `source:counts`, `source:displayId`) — persisted for watch runs as the `sourceMetadata` block
+  in `run-state/watch.json` (written only when non-empty). The `transcript` action keeps no
+  run-state file, so these fields live only in its CLI output there.
