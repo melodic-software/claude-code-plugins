@@ -106,6 +106,17 @@ run_win "prefix on git itself stays allowed" \
   'MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"' 0
 run_win "prefix on gh stays allowed" \
   "MSYS_NO_PATHCONV=1 gh pr view 2878 --json body" 0
+# The real corpus command that a first draft of this matcher wrongly blocked:
+# the `sh` in `show` and the `s` of `settings.json` are not shell command words.
+# Kept as a regression pin because it is exactly the shape a substring matcher
+# gets wrong, and a false positive here is the failure mode that gets a guard
+# switched off.
+run_win "prefix on git show with a path containing 'sh' stays allowed" \
+  "cd <repo-root> && MSYS_NO_PATHCONV=1 git show 'origin/main:.claude/settings.json'" 0
+run_win "prefix on a command whose name merely ends in sh stays allowed" \
+  "MSYS_NO_PATHCONV=1 refresh --all" 0
+# ...and the matcher must not hang on it. An ERE draft backtracked
+# catastrophically on this exact string; the token walk is linear.
 
 # --- 4. Mentions that are not settings (allowed) -----------------------------
 # The variable name appears constantly in this repo's own docs, issues, commit

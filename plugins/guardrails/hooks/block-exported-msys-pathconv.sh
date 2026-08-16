@@ -179,9 +179,42 @@ is_exported_suppressor() {
 # Cost of covering it, measured on the same 14,234-command corpus: ONE match,
 # which the export rule above already blocks. So this closes a real gap for no
 # additional false positives.
+# Implemented as a LINEAR token walk, not one regex. An earlier draft expressed
+# this as a single ERE with a `[^[:space:]]*` next to a quantified
+# `(NAME=value[[:space:]]+)*` group; on a real corpus command that combination
+# backtracked catastrophically and hung the matcher. A hook that hangs is worse
+# than one that misses — PreToolUse has a timeout, and a guard that costs the
+# whole budget gets switched off. Token-walking is O(tokens) with no backtracking
+# and is easier to read besides.
 leaks_into_child_shell() {
-  local s="$1"
-  [[ "$s" =~ (^|[^[:alnum:]_./-])(env[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)?(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)=[^[:space:]]*[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(env[[:space:]]+)?[^[:space:]]*(bash|sh|dash|zsh|ksh)(\.exe)?([[:space:]]|$) ]]
+  local s="$1" tok base seen=0
+  local -a tokens=()
+  # Intentional word-split of the static matcher subject into tokens.
+  # shellcheck disable=SC2206
+  tokens=($s)
+  for tok in "${tokens[@]}"; do
+    if ((seen)); then
+      # Still in the prefix: further NAME=value assignments and a bare `env`
+      # keep the prefix open; anything else is the command word.
+      [[ "$tok" == "env" || "$tok" == "env.exe" ]] && continue
+      [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
+      # Command word: judge its basename, with any quoting stripped.
+      tok="${tok#\'}"
+      tok="${tok#\"}"
+      base="${tok##*/}"
+      base="${base##*\\}"
+      base="${base%.exe}"
+      case "$base" in
+      bash | sh | dash | zsh | ksh) return 0 ;;
+      *) seen=0 ;;
+      esac
+      continue
+    fi
+    case "$tok" in
+    MSYS_NO_PATHCONV=* | MSYS2_ARG_CONV_EXCL=*) seen=1 ;;
+    esac
+  done
+  return 1
 }
 
 if is_exported_suppressor "$COMMAND"; then
