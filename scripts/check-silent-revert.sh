@@ -91,8 +91,14 @@
 # three known incidents score 853 / 451 / 346 lines against a single recent
 # commit -- plus a fourth attribution of 298 lines on the SAME #2633 squash,
 # whose deletions trace to two different culprits and are reported separately.
-# The highest verified-legitimate commit scores well below the threshold below.
-# The separation is what makes the canary livable.
+# Unlike the two designs rejected above, this one fires on all three rather
+# than exonerating them.
+#
+# What it does NOT buy is a clean split between incidents and ordinary work.
+# Measured below, the two populations OVERLAP on volume -- the smallest true
+# finding scores under both verified-legitimate fires. So what makes the
+# canary livable is the disposition path and the non-blocking posture, not a
+# number that separates the shapes. No number does.
 #
 # FALSE-POSITIVE STRATEGY (the whole design rests on this)
 # -------------------------------------------------------
