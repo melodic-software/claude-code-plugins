@@ -81,6 +81,8 @@ One action per response; actions don't chain implicitly.
 
 ## Bare invocation — confirm scope first
 
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+
 A bare `/docs-hygiene:extract-ssot` with no working notes to resume, no
 argument, and no scope implied by the conversation does **not**
 auto-dispatch the exhaustive survey. Exhaustive `identify` sweeps every

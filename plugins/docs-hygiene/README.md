@@ -39,6 +39,10 @@ upkeep.
 
 ## How the skills adapt to your repo
 
+Bare invocations with no target share a confirmation-gated clean-tree /
+no-scope fallback (`context/clean-tree-fallback.md`): offer a corpus run with
+prescribed defaults, never auto-start, and no-op on decline or silence.
+
 <!-- markdown-discipline-ignore -->
 The bundled defaults are repo-agnostic: detectors run against the repository
 they are invoked in, output destinations default to conventional locations

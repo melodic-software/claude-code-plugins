@@ -13,7 +13,7 @@ Per `../SKILL.md` "Auto-detect default", argument resolution at invocation:
 | `/docs-hygiene:compress <file.md>` | single file | default action, single-file |
 | `/docs-hygiene:compress <dir>` | every `.md` under `<dir>` (recursive); filenames sorted lexically for determinism | default action, batch |
 | `/docs-hygiene:compress audit` (empty rest) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | audit action over each |
-| `/docs-hygiene:compress audit` (empty rest) AND clean tree | (none) | friendly no-op exit 0 |
+| `/docs-hygiene:compress audit` (empty rest) AND clean tree | interactive: all tracked eligible `.md` offered via the repo-wide interview fallback steps 1–2 (report-only); non-interactive: (none) | interactive: confirmation-gated free audit corpus; non-interactive: friendly no-op exit 0 |
 | `/docs-hygiene:compress audit <file.md>` | single file | audit action |
 | `/docs-hygiene:compress audit <dir>` | every `.md` under `<dir>`; lexical sort | audit action, batch |
 
