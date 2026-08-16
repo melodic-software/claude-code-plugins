@@ -689,8 +689,7 @@ merged_ref() {
   grep -Fxq "$name" "$MERGED_REFS_FILE"
 }
 
-idx=0
-while [[ $idx -lt ${#T_PATH[@]} ]]; do
+for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   p="${T_PATH[$idx]}"
   reason=""
   if [[ ! -d "$p" ]] || ! is_worktree_root "$p"; then
@@ -710,7 +709,6 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     else
       R_REASON+=("not-a-worktree-root; probing it with git -C reports the containing repository")
     fi
-    idx=$((idx + 1))
     continue
   fi
   R_NOTGIT+=("no")
@@ -732,7 +730,6 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     R_BARE+=("yes")
     R_REASON+=("bare-repository; holds no working tree to strand")
     T_BRANCH[idx]="(bare)"
-    idx=$((idx + 1))
     continue
   fi
   R_BARE+=("no")
@@ -794,7 +791,6 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     reason="${reason:+$reason; }$inprog-in-progress: the operation's transient state (staged result recomputable from base, sequencer position) dies with the directory"
   fi
   R_REASON+=("$reason")
-  idx=$((idx + 1))
 done
 
 assert_row_count "${#T_PATH[@]}" "${#R_LANDED[@]}" || exit 5
@@ -803,31 +799,23 @@ assert_row_count "${#T_PATH[@]}" "${#R_LANDED[@]}" || exit 5
 # HEAD or at a descendant of it. A peer means removal does not make these commits
 # unreachable, which is a different disposition from the same row without one.
 PEERS=()
-idx=0
-while [[ $idx -lt ${#T_PATH[@]} ]]; do
+for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   PEERS+=("")
-  idx=$((idx + 1))
 done
 if [[ "$DO_PEERS" == "true" && ${#T_PATH[@]} -le 50 ]]; then
-  idx=0
-  while [[ $idx -lt ${#T_PATH[@]} ]]; do
+  for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     if [[ "${R_NOTGIT[$idx]}" == "yes" || -z "${T_HEAD[$idx]}" ]]; then
-      idx=$((idx + 1))
       continue
     fi
-    jdx=0
-    while [[ $jdx -lt ${#T_PATH[@]} ]]; do
+    for ((jdx = 0; jdx < ${#T_PATH[@]}; jdx++)); do
       if [[ $jdx -eq $idx || "${R_NOTGIT[$jdx]}" == "yes" || -z "${T_HEAD[$jdx]}" ]]; then
-        jdx=$((jdx + 1))
         continue
       fi
       if [[ "${T_HEAD[$idx]}" == "${T_HEAD[$jdx]}" ]] ||
         git -C "${T_PATH[$idx]}" merge-base --is-ancestor "${T_HEAD[$idx]}" "${T_HEAD[$jdx]}" 2>/dev/null; then
         PEERS[idx]="${PEERS[$idx]:+${PEERS[$idx]},}${T_PATH[$jdx]}"
       fi
-      jdx=$((jdx + 1))
     done
-    idx=$((idx + 1))
   done
 elif [[ "$DO_PEERS" == "true" ]]; then
   printf '%s: peer detection skipped — %s worktrees exceeds the 50-target ancestry budget\n' \
@@ -837,8 +825,7 @@ fi
 printf 'path\tbranch\thead\tunpushed\tlanded\tmethod\tbase\tinprogress\tstaged\tunstaged\tconflicted\tuntracked\tpeers\trisk\treason\n'
 
 emitted=0
-idx=0
-while [[ $idx -lt ${#T_PATH[@]} ]]; do
+for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   reason="${R_REASON[$idx]}"
   if [[ "${R_NOTGIT[$idx]}" == "yes" ]]; then
     risk="notgit"
@@ -884,7 +871,6 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     "${R_STAGED[$idx]:--}" "${R_UNSTAGED[$idx]:--}" "${R_CONFLICTED[$idx]:--}" "${R_UNTRACKED[$idx]:--}" \
     "${PEERS[$idx]:--}" "${risk:--}" "${reason:--}"
   emitted=$((emitted + 1))
-  idx=$((idx + 1))
 done
 
 assert_row_count "${#T_PATH[@]}" "$emitted" || exit 5

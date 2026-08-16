@@ -52,6 +52,12 @@ def _rules(*rules: dict[str, Any]) -> list[dict[str, Any]]:
     return list(rules)
 
 
+def _branch_rules(rules: list[dict[str, Any]]) -> dict[str, object]:
+    """`branch_rules` folded over `rules`, with the single gh read stubbed."""
+    with mock.patch.object(merge, "gh_json", return_value=rules):
+        return merge.branch_rules("owner/repo", "main")
+
+
 def _pr(**overrides: Any) -> dict[str, Any]:
     pr: dict[str, Any] = {
         "state": "OPEN",
@@ -73,12 +79,8 @@ def _pr(**overrides: Any) -> dict[str, Any]:
 
 
 class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
-    def _branch_rules(self, rules: list[dict[str, Any]]) -> dict[str, object]:
-        with mock.patch.object(merge, "gh_json", return_value=rules):
-            return merge.branch_rules("owner/repo", "main")
-
     def test_contexts_from_every_ruleset_survive(self) -> None:
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules(
                 NO_REQUIRED_REVIEWS,
                 _status_checks_rule(CI_GATE),
@@ -90,7 +92,7 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
         )
 
     def test_a_context_required_by_two_rulesets_is_reported_once(self) -> None:
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules(
                 _status_checks_rule(["ci-status", "pr-title / pr-title"]),
                 _status_checks_rule(["ci-status"]),
@@ -101,7 +103,7 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
         )
 
     def test_a_context_less_entry_is_dropped(self) -> None:
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules(
                 {
                     "type": "required_status_checks",
@@ -117,12 +119,8 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
 class PullRequestRulesFoldFailClosed(unittest.TestCase):
     """`pull_request` composes too; max/OR can only ever hold more, never less."""
 
-    def _branch_rules(self, rules: list[dict[str, Any]]) -> dict[str, object]:
-        with mock.patch.object(merge, "gh_json", return_value=rules):
-            return merge.branch_rules("owner/repo", "main")
-
     def test_the_strictest_approval_count_wins(self) -> None:
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules(
                 {
                     "type": "pull_request",
@@ -134,7 +132,7 @@ class PullRequestRulesFoldFailClosed(unittest.TestCase):
         self.assertEqual(summary["requiredApprovingReviews"], 2)
 
     def test_thread_resolution_required_by_any_ruleset_survives(self) -> None:
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules(
                 {
                     "type": "pull_request",
@@ -154,7 +152,7 @@ class PullRequestRulesFoldFailClosed(unittest.TestCase):
         """
         for raw in (None, "", 0.0, [], {}, "two", object()):
             with self.subTest(raw=raw):
-                summary = self._branch_rules(
+                summary = _branch_rules(
                     _rules(
                         {
                             "type": "pull_request",
@@ -168,14 +166,14 @@ class PullRequestRulesFoldFailClosed(unittest.TestCase):
 
     def test_an_absent_count_is_zero_not_one(self) -> None:
         """Absence is readable: the rule states no review requirement."""
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules({"type": "pull_request", "parameters": {}})
         )
         self.assertEqual(summary["requiredApprovingReviews"], 0)
 
     def test_a_readable_count_is_reported_as_an_int(self) -> None:
         """`bool` is an `int` subclass; it must not leak into the summary."""
-        summary = self._branch_rules(
+        summary = _branch_rules(
             _rules(
                 {
                     "type": "pull_request",

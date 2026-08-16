@@ -159,13 +159,25 @@ resolve_against() {
   printf '%s/%s' "${base%/}" "$p"
 }
 
+# git_unlocated <git-args…> — run git with the locating env vars unset, so an
+# inherited GIT_DIR cannot skew a probe's answer (#972 discipline, same as
+# hook::in_git_working_tree). The unset is confined to the subshell, so it never
+# reaches the hook's own environment.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+git_unlocated() {
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    git "$@" 2>/dev/null
+  )
+}
+
 # repo_enclosing <abs-target> — if the target's nearest existing ancestor sits
 # inside a git working tree or a git directory, print a two-line
 # "<kind>\n<detail>" and return 0; return 1 otherwise. The walk probes the
 # target's PARENT side, never the target itself (the target must not exist for
-# `git worktree add` to succeed anyway). Locating env vars are unset in the
-# probe subshell so an inherited GIT_DIR cannot skew the answer (#972
-# discipline, same as hook::in_git_working_tree).
+# `git worktree add` to succeed anyway). Every probe goes through
+# `git_unlocated` so an inherited GIT_DIR cannot skew the answer.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_enclosing() {
   local target="$1" probe parent top inside
@@ -177,28 +189,16 @@ repo_enclosing() {
     probe="$parent"
   done
   [[ -e "$probe" ]] || return 1
-  top=$(
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-      GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git -C "$probe" rev-parse --show-toplevel 2>/dev/null
-  )
+  top=$(git_unlocated -C "$probe" rev-parse --show-toplevel)
   top="${top//$'\r'/}"
   if [[ -n "$top" ]]; then
     printf 'a git working tree\n%s' "$top"
     return 0
   fi
-  inside=$(
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-      GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git -C "$probe" rev-parse --is-inside-git-dir 2>/dev/null
-  )
+  inside=$(git_unlocated -C "$probe" rev-parse --is-inside-git-dir)
   if [[ "${inside//$'\r'/}" == "true" ]]; then
     local gitdir
-    gitdir=$(
-      unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-        GIT_DISCOVERY_ACROSS_FILESYSTEM
-      git -C "$probe" rev-parse --absolute-git-dir 2>/dev/null
-    )
+    gitdir=$(git_unlocated -C "$probe" rev-parse --absolute-git-dir)
     printf 'a git directory\n%s' "${gitdir//$'\r'/}"
     return 0
   fi

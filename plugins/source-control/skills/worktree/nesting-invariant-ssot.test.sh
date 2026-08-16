@@ -28,16 +28,21 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
 owner_text="$(cat "$PLUGIN_ROOT/$OWNER_REL")"
 
+# Lists the plugin files containing a fixed string, with the exclusion set every
+# case needs: CHANGELOG.md (see above) and this test, which necessarily quotes
+# every phrase it polices.
+grep_sites() {
+  git -C "$PLUGIN_ROOT" grep -lIF "$1" -- \
+    ":(exclude)CHANGELOG.md" ":(exclude)$SELF_REL" 2>/dev/null || true
+}
+
 # 1. The undated absolute is gone everywhere.
 #
 # This exact sentence is the drift shape: it states a causal mechanism with no
 # date, no basis and no expiry, and it is what stood at all 13 sites. The owner
 # does not use it either — the owner states what was actually observed
 # (`path_glob_match` naming a file) rather than a generalized consequence.
-mapfile -t ABSOLUTES < <(
-  git -C "$PLUGIN_ROOT" grep -lIF "a read matching a path-scoped rule's glob also loads" -- \
-    ":(exclude)CHANGELOG.md" ":(exclude)$SELF_REL" 2>/dev/null || true
-)
+mapfile -t ABSOLUTES < <(grep_sites "a read matching a path-scoped rule's glob also loads")
 assert_eq "the undated absolute form of the claim appears nowhere" "0" "${#ABSOLUTES[@]}"
 ((${#ABSOLUTES[@]} == 0)) || printf '      sites: %s\n' "${ABSOLUTES[*]}" >&2
 
@@ -46,10 +51,7 @@ assert_eq "the undated absolute form of the claim appears nowhere" "0" "${#ABSOL
 # Keyed on the instrument's own event name: anything restating what the trace
 # observed has to name it, and a paraphrase that avoids the word is no longer
 # stating the measurement.
-mapfile -t MEASURED < <(
-  git -C "$PLUGIN_ROOT" grep -lIF "path_glob_match" -- \
-    ":(exclude)CHANGELOG.md" ":(exclude)$SELF_REL" 2>/dev/null || true
-)
+mapfile -t MEASURED < <(grep_sites "path_glob_match")
 assert_eq "the measurement is stated at exactly one site" "1" "${#MEASURED[@]}"
 ((${#MEASURED[@]} == 1)) || printf '      sites: %s\n' "${MEASURED[*]}" >&2
 if ((${#MEASURED[@]} == 1)); then
@@ -74,10 +76,7 @@ assert_contains "the owner points at the fixture that would adjudicate it" \
   "$owner_text" "nesting-invariant-probe.sh"
 
 # 4. The restatements became pointers rather than being deleted outright.
-mapfile -t POINTERS < <(
-  git -C "$PLUGIN_ROOT" grep -lIF "The nesting invariant, verified" -- \
-    ":(exclude)CHANGELOG.md" ":(exclude)$SELF_REL" 2>/dev/null || true
-)
+mapfile -t POINTERS < <(grep_sites "The nesting invariant, verified")
 if ((${#POINTERS[@]} >= 5)); then
   pass "the former restatement sites cite the owner by name (${#POINTERS[@]} files)"
 else

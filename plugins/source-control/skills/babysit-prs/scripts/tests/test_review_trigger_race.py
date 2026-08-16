@@ -8,9 +8,11 @@ exactly one configured phrase.
 
 from __future__ import annotations
 
+import contextlib
 import pathlib
 import sys
 import unittest
+from collections.abc import Iterable, Iterator
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -20,6 +22,17 @@ import babysit_review_trigger as review_trigger
 import request_review
 
 HEAD = "a" * 40
+
+
+@contextlib.contextmanager
+def _entered(
+    patches: Iterable[contextlib.AbstractContextManager[object]],
+) -> Iterator[None]:
+    """Enter every patch in `patches` for the duration of the block."""
+    with contextlib.ExitStack() as stack:
+        for patch in patches:
+            stack.enter_context(patch)
+        yield
 
 
 def _reaction(reaction_id: str, *, scope: str = "pull_request",
@@ -417,8 +430,7 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
         pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
               "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE",
               "_blocked_base_compare": {"status": "behind", "behind_by": 2}}
-        patches = self._patches(pr)
-        with patches[0], patches[1]:
+        with _entered(self._patches(pr)[:2]):
             with self.assertRaises(RuntimeError) as ctx:
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
@@ -431,9 +443,7 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
         # primary review-trigger target and must still pass this guard.
         pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
               "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE"}
-        patches = self._patches(pr)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], \
-                patches[5]:
+        with _entered(self._patches(pr)):
             self.assertEqual(
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
@@ -471,9 +481,7 @@ class ValidateCurrentCandidateReactionScopingTests(unittest.TestCase):
         # snapshot, so it is an earlier-head reaction and must not suppress
         # the posting guard the way the raw `reaction_signals` list would.
         stale = [_reaction("1")]
-        patches = self._patches(self._pr(), stale)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], \
-                patches[5]:
+        with _entered(self._patches(self._pr(), stale)):
             result = request_review.validate_current_candidate(
                 "owner/repo", 1, HEAD, configured(),
                 frozenset({"owner"}), {})
@@ -482,9 +490,7 @@ class ValidateCurrentCandidateReactionScopingTests(unittest.TestCase):
     def test_current_head_reaction_still_blocks_posting(self) -> None:
         reaction = [_reaction("9")]
         review_trigger_state = {"reaction_head_sha": HEAD, "reaction_signal_ids": []}
-        patches = self._patches(self._pr(), reaction)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], \
-                patches[5]:
+        with _entered(self._patches(self._pr(), reaction)):
             with self.assertRaises(RuntimeError) as ctx:
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
