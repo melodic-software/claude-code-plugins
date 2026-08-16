@@ -39,6 +39,24 @@ dispatch moved into `adapters/registry.js`; `acquire.js` no longer imports the r
 graph is acyclic, and the registry consistency check runs at plain module init. Same intent
 (all acquisition routes through the adapter seam), sharper seam location. Landed `5020fd4a`.
 
+## 2026-08-16 — Phase 7: sweep-allowlist grew to four classes; in-spirit sweep additions
+
+- The sweep script's allowlist could not be the PLAN's two rows: the Phase 6 trigger-token
+  baseline mandates the `'/youtube-digest'` description token verbatim (migration alias), and
+  the two fixture `.not.toContain("youtube-digest")` assertions plus the sweep script pair
+  self-reference the literal. Allowlist = CHANGELOG, the SKILL.md trigger line, the fixture
+  negative assertions, the sweep pair — each named inline in the script.
+- Resume prompt emits `# Continue /knowledge:video-digest watch` (PLAN's fully-qualified
+  fixture spec won over the brief's bare `/video-digest` wording).
+- In-spirit sweep additions beyond the inventory (all mechanical): ci.yml youtube-extraction
+  comments/`needs:` row/echo renamed with the job id; TUNING.md `youtube-extraction/`
+  shorthand headings rode the npm package rename; README skill-row prose updated off
+  YouTube-only; setup-deps user-facing output strings. Pre-flight baseline measured 33 files /
+  114 occurrences (approval-time 30/112; delta = Phase 6's hub split redistribution).
+- Post-verification accuracy fix (orchestrator, close-out): the two yt-dlp cookie userConfig
+  descriptions still described YouTube-only cookie semantics; updated for X (cookies-file-only,
+  no browser-profile iteration).
+
 ## 2026-08-15 — Phase 5: two granted fence extensions (env-table miss + acceptance-grep reach)
 
 - **Auth-lane env reads (behavioral):** the PLAN's six-var table named

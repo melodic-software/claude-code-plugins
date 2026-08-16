@@ -50,13 +50,13 @@
     "yt_dlp_cookies_file": {
       "type": "string",
       "title": "yt-dlp cookies file (video-digest)",
-      "description": "Path to a Netscape-format cookies.txt for authenticated YouTube acquisition. Empty by default (unauthenticated, with automatic browser-cookie fallback on a bot check). Never commit cookie files.",
+      "description": "Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check — X never iterates browser profiles). Never commit cookie files.",
       "default": ""
     },
     "yt_dlp_cookies_from_browser": {
       "type": "string",
       "title": "yt-dlp cookies from browser (video-digest)",
-      "description": "Browser to pull YouTube cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. Empty by default. A cookies file, when set, wins over this.",
+      "description": "Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only — the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this.",
       "default": ""
     },
     "max_concurrent_acquires": {

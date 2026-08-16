@@ -427,7 +427,7 @@ Warrant: **body** 37,620 chars ≈ 9,405 est. tokens ≈ 1.9× the < 5,000-token
   assertion 10/10 conditional citations; fresh-context verification PASS 9/9 including an
   11-claim spoke-vs-code audit with zero contradictions.
 
-### Phase 7: Rename `youtube-digest` → `video-digest` [TODO]
+### Phase 7: Rename `youtube-digest` → `video-digest` [DONE]
 
 Deliberate breaking change (T2b). Terminal phase. **Resume note: the `git mv` commit is the
 point of no return — after it, the pre-flight baseline command targets the NEW directory and
@@ -436,11 +436,14 @@ never re-runs pre-flight against the old paths.**
 
 **Pre-flight (FIRST item — reproducible baseline):**
 
-- [ ] Run: `git grep -c "youtube-digest" -- ':!docs/topics' ':!.work'` and record file+
+- [x] Run: `git grep -c "youtube-digest" -- ':!docs/topics' ':!.work'` and record file+
   occurrence counts here (approval-time measure: 30 files / 112 occurrences repo-wide
   incl. the skill dir; in-skill: 14 files / 65). Any file NOT in the inventory below gets a
   row before the sweep proceeds. (`docs/topics/` and `.work/` are excluded as immutable
   historical/session records — Decisions table.)
+  **Recorded (2026-08-16, pre-mv):** 33 files / 114 occurrences (delta vs approval-time =
+  Phase 6's hub split redistributing SKILL.md content into spokes); un-inventoried files were
+  the Phase-6-created spokes, covered by the in-skill glob rows — dispositions in DEVIATIONS.md.
 - [x] Pre-check the CI job id: `gh api "repos/{owner}/{repo}/branches/main/protection"` (or
   rulesets) — is `youtube-extraction` a required status check? Required → KEEP job id with
   comment; not required → rename job id alongside the paths. Record outcome here.
@@ -452,72 +455,72 @@ never re-runs pre-flight against the old paths.**
 
 **Structural move (single commit):**
 
-- [ ] `git mv plugins/knowledge/skills/youtube-digest plugins/knowledge/skills/video-digest`
-- [ ] Frontmatter `name:` — per the FALLBACK decision below (default: NO pin; T2b term
+- [x] `git mv plugins/knowledge/skills/youtube-digest plugins/knowledge/skills/video-digest`
+- [x] Frontmatter `name:` — per the FALLBACK decision below (default: NO pin; T2b term
   deviation recorded with evidence)
 
 **In-skill content sweep (14 files / 65 occurrences — same commit series):**
 
-- [ ] `SKILL.md` (23 occ — self-references become `/knowledge:video-digest`; the
+- [x] `SKILL.md` (23 occ — self-references become `/knowledge:video-digest`; the
   `${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs` launcher lines)
-- [ ] `watch/watch-state.js:2,145,158` — **user-facing**: `:158` emits
+- [x] `watch/watch-state.js:2,145,158` — **user-facing**: `:158` emits
   `# Continue /youtube-digest watch` into resume prompts (same failure class as the recovery
   command)
-- [ ] `watch/detect-recoverable-bootstrap.js:112` — the twelfth entry point: emits
+- [x] `watch/detect-recoverable-bootstrap.js:112` — the twelfth entry point: emits
   `skills/youtube-digest/extraction/run.mjs` into a user-run recovery command
-- [ ] `watch/run-watch.js:3`, `watch/run-resume.js:3`, `lib/slice-lanes.js:2` (comments/docs)
-- [ ] `context/*.md` (5 files), `templates/*.md` (2 files), `evals/evals.json`
+- [x] `watch/run-watch.js:3`, `watch/run-resume.js:3`, `lib/slice-lanes.js:2` (comments/docs)
+- [x] `context/*.md` (5 files), `templates/*.md` (2 files), `evals/evals.json`
 
 **Outside-skill sweep:**
 
-- [ ] `plugins/knowledge/.claude-plugin/plugin.json` — **4 occurrences, all userConfig
+- [x] `plugins/knowledge/.claude-plugin/plugin.json` — **4 occurrences, all userConfig
   titles** (`:44,50,56,62`; no skill-path key exists — discovery is by directory)
-- [ ] `plugins/knowledge/.claude-plugin/plugin.json` — `keywords`: add `x`/`twitter`/`video`;
+- [x] `plugins/knowledge/.claude-plugin/plugin.json` — `keywords`: add `x`/`twitter`/`video`;
   plugin `description` updated off "YouTube pipeline" (marketplace discoverability)
-- [ ] `plugins/knowledge/CHANGELOG.md` (new entry; historical entries KEEP verbatim)
-- [ ] `plugins/knowledge/README.md`, `skills/setup/SKILL.md`, `skills/docpage-digest/SKILL.md`,
+- [x] `plugins/knowledge/CHANGELOG.md` (new entry; historical entries KEEP verbatim)
+- [x] `plugins/knowledge/README.md`, `skills/setup/SKILL.md`, `skills/docpage-digest/SKILL.md`,
   `skills/map-corpus/SKILL.md`
-- [ ] `.github/workflows/ci.yml` — **5 occurrences** (`:855` comment, `:888`
+- [x] `.github/workflows/ci.yml` — **5 occurrences** (`:855` comment, `:888`
   cache-dependency-path, `:892,896,900` working-directory); job id per pre-check
-- [ ] `scripts/docs-only-paths.txt:21` — inertness-proof comment path updated; re-run
+- [x] `scripts/docs-only-paths.txt:21` — inertness-proof comment path updated; re-run
   `scripts/check-docs-only.test.sh`
-- [ ] `docs/knowledge-integration-design.md:12`, `docs/MIGRATION-PLAYBOOK.md:1455`,
+- [x] `docs/knowledge-integration-design.md:12`, `docs/MIGRATION-PLAYBOOK.md:1455`,
   `docs/CLOUD-SESSIONS.md`
-- [ ] `extraction/package.json` — per the FALLBACK decision below (default: rename
+- [x] `extraction/package.json` — per the FALLBACK decision below (default: rename
   `@melodic/youtube-extraction` → `@melodic/video-extraction` + description; regen lockfile;
   ci.yml cache key rides the path change)
-- [ ] `extraction/setup-deps.mjs:64` — `.youtube-extraction.stamp` → `.video-extraction.stamp`
+- [x] `extraction/setup-deps.mjs:64` — `.youtube-extraction.stamp` → `.video-extraction.stamp`
   (added by the Phase 5 staged-literal audit — invisible to the `youtube-digest` sweep; rides
   the npm package rename; costs one harmless dependency reinstall; DEVIATIONS.md)
 
 **`course-digest` mechanical refs (the exemption's exhaustive enumeration):**
 
-- [ ] `course-digest/SKILL.md:2` (description — verify no course-digest trigger-keyword
+- [x] `course-digest/SKILL.md:2` (description — verify no course-digest trigger-keyword
   regression via `check-skill.sh` on course-digest)
-- [ ] `course-digest/SKILL.md:138`
-- [ ] `course-digest/context/storage-schema.md:7`
-- [ ] `course-digest/evals/evals.json:19,21,25` (case renamed
+- [x] `course-digest/SKILL.md:138`
+- [x] `course-digest/context/storage-schema.md:7`
+- [x] `course-digest/evals/evals.json:19,21,25` (case renamed
   `youtube-url-routes-to-video-digest-skill` + expected_output + criterion)
-- [ ] `course-digest/reference/adapters/discovery-checklist.md:65,221`
-- [ ] `course-digest/extraction/setup-deps.mjs:50` (comment)
+- [x] `course-digest/reference/adapters/discovery-checklist.md:65,221`
+- [x] `course-digest/extraction/setup-deps.mjs:50` (comment)
 
 **Vendored stragglers (sweep regression set — fix regardless):**
 
-- [ ] `vendor/video-digestion/README.md:5` (`/youtube`)
-- [ ] `vendor/repo-analysis/README.md:5` (`/youtube`)
-- [ ] `vendor/video-digestion/TUNING.md:55` (`/youtube`)
-- [ ] `vendor/video-digestion/TUNING.md:5` (path ref
+- [x] `vendor/video-digestion/README.md:5` (`/youtube`)
+- [x] `vendor/repo-analysis/README.md:5` (`/youtube`)
+- [x] `vendor/video-digestion/TUNING.md:55` (`/youtube`)
+- [x] `vendor/video-digestion/TUNING.md:5` (path ref
   `skills/youtube-digest/reference/variation-matrix-backlog.json`)
 
 **Breaking-change discipline:**
 
-- [ ] CHANGELOG breaking entry naming the **five silent consumer surfaces**: cloud routines;
+- [x] CHANGELOG breaking entry naming the **five silent consumer surfaces**: cloud routines;
   scheduled tasks / `/loop`; `Skill(knowledge:youtube-digest)` permission rules (exact-match —
   a **deny rule fails open**); Agent SDK `skills:` allowlists (the one loud failure);
   bare-`/name` squatting / docs. Plus the env-name deprecations (Phase 5).
-- [ ] Out-of-band announcement (release notes / PR body) with a migration line per surface
-- [ ] `plugin.json` version 0.12.0 → 0.13.0
-- [ ] Manual trigger-token continuity check against the Phase 6 baseline artifact (the HEAD
+- [x] Out-of-band announcement (release notes / PR body) with a migration line per surface
+- [x] `plugin.json` version 0.12.0 → 0.13.0
+- [x] Manual trigger-token continuity check against the Phase 6 baseline artifact (the HEAD
   keyword diff is blind post-rename); result recorded here
 
 **Sweep script (checked in, e.g. `extraction/scripts/` or repo `scripts/` per conventions):**
@@ -528,15 +531,15 @@ asserts the sweep catches it.
 
 **Sanity Check:**
 
-- [ ] Sweep script exit 0; its self-test (seeded `vendor/` ref) exits non-zero
-- [ ] `git grep -n "/youtube\b" -- plugins/knowledge/vendor` → 0 rows (Git Bash)
-- [ ] `git grep -c "youtube-digest" -- .github/workflows/ci.yml` → 0 (static assertion — CI
+- [x] Sweep script exit 0; its self-test (seeded `vendor/` ref) exits non-zero
+- [x] `git grep -n "/youtube\b" -- plugins/knowledge/vendor` → 0 rows (Git Bash)
+- [x] `git grep -c "youtube-digest" -- .github/workflows/ci.yml` → 0 (static assertion — CI
   green alone does not prove textual migration)
-- [ ] `bash scripts/check-docs-only.test.sh` exit 0
-- [ ] `check-skill.sh` exit 0 on `video-digest` AND on `course-digest`
-- [ ] Fixture tests: `detect-recoverable-bootstrap` emits the new path; `watch-state` resume
+- [x] `bash scripts/check-docs-only.test.sh` exit 0
+- [x] `check-skill.sh` exit 0 on `video-digest` AND on `course-digest`
+- [x] Fixture tests: `detect-recoverable-bootstrap` emits the new path; `watch-state` resume
   prompt emits `/knowledge:video-digest`
-- [ ] CI green on the branch
+- [x] CI green on the branch
 
 ## Blast radius
 
