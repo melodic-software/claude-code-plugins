@@ -3,6 +3,47 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0]
+
+### Added
+
+- **`block-exported-msys-pathconv`: block an EXPORTED MSYS path-conversion
+  suppressor on Windows
+  ([#2870](https://github.com/melodic-software/claude-code-plugins/issues/2870)).**
+  New `PreToolUse` guard on `Bash|PowerShell`, default on, kill switch
+  `block_exported_msys_pathconv_enabled`. Blocks `export MSYS_NO_PATHCONV` /
+  `export MSYS2_ARG_CONV_EXCL` (and the `declare -x` / `typeset -x` spellings),
+  which switch off MSYS argv rewriting for *every later command in the same
+  command string*. A later path argument then reaches a Windows-native program
+  unconverted, and git resolves the leading `/` against the current drive —
+  `git worktree add /d/worktrees/x` becomes `<current-drive>:\d\worktrees\x`.
+  That is how `D:\d` was recreated a third time, by a lane that exported the
+  variable seven segments earlier to work around an unrelated problem (MSYS
+  mangling a `<rev>:<path>` argument).
+
+  The guard deliberately does **not** match a path shape. The incident command's
+  path argument was textually identical to one the same lane had already run
+  successfully, so a `/[a-z]/` matcher has a false negative on the real defect —
+  and measured a 45.7% firing rate across 14,234 real Bash commands (81% on
+  `git worktree add` alone), because in an ordinary shell MSYS converts those
+  correctly. The export form fires on **0.32%** of the same corpus (46 commands,
+  spanning four lanes and two repositories) and leaves the safe per-command
+  prefix idiom (193 uses) and bare assignments untouched. The distinction is
+  mechanical rather than heuristic: `bash -c 'export MSYS_NO_PATHCONV=1; git
+  rev-parse --sq-quote /d/probe'` yields `'/d/probe'` while the bare-assignment
+  and per-command-prefix forms both yield `'D:/probe'` for the following command.
+
+  Declared coverage gaps: a suppressor exported by a script the command invokes,
+  `set -a` plus a bare assignment, an expansion-built value, and any spawner
+  outside the two tool surfaces (CI runners, `subprocess`).
+
+### Changed
+
+- **`block-windows-drive-tmp`: reciprocal sibling cross-reference.** Its header
+  now records why the new guard is a separate hook rather than an extension of
+  this one — disjoint scopes (path-shape/write-target vs environment variable),
+  neither firing on the other's cases.
+
 ## [0.28.30]
 
 ### Changed

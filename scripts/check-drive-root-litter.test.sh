@@ -118,6 +118,19 @@ if grep -qi 'may have measured something other than what' <<<"$OUT"; then
 else
   fail "failure output should flag the run's results as suspect: $OUT"
 fi
+# A phantom tree can hold a REGISTERED worktree — that is what the first real
+# hit on this machine was (#2870). Deleting it first strands the registry entry,
+# so the remediation text must send the reader to deregistration before removal.
+if grep -qi 'registered git worktree' <<<"$OUT"; then
+  pass "the remediation warns that the tree may hold a registered worktree"
+else
+  fail "remediation should warn about a registered worktree before removal: $OUT"
+fi
+if grep -q 'worktree remove --force' <<<"$OUT"; then
+  pass "the remediation names the deregistering command, not a bare delete"
+else
+  fail "remediation should name 'git worktree remove --force': $OUT"
+fi
 
 # --- 5. Precision: a single letter that is not a mounted drive --------------
 run msys "$TMP/nearmiss"

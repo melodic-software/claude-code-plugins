@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling thirteen **safety guards** that catch risky agent
+A Claude Code plugin bundling fourteen **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -200,6 +200,7 @@ others.
 | block-dangerous-git | `block_dangerous_git_enabled` |
 | block-hook-bypass | `block_hook_bypass_enabled` |
 | block-windows-drive-tmp | `block_windows_drive_tmp_enabled` |
+| block-exported-msys-pathconv | `block_exported_msys_pathconv_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
 | block-convention-violation | `block_convention_gate_enabled` |
 | cli-flag-verify | `cli_flag_verify_enabled` |
@@ -340,6 +341,7 @@ reads it from.
 | `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, push --force-with-lease leasing against a value git resolves at push time — either no expected value, or an expectation that is not an object id of the repository's own hash width — reset --hard, clean -f, worktree-wide checkout/restore discards) |
 | `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
 | `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block Bash/PowerShell writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP% |
+| `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Block an EXPORTED `MSYS_NO_PATHCONV` / `MSYS2_ARG_CONV_EXCL` on Windows, which switches off MSYS path conversion for every later command in the same command string and lets an unconverted `/d/...` reach git as `<current-drive>:\d\...`; the per-command prefix form (`MSYS_NO_PATHCONV=1 git show ...`) and a bare assignment are not matched |
 | `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells — pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
 | `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Block a commit subject or `gh pr create --title` that violates the team-tracked convention pattern in .claude/source-control.md (no tracked pattern = no enforcement; same exemptions as block-noncanonical-commit) |
 | `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advise on hallucinated CLI flags written to files (never blocks) |
