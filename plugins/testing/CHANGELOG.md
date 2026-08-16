@@ -9,7 +9,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 - **Three verifier-earned known limits recorded in `/testing:audit`'s gotchas**, so the next reader
   meets them as documented boundaries rather than rediscovering them as bugs: the C# generic
-  `Assert.equal<T>(a, a)` recall gap in `recomputed-expectation` v1; the JS regex-literal masker's
+  `Assert.Equal<T>(a, a)` recall gap in `recomputed-expectation` v1; the JS regex-literal masker's
   deliberately narrow trigger set (never after an identifier, so a regex directly after `return` is
   unmasked — chosen because misreading division as a regex would mask real code — with the known
   cost that an unmasked regex containing a brace can close the test block early and false-positive
