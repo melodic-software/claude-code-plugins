@@ -154,12 +154,19 @@ The environment side stays generic (Default environment, Trusted network, no var
 | Tool | Pin source | Required? |
 |---|---|---|
 | Node | `.node-version` (via the VM's nvm) | required — CI pins a major the VM image doesn't ship |
-| claude CLI + Biome | root `package-lock.json` (`npm ci`) | required |
+| claude CLI + Biome + markdownlint-cli2 | root `package-lock.json` (`npm ci`) | required — markdownlint stays repo-local so the `markdown-format` hook's `node_modules/.bin` probe (and a `~/.local/bin` symlink the bootstrap adds for PATH-based resolution) can see it; `npm -g` into the nvm prefix is invisible to hooks (#2739 / #2748) |
 | ruff, pytest, pyyaml | `.github/requirements-ci.txt` (hash-locked) | required — `--require-hashes` fails closed |
-| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries) | best effort — warns and continues |
-| markdownlint-cli2, check-jsonschema | pinned in the bootstrap (npm -g / uv tool) | best effort |
+| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries → `~/.local/bin`) | best effort — warns and continues |
+| check-jsonschema | pinned in the bootstrap (uv tool / pip `--user`) | best effort |
 | full git history + `origin/main` | `git fetch` | best effort — the base-ref diff gates need it |
 | the enabled plugin catalog | `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
+
+The bootstrap's startup `report_tool` resolves each binary under a **hook-safe PATH**
+(the process PATH with the nvm prefix stripped) and prints the resolved path, so an
+`npm -g` install that only the SessionStart shell can see cannot print false-green
+again. `CLAUDE_ENV_FILE` PATH repairs still reach subsequent Bash tool calls only —
+hook processes inherit Claude Code's own environ, which includes `~/.local/bin` but
+not the nvm global prefix.
 
 Best-effort rather than required, deliberately: the plugin contract suites SKIP visibly when an
 optional tool is absent and CI remains the enforcing gate, while a required install failure would
