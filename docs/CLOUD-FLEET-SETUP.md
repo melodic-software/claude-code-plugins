@@ -166,12 +166,17 @@ and it lives in standards
 that README is the contract, and the
 [sync manifest](https://github.com/melodic-software/standards/blob/main/distribution/sync-manifest.yml)
 decides whether a repo takes it `managed` or owns it `locally-owned`. The script has exactly one
-copy; this doc does not carry a second one.
+copy; this doc does not carry a second one. A repo onboarding before its manifest row lands
+copies the component file verbatim as an interim `.claude/cloud-bootstrap.sh` and proposes the
+row; the sync replaces the copy byte-exact when the row merges.
 
 Repo-specific steps — extra lockfile locations, pinned hygiene binaries, symlinks — go in a
 committed `.claude/cloud-bootstrap.local.sh`, which the canonical script runs after its generic
 toolchain stage and which is never synced and never overwritten. Same contract as its caller:
-cloud-only, idempotent, best effort, bash-3.2-safe, always exit 0.
+cloud-only, idempotent, best effort, bash-3.2-safe, always exit 0. The seam is a
+canonical-script feature: it is live wherever the synced script is (the `managed` targets), and
+a `locally-owned` repo — this one included — owns its whole file instead, so it has no
+`cloud-bootstrap.local.sh` and needs none.
 
 ## Step 3 — routines
 
