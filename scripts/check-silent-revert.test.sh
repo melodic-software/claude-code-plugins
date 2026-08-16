@@ -207,6 +207,26 @@ t_does_not_sum_across_culprits() {
   fi
 }
 
+# Renaming a file is not deleting its content. Without git's rename detection a
+# `git mv` decomposes into delete + add, and every line of a moved file would be
+# attributed as removed -- so relocating a large file a recent commit had added
+# would fire. This repo restructures skills and docs constantly, which makes
+# that a live false-positive class rather than a hypothetical one.
+t_rename_is_not_a_removal() {
+  local repo out
+  repo="$(mk_repo)"
+  add_block "$repo" moved.txt 60 alpha
+  git_test_config "$repo" mv moved.txt relocated.txt >/dev/null
+  git_test_config "$repo" commit -qm "refactor: relocate the guard (#99)"
+  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]]; then
+    ok "renaming a file a recent commit added is not reported as a removal"
+  else
+    fail "a pure rename must not fire, rc=$RC: $out"
+  fi
+}
+
 # --------------------------------------------------------------------------
 # 3. Declared-intent forms. Constrained matching only.
 # --------------------------------------------------------------------------
@@ -491,6 +511,7 @@ t_finding_is_actionable
 t_quiet_below_threshold
 t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
+t_rename_is_not_a_removal
 t_declared_forms
 t_prose_mentioning_revert_still_fires
 t_empty_trailer_still_fires

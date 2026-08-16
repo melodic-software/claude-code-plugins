@@ -35,9 +35,33 @@ name: silent-revert-canary
 # exactly the false-green this lane exists to remove. Pushes to main are
 # infrequent enough that letting every run finish costs nothing worth saving.
 
+# The `pull_request` trigger runs the detector's OWN tests, never the canary.
+# The scan step is gated off for PR events below, so nothing on a PR ever
+# inspects that PR for silent reverts -- detection stays post-merge, per the
+# design note above. What a PR gets is ordinary unit-test coverage of a shipped
+# script, scoped by `paths` to the canary's own files so it is inert on every
+# other PR.
+#
+# Without it the detector would ship untested until the next push to main, and
+# the specific way this script can break is a false GREEN: if the blame parser
+# stops matching (awk dialects differ between the runner's mawk and a
+# developer's gawk), attribution yields nothing and every commit reports `ok`.
+# A canary whose failure mode is silent success is the exact thing #2691 is
+# about, so it gets tested before it lands, not after.
+#
+# This does not make the lane a merge gate. It is not in ci.yml and not in that
+# workflow's `ci-status` aggregate, which is the single required check the org
+# ci-gate ruleset keys on, so nothing here can block a merge.
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - 'scripts/check-silent-revert.sh'
+      - 'scripts/check-silent-revert.test.sh'
+      - 'scripts/silent-revert-incidents.txt'
+      - 'scripts/silent-revert-acknowledged.txt'
+      - '.github/workflows/silent-revert-canary.yml'
   workflow_dispatch:
 
 permissions:
@@ -78,8 +102,12 @@ jobs:
       # workflow_dispatch; in both cases fall back to the head commit and SAY
       # SO, rather than reporting a clean scan of nothing. Values arrive through
       # env, never interpolated into the script body.
+      # Detection is post-merge only. On a pull_request event the two steps
+      # above have already proven the detector works; scanning stops here so the
+      # lane never inspects a PR and never has an opinion about merging it.
       - name: Resolve the pushed range
         id: range
+        if: github.event_name != 'pull_request'
         env:
           EVENT_BEFORE: ${{ github.event.before }}
           EVENT_AFTER: ${{ github.event.after }}
@@ -106,6 +134,7 @@ jobs:
           fi
 
       - name: Scan the merged commits for silent reverts
+        if: github.event_name != 'pull_request'
         env:
           SCAN_MODE: ${{ steps.range.outputs.mode }}
           SCAN_TARGET: ${{ steps.range.outputs.target }}

@@ -237,6 +237,24 @@ ack_reason() {
 #
 # One blame invocation per FILE, not per hunk: git blame accepts repeated -L
 # ranges, and a commit touching a 900-line test file produces hundreds of hunks.
+#
+# Rename detection is left ON (git's default) everywhere in this script, and
+# that is load-bearing rather than incidental. With --no-renames a `git mv`
+# decomposes into a delete plus an add, the delete side reaches the enumeration
+# below as a whole-file removal, and every line in a moved file gets attributed
+# to whoever last touched it -- so relocating a large file a recent commit had
+# added would fire. This repo restructures skills and docs constantly, so that
+# is a live false-positive class, not a hypothetical one. With detection on, a
+# rename reports as R and the --diff-filter=MD enumeration skips it.
+#
+# The measured false-positive rate in the header was taken with detection on,
+# so this is also what keeps the shipped behaviour and the calibrated number
+# describing the same detector.
+#
+# The cost is a narrow blind spot, stated rather than hidden: content gutted in
+# the same commit that renames its file is not attributed. A rename that git
+# still pairs is a mostly-similar file, which bounds how much content can vanish
+# inside one; the incident class this canary targets modifies existing paths.
 attribute_file() {
   local parent="$1" commit="$2" file="$3"
   local -a ranges=()
@@ -248,7 +266,7 @@ attribute_file() {
     [[ "$count" -gt 0 ]] || continue
     ranges+=(-L "$start,$((start + count - 1))")
   done < <(
-    git diff --unified=0 --no-color --no-renames "$parent" "$commit" -- "$file" 2>/dev/null |
+    git diff --unified=0 --no-color "$parent" "$commit" -- "$file" 2>/dev/null |
       awk '/^@@ /{
              split($2, a, ",")
              start = substr(a[1], 2) + 0
@@ -261,9 +279,19 @@ attribute_file() {
 
   # --line-porcelain repeats the header for every line, so sha and text stay
   # paired without tracking porcelain's abbreviated continuation form.
+  #
+  # The header match deliberately avoids an ERE interval ({40}): interval
+  # support is an awk-implementation variable, and the runner's default awk is
+  # mawk while most development machines run gawk. A pattern that silently
+  # fails to match would make attribute_file emit nothing and every commit
+  # report `ok` -- a false green, which is precisely the failure this canary
+  # exists to remove. The porcelain header is `<sha> <orig> <final> [<n>]`, so
+  # matching hex-then-two-numbers and checking the length explicitly is both
+  # interval-free and unambiguous against the `author`/`filename`/`summary`
+  # lines it must not match.
   git blame --line-porcelain "${ranges[@]}" "$parent" -- "$file" 2>/dev/null |
     awk '
-      /^[0-9a-f]{40} /{ sha = $1; next }
+      /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
       /^\t/ { if (sha != "") printf "%s\t%s\n", sha, substr($0, 2) }
     '
 }
@@ -320,7 +348,7 @@ scan_commit() {
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" |
       awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' >>"$attributed"
-  done < <(git diff --name-only -z --no-renames --diff-filter=MD "$parent" "$sha")
+  done < <(git diff --name-only -z --diff-filter=MD "$parent" "$sha")
 
   # Keep only lines whose culprit is inside the recency window.
   local in_window
