@@ -15,3 +15,15 @@ propose a `melodic-software/standards` pull request moving the component from
 `distribution/sync-manifest.yml`. The synchronizer never reads, changes, or
 deletes a `locally-owned` file, so after that change lands this repository may
 edit or delete its copy in an ordinary local pull request.
+
+## Cloud sessions and plugins
+
+- `.claude/settings.json` is this repository's plugin source of truth: cloud
+  sessions install exactly the marketplaces and `enabledPlugins` it declares —
+  a repo that declares nothing gets nothing.
+- `.claude/cloud-bootstrap.sh` is owned by the standards
+  `components/cloud-bootstrap` component — its README is the contract, and
+  the sync manifest records whether this repository takes it `managed` or
+  owns it `locally-owned`. Repo-specific setup goes in
+  `.claude/cloud-bootstrap.local.sh` (committed, never synced), never in an
+  edit to a managed copy.
