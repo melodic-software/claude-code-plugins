@@ -1,6 +1,6 @@
 ---
-description: "Watch YouTube videos, extract transcripts, harvest links, research claims, and synthesize repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', user shares a youtube.com or youtu.be URL for a single public video (not a course platform). Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <video-slug>. Not for auth-walled course platforms — use /knowledge:course-digest."
-argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <video-slug>"
+description: "Watch YouTube videos, extract transcripts, harvest links, research claims, and synthesize repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', user shares a youtube.com or youtu.be URL for a single public video (not a course platform). Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <slice-slug>. Not for auth-walled course platforms — use /knowledge:course-digest."
+argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <slice-slug>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -85,7 +85,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" \
 | `watch` | **Active** | Dequeue first `pending` queue row (FIFO) — claim stub → bootstrap → full skill pipeline. |
 | `watch <n>` | **Active** | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | **Active** | Full pipeline: ≤1080p download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
-| `resume <video-slug>` | **Active** | Continue interrupted watch from `watch.json` phase-map state in `.work/<watch-epic>/<video-slug>/`. |
+| `resume <slice-slug>` | **Active** | Continue interrupted watch from `watch.json` phase-map state in `.work/<watch-epic>/<slice-slug>/`. |
 
 `--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its own) — see "Synthesis target resolution".
 
@@ -319,7 +319,7 @@ Deterministic frame-selection stages (`orchestrate-watching.js`), the standalone
 ## Resume action
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<video-slug>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<slice-slug>"
 ```
 
 Reads `.work/<watch-epic>/<video-slug>/watch.json`, identifies the next incomplete phase (`acquire` → `transcript` → `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`, and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run `run-watch.js` before vision.
@@ -328,7 +328,7 @@ Reads `.work/<watch-epic>/<video-slug>/watch.json`, identifies the next incomple
 
 1. Update `watch.json` phase markers with timestamps
 2. Write `continuation-prompt.md` (completed phases, next phase, frame-selection state, known issues)
-3. Tell the user: *"Session state saved. Run `/knowledge:youtube-digest resume <video-slug>` to continue."*
+3. Tell the user: *"Session state saved. Run `/knowledge:youtube-digest resume <slice-slug>` to continue."*
 
 ## Output contract
 

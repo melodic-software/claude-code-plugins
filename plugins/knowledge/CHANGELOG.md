@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.12.6]
+
+### Changed
+
+- **BREAKING: `/knowledge:youtube-digest resume` takes `<slice-slug>` instead of `<video-slug>`
+  (#2818).** The argument names the work-slice directory under `.work/<watch-epic>/`, which may
+  identify an X status post with no video as well as a YouTube video. Same slug value and same
+  on-disk layout; only the user-facing argument name in `argument-hint`, the action router, resume
+  CLI usage, and handoff messaging changed. Stored prompts that still say `resume <video-slug>`
+  should be rewritten to `resume <slice-slug>`.
+
 ## [0.12.5]
 
 ### Added
