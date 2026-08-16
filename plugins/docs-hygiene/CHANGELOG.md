@@ -13,6 +13,8 @@
   timeouts). `--offset` / `--limit` chunk the sorted target list so
   orchestration can fan out one process per chunk without a per-file shell
   loop (#2741).
+  Missing values for `--offset`/`--limit`/`--paths-file` now exit 2 instead of
+  hanging; leading-zero chunk values are normalized as decimal before arithmetic.
 
 ## [0.14.3]
 

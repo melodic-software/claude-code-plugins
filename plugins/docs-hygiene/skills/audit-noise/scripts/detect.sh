@@ -34,18 +34,29 @@ invoke one detect.sh process per chunk without a per-file shell loop.
 EOF
 }
 
+require_opt_value() {
+  local opt="$1"
+  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
+    echo "detect.sh: $opt requires a value" >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    PATHS_FILE="${2:-}"
+    require_opt_value "$@"
+    PATHS_FILE="$2"
     shift 2
     ;;
   --offset)
-    OFFSET="${2:-0}"
+    require_opt_value "$@"
+    OFFSET="$2"
     shift 2
     ;;
   --limit)
-    LIMIT="${2:-0}"
+    require_opt_value "$@"
+    LIMIT="$2"
     shift 2
     ;;
   -h | --help)
@@ -75,6 +86,9 @@ if [[ ! "$OFFSET" =~ ^[0-9]+$ || ! "$LIMIT" =~ ^[0-9]+$ ]]; then
   echo "detect.sh: --offset and --limit require non-negative integers" >&2
   exit 2
 fi
+# Strip leading zeros so values like 08 are decimal, not octal, under arithmetic.
+OFFSET=$((10#$OFFSET))
+LIMIT=$((10#$LIMIT))
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 if [[ -n "$repo_root" ]]; then
