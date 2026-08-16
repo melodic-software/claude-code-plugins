@@ -24,7 +24,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -808,9 +808,7 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
             state_dir = tmp / "state"
             lease_path = leases.lease_path(state_dir, "worker", "owner/repo#9")
             lease_path.parent.mkdir(parents=True)
-            expires_at = (
-                datetime.now(timezone.utc) + timedelta(hours=1)
-            ).isoformat()
+            expires_at = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
             lease_path.write_text(
                 json.dumps(
                     {

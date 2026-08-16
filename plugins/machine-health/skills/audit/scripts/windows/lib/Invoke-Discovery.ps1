@@ -53,11 +53,11 @@ function Invoke-Discovery {
         if ($existingIds.ContainsKey($probe.suggested_check_id)) { continue }
 
         $proposals.Add([pscustomobject]@{
-                dimension           = $probe.dimension
-                detected            = $true
-                suggested_check_id  = $probe.suggested_check_id
-                rationale           = $probe.rationale
-                straightforward     = [bool]$probe.straightforward
+                dimension          = $probe.dimension
+                detected           = $true
+                suggested_check_id = $probe.suggested_check_id
+                rationale          = $probe.rationale
+                straightforward    = [bool]$probe.straightforward
             })
     }
 

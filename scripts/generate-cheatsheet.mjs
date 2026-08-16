@@ -23,6 +23,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
+// scripts/lib/report-first-difference.mjs — the drift detail shared with
+// scripts/generate-catalog.mjs; exercised through this file's --check path.
+import { reportFirstDifference } from "./lib/report-first-difference.mjs";
+
 const argv = process.argv.slice(2);
 const check = argv.includes("--check");
 const rootFlag = argv.indexOf("--root");
@@ -285,16 +289,9 @@ if (check) {
     console.log("Cheat sheet is in sync with skill frontmatter.");
     process.exit(0);
   }
-  const expectedLines = block.split("\n");
-  const existingLines = existing.split("\n");
-  const at = expectedLines.findIndex((line, i) => line !== existingLines[i]);
   console.error("Cheat sheet drift: docs/SKILL-CHEAT-SHEET.md block is stale.");
   console.error("Run `node scripts/generate-cheatsheet.mjs` and commit the sheet.");
-  if (at !== -1) {
-    console.error(`First difference at generated line ${at + 1}:`);
-    console.error(`  expected: ${JSON.stringify(expectedLines[at] ?? null)}`);
-    console.error(`  found:    ${JSON.stringify(existingLines[at] ?? null)}`);
-  }
+  reportFirstDifference(block, existing);
   process.exit(1);
 }
 

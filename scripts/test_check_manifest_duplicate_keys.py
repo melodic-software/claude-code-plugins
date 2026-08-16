@@ -24,17 +24,14 @@ from unittest import mock
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
-def load_module(name: str, filename: str):
-    spec = importlib.util.spec_from_file_location(name, SCRIPT_DIR / filename)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-detector = load_module(
-    "check_manifest_duplicate_keys", "check-manifest-duplicate-keys.py"
+# The subject's filename is hyphenated, so it is not importable by name; load it
+# from its path through spec_from_file_location instead.
+_spec = importlib.util.spec_from_file_location(
+    "check_manifest_duplicate_keys", SCRIPT_DIR / "check-manifest-duplicate-keys.py"
 )
+assert _spec and _spec.loader
+detector = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(detector)
 
 
 class FindDuplicateKeysTests(unittest.TestCase):

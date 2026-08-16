@@ -147,10 +147,9 @@ for (const legacyPath of [
   }
 }
 
-const aiBriefingFiles = filesIn(aiBriefingRoot);
 const automatedXTokens =
   /--refresh-following|--grok-preload|following-list\.json|chrome-extract|per-profile-runner|grok-capture|mcp__claude-in-chrome/i;
-for (const path of aiBriefingFiles.filter((path) => /\.(?:js|json|md|sh)$/.test(path))) {
+for (const path of filesIn(aiBriefingRoot).filter((path) => /\.(?:js|json|md|sh)$/.test(path))) {
   if (automatedXTokens.test(read(path))) {
     fail(path, "must not expose or retain legacy automated-X collection paths");
   }

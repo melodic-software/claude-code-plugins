@@ -35,6 +35,30 @@ def _entered(
         yield
 
 
+def _candidate_patches(
+    pr: dict[str, object],
+    reactions: list[dict[str, str]] | None = None,
+) -> tuple[contextlib.AbstractContextManager[object], ...]:
+    """The six seams `validate_current_candidate` reads, stubbed.
+
+    Ordered from the outermost read inward, so a caller that wants only the
+    first N (the freshness guard rejects before it reads the rest) can slice.
+    """
+    return (
+        mock.patch.object(request_review, "view_pr", return_value=pr),
+        mock.patch.object(request_review, "head_repository_scope",
+                          return_value={"review_trigger_allowed": True}),
+        mock.patch.object(request_review, "fetch_review_evidence",
+                          return_value=[]),
+        mock.patch.object(request_review, "fetch_reaction_signals",
+                          return_value=[] if reactions is None else reactions),
+        mock.patch.object(request_review, "fetch_current_human_stop",
+                          return_value={"required": False}),
+        mock.patch.object(request_review, "has_current_head_review",
+                          return_value=False),
+    )
+
+
 def _reaction(reaction_id: str, *, scope: str = "pull_request",
               content: str = "+1", created_at: str = "2026-07-09T00:00:00Z",
               comment_id: str = "") -> dict[str, str]:
@@ -411,26 +435,11 @@ class ClassifyReviewRequestTests(unittest.TestCase):
 class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
     """F7: the pre-POST freshness guard must reject a BLOCKED-masked BEHIND head."""
 
-    def _patches(self, pr: dict[str, object]):
-        return (
-            mock.patch.object(request_review, "view_pr", return_value=pr),
-            mock.patch.object(request_review, "head_repository_scope",
-                              return_value={"review_trigger_allowed": True}),
-            mock.patch.object(request_review, "fetch_review_evidence",
-                              return_value=[]),
-            mock.patch.object(request_review, "fetch_reaction_signals",
-                              return_value=[]),
-            mock.patch.object(request_review, "fetch_current_human_stop",
-                              return_value={"required": False}),
-            mock.patch.object(request_review, "has_current_head_review",
-                              return_value=False),
-        )
-
     def test_blocked_head_masking_behind_is_rejected(self) -> None:
         pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
               "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE",
               "_blocked_base_compare": {"status": "behind", "behind_by": 2}}
-        with _entered(self._patches(pr)[:2]):
+        with _entered(_candidate_patches(pr)[:2]):
             with self.assertRaises(RuntimeError) as ctx:
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
@@ -443,7 +452,7 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
         # primary review-trigger target and must still pass this guard.
         pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
               "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE"}
-        with _entered(self._patches(pr)):
+        with _entered(_candidate_patches(pr)):
             self.assertEqual(
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
@@ -461,27 +470,12 @@ class ValidateCurrentCandidateReactionScopingTests(unittest.TestCase):
         return {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
                 "mergeStateStatus": "CLEAN", "mergeable": "MERGEABLE"}
 
-    def _patches(self, pr: dict[str, object], reactions: list[dict[str, str]]):
-        return (
-            mock.patch.object(request_review, "view_pr", return_value=pr),
-            mock.patch.object(request_review, "head_repository_scope",
-                              return_value={"review_trigger_allowed": True}),
-            mock.patch.object(request_review, "fetch_review_evidence",
-                              return_value=[]),
-            mock.patch.object(request_review, "fetch_reaction_signals",
-                              return_value=reactions),
-            mock.patch.object(request_review, "fetch_current_human_stop",
-                              return_value={"required": False}),
-            mock.patch.object(request_review, "has_current_head_review",
-                              return_value=False),
-        )
-
     def test_stale_earlier_head_reaction_does_not_block_posting(self) -> None:
         # The reaction has no `reaction_head_sha` recorded for HEAD in the
         # snapshot, so it is an earlier-head reaction and must not suppress
         # the posting guard the way the raw `reaction_signals` list would.
         stale = [_reaction("1")]
-        with _entered(self._patches(self._pr(), stale)):
+        with _entered(_candidate_patches(self._pr(), stale)):
             result = request_review.validate_current_candidate(
                 "owner/repo", 1, HEAD, configured(),
                 frozenset({"owner"}), {})
@@ -490,7 +484,7 @@ class ValidateCurrentCandidateReactionScopingTests(unittest.TestCase):
     def test_current_head_reaction_still_blocks_posting(self) -> None:
         reaction = [_reaction("9")]
         review_trigger_state = {"reaction_head_sha": HEAD, "reaction_signal_ids": []}
-        with _entered(self._patches(self._pr(), reaction)):
+        with _entered(_candidate_patches(self._pr(), reaction)):
             with self.assertRaises(RuntimeError) as ctx:
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),

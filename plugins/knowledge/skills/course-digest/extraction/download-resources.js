@@ -80,6 +80,11 @@ function walkModules(dir, buckets) {
   }
 }
 
+// The link label when the page supplies one, else the URL's own basename.
+function resourceFilename(resource) {
+  return resource.label || basename(new URL(resource.href).pathname);
+}
+
 function buildDownloadItems({
   uniqueDownloads,
   uniquePdfs,
@@ -89,13 +94,13 @@ function buildDownloadItems({
 }) {
   return [
     ...uniqueDownloads.map((d) => {
-      const filename = d.label || basename(new URL(d.href).pathname);
+      const filename = resourceFilename(d);
       const ext = extname(filename).toLowerCase();
       const targetDir = ext === ".sql" || ext === ".json" ? resourcesDir : downloadsDir;
       return { href: d.href, filename, destPath: join(targetDir, filename) };
     }),
     ...uniquePdfs.map((p) => {
-      const filename = p.label || basename(new URL(p.href).pathname);
+      const filename = resourceFilename(p);
       return { href: p.href, filename, destPath: join(slidesDir, filename) };
     }),
   ];

@@ -25,6 +25,9 @@ import sys
 from typing import NoReturn
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                os.pardir, "lib"))
+from gate_common import Failures, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
 from parse_discovery import normalize_url  # noqa: E402  (URL identity has ONE owner)
 
 LINKMAP_SCHEMA = "link-map/v1"
@@ -43,15 +46,6 @@ def fail(code: int, message: str) -> NoReturn:
     sys.exit(code)
 
 
-def _reject_duplicate_keys(pairs):
-    seen = {}
-    for key, value in pairs:
-        if key in seen:
-            raise ValueError(f"duplicate JSON key {key!r}")
-        seen[key] = value
-    return seen
-
-
 def load_json(path: str, what: str):
     try:
         with open(path, "rb") as fh:
@@ -59,18 +53,9 @@ def load_json(path: str, what: str):
     except OSError as exc:
         fail(2, f"cannot read {what} {path!r}: {exc}")
     try:
-        return json.loads(raw, object_pairs_hook=_reject_duplicate_keys)
+        return json.loads(raw, object_pairs_hook=reject_duplicate_keys)
     except ValueError as exc:
         fail(2, f"{what} {path!r} is not parseable JSON: {exc}.")
-
-
-class Failures:
-    def __init__(self):
-        self.items = []
-
-    def add(self, message: str):
-        self.items.append(message)
-        sys.stderr.write(f"check_linkmap: FAIL: {message}\n")
 
 
 DISCOVERY_KEYS = {"schema", "rung", "snapshot", "base_url", "url_count", "urls"}
@@ -177,7 +162,7 @@ def main(argv=None) -> int:
         for url in urls:
             ground.setdefault(url, set()).add(rung)
 
-    failures = Failures()
+    failures = Failures("check_linkmap")
     seen = {}
     tally = {c: 0 for c in CLASSIFICATIONS}
     for index, row in enumerate(rows):

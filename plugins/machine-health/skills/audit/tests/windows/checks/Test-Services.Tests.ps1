@@ -28,12 +28,9 @@ BeforeAll {
     . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
     . (Join-Path $script:LibRoot 'Test-ServiceTriggerStart.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
-    function Invoke-ServicesAsObject {
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
-    }
+    function Invoke-ServicesAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 
     function New-MockCimService {
         param(

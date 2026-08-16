@@ -47,7 +47,6 @@ ruff_reported_version() {
 }
 
 ruff_on_path=0
-got=""
 if command -v ruff >/dev/null 2>&1; then
   ruff_on_path=1
   # shellcheck disable=SC2310  # the probe's only failure is "no version", reported but never trusted

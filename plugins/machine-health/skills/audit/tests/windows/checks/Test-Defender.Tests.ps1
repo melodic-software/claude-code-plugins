@@ -37,6 +37,7 @@ BeforeAll {
     $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
     . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
     if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
         throw ('Get-MpComputerStatus is not available on this host. ' +
@@ -49,9 +50,7 @@ BeforeAll {
             $raw = & $script:ScriptPath -Human
             return $raw
         }
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
+        return ConvertFrom-CheckOutput (& $script:ScriptPath)
     }
 }
 

@@ -741,9 +741,7 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   # worktree branch created locally has no upstream, and the range then silently
   # returns nothing for every one of them.
   unpushed=$(git -C "$p" rev-list --count HEAD --not --remotes 2>/dev/null) || unpushed=""
-  if [[ -z "$unpushed" ]]; then
-    unpushed="?"
-  fi
+  unpushed="${unpushed:-?}"
   R_UNPUSHED+=("$unpushed")
 
   if [[ -z "${T_HEAD[$idx]}" ]]; then

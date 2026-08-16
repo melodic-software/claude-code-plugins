@@ -19,7 +19,7 @@ import io
 import pathlib
 import sys
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -31,7 +31,7 @@ HEAD = "a" * 40
 STALE = "b" * 40
 REVIEWER = "chatgpt-codex-connector"
 PR_NUMBER = 1629
-NOW = datetime(2026, 7, 26, 21, 48, 40, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 26, 21, 48, 40, tzinfo=UTC)
 
 SETTLE = merge.ReviewSettleConfig(
     reviewer_logins=frozenset({REVIEWER}), settle_seconds=600
@@ -627,7 +627,7 @@ class SettleConfigUnit(unittest.TestCase):
 
     def test_naive_timestamps_are_read_as_utc(self) -> None:
         parsed = merge.parse_github_timestamp("2026-07-26T21:44:00")
-        self.assertEqual(parsed, datetime(2026, 7, 26, 21, 44, tzinfo=timezone.utc))
+        self.assertEqual(parsed, datetime(2026, 7, 26, 21, 44, tzinfo=UTC))
 
     def test_blank_timestamp_is_none(self) -> None:
         self.assertIsNone(merge.parse_github_timestamp("   "))

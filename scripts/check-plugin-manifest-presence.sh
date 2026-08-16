@@ -107,10 +107,9 @@ while IFS=$'\t' read -r name source; do
 
   catalog_sources["$rel"]=1
 
-  dir="$rel"
-  manifest="$dir/.claude-plugin/plugin.json"
+  manifest="$rel/.claude-plugin/plugin.json"
 
-  if [[ ! -d "$dir" ]]; then
+  if [[ ! -d "$rel" ]]; then
     printf "MISSING PLUGIN DIRECTORY: catalog entry '%s' points %s at '%s', but that directory does not exist.\n" \
       "$name" "$MARKETPLACE" "$source" >&2
     errors=$((errors + 1))

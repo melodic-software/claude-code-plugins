@@ -152,6 +152,27 @@ def splice(readme: str, block: str) -> str:
     return readme.rstrip("\n") + "\n\n" + block + "\n"
 
 
+def strip_stale_block(readme: pathlib.Path, check: bool) -> str | None:
+    """Drop the generated block from a plugin that declares no options any more.
+
+    Returns "stale" when --check found a block to remove, "wrote" when one was
+    removed, and None when there was nothing to remove -- no README, or a README
+    that never carried a block.
+    """
+    if not readme.exists():
+        return None
+    halves = split_block(readme.read_text(encoding="utf-8"))
+    if halves is None:
+        return None
+    head, tail = halves
+    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
+    if check:
+        return "stale"
+    readme.write_text(stripped, encoding="utf-8", newline="\n")
+    print(f"  removed stale block: plugins/{readme.parent.name}/README.md (0 options)")
+    return "wrote"
+
+
 def main() -> int:
     check = "--check" in sys.argv
     stale, wrote, skipped = [], 0, 0
@@ -170,19 +191,13 @@ def main() -> int:
             # Skipping here left a stale block documenting options that no longer exist,
             # and --check never read the README on this branch, so the gate reported it
             # as up to date -- the one path where the gate silently fails at its own job.
-            if readme.exists():
-                halves = split_block(readme.read_text(encoding="utf-8"))
-                if halves is not None:
-                    head, tail = halves
-                    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
-                    if check:
-                        stale.append(d.name)
-                    else:
-                        readme.write_text(stripped, encoding="utf-8", newline="\n")
-                        wrote += 1
-                        print(f"  removed stale block: plugins/{d.name}/README.md (0 options)")
-                    continue
-            skipped += 1
+            removal = strip_stale_block(readme, check)
+            if removal is None:
+                skipped += 1
+            elif removal == "stale":
+                stale.append(d.name)
+            else:
+                wrote += 1
             continue
         if not readme.exists():
             print(f"  MISSING README: {d.name} declares {len(options)} option(s)", file=sys.stderr)

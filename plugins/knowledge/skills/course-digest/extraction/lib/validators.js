@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { lessonDirName, parseDuration } from "../utils.js";
+import { formatLessonLabel, lessonDirName, parseDuration } from "../utils.js";
 
 export const PASS = "pass";
 export const WARN = "warn";
@@ -97,7 +97,7 @@ export function checkTranscripts(course, modulesDir) {
 
       const lessonDir = join(modulesDir, mod.slug, lessonDirName(lesson.position, lesson.title));
       const transcriptPath = join(lessonDir, "transcript.md");
-      const label = `M${mod.position}L${lesson.position}`;
+      const label = formatLessonLabel(mod, lesson);
 
       if (!existsSync(transcriptPath)) {
         results.push(
@@ -232,7 +232,7 @@ export function checkResourceFlags(course, modulesDir) {
   for (const mod of course.modules ?? []) {
     for (const lesson of mod.lessons) {
       const lessonDir = join(modulesDir, mod.slug, lessonDirName(lesson.position, lesson.title));
-      const label = `M${mod.position}L${lesson.position}`;
+      const label = formatLessonLabel(mod, lesson);
 
       if (lesson.hasTranscript) {
         const exists = existsSync(join(lessonDir, "transcript.md"));

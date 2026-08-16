@@ -83,19 +83,17 @@ has_branch() {
   fi
 }
 
-fetch_config() {
-  git -C "$1" config "branch.${BRANCH}.remote" 2>/dev/null || echo UNSET
-}
-
-merge_config() {
-  git -C "$1" config "branch.${BRANCH}.merge" 2>/dev/null || echo UNSET
+# branch_config <worktree> <key> — `branch.<BRANCH>.<key>` as git has it, or the
+# literal UNSET when the key is absent (git exits 1 and prints nothing).
+branch_config() {
+  git -C "$1" config "branch.${BRANCH}.$2" 2>/dev/null || echo UNSET
 }
 
 # 1. Fresh-branch bootstrap: no branch.remote, no push config. Fetch and push
 #    both fall back to origin -> equal -> `-u` fires, tracking is bootstrapped.
 wc=$(make_clone bootstrap)
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
-check "bootstrap: -u fired, branch.remote set to origin" "$(fetch_config "$wc")" "origin"
+check "bootstrap: -u fired, branch.remote set to origin" "$(branch_config "$wc" remote)" "origin"
 check "bootstrap: origin received the branch" "$(has_branch "$WORKDIR/bootstrap/origin")" "yes"
 
 # 2. Non-triangular, established upstream: branch.remote=origin already set, with
@@ -106,8 +104,8 @@ wc=$(make_clone nontri)
 git -C "$wc" config "branch.${BRANCH}.remote" origin
 git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
-check "non-triangular: branch.remote stays origin" "$(fetch_config "$wc")" "origin"
-check "non-triangular: merge ref preserved (not rewritten by -u)" "$(merge_config "$wc")" "refs/heads/main"
+check "non-triangular: branch.remote stays origin" "$(branch_config "$wc" remote)" "origin"
+check "non-triangular: merge ref preserved (not rewritten by -u)" "$(branch_config "$wc" merge)" "refs/heads/main"
 check "non-triangular: origin received the branch" "$(has_branch "$WORKDIR/nontri/origin")" "yes"
 
 # 3. Triangular via branch.<name>.pushRemote: fetch upstream, push fork.
@@ -116,7 +114,7 @@ wc=$(make_clone tri-pushremote upstream fork)
 git -C "$wc" config "branch.${BRANCH}.remote" upstream
 git -C "$wc" config "branch.${BRANCH}.pushRemote" fork
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
-check "pushRemote-tri: fetch remote preserved (upstream)" "$(fetch_config "$wc")" "upstream"
+check "pushRemote-tri: fetch remote preserved (upstream)" "$(branch_config "$wc" remote)" "upstream"
 check "pushRemote-tri: fork received the branch" "$(has_branch "$WORKDIR/tri-pushremote/fork")" "yes"
 check "pushRemote-tri: origin did NOT receive the branch" "$(has_branch "$WORKDIR/tri-pushremote/origin")" "no"
 
@@ -127,7 +125,7 @@ check "pushRemote-tri: origin did NOT receive the branch" "$(has_branch "$WORKDI
 wc=$(make_clone tri-pushdefault fork)
 git -C "$wc" config remote.pushDefault fork
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
-check "pushDefault-tri: branch.remote NOT clobbered (stays unset)" "$(fetch_config "$wc")" "UNSET"
+check "pushDefault-tri: branch.remote NOT clobbered (stays unset)" "$(branch_config "$wc" remote)" "UNSET"
 check "pushDefault-tri: next fetch still resolves origin" "$(cd "$wc" && bash "$RESOLVER")" "origin"
 check "pushDefault-tri: fork received the branch" "$(has_branch "$WORKDIR/tri-pushdefault/fork")" "yes"
 check "pushDefault-tri: origin did NOT receive the branch" "$(has_branch "$WORKDIR/tri-pushdefault/origin")" "no"
@@ -141,7 +139,7 @@ git -C "$wc" config remote.pushDefault fork
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
 push_exit=$?
 check "fetch-ambiguous: push-branch.sh did not abort" "$push_exit" "0"
-check "fetch-ambiguous: branch.remote not written" "$(fetch_config "$wc")" "UNSET"
+check "fetch-ambiguous: branch.remote not written" "$(branch_config "$wc" remote)" "UNSET"
 check "fetch-ambiguous: fork received the branch" "$(has_branch "$WORKDIR/ambiguous/fork")" "yes"
 
 # 6. Local-only `.` upstream: branch.remote=. (tracks the local repo), merge
@@ -153,8 +151,8 @@ wc=$(make_clone dot-upstream)
 git -C "$wc" config "branch.${BRANCH}.remote" .
 git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
-check "dot-upstream: branch.remote stays '.' (local-only preserved)" "$(fetch_config "$wc")" "."
-check "dot-upstream: merge ref preserved (not rewritten by -u)" "$(merge_config "$wc")" "refs/heads/main"
+check "dot-upstream: branch.remote stays '.' (local-only preserved)" "$(branch_config "$wc" remote)" "."
+check "dot-upstream: merge ref preserved (not rewritten by -u)" "$(branch_config "$wc" merge)" "refs/heads/main"
 check "dot-upstream: origin received the branch" "$(has_branch "$WORKDIR/dot-upstream/origin")" "yes"
 
 # 7. Merge-only tracking: branch.merge set, branch.remote UNSET (valid — Git
@@ -166,8 +164,8 @@ check "dot-upstream: origin received the branch" "$(has_branch "$WORKDIR/dot-ups
 wc=$(make_clone merge-only)
 git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
-check "merge-only: branch.remote not written (stays unset)" "$(fetch_config "$wc")" "UNSET"
-check "merge-only: merge ref preserved (not rewritten by -u)" "$(merge_config "$wc")" "refs/heads/main"
+check "merge-only: branch.remote not written (stays unset)" "$(branch_config "$wc" remote)" "UNSET"
+check "merge-only: merge ref preserved (not rewritten by -u)" "$(branch_config "$wc" merge)" "refs/heads/main"
 check "merge-only: origin received the branch" "$(has_branch "$WORKDIR/merge-only/origin")" "yes"
 
 echo

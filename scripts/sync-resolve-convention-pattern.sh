@@ -14,65 +14,34 @@
 # each consumer vendors the resolver: the guardrails CC-layer content gate (#914)
 # added the copy below, and the opt-in commit-msg hook (#919) adds its own copy
 # path here and bumps the guardrails manifest in the same change.
+#
+# The three modes live in scripts/lib/sync-cluster.sh, shared with the sibling
+# sync-*.sh gates; this file supplies this cluster's parameters. The list having
+# started empty is why this one still prints a copy-count summary after a sync.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-src="lib/resolve-convention-pattern.sh"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir/.."
+# shellcheck source=lib/sync-cluster.sh
+. "$script_dir/lib/sync-cluster.sh"
 
+sync_cluster_script="sync-resolve-convention-pattern.sh"
+# `src=` and `copies=(` are parsed out of this file by scripts/affected-tests.sh;
+# keep both spellings exactly as they are.
+src="lib/resolve-convention-pattern.sh"
 copies=(
   plugins/guardrails/hooks/resolve-convention-pattern.sh # CC-layer content gate (block-convention-violation.sh)
 )
+sync_cluster_manifest_strip='/hooks/*'
+sync_cluster_noun="Lib"
+sync_cluster_carrier="consuming"
+sync_cluster_sync_summary=1
 
 mode="${1:-sync}"
-case "$mode" in
-sync)
-  for copy in ${copies[@]+"${copies[@]}"}; do
-    cp "$src" "$copy"
-    echo "synced: $copy"
-  done
-  echo "synced ${#copies[@]} copies of $src."
-  ;;
---check)
-  drifted=0
-  for copy in ${copies[@]+"${copies[@]}"}; do
-    if ! cmp -s "$src" "$copy"; then
-      echo "DRIFT: $copy differs from $src" >&2
-      drifted=1
-    fi
-  done
-  if [[ "$drifted" -ne 0 ]]; then
-    echo "Run scripts/sync-resolve-convention-pattern.sh and commit the result." >&2
-    exit 1
-  fi
-  echo "All ${#copies[@]} plugin copies match $src."
-  ;;
---check-bump)
-  base="${2:?usage: sync-resolve-convention-pattern.sh --check-bump <base-ref>}"
-  if git diff --quiet "$base" -- "$src"; then
-    echo "Lib unchanged vs $base; no version bumps required."
-    exit 0
-  fi
-  stale=0
-  for copy in ${copies[@]+"${copies[@]}"}; do
-    manifest="${copy%%/hooks/*}/.claude-plugin/plugin.json"
-    base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
-    if [[ -z "$base_version" ]]; then
-      continue
-    fi
-    head_version=$(jq -r '.version // empty' "$manifest")
-    if [[ "$head_version" == "$base_version" ]]; then
-      echo "STALE VERSION: $src changed vs $base but $manifest is still $head_version" >&2
-      stale=1
-    fi
-  done
-  if [[ "$stale" -ne 0 ]]; then
-    echo "Bump the version of every consuming plugin so consumers receive the lib change." >&2
-    exit 1
-  fi
-  echo "Lib changed vs $base and every consuming plugin bumped its version."
-  ;;
-*)
-  echo "usage: sync-resolve-convention-pattern.sh [--check | --check-bump <base-ref>]" >&2
-  exit 2
-  ;;
-esac
+base=""
+# Raised here, not in the shared engine: bash prefixes a ${var:?} diagnostic with
+# the path and line of the expansion, so the message has to come from the script
+# the user actually ran.
+[[ "$mode" == "--check-bump" ]] && base="${2:?usage: sync-resolve-convention-pattern.sh --check-bump <base-ref>}"
+
+sync_cluster::run "$mode" "$base"

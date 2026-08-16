@@ -48,13 +48,9 @@ NO_REQUIRED_REVIEWS = {
 }
 
 
-def _rules(*rules: dict[str, Any]) -> list[dict[str, Any]]:
-    return list(rules)
-
-
-def _branch_rules(rules: list[dict[str, Any]]) -> dict[str, object]:
+def _branch_rules(*rules: dict[str, Any]) -> dict[str, object]:
     """`branch_rules` folded over `rules`, with the single gh read stubbed."""
-    with mock.patch.object(merge, "gh_json", return_value=rules):
+    with mock.patch.object(merge, "gh_json", return_value=list(rules)):
         return merge.branch_rules("owner/repo", "main")
 
 
@@ -81,11 +77,9 @@ def _pr(**overrides: Any) -> dict[str, Any]:
 class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
     def test_contexts_from_every_ruleset_survive(self) -> None:
         summary = _branch_rules(
-            _rules(
-                NO_REQUIRED_REVIEWS,
-                _status_checks_rule(CI_GATE),
-                _status_checks_rule(SECURITY_GATE),
-            )
+            NO_REQUIRED_REVIEWS,
+            _status_checks_rule(CI_GATE),
+            _status_checks_rule(SECURITY_GATE),
         )
         self.assertEqual(
             summary["requiredContexts"], sorted(CI_GATE + SECURITY_GATE)
@@ -93,10 +87,8 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
 
     def test_a_context_required_by_two_rulesets_is_reported_once(self) -> None:
         summary = _branch_rules(
-            _rules(
-                _status_checks_rule(["ci-status", "pr-title / pr-title"]),
-                _status_checks_rule(["ci-status"]),
-            )
+            _status_checks_rule(["ci-status", "pr-title / pr-title"]),
+            _status_checks_rule(["ci-status"]),
         )
         self.assertEqual(
             summary["requiredContexts"], ["ci-status", "pr-title / pr-title"]
@@ -104,14 +96,10 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
 
     def test_a_context_less_entry_is_dropped(self) -> None:
         summary = _branch_rules(
-            _rules(
-                {
-                    "type": "required_status_checks",
-                    "parameters": {
-                        "required_status_checks": [{"integration_id": 1}]
-                    },
-                }
-            )
+            {
+                "type": "required_status_checks",
+                "parameters": {"required_status_checks": [{"integration_id": 1}]},
+            }
         )
         self.assertEqual(summary["requiredContexts"], [])
 
@@ -121,25 +109,21 @@ class PullRequestRulesFoldFailClosed(unittest.TestCase):
 
     def test_the_strictest_approval_count_wins(self) -> None:
         summary = _branch_rules(
-            _rules(
-                {
-                    "type": "pull_request",
-                    "parameters": {"required_approving_review_count": 2},
-                },
-                NO_REQUIRED_REVIEWS,
-            )
+            {
+                "type": "pull_request",
+                "parameters": {"required_approving_review_count": 2},
+            },
+            NO_REQUIRED_REVIEWS,
         )
         self.assertEqual(summary["requiredApprovingReviews"], 2)
 
     def test_thread_resolution_required_by_any_ruleset_survives(self) -> None:
         summary = _branch_rules(
-            _rules(
-                {
-                    "type": "pull_request",
-                    "parameters": {"required_review_thread_resolution": True},
-                },
-                NO_REQUIRED_REVIEWS,
-            )
+            {
+                "type": "pull_request",
+                "parameters": {"required_review_thread_resolution": True},
+            },
+            NO_REQUIRED_REVIEWS,
         )
         self.assertTrue(summary["requireThreadResolution"])
 
@@ -153,33 +137,25 @@ class PullRequestRulesFoldFailClosed(unittest.TestCase):
         for raw in (None, "", 0.0, [], {}, "two", object()):
             with self.subTest(raw=raw):
                 summary = _branch_rules(
-                    _rules(
-                        {
-                            "type": "pull_request",
-                            "parameters": {
-                                "required_approving_review_count": raw
-                            },
-                        }
-                    )
+                    {
+                        "type": "pull_request",
+                        "parameters": {"required_approving_review_count": raw},
+                    }
                 )
                 self.assertEqual(summary["requiredApprovingReviews"], 1)
 
     def test_an_absent_count_is_zero_not_one(self) -> None:
         """Absence is readable: the rule states no review requirement."""
-        summary = _branch_rules(
-            _rules({"type": "pull_request", "parameters": {}})
-        )
+        summary = _branch_rules({"type": "pull_request", "parameters": {}})
         self.assertEqual(summary["requiredApprovingReviews"], 0)
 
     def test_a_readable_count_is_reported_as_an_int(self) -> None:
         """`bool` is an `int` subclass; it must not leak into the summary."""
         summary = _branch_rules(
-            _rules(
-                {
-                    "type": "pull_request",
-                    "parameters": {"required_approving_review_count": True},
-                }
-            )
+            {
+                "type": "pull_request",
+                "parameters": {"required_approving_review_count": True},
+            }
         )
         self.assertIs(type(summary["requiredApprovingReviews"]), int)
         self.assertEqual(summary["requiredApprovingReviews"], 1)
@@ -194,12 +170,12 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
     it among the regression tests.
     """
 
-    def _evaluate(self, rules: list[dict[str, Any]]) -> dict[str, Any]:
+    def _evaluate(self, *rules: dict[str, Any]) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
                 return _pr()
             if args[0] == "api" and "/rules/branches/" in args[1]:
-                return rules
+                return list(rules)
             if args[0] == "api":  # repository metadata (default-branch read)
                 return {"name": "main"}
             raise AssertionError(f"unexpected gh_json call: {args}")
@@ -214,11 +190,9 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
 
     def test_empty_trailing_rule_leaves_the_base_protected(self) -> None:
         result = self._evaluate(
-            _rules(
-                NO_REQUIRED_REVIEWS,
-                _status_checks_rule(["ci-status"]),
-                _status_checks_rule([]),
-            )
+            NO_REQUIRED_REVIEWS,
+            _status_checks_rule(["ci-status"]),
+            _status_checks_rule([]),
         )
         self.assertFalse(result["baseUnprotected"])
         self.assertEqual(
@@ -226,7 +200,7 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
         )
 
     def test_no_context_anywhere_still_reports_an_unprotected_base(self) -> None:
-        result = self._evaluate(_rules(NO_REQUIRED_REVIEWS, _status_checks_rule([])))
+        result = self._evaluate(NO_REQUIRED_REVIEWS, _status_checks_rule([]))
         self.assertTrue(result["baseUnprotected"])
         self.assertTrue([b for b in result["blockers"] if "unprotected" in b])
 

@@ -45,6 +45,16 @@ mkrepo() {
   printf '%s\n' "$repo"
 }
 
+# write_padded_script <path> — a shebang plus 30 identical lines. The padding is
+# similarity mass: git's copy detection only pairs two files whose scores bind,
+# and a two-line script is too short to score.
+write_padded_script() {
+  {
+    printf '#!/usr/bin/env bash\n'
+    for _ in $(seq 1 30); do printf 'echo line\n'; done
+  } >"$1"
+}
+
 # staged_mode <repo> <path> — the mode git recorded in the index for <path>.
 staged_mode() {
   (cd "$1" && git ls-files --stage -- "$2" 2>/dev/null | head -n 1 | cut -d' ' -f1)
@@ -454,10 +464,7 @@ repo16="$(mkrepo)"
   # Copy detection only pairs against a source modified in the SAME change, so
   # the source is edited here; enough identical lines remain for the similarity
   # score to bind.
-  {
-    printf '#!/usr/bin/env bash\n'
-    for _ in $(seq 1 30); do printf 'echo line\n'; done
-  } >orig.sh
+  write_padded_script orig.sh
   git add orig.sh
   git update-index --chmod=+x -- orig.sh
   git commit -qm "seed the executable copy source"
@@ -672,10 +679,7 @@ repo21="$(mkrepo)"
   cd "$repo21" || exit 1
   git config core.filemode false
   git config diff.renames copies
-  {
-    printf '#!/usr/bin/env bash\n'
-    for _ in $(seq 1 30); do printf 'echo line\n'; done
-  } >tpl.sh
+  write_padded_script tpl.sh
   git add tpl.sh
   git commit -qm "seed the deliberately non-executable copy source"
   printf 'echo appended\n' >>tpl.sh
@@ -741,10 +745,7 @@ repo22="$(mkrepo)"
 (
   cd "$repo22" || exit 1
   git config core.filemode false
-  {
-    printf '#!/usr/bin/env bash\n'
-    for _ in $(seq 1 30); do printf 'echo line\n'; done
-  } >lib.sh
+  write_padded_script lib.sh
   git add lib.sh
   git commit -qm "seed the agreement fixture's non-executable source"
   printf 'echo appended\n' >>lib.sh
@@ -817,10 +818,7 @@ repo23="$(mkrepo)"
   git config core.filemode false
   git config diff.renames copies
   git config core.quotepath true
-  {
-    printf '#!/usr/bin/env bash\n'
-    for _ in $(seq 1 30); do printf 'echo line\n'; done
-  } >"tpl lib.sh"
+  write_padded_script "tpl lib.sh"
   git add "tpl lib.sh"
   git commit -qm "seed the spaced non-executable copy source"
   printf 'echo appended\n' >>"tpl lib.sh"

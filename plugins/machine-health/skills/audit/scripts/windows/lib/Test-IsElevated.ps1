@@ -20,7 +20,7 @@ function Test-IsElevated {
 
     try {
         $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
+        $principal = [System.Security.Principal.WindowsPrincipal]::new($identity)
         return $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
     } catch {
         return $false

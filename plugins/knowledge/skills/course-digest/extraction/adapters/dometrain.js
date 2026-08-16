@@ -15,6 +15,7 @@ import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { login as clerkLogin } from "../lib/auth/clerk.js";
 import { loginOrPromptManual } from "../lib/auth/manual-login.js";
+import { fetchMetaTags } from "../lib/meta-tags.js";
 import { getHlsUrl } from "../lib/players/mux.js";
 import {
   DESCRIPTION_META_SELECTOR,
@@ -32,6 +33,8 @@ const DATE_UPDATED = /updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
 const DATE_PUBLISHED = /published[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
 const DATE_RELEASED = /released[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
 const VISIBLE_DATE_PATTERNS = [DATE_LAST_UPDATED, DATE_UPDATED, DATE_PUBLISHED, DATE_RELEASED];
+// Dometrain also publishes its dates through non-og meta properties.
+const DOMETRAIN_META_SUBSTRINGS = ["date", "time", "modified", "published"];
 
 // ---------------------------------------------------------------------------
 // Adapter defaults (Dometrain-specific config)
@@ -276,28 +279,6 @@ async function fetchJsonLd(page) {
     .catch(() => null);
 }
 
-async function fetchOgTags(page) {
-  return page
-    .evaluate(() => {
-      const tags = {};
-      for (const meta of document.querySelectorAll("meta")) {
-        const prop = meta.getAttribute("property") || meta.getAttribute("name");
-        if (
-          prop?.startsWith("og:") ||
-          prop?.startsWith("twitter:") ||
-          prop?.includes("date") ||
-          prop?.includes("time") ||
-          prop?.includes("modified") ||
-          prop?.includes("published")
-        ) {
-          tags[prop] = meta.getAttribute("content");
-        }
-      }
-      return tags;
-    })
-    .catch(() => ({}));
-}
-
 async function fetchDescriptionMeta(page) {
   return page
     .evaluate((selector) => {
@@ -322,7 +303,7 @@ export async function extractMetadata(page, courseUrl, platformCfg) {
     await page.waitForTimeout(2000);
 
     applyJsonLdMetadata(metadata, await fetchJsonLd(page));
-    applyOgMetadata(metadata, await fetchOgTags(page));
+    applyOgMetadata(metadata, await fetchMetaTags(page, DOMETRAIN_META_SUBSTRINGS));
 
     const pageText = await page.innerText("body").catch(() => "");
     const visibleDate = findVisibleDate(pageText);
