@@ -29,9 +29,12 @@ substrates binds here. Isolation bindings key on execution-surface ids; the sche
 ## Candidate set
 
 - **`v1` rows only.** They alone have definition leaves, and posture tokens are leaf-owned.
-- **`join:` and `join (external):` rows** report under the join-row marker `deferred-class`.
-  Both deferred status forms have no leaf and therefore no identities to resolve;
-  `deferred-class` is a catalog-row marker, not a verdict.
+- **`join:` and `join (external):` rows** report under the join-row marker
+  `deferred(<trigger>)`, where `<trigger>` is the row's own join trigger from its catalog Status
+  cell. The trigger is never omitted: a bare marker would record that resolution is postponed
+  while discarding the condition under which the row gains a leaf — the half that makes a
+  deferral auditable rather than an indefinite hold. Both deferred status forms have no leaf and
+  therefore no identities to resolve; the marker is a catalog-row marker, not a verdict.
 - **`not-a-routine` rows** are outside the domain. No agent session exists to bind, so any
   verdict for them is a category error.
 
