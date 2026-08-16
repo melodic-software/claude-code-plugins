@@ -1,5 +1,5 @@
 /**
- * Phase-map state for interrupted `/youtube-digest watch` sessions.
+ * Phase-map state for interrupted `/video-digest watch` sessions.
  *
  * Mirrors course-digest `course.json` phase tracking — stored at
  * `.work/<watch-epic>/<video-slug>/watch.json`.
@@ -151,7 +151,7 @@ export function findNextPhase(phases) {
 }
 
 /**
- * Build a continuation prompt for `/youtube-digest resume`.
+ * Build a continuation prompt for `/video-digest resume`.
  *
  * Prompt paths render from the resolved slice dir the caller already holds —
  * never re-derived from the epic-dir constant — so a non-default `--work-root`
@@ -169,7 +169,7 @@ export function buildContinuationPrompt(state, sliceDir) {
       /** @type {PhaseRecord} */ (value)?.metrics?.skipped ? `${name} (skipped)` : name,
     );
 
-  return `# Continue /youtube-digest watch — ${state.title}
+  return `# Continue /knowledge:video-digest watch — ${state.title}
 
 Video slug: \`${state.videoSlug}\`
 Source: ${state.sourceUrl}

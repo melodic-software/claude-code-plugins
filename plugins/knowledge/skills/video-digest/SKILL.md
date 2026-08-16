@@ -8,7 +8,7 @@ shell: bash
 
 ## Pre-computed context
 
-youtube-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
+video-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
 yt-dlp: !`yt-dlp --version 2>/dev/null | head -1 || echo "MISSING — install yt-dlp (see Prerequisites)"`
 ffmpeg: !`ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (watch action only)"`
 ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (watch action only)"`
@@ -74,7 +74,7 @@ own) — resolution rungs in `context/watch-pipeline.md`.
 ## Transcript action
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" transcript/run-transcript.js "<url>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" transcript/run-transcript.js "<url>"
 ```
 
 1. **Acquire** — captions + info JSON (`--skip-download`)
@@ -100,8 +100,8 @@ release, FIFO, stale reclaim, parallel terminals, companion briefs — is in `co
 read it for any queue action. Template: `templates/queue.md`.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js {list|claim <n>|release <n>|stale-check}
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/queue-claim.js {list|claim <n>|release <n>|stale-check}
 ```
 
 ## Watch action
@@ -119,7 +119,7 @@ read it before starting. Diagram: `context/workflow.md`.
    harvest):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>]
+   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>]
    ```
 
 4. **Watch checklist** — materialize via `init-watch-checklist.js`; tick `[ ]` → `[x]` only with
@@ -151,7 +151,7 @@ it carries depends on which 0-case it is — see `reference/sources/x.md`.
 ## Resume action
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-resume.js "<video-slug>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-resume.js "<video-slug>"
 ```
 
 Reads the slice `watch.json`, identifies the next incomplete phase (`acquire` → `transcript` →
@@ -163,7 +163,7 @@ and emits a copy/paste-ready continuation prompt. When `tempSession` paths are m
 
 1. Update `watch.json` phase markers with timestamps
 2. Write `continuation-prompt.md` (completed phases, next phase, frame-selection state, known issues)
-3. Tell the user: *"Session state saved. Run `/knowledge:youtube-digest resume <video-slug>` to continue."*
+3. Tell the user: *"Session state saved. Run `/knowledge:video-digest resume <video-slug>` to continue."*
 
 ## Slice layout and output
 
@@ -190,7 +190,7 @@ patterns live in the source spokes.
 
 Verify before starting (stop and route to the fix path on failure):
 
-1. **youtube-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/setup-deps.mjs"`.
+1. **video-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
    updates); idempotent — safe to re-run, and re-run after a plugin update.
 2. **yt-dlp** — required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp`

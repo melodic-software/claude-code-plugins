@@ -1,6 +1,6 @@
 # Watch queue
 
-Epic-level durable queue for batching public video URLs before `/knowledge:youtube-digest watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
+Epic-level durable queue for batching public video URLs before `/knowledge:video-digest watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
 
 **One queue, every source.** The on-disk epic directory stays the literal `youtube-watch` (a stable storage-format identifier, not a source claim), and there is one `claims/` namespace. Source is **never a directory level** — it lives in slice metadata (`watch.json` `sourceUrl`). A mixed YouTube + X batch shares this one queue and these claim stubs; nothing about a consumer's existing `.work/` tree changes.
 
@@ -56,7 +56,7 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json` — not in 
 1. Run exclusive claim (skill or CLI):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js claim <n> [--video-id <id>]
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/queue-claim.js claim <n> [--video-id <id>]
 ```
 
 Exit code `2` = row already taken. For FIFO `watch`, try the next `pending` row; for `watch <n>`, stop with a clear message rather than bootstrapping duplicate work.
@@ -65,7 +65,7 @@ Exit code `2` = row already taken. For FIFO `watch`, try the next `pending` row;
 2. Read URL from row; bootstrap:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-watch.js "<url>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-watch.js "<url>"
 ```
 
 1. Execute skill phases 2–9 (or `run-resume.js` if slice exists and temp valid).
@@ -73,7 +73,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-
 3. Release claim:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js release <n>
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/queue-claim.js release <n>
 ```
 
 ### FIFO auto-dequeue (`watch` with no URL)
@@ -96,7 +96,7 @@ Scan rows in `#` order. For each `pending` row, attempt `claim <n>`. On `EEXIST`
 If `claims/<n>.json` exists and `claimedAt` is older than **7 days**, skill may:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js stale-check
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/queue-claim.js stale-check
 ```
 
 Then reset row `#n` from `in_progress` → `pending` and delete the stub (abandoned run).
@@ -141,7 +141,7 @@ When the operator supplies companion URL(s) with queue intent, record them befor
 Before appending rows, validate each URL and fetch its title + channel through the same auth-fallback path acquisition uses (a bot-checked video that `watch` could acquire with cookies is NOT rejected at queue time):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
 ```
 
 Emits a JSON array (one entry per URL). Per entry use `action` to decide:

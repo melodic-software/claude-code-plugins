@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI: acquire + transcript + watching selection + harvest for `/youtube-digest watch`.
+ * CLI: acquire + transcript + watching selection + harvest for `/video-digest watch`.
  *
  * Usage: node watch/run-watch.js <video-url> [--skip-research] [--target <repo>]
  *   [--recover <slice-dir>] [--transcript-strategy <captions|captions+repair|asr>]

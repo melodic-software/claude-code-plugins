@@ -68,6 +68,12 @@ describe("watch state phase map", () => {
     expect(prompt).not.toContain("youtube-watch");
   });
 
+  it("emits the renamed /knowledge:video-digest command in the resume prompt", () => {
+    const prompt = buildContinuationPrompt(sampleTalk(), SLICE_DIR);
+    expect(prompt).toContain("# Continue /knowledge:video-digest watch");
+    expect(prompt).not.toContain("youtube-digest");
+  });
+
   it("surfaces high-volume frame selection in continuation prompt", () => {
     let state = sampleTalk();
     state = {

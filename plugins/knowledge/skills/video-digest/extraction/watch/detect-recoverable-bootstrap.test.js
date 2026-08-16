@@ -52,6 +52,8 @@ describe("detectRecoverableBootstrap", () => {
     const result = detectRecoverableBootstrap(tmp);
     expect(result.recoverable).toBe(true);
     expect(formatRecoverCommand(tmp)).toContain("recover-watch-bootstrap.js");
+    expect(formatRecoverCommand(tmp)).toContain("skills/video-digest/extraction/run.mjs");
+    expect(formatRecoverCommand(tmp)).not.toContain("youtube-digest");
   });
 
   it("accepts an auto-caption-only workDir (*-orig.vtt)", () => {

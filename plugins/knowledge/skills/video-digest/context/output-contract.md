@@ -21,7 +21,7 @@ this skill's content as `${user_config.library_dir}`:
   **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
+  node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
   ```
 
   `run.mjs` forwards it to the extraction child as an environment variable (a double-quoted CLI

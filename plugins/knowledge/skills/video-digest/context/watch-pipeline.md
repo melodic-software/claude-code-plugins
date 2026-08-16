@@ -36,7 +36,7 @@ On resume: if companion is unmarked, run 0b before vision even when CLI phases a
 ## CLI bootstrap
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>]
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>]
 ```
 
 Pass an explicit `--target <repo>` through from the invoking `watch <url> --target <repo>` command
@@ -63,7 +63,7 @@ snapshotted to `key-frames/contact-sheets/` for local disaster recovery — see
 Before `watch` or `resume` when frames are needed:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/setup-deps.mjs"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs"
 ```
 
 STOP if the hub's pre-computed context shows MISSING for yt-dlp, ffmpeg, or ImageMagick. Cloud
@@ -77,7 +77,7 @@ After CLI bootstrap, parallelize like `/knowledge:course-digest` Phase 3:
 | --- | --- | --- |
 | Parallel | Transcript agent | Claims + timestamps → `research/research-agenda.md` draft |
 | Parallel | Visual agent | Contact-sheet triage → detail reads → `key-frames/visual-frames.md` + on-screen URLs |
-| Parallel | Link/repo agent | WebFetch previews + `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
+| Parallel | Link/repo agent | WebFetch previews + `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
 | Sequential | Research fan-out | external research (standard or deep) per claim cluster → `RESEARCH.md` + `research/findings/` |
 | Sequential | Synthesis agent | `recommendations/menu.md` + `recommendations/takeaways.md` (hub: `recommendations/README.md`) |
 | Sequential | Interview handoff | `recommendations/interview.md` → offer `/planning:interview` for POC/full-slice picks |
@@ -86,13 +86,13 @@ Mark each phase in `watch.json` after the wave completes (idempotent — re-runn
 already-marked phase is a no-op):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>
 ```
 
 Promote only via vision-gated decisions:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/vision-gated-promote.js "<slice-dir>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/vision-gated-promote.js "<slice-dir>"
 ```
 
 (`promote-key-frames.js` remains for ad-hoc single copies — not the completion path.)
@@ -102,7 +102,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/visi
 After CLI bootstrap (or on resume), materialize and maintain the slice checklist:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/init-watch-checklist.js "<slice-dir>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/init-watch-checklist.js "<slice-dir>"
 ```
 
 Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Tick `[ ]` → `[x]`
@@ -156,7 +156,7 @@ Checklist: `watching/frame-triage-checklist.json`; **JSON SSOT** + rendered mark
 - **Pass 1 — contact-sheet triage:** One subagent per sheet from `tempSession.contactSheetsDir`
   (or `key-frames/contact-sheets/`). Write `key-frames/triage/batches/sheet_NNN.json` (cells per
   `sheet-frame-index.json`). Merge:
-  `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/merge-triage-json.js "<slice>"`;
+  `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/merge-triage-json.js "<slice>"`;
   validate: `validate-triage-json.js`; render: `render-triage-log.js`.
 - **Pass 2 — detail reads:** All `keep-detail` frames + transcript interleave
   (`key-frames/selection.json` timeline). Escalate text-dense frames to **1920×1080**.
@@ -173,7 +173,7 @@ Checklist: `watching/frame-triage-checklist.json`; **JSON SSOT** + rendered mark
   `render-quality-audit.js` + `render-key-frames-manifest.js`. **Delete** failures with
   `pass: false`.
 - **Repair pass (when filename verify fails):**
-  `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/repair-synthesis-promotions.js "<slice-dir>"`
+  `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/repair-synthesis-promotions.js "<slice-dir>"`
   — semantic renames from `gapNote`, reject generic pipeline placeholders, fix forbidden sessions.
 
 ## Phase 5 — high-volume advisory
@@ -195,7 +195,7 @@ Default-on. Gate: `mark-phase <slice-dir> research` only after `check-research-c
 and agenda clusters are `done` or `deferred`:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"
 ```
 
 - `research/claim-inventory.md` must exist; draft or expand `research/research-agenda.md` with
@@ -268,7 +268,7 @@ Write `recommendations/interview.md` with the menu + *"Should we go further?"*; 
 Mandatory host verify script, before `status: complete`:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report
 ```
 
 Writes `verification/<ISO-basic>Z-watch-outcomes.md`. **Do not** mark the slice complete while this
@@ -293,13 +293,13 @@ Deterministic stages in `watching/orchestrate-watching.js`:
 Standalone pipeline (when video + VTT already acquired):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watching/run-watching-pipeline.js "<video-path>" "<vtt-path>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watching/run-watching-pipeline.js "<video-path>" "<vtt-path>"
 ```
 
 Metadata-only link harvest:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" harvesting/run-harvest.js "<info-json-path>" [--url "<source-url>"]
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" harvesting/run-harvest.js "<info-json-path>" [--url "<source-url>"]
 ```
 
 The owning source adapter is resolved from `--url` when given, else from the info JSON's
