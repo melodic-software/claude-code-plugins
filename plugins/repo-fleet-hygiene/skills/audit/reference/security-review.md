@@ -55,13 +55,15 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
    merged-PR queries) contacts only `github.com` and transmits repository identity plus the
    non-default local branch names under audit for that repository. No file content, report, commit
    content, diff, environment value, or absolute local path is sent. Non-GitHub hosts are not
-   contacted, and every `gh` call has a 30-second deadline plus a five-second KILL grace. Compatible
+   contacted, and every `gh` call has a `GH_TIMEOUT_SECONDS` deadline plus a `GH_KILL_AFTER_SECONDS`
+   KILL grace. Compatible
    coreutils is feature-detected; a finite Bash watchdog covers other supported platforms and has a
    TERM-ignoring regression test. **Accepted** as necessary first-party metadata lookup. The
    collector pins `GH_HOST=github.com` and disables GitHub CLI prompting, update checks, extension
    update checks, spinners, color, and telemetry for every invocation. Rate cost for the aliased
-   GraphQL page is documented as bounded (measured cost 1 per call; at most
-   `MERGED_PR_GRAPHQL_ALIAS_PAGE` aliases and the same number of nodes per page).
+   GraphQL page is documented as bounded (cost measured at 1 per call at 40 aliases, the largest
+   count measured live; at most `MERGED_PR_GRAPHQL_ALIAS_PAGE` aliases and the same number of
+   nodes per page).
 6. **Provenance/trust:** Melodic Software authors and distributes the plugin under the repository's MIT
    license. Runtime trust is limited to locally installed Git and the official GitHub CLI; there is no
    third-party SaaS delegation beyond the repository's declared GitHub host. **Accepted.**
