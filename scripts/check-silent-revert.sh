@@ -148,11 +148,18 @@
 #   moved under the PR, the author merged origin/main in and consciously chose
 #   which side won, and the PR body argues the choice at length.
 #
-# State the uncomfortable part plainly: 340 is the largest false positive and
-# 346 is the smallest true one. NO THRESHOLD SEPARATES THEM. Picking a number
-# in that 2% gap would be overfitting to this corpus, so the threshold is set
-# at 200 instead -- which costs nothing (200 and 300 fire on the identical five
-# commits here) and leaves headroom for a smaller future revert.
+# State the uncomfortable part plainly: the legitimate fires and the real
+# incidents OVERLAP. The smallest true finding is 301 -- #2642's share of
+# #2633's squash -- while both verified-legitimate fires score higher, at 340
+# (#2135) and 390 (#2640). NO THRESHOLD SEPARATES THEM, and not because the
+# gap is narrow: there is no gap at all, only an inversion. Any number that
+# silenced 340 would silence a real incident first.
+#
+# So the threshold is set at 200, below all of them, and it is the disposition
+# path below -- not the number -- that keeps the canary livable. 200 and 300
+# fire on the identical five commits here (at 300 the 301-line finding
+# survives by a single line, which is its own argument against tuning), and
+# 200 leaves headroom for a smaller future revert.
 #
 # So the canary is calibrated to fire roughly once a month, on something a
 # human should genuinely glance at, and precision is deliberately traded for

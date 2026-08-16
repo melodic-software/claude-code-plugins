@@ -33,8 +33,9 @@
 
 # #2135's author noticed main move under the PR, merged origin/main into the
 # branch rather than force-pushing, and argued the disposition explicitly in the
-# PR body -- a deliberate reconciliation, not a lost tree. At 340 lines this is
-# the largest measured false positive, six lines below the smallest real
-# incident (346), which is why no threshold can separate the two shapes and why
-# this file exists.
+# PR body -- a deliberate reconciliation, not a lost tree. At 340 lines it
+# scores ABOVE the smallest real incident finding (301 -- #2642's share of
+# #2633's squash), and the other cleared fire above scores 390. The legitimate
+# and incident ranges overlap rather than merely abut, so no threshold can
+# separate the two shapes, which is why this file exists.
 91e77fc16f62bc0ce99b36565053636fb4a21d9e  #2135 deliberately reconciled a merge of origin/main; disposition argued in the PR body
