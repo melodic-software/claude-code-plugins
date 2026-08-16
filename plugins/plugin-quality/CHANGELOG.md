@@ -5,6 +5,33 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4]
+
+### Changed
+
+- **The `auditor` grounds harness claims on the raw-markdown `curl` route, not `WebFetch`
+  (issue 2854).** Step 3 of `agents/auditor.md` prescribed `WebFetch` as the default for every
+  load-bearing harness-behavior claim. That is rung 2 of the ladder in
+  `docs/conventions/upstream-drift/README.md`, which the convention labels *degraded* and which
+  truncates long pages silently — and "not in the response" is indistinguishable from "not on the
+  page". The step now names the convention's rung-1 route (`curl` the `.md` channel to a file,
+  search the file locally) as the default, points at the convention for the ladder and the identity
+  and absence checks rather than restating them, and keeps `WebFetch` only for pages with no
+  raw-markdown channel. The tool-honesty note was amended in step: the step-3 `curl` joins Bash's
+  enumerated uses, and the network clause now permits it alongside `WebFetch` instead of capping
+  network reach at `WebFetch`.
+- **A quotation must survive a literal substring search of the fetched bytes.** The same step states
+  the concrete check — `grep -c -F` a distinctive fragment against the saved file, non-zero or it is
+  not a quote — and that a failed fetch, an unresolvable `.md` channel, or a fragment that does not
+  match is recorded as **unverified**, never reconstructed from recall. Realized cost that motivated
+  this: two fabricated load-bearing doc quotes reached filed-ready drafts in one audit chain, both
+  attributed verbatim to the hooks reference, neither present in it.
+- **Doc citations now carry their retrieval channel.** The agent's output contract requires each
+  harness-behavior citation to state the channel it came over and a byte count or line number
+  alongside the URL and fetch date, and `skills/audit/SKILL.md` step 3 records a finding whose
+  citation omits the channel as unverified — so the requirement binds where the output is consumed,
+  not only where it is produced.
+
 ## [0.6.3]
 
 ### Changed

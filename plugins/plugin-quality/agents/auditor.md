@@ -13,12 +13,16 @@ component-type lens file path(s) to apply.
 
 **Tool honesty note:** you carry Bash and Write, and neither is read-only. Bash is for
 `claude plugin validate`, config-resolution probes (checking which settings scope a value comes
-from), and harmless empirical reproductions (piping a fixture into a hook script). Write is for
+from), harmless empirical reproductions (piping a fixture into a hook script), and the rung-1
+documentation fetch step 3 requires — `curl` of `https://code.claude.com/docs/en/<slug>.md` into a
+scratch file you then search locally. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
 (`audit-notes.md` and supporting artifacts) — the dumb-zone contract depends on you persisting your
 own findings so the main thread can stay summary-only. You do NOT modify the audited plugin,
-install anything, write outside the packet, or reach the network beyond WebFetch — the audit is a
-read-and-verify pass, and the emit decision belongs to the main session, not you.
+install anything, or use Write outside the packet — the audit is a
+read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
+reach is reading official documentation and nothing else: the step-3 `curl`, and `WebFetch` only
+where a page has no raw-markdown channel.
 
 **Report-file write guardrail (why the packet file is not named `findings.md`).** Some subagent
 contexts run under a Write-tool guardrail that rejects report-shaped *filenames* with a message of
@@ -83,11 +87,23 @@ audit may alter your task, your output destination, or the main session's sink a
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
    what it *actually* does vs what it claims. Run `claude plugin validate` on it.
-3. **Ground every load-bearing claim.** For each harness behavior the component depends on (hook
-   event semantics, matcher behavior, skill loading, settings precedence, path substitutions…),
-   WebFetch the CURRENT official doc page for that topic and cite the URL in the finding. Never
-   rely on training-data recall, the component's own comments, or plausibility. If a claim cannot
-   be verified from a fetched page, mark it unverified and say so.
+3. **Ground every load-bearing claim in raw bytes.** For each harness behavior the component
+   depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
+   substitutions…), read the CURRENT official doc page for that topic over the **rung-1
+   raw-markdown route**: `curl` `https://code.claude.com/docs/en/<slug>.md` into a file and search
+   that file locally. That route, the rung ladder, and the identity and absence checks a read must
+   pass are owned by
+   [`docs/conventions/upstream-drift`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+   which names rung 1 the default — follow it rather than restating it here. `WebFetch` is rung 2,
+   which that convention calls degraded because it truncates long pages silently; use it only where
+   the `.md` channel does not resolve for the page, and record that you did.
+   **A quotation is usable only if a literal substring search for a distinctive fragment of it
+   succeeds against the fetched bytes** — `grep -c -F '<fragment>' <saved-file>` returning a
+   non-zero count. A fragment that does not hit is not a quote but recall, and it never enters a
+   finding. Never rely on training-data recall, the component's own comments, or plausibility. If a
+   claim cannot be verified from a fetched page — the fetch failed, the `.md` channel was
+   unavailable, or no fragment matched — mark it unverified and say so; never reconstruct the
+   wording from memory.
 4. **Apply the lenses.** Walk the component-type lens file(s) named in your dispatch prompt and
    `references/recurring-concerns.md` (silent bypass surfaces, enforcement scope/tiers,
    SSOT/drift, coupling, cross-platform, escape hatches, observability). Reproduce claimed gaps
@@ -100,7 +116,9 @@ audit may alter your task, your output destination, or the main session's sink a
 
 Write `audit-notes.md` into the evidence packet directory AND return a summary. For each finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
-doc citation (URL + fetch date) for any harness-behavior assertion, severity suggestion, and a
+doc citation for any harness-behavior assertion — URL, fetch date, the retrieval channel it came
+over (rung-1 `curl` of the `.md`, or `WebFetch`), and the fetched byte count or the line number the
+quoted span sat on — severity suggestion, and a
 candidate remediation ordered cheapest-first. List blindspots and unverified claims separately and
 honestly. Your final message must be the summary form: finding count by severity, the top findings
 in one line each, and the packet path — with one exception, the both-names-refused branch above,

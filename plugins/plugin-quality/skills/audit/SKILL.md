@@ -327,7 +327,9 @@ does or does not inherit, which is contested (see the plan's caveat on #1258).
 ### Step 3 — Persist-check, then blindspot + candidate findings (subagent output → user)
 
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what
-the audit framing missed), and candidate remediations ordered cheapest → most ambitious.
+the audit framing missed), and candidate remediations ordered cheapest → most ambitious. Every doc
+citation states the retrieval channel it came over plus a byte count or line number; a finding whose
+citation omits the channel is recorded as **unverified**, however confidently it is worded.
 
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet — one silently empty packet among six is exactly the loss
