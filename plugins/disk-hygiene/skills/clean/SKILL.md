@@ -145,31 +145,27 @@ The guard validates `--data-root` against the plugin data directory it derives i
 the call outright when it cannot recognize the install layout — so a run reporting that denial is a
 coverage gap, not a clean result. (Derivation and its fail-closed rationale: `reference/safety-model.md`.)
 
-For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
-cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
-immediate children, then fan out deeper scans per subtree that the evidence justifies. The engine
-backs this with a deterministic gate: a scan whose target resolves to the user home directory or a
-non-OS volume root (a Windows Dev Drive — an OS-managed root still cannot be walked as a whole, and
-reaches the engine only via `--root-children`) and carries neither `--max-depth` nor
-`--confirmed-large-scan` returns
+For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
+start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and immediate children,
+then fan out deeper scans per subtree that the evidence justifies. The engine backs this with a
+deterministic gate: a scan whose target resolves to the user home directory or a non-OS volume root (a
+Windows Dev Drive — an OS-managed root still cannot be walked as a whole, and reaches the engine only via
+`--root-children`) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
 `large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
-unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
-is the preferred bounded response.
-When the target is an OS-managed volume root, first run with `--root-children` alone, present the
-`admitted_children` list through the [confirmation gate](#confirmation-gate)'s root-children row,
-then re-run with the same flag plus each chosen `--root-child <name>` — one run directory, one
-snapshot, one report covers every selected subtree. Never invent the selection.
-Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — pass the
-[confirmation gate](#confirmation-gate)'s scan-scope row first, the same standing before an
-expensive step that the apply lane demands before a destructive one; a general "clean my home
-directory" is not that confirmation. Every
-directory whose descendants were not walked — cut off by `--max-depth`, a protected root, or a VCS
-boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean, and
-never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the
-live re-verification checks a candidate with no live-I/O value left to give would otherwise still
-pay for). Each fan-out worker receives a bounded subtree and returns evidence only. The parent owns
-classification, the single report, every approval, preview, and all execution. Do not let workers
-delete or prepare approvals.
+unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth` is
+the preferred bounded response. When the target is an OS-managed volume root, first run with
+`--root-children` alone, present the `admitted_children` list through the [confirmation
+gate](#confirmation-gate)'s root-children row, then re-run with the same flag plus each chosen `--root-child
+<name>` — one run directory, one snapshot, one report covers every selected subtree. Never invent the
+selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — pass the
+[confirmation gate](#confirmation-gate)'s scan-scope row first, the same standing before an expensive step
+that the apply lane demands before a destructive one; a general "clean my home directory" is not that
+confirmation. Every directory whose descendants were not walked — cut off by `--max-depth`, a protected
+root, or a VCS boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean,
+and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
+re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
+fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the
+single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
@@ -231,34 +227,42 @@ Report every finding with these fields, in this order — size last:
 
 Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
 
-**Empty directories are first-class findings.** They are not inherently junk, but zero-byte residue
-must stay visible and rankable: never drop an empty directory from investigation or from the report
-because it reclaims nothing. Prefer ranking by tier, location sensitivity (for example volume-root
-or home-root orphans), and provenance strength over byte totals. The snapshot already distinguishes
-them for you: a walked directory whose `logical_size` is `0` with an empty `size_qualifiers` is a
-genuinely empty directory, while a `logical_size` of `null` carrying the `not-walked` qualifier is
-an uninventoried coverage gap. Never fold the first into a byte-centric roll-up that drops it, and
-never read it as the second.
+**Empty directories are first-class findings.** They are not inherently junk, but zero-byte residue must
+stay visible and rankable: never drop an empty directory from investigation or from the report because it
+reclaims nothing. Prefer ranking by tier, location sensitivity (for example volume-root or home-root
+orphans), and provenance strength over byte totals. The snapshot already distinguishes them for you: a
+walked directory whose `logical_size` is `0` with an empty `size_qualifiers` is a genuinely empty directory,
+while a `logical_size` of `null` carrying the `not-walked` qualifier is an uninventoried coverage gap. Never
+fold the first into a byte-centric roll-up that drops it, and never read it as the second.
 
-**Relocation is out of scope.** This skill offers exactly two outcomes per finding — keep it, or
-approve its exact path for deletion. There is no relocation lane and no move primitive in the
-engine, by design: a move is not a containment-checkable, revalidatable, token-bound operation the
-way a delete is. So when the right answer for a misplaced entry is "this belongs somewhere else",
-say so and report it as **keep**; the operator performs and verifies the move themselves, outside
-this workflow. Never imply the report's keep-or-delete choice is the complete set of dispositions,
-and never stage a move through the manual handoff.
+**Lead the frontier with `children_rollup`.** The snapshot carries one row per immediate child the run covered, whatever
+that child's coverage, and `walked` is the single discriminator: `true` means every aggregate is exact; `false` means
+they are all `null` with `unwalked_reasons` naming the cause — never `0`, never a partial subtree sum. Rank on
+`reclaimable_local_bytes`, never on `logical_bytes`, a logical total that `size_qualifiers` flags as inflated by cloud
+placeholders, hard links, or sparse extents. The block opens no directory the walk did not, so a `--max-depth 1` pass
+returns `depth-cut`/`null` for every NON-EMPTY child: the frontier is complete, but a recursive total is bought only by
+fanning a deeper scan out over that subtree — report those rows as coverage gaps, never as small or clean.
+`scan-complete` also carries `unhinted_entries` — `entries` minus `hinted_entries`, every inventoried entry no hint
+judged — so quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
+and the measurement: [the safety model](reference/safety-model.md).
 
-An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty.
-Exclude every qualified entry from any reclaimable-bytes total and state the qualified bytes
-separately with their reasons — a `cloud-placeholder` carries its REMOTE size while occupying
-roughly nothing locally; a `hardlinked` name shares one object with other names; a `sparse` file's
-logical size overstates local allocation; and `not-walked` means the subtree was never inventoried,
-so `logical_size` is `null` rather than `0` — except on the target's own record, which keeps its
-partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the
-snapshot's `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing
-`logical_size` yourself — folding qualified or unknown sizes into a total claims space that
-deleting the path would never return. Never treat a low or zero reclaimable-byte figure as a reason
-to skip a finding that otherwise clears the evidence bar.
+**Relocation is out of scope.** This skill offers exactly two outcomes per finding — keep it, or approve its
+exact path for deletion. There is no relocation lane and no move primitive in the engine, by design: a move
+is not a containment-checkable, revalidatable, token-bound operation the way a delete is. So when the right
+answer for a misplaced entry is "this belongs somewhere else", say so and report it as **keep**; the
+operator performs and verifies the move themselves, outside this workflow. Never imply the report's
+keep-or-delete choice is the complete set of dispositions, and never stage a move through the manual
+handoff.
+
+An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty. Exclude every qualified
+entry from any reclaimable-bytes total and state the qualified bytes separately with their reasons — a
+`cloud-placeholder` carries its REMOTE size while occupying roughly nothing locally; a `hardlinked` name shares one
+object with other names; a `sparse` file's logical size overstates local allocation; and `not-walked` means the subtree
+was never inventoried, so `logical_size` is `null` rather than `0` — except on the target's own record, which keeps its
+partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
+`target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself —
+folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
+low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
 
 ## 4. Build one exact-tier plan
 

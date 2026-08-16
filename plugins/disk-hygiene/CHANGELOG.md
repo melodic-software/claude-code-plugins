@@ -3,6 +3,52 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.14]
+
+### Added
+
+- **A per-immediate-child roll-up in every scan payload (#2851).** The skill tells operators to open
+  a large target with `--max-depth 1` and reason over its immediate children, but the engine emitted
+  only a flat per-entry list plus target-level totals — so the view the workflow prescribes existed
+  in no engine output, and the triage that surfaced this was run off a hand-built PowerShell table.
+  `children_rollup` now carries one row per immediate child with `name`, `kind`, `walked`,
+  `logical_bytes`, `reclaimable_local_bytes`, `size_qualifiers`, `entry_count`, `newest_mtime_ns`,
+  and `unwalked_reasons`; the row is present for every child the run covered, whatever that child's
+  coverage, so a gap is visible per child rather than only in `truncated_paths`. `scan-complete`
+  echoes the block alongside the snapshot.
+- **The roll-up's bytes carry the same qualifier channel every other byte surface here has (#2851).**
+  `logical_bytes` is a LOGICAL total, so a cloud placeholder's remote size, a hard link's shared
+  object, and a sparse file's unallocated extent all inflate it above what deleting the child would
+  return — and this is the block `SKILL.md` tells the operator to lead the report with. Each row
+  therefore also carries `size_qualifiers` (the union observed in the subtree) and
+  `reclaimable_local_bytes` (unqualified files only), mirroring `target_reclaimable_local_bytes`.
+  Both follow the same walked/null discipline as the other aggregates. Found by an adversarial
+  fresh-context verifier, which measured a walked row reporting `logical_bytes: 10000000` for a
+  sparse child in a payload whose `target_reclaimable_local_bytes` was 0.
+- **`unhinted_entries`, the third coverage term (#2851).** `scan-complete` already reported `entries`
+  and `hinted_entries`; it now also reports `entries` minus `hinted_entries` — every inventoried
+  entry no hint judged — so a run with 7 hinted entries out of 40,247 reads as 0.017 % hint coverage
+  rather than as seven findings. It counts every INVENTORIED entry, not only fully walked ones, which
+  is a deliberate narrowing of the request's "walked entries carrying no hint": counted that way the
+  three terms partition the inventory exactly, so `entries` is always `hinted_entries` plus
+  `unhinted_entries` and neither number needs a caveat to add up. `SKILL.md` §3 documents both the
+  roll-up block and the rate.
+
+### Disclosed deviation from the requested behavior
+
+- **Under `--max-depth 1` a non-empty child's totals are `null`, not numbers, and this is deliberate
+  (#2851).** The request asked for a recursive byte total, entry count, and newest mtime per
+  immediate child, populated under `--max-depth 1`. Those two constraints cannot both hold: a
+  recursive total for a non-empty child is only knowable by walking that child, and walking it is
+  precisely what the depth bound exists to prevent. Measured on a 740-path fixture, the bounded pass
+  opens 8 directories, stats 41 paths, and inventories 8 entries with the roll-up — byte-identical
+  to the same pass without it — while the unbounded walk costs 20 opens, 4,427 stats, and 740
+  entries. The roll-up therefore reads only what the walk already recorded and reports the honest
+  subset: exact numbers for loose files, empty children, and anything genuinely walked; `walked:
+  false` with all three aggregates `null` and a named cause (`depth-cut`) for everything else. A
+  partial subtree sum is never presented as a total and `null` never degrades to `0`, because `0`
+  remains the genuine "this child is empty" answer that the zero-byte-residue work depends on.
+
 ## [0.20.13]
 
 ### Changed
