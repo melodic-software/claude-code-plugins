@@ -18,7 +18,7 @@
 #        deliberately lives OUTSIDE docs/topics/ so an edit to it is never
 #        docs-only and its drift gate always runs);
 #      - miro-plugin: reads only plugins/miro/**;
-#      - youtube-extraction: reads only plugins/knowledge/skills/youtube-digest/**
+#      - video-extraction: reads only plugins/knowledge/skills/video-digest/**
 #        and plugins/knowledge/vendor/**;
 #      - ai-briefing-build: reads only
 #        plugins/ai-briefing/skills/generate/output/build/**;

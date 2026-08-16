@@ -39,7 +39,7 @@ config, or install anything.
    (remediation: Claude Code's plugin configuration prompt for `knowledge`) or a machine-absolute
    path (not portable for repository work).
 2. **Extraction node deps** — INFO. Probe whether
-   `${CLAUDE_PLUGIN_DATA}/node_modules/@melodic/video-digestion` exists (the youtube-digest and
+   `${CLAUDE_PLUGIN_DATA}/node_modules/@melodic/video-digestion` exists (the video-digest and
    course-digest pipelines share it). Missing is INFO, not FAIL: each ingest skill self-provisions
    on first run, and `apply install-deps` pre-provisions. Remediation: `apply install-deps`.
 3. **Playwright Chromium** — INFO. Probe whether the browsers path
@@ -84,7 +84,7 @@ reports "already configured".
    `${CLAUDE_PLUGIN_DATA}/ms-playwright`):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/setup-deps.mjs"
+   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs"
    node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"
    ```
 

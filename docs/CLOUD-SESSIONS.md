@@ -176,8 +176,8 @@ documents that release assets from repositories not attached to the session can 
 
 Not installed at session start (install on demand when working in those areas): the plugin npm
 packages — `plugins/miro` and `.github/standards/runner-policy` are each an `npm ci` in their
-own directory, while the youtube-digest, course-digest, and ai-briefing suites install through
-their skills' entry scripts (`plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh
+own directory, while the video-digest, course-digest, and ai-briefing suites install through
+their skills' entry scripts (`plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,
 `plugins/ai-briefing/skills/generate/scripts/run-tests.sh install`); the heavy ones pull
 Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.

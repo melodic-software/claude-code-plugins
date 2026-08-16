@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'plugins/knowledge/skills/youtube-digest/extraction/liveness/**'
+      - 'plugins/knowledge/skills/video-digest/extraction/liveness/**'
       - '.github/workflows/video-digest-source-liveness.yml'
 
 permissions:
@@ -44,18 +44,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+          cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
 
       - name: Install extraction deps
-        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh install
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
 
       - name: Replay offline fixtures
         run: >
-          node plugins/knowledge/skills/youtube-digest/extraction/liveness/run-source-liveness.js
+          node plugins/knowledge/skills/video-digest/extraction/liveness/run-source-liveness.js
           --offline
 
       - name: Unit-test the liveness harness
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        working-directory: plugins/knowledge/skills/video-digest/extraction
         run: npx vitest run liveness/run-source-liveness.test.js
 
   live-probe:
@@ -76,10 +76,10 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+          cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
 
       - name: Install extraction deps
-        run: bash plugins/knowledge/skills/youtube-digest/scripts/run-tests.sh install
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
 
       - name: Install yt-dlp
         run: |
@@ -112,7 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          node plugins/knowledge/skills/youtube-digest/extraction/liveness/run-source-liveness.js --live \
+          node plugins/knowledge/skills/video-digest/extraction/liveness/run-source-liveness.js --live \
             | tee liveness-report.txt
           status=${PIPESTATUS[0]}
           set -e
@@ -138,7 +138,7 @@ jobs:
             echo "open or update GitHub issues — see the uploaded"
             echo "liveness-report artifact and the annotations on this job."
             echo "Owner doc:"
-            echo "plugins/knowledge/skills/youtube-digest/extraction/liveness/LIVENESS.md"
+            echo "plugins/knowledge/skills/video-digest/extraction/liveness/LIVENESS.md"
             echo
             echo "### Probe output"
             echo

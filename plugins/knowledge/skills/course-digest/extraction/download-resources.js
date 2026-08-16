@@ -21,10 +21,33 @@ const args = parseCliArgs({
 });
 const log = createLogger(resolveLogLevel(args));
 
+/**
+ * A received client response always carries a status code, unlike the
+ * server-side `IncomingMessage` where it is optional.
+ *
+ * @typedef {import('node:http').IncomingMessage & {statusCode: number}} ClientResponse
+ */
+
+/**
+ * @typedef {Object} CollectedResource
+ * @property {string} href
+ * @property {string} [label]
+ * @property {string} lessonDir
+ * @property {string} moduleDir
+ * @property {string} source
+ */
+
+/**
+ * @typedef {Object} ResourceBuckets
+ * @property {CollectedResource[]} allDownloads
+ * @property {CollectedResource[]} allPdfs
+ * @property {CollectedResource[]} allArticles
+ */
+
 function download(url, destPath, timeout = 30000) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https") ? https : http;
-    const req = client.get(url, { timeout }, (res) => {
+    const req = client.get(url, { timeout }, (/** @type {ClientResponse} */ res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         download(res.headers.location, destPath, timeout).then(resolve).catch(reject);
         return;
@@ -141,6 +164,7 @@ async function main() {
     process.exit(1);
   }
 
+  /** @type {ResourceBuckets} */
   const buckets = { allDownloads: [], allPdfs: [], allArticles: [] };
   walkModules(modulesDir, buckets);
   const { allDownloads, allPdfs, allArticles } = buckets;

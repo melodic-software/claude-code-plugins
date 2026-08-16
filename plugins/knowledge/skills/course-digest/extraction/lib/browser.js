@@ -42,8 +42,8 @@ export function checkAuthAge(storageStatePath, platformCfg) {
  *
  * @param {object} options
  * @param {boolean} [options.headless=true]
- * @param {string} [options.storageStatePath] — path to .auth-state.json
- * @param {string} [options.profilePrefix="course-extraction"] — temp dir prefix
+ * @param {string} [options.storageStatePath] - path to .auth-state.json
+ * @param {string} [options.profilePrefix="course-extraction"] - temp dir prefix
  * @returns {Promise<{browser: import('playwright').Browser, context: import('playwright').BrowserContext, page: import('playwright').Page, authDir: string, cookieCount: number}>}
  */
 export async function launchBrowser({

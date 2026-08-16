@@ -183,7 +183,7 @@ async function main() {
   checkAuthAge(storageStatePath, platformCfg);
   ensureFfmpegAvailable();
 
-  const headless = !args["show-browser"] && args.headless;
+  const headless = /** @type {boolean|undefined} */ (!args["show-browser"] && args.headless);
   log.info("  Launching Playwright Chromium...");
   log.info(`  Browser headless: ${headless} (show-browser=${args["show-browser"]})`);
   const { browser, context, page, authDir, cookieCount } = await launchBrowser({

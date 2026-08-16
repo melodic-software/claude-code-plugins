@@ -75,6 +75,17 @@ function nearestSegment(segments, targetTimestamp) {
   return closest;
 }
 
+/**
+ * @typedef {Object} ClassifiedFrame
+ * @property {string} file
+ * @property {number} timestamp
+ * @property {boolean} timestampEstimated
+ * @property {string} type
+ * @property {string|null} description
+ * @property {boolean} keep
+ * @property {string} [transcriptContext] - nearest transcript text, paired in a later pass
+ */
+
 function classifyLesson(dedupEntry, durationSec) {
   const { frames } = dedupEntry;
   const intervalFrames = frames.filter((f) => f.isInterval);
@@ -86,6 +97,7 @@ function classifyLesson(dedupEntry, durationSec) {
     intervalFrames.length > 3 &&
     dedupEntry.duplicates / dedupEntry.total > 0.8;
 
+  /** @type {ClassifiedFrame[]} */
   const classified = [];
 
   for (let i = 0; i < frames.length; i++) {

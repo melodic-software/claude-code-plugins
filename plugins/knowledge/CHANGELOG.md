@@ -4,6 +4,54 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.0]
+
+### Changed — BREAKING
+
+- **Skill renamed: `youtube-digest` → `video-digest`.** The skill now digests X (Twitter)
+  video posts at full watch parity with YouTube, so the name stops claiming YouTube-only
+  scope. The skill directory, the `/knowledge:video-digest` invocation, every
+  `${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs` launcher path, and the
+  extraction npm package (`@melodic/youtube-extraction` → `@melodic/video-extraction`)
+  all rename together. **Five consumer surfaces reference the old name and four of them
+  fail silently — audit each:**
+  1. **Cloud routines** that invoke `/knowledge:youtube-digest` — the unknown command no
+     longer matches a skill; the routine runs without the skill's procedure. Update the
+     routine prompt to `/knowledge:video-digest`.
+  2. **Scheduled tasks and `/loop` prompts** carrying the old invocation — same silent
+     no-match. Update the stored prompt text.
+  3. **Permission rules** `Skill(knowledge:youtube-digest)` — rules are exact-match, so an
+     allow rule silently stops matching and **a deny rule fails open**: the renamed skill
+     is no longer denied. Rewrite rules to `Skill(knowledge:video-digest)`; treat deny
+     rules as the priority.
+  4. **Agent SDK `skills:` allowlists** naming `youtube-digest` — the one loud failure:
+     the allowlisted skill no longer exists, so the skill is simply absent from the
+     agent's set. Rename the allowlist entry.
+  5. **Bare-`/youtube-digest` references in docs and prompts** — the freed name is a
+     squatting surface: a later plugin can claim it and receive traffic meant for this
+     skill. Sweep docs and prompts to `/knowledge:video-digest`. The skill description
+     keeps `'/youtube-digest'` as a trigger phrase so conversational routing still finds
+     the renamed skill.
+
+  The 0.12.6 resume-argument rename carries forward unchanged under the new name: the
+  resume action is `/knowledge:video-digest resume <slice-slug>`.
+
+### Deprecated
+
+- The extraction lane's `YOUTUBE_*`-prefixed environment variables are renamed to
+  `VIDEO_DIGEST_*`: `YOUTUBE_WORK_ROOT` → `VIDEO_DIGEST_WORK_ROOT`,
+  `YOUTUBE_YT_DLP_JS_RUNTIMES` → `VIDEO_DIGEST_YT_DLP_JS_RUNTIMES`,
+  `YOUTUBE_YT_DLP_COOKIES_FILE` → `VIDEO_DIGEST_YT_DLP_COOKIES_FILE`,
+  `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER` → `VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER`,
+  `YOUTUBE_MAX_CONCURRENT_ACQUIRES` → `VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES`,
+  `YOUTUBE_ACQUIRE_PHASE_GAP_SEC` → `VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC`. Legacy
+  spellings keep working via a compatibility read that warns once per process; the new
+  name wins when both are set. The `run.mjs` launcher now forwards only the new names.
+
+### Added
+
+- `run.mjs` `--acquire-phase-gap <sec>` leading flag.
+
 ## [0.12.6]
 
 ### Changed

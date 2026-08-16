@@ -166,7 +166,7 @@ async function main() {
 
   log.info("  Launching Playwright Chromium...\n");
   const { browser, context, page, authDir, cookieCount } = await launchBrowser({
-    headless: args.headless,
+    headless: /** @type {boolean|undefined} */ (args.headless),
     storageStatePath,
     profilePrefix: "discover-resources",
   });

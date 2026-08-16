@@ -41,7 +41,7 @@ scanner; remaining real cite relocated.
 | `plugins/eol-normalizer/README.md` | clean |
 | `plugins/evals/CHANGELOG.md` | basename-exempt |
 | `plugins/firecrawl/CHANGELOG.md` | basename-exempt |
-| `plugins/knowledge/skills/youtube-digest/templates/sources.md` | clean |
+| `plugins/knowledge/skills/video-digest/templates/sources.md` | clean |
 | `plugins/knowledge/vendor/repo-analysis/README.md` | clean |
 | `plugins/knowledge/vendor/video-digestion/TUNING.md` | clean |
 | `plugins/machine-health/skills/audit/references/windows/check-catalog.md` | clean |
