@@ -13,10 +13,12 @@ Broader refactor PLAN: `PLAN.md` on branch `refactor/source-agnostic-video-diges
 | Offline conformance (vitest + X goldens) | Every PR via `youtube-extraction` / future `video-extraction` | No — fixtures only | Yes |
 | This liveness lane | Weekly schedule + `workflow_dispatch` | Yes (yt-dlp live probes) | **Never** |
 
-A red liveness run files or updates a rolling tracking issue. It is not wired into
-`ci.yml` / `ci-status`, so it cannot block merges. Hermetic CI still exercises the
-harness: vitest covers the classifier and offline fixture replay, and pull requests
-that touch the liveness files re-run `--offline` only.
+A red liveness run annotates the Actions job, writes a step summary, and uploads
+the probe report as a workflow artifact. It does **not** open or update GitHub
+issues (drain forbids filing). It is not wired into `ci.yml` / `ci-status`, so
+it cannot block merges. Hermetic CI still exercises the harness: vitest covers
+the classifier and offline fixture replay, and pull requests that touch the
+liveness files re-run `--offline` only.
 
 ## What it probes
 
@@ -56,8 +58,8 @@ windows are weeks-to-months volatile (Phase 2/3 design note).
 
 `.github/workflows/video-digest-source-liveness.yml`
 
-- `schedule` (weekly) + `workflow_dispatch` → live probes; on failure, open/update
-  the rolling tracking issue.
+- `schedule` (weekly) + `workflow_dispatch` → live probes; on failure, annotate /
+  summarize / upload `liveness-report.txt` only (never `gh issue create`).
 - `pull_request` (paths scoped to the liveness files + this workflow) → offline
   self-test only.
 - Not listed in `ci.yml` `ci-status` needs.

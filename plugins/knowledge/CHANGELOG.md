@@ -13,8 +13,10 @@ only after that version increases.
   (`run-source-liveness.js`, `probes.json`, fixtures) plus advisory workflow
   `.github/workflows/video-digest-source-liveness.yml` (schedule / dispatch live
   probes; PR path runs `--offline` only). Never wired into `ci.yml` / `ci-status`;
-  a red live run files a rolling tracking issue. Auth-required X rows skip without
-  cookies. Owner doc: `docs/topics/source-agnostic-video-digest/LIVENESS.md`.
+  a red live run annotates the job, writes a step summary, and uploads the probe
+  report artifact — it never opens or updates GitHub issues. Auth-required X rows
+  skip without cookies. Owner doc:
+  `skills/youtube-digest/extraction/liveness/LIVENESS.md`.
 
 ## [0.12.4]
 
