@@ -61,9 +61,8 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
    TERM-ignoring regression test. **Accepted** as necessary first-party metadata lookup. The
    collector pins `GH_HOST=github.com` and disables GitHub CLI prompting, update checks, extension
    update checks, spinners, color, and telemetry for every invocation. Rate cost for the aliased
-   GraphQL page is documented as bounded (cost measured at 1 per call at 40 aliases, the largest
-   count measured live; at most `MERGED_PR_GRAPHQL_ALIAS_PAGE` aliases and the same number of
-   nodes per page).
+   GraphQL page is documented as bounded (cost measured live at 1 per call for at least 40 aliases;
+   at most `MERGED_PR_GRAPHQL_ALIAS_PAGE` aliases and the same number of nodes per page).
 6. **Provenance/trust:** Melodic Software authors and distributes the plugin under the repository's MIT
    license. Runtime trust is limited to locally installed Git and the official GitHub CLI; there is no
    third-party SaaS delegation beyond the repository's declared GitHub host. **Accepted.**

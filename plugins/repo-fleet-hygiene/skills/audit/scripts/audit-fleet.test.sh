@@ -30,7 +30,8 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
 # discovered repository's .git tree. Two independent mechanisms keep it out of the report — the
 # nested-repository early return, and should_skip_dir_name's unconditional .git arm — so no case
 # here can isolate either one (#2844). It is not inert coverage: removing BOTH turns the skip
-# block's discovered-count assertions red, which is precisely what defence in depth buys.
+# block's three replace-semantics discovery cases red, which is precisely what defence in depth
+# buys.
 # bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
 # administrative anomaly the collector must classify rather than reject (#2602 / #2656).
 : >"$TMP/bare-live/README"
