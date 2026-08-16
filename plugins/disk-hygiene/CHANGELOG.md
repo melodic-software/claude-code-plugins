@@ -3,6 +3,27 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.13]
+
+### Changed
+
+- **Single, early-terminating read of the engine per hook launch (issue 2853).** The always-on
+  `Bash|PowerShell` launcher used to run two separate full-file `sed` passes over the ~3,500-line
+  engine — neither stopping at the match — to recover `MIN_PYTHON` from near the top of the file. It
+  now runs one `sed` whose address-block `q` terminates the read at the `MIN_PYTHON` line.
+  `hygiene.MIN_PYTHON` remains the floor's single origin (PR 1028), and `test_hygiene.py`'s
+  `VersionFloorTests` shape/count lock still passes; `hooks/run-python-hook.test.sh` now asserts
+  behaviorally (via a recording `sed` shim plus an argv replay against a two-floor fixture) that a
+  launch reads the engine exactly once and that the read stops at the first match instead of
+  scanning to EOF.
+- **README states the hook's measured always-on share (issue 2853).** The trust-surface record's
+  launch-count sentence is replaced with a measured figure per the hook-budget convention's method
+  (2026-08-16, Windows 11 + Git Bash): ≈ 190–300 ms per shell tool call for the engine-gate hook
+  across batches (92 single runs), ≈ 320–410 ms parallel wall for the two-registration set measured
+  concurrently (`&` + `wait`, 60 pairs), of which the engine read accounts for ≈ 24 ms (≈ 13%) in
+  the single-read form, down from ≈ 38 ms (≈ 19%) in the two-pass form. `hooks.json`'s
+  `"timeout": 60` is unchanged.
+
 ## [0.20.12]
 
 ### Changed

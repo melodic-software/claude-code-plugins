@@ -32,8 +32,28 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
-MIN_PYTHON_MAJOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1/p' "$ENGINE")"
-MIN_PYTHON_MINOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\2/p' "$ENGINE")"
+# One read of the engine, stopped at the MIN_PYTHON line (#2853). This launcher
+# sits behind an always-on `Bash|PowerShell` PreToolUse matcher, so every shell
+# tool call pays whatever happens here; the previous form ran TWO separate sed
+# passes and neither stopped at the match, scanning the whole ~3,500-line
+# engine twice to recover a constant that sits near the top of the file.
+#
+# The ADDRESS BLOCK is what makes it stop. The obvious one-liner
+# `sed -n 's/^MIN_PYTHON = (...).*/\1 \2/p;/^MIN_PYTHON/q'` does NOT quit: by
+# the time `q`'s address is evaluated, `s///` has already rewritten the pattern
+# space to `3 11`, so `/^MIN_PYTHON/` never matches and sed still reads to EOF.
+# Addressing the block on the ORIGINAL line and quitting inside it is what makes
+# the read terminate at the match.
+#
+# First-match-wins is safe because the engine has exactly one `^MIN_PYTHON` line
+# (`grep -c '^MIN_PYTHON'` = 1) and test_hygiene.py's VersionFloorTests locks
+# both that count and the line's shape. hygiene.MIN_PYTHON remains the single
+# origin of the floor (#1028); this refines how it is read, not where it lives.
+# hooks/run-python-hook.test.sh holds the one-read + stops-at-the-match contract.
+MIN_PYTHON_FLOOR="$(sed -n '/^MIN_PYTHON = (/{s/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1 \2/p;q;}' "$ENGINE")"
+MIN_PYTHON_MAJOR=""
+MIN_PYTHON_MINOR=""
+read -r MIN_PYTHON_MAJOR MIN_PYTHON_MINOR <<<"$MIN_PYTHON_FLOOR" || true
 if [[ -z "$MIN_PYTHON_MAJOR" || -z "$MIN_PYTHON_MINOR" ]]; then
   MIN_PYTHON_MAJOR=3
   MIN_PYTHON_MINOR=11
