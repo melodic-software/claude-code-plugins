@@ -12,6 +12,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/ref-fail" "$TMP/rref-fail" "$TMP/dup-a" "$TMP/new-clone" \
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/skip-root/keep/visible-repo/.git" \
+  "$TMP/skip-root/keep/visible-repo/.git/modules/nested-decoy/.git" \
   "$TMP/skip-root/vendor/under-vendor/.git" \
   "$TMP/skip-root/third_party/under-third/.git" \
   "$TMP/emptyroot" \
@@ -1950,8 +1951,9 @@ else
 fi
 
 # Shrink: omit vendor from an explicit list so a repo under vendor/ is discovered.
+# .git is omitted on purpose (#2826): shrinking must not start walking .git internals.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
-  --skip . --skip .. --skip .git --skip node_modules --skip .venv >"$skip_out" 2>&1; then
+  --skip node_modules --skip .venv >"$skip_out" 2>&1; then
   if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
     grep -Fq "Repositories discovered (audit targets after deduplication): 3" "$skip_out"; then
     printf 'PASS: --skip replace shrink reaches a repository under vendor/\n'
@@ -1964,9 +1966,27 @@ else
   failures=$((failures + 1))
 fi
 
-# Extend: pass the six defaults plus third_party so that tree is skipped.
+# #2826: shrinking with --skip node_modules (omitting .git) still reaches vendor/ and
+# must not surface a decoy planted under a discovered repo's .git tree.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
-  --skip . --skip .. --skip .git --skip node_modules --skip vendor --skip .venv \
+  --skip node_modules >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
+    grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
+    ! grep -Fq "nested-decoy" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 3" "$skip_out"; then
+    printf 'PASS: --skip omitting .git still skips .git and reaches vendor/\n'
+  else
+    printf 'FAIL: --skip omitting .git still skips .git and reaches vendor/\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: --skip omitting .git unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+# Extend: pass the three replaceable defaults plus third_party so that tree is skipped.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
+  --skip node_modules --skip vendor --skip .venv \
   --skip third_party >"$skip_out" 2>&1; then
   if grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
     ! grep -Fq "under-third" "$skip_out" &&
@@ -1986,9 +2006,6 @@ fi
 cat >"$TMP/config/skip-fleet.conf" <<EOF
 [fleet]
     root = ../skip-root
-    skip = .
-    skip = ..
-    skip = .git
     skip = node_modules
     skip = .venv
 EOF

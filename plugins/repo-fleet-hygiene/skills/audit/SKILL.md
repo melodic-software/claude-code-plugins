@@ -46,11 +46,11 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable; explicit wins over config).
 - `--skip <name>`: discovery directory-name skip (repeatable). Explicit `--skip` / `fleet.skip`
   entries **replace** the default skip list rather than appending — otherwise shrinking is
-  impossible. Default (neither CLI nor config): `.`, `..`, `.git`, `node_modules`, `vendor`,
-  `.venv`. To extend, pass those six defaults plus your names; to shrink (e.g. reach a repo under
-  `vendor/`), omit names you want walked. CLI and config compose additively with each other like
-  other scope inputs. Values must be bare directory names (no empty value, no path separator).
-  `.` and `..` stay skipped unconditionally even when an explicit list omits them.
+  impossible. Default (neither CLI nor config): `node_modules`, `vendor`, `.venv`. To extend, pass
+  those three defaults plus your names; to shrink (e.g. reach a repo under `vendor/`), omit names
+  you want walked. CLI and config compose additively with each other like other scope inputs.
+  Values must be bare directory names (no empty value, no path separator). `.`, `..`, and `.git`
+  stay skipped unconditionally even when an explicit list omits them.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
   It is **not** a scope fallback — a run with no scope fails rather than auditing it.

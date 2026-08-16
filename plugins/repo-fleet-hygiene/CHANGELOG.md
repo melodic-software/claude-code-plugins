@@ -3,6 +3,20 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Fixed
+
+- **`.git` stays skipped when `--skip` / `fleet.skip` shrinks the discovery list (#2826).**
+  Replace semantics are unchanged, but `.git` now joins `.` and `..` as an unconditional skip
+  so reaching a repo under `vendor/` cannot start walking `.git` internals. The replaceable
+  default list is `node_modules`, `vendor`, `.venv`; to extend, pass those three plus extra
+  names.
+- **security-review.md no longer restates the aliased-GraphQL page size as a literal `100`
+  in a current-state claim (#2825).** The Accepted egress sentence now names
+  `MERGED_PR_GRAPHQL_ALIAS_PAGE`, matching the live collector constant (historical literals
+  in the 2026-07-31 re-check paragraph are unchanged).
+
 ## [0.23.0]
 
 ### Added
