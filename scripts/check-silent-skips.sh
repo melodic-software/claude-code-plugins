@@ -174,6 +174,7 @@ for test_file in scripts/*.test.sh; do
   # still exercised via the suite's throwaway fixtures under /tmp.
   case "$test_file" in
   scripts/check-silent-skips.test.sh) continue ;;
+  *) ;;
   esac
   report_hits "$test_file" "$(scan_test_skip_pass "$test_file")"
 done
