@@ -102,17 +102,21 @@ emit_tel() {
   hook::emit_telemetry "lane-stop-gate" "Stop" "$1" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
-# gate that cannot read the payload must not trap the lane).
-INPUT=$(hook::buffer_stdin) || exit 0
-
-# jq-free pre-filter: is the gate plausibly configured anywhere this host could
-# honor — or at least CLAIMED, which must produce the visible notice below
-# rather than silence? Sessions with no gate footprint at all (the interactive
-# default) exit here, before the jq gate, so a jq-less machine never sees a
-# lane-stop-gate notice for a session that never opted in. The env presence
-# tests grant no authority: a hit only routes into evaluation, where the
-# trusted sources decide.
+# jq-free AND stdin-free pre-filter: is the gate plausibly configured anywhere
+# this host could honor — or at least CLAIMED, which must produce the visible
+# notice below rather than silence? Sessions with no gate footprint at all (the
+# interactive default) exit here, before the stdin buffer and the jq gate, so an
+# unarmed session never pays the buffered read for a decision it cannot make,
+# and a jq-less machine never sees a lane-stop-gate notice for a session that
+# never opted in. The env presence tests grant no authority: a hit only routes
+# into evaluation, where the trusted sources decide.
+#
+# Everything this reads is already in scope above: the two env presences, and
+# the two settings-file locators from lane-stop-gate-lib.sh, which derive from
+# the GATE_* globals gate_resolve_install established at the top of this file.
+# Nothing here is payload-derived, so it MUST stay above the buffer — and
+# everything payload-derived (hook::require_jq, EVENT, SESSION_ID, and the
+# SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).
 gate_maybe_configured() {
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ]] && return 0
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" ]] && return 0
@@ -127,6 +131,10 @@ gate_maybe_configured() {
   return 1
 }
 gate_maybe_configured || exit 0
+
+# Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
+# gate that cannot read the payload must not trap the lane).
+INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq parses the payload and the trusted config. Absent → visible once-per-session
 # notice, then allow the stop (fail-open). Stop supports additionalContext, so

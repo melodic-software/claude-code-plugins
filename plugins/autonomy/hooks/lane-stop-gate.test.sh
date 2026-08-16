@@ -837,6 +837,73 @@ else
 fi
 fi
 
+# ============================================================================
+# #2852 — the arm pre-filter runs BEFORE the stdin buffer.
+# ============================================================================
+# The pre-filter (`gate_maybe_configured`) needs no payload: two env presences
+# and two greps over settings files. Ordering it after the buffered read made
+# the maximum-cost path the one taken by the sessions that get zero function
+# from it — an unarmed session paying a bounded stdin read against a 15s Stop
+# budget for a guaranteed no-op.
+#
+# probe_run <payload-file> [KEY=VAL ...] — invoke the staged hook with stdin
+# bound to a REGULAR FILE on fd 3 instead of a pipe, then read what is LEFT on
+# that same open file description afterwards. The file offset is shared across
+# the fork/exec, so the leftover is exactly the bytes the hook did not consume:
+# the whole payload means stdin was never read, empty means it was drained.
+# This is the only observation that separates the two orderings — both exit 0
+# on an unarmed session, and only the read itself differs.
+PROBE_OUT=""
+PROBE_RC=0
+PROBE_LEFT=""
+probe_run() {
+  local payload="$1"
+  shift
+  PROBE_OUT=""
+  PROBE_RC=0
+  PROBE_LEFT=""
+  {
+    PROBE_OUT=$(cd "$UNRELATED" &&
+      env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+        -u CLAUDE_PLUGIN_DATA \
+        CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+        ${@+"$@"} \
+        bash "$HOOK" 0<&3 2>/dev/null)
+    PROBE_RC=$?
+    PROBE_LEFT=$(cat <&3)
+  } 3<"$payload"
+}
+
+# --- Case 47: an UNARMED session exits 0 without consuming stdin ------------
+# No arm id, no env enable claim, no settings file for the helpers to find, and
+# no `lane_stop_gate` string anywhere they resolve — the interactive default.
+PROBE_PAYLOAD="$WORK/stdin-probe.json"
+build_input Stop "no token" false >"$PROBE_PAYLOAD"
+PROBE_EXPECT="$(<"$PROBE_PAYLOAD")"
+if [[ -n "$PROBE_EXPECT" ]]; then ok "stdin probe payload built (case precondition)"; else fail "stdin probe payload is empty — the leftover check would prove nothing"; fi
+rm -f "$SETTINGS"
+probe_run "$PROBE_PAYLOAD"
+if [[ $PROBE_RC -eq 0 && -z "$PROBE_OUT" ]]; then ok "unarmed session → silent exit 0 (fd-bound stdin)"; else fail "unarmed fd-bound session (rc=$PROBE_RC out=$PROBE_OUT)"; fi
+if [[ "$PROBE_LEFT" == "$PROBE_EXPECT" ]]; then
+  ok "unarmed session leaves the whole payload unread (arm pre-filter runs before the stdin buffer)"
+else
+  fail "unarmed session consumed stdin — the pre-filter is running after the buffered read (leftover=${#PROBE_LEFT} of ${#PROBE_EXPECT} bytes)"
+fi
+
+# --- Case 48: an ARMED session still reaches the payload reads --------------
+# The reorder must move only the payload-free pre-filter. A trusted-enabled
+# session must still drain stdin AND still produce the gate's block decision —
+# which it can only do by parsing hook_event_name and last_assistant_message
+# out of that payload, i.e. the payload reads all still sit below the buffer.
+write_settings true
+probe_run "$PROBE_PAYLOAD"
+if [[ $PROBE_RC -eq 0 ]]; then ok "armed fd-bound session: exit 0"; else fail "armed fd-bound session exited $PROBE_RC"; fi
+if [[ -z "$PROBE_LEFT" ]]; then ok "armed session drains stdin (the buffered read still runs when the gate is armed)"; else fail "armed session left ${#PROBE_LEFT} bytes unread — the payload never reached the gate"; fi
+if is_block "$PROBE_OUT"; then ok "armed session still blocks an unsignaled stop (payload reads intact below the buffer)"; else fail "armed session did not block — the reorder changed armed-lane behavior: $PROBE_OUT"; fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
