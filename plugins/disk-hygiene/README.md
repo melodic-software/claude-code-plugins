@@ -227,12 +227,15 @@ hand-cleaning the zone.
   did during active cleanup. Known costs, accepted, with the always-on share measured per the
   [hook-budget convention](../../docs/conventions/hook-budget/README.md)'s method (`EPOCHREALTIME`
   wall-clock around direct hook invocation with a benign representative payload; Windows 11 +
-  Git Bash dev host, 2026-08-16, 32 runs per variant): the engine-gate hook costs **≈ 190 ms per
-  Bash/PowerShell tool call** — ≈ 19% of the convention's ≤ 1 s typical per-tool-call ceiling, and
-  doubled to ≈ 380 ms while the `clean` skill's second frontmatter registration is loaded. Of that,
-  the launcher's read of the engine to recover `MIN_PYTHON` (a single early-quit `sed` since
-  0.20.13, held to one read by `hooks/run-python-hook.test.sh`) accounts for ≈ 24 ms, **≈ 13% of
-  the hook's cost**; the prior two-full-pass form measured ≈ 38 ms (≈ 19% of a ≈ 205 ms hook).
+  Git Bash dev host, 2026-08-16): the engine-gate hook costs **≈ 190–300 ms per Bash/PowerShell
+  tool call** across batches (92 single runs) — ≈ 19–30% of the convention's ≤ 1 s typical
+  per-tool-call ceiling. While the `clean` skill is loaded, its frontmatter registration is a
+  second matching hook that the harness launches in parallel; the pair measured concurrently
+  (`&` + `wait`, 60 pairs) walls at **≈ 320–410 ms**, ≈ 1.3–1.5× the same-batch single-hook wall
+  rather than double it. Of the single-hook cost, the launcher's read of the engine to recover
+  `MIN_PYTHON` (a single early-quit `sed` since 0.20.13, held to one read by
+  `hooks/run-python-hook.test.sh`) accounts for ≈ 24 ms, **≈ 13% of the hook's cost** in the batch
+  it was measured against; the prior two-full-pass form measured ≈ 38 ms (≈ 19% of a ≈ 205 ms hook).
   On a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call — the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`

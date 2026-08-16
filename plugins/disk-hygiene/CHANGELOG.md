@@ -18,9 +18,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   scanning to EOF.
 - **README states the hook's measured always-on share (issue 2853).** The trust-surface record's
   launch-count sentence is replaced with a measured figure per the hook-budget convention's method
-  (2026-08-16, Windows 11 + Git Bash, 32 runs per variant): ≈ 190 ms per shell tool call for the
-  engine-gate hook, of which the engine read accounts for ≈ 24 ms (≈ 13%) in the single-read form,
-  down from ≈ 38 ms (≈ 19%) in the two-pass form. `hooks.json`'s `"timeout": 60` is unchanged.
+  (2026-08-16, Windows 11 + Git Bash): ≈ 190–300 ms per shell tool call for the engine-gate hook
+  across batches (92 single runs), ≈ 320–410 ms parallel wall for the two-registration set measured
+  concurrently (`&` + `wait`, 60 pairs), of which the engine read accounts for ≈ 24 ms (≈ 13%) in
+  the single-read form, down from ≈ 38 ms (≈ 19%) in the two-pass form. `hooks.json`'s
+  `"timeout": 60` is unchanged.
 
 ## [0.20.12]
 
