@@ -68,7 +68,7 @@ Per FINDING block returned in Phase B:
 - **Phase A scope fence** — each compressor subagent's prompt names exactly ONE allowed file; any other file, git operation, or path is forbidden (the template above encodes this)
 - **Phase A does NOT invoke `/docs-hygiene:compress`** as a slash command from subagents — self-audit in the compressor context caused reverse-direction edits (see ## History)
 - **Refuse-fast threshold** — 5 consecutive Phase A or Phase B ERROR returns aborts the batch
-- **Yield circuit breaker** — 5 consecutive auto-reverts in a wave (sub-3% / 0-SL successful outcomes that still discard the edit) → pause, report observed yield, and re-confirm with the user before the next wave. Reverts are not ERRORs; without this breaker a misclassified COMPRESS cohort burns two Opus dispatches per file to completion (2026-08-15 calibration: 87 consecutive auto-reverts).
+- **Yield circuit breaker** — 5 consecutive auto-reverts in a wave (sub-3% / 0-SL successful outcomes that still discard the edit) → pause, report observed yield, and re-confirm with the user before the next wave. Reverts are not ERROR returns; without this breaker a misclassified COMPRESS cohort burns two Opus dispatches per file to completion (2026-08-15 calibration: 87 consecutive auto-reverts).
 - **Phase B returns are unverified synthesis** — the main session reverts per finding rather than verifying each by hand; a forbidden citation token invalidates the whole dispatch
 
 ## History

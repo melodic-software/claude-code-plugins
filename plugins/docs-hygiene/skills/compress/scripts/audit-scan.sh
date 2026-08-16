@@ -7,7 +7,7 @@
 # Exit: 0 on scan paths; 2 on unknown args.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# SCRIPT_DIR unused — script is self-contained
 
 usage() {
   cat <<'EOF'
@@ -69,8 +69,9 @@ word_count() {
 
 classify_file() {
   local file="$1"
-  local words kw tick_pairs path_hits flavor_hits density reason classify yield
+  local words kw tick_pairs path_hits flavor_hits
   if [[ ! -f "$file" ]]; then
+    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
     printf '| `%s` | — | SKIP | reason=missing |\n' "$file"
     return 0
   fi
@@ -79,10 +80,12 @@ classify_file() {
   [[ "$kw" -lt 1 ]] && kw=1
 
   if is_signal1_path "$file"; then
+    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
     printf '| `%s` | ≤3%% | SKIP | author-time-disciplined path (signal 1); empirical baseline 3/3 reverted; use `--force` only for targeted sub-3%% diff |\n' "$file"
     return 0
   fi
   if grep -Fq 'Prose compression discipline' "$file" 2>/dev/null; then
+    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
     printf '| `%s` | ≤3%% | SKIP | author-time-disciplined; signal 4 cite; empirical baseline 3/3 reverted; use `--force` only for targeted sub-3%% diff |\n' "$file"
     return 0
   fi
@@ -99,13 +102,16 @@ classify_file() {
   flavor_dens=$((flavor_hits * 1000 / words))
 
   if [[ "$flavor_dens" -lt 5 ]]; then
+    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
     printf '| `%s` | ≤3%% | SKIP | flavor-token density %s/kw < 5; disciplined-by-authorship; empirical baseline 9/9 reverted at 0.02-0.4%% |\n' "$file" "$flavor_dens"
     return 0
   fi
   if [[ "$tick_dens" -gt 10 || "$path_dens" -gt 8 ]]; then
+    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
     printf '| `%s` | 3-7%% | UNCERTAIN | inline-code density %s/kw AND/OR cross-ref density %s/kw; flavor band narrow |\n' "$file" "$tick_dens" "$path_dens"
     return 0
   fi
+    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
   printf '| `%s` | 5-15%% | COMPRESS | verbose-prose baseline; expected flavor cuts on filler/hedging/articles |\n' "$file"
 }
 
@@ -122,6 +128,7 @@ for f in "${SORTED[@]}"; do
   *'| SKIP |'*) skips=$((skips + 1)) ;;
   *'| COMPRESS |'*) compress=$((compress + 1)) ;;
   *'| UNCERTAIN |'*) uncertain=$((uncertain + 1)) ;;
+  *) ;;
   esac
 done
 printf '%s\n' "${rows[@]}"
