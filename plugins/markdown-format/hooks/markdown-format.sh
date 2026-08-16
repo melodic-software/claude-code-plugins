@@ -467,13 +467,13 @@ resolve_repo_markdownlint() {
       depth=0
       while [[ -L "$target" ]]; do
         depth=$((depth + 1))
-        ((depth <= 32)) || break
-        link="$(readlink "$target" 2>/dev/null)" || break
+        ((depth <= 32)) || return 1
+        link="$(readlink "$target" 2>/dev/null)" || return 1
         case "$link" in
         /*) target="$link" ;;
         [A-Za-z]:[\\/]*)
-          command -v cygpath >/dev/null 2>&1 || break
-          target="$(cygpath -u "$link" 2>/dev/null)" || break
+          command -v cygpath >/dev/null 2>&1 || return 1
+          target="$(cygpath -u "$link" 2>/dev/null)" || return 1
           ;;
         *) target="$(dirname -- "$target")/$link" ;;
         esac
@@ -487,6 +487,7 @@ resolve_repo_markdownlint() {
             printf '%s' "$candidate"
             return 0
             ;;
+          *) ;;
           esac
         fi
       fi
