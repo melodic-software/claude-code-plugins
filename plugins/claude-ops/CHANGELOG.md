@@ -13,15 +13,19 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   to completion and exited non-zero, the exact case #2593 was written for. Each record is now
   classified and labelled `launch failure` or `completed non-zero exit`, and the diagnosis and
   remedy follow the classification: the launch-failure wording and the restart remedy are kept
-  verbatim where they are correct and are simply not asserted about a hook that ran. A batch
-  carrying both classes gets both sentences; the per-record label says which record earned which.
-  The discriminator is the shell's own exec-failure surface — `exitCode` 126/127, or an
-  exec-failure signature (`execvpe`, `execve(`, `exec format error`, `not recognized as an internal
-  or external command`) in the record's FULL stderr, read before the 160-character truncation.
+  verbatim where they are correct and are simply not asserted about a hook that ran. Classes are
+  counted per record, so one registration that failed both ways in the same batch is labelled
+  `N launch failure + M completed non-zero exit` and gets both sentences rather than being
+  relabelled by whichever record happened to come last. The discriminator is the shell's own
+  exec-failure surface — `exitCode` 126/127, or an exec-failure signature (`execvpe`, `execve(`,
+  `exec format error`) in the record's FULL stderr, read before the 160-character truncation.
   `exitCode` alone cannot carry the split: all 175 records in the measured corpus (2026-08-16) have
   a non-null `exitCode`, and 1 is the code the WSL relay reports for its own exec failures. The
-  signature set deliberately excludes `command not found` and `cannot execute`, which a
-  successfully launched hook can print from a command it ran itself.
+  signature set deliberately excludes `command not found`, `cannot execute`, and cmd.exe's `is not
+  recognized as an internal or external command` — a successfully launched hook prints all three
+  about a command it ran itself. The completed-exit wording asserts only the absence of
+  exec-failure evidence, never a positive launch, so a record with no `exitCode` at all is not told
+  it launched.
 - **The harness's synthesized "no stderr" sentence is no longer attributed to the hook (#2849).**
   The empty-stderr placeholder shipped in 0.32.2 keyed on `.stderr == ""`, a shape Claude Code does
   not emit — 0 of 175 measured records carry it, while 12 carry the literal

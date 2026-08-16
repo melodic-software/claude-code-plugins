@@ -146,11 +146,67 @@ assert_contains "exit 127 is a launch failure" "$OUT_127" "launch failure"
 assert_contains "exit 127 keeps the fails-to-launch wording" "$OUT_127" "fails to launch"
 assert_contains "exit 127 keeps the restart remedy" "$OUT_127" "restart"
 
+T_126="$TEST_TMPDIR/exit126.jsonl"
+custom_record "PreToolUse:Bash" "not-executable-guard.sh" "$HARNESS_NO_STDERR" 126 9 >"$T_126"
+OUT_126=$(run_hook "$T_126" "$TEST_TMPDIR/data-126")
+assert_contains "exit 126 is a launch failure" "$OUT_126" "launch failure"
+assert_contains "exit 126 keeps the fails-to-launch wording" "$OUT_126" "fails to launch"
+
 T_EXECVPE="$TEST_TMPDIR/execvpe.jsonl"
 custom_record "PreToolUse:Bash" "bash relay-guard.sh" "$WSL_STDERR" 1 8 >"$T_EXECVPE"
 OUT_EXECVPE=$(run_hook "$T_EXECVPE" "$TEST_TMPDIR/data-execvpe")
 assert_contains "execvpe at exit 1 is still a launch failure" "$OUT_EXECVPE" "launch failure"
 assert_contains "execvpe keeps the fails-to-launch wording" "$OUT_EXECVPE" "fails to launch"
+
+# A hook that LAUNCHED and whose own subcommand was missing must NOT be called a
+# launch failure. cmd.exe's not-found phrasing is the Windows spelling of
+# "command not found", and a launched hook prints it about a command IT ran; the
+# discriminator excludes it for the same reason it excludes the POSIX spelling.
+T_SUBCMD="$TEST_TMPDIR/missing-subcommand.jsonl"
+custom_record "Stop:lint" "bash lint-stop.sh" \
+  "'ripgrep' is not recognized as an internal or external command, operable program or batch file." \
+  1 800 >"$T_SUBCMD"
+OUT_SUBCMD=$(run_hook "$T_SUBCMD" "$TEST_TMPDIR/data-subcmd")
+assert_contains "missing subcommand is a completed non-zero exit" "$OUT_SUBCMD" "completed non-zero exit"
+assert_absent "missing subcommand is not a launch failure" "$OUT_SUBCMD" "fails to launch"
+assert_absent "missing subcommand gets no restart remedy" "$OUT_SUBCMD" "restart"
+
+# A record whose exitCode is absent must not be told it launched: the hook has
+# no evidence either way, so the completed-branch wording asserts only the
+# absence of exec-failure evidence, never a positive launch.
+T_NOEC="$TEST_TMPDIR/no-exitcode.jsonl"
+printf '{"attachment":{"type":"hook_non_blocking_error","hookName":"Stop:noexit","stderr":"something went wrong","stdout":"","command":"bash mystery.sh","durationMs":50},"type":"attachment","uuid":"u","session_id":"s"}\n' >"$T_NOEC"
+OUT_NOEC=$(run_hook "$T_NOEC" "$TEST_TMPDIR/data-noec")
+assert_contains "absent exitCode still surfaced" "$OUT_NOEC" "Stop:noexit"
+assert_contains "absent exitCode renders as unknown" "$OUT_NOEC" "exit ?"
+assert_absent "absent exitCode is not asserted to have launched" "$OUT_NOEC" "it did launch"
+
+# ONE registration failing BOTH ways in the same unwarned batch. group_by
+# collapses these two records into a single detail line, so a class read off the
+# LAST record alone would relabel the whole 2x group by whichever record came
+# last and would drop the other class's sentence from the message entirely. Both
+# orderings are asserted: the bug is directional, and either order hides it.
+for ORDER in launch-first completed-first; do
+  T_MIX="$TEST_TMPDIR/mixed-$ORDER.jsonl"
+  if [[ "$ORDER" == "launch-first" ]]; then
+    {
+      custom_record "PreToolUse:Bash" "bash flaky-guard.sh" "$WSL_STDERR" 1 6
+      custom_record "PreToolUse:Bash" "bash flaky-guard.sh" "$REAL_STDERR" 1 940
+    } >"$T_MIX"
+  else
+    {
+      custom_record "PreToolUse:Bash" "bash flaky-guard.sh" "$REAL_STDERR" 1 940
+      custom_record "PreToolUse:Bash" "bash flaky-guard.sh" "$WSL_STDERR" 1 6
+    } >"$T_MIX"
+  fi
+  OUT_MIX=$(run_hook "$T_MIX" "$TEST_TMPDIR/data-mixed-$ORDER")
+  assert_contains "$ORDER: both records counted" "$OUT_MIX" "(2x;"
+  assert_contains "$ORDER: label names both classes" "$OUT_MIX" \
+    "1 launch failure + 1 completed non-zero exit"
+  assert_contains "$ORDER: launch diagnosis kept" "$OUT_MIX" "fails to launch"
+  assert_contains "$ORDER: launch remedy kept" "$OUT_MIX" "restart"
+  assert_contains "$ORDER: completed diagnosis kept" "$OUT_MIX" "no exec-failure evidence"
+done
 
 # The maintainer-facing prose describing the #2593 fix is gone from the
 # operator-facing message (#2849).
