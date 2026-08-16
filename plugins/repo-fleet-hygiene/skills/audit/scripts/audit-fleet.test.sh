@@ -29,11 +29,12 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
 # skip-root/keep/visible-repo/.git/modules/nested-decoy/.git: a repo-shaped decoy buried in a
 # discovered repository's .git tree. Two independent mechanisms keep it out of the report — the
 # nested-repository early return, and should_skip_dir_name's unconditional .git arm — so no case
-# here can isolate either one (#2844). It is not inert coverage: removing BOTH turns discovery
-# cases in the skip block red — the three replace-semantics cases when the unconditional arm and
-# the default list both drop .git, and the default-list case too when only the arm does, since the
-# shipped default (node_modules vendor .venv) carries no .git either. That is what defence in depth
-# buys.
+# here can isolate either one (#2844). It is not inert coverage — drop the early return and skip
+# cases go red, in two variants. Drop it together with .git from BOTH the unconditional arm and the
+# default list: the three replace-semantics cases go red, the default-list case still passes.
+# Drop it with .git removed from the arm ONLY: those three plus the default-list case go red, since
+# the shipped default (node_modules vendor .venv) carries no .git of its own. That is what defence
+# in depth buys.
 # bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
 # administrative anomaly the collector must classify rather than reject (#2602 / #2656).
 : >"$TMP/bare-live/README"
