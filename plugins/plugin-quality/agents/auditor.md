@@ -153,9 +153,12 @@ Both citation fields are required, and the consuming skill records a citation mi
 unverified. A rung-1 read gets both for free: `wc -c` the saved file, `grep -n` the span. A rung-2
 read has no saved file to measure, so record the size of the text you actually received — said
 plainly as the *retrieved* size, not the page's — and show the read arrived whole by naming the
-page's closing section as present in what came back. A rung-2 read that can show neither is
-unverified: never a citation with a field left blank, and never a byte count carried over from a
-page you did not save.
+page's closing section as present in what came back. Both are independently mandatory: a rung-2
+read that cannot show **either** the retrieved size **or** the closing section it arrived with is
+unverified. Showing one does not excuse the other — a read carrying a size but no closing-section
+confirmation is a silently truncated read, which is exactly the case rung 2 cannot be trusted on.
+Never a citation with a field left blank, and never a byte count carried over from a page you did
+not save.
 
 List blindspots and unverified claims separately and
 honestly. Your final message must be the summary form: finding count by severity, the top findings

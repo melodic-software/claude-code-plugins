@@ -58,7 +58,11 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   what a rung-2 read records in place of a `wc -c` byte count so the two rungs are held to a
   contract each can actually satisfy. `skills/audit/SKILL.md` step 3 records a finding whose citation
   omits **either** field as unverified — a channel with no count and no line is a half-citation — so
-  the requirement binds where the output is consumed, not only where it is produced.
+  the requirement binds where the output is consumed, not only where it is produced. The rung-2
+  substitute obeys the same "either" rule: its retrieved size and its arrived-whole confirmation are
+  independently mandatory, so a rung-2 read carrying a size but no closing-section confirmation — a
+  silently truncated read, the one failure rung 2 cannot detect for itself — is unverified rather
+  than grounded.
 
 ## [0.6.3]
 
