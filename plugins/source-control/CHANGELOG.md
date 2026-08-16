@@ -13,7 +13,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   warn-and-proceed. An unconfigured cross-drive machine no longer creates a
   worktree that `git worktree move` will fail on with EXDEV / Improper link; the
   refusal is visible on the `WorktreeCreate` hook path (non-zero stderr), where
-  the previous exit-0 warning was dropped to the debug log.
+  the previous exit-0 warning was dropped to the debug log. Skill create contract
+  (`skills/worktree/SKILL.md`, `context/create.md`, evals) documents cross-drive
+  as an exit-3 case alongside missing/nested roots.
 
 ## [0.54.7]
 
