@@ -146,14 +146,18 @@ Write `audit-notes.md` into the evidence packet directory AND return a summary. 
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 doc citation for any harness-behavior assertion — URL, fetch date, the retrieval channel it came
 over (rung-1 `curl` of the `.md`, or rung-2 `WebFetch`), and the fetched byte count or the line
-number the quoted span sat on — both fields are required, and the consuming skill records a citation
-missing either one as unverified. A rung-1 read gets both for free (`wc -c` the saved file,
-`grep -n` the span). A rung-2 read has no saved file to measure: record the size of the text you
-actually received, said plainly as the retrieved size rather than the page's, and show the read
-arrived whole by naming the page's closing section as present in what came back. A rung-2 read that
-can show neither is unverified — never a citation with a field left blank or a byte count carried
-over from a page you did not save — severity suggestion, and a
-candidate remediation ordered cheapest-first. List blindspots and unverified claims separately and
+number the quoted span sat on — severity suggestion, and a
+candidate remediation ordered cheapest-first.
+
+Both citation fields are required, and the consuming skill records a citation missing either one as
+unverified. A rung-1 read gets both for free: `wc -c` the saved file, `grep -n` the span. A rung-2
+read has no saved file to measure, so record the size of the text you actually received — said
+plainly as the *retrieved* size, not the page's — and show the read arrived whole by naming the
+page's closing section as present in what came back. A rung-2 read that can show neither is
+unverified: never a citation with a field left blank, and never a byte count carried over from a
+page you did not save.
+
+List blindspots and unverified claims separately and
 honestly. Your final message must be the summary form: finding count by severity, the top findings
 in one line each, and the packet path — with one exception, the both-names-refused branch above,
 which replaces the summary with the refusal marker plus the complete findings so the dispatching
