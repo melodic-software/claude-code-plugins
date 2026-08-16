@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "triggers": {
+    "surfaces": {
+      "ci-cron": {
+        "class": "temporal",
+        "transport": "poll",
+        "scheduler_class": "ci-cron",
+        "execution_surface": "github-actions"
+      }
+    }
+  },
+  "routines": {
+    "enabled": {
+      "issue-triage-sweep": {
+        "enabled": true,
+        "source_surface": "ci-cron",
+        "cadence": "daily"
+      }
+    }
+  },
+  "prerequisite_resolution": {
+    "schema_version": "1.0",
+    "surface_refs": ["ci-cron"],
+    "declarations": [
+      {
+        "surface": "ci-cron",
+        "identity": "issue-triage-sweep",
+        "need": "tracker",
+        "state": "absent",
+        "rung": "repo-local"
+      }
+    ]
+  }
+}

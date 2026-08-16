@@ -378,6 +378,32 @@
         "Restates that the runner-execution home is unborn and nothing else runner-specific is recorded until a build trigger fires",
         "Cites the runner design pack rather than restating its stop-criteria taxonomy or severity-resolution content"
       ]
+    },
+    {
+      "id": 30,
+      "name": "prerequisite-resolution-check-reports-verdicts-with-provenance",
+      "prompt": "/autonomy:setup check\n\nWhich routine identities can actually run against this repo, and why?",
+      "expected_output": "Runs the prerequisite-resolution slice check: for each scheduling surface already recorded in the autonomy binding (the slice declares no surfaces map of its own), invokes the deterministic resolver and reports per-identity verdicts (supported / conditional / unsupported / unknown) with per-signal provenance and any declaration↔probe findings. Names its liveness taxonomy row (engine health-check) and fails loud on resolver failure. On a bare repo every identity is unsupported or unknown — never an error. Performs no writes.",
+      "files": [],
+      "expectations": [
+        "Reports per-identity verdicts with provenance across declared scheduling surfaces",
+        "States engine health-check liveness taxonomy row / fail-loud posture",
+        "Bare-repo path yields unsupported/unknown for every identity without error",
+        "No file writes in check mode"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "prerequisite-resolution-apply-reconcile-narrowing-no-security-write",
+      "prompt": "/autonomy:setup apply\n\nDetect our routine prerequisites from CLAUDE.md and enable everything that looks ready.",
+      "expected_output": "Runs detect-diff-reconcile: existing prerequisite_resolution declarations are authoritative; a declaration contradicting a ran-negative probe is a finding (identity stays unsupported while the finding is open — never a silent overwrite, and a positive verdict never survives on intent alone). The prose-context pass proposes declarations into non-security keys only from CLAUDE.md/AGENTS.md/README; the human ratifies before any write. The additive binding section uses surface_refs and declarations and declares no surfaces map. Enablement is narrowing-only — unsupported/unknown route to the advisory path. Org-rung entitlements are interviewed and never auto-written. Security-binding changes are prepared, never written. Non-interactive contexts skip ask-and-persist and report assumptions.",
+      "files": [],
+      "expectations": [
+        "Declaration↔probe contradiction surfaces as a reconcile finding; identity remains unsupported",
+        "Prose proposals target non-security keys only; human ratification before write",
+        "prerequisite_resolution section has surface_refs + declarations and no surfaces map",
+        "Never writes the security binding; org-rung entitlements interviewed not auto-written; narrowing-only enablement"
+      ]
     }
   ]
 }
