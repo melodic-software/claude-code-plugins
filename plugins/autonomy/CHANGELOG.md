@@ -3,6 +3,20 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **Generated identity-and-prerequisite emission with drift gate** (#2723).
+  `skills/setup/scripts/generate-identity-prerequisites.mjs` derives
+  `generated/identity-prerequisites.json` from every `v1` leaf's `## Prerequisites`
+  section — one machine-readable record per identity (Access class, isolation floor,
+  connector entitlements + rung, structured `needs` with probe class / seam) — so the
+  resolver reads structure, never leaf prose. Leaves remain the authored single home;
+  `--check` fails CI on drift (wired through `scripts/validate-plugins.sh`). Co-located
+  `*.test.sh` + manifest cover clean `--check`, a hand-edited drift fixture, leaf↔emission
+  parity, and posture divergence (`dependency-update-wave` L2 vs L3).
+
 ## [0.19.1]
 
 ### Changed
@@ -14,6 +28,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   `join: proven recurring manual pattern`, the row does not flip to `v1`, and no `routines/` leaf
   is added: `v1` means a proven manual pattern, and a detector proves detection, never the repair
   pattern that trigger names.
+
 
 ## [0.19.0]
 
