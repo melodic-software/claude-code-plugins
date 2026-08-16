@@ -172,10 +172,9 @@ for test_file in scripts/*.test.sh; do
   # The silent-skip unit suite embeds shape-3 fixtures as quoted strings in its
   # own body; scanning it would false-positive on those embeddings. Shape 3 is
   # still exercised via the suite's throwaway fixtures under /tmp.
-  case "$test_file" in
-  scripts/check-silent-skips.test.sh) continue ;;
-  *) ;;
-  esac
+  if [[ "$test_file" == "scripts/check-silent-skips.test.sh" ]]; then
+    continue
+  fi
   report_hits "$test_file" "$(scan_test_skip_pass "$test_file")"
 done
 shopt -u nullglob
