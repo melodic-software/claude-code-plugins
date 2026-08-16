@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import stat
@@ -27,7 +28,21 @@ SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
 VCS_NAMES = {".git", ".hg", ".svn"}
+GIT_METADATA_NAME = ".git"
+VCS_EVIDENCE_GATE_NAMES = (
+    "git-status-porcelain-empty",
+    "all-local-heads-on-remote",
+    "all-stashes-duplicated",
+    "exact-path-operator-approval",
+)
+GITHUB_REMOTE_RE = re.compile(
+    r"^(?:https?://|ssh://git@|git@)github\.com(?::|/)"
+    r"(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/?$",
+    re.IGNORECASE,
+)
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+FILE_ATTRIBUTE_HIDDEN = 0x2
+FILE_ATTRIBUTE_SYSTEM = 0x4
 # "The bytes are not here." Each of these marks a name whose content lives in a
 # provider's cloud rather than on this disk, so its st_size is a REMOTE byte
 # count while local occupancy is roughly zero — and deleting it propagates the
@@ -82,6 +97,17 @@ WINDOWS_PER_VOLUME_METADATA = {
     "System Volume Information",
 }
 WINDOWS_VOLUME_SYSTEM_NAMES = WINDOWS_OS_DRIVE_MARKERS | WINDOWS_PER_VOLUME_METADATA
+# Well-known OS-provisioned volume-root directory names that are not always in
+# WINDOWS_VOLUME_SYSTEM_NAMES / system_roots(), but are never the user-created
+# residue root-children mode exists to reach. Prefer excluding when ambiguous
+# (#2588).
+WINDOWS_OS_ROOT_EXTRA_NAMES = {
+    "Users",
+    "PerfLogs",
+    "inetpub",
+    "XboxGames",
+    "Windows.old",
+}
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 BASELINE_POLICY = (
     Path(__file__).resolve().parents[1] / "reference" / "baseline-policy.json"
@@ -330,7 +356,9 @@ def system_roots(
     current_platform = platform_key or os_key()
     if current_platform == "windows":
         roots.extend(_windows_env_roots())
-        drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
+        drive_roots = (
+            windows_roots if windows_roots is not None else windows_drive_roots()
+        )
         for drive_root in drive_roots:
             roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
     elif current_platform == "macos":
@@ -752,6 +780,103 @@ def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
     return total
 
 
+
+def entry_is_empty_directory(
+    entry: dict[str, Any],
+    inventory: dict[str, dict[str, Any]] | list[dict[str, Any]] | set[str] | None = None,
+    *,
+    parents_with_children: set[str] | None = None,
+    unknown_paths: set[str] | None = None,
+) -> bool:
+    """True when a walked directory has no inventoried descendants.
+
+    Truncated (`not-walked`) directories are unknown, not empty — their
+    `logical_size` is null. A walked parent whose only children were cut off by
+    `--max-depth` can still show `logical_size` 0; requiring no snapshot
+    descendants keeps that case out of the empty-directory tidiness count so
+    zero-byte residue stays visible without mislabeling uninventoried trees.
+    Directories whose scandir failed (or that appear in ``unknown_paths``) are
+    likewise unknown: a coverage gap is not empty residue.
+    """
+    if entry.get("kind") != "directory":
+        return False
+    qualifiers = entry.get("size_qualifiers") or []
+    if "not-walked" in qualifiers:
+        return False
+    if entry.get("logical_size") != 0:
+        return False
+    relative = entry.get("path")
+    if not isinstance(relative, str) or not relative:
+        return False
+    if unknown_paths and relative in unknown_paths:
+        return False
+    if parents_with_children is not None:
+        return relative not in parents_with_children
+    if inventory is None:
+        paths: Iterable[str] = ()
+    elif isinstance(inventory, dict):
+        paths = inventory
+    elif isinstance(inventory, set):
+        paths = inventory
+    else:
+        paths = (
+            item["path"]
+            for item in inventory
+            if isinstance(item, dict) and isinstance(item.get("path"), str)
+        )
+    prefix = relative + "/"
+    return not any(path.startswith(prefix) for path in paths)
+
+
+def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
+    """Return every inventory path that has at least one inventoried descendant.
+
+    Built in one linear pass over ``paths`` so empty-directory counting stays
+    O(entries) rather than O(directories × entries).
+    """
+    parents: set[str] = set()
+    for path in paths:
+        if not isinstance(path, str) or "/" not in path:
+            continue
+        parent = path.rsplit("/", 1)[0]
+        while parent:
+            if parent in parents:
+                break
+            parents.add(parent)
+            if "/" not in parent:
+                break
+            parent = parent.rsplit("/", 1)[0]
+    return parents
+
+
+def empty_directory_count(
+    entries: list[dict[str, Any]],
+    *,
+    error_paths: Iterable[str] | None = None,
+) -> int:
+    """Count walked empty directories in a snapshot inventory.
+
+    ``error_paths`` are scan-error relatives that must not count as empty even
+    when they were recorded with ``logical_size`` 0 and no descendants.
+    """
+    by_path = {
+        entry["path"]: entry
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+    }
+    parents_with_children = inventory_parent_paths(by_path)
+    unknown = {path for path in (error_paths or ()) if isinstance(path, str) and path}
+    return sum(
+        1
+        for entry in by_path.values()
+        if entry_is_empty_directory(
+            entry,
+            parents_with_children=parents_with_children,
+            unknown_paths=unknown,
+        )
+    )
+
+
 def discover_enclosing_git(target: Path) -> tuple[list[Path], list[str]]:
     marker_root = next(
         (
@@ -921,8 +1046,250 @@ def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
         return None, str(exc)
 
 
+def directory_has_child(directory: Path) -> bool:
+    """Whether a directory holds at least one entry — one read, no recursion.
+
+    FAILS CLOSED. Emptiness has to be PROVEN, so an unreadable directory
+    reports True (assume content). The caller uses this to decide whether a
+    scan boundary can be reported as fully inventoried, and a directory whose
+    contents could not be read is exactly the case that must keep its
+    "not inventoried" marking. The read is inside the ``try`` deliberately:
+    Windows surfaces an access denial on the first iteration step rather than
+    on ``os.scandir`` itself.
+
+    Deliberately not ``top_level_entry_count``: that one iterates every child
+    to produce a count, and a boundary directory with hundreds of thousands of
+    entries is precisely the cost ``--max-depth`` exists to avoid. Only the
+    first entry is ever read here — the question is "any?", not "how many?".
+    """
+    try:
+        with os.scandir(directory) as iterator:
+            return next(iter(iterator), None) is not None
+    except OSError:
+        return True
+
+
+def volume_root_os_owned_names(
+    platform_key: str | None = None,
+) -> set[str]:
+    """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
+    current = platform_key or os_key()
+    if current == "windows":
+        return {
+            name.casefold()
+            for name in (
+                WINDOWS_VOLUME_SYSTEM_NAMES
+                | WINDOWS_OS_ROOT_EXTRA_NAMES
+                | {
+                    Path(value).name
+                    for value in (
+                        os.environ.get("SystemRoot"),
+                        os.environ.get("ProgramFiles"),
+                        os.environ.get("ProgramFiles(x86)"),
+                        os.environ.get("ProgramData"),
+                    )
+                    if value
+                }
+            )
+        }
+    if current == "macos":
+        return {
+            name.casefold()
+            for name in (
+                "System",
+                "Library",
+                "Applications",
+                "private",
+                "Volumes",
+                "cores",
+                "usr",
+                "bin",
+                "sbin",
+                "etc",
+                "dev",
+                "tmp",
+                "var",
+            )
+        }
+    return {
+        name.casefold()
+        for name in (
+            "bin",
+            "boot",
+            "dev",
+            "etc",
+            "home",
+            "lib",
+            "lib64",
+            "lost+found",
+            "media",
+            "mnt",
+            "opt",
+            "proc",
+            "root",
+            "run",
+            "sbin",
+            "srv",
+            "sys",
+            "tmp",
+            "usr",
+            "var",
+        )
+    }
+
+
+def root_child_skip_reason(
+    path: Path,
+    *,
+    exact_names: set[str],
+    known_linux_mounts: set[Path] | None = None,
+    os_owned_names: set[str] | None = None,
+) -> str | None:
+    """Why an immediate volume-root entry must not be offered or audited.
+
+    Mirrors the volume-root guard's exclusion spirit (OS-owned / hidden /
+    system / reparse) and fails closed on anything ambiguous (#2588). Root
+    files are never candidates — only directories can be selected.
+    """
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        return f"unreadable:{exc}"
+    if is_linkish_stat(info):
+        return "symlink-junction-or-reparse-point"
+    if is_cloud_placeholder_stat(info):
+        return "cloud-placeholder"
+    if not stat.S_ISDIR(info.st_mode):
+        return "not-a-directory"
+    name = path.name
+    if name in {".", ".."} or not name:
+        return "invalid-name"
+    if name.startswith("."):
+        return "hidden"
+    folded = name.casefold()
+    owned = (
+        os_owned_names if os_owned_names is not None else volume_root_os_owned_names()
+    )
+    if folded in owned:
+        return "os-owned"
+    # Windows metadata / upgrade residue often uses a $-prefix outside the
+    # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
+    if name.startswith("$"):
+        return "os-owned"
+    attributes = int(getattr(info, "st_file_attributes", 0) or 0)
+    if attributes & FILE_ATTRIBUTE_HIDDEN:
+        return "hidden"
+    if attributes & FILE_ATTRIBUTE_SYSTEM:
+        return "system"
+    if has_protected_name(path, exact_names):
+        return "baseline-protected-name"
+    mounted, mount_error = mount_state(path, known_linux_mounts)
+    if mount_error:
+        return "mount-state-unverified"
+    if mounted:
+        return "nested-mount-point"
+    for root in system_roots():
+        if path.absolute() == root.absolute() or is_within(
+            path.absolute(), root.absolute()
+        ):
+            return "os-owned"
+    return None
+
+
+def enumerate_root_children(
+    target: Path,
+    policy: dict[str, Any],
+    known_linux_mounts: set[Path] | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """List immediate volume-root entries into admitted vs skipped buckets.
+
+    Enumerates the root once and never recurses. Admitted entries are
+    directories that cleared every root-children exclusion; skipped entries
+    carry the reason they were withheld.
+    """
+    exact_names = set(policy["protected_exact_names"])
+    os_owned = volume_root_os_owned_names()
+    admitted: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    try:
+        with os.scandir(target) as iterator:
+            children = sorted(iterator, key=lambda entry: entry.name.casefold())
+    except OSError as exc:
+        raise HygieneError(f"cannot enumerate volume root: {exc}") from exc
+    for child in children:
+        path = Path(child.path)
+        reason = root_child_skip_reason(
+            path,
+            exact_names=exact_names,
+            known_linux_mounts=known_linux_mounts,
+            os_owned_names=os_owned,
+        )
+        if reason is None:
+            admitted.append({"name": child.name, "path": str(path)})
+        else:
+            skipped.append({"name": child.name, "path": str(path), "reason": reason})
+    return admitted, skipped
+
+
+def root_child_names_case_sensitive(platform_key: str | None = None) -> bool:
+    """Whether root-child selection must preserve exact basenames.
+
+    Linux volume roots are case-sensitive; collapsing `/Cache` and `/cache` into
+    one casefolded key would let `--root-child Cache` inventory the wrong sibling
+    (or both). Windows and macOS volume roots are case-insensitive, so casefold
+    matching remains the operator-friendly path there.
+    """
+    current = platform_key or os_key()
+    return current == "linux"
+
+
+def normalize_root_child_selection(
+    selected: list[str],
+    admitted: list[dict[str, str]],
+    *,
+    case_sensitive: bool | None = None,
+) -> list[str]:
+    """Map a human selection onto admitted basenames; reject anything else."""
+    if not selected:
+        raise HygieneError(
+            "--root-children requires an explicit --root-child selection; "
+            "a general clean-everything request is not selection"
+        )
+    sensitive = (
+        root_child_names_case_sensitive() if case_sensitive is None else case_sensitive
+    )
+    if sensitive:
+        by_name = {item["name"]: item["name"] for item in admitted}
+    else:
+        by_name = {item["name"].casefold(): item["name"] for item in admitted}
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for raw in selected:
+        if not raw or raw in {".", ".."} or "/" in raw or "\\" in raw:
+            raise HygieneError(
+                f"--root-child must be an immediate basename, not a path: {raw!r}"
+            )
+        key = raw if sensitive else raw.casefold()
+        if key not in by_name:
+            raise HygieneError(
+                f"--root-child {raw!r} is not an admitted immediate child directory "
+                "of the OS-managed volume root"
+            )
+        canonical = by_name[key]
+        seen_key = canonical if sensitive else canonical.casefold()
+        if seen_key in seen:
+            continue
+        seen.add(seen_key)
+        resolved.append(canonical)
+    return resolved
+
+
 def scan_tree(
-    target: Path, policy: dict[str, Any], max_depth: int | None = None
+    target: Path,
+    policy: dict[str, Any],
+    max_depth: int | None = None,
+    *,
+    root_children: list[str] | None = None,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -932,8 +1299,15 @@ def scan_tree(
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
         errors.append({"path": ".", "error": mount_error})
+    root_children_sensitive = root_child_names_case_sensitive()
+    if root_children is None:
+        allowed_root_children: set[str] | None = None
+    elif root_children_sensitive:
+        allowed_root_children = set(root_children)
+    else:
+        allowed_root_children = {name.casefold() for name in root_children}
 
-    def visit(directory: Path, depth: int = 1) -> int:
+    def visit(directory: Path, depth: int = 1) -> int | None:
         total = 0
         try:
             with os.scandir(directory) as iterator:
@@ -942,9 +1316,21 @@ def scan_tree(
             errors.append(
                 {"path": directory.relative_to(target).as_posix(), "error": str(exc)}
             )
-            return 0
+            # Unknown coverage — not an empty directory. Caller marks not-walked.
+            return None
         for child in children:
             path = Path(child.path)
+            # Root-children mode never walks the volume root as a whole: only
+            # explicitly selected immediate directories are entered, and the
+            # root's own files / excluded siblings are never inventoried.
+            child_key = child.name if root_children_sensitive else child.name.casefold()
+            if (
+                allowed_root_children is not None
+                and depth == 1
+                and directory == target
+                and child_key not in allowed_root_children
+            ):
+                continue
             relative = path.relative_to(target).as_posix()
             protections = hard_protection(path, target, exact_names, known_mounts)
             if path.name.casefold() in VCS_NAMES:
@@ -970,11 +1356,31 @@ def scan_tree(
                         walked = False
                         truncated.append(relative)
                     elif max_depth is not None and depth >= max_depth:
-                        subtotal = None
-                        walked = False
-                        truncated.append(relative)
+                        # A depth cut is the one truncation reason emptiness can
+                        # answer. One cheap first-child probe (no recursion, no
+                        # count) decides it: an empty directory has no
+                        # descendants, so nothing is left uninventoried and its
+                        # size is genuinely 0 rather than unknown — record it
+                        # walked, and keep it out of truncated so the four
+                        # downstream consumers stop treating a vacuously complete
+                        # inventory as a coverage gap. Anything with a child, or
+                        # any directory the probe cannot read, keeps the old
+                        # not-walked marking. Scoped to THIS branch on purpose:
+                        # the VCS and protection branches above refuse to walk
+                        # for reasons emptiness does not answer, so an empty
+                        # protected or VCS directory must still land in
+                        # truncated.
+                        if directory_has_child(path):
+                            subtotal = None
+                            walked = False
+                            truncated.append(relative)
+                        else:
+                            subtotal = 0
                     else:
                         subtotal = visit(path, depth + 1)
+                        if subtotal is None:
+                            # scandir failed inside this child: unknown, not empty.
+                            walked = False
                     data = metadata(path, kind, subtotal, walked=walked)
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
@@ -1008,6 +1414,9 @@ def scan_tree(
         return total
 
     total_size = visit(target)
+    if total_size is None:
+        total_size = 0
+        truncated.append(".")
     repositories = sorted(set(repositories))
     annotate_tracked(entries, target, repositories, truncated, repo_errors)
     reclaimable = reclaimable_local_bytes(entries)
@@ -1019,7 +1428,12 @@ def scan_tree(
         target_identity["size_qualifiers"] = sorted(
             set(target_identity["size_qualifiers"] + ["not-walked"])
         )
-    return {
+    error_paths = {
+        item["path"]
+        for item in errors
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
         "session_nonce": secrets.token_hex(16),
@@ -1029,6 +1443,9 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
+        "empty_directory_count": empty_directory_count(
+            entries, error_paths=error_paths
+        ),
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -1037,6 +1454,10 @@ def scan_tree(
         "truncated_paths": sorted(truncated),
         "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
+    if root_children is not None:
+        payload["root_children_mode"] = True
+        payload["root_children_selected"] = list(root_children)
+    return payload
 
 
 def annotate_tracked(
@@ -1188,9 +1609,11 @@ def validate_plan(
         required = {
             "path",
             "tier",
+            "provenance",
             "reason",
             "evidence",
             "why_not_work_product",
+            "risk",
             "owner",
         }
         if not required.issubset(candidate):
@@ -1213,6 +1636,11 @@ def validate_plan(
         ):
             raise HygieneError(f"candidate paths overlap: {relative}")
         seen.append(pure)
+        if (
+            not isinstance(candidate["provenance"], str)
+            or not candidate["provenance"].strip()
+        ):
+            raise HygieneError(f"candidate needs provenance: {relative}")
         if not isinstance(candidate["reason"], str) or not candidate["reason"].strip():
             raise HygieneError(f"candidate needs a reason: {relative}")
         if (
@@ -1220,6 +1648,8 @@ def validate_plan(
             or not candidate["why_not_work_product"].strip()
         ):
             raise HygieneError(f"candidate needs work-product analysis: {relative}")
+        if not isinstance(candidate["risk"], str) or not candidate["risk"].strip():
+            raise HygieneError(f"candidate needs a risk assessment: {relative}")
         if (
             not isinstance(candidate["evidence"], list)
             or not candidate["evidence"]
@@ -1290,7 +1720,79 @@ def validate_handoff_paths(
     return normalized
 
 
-def current_descendants(root: Path, candidate: Path) -> set[str]:
+def validate_vcs_evidence(
+    payload: dict[str, Any], approved: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Validate proof-source locations; live commands establish every fact."""
+    if set(payload) != {"version", "repositories"}:
+        raise HygieneError("VCS evidence must contain exactly version/repositories")
+    if payload.get("version") != SCHEMA_VERSION:
+        raise HygieneError("VCS evidence version must be 1")
+    repositories = payload.get("repositories")
+    if not isinstance(repositories, list) or not repositories:
+        raise HygieneError("VCS evidence repositories must be a non-empty array")
+    approved_paths = [PurePosixPath(value) for value in approved]
+    normalized: dict[str, dict[str, Any]] = {}
+    for item in repositories:
+        if not isinstance(item, dict) or set(item) != {
+            "path",
+            "remote",
+            "stash_copies",
+        }:
+            raise HygieneError(
+                "each VCS evidence repository must contain exactly "
+                "path/remote/stash_copies"
+            )
+        relative = item["path"]
+        pure = PurePosixPath(relative) if isinstance(relative, str) else None
+        if (
+            pure is None
+            or not relative
+            or relative in {".", "/"}
+            or pure.is_absolute()
+            or ".." in pure.parts
+            or not any(path == pure or path in pure.parents for path in approved_paths)
+        ):
+            raise HygieneError(
+                f"VCS evidence repository is outside approved paths: {relative}"
+            )
+        if relative in normalized:
+            raise HygieneError(f"duplicate VCS evidence repository: {relative}")
+        remote = item["remote"]
+        if remote is not None and (
+            not isinstance(remote, str)
+            or not remote
+            or remote.startswith("-")
+            or any(character.isspace() for character in remote)
+        ):
+            raise HygieneError(
+                f"VCS evidence remote must be null or a literal name: {relative}"
+            )
+        copies = item["stash_copies"]
+        if (
+            not isinstance(copies, list)
+            or not all(
+                isinstance(value, str)
+                and value
+                and Path(value).expanduser().is_absolute()
+                for value in copies
+            )
+            or len(set(copies)) != len(copies)
+        ):
+            raise HygieneError(
+                f"stash_copies must be unique absolute paths: {relative}"
+            )
+        normalized[relative] = {
+            "path": relative,
+            "remote": remote,
+            "stash_copies": copies,
+        }
+    return normalized
+
+
+def current_descendants(
+    root: Path, candidate: Path, *, opaque_git_metadata: bool = False
+) -> set[str]:
     paths: set[str] = set()
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
@@ -1301,7 +1803,12 @@ def current_descendants(root: Path, candidate: Path) -> set[str]:
         mounted, error = mount_state(path, known_mounts)
         if error:
             raise HygieneError(error)
-        if is_linkish(path) or not path.is_dir() or mounted:
+        if (
+            is_linkish(path)
+            or not path.is_dir()
+            or mounted
+            or (opaque_git_metadata and path.name.casefold() == GIT_METADATA_NAME)
+        ):
             return
         with os.scandir(path) as iterator:
             children = [Path(entry.path) for entry in iterator]
@@ -1495,6 +2002,374 @@ def tracked_blocker(candidate: Path, target: Path) -> str | None:
     return None
 
 
+def run_git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    git = shutil.which("git")
+    if not git:
+        raise HygieneError("git-not-found")
+    environment = os.environ.copy()
+    # `git status` may otherwise refresh the index and write an optional
+    # lock/index update. Evidence collection is a read-only handoff operation.
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
+    return subprocess.run(
+        [git, "-C", str(repo), *arguments],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+        env=environment,
+    )
+
+
+def github_remote_repository(url: str) -> tuple[str, str] | None:
+    match = GITHUB_REMOTE_RE.fullmatch(url.strip())
+    if match is None:
+        return None
+    repository = match.group("repo")
+    if repository.casefold().endswith(".git"):
+        repository = repository[:-4]
+    if not repository:
+        return None
+    return match.group("owner"), repository
+
+
+def verify_github_remote_head(
+    repo: Path, remote: str, sha: str
+) -> tuple[bool, dict[str, str]]:
+    """Confirm one local head through the GitHub commits API, never by ref name."""
+    # Read the literal declaration rather than `git remote get-url`, which
+    # expands global `insteadOf` transport rewrites and can hide github.com.
+    remote_url = run_git(repo, "config", "--get", f"remote.{remote}.url")
+    if remote_url.returncode != 0 or not remote_url.stdout.strip():
+        return False, {"sha": sha, "error": "remote-url-unverified"}
+    coordinates = github_remote_repository(remote_url.stdout.strip())
+    if coordinates is None:
+        return False, {"sha": sha, "error": "remote-provider-unsupported"}
+    gh = shutil.which("gh")
+    if not gh:
+        return False, {"sha": sha, "error": "gh-not-found"}
+    owner, repository = coordinates
+    try:
+        checked = subprocess.run(
+            [
+                gh,
+                "api",
+                "--method",
+                "GET",
+                f"repos/{owner}/{repository}/commits/{sha}",
+                "--jq",
+                ".sha",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, {"sha": sha, "error": f"provider-query-failed: {exc}"}
+    confirmed = (
+        checked.returncode == 0 and checked.stdout.strip().casefold() == sha.casefold()
+    )
+    detail = {
+        "sha": sha,
+        "remote": remote,
+        "repository": f"{owner}/{repository}",
+    }
+    if not confirmed:
+        detail["error"] = "remote-head-unconfirmed"
+    return confirmed, detail
+
+
+def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
+    """Return every local branch head, plus a detached HEAD when present."""
+    branches = run_git(
+        repo, "for-each-ref", "--format=%(refname:short)%09%(objectname)", "refs/heads"
+    )
+    if branches.returncode != 0:
+        return [], "local-heads-unverified"
+    heads: list[dict[str, str]] = []
+    for line in branches.stdout.splitlines():
+        try:
+            name, sha = line.split("\t", 1)
+        except ValueError:
+            return [], "local-heads-unverified"
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+            return [], "local-heads-unverified"
+        heads.append({"name": name, "sha": sha.casefold()})
+    symbolic = run_git(repo, "symbolic-ref", "-q", "HEAD")
+    if symbolic.returncode not in {0, 1}:
+        return [], "local-heads-unverified"
+    if symbolic.returncode == 1:
+        detached = run_git(repo, "rev-parse", "--verify", "HEAD^{commit}")
+        sha = detached.stdout.strip()
+        if detached.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+            return [], "local-heads-unverified"
+        heads.append({"name": "HEAD", "sha": sha.casefold()})
+    unique = {(item["name"], item["sha"]): item for item in heads}
+    return sorted(unique.values(), key=lambda item: (item["name"], item["sha"])), None
+
+
+def stash_shas(repo: Path) -> tuple[list[str], str | None]:
+    stashes = run_git(repo, "stash", "list", "--format=%H")
+    if stashes.returncode != 0:
+        return [], "stashes-unverified"
+    result = [value.casefold() for value in stashes.stdout.splitlines() if value]
+    if not all(re.fullmatch(r"[0-9a-fA-F]{40,64}", value) for value in result):
+        return [], "stashes-unverified"
+    return result, None
+
+
+def verify_stash_copy(
+    source_candidate: Path,
+    copy_value: str,
+    approved_paths: list[Path],
+    source_common_dir: Path,
+) -> tuple[Path | None, set[str], str | None]:
+    copy_input = Path(copy_value).expanduser().absolute()
+    if has_linkish_component(copy_input):
+        return None, set(), "stash-copy-link-or-reparse"
+    try:
+        copy = copy_input.resolve(strict=True)
+    except OSError:
+        return None, set(), "stash-copy-unreadable"
+    if (
+        not copy.is_dir()
+        or is_within(copy, source_candidate)
+        or any(is_within(copy, approved) for approved in approved_paths)
+    ):
+        return None, set(), "stash-copy-not-independent"
+    top = run_git(copy, "rev-parse", "--show-toplevel")
+    if top.returncode != 0 or not top.stdout.strip():
+        return None, set(), "stash-copy-not-a-worktree"
+    try:
+        top_path = Path(top.stdout.strip()).resolve(strict=True)
+    except OSError:
+        return None, set(), "stash-copy-unreadable"
+    if top_path != copy:
+        return None, set(), "stash-copy-root-mismatch"
+    common = run_git(copy, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.returncode != 0 or not common.stdout.strip():
+        return None, set(), "stash-copy-unreadable"
+    try:
+        copy_common = Path(common.stdout.strip()).resolve(strict=True)
+    except OSError:
+        return None, set(), "stash-copy-unreadable"
+    # Linked worktrees share the source common dir (and therefore stash refs).
+    # Reject any copy whose Git storage is the source store or lives under the
+    # candidate about to be deleted.
+    if (
+        copy_common == source_common_dir
+        or is_within(copy_common, source_common_dir)
+        or is_within(source_common_dir, copy_common)
+        or is_within(copy_common, source_candidate)
+    ):
+        return None, set(), "stash-copy-not-independent"
+    stashes, error = stash_shas(copy)
+    return copy, set(stashes), error
+
+
+def checkout_repository_paths(current_paths: set[str], target: Path) -> set[Path]:
+    repositories: set[Path] = set()
+    for relative in current_paths:
+        pure = PurePosixPath(relative)
+        if pure.name.casefold() != GIT_METADATA_NAME:
+            continue
+        repository_relative = pure.parent
+        if str(repository_relative) == ".":
+            continue
+        repositories.add(
+            target.joinpath(*repository_relative.parts).resolve(strict=False)
+        )
+    return repositories
+
+
+def verify_vcs_checkout_evidence(
+    target: Path,
+    candidate: Path,
+    current_paths: set[str],
+    configurations: dict[str, dict[str, Any]],
+    approved: list[str],
+) -> dict[str, Any]:
+    """Verify the complete live evidence bundle before relaxing Git blockers."""
+    gates: dict[str, dict[str, Any]] = {
+        name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+    }
+    gates["exact-path-operator-approval"] = {
+        "status": "passed",
+        "source": "handoff-paths",
+        "path": candidate.relative_to(target).as_posix(),
+    }
+    blockers: set[str] = set()
+    live_repositories = checkout_repository_paths(current_paths, target)
+    configured_repositories = {
+        target.joinpath(*PurePosixPath(relative).parts).resolve(strict=False)
+        for relative in configurations
+    }
+    if (
+        not live_repositories
+        or live_repositories != configured_repositories
+        or any(not is_within(repo, candidate) for repo in live_repositories)
+    ):
+        blockers.add("vcs-evidence-repository-set-mismatch")
+
+    status_details: list[dict[str, Any]] = []
+    head_details: list[dict[str, Any]] = []
+    stash_details: list[dict[str, Any]] = []
+    status_passed = not blockers
+    heads_passed = not blockers
+    stashes_passed = not blockers
+    approved_paths = [
+        target.joinpath(*PurePosixPath(value).parts).resolve(strict=False)
+        for value in approved
+    ]
+    for repo in sorted(live_repositories & configured_repositories):
+        relative = repo.relative_to(target).as_posix()
+        config = configurations[relative]
+        repository_detail: dict[str, Any] = {"repository": relative}
+
+        top = run_git(repo, "rev-parse", "--show-toplevel")
+        common = run_git(
+            repo, "rev-parse", "--path-format=absolute", "--git-common-dir"
+        )
+        try:
+            top_path = Path(top.stdout.strip()).resolve(strict=True)
+            common_path = Path(common.stdout.strip()).resolve(strict=True)
+        except OSError:
+            top_path = Path()
+            common_path = Path()
+        if (
+            top.returncode != 0
+            or common.returncode != 0
+            or top_path != repo
+            or not is_within(common_path, candidate)
+        ):
+            blockers.add("vcs-evidence-git-boundary-unverified")
+            status_passed = heads_passed = stashes_passed = False
+            repository_detail["status"] = "git-boundary-unverified"
+            status_details.append(repository_detail)
+            continue
+
+        status = run_git(
+            repo,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignored=matching",
+            "--ignore-submodules=none",
+        )
+        clean = status.returncode == 0 and not status.stdout
+        repository_detail["status"] = "clean" if clean else "not-clean-or-unverified"
+        status_details.append(repository_detail)
+        if not clean:
+            status_passed = False
+            blockers.add("vcs-evidence-status-not-clean")
+
+        heads, head_error = local_head_shas(repo)
+        if head_error:
+            heads_passed = False
+            blockers.add("vcs-evidence-local-heads-unverified")
+        elif heads and config["remote"] is None:
+            heads_passed = False
+            blockers.add("vcs-evidence-remote-not-declared")
+        else:
+            for head in heads:
+                confirmed, detail = verify_github_remote_head(
+                    repo, config["remote"], head["sha"]
+                )
+                detail["repository_path"] = relative
+                detail["local_head"] = head["name"]
+                head_details.append(detail)
+                if not confirmed:
+                    heads_passed = False
+                    blockers.add("vcs-evidence-remote-head-unconfirmed")
+
+        stashes, stash_error = stash_shas(repo)
+        if stash_error:
+            stashes_passed = False
+            blockers.add("vcs-evidence-stashes-unverified")
+            continue
+        copy_stashes: dict[str, set[str]] = {}
+        for copy_value in config["stash_copies"]:
+            try:
+                copy, copy_values, copy_error = verify_stash_copy(
+                    candidate, copy_value, approved_paths, common_path
+                )
+            except (OSError, subprocess.SubprocessError, HygieneError):
+                copy, copy_values, copy_error = None, set(), "stash-copy-unverified"
+            if copy_error:
+                stashes_passed = False
+                blockers.add("vcs-evidence-stash-copy-unverified")
+                continue
+            assert copy is not None
+            copy_stashes[str(copy)] = copy_values
+        for sha in stashes:
+            duplicated_at = sorted(
+                path for path, values in copy_stashes.items() if sha in values
+            )
+            stash_details.append(
+                {
+                    "repository_path": relative,
+                    "sha": sha,
+                    "duplicated_at": duplicated_at,
+                }
+            )
+            if not duplicated_at:
+                stashes_passed = False
+                blockers.add("vcs-evidence-stash-not-duplicated")
+
+    gates["git-status-porcelain-empty"] = {
+        "status": "passed" if status_passed else "failed",
+        "repositories": status_details,
+    }
+    gates["all-local-heads-on-remote"] = {
+        "status": "passed" if heads_passed else "failed",
+        "heads": head_details,
+    }
+    gates["all-stashes-duplicated"] = {
+        "status": "passed" if stashes_passed else "failed",
+        "stashes": stash_details,
+    }
+    verified = not blockers and all(
+        gates[name]["status"] == "passed" for name in VCS_EVIDENCE_GATE_NAMES
+    )
+    return {
+        "status": "verified" if verified else "failed",
+        "gates": gates,
+        "blockers": sorted(blockers),
+        "repositories": sorted(
+            repo.relative_to(target).as_posix() for repo in live_repositories
+        ),
+    }
+
+
+def evidence_adjusted_protections(
+    protections: Iterable[str],
+    path: Path,
+    target: Path,
+    repository_paths: Iterable[Path],
+    exact_names: set[str],
+) -> list[str]:
+    """Relax only Git-marker protections, never another protected-name class."""
+    adjusted = set(protections)
+    metadata_roots = [repo / GIT_METADATA_NAME for repo in repository_paths]
+    if not any(is_within(path, metadata) for metadata in metadata_roots):
+        return sorted(adjusted)
+    adjusted.discard("vcs-metadata")
+    current = path
+    non_git_protected_name = False
+    while is_within(current, target):
+        if current.name.casefold() != GIT_METADATA_NAME and has_protected_name(
+            current, exact_names
+        ):
+            non_git_protected_name = True
+            break
+        if current == target:
+            break
+        current = current.parent
+    if not non_git_protected_name:
+        adjusted.discard("baseline-protected-name")
+    return sorted(adjusted)
+
+
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
@@ -1604,6 +2479,10 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     a directory's mtime and size flip whenever any direct child is added or
     removed, so any unrelated write into a live target during the approval
     window would otherwise abort the run.
+
+    Root-children mode is the sole exception to the OS-managed-root veto: the
+    snapshot target is the volume root, but the inventory only covers explicitly
+    selected immediate children — never a recursive walk of the root itself.
     """
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
@@ -1618,8 +2497,19 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     target_mounted, target_mount_error = mount_state(target, known_mounts)
     if mount_error or target_mount_error:
         raise HygieneError("snapshot target mount state is unverified")
-    if is_os_managed_target(target):
+    root_children_mode = bool(snapshot.get("root_children_mode"))
+    if is_os_managed_target(target) and not root_children_mode:
         raise HygieneError("snapshot target is now an OS-managed root")
+    if root_children_mode:
+        if not is_volume_root(target) or not is_os_managed_target(target):
+            raise HygieneError(
+                "root-children snapshot target must remain an OS-managed volume root"
+            )
+        selected = snapshot.get("root_children_selected")
+        if not isinstance(selected, list) or not selected:
+            raise HygieneError("root-children snapshot is missing its selection")
+        if any(not isinstance(name, str) or not name for name in selected):
+            raise HygieneError("root-children snapshot selection is invalid")
     if target_mounted and not is_volume_root(target):
         raise HygieneError("snapshot target is a mount point")
     if has_protected_path_component(target, baseline_protected_names()):
@@ -1642,14 +2532,31 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
     truncated_paths = {
-        value
-        for value in snapshot.get("truncated_paths", [])
-        if isinstance(value, str)
+        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
     }
     exact_names = baseline_exact_names | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
     globs = snapshot_protection_globs(snapshot)
+    if root_child_names_case_sensitive(snapshot.get("platform")):
+        selected_root_children = {
+            name
+            for name in snapshot.get("root_children_selected", [])
+            if isinstance(name, str)
+        }
+
+        def root_child_key(name: str) -> str:
+            return name
+    else:
+        selected_root_children = {
+            name.casefold()
+            for name in snapshot.get("root_children_selected", [])
+            if isinstance(name, str)
+        }
+
+        def root_child_key(name: str) -> str:
+            return name.casefold()
+
     results = []
     blocked = False
     for candidate in candidates:
@@ -1661,6 +2568,10 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             blockers.append("native-managed-report-only")
         if overlaps_truncated(relative, truncated_paths):
             blockers.append("truncated-not-inventoried")
+        if snapshot.get("root_children_mode"):
+            parts = PurePosixPath(relative).parts
+            if not parts or root_child_key(parts[0]) not in selected_root_children:
+                blockers.append("outside-root-children-selection")
         expected_paths = subtree_names(relative, entries)
         if "truncated-not-inventoried" in blockers:
             # A truncated candidate is already hard-blocked from planning above;
@@ -1708,6 +2619,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                     )
                 )
         blockers = sorted(set(blockers))
+        candidate_entry = entries[relative]
         logical_bytes = sum(
             entry_logical_file_bytes(entries[name]) for name in expected_paths
         )
@@ -1720,6 +2632,11 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             {
                 "path": relative,
                 "tier": plan["tier"],
+                "provenance": candidate["provenance"],
+                "reason": candidate["reason"],
+                "why_not_work_product": candidate["why_not_work_product"],
+                "risk": candidate["risk"],
+                "empty_directory": entry_is_empty_directory(candidate_entry, entries),
                 "logical_bytes": logical_bytes,
                 "reclaimable_local_bytes": reclaimable_bytes,
                 "handle_state": state,
@@ -1733,17 +2650,26 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         "tier": plan["tier"],
         "target": str(target),
         "candidates": results,
+        "empty_directories": sum(1 for item in results if item["empty_directory"]),
         "logical_bytes": sum(item["logical_bytes"] for item in results),
         "reclaimable_local_bytes": sum(
             item["reclaimable_local_bytes"] for item in results
         ),
         "approval_token": None if blocked else approval_token(snapshot, plan),
-        "warning": "Approval is valid only for this tier, exact plan, and snapshot. Re-preview after any change.",
+        "warning": (
+            "Safe tidiness is the primary objective; reclaimable bytes are "
+            "secondary. Approval is valid only for this tier, exact plan, and "
+            "snapshot. Re-preview after any change."
+        ),
     }
     return payload
 
 
-def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, Any]:
+def handoff_verify(
+    snapshot: dict[str, Any],
+    approved: list[str],
+    vcs_evidence: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Re-run per-path revalidation for the manual handoff lane, read-only.
 
     Deterministically reruns the engine's identity/reparse/protection/VCS/
@@ -1758,9 +2684,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
     truncated_paths = {
-        value
-        for value in snapshot.get("truncated_paths", [])
-        if isinstance(value, str)
+        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
     }
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
@@ -1768,6 +2692,16 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         path = target.joinpath(*PurePosixPath(relative).parts)
         drifted: set[str] = set()
         contested: set[str] = set()
+        evidence_result: dict[str, Any] | None = None
+        candidate_pure = PurePosixPath(relative)
+        candidate_evidence = {
+            repository: config
+            for repository, config in (vcs_evidence or {}).items()
+            if (
+                (repository_pure := PurePosixPath(repository)) == candidate_pure
+                or candidate_pure in repository_pure.parents
+            )
+        }
         try:
             path.lstat()
         except FileNotFoundError:
@@ -1793,10 +2727,24 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 }
             )
             continue
-        contested.update(hard_protection(path, target, exact_names, known_mounts))
+        candidate_protections = hard_protection(path, target, exact_names, known_mounts)
         truncated = overlaps_truncated(relative, truncated_paths)
+        overlapping_truncations = {
+            name
+            for name in truncated_paths
+            if name == relative
+            or name.startswith(relative + "/")
+            or relative.startswith(name + "/")
+        }
+        configured_git_truncations = {
+            (PurePosixPath(repository) / GIT_METADATA_NAME).as_posix()
+            for repository in candidate_evidence
+        }
+        evidence_inventory_eligible = bool(candidate_evidence) and not (
+            overlapping_truncations - configured_git_truncations
+        )
         expected_paths = subtree_names(relative, entries)
-        if truncated:
+        if truncated and not evidence_inventory_eligible:
             # A truncated path has no captured descendant set, so no live walk
             # can prove anything about it — never clear (same rationale as the
             # preview short-circuit).
@@ -1804,7 +2752,11 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             current_paths = expected_paths
         else:
             try:
-                current_paths = current_descendants(target, path)
+                current_paths = current_descendants(
+                    target,
+                    path,
+                    opaque_git_metadata=bool(candidate_evidence),
+                )
             # On failure, treat the live set as unknown rather than empty
             # (preview's choice): an unreadable subtree is contested, not
             # provably drifted — "changed" cannot be claimed without a read.
@@ -1814,6 +2766,57 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             except (OSError, HygieneError):
                 current_paths = expected_paths
                 contested.add("filesystem-state-unverified")
+        if candidate_evidence and evidence_inventory_eligible:
+            try:
+                evidence_result = verify_vcs_checkout_evidence(
+                    target,
+                    path,
+                    current_paths,
+                    candidate_evidence,
+                    approved,
+                )
+            except (OSError, subprocess.SubprocessError, HygieneError) as exc:
+                evidence_result = {
+                    "status": "failed",
+                    "gates": {
+                        name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+                    },
+                    "blockers": ["vcs-evidence-state-unverified"],
+                    "error": str(exc),
+                }
+            contested.update(evidence_result["blockers"])
+        elif candidate_evidence:
+            evidence_result = {
+                "status": "failed",
+                "gates": {
+                    name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+                },
+                "blockers": ["vcs-evidence-non-git-truncation"],
+            }
+            contested.update(evidence_result["blockers"])
+        evidence_verified = (
+            evidence_result is not None and evidence_result["status"] == "verified"
+        )
+        repository_paths = [
+            target.joinpath(*PurePosixPath(value).parts)
+            for value in (evidence_result or {}).get("repositories", [])
+        ]
+        if evidence_verified:
+            candidate_protections = evidence_adjusted_protections(
+                candidate_protections,
+                path,
+                target,
+                repository_paths,
+                exact_names,
+            )
+            git_metadata_truncations = {
+                (repo / GIT_METADATA_NAME).relative_to(target).as_posix()
+                for repo in repository_paths
+            }
+            truncated = bool(overlapping_truncations - git_metadata_truncations)
+        if truncated:
+            contested.add("truncated-not-inventoried")
+        contested.update(candidate_protections)
         if current_paths != expected_paths:
             drifted.add("changed-since-scan")
         for name in expected_paths:
@@ -1832,15 +2835,34 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             except OSError:
                 contested.add("filesystem-state-unverified")
             else:
-                if not same_stat_identity(info, entry):
+                metadata_entry = any(
+                    current == repo / GIT_METADATA_NAME for repo in repository_paths
+                )
+                identity_matches = (
+                    same_object_identity(info, entry)
+                    if candidate_evidence
+                    and metadata_entry
+                    and entry.get("kind") == "directory"
+                    else same_stat_identity(info, entry)
+                )
+                if not identity_matches:
                     drifted.add("changed-since-scan")
-            contested.update(
-                hard_protection(current, target, exact_names, known_mounts)
+            current_protections = hard_protection(
+                current, target, exact_names, known_mounts
             )
+            if evidence_verified:
+                current_protections = evidence_adjusted_protections(
+                    current_protections,
+                    current,
+                    target,
+                    repository_paths,
+                    exact_names,
+                )
+            contested.update(current_protections)
             relative_current = current.relative_to(target).as_posix()
             if any(glob_matches(relative_current, pattern) for pattern in globs):
                 contested.add("consumer-protected-path")
-        if not truncated:
+        if not truncated or evidence_inventory_eligible:
             # A hung git (TimeoutExpired) must degrade to this one path's
             # contested verdict, not abort the whole run with no verdicts —
             # the subcommand promises a verdict per approved path.
@@ -1848,15 +2870,13 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 vcs = tracked_blocker(path, target)
             except (OSError, subprocess.SubprocessError):
                 vcs = "vcs-state-unverified"
-            if vcs:
+            if vcs and not (evidence_verified and vcs == "vcs-tracked-content"):
                 contested.add(vcs)
             # Same degradation rule as the VCS probe: a probe that fails to
             # LAUNCH (lsof vanishing after which(), a ctypes load error) is
             # this path's contested verdict, not a whole-run abort.
             try:
-                state, detail = candidate_handle_state(
-                    target, path, expected_paths
-                )
+                state, detail = candidate_handle_state(target, path, expected_paths)
             except (OSError, subprocess.SubprocessError):
                 state, detail = "unverified", "handle-probe-failed"
             if state == "open":
@@ -1868,13 +2888,14 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                     "handle-state-unverified" + (f": {detail}" if detail else "")
                 )
         verdict = "drifted" if drifted else "contested" if contested else "clear"
-        verdicts.append(
-            {
-                "path": relative,
-                "verdict": verdict,
-                "reasons": sorted(drifted) + sorted(contested),
-            }
-        )
+        item = {
+            "path": relative,
+            "verdict": verdict,
+            "reasons": sorted(drifted) + sorted(contested),
+        }
+        if evidence_result is not None:
+            item["vcs_evidence"] = evidence_result
+        verdicts.append(item)
     clear = sum(1 for item in verdicts if item["verdict"] == "clear")
     return {
         "status": "handoff-verify-complete",
@@ -1998,6 +3019,8 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 }
                 for item in candidates
             ],
+            "paths_removed": 0,
+            "empty_directories_removed": 0,
             "logical_bytes_removed": 0,
             "reclaimable_local_bytes_removed": 0,
             "observed_free_space_delta_bytes": 0,
@@ -2018,6 +3041,8 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 }
                 for item in candidates
             ],
+            "paths_removed": 0,
+            "empty_directories_removed": 0,
             "logical_bytes_removed": 0,
             "reclaimable_local_bytes_removed": 0,
             "observed_free_space_delta_bytes": 0,
@@ -2129,6 +3154,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             removed.append(
                 {
                     "path": relative,
+                    "empty_directory": entry_is_empty_directory(entry, entries),
                     "logical_bytes": logical,
                     "reclaimable_local_bytes": reclaimable,
                 }
@@ -2141,6 +3167,10 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         "target": str(target),
         "removed": removed,
         "skipped": skipped,
+        "paths_removed": len(removed),
+        "empty_directories_removed": sum(
+            1 for item in removed if item["empty_directory"]
+        ),
         "logical_bytes_removed": logical_removed,
         "reclaimable_local_bytes_removed": reclaimable_removed,
         "observed_free_space_delta_bytes": after - before,
@@ -2158,6 +3188,25 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--data-root")
     scan.add_argument("--max-depth", type=int)
     scan.add_argument("--confirmed-large-scan", action="store_true")
+    scan.add_argument(
+        "--root-children",
+        action="store_true",
+        help=(
+            "admit an OS-managed volume root only as a listing of immediate "
+            "non-OS child directories; requires explicit --root-child selection "
+            "before any subtree is audited"
+        ),
+    )
+    scan.add_argument(
+        "--root-child",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help=(
+            "immediate child directory basename to audit under --root-children; "
+            "repeatable; never inferred"
+        ),
+    )
     for name in ("preview", "apply"):
         command = subparsers.add_parser(name)
         command.add_argument("--snapshot", required=True)
@@ -2174,6 +3223,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("--snapshot", required=True)
     verify.add_argument("--paths", required=True)
+    verify.add_argument("--vcs-evidence")
     verify.add_argument("--data-root")
     return parser
 
@@ -2201,7 +3251,19 @@ def main(argv: list[str] | None = None) -> int:
             mounted, target_mount_error = mount_state(target, known_mounts)
             if mount_error or target_mount_error:
                 raise HygieneError("target mount state is unverified")
-            if is_os_managed_target(target):
+            root_children_mode = bool(args.root_children)
+            selected_root_children = list(args.root_child or [])
+            if selected_root_children and not root_children_mode:
+                raise HygieneError("--root-child requires --root-children")
+            if root_children_mode:
+                if not is_volume_root(target):
+                    raise HygieneError("--root-children requires a volume-root target")
+                if not is_os_managed_target(target):
+                    raise HygieneError(
+                        "--root-children is only valid for an OS-managed volume root; "
+                        "scan a non-OS volume root without this flag"
+                    )
+            elif is_os_managed_target(target):
                 raise HygieneError("OS-managed roots are not valid audit targets")
             if mounted and not is_volume_root(target):
                 raise HygieneError("mount points are not valid audit targets")
@@ -2221,6 +3283,107 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target)
+            if root_children_mode:
+                admitted, skipped = enumerate_root_children(
+                    target, policy, known_mounts
+                )
+                if not selected_root_children:
+                    return emit(
+                        {
+                            "status": "root-children-selection-required",
+                            "target": str(target),
+                            "admitted_children": admitted,
+                            "skipped_children": skipped,
+                            "os_autoclean": advisory,
+                            "note": (
+                                "OS-managed volume roots are never walked as a "
+                                "whole. Re-run with --root-children and one or "
+                                "more explicit --root-child NAME flags naming "
+                                "admitted immediate directories; a general "
+                                "'clean everything' is not selection."
+                            ),
+                        },
+                        5,
+                    )
+                resolved_children = normalize_root_child_selection(
+                    selected_root_children, admitted
+                )
+                # Each selected child is its own audit target for large-scan
+                # gating: a home directory selected under the volume root still
+                # requires a bound or confirmation.
+                child_large_reasons: list[str] = []
+                for child_name in resolved_children:
+                    child_path = target / child_name
+                    child_large_reasons.extend(
+                        f"{child_name}:{reason}"
+                        for reason in large_scan_reasons(child_path)
+                    )
+                if (
+                    child_large_reasons
+                    and args.max_depth is None
+                    and not args.confirmed_large_scan
+                ):
+                    return emit(
+                        {
+                            "status": "large-target-confirmation-required",
+                            "target": str(target),
+                            "root_children_selected": resolved_children,
+                            "large_target_reasons": sorted(set(child_large_reasons)),
+                            "os_autoclean": advisory,
+                            "note": (
+                                "A selected root child is a known-large scan "
+                                "root; re-run with --max-depth N (preferred) or, "
+                                "only after the human confirms a full walk, "
+                                "--confirmed-large-scan."
+                            ),
+                        },
+                        5,
+                    )
+                try:
+                    snapshot = scan_tree(
+                        target,
+                        policy,
+                        args.max_depth,
+                        root_children=resolved_children,
+                    )
+                except HygieneError as exc:
+                    return emit(
+                        {
+                            "status": "invalid-or-blocked",
+                            "error": str(exc),
+                            "os_autoclean": advisory,
+                        },
+                        2,
+                    )
+                snapshot["root_children_skipped"] = skipped
+                write_json(output_path, snapshot)
+                hinted = sum(1 for entry in snapshot["entries"] if entry["hints"])
+                return emit(
+                    {
+                        "status": "scan-complete",
+                        "target": str(target),
+                        "root_children_mode": True,
+                        "root_children_selected": resolved_children,
+                        "snapshot": str(output_path),
+                        "entries": len(snapshot["entries"]),
+                        "hinted_entries": hinted,
+                        "target_logical_bytes": snapshot["target_logical_bytes"],
+                        "target_reclaimable_local_bytes": snapshot[
+                            "target_reclaimable_local_bytes"
+                        ],
+                        "truncated_paths": snapshot["truncated_paths"],
+                        "errors": snapshot["errors"],
+                        "policy_sources": policy["policy_sources"],
+                        "os_autoclean": advisory,
+                        "note": (
+                            "Root-children mode inventoried only the selected "
+                            "immediate directories; the volume root itself and "
+                            "every skipped OS-owned/hidden/system/reparse entry "
+                            "were never walked. Hints are discovery signals, "
+                            "never cleanup verdicts."
+                        ),
+                    }
+                )
             large_reasons = large_scan_reasons(target)
             if (
                 large_reasons
@@ -2266,6 +3429,7 @@ def main(argv: list[str] | None = None) -> int:
                     "snapshot": str(output_path),
                     "entries": len(snapshot["entries"]),
                     "hinted_entries": hinted,
+                    "empty_directory_count": snapshot["empty_directory_count"],
                     "target_logical_bytes": snapshot["target_logical_bytes"],
                     "target_reclaimable_local_bytes": snapshot[
                         "target_reclaimable_local_bytes"
@@ -2275,7 +3439,11 @@ def main(argv: list[str] | None = None) -> int:
                     "policy_sources": policy["policy_sources"],
                     "os_autoclean": advisory,
                     "note": (
-                        "Hints are discovery signals, never cleanup verdicts. "
+                        "Safe tidiness is the primary objective; reclaimable "
+                        "bytes are a secondary signal. empty_directory_count "
+                        "names walked empty directories (logical_size 0, not "
+                        "truncated) so zero-byte residue stays visible. Hints "
+                        "are discovery signals, never cleanup verdicts. "
                         "target_reclaimable_local_bytes excludes every entry "
                         "whose size_qualifiers is non-empty (cloud-placeholder, "
                         "hardlinked, sparse, not-walked); target_logical_bytes "
@@ -2289,7 +3457,12 @@ def main(argv: list[str] | None = None) -> int:
             approved = validate_handoff_paths(
                 load_json(Path(args.paths)), entry_map(snapshot)
             )
-            result = handoff_verify(snapshot, approved)
+            vcs_evidence = (
+                validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
+                if args.vcs_evidence
+                else None
+            )
+            result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if result["not_clear"] else 0)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)

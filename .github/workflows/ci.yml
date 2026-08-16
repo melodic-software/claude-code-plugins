@@ -166,6 +166,7 @@ jobs:
             .github/workflows/link-check.yml
             .github/workflows/pr-issue-linkage.yml
             .github/workflows/pr-title.yml
+            .github/workflows/silent-revert-canary.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
@@ -193,7 +194,8 @@ jobs:
           # Code's own [DEBUG] narration, which prints native Windows settings
           # paths — rewriting those would make the fixture stop matching what
           # the parser has to survive. The paths are invented (`alice`, `x`),
-          # not any operator's.
+          # not any operator's. source-control's same-drive unit tests need
+          # literal `C:/` / `D:/` drive fixtures to exercise the gate (#2764).
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
@@ -202,6 +204,7 @@ jobs:
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
+            :(exclude)plugins/source-control/scripts/worktree-create.test.sh
 
       - name: Check index-level EOL drift
         id: eol
@@ -310,6 +313,30 @@ jobs:
           persist-credentials: false
       - name: Run shared lib tests on Windows
         run: bash lib/hook-utils.test.sh
+
+  # #2774: the disk-hygiene read-only Bash allowlist is NT-specific (MSYS path
+  # mapping, .exe basename stripping, ProgramFiles trust roots). Linux CI cannot
+  # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
+  # POSIX — which is how an inert Windows allowlist shipped green. Keep this
+  # job SMALL: GuardTests only, not the full hygiene suite.
+  disk-hygiene-guard-windows:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Run disk-hygiene GuardTests on Windows
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene.GuardTests
 
   hook-utils-sync:
     runs-on: ubuntu-24.04
@@ -441,6 +468,20 @@ jobs:
         run: scripts/check-cross-plugin-source-drift.sh --check
       - name: Run cross-plugin-source-drift tests
         run: bash scripts/check-cross-plugin-source-drift.test.sh
+
+  detector-findings-crosswalk-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Self-test first, so a broken detector cannot mask a regression.
+      - name: Run detector-findings-crosswalk tests
+        run: bash scripts/check-detector-findings-crosswalk.test.sh
+      - name: Check every crosswalk row argues its disposition from a stated test
+        run: scripts/check-detector-findings-crosswalk.sh --check
 
   skill-leaf-name-gate:
     runs-on: ubuntu-24.04
@@ -588,6 +629,78 @@ jobs:
         run: bash scripts/check-orphaned-fixtures.test.sh
       - name: Check for orphaned eval fixtures
         run: scripts/check-orphaned-fixtures.sh --check
+
+  # Every finding kind audit-fleet.sh emits must have a Finding: <kind>
+  # collector-output assertion in audit-fleet.test.sh (or be grandfathered).
+  # Lives outside the suite so a stale-base squash that rewrites the test file
+  # alongside the collector cannot delete its own defender (#2656). Existing
+  # debt is grandfathered in scripts/fleet-finding-test-coverage-baseline.txt
+  # with a stale guard.
+  fleet-finding-test-coverage-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so the self-test can prove the gate goes red on the
+          # historical commits that shipped the coverage gap (#2656).
+          fetch-depth: 0
+      - name: Test the fleet finding-kind test-coverage detector
+        run: bash scripts/check-fleet-finding-test-coverage.test.sh
+      - name: "Check every emitted fleet finding kind has a Finding: assertion"
+        run: scripts/check-fleet-finding-test-coverage.sh --check
+
+  # The audit skill's documented argument grammar must match what audit-fleet.sh
+  # actually accepts. Lives outside both SKILL.md and the collector so a
+  # docs-only silent revert (#2646) cannot delete its own defender (#2713).
+  # Probes the script (never pattern-matches the parser) under a sealed env.
+  fleet-audit-doc-grammar-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so the self-test can prove the gate goes red on the
+          # historical commit that shipped the docs-only grammar revert (#2713).
+          fetch-depth: 0
+      - name: Test the fleet audit doc-grammar detector
+        run: bash scripts/check-fleet-audit-doc-grammar.test.sh
+      - name: Check audit skill grammar matches the parser
+        run: scripts/check-fleet-audit-doc-grammar.sh --check
+
+  # Stale-base squash merges can silently revert recently-landed fixes when a PR
+  # is cut from a base that has since moved, and the squash deletes the tests
+  # that would have caught the drop (claude-code-plugins#2691). GitHub's
+  # requiredStatusChecks.strict (github-iac) is the durable prevention; this
+  # gate fails the PR while its merge-base is behind on overlapping paths.
+  stale-base-overlap-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          # PR head, not the synthetic merge commit: overlap is computed against
+          # the branch tip the author will squash, so merge-base math must match
+          # that tip rather than an already-merged-with-base tree.
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Test the stale-base overlap detector
+        run: bash scripts/check-stale-base-overlap.test.sh
+      - name: Fetch base ref
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
+      - name: Fail when behind base on overlapping paths
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-stale-base-overlap.sh --check "origin/$BASE_REF"
 
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
   # version heading does not outrun the manifest (static --check), a PR that
@@ -885,19 +998,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/knowledge/skills/video-digest/extraction
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run build
-        working-directory: plugins/knowledge/skills/video-digest/extraction
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh build
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/knowledge/skills/video-digest/extraction
+        run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the video extraction suite cannot be affected — reporting success."
@@ -938,15 +1050,15 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/ai-briefing/skills/generate/output/build
+        run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/ai-briefing/skills/generate/output/build
+        run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
@@ -987,19 +1099,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          # Lock-file path for cache keying only (KIND-2 data reference under the
+          # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/course-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm ci
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run build
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm test
-        working-directory: plugins/knowledge/skills/course-digest/extraction
+        run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the course-digest extraction suite cannot be affected — reporting success."
@@ -1089,14 +1200,16 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-skill-portability.sh "origin/$BASE_REF"
 
-  # Shell-portability lint (#1491): flags GNU-only constructs in changed
-  # **/*.sh files — a class neither shellcheck (syntax/style) nor
-  # portability-lint (skill-coupling tokens, skill files only) covers, and no
-  # runner here uses BSD userland (macOS system grep/sed/date/stat/mktemp/sort
-  # — a Windows runner's Git Bash still ships GNU grep/sed, so it would not
-  # help either). Same shape as portability-lint: changed-file scoped so
-  # enabling a class never red-lines main, self-test-first so a broken
-  # detector cannot mask a regression behind a green gate, job never skips.
+  # Shell-portability lint (#1491 / #2704): flags GNU-only constructs in
+  # changed **/*.sh files and skill markdown under plugins/*/skills/ — a class
+  # neither shellcheck (syntax/style) nor portability-lint (skill-coupling
+  # tokens, skill files only) covers, and no runner here uses BSD userland
+  # (macOS system grep/sed/date/stat/mktemp/sort — a Windows runner's Git Bash
+  # still ships GNU grep/sed, so it would not help either). Same shape as
+  # portability-lint: changed-file scoped so enabling a class never red-lines
+  # main, self-test-first so a broken detector cannot mask a regression behind
+  # a green gate, job never skips. Skill-md backlog is grandfathered in
+  # scripts/shell-portability-skill-md-baseline.txt.
   shell-portability-lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1109,7 +1222,7 @@ jobs:
           fetch-depth: 0
       - name: Test the shell-portability gate
         run: bash scripts/check-shell-portability.test.sh
-      - name: Gate changed shell files for GNU-only constructs
+      - name: Gate changed shell and skill-md files for GNU-only constructs
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -1144,17 +1257,22 @@ jobs:
       - hygiene
       - hook-utils-sync
       - hook-utils-windows
+      - disk-hygiene-guard-windows
       - parse-concern-value-sync
       - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
+      - detector-findings-crosswalk-gate
       - skill-leaf-name-gate
       - userconfig-argv-gate
       - hook-exec-form-gate
       - plugin-options-docs-gate
       - silent-skip-gate
+      - stale-base-overlap-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
+      - fleet-finding-test-coverage-gate
+      - fleet-audit-doc-grammar-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate

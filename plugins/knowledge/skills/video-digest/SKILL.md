@@ -1,6 +1,6 @@
 ---
-description: "Watches a single public video from YouTube or X (Twitter) — extracts the transcript, harvests links, researches claims, and synthesizes prioritized repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or the user shares a youtube.com, youtu.be, x.com, or twitter.com URL for a single public video or video post. Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <video-slug>. Do NOT use for auth-walled course platforms — Dometrain, Pluralsight, and Udemy courses go to /knowledge:course-digest."
-argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <video-slug>"
+description: "Watches a single public video from YouTube or X (Twitter) — extracts the transcript, harvests links, researches claims, and synthesizes prioritized repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or the user shares a youtube.com, youtu.be, x.com, or twitter.com URL for a single public video or video post. Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <slice-slug>. Do NOT use for auth-walled course platforms — Dometrain, Pluralsight, and Udemy courses go to /knowledge:course-digest."
+argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <slice-slug>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -66,7 +66,7 @@ conflicts explicitly; never silently adopt a video's shortcut over team rules.
 | `watch` | Dequeue first `pending` queue row (FIFO) — claim stub → bootstrap → full pipeline. |
 | `watch <n>` | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | Full pipeline: download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
-| `resume <video-slug>` | Continue an interrupted watch from `watch.json` phase-map state. |
+| `resume <slice-slug>` | Continue an interrupted watch from `watch.json` phase-map state in the named slice under `.work/<watch-epic>/` (the same directory documented elsewhere in this skill as `<video-slug>`). |
 
 `--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its
 own) — resolution rungs in `context/watch-pipeline.md`.
@@ -151,7 +151,7 @@ it carries depends on which 0-case it is — see `reference/sources/x.md`.
 ## Resume action
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-resume.js "<video-slug>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-resume.js "<slice-slug>"
 ```
 
 Reads the slice `watch.json`, identifies the next incomplete phase (`acquire` → `transcript` →
@@ -163,7 +163,7 @@ and emits a copy/paste-ready continuation prompt. When `tempSession` paths are m
 
 1. Update `watch.json` phase markers with timestamps
 2. Write `continuation-prompt.md` (completed phases, next phase, frame-selection state, known issues)
-3. Tell the user: *"Session state saved. Run `/knowledge:video-digest resume <video-slug>` to continue."*
+3. Tell the user: *"Session state saved. Run `/knowledge:video-digest resume <slice-slug>` to continue."*
 
 ## Slice layout and output
 

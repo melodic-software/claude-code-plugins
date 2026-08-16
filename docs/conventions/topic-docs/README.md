@@ -13,6 +13,7 @@ concern file's shape), `CHANGELOG.md` (version history), `examples/`
 
 ## Why this exists
 
+<!-- markdown-discipline-ignore -->
 Before this contract, four conventions coexisted (`.claude/notes/<slug>`,
 `.claude/handoffs/`, `.claude/review/`, legacy `.work/<slug>`) and a
 skill invoked outside any project root wrote into the user-global config
@@ -39,7 +40,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/` | Never committed | session handoffs; review reports; running-retro ledgers — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -388,7 +389,44 @@ cite it rather than redefining it.
   session, matching the committed-tier guard's scope. A root-equivalent
   `memory_dir` (`.`, empty, or resolving to the repo root) is **invalid**
   — stop and surface it; healing there would write `*` into the
-  consumer's root `.gitignore`, which the next rule forbids.
+  consumer's root `.gitignore`, which the next rule forbids. A root that
+  **no checkout is detected as governing** is the second invalid case:
+  the guard does **not** run there. Two outcomes bind it — (A) a
+  memory-tier write is never picked up by a checkout that governs the
+  destination, and (B) no plugin ever modifies content tracked in any
+  checkout. The guard is the *means* to A wherever a governing checkout
+  is found; where none is detected it buys nothing toward A, and its
+  create-when-absent rule can violate B. **"Not detected" is a detection
+  claim and never a claim that none exists** — the branch is entered
+  precisely where detection can be wrong.
+  The rule is blanket because the producer cannot make it conditional:
+  a `.gitignore` absent from disk is either untracked in some undetected
+  checkout (where creating it would be harmless, even mitigating) or
+  tracked there (where creating it overwrites committed content and
+  cannot hide the change, a tracked file being exempt from its own
+  pattern). **Telling those apart requires querying a checkout, and this
+  branch is defined by having found none** — so the index check that
+  would decide it is exactly the check that cannot run. The costs are
+  unequal: guessing "untracked" and being wrong modifies content
+  committed in a repository the producer cannot see, while guessing
+  "tracked" and being wrong forgoes a mitigation for a harm that is
+  reachable rather than automatic. An undecidable test with asymmetric
+  outcomes yields *do not write*. This is not a rare path: the
+  no-project-root fallback above routes non-interactive runs to
+  `${CLAUDE_PLUGIN_DATA}` by default, and non-interactive is the normal
+  condition for forked subagents, dispatched workers, and headless runs.
+  **The same undecidability binds every other write on that branch**, not
+  only the guard's: any destination path may be an index-tracked
+  deletion in the undetected checkout, in which case writing it produces
+  a tracked modification rather than a new untracked file. A surface
+  whose artifact must not modify tracked content therefore refuses the
+  artifact write too, rather than skipping only the guard. **One
+  destination is exempt and it is the common one**: the
+  `${CLAUDE_PLUGIN_DATA}` fallback above is outside every checkout by
+  construction, so it cannot be a tracked deletion and needs no refusal —
+  which is why this rule is a discrimination between destinations rather
+  than a blanket stop. What it refuses is a *resolved root* no checkout
+  could be shown to govern.
 - No plugin ever edits the consumer's root `.gitignore`.
 
 ## Slug and filename spec
@@ -424,9 +462,10 @@ a `<STAGE>-<scope>.md` sidecar.
    pasted into the PR description inside `<details>` blocks (bodies cap
    near 64 KB — paste the contract, reference the rest). When the
    contract exceeds the cap, paste the summary and verification digest in
-   the body and **name the pruning commit** (or the PR number plus the
-   path) for everything else — a pointer without a followable ref is not a
-   preservation.
+   the body and **name the pre-prune commit SHA** (Contents API form in
+   step 5) plus where durable outcomes graduated — under squash-merge the
+   SHA form is best-effort; the graduation targets are the load-bearing
+   record.
 3. Before merge, durable outcomes graduate: architectural decisions and
    specs through the **knowledge-vault seam** (default: history-preserving
    `git mv` into `docs/adr/` / `docs/specs/`; remote vault backends
@@ -435,23 +474,36 @@ a `<STAGE>-<scope>.md` sidecar.
 4. A final commit prunes the contract slice `<contract_dir>/<slug>/`
    (default `docs/topics/`), leaving context pointers (the PR body and
    the promoted-doc / tracker locations) in its place.
-5. **Retrieving a pruned slice after merge.** The task branch is deleted on
-   merge and GitHub's three-dot PR diff drops pruned files, so
-   `docs/topics/<slug>/…` on `main` will not resolve. The pruned content
-   remains reachable through the merge commit **immediately before** the
-   pruning commit:
+5. **Retrieving a pruned slice after merge (best-effort).** Squash-merge
+   collapses the task branch into one new commit on `main` and carries
+   none of its ancestry; the head branch is deleted on merge. GitHub's
+   three-dot PR diff also drops pruned files, so `docs/topics/<slug>/…`
+   on `main` will not resolve. Local `git show <pre-prune-sha>:<path>`
+   fails from a fresh clone until that object is fetched (for example
+   via `git fetch origin refs/pull/<N>/head` when permitted — typically
+   the machine that wrote the pointer already has it). The Contents API
+   form `?ref=<pruning-commit>^` fails for a different reason: it is a
+   remote lookup, and the squash commit's parent never contained the
+   slice, so naming the parent of the pruning/squash commit is not a
+   recovery path regardless of local checkout state.
+
+   While GitHub retains the unreachable object, the Contents API can still
+   resolve a **pre-prune commit SHA** (the last commit that still
+   contained the slice — name that SHA in the PR body before merge):
 
    ```bash
-   # pruning commit = the merge commit whose message prunes the slice
-   gh api "repos/{owner}/{repo}/contents/docs/topics/<slug>/PLAN.md?ref=<pruning-commit>^" --jq .size
+   # pre-prune commit = last commit on the task branch that still held the slice
+   gh api "repos/{owner}/{repo}/contents/docs/topics/<slug>/PLAN.md?ref=<pre-prune-commit>" --jq .size
    ```
 
-   Given only a merged PR number, list its commits and take the pruning
-   commit from that list; use `<sha>^` as `ref`. `git fetch origin
-   refs/pull/<N>/head` may be denied by a consumer permission layer — the
-   Contents API form above works after the branch is gone. Step 2's
-   "reference the rest" pointer should name that pruning commit (or the PR
-   number plus path) so the reference is followable without archaeology.
+   That retention is an implementation detail with no promised lifetime —
+   convenience, not a recovery guarantee. The load-bearing record is
+   where durable outcomes graduated (ADR / specs via the vault seam,
+   tracker items via the work-item seam); the PR body must name those
+   locations. Given only a merged PR number, list its commits and take
+   the pre-prune SHA from that list. `git fetch origin refs/pull/<N>/head`
+   may be denied by a consumer permission layer — the Contents API form
+   above is the followable best-effort pointer after the branch is gone.
 6. Enforcement: a required check that the net PR diff
    (`git diff --name-only base...head`) contains no path under the
    resolved `<contract_dir>/**` (default `docs/topics/**`). GitHub's PR
@@ -487,6 +539,7 @@ credentials. Raw output stays in the memory slice `<memory_dir>/<slug>/`
 
 ## Adoption (clean break)
 
+<!-- markdown-discipline-ignore -->
 The prior conventions (`.claude/notes/<slug>`, `.claude/handoffs/`,
 `.claude/review/`, unscoped `.work/<slug>`) are retired outright — no
 compatibility layer, no legacy knobs, no dual-read windows, no

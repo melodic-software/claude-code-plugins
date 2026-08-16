@@ -33,6 +33,9 @@ only after that version increases.
      keeps `'/youtube-digest'` as a trigger phrase so conversational routing still finds
      the renamed skill.
 
+  The 0.12.6 resume-argument rename carries forward unchanged under the new name: the
+  resume action is `/knowledge:video-digest resume <slice-slug>`.
+
 ### Deprecated
 
 - The extraction lane's `YOUTUBE_*`-prefixed environment variables are renamed to
@@ -48,6 +51,78 @@ only after that version increases.
 ### Added
 
 - `run.mjs` `--acquire-phase-gap <sec>` leading flag.
+
+## [0.12.6]
+
+### Changed
+
+- **BREAKING: `/knowledge:youtube-digest resume` takes `<slice-slug>` instead of `<video-slug>`
+  (#2818).** The argument names the work-slice directory under `.work/<watch-epic>/`, which may
+  identify an X status post with no video as well as a YouTube video. Same slug value and same
+  on-disk layout; only the user-facing argument name in `argument-hint`, the action router, resume
+  CLI usage, and handoff messaging changed. Stored prompts that still say `resume <video-slug>`
+  should be rewritten to `resume <slice-slug>`.
+
+## [0.12.5]
+
+### Added
+
+- **Scheduled source-adapter liveness lane for the video-digest pipeline (#2797).**
+  Offline hermetic harness under `skills/youtube-digest/extraction/liveness/`
+  (`run-source-liveness.js`, `probes.json`, fixtures) plus advisory workflow
+  `.github/workflows/video-digest-source-liveness.yml` (schedule / dispatch live
+  probes; PR path runs `--offline` only). Never wired into `ci.yml` / `ci-status`;
+  a red live run annotates the job, writes a step summary, and uploads the probe
+  report artifact — it never opens or updates GitHub issues. Auth-required X rows
+  skip without cookies. Owner doc:
+  `skills/youtube-digest/extraction/liveness/LIVENESS.md`.
+
+## [0.12.4]
+
+### Added
+
+- **Owner doc for ingest deferred-with-trigger decisions**
+  (`reference/ingest-deferred-decisions.md`): the five records that outlived the
+  `docpage-digest` Brief — rung-3/`firecrawl` seam (user-reserved), repo-tree enumeration,
+  `docpage-digest` rename cost, shared ingest-slice retrofit of sibling skills, and cross-type
+  routing — each with its named trigger. `map-corpus` keeps today's stop/non-goal behavior and
+  points at the owner doc for the durable records. Closes #2707. No behavior, schema, gate, exit
+  code, or argument changes.
+
+## [0.12.3]
+
+### Added
+
+- **`youtube-digest` and `course-digest` gain public test entry surfaces (#2701).** Each skill's
+  new `scripts/run-tests.sh` facade (`install`/`build`/`test`/`all`) delegates into the private
+  `extraction/` npm package; CI and repo docs now invoke the facades instead of running npm
+  directly inside the private subdirectory. The extraction packages themselves are unchanged.
+
+## [0.12.2]
+
+### Changed
+
+- **`map-corpus` states its own deferred decisions instead of pointing outside itself.** The skill
+  cited an authoring-time planning document by label, which no consumer ever receives — an
+  unresolvable reference on a shipped surface. Each site is now self-contained: the deferred rung-3
+  decision states its own fork (a presence-gated `/firecrawl:firecrawl map` seam versus a recorded
+  reimplementation), its user-reserved arbiter, and its trigger; the deferred repo-tree enumeration
+  rung states its trigger; the opaque `Q19` label is dropped from `SKILL.md`,
+  `discovery/link-map-format.md`, `discovery/check_linkmap.py`, and the eval set; and the
+  whole-snapshot hash in `extraction/node-manifest-format.md` now points at
+  `reference/citation-shape.md`, its actual owner. No behavior, schema, gate, exit code, or
+  argument changes.
+
+## [0.12.1]
+
+### Added
+
+- **Owner doc for the tracked citation shape** (`reference/citation-shape.md`): URL + retrieval
+  date (ISO 8601, UTC) + `sha256:<hex64>` over raw snapshot bytes, with inline and structured
+  forms, an optional node-id sub-resource anchor, and a drift rule (new fetch = new citation;
+  never edit a hash in place). Pays down the debt `map-corpus` recorded ("that citation shape still
+  needs an owner doc before a second skill emits it") — the skill's cite-never-copy gotcha now
+  points at the owner doc instead of naming the debt.
 
 ## [0.12.0]
 

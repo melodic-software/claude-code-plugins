@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "prerequisite_resolution": {
+    "schema_version": "1.0",
+    "declarations": [
+      {
+        "surface": "ci-cron",
+        "identity": "issue-triage-sweep",
+        "need": "tracker",
+        "state": "absent",
+        "rung": "repo-local"
+      }
+    ]
+  }
+}

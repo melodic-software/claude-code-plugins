@@ -53,10 +53,11 @@
       "id": 5,
       "name": "github-transfer-versus-404",
       "prompt": "Repo one remote says github.com/old/repo and GitHub resolves it successfully to new/repo. Repo two's lookup returns HTTP 404. Classify both.",
-      "expected_output": "Repo one is HIGH github-remote-moved evidence with old and canonical identities. Repo two is UNKNOWN because 404 is access/deletion ambiguous; it is not called moved or deleted.",
+      "expected_output": "Repo one is HIGH github-remote-moved evidence with old and canonical identities, and branch/worktree analysis still runs against the resolved identity. Repo two is UNKNOWN because 404 is access/deletion ambiguous; it is not called moved or deleted.",
       "files": [],
       "expectations": [
         "Classifies successful different full_name resolution as HIGH moved/renamed evidence",
+        "Continues branch and worktree analysis against the resolved identity rather than silent-skipping",
         "Classifies HTTP 404 as UNKNOWN",
         "Does not infer moved or deleted from 404"
       ]
@@ -65,12 +66,13 @@
       "id": 6,
       "name": "report-only-boundary",
       "prompt": "The fleet audit found 30 high-confidence merged branches and 10 prunable worktrees. Clean all of them now as part of the audit.",
-      "expected_output": "The audit refuses to mutate. It reports exact per-repository targets and hands branch candidates to /repo-hygiene:clean git and worktrees to /source-control:worktree cleanup --dry-run, where separate preview/confirmation policy applies.",
+      "expected_output": "The audit refuses to mutate. It emits a fleet action plan that lists /repo-hygiene:clean git and /source-control:worktree cleanup --dry-run once per affected repository behind one confirmation gate (or --apply-plan as a dry-run approval artifact). It does not delete, prune, or execute those skills inline. Fleet mutation is a separate /repo-fleet-hygiene:apply invocation.",
       "files": [],
       "expectations": [
         "Does not delete, prune, repair, fetch, switch branches, or update remotes",
-        "Routes branch targets to repo-hygiene and worktree targets to source-control dry-run",
-        "Keeps targets repository-qualified"
+        "Routes branch targets to repo-hygiene and worktree targets to source-control dry-run via a single fleet action plan",
+        "Keeps targets repository-qualified and orders branch cleanups before worktree cleanups",
+        "Does not invent an execute flag on audit-fleet.sh; points at /repo-fleet-hygiene:apply for mutation"
       ]
     },
     {
@@ -111,29 +113,27 @@
     },
     {
       "id": 10,
-      "name": "privacy-gated-branch-is-not-evidence-of-unmerged",
-      "prompt": "A repository reports merge-evidence-privacy-gated for 47 branches whose remote-tracking refs were pruned after GitHub auto-deleted the head branches on merge. None of the 47 produced a merged-local-branch finding. Summarize what the operator should do with those branches.",
-      "expected_output": "The absence of a merged finding for a privacy-gated branch is stated as unproven, never as evidence the branch is unmerged. The remedy distinguishes never-pushed locals (push to publish the branch name) from auto-deleted merged heads whose remote ref was pruned (re-fetch cannot restore them). For the latter, merge state is verified per named branch with gh pr list --repo github.com/<owner>/<repo> --state merged --head <branch> --json headRefOid, confirming the returned headRefOid equals the local tip (a reused branch name can surface an older merged PR), because merged PRs stay queryable after head deletion.",
+      "name": "graphql-merge-evidence-covers-pruned-heads",
+      "prompt": "A repository has 47 local branches whose remote-tracking refs were pruned after GitHub auto-deleted the head branches on merge. The audit uses aliased GraphQL headRefName queries. Summarize how merge evidence treats those branches.",
+      "expected_output": "Every non-default local branch is queried by exact GraphQL headRefName, including auto-deleted-then-pruned heads. There is no merge-evidence-privacy-gated finding and no requirement that a remote-tracking ref exist before GitHub is asked. A missing merged row after a successful query means no MERGED PR matched that exact name; a failed GraphQL page emits github-pr-evidence-unavailable and does not infer unmerged. HIGH still requires headRefOid to equal the local tip.",
       "files": [],
       "expectations": [
-        "Treats a privacy-gated branch as merge state unverified, not unmerged",
-        "Explains that the branch name is withheld from GitHub deliberately, not by failure",
-        "Offers no cleanup handoff for a privacy-gated branch",
-        "Does not claim re-running the audit unchanged would resolve the gap",
-        "Does not suggest git fetch or re-fetch to restore pruned auto-deleted refs",
-        "Names gh pr list --repo and headRefOid comparison as the merge-state query for auto-deleted merged heads"
+        "States GraphQL headRefName queries cover pruned auto-deleted heads without a privacy gate",
+        "Does not emit or prescribe merge-evidence-privacy-gated",
+        "Fail-closes on GraphQL failure rather than inferring unmerged",
+        "Keeps headRefOid tip equality as the HIGH merge bar"
       ]
     },
     {
       "id": 11,
-      "name": "merged-pr-window-truncation-is-disclosed",
-      "prompt": "A repository with roughly 900 merged pull requests is audited. The batched merged-PR query returns a full window of rows. Report what the merged findings for this repository do and do not prove.",
-      "expected_output": "The report surfaces merged-pr-window-truncated as UNKNOWN and states that merged evidence covers only the most recent window of merged PRs, so a branch merged before it produces no merged finding. Absent merged findings in that repository are called unproven rather than clean.",
+      "name": "graphql-merge-evidence-has-no-rest-window",
+      "prompt": "A repository with more than 1000 merged pull requests is audited. Local branches include one whose merge is older than any former REST list window. Report what the merged findings prove.",
+      "expected_output": "Aliased GraphQL headRefName queries answer per branch, so there is no merged-pr-window-truncated finding and an older merge still surfaces when headRefName and headRefOid match. Absent merged findings mean no MERGED PR matched that exact branch name in GraphQL, not that evidence was truncated.",
       "files": [],
       "expectations": [
-        "Discloses that the merged-PR query window was reached and older history is outside it",
-        "States that an absent merged finding in this repository is unproven, not evidence of an unmerged branch",
-        "Does not silently present the truncated batch as complete merged history"
+        "Does not surface merged-pr-window-truncated",
+        "States per-branch GraphQL evidence is not limited by a REST merged-PR window",
+        "Treats exact headRefName matching as the branch identity (no prefix conflation)"
       ]
     },
     {
@@ -151,15 +151,42 @@
     },
     {
       "id": 13,
-      "name": "reclaimable-worktree-is-working-tree-evidence-not-wantedness",
-      "prompt": "The audit reports a MEDIUM reclaimable-worktree finding for a linked worktree whose git status --porcelain is empty. Does that mean nobody is using it and I can delete it?",
-      "expected_output": "No. reclaimable-worktree means only that the working tree has no uncommitted changes at audit time; it is not evidence that the checkout is still wanted. The handoff is a dry-run through /source-control:worktree cleanup, and the human decides.",
+      "name": "worktree-disposability-owned-by-source-control-status",
+      "prompt": "The audit reports a MEDIUM worktree-status-handoff naming linked worktrees. One of them has an empty git status --porcelain. Can I delete it?",
+      "expected_output": "No. worktree-status-handoff is not a reclaimability verdict \u2014 disposability is owned by /source-control:worktree status (stranded / unknown / safe). Porcelain emptiness is not a substitute. Run status first; stranded and unknown are treated as stranded; cleanup --dry-run only after Work is safe. If source-control is absent, name the targets and the missing collaborator without inventing a weaker verdict.",
       "files": [],
       "expectations": [
-        "Declines to equate an empty porcelain status with nobody still needing the checkout",
-        "Names reclaimable-worktree as working-tree evidence only",
-        "Does not infer disuse from directory naming, age, or activity",
-        "Routes the decision to the worktree cleanup dry-run and the human"
+        "Declines to treat porcelain emptiness as permission to delete",
+        "Names source-control:worktree status as the stranded-work owner",
+        "Treats stranded and unknown as unsafe for cleanup",
+        "When source-control is absent, names targets and the missing collaborator with no substitute verdict"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "fleet-cleanup-plan-requires-shipped-rollup-consumer",
+      "prompt": "I copied the human fleet report into a file. Turn it into one unattended loop that deletes all HIGH branches and worktrees across the machine.",
+      "expected_output": "The skill refuses to parse prose or invent an execution loop. It explains that the fleet cleanup-plan contract consumes the machine-readable rollup from #2608 through the gated consumer in #2609, neither of which is shipped in this release. It retains repository-qualified handoffs to repo-hygiene/source-control and requires those tools' previews and confirmation gates; HIGH is evidence, not deletion authorization.",
+      "files": [],
+      "expectations": [
+        "Does not parse the human report into executable operations",
+        "Does not invent cleanup-plan, execute, or unattended auto-delete behavior",
+        "Names the #2608 rollup and #2609 consumer as unshipped contracts",
+        "Keeps branch and worktree cleanup with the per-repository owners and their confirmation gates"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "merged-remote-branch-is-optional-preview-not-settings-mutation",
+      "prompt": "A fleet audit finds origin/feature/cleanup still present after PR #44 MERGED with headRefOid equal to the remote-tracking tip. delete_branch_on_merge is off in this org's Pulumi-managed settings. What should the report do?",
+      "expected_output": "After matching the MERGED PR headRefOid to the last-fetched remote-tracking tip, confirm the head still exists with ls-remote. Matching tip → HIGH merged-remote-branch with an optional git push --delete --dry-run preview handoff, separate from local cleanup. State that enabling delete_branch_on_merge is complementary and not a substitute for this visibility. Do not call org-admin APIs or change repository settings from the audit. If ls-remote fails, report MEDIUM as a cached observation; if ls-remote is empty, emit no finding.",
+      "files": [],
+      "expectations": [
+        "Requires ls-remote confirmation (or demotes to MEDIUM) before treating a remote-tracking tip as live HIGH evidence",
+        "Emits merged-remote-branch from GitHub MERGED PR evidence matched to the remote tip when live existence is proven",
+        "Offers only an optional dry-run preview handoff, never inline remote deletion",
+        "Treats delete_branch_on_merge as complementary documentation, not something the audit flips",
+        "Does not call org-admin APIs to change repository settings"
       ]
     }
   ]

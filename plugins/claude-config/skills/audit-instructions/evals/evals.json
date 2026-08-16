@@ -79,10 +79,10 @@
       "id": 7,
       "name": "memory-layer-conflict-routes-to-c6",
       "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"always run the full test suite before committing\" and .claude/rules/testing.md says \"never run the full suite locally, let CI do it\". Which one is wrong?",
-      "expected_output": "Recognizes that both sides of the contradiction sit inside the memory layer (CLAUDE.md and a rules file), which is check C6 Consistency in the claude-memory plugin's audit skill, not check I15 here. Routes the finding there when claude-memory is installed — reporting the pair as an observation and pointing at /claude-memory:audit rather than grading it — so one finding is emitted rather than two. When claude-memory is NOT installed it keeps the pair as an I15 finding instead, per the fallback contract in conflict-criteria.md, so a real contradiction is never silently dropped just because the incumbent is absent.",
+      "expected_output": "Recognizes that both sides of the contradiction sit inside the discover-instruction-surfaces population C6 enumerates (root-level project CLAUDE.md and a rules file), which is check C6 Consistency in the claude-memory plugin's audit skill, not check I15 here. Routes the finding there when claude-memory is installed — reporting the pair as an observation and pointing at /claude-memory:audit rather than grading it — so one finding is emitted rather than two. When claude-memory is NOT installed it keeps the pair as an I15 finding instead, per the fallback contract in conflict-criteria.md, so a real contradiction is never silently dropped just because the incumbent is absent.",
       "files": [],
       "expectations": [
-        "Identifies both sides as root-level project memory surfaces and, when claude-memory is installed, does NOT emit an I15 conflict finding for them",
+        "Identifies both sides as discover-instruction-surfaces population members and, when claude-memory is installed, does NOT emit an I15 conflict finding for them",
         "Routes the contradiction to the claude-memory plugin's audit skill check C6 when that plugin is installed",
         "When claude-memory is NOT installed, emits the I15 fallback finding for the pair rather than reporting it unchecked — the routing exists to avoid duplicate findings, not to drop the only one"
       ]
@@ -206,6 +206,19 @@
         "Derives the state key by running the resolver rather than by evaluating whether ${CLAUDE_PROJECT_DIR} is set",
         "Omits the per-surface token delta and says why, instead of computing one against another project's prior report",
         "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme rather than inventing a second one"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "user-project-conflict-routes-to-c6",
+      "prompt": "/claude-config:audit-instructions my ~/.claude/CLAUDE.md says \"always ask before running any shell command\" and this project's CLAUDE.md says \"never ask — run the full test suite without confirmation\". Which audit owns that?",
+      "expected_output": "Routes the pair to claude-memory:audit's C6. Both anchors are in the discover-instruction-surfaces population — user-scope CLAUDE.md and project-scope CLAUDE.md — and C6's Step 3 explicitly compares user surfaces against project ones as live conflicts. I15 does not grade the pair when claude-memory is installed; it reports an observation pointing at /claude-memory:audit. When claude-memory is NOT installed it keeps the pair as an I15 finding per the fallback contract, so the contradiction is never silently dropped. Nested CLAUDE.md, auto-memory, and skill-body halves stay with I15 because they are outside that population.",
+      "files": [],
+      "expectations": [
+        "Identifies the user↔project CLAUDE.md pair as inside C6's discover-instruction-surfaces population, not as an I15-only concern",
+        "When claude-memory is installed, routes to C6 / does NOT emit a graded I15 conflict finding for the pair",
+        "When claude-memory is NOT installed, emits the I15 fallback finding rather than dropping the only coverage",
+        "Does not treat nested CLAUDE.md or auto-memory pairs as if they followed the same route — those stay with I15"
       ]
     }
   ]

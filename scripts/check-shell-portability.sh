@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Shell-portability-lint gate (#1491): flags GNU-only shell constructs in
-# changed **/*.sh files — a class no existing gate covers. `shellcheck` lints
-# shell syntax/style; scripts/check-skill-portability.sh (#531) matches
-# skill-coupling tokens (stack/forge/branch/tracker defaults) against changed
-# *skill* files only. Neither has GNU-vs-BSD regex/flag vocabulary, and no
-# runner in this repo's CI uses BSD userland (a Windows runner's Git Bash still
-# ships GNU grep/sed, so it would not help either) — the exposure is macOS
-# system grep/sed/date/stat/mktemp/sort, unreachable from any lane here.
+# changed **/*.sh files and in skill markdown under plugins/*/skills/ (#2704)
+# — a class no existing gate covers. Skill markdown is not documentation about
+# code: for a skill, the markdown IS the executable surface an agent reads and
+# runs, so a GNU-only construct there fails on macOS exactly as it would in a
+# .sh file. `shellcheck` lints shell syntax/style; scripts/check-skill-portability.sh
+# (#531) matches skill-coupling tokens (stack/forge/branch/tracker defaults)
+# against changed *skill* files only. Neither has GNU-vs-BSD regex/flag
+# vocabulary, and no runner in this repo's CI uses BSD userland (a Windows
+# runner's Git Bash still ships GNU grep/sed, so it would not help either) —
+# the exposure is macOS system grep/sed/date/stat/mktemp/sort, unreachable
+# from any lane here.
 #
-#   scripts/check-shell-portability.sh <base-ref>   gate .sh files a PR changed
-#   scripts/check-shell-portability.sh --all         audit every tracked .sh file
+#   scripts/check-shell-portability.sh <base-ref>   gate .sh + skill .md a PR changed
+#   scripts/check-shell-portability.sh --all         audit every tracked .sh + skill .md
 #   scripts/check-shell-portability.sh --paths F...   scan exactly these files
 #
 # WHAT is detected is data, not logic: the construct list lives in
@@ -139,6 +143,15 @@ case "$TOKENS" in
 *) TOKENS="./$TOKENS" ;;
 esac
 
+# Pre-existing skill-markdown debt (#2704): widening selection onto every
+# SKILL.md / context/*.md / reference/*.md that already carries a token hit
+# would be a flag day. scripts/shell-portability-skill-md-baseline.txt
+# grandfathers today's measured hits so CI-facing modes gate NEW and CHANGED
+# skill markdown first; the baseline shrinks (a stale entry — file missing or
+# clean — fails the gate). --paths never consults it: that mode is the audit
+# tool that measured the backlog and must keep seeing every hit.
+BASELINE="${SHELL_PORTABILITY_MD_BASELINE:-scripts/shell-portability-skill-md-baseline.txt}"
+
 usage() {
   printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
   exit 2
@@ -146,7 +159,10 @@ usage() {
 
 # is_scannable <path> — a shell file this gate is responsible for. Vendor/
 # upstream-synced copies carry their own drift gate, not this contract.
-# Likewise the cross-plugin sync copies registered in
+# Skill markdown under plugins/*/skills/ is in scope (#2704): agents execute
+# shell snippets from those files. evals/ carries adversarial fixture prompts
+# by design (same exclusion check-skill-portability.sh uses). Likewise the
+# cross-plugin sync copies registered in
 # scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
 # byte-identical to its in-repo SOURCE, so the source is where this contract
 # gates a change — scanning each copy would flag content no copy edit is
@@ -154,8 +170,9 @@ usage() {
 is_scannable() {
   local f="$1"
   case "$f" in
-  */vendor/*) return 1 ;;
+  */vendor/* | */evals/*) return 1 ;;
   *.sh) ;;
+  plugins/*/skills/*.md) ;;
   *) return 1 ;;
   esac
   local registry="scripts/cross-plugin-source-registry.txt" rel line
@@ -170,8 +187,25 @@ is_scannable() {
   return 0
 }
 
+# Active baseline entries: exact repo-relative paths, full-string equality.
+# SHELL_PORTABILITY_MD_BASELINE overrides the path (test injection).
+baseline_entries=()
+if [[ -f "$BASELINE" ]]; then
+  mapfile -t baseline_entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$' || true)
+fi
+
+# baselined <path> — 0 when the path is on the skill-md backlog list.
+baselined() {
+  local path="$1" entry
+  for entry in "${baseline_entries[@]}"; do
+    [[ "$path" == "$entry" ]] && return 0
+  done
+  return 1
+}
+
 # Resolve the file set for the requested mode.
 files=()
+apply_baseline=0
 if (($# == 0)); then
   usage
 fi
@@ -181,13 +215,20 @@ case "$mode" in
 --all)
   shift
   (($# == 0)) || usage
+  apply_baseline=1
   while IFS= read -r f; do
     is_scannable "$f" && files+=("$f")
-  done < <(find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' | sed 's|^\./||' | sort)
+  done < <(
+    {
+      find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*'
+      find plugins -type f -path 'plugins/*/skills/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
+    } | sed 's|^\./||' | sort -u
+  )
   ;;
 --paths)
   shift
   (($# > 0)) || usage
+  # --paths is the audit tool: scan exactly what was asked, no baseline skip.
   files=("$@")
   ;;
 -*)
@@ -198,19 +239,24 @@ case "$mode" in
   base="$mode"
   shift
   (($# == 0)) || usage
+  apply_baseline=1
   if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
     printf 'Error: base ref %s is not a valid commit\n' "$base" >&2
     exit 2
   fi
   # NUL-delimited (-z) so a pathname Git would C-quote (non-ASCII bytes under
   # the default core.quotePath, or a literal quote/backslash) arrives verbatim
-  # — a quoted path would miss the *.sh suffix check below and be silently
-  # dropped, the exact silent exclusion the contract forbids.
+  # — a quoted path would miss the *.sh / skill-md suffix check below and be
+  # silently dropped, the exact silent exclusion the contract forbids.
+  # Diff plugins/ in addition to *.sh so skill markdown under
+  # plugins/*/skills/ reaches is_scannable (#2704); a plugins/*/skills/
+  # pathspec alone does not match under git's default (non-pathname) globbing
+  # (same rationale as check-skill-portability.sh).
   while IFS= read -r -d '' f; do
     is_scannable "$f" || continue
     [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
     files+=("$f")
-  done < <(git diff --name-only --diff-filter=d -z "$base" -- '*.sh' | sort -z -u)
+  done < <(git diff --name-only --diff-filter=d -z "$base" -- '*.sh' 'plugins/' | sort -z -u)
   ;;
 esac
 
@@ -1684,7 +1730,13 @@ violations=0
 # Printed unconditionally it followed every `grep -P` and `sed -i` failure with
 # advice about an ampersand the developer never wrote.
 amp_violation=0
+# Baselined skill-md paths that still produced at least one hit this run — used
+# by the stale-baseline guard below so a cleaned-up file cannot linger on the
+# backlog list.
+declare -A baseline_still_hot=()
+declare -A files_in_scope=()
 for file in "${files[@]}"; do
+  files_in_scope["$file"]=1
   if [[ ! -f "$file" ]]; then
     printf 'Error: no such file: %s\n' "$file" >&2
     exit 2
@@ -1697,6 +1749,11 @@ for file in "${files[@]}"; do
     exit 2
   }
   if [[ -n "$out" ]]; then
+    # shellcheck disable=SC2310 # baselined only walks a static array
+    if ((apply_baseline)) && baselined "$file"; then
+      baseline_still_hot["$file"]=1
+      continue
+    fi
     while IFS= read -r v; do
       echo "PORTABILITY: ${file}:${v}" >&2
       violations=$((violations + 1))
@@ -1707,6 +1764,39 @@ for file in "${files[@]}"; do
     done <<<"$out"
   fi
 done
+
+# Stale-baseline guard (CI-facing modes only): every entry must name a skill-md
+# file that still carries at least one unexcused hit when scanned. A missing
+# file or a cleaned-up file must leave the list — same shrink-only contract as
+# scripts/orphaned-fixtures-baseline.txt / hook-userconfig-argv-allowlist.txt.
+#
+# All three stale branches share changed-file scoping: --all re-proves the
+# whole list; diff mode only re-proves entries in this run's file set. Missing
+# targets are never in that set (diff excludes deletions), so a deleted
+# baseline path is caught on the next `--all` rather than red-lining unrelated
+# PRs — same blast-radius contract as the cleaned-up / out-of-set branches.
+if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
+  for entry in "${baseline_entries[@]}"; do
+    if [[ "$mode" == "--all" || -n "${files_in_scope[$entry]:-}" ]]; then
+      if [[ ! -f "$entry" ]]; then
+        echo "STALE BASELINE: $BASELINE: '$entry' names a missing file — remove it" >&2
+        violations=$((violations + 1))
+        continue
+      fi
+      if [[ -z "${baseline_still_hot[$entry]:-}" ]]; then
+        # Confirm scannable rather than trusting set membership alone: a
+        # baseline entry that is_scannable rejected (vendor/evals) must still
+        # be shed.
+        if is_scannable "$entry"; then
+          echo "STALE BASELINE: $BASELINE: '$entry' no longer has unexcused hits — remove it" >&2
+        else
+          echo "STALE BASELINE: $BASELINE: '$entry' is outside the scannable skill-md set — remove it" >&2
+        fi
+        violations=$((violations + 1))
+      fi
+    fi
+  done
+fi
 
 if ((violations > 0)); then
   {

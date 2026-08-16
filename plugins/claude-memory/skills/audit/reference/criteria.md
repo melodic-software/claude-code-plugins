@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.5.3
-Last updated: 2026-08-08
+Version: 1.5.4
+Last updated: 2026-08-15
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -165,15 +165,25 @@ instead)."
 
 ### C6: Consistency [FAIL]
 
-**What**: Do any instructions contradict each other across CLAUDE.md, CLAUDE.local.md, and rules files?
+**What**: Do any instructions contradict each other across CLAUDE.md, CLAUDE.local.md, and rules
+files — including across **user and project** scope when both sides are in the
+`discover-instruction-surfaces` population?
 
 **How to check**:
 
-1. Identify instructions touching the same topic across files
+1. Identify instructions touching the same topic across files discovered by
+   `scripts/discover-instruction-surfaces.sh` (project and user scope)
 2. Check for contradictions (e.g., "always use X" in one file, "never use X" in another)
 3. Check for redundancy (same instruction in multiple files)
-4. FAIL for contradictions (Claude picks one arbitrarily)
-5. WARN for redundancy (wastes context budget)
+4. Compare **user**-scope surfaces against project ones — both load together, so a
+   user↔project contradiction is a live conflict (see Step 3 in `context/audit.md`)
+5. FAIL for contradictions (Claude picks one arbitrarily)
+6. WARN for redundancy (wastes context budget)
+
+**Boundary**: This check owns instruction-content conflicts whose **both** anchors are in the
+discover-instruction-surfaces population. Nested `CLAUDE.md` files, auto-memory, settings, hooks,
+skills, agents, and output styles are outside that population — those pairs belong to
+`claude-config:audit-instructions` I15 (and its precedence / co-residency adjudication), not here.
 
 **Why**: Official docs: "If two rules contradict each other, Claude may pick one arbitrarily."
 

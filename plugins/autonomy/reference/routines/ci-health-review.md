@@ -55,6 +55,37 @@ posture-qualified identities per the [catalog](../routines.md)'s binding rules �
 class token is not bindable for a multi-posture class; the posture the org enables picks
 the identity it binds.
 
+## Prerequisites
+
+Per-identity needs under
+[routine prerequisite resolution](../prerequisite-resolution.md). Axes derive through the
+catalog mapping rules; the isolation floor and `executor_class` merge cap are cited from the
+guardrail slice, never re-derived. Resolution verdicts use `supported` | `conditional` |
+`unsupported` | `unknown`. The two postures diverge on merge-path needs — different
+prerequisite sets for the same class.
+
+### `ci-health-review/advisory`
+
+| Axis | Value |
+|---|---|
+| Access class | `repo` |
+| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| Repo needs | CI-config presence (ownerless repo-file probe owned by the resolution contract); tracker binding when filing work items through the work-item tracker seam |
+
+### `ci-health-review/ci-config-change`
+
+| Axis | Value |
+|---|---|
+| Access class | `repo` |
+| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C4` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. `C4` is human merge always; the cap still binds |
+| Repo needs | everything `advisory` requires, plus a merge-bearing path through the matrix for the gated CI-config change — the identity is not eligible where the bound surface cannot carry a merge-policy disposition |
+
 ## Admission and escalation
 
 Admission disposition and fan-out caps for the derived class come from the

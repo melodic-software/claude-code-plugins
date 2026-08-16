@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # PostToolUse hook: spell-check via typos-cli (crate-ci/typos), REPORT-ONLY by
-# default. Triggered on Write|Edit of ANY file — typos is language-agnostic,
-# unlike the sibling ruff-format/markdown-format hooks, which are
-# extension-scoped.
+# default. Triggered on Write|Edit of ANY file for the read-only scan — typos
+# is language-agnostic, unlike the sibling ruff-format/markdown-format hooks,
+# which are extension-scoped. Write mode (`typos_format_write_changes`) is a
+# different story: --write-changes is gated on an explicit extension allowlist
+# (#2650), so an unknown/fixture/binary-adjacent extension stays report-only
+# even when the opt-in is set.
 #
 # ADVISORY: always exits 0. Findings surface via additionalContext but never
 # block the edit. A commit hook or CI is the hard gate.
@@ -95,7 +98,8 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq-free applicability pre-filter: never emit the jq notice when there is no
 # file_path at all (e.g. a tool_input shape this hook cannot act on regardless).
-# shellcheck disable=SC2034  # existence-only check; no extension filter to apply (typos is language-agnostic)
+# shellcheck disable=SC2034  # existence-only check; scan has no extension filter
+# (typos is language-agnostic). Write mode applies its own allowlist later (#2650).
 RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
 
 # jq is load-bearing for input parsing; absent → visible once-per-session skip
@@ -179,7 +183,8 @@ fi
 # (dim-9 doctrine).
 if [[ -z "$TYPOS_BIN" ]]; then
   if hook::notice_once "typos-format-typos" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on PATH — spell-check skipped for this session. Install: https://github.com/crate-ci/typos#install"
+    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on this hook's PATH — spell-check skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/crate-ci/typos#install
+PATH probed: ${PATH:-<unset>}"
   fi
   emit_skipped
 fi
@@ -213,6 +218,78 @@ fi
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.
 WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-false}"
+
+# Write-mode extension allowlist (#2650). The read-only scan still runs on any
+# file (typos is language-agnostic). --write-changes is the silent mutator —
+# typos emits nothing for a correction it applies — so an unbounded write path
+# is unbounded blast radius once a fixture, golden, lockfile, encoded blob, or
+# other load-bearing exact-string file reaches this hook. Deny unknown
+# extensions (and extensionless paths) even when the write opt-in is set: those
+# stay report-only. The allowlist is source + prose + hand-edited config that
+# sibling formatters in this marketplace already treat as rewrite-safe; it is
+# deliberately NOT typos' full type list (that includes lock, cert, binary
+# compressions, and many fixture-adjacent types).
+# Generated lockfile basenames stay report-only even when their extension is
+# otherwise rewrite-safe (*.json / *.yaml). A correctable token in package-lock
+# or pnpm-lock must not mutate load-bearing generated data (#2650 review).
+typos_write_lockfile_denied() {
+  local base
+  base="$(basename -- "$1")"
+  case "$base" in
+  package-lock.json | npm-shrinkwrap.json | yarn.lock | pnpm-lock.yaml |   bun.lock | bun.lockb | Cargo.lock | poetry.lock | Pipfile.lock |   composer.lock | Gemfile.lock | go.sum | Podfile.lock | flipper.lock |   Package.resolved | packages.lock.json | project.assets.json)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+typos_write_ext_allowed() {
+  case "$1" in
+  *.edn) # spellchecker:disable-line
+    return 0
+    ;;
+  *.md | *.mdc | *.mdx | *.markdown | *.txt | *.rst | *.adoc | *.asciidoc | *.org | \
+  *.py | *.pyi | *.rb | *.go | *.rs | *.java | *.kt | *.kts | *.scala | *.swift | \
+  *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.vue | *.svelte | \
+  *.c | *.h | *.cc | *.hh | *.cpp | *.hpp | *.cxx | *.hxx | *.cs | *.fs | *.fsx | \
+  *.sh | *.bash | *.zsh | *.fish | *.ps1 | *.psm1 | *.psd1 | \
+  *.html | *.htm | *.css | *.scss | *.sass | *.less | \
+  *.xml | *.yaml | *.yml | *.toml | *.json | *.jsonc | \
+  *.sql | *.graphql | *.graphqls | *.proto | \
+  *.lua | *.r | *.R | *.pl | *.pm | *.php | *.ex | *.exs | *.erl | *.hrl | \
+  *.hs | *.elm | *.clj | *.cljs | *.lisp | *.el | \
+  *.tf | *.hcl | *.nix | *.cmake | *.mk | \
+  *.tex | *.bib | *.pod | *.rdoc)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+# Opt-in write mode that lands on a denied extension degrades to report-only
+# for THIS file. Flipping WRITE_CHANGES keeps the disclosure composer on the
+# report-only path (mode statement, no residual-after-write phrasing) without
+# a second messaging branch. WRITE_SKIP_REASON records why, for a one-line
+# note on the agent channel when findings exist.
+WRITE_SKIP_REASON=""
+if [[ "$WRITE_CHANGES" == "true" ]]; then
+  if typos_write_lockfile_denied "$FILE"; then
+    WRITE_CHANGES=false
+    WRITE_SKIP_REASON=lockfile
+  elif ! typos_write_ext_allowed "$FILE"; then
+    WRITE_CHANGES=false
+    base=$(basename -- "$FILE")
+    if [[ "$base" != *.* ]]; then
+      WRITE_SKIP_REASON=extensionless
+    else
+      WRITE_SKIP_REASON=extension
+    fi
+  fi
+fi
 
 # Disclosure cap. A file with hundreds of corrections must not turn this hook's
 # own report into the context flood it exists to prevent, so each list is capped
@@ -362,6 +439,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     def elide: if (length > 60) then (.[0:60] + "…") else . end;
     def tok: ((.typo // "") | elide);
     def corr1: ((.corrections[0] // "") | elide);
+    # Multi-candidate residuals join every option; typos itself refuses to
+    # auto-apply when length > 1, so the disclosure must not pick corrections[0]
+    # as a definite "should be X".
+    def corrs: ((.corrections // []) | map(elide) | join(" or "));
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
     | parse($lines[($sep + 1):]) as $r
@@ -405,8 +486,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
         residualText: ([limit($max; $r[])] | map(
             if .corrections == null then
               "  \"\(tok)\" (line \(.line_num // 0)) is disallowed, no known correction."
+            elif (.corrections | length) > 1 then
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \(corrs) (ambiguous — typos will not auto-correct this)."
             else
-              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\"."
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corrs)\"."
             end) | join("\n"))
       }' 2>/dev/null) || CLASSIFIED=""
 
@@ -485,7 +568,22 @@ if ((APPLIED_COUNT > 0)); then
   fi
   SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in the repo's typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
 elif [[ "$WRITE_CHANGES" != "true" ]]; then
-  CTX+="typos-format is report-only — $BASE was NOT modified. Findings:"$'\n'
+  if [[ -n "$WRITE_SKIP_REASON" ]]; then
+    case "$WRITE_SKIP_REASON" in
+      lockfile)
+        skip_why="this path is a generated lockfile basename, so the file was NOT modified"
+        ;;
+      extensionless)
+        skip_why="this path has no extension and is outside the write allowlist, so the file was NOT modified"
+        ;;
+      *)
+        skip_why="this extension is outside the write allowlist, so the file was NOT modified"
+        ;;
+    esac
+    CTX+="typos-format is report-only for $BASE — write mode is on, but ${skip_why}. Findings:"$'\n'
+  else
+    CTX+="typos-format is report-only — $BASE was NOT modified. Findings:"$'\n'
+  fi
 fi
 
 if ((RESIDUAL_COUNT > 0)); then

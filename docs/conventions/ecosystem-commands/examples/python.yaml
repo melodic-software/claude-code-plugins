@@ -5,6 +5,7 @@ project-discovery: ["pyproject.toml"]
 build-cmd: null # no separate build step; lint/test cover verification
 test-cmd: "uv run pytest -x -q"
 check-cmd: "uv run ruff check . --no-fix && uv run ruff format . --check"
-fix-cmd: "uv run ruff check . --fix && uv run ruff format ."
+fix-cmd: "uv run ruff format <files>" # format-only; code-changing autofixes live in code-fix-cmd
+code-fix-cmd: "uv run ruff check <files> --fix --no-unsafe-fixes --unfixable F401"
 opt-in: "ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff])"
 install-hint: "pip install ruff uv | brew install uv ruff | winget install astral-sh.uv"

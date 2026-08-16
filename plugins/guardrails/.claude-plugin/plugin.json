@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "description": "Twelve safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, multi-line `git commit -m` messages (an actual-newline `-m` mangles across shells; single-line `-m` passes), commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory, opt-in) un-throttled Workflow fan-out that risks burst 529s, and (advisory, opt-in) direct gh pr create calls bypassing this marketplace's own pull-request skill \u2014 each independently toggleable.",
+  "description": "Thirteen safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, Windows drive-root /tmp writes (POSIX /tmp, C:\\tmp, \\tmp), multi-line `git commit -m` messages (an actual-newline `-m` mangles across shells; single-line `-m` passes), commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory, opt-in) un-throttled Workflow fan-out that risks burst 529s, and (advisory, opt-in) direct gh pr create calls bypassing this marketplace's own pull-request skill \u2014 each independently toggleable.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -47,6 +47,12 @@
       "type": "boolean",
       "title": "block-hook-bypass guard",
       "description": "Block Bash file-write workarounds that circumvent Write/Edit hook gates",
+      "default": true
+    },
+    "block_windows_drive_tmp_enabled": {
+      "type": "boolean",
+      "title": "block-windows-drive-tmp guard",
+      "description": "Block Bash/PowerShell writes whose target is a Windows drive-root temp path (/tmp, C:\\tmp, \\tmp, /c/tmp) that resolves to <drive>:\\tmp instead of %TEMP%",
       "default": true
     },
     "block_noncanonical_commit_enabled": {
@@ -106,7 +112,7 @@
     "block_dangerous_git_allow": {
       "type": "string",
       "title": "block-dangerous-git allow-list",
-      "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all",
+      "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all",
       "default": ""
     },
     "block_noncanonical_commit_allow": {
@@ -135,5 +141,5 @@
       "min": 1
     }
   },
-  "version": "0.28.22"
+  "version": "0.28.29"
 }

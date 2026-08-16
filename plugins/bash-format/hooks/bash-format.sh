@@ -244,7 +244,8 @@ if shell_editorconfig_opt_in; then
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
-    append_notice "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' is not on PATH — formatting skipped for this session. Install: https://github.com/mvdan/sh#shfmt"
+    append_notice "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' was not found on this hook's PATH — formatting skipped for this edit (probe re-runs on every shell edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/mvdan/sh#shfmt
+PATH probed: ${PATH:-<unset>}"
   fi
 fi
 
@@ -285,7 +286,8 @@ if command -v shellcheck >/dev/null 2>&1; then
     fi
   fi
 elif hook::notice_once "bash-format-shellcheck" "$INPUT"; then
-  append_notice "bash-format: 'shellcheck' not found on PATH — shell lint skipped for this session. Install: https://github.com/koalaman/shellcheck#installing"
+  append_notice "bash-format: 'shellcheck' was not found on this hook's PATH — shell lint skipped for this edit (probe re-runs on every shell edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/koalaman/shellcheck#installing
+PATH probed: ${PATH:-<unset>}"
 fi
 
 # Single emission point: findings on the agent channel, missing-tool notice on

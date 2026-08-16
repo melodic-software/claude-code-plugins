@@ -161,40 +161,87 @@ claim, not a fact — say so rather than repeating it.
 
 ## Running the acceptance gate
 
-Both `SKILL.md` files carry the gate's steps. Two things about *running* it are the same for both.
+Both `SKILL.md` files carry the gate's steps. What follows is the same for both families whenever
+the gate has to *run* — including an inline research run that still owes criterion 11's script
+verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
+`--help` probe.
+
+### Pre-flight — before a route that owes a gate
+
+Probe only the scripts the **chosen** route will need. Each script's `--help` is side-effect-free
+and exits 0:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # dispatched explore or research
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
+```
+
+- **Dispatched route (explore or research):** probe `check-dispatch-artifact.sh` before dispatching.
+  Research also probes the coverage checker. A denied, declined, or errored probe is the same FAIL
+  as a non-zero gate exit — **halt**. Do not take the inline escape hatch to dodge an un-runnable
+  post-dispatch gate.
+- **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage
+  checker before spending the run; a denied probe **halts**. Reading the ledger instead is the
+  silent self-grade the gate exists to prevent.
+- **Inline explore:** no script verdict to self-grade. The three escape-hatch reasons (tight
+  iteration, cost, already-a-subagent) remain valid; do **not** halt an otherwise-legitimate inline
+  explore because the dispatch artifact checker is unavailable.
+
+### How to invoke — prefer the script path, not `bash <script>`
+
+The scripts are shebang executables. Prefer invoking the path directly so the outer command is the
+gate itself rather than an interpreter wrapping it:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <slice> --index-name <NAME.md> …
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" <ledger>   # or the .py twin
+```
+
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
+whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another
+open shell) still runs, invoke the **same** scripts from that open lane — including the coverage
+ledger's Python twin (`check-coverage-complete.py`) when `python3` is what that lane can run. The
+twin is the non-bash alternative for criterion 11; it shares the `.sh` exit contract (0 / 1 / 2)
+and the greppable summary line. Either implementation's exit status is the verdict; a table reading
+is never a substitute for either.
+
+When every lane that could run a gate is denied: **halt**. Report that the gate could not run. Do
+not proceed, do not self-grade, and do not invent an `UNGRADED` that continues the workflow —
+anything that lets the run proceed without a script exit reintroduces the defect.
 
 ### The gate ships no permission grant, and the un-run case is a halt
 
-Neither skill declares `allowed-tools`, and that is a conclusion rather than an omission. Three
-independent legs, all from <https://code.claude.com/docs/en/skills> (raw markdown, fetched
-2026-08-11):
+Neither skill declares `allowed-tools`, and that is a conclusion rather than an omission. Re-checked
+against <https://code.claude.com/docs/en/skills> (raw markdown, fetched 2026-08-14):
 
-1. **The substituting token cannot name these scripts.** "Claude Code substitutes
-   `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in two places: the skill's markdown content,
-   and Bash rules in the `allowed-tools` frontmatter." `${CLAUDE_PLUGIN_ROOT}` is not on that list,
-   so a rule written with it stays a literal string and never matches. And `${CLAUDE_SKILL_DIR}` is
-   "the directory containing the skill's `SKILL.md` file … for plugin skills, this is the skill's
-   subdirectory within the plugin, **not the plugin root**" — while these gate scripts live at the
-   plugin root on purpose, because one gate serves both families.
-2. **An interpreter-led rule is an anti-pattern in this repo.** `bash` is not one of the wrappers
-   Claude Code strips before matching, so a rule covering `bash <path> …` has to name `bash` — see
-   `docs/conventions/permission-rule-hygiene/README.md`, anti-pattern 1.
+1. **`${CLAUDE_PLUGIN_ROOT}` now substitutes in plugin-skill `allowed-tools` Bash rules** (same page:
+   "In a plugin skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in
+   the same two places" as `${CLAUDE_SKILL_DIR}` / `${CLAUDE_PROJECT_DIR}`). That removes the old
+   "token cannot name these scripts" leg. It does **not** confirm that a
+   `${CLAUDE_PLUGIN_ROOT}`-bearing rule matches at runtime on every host — treat the docs change as
+   necessary but not sufficient, and do not ship a grant on docs alone.
+2. **An interpreter-led rule is still an anti-pattern in this repo.** A grant shaped like
+   `bash` wrapping the script path names the interpreter and is dropped under auto mode — see
+   `docs/conventions/permission-rule-hygiene/README.md`, anti-pattern 1. A direct-path rule that
+   names the `.sh` (or `.py`) under the plugin root is the documented shape, but see leg 3.
 3. **The grant would not last long enough anyway.** It "grants permission for the listed tools
    during the turn that invokes the skill … The grant clears when you send your next message." The
-   parent runs this gate *after* a dispatch returns, which is a later turn.
+   parent runs this gate *after* a dispatch returns, which is a later turn; criterion 11 on a
+   multi-phase research run is likewise later than the invoking turn.
 
 So the honest statement is the one the rest of this plugin already makes about un-run checks:
 
 > **A gate that could not run is a FAIL, never a skip.** If the invocation is denied, prompts and is
 > declined, or errors out, report that and halt exactly as on a non-zero exit. Do not substitute a
-> reading of the directory — the context most motivated to call the dispatch finished is the one
-> that would be doing the reading.
+> reading of the directory or of the coverage ledger — the context most motivated to call the run
+> finished is the one that would be doing the reading.
 
 **Operator setup, once, optional.** The documented way to cover a multi-turn command is settings,
 not frontmatter: "To pre-approve tools for the whole session rather than a single turn, add allow
 rules to those permission settings instead." An operator who wants this gate to run without a prompt
-adds a rule for the two script paths to their own `~/.claude/settings.json`. The plugin cannot ship
-it — a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys.
+adds a direct-path rule for the script paths (and, if useful, the coverage `.py`) to their own
+`~/.claude/settings.json`. The plugin cannot ship it — a plugin's `settings.json` supports only the
+`agent` and `subagentStatusLine` keys.
 
 ### What this gate does not grade
 

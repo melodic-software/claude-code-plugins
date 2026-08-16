@@ -3,6 +3,249 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.9]
+
+### Fixed
+
+- **Re-land the engine half of tidiness-first reporting (#2590).** #2635 shipped
+  `empty_directory_count`, plan `provenance`/`risk` validation, and preview/apply
+  tidiness fields; a later stale-base squash deleted the engine while #2714 restored
+  only the skill prose. Snapshot, `validate_plan`, `preview`, and `apply` again keep
+  zero-byte directories first-class and require provenance/risk on every candidate.
+
+## [0.20.8]
+
+### Fixed
+
+- **Windows read-only Bash allowlist was inert — 0 commands accepted (#2774).** Two
+  compounding defects: (A1) MSYS path reinterpretation ran *after* `Path.is_absolute()`,
+  which is False for POSIX-style heads on Windows-native Python, so `/usr/bin/ls` never
+  reached the Git-root mapping; (A2) `_readonly_supporting_basename` did not strip
+  `.exe`/`.EXE`, so real Git-for-Windows binaries never matched the allowlist. Move the
+  MSYS branch ahead of the absolute gate and strip Windows executable extensions.
+- **Engine-gate hard-`allow` leak for allowlisted inspection commands (#2774).** In
+  `--mode engine-gate`, an allowlisted command that also names the engine path emitted
+  `permissionDecision: "allow"`, bypassing the user's prompt in every consumer session.
+  Downgrade that path to `ask`; belt mode still hard-allows.
+- **Exclude user-writable `%LOCALAPPDATA%\\Programs\\Git` from NT trust roots (#2774)**
+  and reword the trust-root comments so they no longer claim independence from
+  environment-derived input.
+
+### Changed
+
+- **CI:** add a focused `disk-hygiene-guard-windows` lane (`windows-2025`, GuardTests
+  only) so NT trust/MSYS/basename branches cannot regress silently on Linux-only CI.
+
+## [0.20.7]
+
+### Fixed
+
+- **Re-landed the belt's read-only allowlist and session-honest docstring, and anchored
+  its trust check (#2618, #2691).** PR #2641 merged from a tree predating PR #2639 and its
+  squash merge reverted #2639 wholesale; CI stayed green because the revert removed the
+  tests with the code. `resolve_mode()` again documents that a skill-frontmatter
+  `PreToolUse` hook stays armed for the rest of the session rather than only while cleanup
+  is the active work, and the read-only supporting Bash allowlist (`ls`, `test`, `stat`,
+  `du`, `pwd`, `basename`, `dirname`, `find`, `file`, `[`) is restored as absolute paths
+  under trusted system directories — `find` gated by the full GNU/BSD side-effect primary
+  set, everything else still deny-by-default.
+- **Recycle Bin deletion spellings are recognized on the PowerShell belt (#2595).**
+  `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile`/`DeleteDirectory` and
+  `Shell.Application` `NameSpace(10)`/`NameSpace(0xa)` with `MoveHere`/`InvokeVerb` now
+  prompt like `Remove-Item`. The skill's own manual-handoff lane recommends Recycle Bin
+  removal, so these were the one deletion route the belt never saw.
+
+### Security
+
+- **Trusted-binary matching is anchored to a resolved installation root, not a path
+  substring (#2618).** `_TRUSTED_READONLY_BIN_SUBSTRINGS_NT` matched fragments such as
+  `/git/usr/bin/` and `/windows/system32/` anywhere in a path, so a repository-controlled
+  `D:/anyrepo/git/usr/bin/find` was trusted and a planted binary carrying an allowlisted
+  basename was hard-`allow`ed, bypassing even the user's own permission prompt. Trust now
+  derives from independently located Git installation roots (`ProgramFiles`,
+  `ProgramFiles(x86)`, `LocalAppData\\Programs`) and from `%SystemRoot%`, compared as an
+  anchored case-insensitive path prefix — never from a `PATH`-selected `git.exe`.
+- **`[` must clear the same executable-identity check as every other head (#2618).** The
+  `[ ... ]` branch returned before the trusted-binary check, so `[` was trusted on name
+  alone — the shell-function-shadowing exposure the guard itself cites to deny bare
+  `python`/`python3`. It is now allowed only as an absolute trusted `/usr/bin/[ ... ]`
+  form.
+- **Bare allowlisted heads are denied (#2618).** `shutil.which("ls")` finds the system
+  binary while Bash still executes an exported `BASH_FUNC_ls%%` first; only absolute
+  paths under trusted system directories (MSYS `/usr/bin/...` mapped through the known
+  Git root on Windows) can hard-`allow`.
+
+## [0.20.6]
+
+### Fixed
+
+- **Re-landed tidiness-first reporting and corrected the belt's documented posture (#2590,
+  #2618).** PR #2639 and then #2641 squash-merged from stale bases and silently reverted the
+  prior markdown fixes (#2691). Reports are again ordered by tier and evidence strength — never
+  by byte size — with empty directories as first-class findings; `provenance` and `risk` return
+  to the plan schema; preview and apply lead with tidiness. The skill and safety-model docs now
+  state that skill-frontmatter `PreToolUse` hooks stay armed for the rest of the session, drop
+  the false exec-form claim (shell form since 0.17.9 / #2568), name the long-path Recycle Bin
+  hard-stop, declare relocation out of scope, and thin Gotchas harness duplication into
+  `safety-model.md` pointers. Guard-code recovery remains in the sibling lane.
+
+## [0.20.5]
+
+### Fixed
+
+- **PowerShell `>>` append redirection is flagged like `>` (#2675).** `_POWERSHELL_OUTPUT_REDIRECT`
+  matched neither character of a `>>` pair — `(?![=>&])` rejects the first `>`, and the lookbehind
+  rejects the second — so `<cmd> >> append.txt` wrote a file with no prompt while the same command
+  with `>` prompted. Append is matched explicitly (`>>`, `2>>`, `*>>`) without widening that
+  lookahead (load-bearing for the stream-merge exclusion from #2627 and the `$null`-discard
+  exclusion from #2671). `>> $null` stays silent — a discard, not a file write — and requires a
+  real token terminator after `$null` so punctuation continuations like `>>$null/out.txt` stay
+  flagged.
+
+## [0.20.4]
+
+### Fixed
+
+- **PowerShell `$null` discards (`2>$null`, `*>$null`, `>$null`) are no longer flagged as
+  file-overwriting redirection (#2615).** The stream-merge exclusion released in 0.17.11
+  closed only the `>&` form; the character after `>` in a discard is `$`, so every
+  `2>$null` — PowerShell's `/dev/null`, the standard way to silence a noisy read-only
+  command — kept prompting. `_POWERSHELL_OUTPUT_REDIRECT` now also excludes a `>` whose
+  target is `$null`, spelled as guardrails' `ps::write_bypass` spells the same exclusion
+  and matched case-insensitively (PowerShell variable names are). Only horizontal
+  whitespace is skipped between `>` and `$null`, and `$null` itself must be followed by a
+  real token terminator (whitespace, `;`, `|`, `)`, `}`, or end-of-string) — so punctuation
+  continuations like `>$null/out.txt` or `2>$null\evil.ps1` stay flagged as file writes.
+  Real redirection still prompts: `2>out.txt`, `> out.txt`, `1>file`, `'data' > file`, a
+  non-`$null` variable target (`2>$nullish`), and a command that discards one stream while
+  redirecting another (`... 2>$null > out.txt`).
+
+## [0.20.3]
+
+### Fixed
+
+- **The documented argument surface names the root-children flags again (#2588).** Resolving the
+  conflict in #2641 inserted a fresh "Arguments and boundaries" opening paragraph above the existing
+  one instead of merging into it, orphaning that paragraph's continuation. The section was left with
+  two overlapping sentences, and the authoritative first one silently dropped `--root-children` and
+  `--root-child <name>` — reintroducing exactly the wrong-argument-surface defect #2589 was filed
+  for, against the feature #2636 had just shipped. The two sentences are merged back into one
+  carrying every flag, and the skill's `argument-hint` now lists the root-children flags it had
+  never carried. Documentation only: the engine has accepted both flags since #2636 and its
+  behavior is unchanged.
+
+## [0.20.1]
+
+### Fixed
+
+- **Empty directories at `--max-depth` are inventoried as size 0 (#2618).** A depth cut used to
+  mark every boundary directory truncated even when it had no children. One first-child probe
+  (no recursion, fail-closed on unreadable) now records empty boundaries as walked with size 0
+  and keeps them out of the truncated set; directories with children and unreadable directories keep
+  the previous not-walked marking. VCS and protection cuts are unchanged — emptiness does not
+  answer those refusals.
+
+## [0.20.0]
+
+### Added
+
+- **A strictly evidence-gated manual path for provably redundant standalone Git checkouts
+  (#2596).** `handoff-verify` accepts an optional `--vcs-evidence` file and remains read-only.
+  Without that option, and in preview/apply unconditionally, VCS metadata and tracked content stay
+  categorically protected. With it, the verifier relaxes only the Git-specific blockers and `.git`
+  scan boundary after all four gates pass live: porcelain status is empty (including untracked,
+  gitignored-but-present, and submodule dirtiness via `--ignored=matching`); every local branch tip
+  plus a detached `HEAD` is confirmed by exact SHA through `gh api` against the checkout's
+  configured `github.com` remote; every stash SHA appears in an independent declared checkout's
+  stash list (or there are no stashes); and the checkout is bound to the existing exact-path
+  operator-approval file. The live `.git` repository set must exactly match the evidence map, every
+  common Git directory must remain inside the approved checkout (rejecting linked worktrees), and
+  stash copies must sit outside every approved deletion path with a `--git-common-dir` distinct from
+  the candidate's Git store (so a linked worktree of the same repository cannot count as a backup).
+  Any missing tool, unsupported provider, dirty tree, unconfirmed head, unmatched stash,
+  malformed output, timeout, or set/boundary mismatch retains the categorical reasons and returns
+  `contested`; every non-Git protection remains untouched. The Bash guard admits only the exact
+  read-only `--vcs-evidence <file>` handoff shape.
+
+## [0.19.1]
+
+### Fixed
+
+- **Read-only supporting Bash allowlist verifies executable identity (#2591).** Bare
+  names (`ls`, `find`, …) are allowed only when `shutil.which` resolves into a trusted
+  system directory (`/bin`, `/usr/bin`, and siblings; Windows System32 / Git usr\bin
+  when applicable). Absolute paths under those directories are allowed; relative
+  path-qualified forms and PATH-shadowed binaries outside trusted prefixes fail closed
+  (same rationale as denying bare `python`/`python3`). Symlinks are realpath'd so a
+  trusted-prefix link into an untrusted tree is denied.
+
+## [0.19.0]
+
+### Fixed
+
+- **Empty-directory counting is linear in inventory size (#2590).** Snapshot finalization
+  precomputes parent paths once instead of scanning the full inventory per directory, so the
+  tidiness metric stays tractable near the 250,000-entry limit.
+- **Scan-error directories are not counted as empty (#2590).** When `os.scandir` fails, the
+  directory is recorded as not-walked (unknown) and excluded from `empty_directory_count`, so a
+  coverage gap is not reported as empty residue.
+
+### Changed
+
+- **Reporting is tidiness-first; reclaimable bytes are secondary (#2590).** Skill guidance,
+  scan/preview/apply report fields, and the approval table now lead with provenance, what an
+  entry is, why it is removable, and risk. Empty directories stay first-class and rankable via
+  snapshot `empty_directory_count`, preview `empty_directory` / `empty_directories`, and apply
+  `paths_removed` / `empty_directories_removed`. Byte totals remain available but no longer
+  frame the run. Plan candidates require `provenance` and `risk` alongside the existing
+  evidence fields.
+
+## [0.18.0]
+
+### Added
+
+- **Root-children mode for OS-managed volume roots (#2588).** Targeting `C:\` or `/` without a new
+  flag still fails closed — nothing walks an OS-managed root as a whole. With `--root-children` the
+  engine enumerates that root's immediate entries only, hard-excludes OS-owned / hidden / system /
+  reparse / mount / protected-shell-folder / non-directory names (preferring more exclusions when
+  ambiguous), and returns `root-children-selection-required` until the operator names one or more
+  admitted directories via repeatable `--root-child <name>`. Selected children are audited into one
+  snapshot and one report; the volume root's own files and every skipped entry are never inventoried.
+  Documented in `skills/clean/SKILL.md` Arguments, the confirmation gate, the scan template, and
+  `reference/safety-model.md`. The skill-scoped guard accepts the new scan flags.
+
+### Fixed
+
+- **Linux OS-provisioned root directories are excluded from root-children admission (#2588).** The
+  Linux allowlist now matches the Windows/macOS posture for conventional OS roots (`home`, `root`,
+  `tmp`, `opt`, `srv`, `media`, `mnt`, and the existing `bin`/`boot`/… set), so `/tmp` and `/home`
+  are not reported as admitted audit targets.
+- **Root-child selection preserves exact basenames on case-sensitive hosts (#2588).** On Linux,
+  `--root-child Cache` resolves only to `Cache`, not a case-folded sibling such as `cache`, and the
+  scan filter keeps that exact name. Windows and macOS remain case-insensitive.
+
+## [0.17.11]
+
+### Fixed
+
+- **PowerShell stream merges (`2>&1`, `*>&1`) are no longer flagged as file-overwriting
+  redirection (#2615).** `_POWERSHELL_OUTPUT_REDIRECT` matched the `>` inside `2>&1` because
+  its lookaround only excluded adjacent `<`, `>`, and `=`. In PowerShell `>&` is only ever a
+  stream merge and never designates a file, so ordinary diagnostic commands that capture
+  combined output were prompting as mutations — approval-fatigue noise that blunts real
+  deletion prompts, especially once the belt stays armed for the rest of the session (#2591).
+  The detector now also excludes a following `&`; `2>out.txt` and `'data' > file` still
+  prompt.
+
+## [0.17.10]
+
+### Fixed
+
+- **Document the real clean-skill argument surface (#2589).** The Arguments
+  section omitted `--max-depth` and `--confirmed-large-scan` (and related
+  flags the engine accepts), which undercut the bounded-first large-target
+  workflow the skill body requires.
+
 ## [0.17.9]
 
 ### Fixed

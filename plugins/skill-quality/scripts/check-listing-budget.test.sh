@@ -477,6 +477,55 @@ else
   fail "200-file corpus took ${perf_elapsed}s or miscounted (bound 30s): $out"
 fi
 
+# 20. Non-git plugin-cache tree: explicit root still reports.
+#     Marketplace installs are plain dirs; an explicit skills root must not
+#     abort with "not in a git repo" just because cwd has no .git.
+CACHE_TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$CACHE_TMP"' EXIT
+CACHE_SKILLS="$CACHE_TMP/marketplace/some-plugin/1.0.0/skills"
+make_skill "$CACHE_SKILLS" cache-skill "A cache-install fixture description."
+out="$(
+  cd "$CACHE_TMP" &&
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      bash "$SUT" "$CACHE_SKILLS" 2>&1
+)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'CHECK-LISTING-BUDGET: OK' <<<"$out" &&
+  ! grep -q 'Error: not in a git repo' <<<"$out"; then
+  pass "non-git plugin-cache tree: listing-budget reports over an explicit root"
+else
+  fail "non-git explicit root should report OK without git (rc=$rc): $out"
+fi
+
+# 20b. Outside git with no args and no override is still an environment error.
+out="$(
+  cd "$CACHE_TMP" &&
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+      bash "$SUT" 2>&1
+)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'no skills root set' <<<"$out"; then
+  pass "outside git with no args/override still exits 2 naming the missing root"
+else
+  fail "outside git with no args should exit 2 (rc=$rc): $out"
+fi
+
+# 20c. CHECK_SKILL_SKILLS_ROOT from a non-git cwd still resolves (no-args form).
+out="$(
+  cd "$CACHE_TMP" &&
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      CHECK_SKILL_SKILLS_ROOT="$CACHE_SKILLS" \
+      bash "$SUT" 2>&1
+)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'CHECK-LISTING-BUDGET: OK' <<<"$out"; then
+  pass "non-git no-args form honors CHECK_SKILL_SKILLS_ROOT"
+else
+  fail "non-git CHECK_SKILL_SKILLS_ROOT should report OK (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

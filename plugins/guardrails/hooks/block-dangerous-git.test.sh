@@ -736,8 +736,10 @@ pwsh_command_json_cwd() {
     '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d}'
 }
 run_pwsh() {
-  local label="$1" command="$2" expected="$3" rc
-  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json_cwd "$command" "$REPO_SHA1")" >/dev/null 2>&1)
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  local rc
+  (cd "$REPO_SHA1" && env "$@" bash "$HOOK" <<<"$(pwsh_command_json_cwd "$command" "$REPO_SHA1")" >/dev/null 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
@@ -781,6 +783,42 @@ run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: non-git unparsable command (allowed — not git-shaped)" \
   'Remove-Item $(Get-Foo)' 0
+
+# --- #2592: git probe is command-position, not a substring -----------------------
+# A PowerShell scriptblock (`{}`) is ordinary idiomatic PowerShell. The sink used
+# to engage on ANY `git` substring — including `.git` directory names and
+# hyphenated identifiers like `block-dangerous-git` / `NO-GIT` — then fail closed
+# on the braces. Command-position matching leaves those alone while still
+# catching a real git invocation paired with the same braces.
+# shellcheck disable=SC2016
+run_pwsh "PS: .git directory name in scriptblock (allowed — #2592, no git command)" \
+  "Get-ChildItem -LiteralPath \$p -Recurse -Force -Directory | Where-Object { \$_.Name -in @('node_modules','obj','bin','.git') } | ForEach-Object { \$_.FullName }" 0
+run_pwsh "PS: hyphenated -git identifier in scriptblock (allowed — #2592)" \
+  "foreach (\$x in @('alpha-block-dangerous-git')) { Write-Host \$x }" 0
+run_pwsh "PS: NO-GIT label in scriptblock (allowed — #2592)" \
+  "foreach (\$x in @('NO-GIT')) { Write-Host \$x }" 0
+# Quoted argument text naming git/PowerShell must not engage the sink either —
+# the title string is data, not a command word (#2592 comment).
+run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
+  "gh issue create --title 'guardrails: block-dangerous-git.sh blocks PowerShell commands'" 0
+# Intermediate path directory named Git is not a git invocation.
+run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" \
+  "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
+# Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
+run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
+  "& 'C:git.exe' --% reset --hard" 2
+# Assignment RHS is a new pipeline without requiring whitespace — `$x=git …`
+# must still count as command-position git (Claude review on #2592).
+run_pwsh "PS: assignment without spaces \$x=git reset --hard (blocked)" "\$x=git reset --hard" 2
+
+# Positive controls: the same scriptblock shape WITH a real git command still
+# fails closed / blocks, so the narrowing did not open a bypass.
+run_pwsh "PS: git reset --hard inside scriptblock (still fail-closed, #2592)" \
+  "1..1 | ForEach-Object { git reset --hard }" 2
+run_pwsh "PS: git clean -fd still blocked after command-position fix" \
+  "git clean -fd" 2
+run_pwsh "PS: git checkout . still blocked after command-position fix" \
+  "git checkout ." 2
 
 # Launcher-spelling parity (review round 4): the .exe-suffixed spellings of the
 # covered launchers and the `start` alias of Start-Process are the same
@@ -847,6 +885,74 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
   "& 'git' reset --hard" 2
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
+
+# --- #2662: fail-closed headlines must not assert a git command is present -----
+# The sink is possibly-git (iex / computed call / computed launcher can fire with
+# no git token). Assert the softened headline on both the no-git-token path and a
+# genuine unparsable-git path.
+pwsh_stderr() {
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json_cwd "$1" "$REPO_SHA1")" 2>&1 >/dev/null)
+}
+# shellcheck disable=SC2016
+iex_rc=0
+# shellcheck disable=SC2016  # intentional literal $cmd in the PowerShell payload
+iex_out="$(pwsh_stderr 'Invoke-Expression $cmd')" || iex_rc=$?
+assert_exit "PS: iex with no git token still fail-closes (#2662)" 2 "$iex_rc"
+assert_contains "PS msg #2662: iex headline omits 'git command' claim" \
+  "$iex_out" "this PowerShell command cannot be parsed with confidence and could reach git"
+assert_absent "PS msg #2662: iex headline does not claim a git command exists" \
+  "$iex_out" "PowerShell 'git' command"
+assert_absent "PS msg #2662: iex headline does not say 'PowerShell git command'" \
+  "$iex_out" "PowerShell git command"
+assert_contains "PS msg #2662: iex trigger still names dynamic invocation" \
+  "$iex_out" "dynamic invocation"
+stop_out="$(pwsh_stderr 'git --% reset --hard')"
+assert_contains "PS msg #2662: genuine unparsable-git path keeps cannot-parse claim" \
+  "$stop_out" "cannot be parsed with confidence"
+assert_contains "PS msg #2662: genuine unparsable-git path names could-reach-git" \
+  "$stop_out" "could reach git"
+
+# --- #2664: sink-shape allow-list tokens narrow the PS fail-closed branch ------
+# Distinct from destructive-form tokens so an existing allow value cannot silently
+# open the sink. Matching shape allows; unrelated form token does not.
+# shellcheck disable=SC2016
+run_pwsh "PS #2664: sink-shape allow opens iex fail-closed (allowed)" \
+  'Invoke-Expression $cmd' 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+# shellcheck disable=SC2016
+run_pwsh "PS #2664: unrelated form token does not open iex sink (still blocked)" \
+  'Invoke-Expression $cmd' 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard
+# shellcheck disable=SC2016
+run_pwsh "PS #2664: all seven form tokens still leave iex blocked" \
+  'Invoke-Expression $cmd' 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force
+run_pwsh "PS #2664: sink-shape allow for special-construct opens --% path" \
+  "git --% reset --hard" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS #2664: wrong sink-shape token does not open --% path (still blocked)" \
+  "git --% reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+# Parsed dangerous forms still need their own tokens — sink-shape allow is not a
+# backdoor for reset --hard once the command IS tokenizable.
+run_pwsh "PS #2664: sink-shape allow does not waive a parsable reset --hard" \
+  "git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+# Allowing a sink shape must not fail-open independently visible siblings on the
+# same compound command (Codex P1 on #2667).
+run_pwsh "PS #2667: allowlisted iex does not waive visible reset --hard sibling" \
+  "Invoke-Expression 'Write-Host harmless'; git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+run_pwsh "PS #2667: allowlisted scriptblock does not waive visible reset --hard sibling" \
+  "{ Write-Host hi }; git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS #2667: allowlisted launcher does not waive visible reset --hard sibling" \
+  "Start-Process notepad; git reset --hard" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
+# Both tokens: sink shape for iex + reset-hard for the visible sibling.
+run_pwsh "PS #2667: sink allow + reset-hard allow opens iex;reset compound" \
+  "Invoke-Expression 'Write-Host harmless'; git reset --hard" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation,reset-hard
 
 malformed_rc=0
 (cd "$REPO_SHA1" && bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1) || malformed_rc=$?

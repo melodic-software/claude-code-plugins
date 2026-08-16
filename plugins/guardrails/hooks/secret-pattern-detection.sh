@@ -23,6 +23,14 @@ set -uo pipefail
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
+# Bundled pattern lib — resolved under the plugin root (CC sets
+# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
+# when it is unset). Shared with lib/git-hooks/pre-commit-content-invariants.sh
+# so Write|Edit and the write-path-independent pre-commit layer cannot drift.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/secret-detection/secret-patterns.sh
+source "$PLUGIN_ROOT/lib/secret-detection/secret-patterns.sh"
+
 hook::check_enabled "SECRET_PATTERN_DETECTION"
 
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
@@ -169,111 +177,38 @@ emit_tel() {
   hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# --- High-confidence secret patterns (grep -E compatible) ---
-# Each pattern has a distinctive prefix + structured format = very low FP rate.
-# Sourced from gitleaks default rules (github.com/gitleaks/gitleaks).
+# --- High-confidence secret patterns (shared lib) ---------------------------
+# Patterns + scan live in lib/secret-detection/secret-patterns.sh so the
+# pre-commit content-invariants hook enforces the same set (#2731).
 VIOLATIONS=""
 LABELS=()
 
-# Feeds $CONTENT through PROCESS SUBSTITUTION, never `<<<"$CONTENT"`. Bash
-# delivers a here-string through a pipe and appends a newline, so a payload of
-# 65536-65663 bytes puts the write 1-128 bytes past the 65536-byte pipe capacity
-# and bash blocks FOREVER (at >=129 bytes over it spills to a temp file and
-# works again). This guard blocks, so a hang means the harness cancels it at the
-# hook timeout and the secret verdict is lost entirely. The deadlock is a
-# property of `<<<` alone, NOT of the reader: measured at 65600 bytes, this very
-# `grep -nE` (no `-q`, drains its input) hung on a here-string just as `grep -q`
-# did, so the here-string had to go here regardless.
-#
-# Which replacement is required DOES depend on the reader, per the two-shapes
-# rule at the gate in lib/path-detection/hardcoded-path-patterns.sh. This reader
-# drains and its pipeline status is discarded (only $lines is read), so a plain
-# `printf … | grep` would also have been correct here — process substitution is
-# used for uniformity with the `-q` gates in this plugin, where a pipe WOULD
-# invert the verdict under `pipefail`, so the scan sites all read as one idiom.
-# `printf '%s'` matches the no-trailing-newline shape the rest of this hook
-# already uses for $INPUT.
-check_pattern() {
-  local label="$1" pattern="$2" lines
-  lines=$(grep -nE -- "$pattern" < <(printf '%s' "$CONTENT") 2>/dev/null | head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
-  if [[ -n "$lines" ]]; then
-    VIOLATIONS="${VIOLATIONS}${label} (line ${lines})\n"
-    LABELS+=("$label")
-  fi
-}
-
-# (label, ERE) parallel arrays — one combined grep can fast-reject the common
-# (no-secret) case in a single process. Index alignment is load-bearing: the
-# Nth label describes the Nth pattern.
-SECRET_LABELS=(
-  "AWS Access Key"
-  "GitHub PAT"
-  "GitHub OAuth Token"
-  "GitHub App Token"
-  "GitHub Fine-grained PAT"
-  "GitLab PAT"
-  "Slack Bot Token"
-  "Slack User/App Token"
-  "Stripe Key"
-  "OpenAI API Key"
-  "OpenAI API Key"
-  "Private Key (PEM)"
+# Capture stdout; empty means clean (secrets::scan_text's exit status is lost
+# inside `$()` because the trailing `printf x` sentinel is what `$()` reports —
+# same trailing-newline-strip pattern as hardcoded-path-check).
+_secret_out=$(
+  secrets::scan_text "$CONTENT"
+  printf x
 )
-SECRET_PATTERNS=(
-  '(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'          # AWS (AKIA/ASIA/ABIA/ACCA + 16)
-  'ghp_[0-9a-zA-Z]{36}'                        # GitHub PAT
-  'gho_[0-9a-zA-Z]{36}'                        # GitHub OAuth
-  'gh[us]_[0-9a-zA-Z]{36}'                     # GitHub app (ghu_/ghs_)
-  'github_pat_[0-9a-zA-Z_]{82}'                # GitHub fine-grained PAT
-  'glpat-[0-9a-zA-Z_-]{20}'                    # GitLab PAT
-  'xoxb-[0-9]{10,13}-[0-9]{10,13}'             # Slack bot token
-  'xox[pe]-[0-9]{10,13}-'                      # Slack user/app token
-  '[sr]k_(test|live|prod)_[0-9a-zA-Z]{10,99}'  # Stripe key
-  'sk-(proj|svcacct|admin)-[A-Za-z0-9_-]{20,}' # OpenAI prefixed API key
-  'sk-[A-Za-z0-9]{20,}'                        # OpenAI legacy bare sk- key
-  '-----BEGIN [A-Z ]*PRIVATE KEY-----'         # PEM private key header
-)
-
-# Fast reject: one grep spawn matching ANY pattern. The common case (no secret)
-# exits here. Without it, the per-pattern itemization (grep|head|cut|tr|sed = 5
-# processes × 12 patterns) runs unconditionally; on a large file under Windows
-# MSYS2 + Defender that is ~60 spawns costing 10-25s. grep -qE over all patterns
-# is logically equivalent to "any pattern matched" — if it finds nothing, no
-# individual pattern can match, so skipping itemization is sound.
-#
-# Process substitution, not `<<<` (deadlocks at 65536-65663 bytes) and not
-# `printf | grep -q` (`grep -q` early-exits, SIGPIPEs printf, and under the
-# `set -uo pipefail` at the top of this file the pipeline reports 141 — which
-# this `if !` would read as "no secret" and exit 0 clean, a fail-open on the
-# very payload that matched). See check_pattern above.
-grep_e_args=()
-for pattern in "${SECRET_PATTERNS[@]}"; do
-  grep_e_args+=(-e "$pattern")
-done
-if ! grep -qE "${grep_e_args[@]}" < <(printf '%s' "$CONTENT") 2>/dev/null; then
+_secret_out=${_secret_out%x}
+if [[ -z "$_secret_out" ]]; then
   emit_tel "ok" '[]'
   exit 0
 fi
-
-# Rare path: a secret matched — itemize per-pattern (label + line numbers) for
-# the actionable message. The expensive pipeline only runs here, on a hit.
-for i in "${!SECRET_PATTERNS[@]}"; do
-  check_pattern "${SECRET_LABELS[$i]}" "${SECRET_PATTERNS[$i]}"
-done
+VIOLATIONS="$_secret_out"
+while IFS= read -r _vline || [[ -n "$_vline" ]]; do
+  [[ -n "$_vline" ]] || continue
+  LABELS+=("${_vline%% (line *}")
+done < <(printf '%s' "$VIOLATIONS")
 
 # --- Report violations ---
-if [[ -n "$VIOLATIONS" ]]; then
-  {
-    printf 'Secret/credential pattern(s) detected in %s:\n\n' "$FILE"
-    printf '%b' "$VIOLATIONS"
-    printf 'If this is a test fixture or example, add the file to the allowlist\n'
-    printf 'in secret-pattern-detection.sh. Never commit real secrets — use\n'
-    printf 'environment variables, settings.local.json, or a secret manager.\n'
-  } >&2
-  labels_json=$(printf '%s\n' "${LABELS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
-  emit_tel "blocked" "$labels_json"
-  exit 2
-fi
-
-emit_tel "ok" '[]'
-exit 0
+{
+  printf 'Secret/credential pattern(s) detected in %s:\n\n' "$FILE"
+  printf '%s\n' "$VIOLATIONS"
+  printf 'If this is a test fixture or example, add the file to the allowlist\n'
+  printf 'in secret-pattern-detection.sh. Never commit real secrets — use\n'
+  printf 'environment variables, settings.local.json, or a secret manager.\n'
+} >&2
+labels_json=$(printf '%s\n' "${LABELS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+emit_tel "blocked" "$labels_json"
+exit 2

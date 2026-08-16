@@ -1,5 +1,42 @@
 # Changelog — discovery plugin
 
+## [0.15.5]
+
+### Changed
+
+- **Explore composes the toolchain ecosystem seam instead of a silent second
+  signal table (#2726).** `skills/explore/reference/ecosystem-discovery.md` now
+  presence-gates `/toolchain:check`'s covered-ecosystem set and
+  `project-discovery` / `anchor` for shared detection and root adjacency, keeps
+  explore-only keys (`dependency-grep`, `test-globs`, `test-content-grep`,
+  `build-configs`, `runtime-version-cmd`) even when that seam is present —
+  including fallback ecosystems the seam does not cover (`rust`, `java`) and the
+  exhaustive configuration / runtime-probe inventories seam `globs` /
+  `install-hint` do not replace — and retains the prior YAML table as the
+  documented fallback when `toolchain` is absent. `explore` Dimensions 3–6, the
+  `explorer` agent, and the plugin README cite the same gate+fallback shape.
+
+## [0.15.4]
+
+### Fixed
+
+- **Acceptance gates fail closed when they cannot run (#2616).** A denied or
+  uninvocable research gate is a FAIL — not a reason to take the inline escape
+  hatch to dodge a post-dispatch check, and not a licence to mark criterion 11
+  PASS by reading the coverage ledger. `reference/parent-contract.md` requires a
+  `--help` pre-flight for scripts the **chosen** route owes: the dispatch artifact
+  checker before dispatching (explore or research), and the coverage checker for
+  research on both the dispatch and inline paths. A legitimate inline
+  `/discovery:explore` does not owe a script verdict and is not halted by an
+  unavailable artifact checker. Prefers shebang path invocation over
+  `bash <script>`, and documents the coverage checker's Python twin
+  (`scripts/check-coverage-complete.py`) for sessions where the Bash tool is
+  blocked but `python3` is reachable; that twin maps UTF-8 / I/O read failures to
+  exit 2 (ungradeable), matching the shell gate. The stale claim that
+  `${CLAUDE_PLUGIN_ROOT}` never substitutes in `allowed-tools` is corrected
+  against the skills page (fetched 2026-08-14); turn-scoped grants still cannot
+  cover the post-dispatch gate, so the plugin still ships none.
+
 ## [0.15.3]
 
 ### Fixed

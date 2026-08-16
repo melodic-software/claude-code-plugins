@@ -16,10 +16,15 @@ unvalidated tree.
   remote, or otherwise unattended sessions audit and stop.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
   separate approval naming every path and its logical byte count.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume, user shell-folder roots,
+- Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
+  via `--root-children` with an explicit child selection), user shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
-  predicates cannot be disabled by policy.
+  predicates cannot be disabled by policy. The sole VCS exception is a read-only manual-handoff
+  evidence mode for an entire standalone Git checkout: it requires empty porcelain status, every
+  local head SHA confirmed through the checkout's GitHub remote, every stash SHA present in an
+  independent checkout (or no stashes), and the existing exact-path operator approval. Without all
+  four, categorical protection remains.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
@@ -87,6 +92,9 @@ at preview. Backups remain the recovery boundary for user data.
   the detector still emits a `systemMessage` even though the guard cannot run (#1504).
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
+- `gh` with authenticated access to the configured `github.com` remote is additionally required only
+  when the operator invokes standalone-checkout VCS evidence mode. Other hosting providers remain
+  protected; no generic network or `git ls-remote` fallback is treated as provider proof.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
   exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
   `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
@@ -173,7 +181,9 @@ hand-cleaning the zone.
 - Use `/source-control:worktree status`/`cleanup` (if installed) for git worktree checkouts such as a
   `.worktrees/` tree — run those actions from the checkout's own main repository, as they manage the
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
-  metadata but does not manage worktree lifecycle.
+  metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
+  handoff's optional VCS evidence mode can return `clear` only after all four proof gates in the
+  [safety model](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence) pass.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
@@ -253,14 +263,19 @@ hand-cleaning the zone.
   exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
-  for the degraded-mode detail). No credentials. Policy comes from an explicit invocation
+  for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout
+  evidence delegates one exact commit lookup per local head to the already-authenticated `gh` CLI.
+  Policy comes from an explicit invocation
   argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
   `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
   cannot widen the destructive surface.
 - **Isolation:** bundled assets resolve from `${CLAUDE_PLUGIN_ROOT}`; generated state belongs under
   `${CLAUDE_PLUGIN_DATA}`. The audited target is read, then mutated only through the gated lane.
-- **Egress:** none. `git` and `lsof` are local read-only subprocesses.
+- **Egress:** none in the ordinary audit/preview/apply paths. Opt-in standalone-checkout evidence
+  invokes `gh api` against `github.com` only, using owner/repository coordinates parsed from the
+  checkout's configured remote and an exact locally observed SHA. Unsupported hosts fail closed.
+  `git` and `lsof` remain local read-only subprocesses.
 - **Provenance:** Melodic Software, MIT. No vendored code.
 
 Security review result: **accept** for the declared local code-execution surface. Any later network,

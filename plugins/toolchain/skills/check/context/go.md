@@ -23,8 +23,11 @@ own unconfigured "standard" linter preset on a repo that never configured any.
 # Check (CI mode — fails on violations)
 cd "$PROJECT_DIR" && golangci-lint run ./...
 
-# Fix
-cd "$PROJECT_DIR" && golangci-lint run --fix ./...
+# Format-only (/toolchain:lint --fix)
+cd "$PROJECT_DIR" && gofmt -w <files>
+
+# Code-fix (semantic lint autofixes — /toolchain:lint --code-fix only)
+cd "$PROJECT_DIR" && golangci-lint run --fix <files>
 ```
 
 ## Gotchas
@@ -58,3 +61,7 @@ Find all Go modules dynamically:
 ```bash
 find "$REPO_ROOT" -name "go.mod" -not -path "*/vendor/*"
 ```
+
+## Format / code-fix file scope
+
+`gofmt` and `golangci-lint --fix` receive only `*.go` paths from `<files>` (never `go.mod`/`go.sum`). `golangci-lint --fix` is invoked once per package directory when changed files span multiple packages.

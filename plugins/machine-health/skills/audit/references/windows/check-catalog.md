@@ -280,8 +280,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
 
 - **Remediation:** none. `machine-health` removes nothing here; `detail.remediation_route` names
   `disk-hygiene:clean`, which owns removal behind its own snapshot, tier approval, and live-handle
-  checks. A live session's scratchpad is an active working directory — see
-  `plugins/disk-hygiene/skills/clean/reference/safety-model.md` § "Live agent scratchpads".
+  checks. Its safety model treats a live session's scratchpad as an active working directory.
 
 - **Notes:** Age is measured at the session-directory level (`<root>/<project-key>/<session-id>/`).
   A project-key directory is reused across sessions, so its own timestamp reports when the key was

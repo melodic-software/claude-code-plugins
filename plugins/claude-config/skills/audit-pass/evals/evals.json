@@ -362,14 +362,14 @@
       "id": 30,
       "name": "non-git-target-is-refused-not-half-specified",
       "prompt": "/claude-config:audit-pass ~/notes — it is not a git repository, just a directory of markdown, but it is where I stand and it has a CLAUDE.md.",
-      "expected_output": "Refuses, non-zero, before Phase 0 does any work. The target argument is the git repository to audit, and the gate enforces that rather than only 'resolves to the active project root' — the two used to disagree, which let a non-git directory through into a contract that cannot describe it. The refusal names the resolved path and the reason, and states what a non-git target would cost rather than leaving it implicit: the state key has a no-remote fallback but no no-git one, the scan baseline is defined as HEAD plus the state digest, Class 3 exclusion derives worktrees from git worktree list, assertion 2.1 is stated over git status --porcelain, and — the one that is a permanent capability loss rather than a missing derivation — suppression is enacted only by the team layer, which is the TRACKED layer, so no suppression would ever be enactable on such a target. It writes nothing, and it does not fall back to a degraded pass.",
+      "expected_output": "Refuses, non-zero, before Phase 0 does any work. The target argument is the git repository to audit, and the gate enforces that rather than only 'resolves to the active project root' — the two used to disagree, which let a non-git directory through into a contract that cannot describe it. The refusal names the resolved path and the reason, and states what a non-git target would cost rather than leaving it implicit: the scan baseline is defined as HEAD plus the state digest, Class 3 exclusion derives worktrees from git worktree list, assertion 2.1 is stated over git status --porcelain, and — the one that is a permanent capability loss rather than a missing derivation — suppression is enacted only by the team layer, which is the TRACKED layer, so no suppression would ever be enactable on such a target. It writes nothing, and it does not fall back to a degraded pass.",
       "files": [],
       "expectations": [
         "Refuses the non-git target and exits non-zero rather than running a partial or degraded pass",
         "Names the directory it refused and the reason, in the same shape as the existing not-the-active-project-root refusal — and names it even on a bare invocation where git rev-parse --show-toplevel produced nothing, falling back to the current directory for the message",
         "Refuses BEFORE doing any Phase 0 work, and writes nothing anywhere",
         "Names at least the suppression consequence — the team layer is the tracked layer, so no suppression is enactable without a repository — rather than refusing without a stated cost",
-        "Does NOT invent a non-git state key, scan baseline, or Class 3 fallback in order to proceed"
+        "Does NOT invent a scan baseline, Class 3 fallback, or git-status substitute in order to proceed"
       ]
     }
   ]

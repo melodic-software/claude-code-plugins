@@ -27,6 +27,8 @@ These values orient this session only. The project root is an absolute machine p
 - **Cost** — a dispatched run pays the full six dimensions every time; a single-file question does not need an envelope.
 - **The invoking context is already a subagent** — dispatch-by-default is scoped to the main-conversation boundary. Hoisting, not nesting: the outer dispatch already supplied the fresh context, so a second hop only spends the inner agent's own window.
 
+**When selecting the dispatched route:** probe `check-dispatch-artifact.sh --help` before dispatching; a denied or errored probe **halts**. An un-runnable post-dispatch gate is not a reason to take the inline escape hatch *in order to dodge the gate*. A legitimate inline run (tight iteration, cost, already-a-subagent) does not owe that script — it has no script verdict to self-grade — so do not apply this precondition to the inline path. Invocation forms: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+
 **One named alternative:** the **built-in Explore subagent**, for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md` — pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
 
 **Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
@@ -47,7 +49,7 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 2. **The artifact set is actually on disk, and this run put it there:**
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
      --index-name EXPLORE.md \
      --newer-than <that slice>/.explore-dispatch --expect-index <the payload's artifact: value>
    ```
@@ -115,7 +117,7 @@ Code has context only git reveals — who changed it, when, why, and what else c
 Understand how the pieces fit together before moving any of them.
 
 - **Directory layout** — if the project documents its repository structure, verify the doc matches reality; otherwise map the tree yourself
-- **Project references / imports** — map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`)
+- **Project references / imports** — map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` — compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is installed, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
 - **Solution / workspace membership** — check the repo's solution or workspace file at the root for what's included
 - **Layer boundaries** — respect any dependency-direction rules the project declares
 - **Planned direction** — cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state AND planned direction
@@ -124,7 +126,7 @@ Understand how the pieces fit together before moving any of them.
 
 Tests are executable documentation. They reveal intended behavior, edge cases, and existing coverage.
 
-- **Find test projects** — Glob the per-ecosystem test patterns in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`
+- **Find test projects** — Glob the per-ecosystem test patterns in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (`test-globs` / `test-content-grep` are explore-owned even when composing the toolchain seam)
 - **Co-located tests** — check whether unit tests live next to their source (sibling test project, `__tests__/`, adjacent `_test.go`) or in a separate tree
 - **Cross-cutting tests** — a repo-root `tests/` for architecture, dependency, or naming-rule tests that span multiple libraries
 - **Test patterns** — read existing tests (start with 2-3, scale to the number of distinct patterns in play) to understand naming conventions, assertion style, and fixture patterns before writing new ones
@@ -134,7 +136,7 @@ Tests are executable documentation. They reveal intended behavior, edge cases, a
 
 Build configuration constrains what's possible. Understand it before fighting it.
 
-- **Build configs** — read the ecosystem's build / package / config files (per-ecosystem lists in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`)
+- **Build configs** — read the ecosystem's build / package / config files per `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (explore-owned `build-configs` even when composing the toolchain seam; resolved `project-discovery` / `anchor` locate roots)
 - **Analyzer / lint config** — `.editorconfig` for shared severity levels; ecosystem-specific analyzer/linter files
 - **Package versions** — check the ecosystem's manifest (lockfile + central-version-management file if applicable)
 - **CI/CD** — `.github/workflows/` (or the project's CI equivalent) for what's validated on every PR
@@ -143,7 +145,7 @@ Build configuration constrains what's possible. Understand it before fighting it
 
 When the task involves tooling, MCP servers, or infrastructure:
 
-- **Installed versions** — run the per-ecosystem version commands in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`
+- **Installed versions** — probe per `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (explore-owned `runtime-version-cmd` even when composing the toolchain seam; `install-hint` is install prose, not a version probe)
 - **MCP server status** — test with a read-only call before depending on it
 - **Worktree state** — `git worktree list`, current branch, uncommitted changes
 - **Local config** — project-local settings for env vars and tokens (don't read secrets, just verify presence)

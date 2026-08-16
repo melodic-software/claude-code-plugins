@@ -12,7 +12,9 @@
     "harvest": "node harvesting/run-harvest.js",
     "watching-pipeline": "node watching/run-watching-pipeline.js",
     "build": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "liveness:offline": "node liveness/run-source-liveness.js --offline",
+    "liveness:live": "node liveness/run-source-liveness.js --live"
   },
   "dependencies": {
     "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",

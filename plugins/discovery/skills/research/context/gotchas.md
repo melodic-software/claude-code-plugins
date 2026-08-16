@@ -35,7 +35,9 @@ outcome gate's artifact-grounded criteria, or not at all.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
   cites the script's exit status; exit 2 — a ledger the script could not parse — is a FAIL, never a
-  pass.
+  pass. A script that never ran is the same FAIL: taking the inline escape hatch because Bash was
+  denied, then marking criterion 11 PASS from a table reading, is the silent self-grade the gate
+  exists to prevent. Halt, or run the `.sh` / `.py` checker from a lane that can still invoke it.
 - **Accepting the answer that arrives first.** The falsification query exists because a run that only
   looks for confirmation finds it. Phase 2 without it is confirmation bias with a citation list.
 - **Layering research after a mid-task pivot.** A superseded section outlives the approach it

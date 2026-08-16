@@ -3,6 +3,184 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.29]
+
+### Added
+
+- **`block-hook-bypass`: narrow same-command staged-write `mv`/`cp` detector
+  ([#2731](https://github.com/melodic-software/claude-code-plugins/issues/2731)).**
+  Blocks a command whose *effective* stdout redirect target (existing
+  `set_last_stdout_target` machinery) is later reused in the same command string
+  as the SOURCE operand of `mv`/`cp` with a destination outside configured
+  scratch roots. Path-identity keeps ordinary renames and data-pipeline moves
+  unblocked; a dest under `block_hook_bypass_scratch_roots` stays staging.
+  Closes the session-record reachability shape
+  `jq . f > /tmp/x && mv /tmp/x <repo-file>` that #2695 named as a residual.
+  Documented residuals this lane still cannot see: cross-tool-call staging,
+  variable-carried paths, quoted/opaque move sources, and other movers
+  (`install`, `rsync`, `dd`). A broad any-redirect-into-repo lane stays
+  rejected (never-hard-block tier).
+
+- **Write-path-independent content invariants — opt-in git `pre-commit` hook
+  ([#2731](https://github.com/melodic-software/claude-code-plugins/issues/2731)).**
+  New `/guardrails:setup apply install-pre-commit-content` installs
+  `lib/git-hooks/pre-commit-content-invariants.sh` plus a
+  `guardrails-content-lib/` copy of `lib/secret-detection/` and
+  `lib/path-detection/` into the operator's personal `.git/hooks/`. Scans every
+  staged blob for the same high-confidence secret patterns and hardcoded
+  machine-path patterns the Write|Edit-matched guards enforce — closing the
+  damage class those guards silently load-bear on write-path choice (audit F2).
+  Same personal-lane trust-surface contract as `install-commit-msg`
+  (chain-or-refuse, managed-repo refuse, sentinel-marked, never suggests
+  `--no-verify`). Secret patterns extracted to
+  `lib/secret-detection/secret-patterns.sh` so PreToolUse and pre-commit cannot
+  drift. 8-case contract suite
+  (`lib/git-hooks/pre-commit-content-invariants.test.sh`).
+
+## [0.28.28]
+
+### Fixed
+
+- **`ps::write_bypass` no longer treats a bare computed call/dot-source as a file
+  write ([#2722](https://github.com/melodic-software/claude-code-plugins/issues/2722)).**
+  The fail-closed branch for `& $tool …` / `. $PROFILE` / `& ('Set-'+'Content') …`
+  previously fired on the invocation *shape* alone, with no write indicator
+  required — so commands that author no content were blocked with a message
+  naming file-write cmdlets and redirection. The computed-target probe now
+  requires a write signal first: a special construct (`()`/`{}`/backtick/`--%`),
+  a producer redirect (`>` after fd-dup merges are stripped), a `-Value` /
+  `-va*` parameter, or a positional write shape (two leading non-flag tokens
+  after the target for Path+Value, or one leading positional when the call is
+  pipeline-fed). Redirect and `-va*` probes run on quote-blanked text so a
+  quoted `>` or `-value` substring in message text is not a signal. That mirrors
+  the git lane, where `ps::might_invoke_git`'s computed-target test only runs
+  after a sink trigger has already routed the command, and keeps the same
+  residual `has_dynamic_invocation` documents for a construct-free `& $tool …`.
+  Genuine cases still block: literal writers, `& 'Set-Content'`,
+  `& ('Set-'+'Content') …`, `& $w -Value …`, `& $w f.txt x`, `$data | & $w out.txt`,
+  `& $w > f`, redirects, `iex`, and .NET writes.
+
+## [0.28.27]
+
+### Changed
+
+- **`block-hook-bypass`: the staged-write shape is now a named residual.** A plugin-quality audit
+  (#2695 session) produced session-record reachability evidence — the same standard that reopened
+  #2217 — for `<producer> > <tmp> && mv <tmp> <dest>` with an unmodeled producer: it reached repo
+  manifests and the intermediate tool (`jq`) silently un-escaped `\u` sequences, caught only by
+  manual diff review. `_BYPASS_SCOPE_NOTE_BASH` and the README residual list now name the shape,
+  and the README states the consequence: Bash-side writes these residuals allow also skip the
+  `Write|Edit`-matched content guards (secret patterns, hardcoded paths), so content invariants
+  need a write-path-independent layer (git hooks / CI). A narrow same-command detector lane
+  (effective redirect target reused as `mv`/`cp` source) and that repo-layer content check are the
+  recorded follow-ups, deliberately not rushed into this release.
+- **`block-noncanonical-commit`: the harness-timeout fail-open edge is documented at the alias
+  budget.** `HOOK_ALIAS_WORK_MAX` bounds analysis count, not wall clock; the hooks reference says a
+  timed-out hook fails open, so the 60s harness ceiling can invert the guard's fail-closed posture
+  on a pathologically slow filesystem. Named as an accepted residual with its revisit trigger.
+
+## [0.28.26]
+
+### Fixed
+
+- **SECURITY — `ps::git_command_is_readonly` classified destructive git commands as
+  read-only.** The subcommand blocklist that decides whether a PowerShell command may
+  skip the fail-closed sink under the `readonly-ok` scope omitted `clean` and `restore`,
+  so `git clean -fdx` and `git restore .` — both of which destroy uncommitted work
+  irrecoverably — classified as READ-ONLY, violating the library's own
+  "OVER-BLOCK, NEVER UNDER-BLOCK" invariant. It also omitted `pull`, `add`, `apply`,
+  `branch`, `config`, `mv`, `rm`, `switch`, `submodule`, `sparse-checkout`, `reflog`,
+  `gc`, `prune`, `repack`, `update-ref`, `update-index`, `read-tree`, `checkout-index`,
+  `symbolic-ref`, `filter-branch`, `bisect`, `remote`, `replace`, `rerere`, `subtree`,
+  `maintenance`, `merge-file`, `merge-index`, `merge-one-file`, `mergetool`,
+  `fast-import`, `commit-graph`, `multi-pack-index`, `update-server-info`,
+  `quiltimport`, `prune-packed`, `credential`, `interpret-trailers`, the
+  foreign-SCM bridges `svn`/`p4`/`cvsexportcommit`, and the third-party
+  `filter-repo`/`lfs`/`annex`. It further omitted two spellings of mutations it
+  already listed under another name: `stage` (git's own documented synonym for
+  `add`) and the `push` plumbing `send-pack`/`http-push` — `send-pack` being the
+  sharpest case for this guard, since it publishes WITHOUT running the pre-push
+  hook that `push` runs. The set is now derived from a stated predicate —
+  a subcommand is not read-only when it can create, modify, delete or overwrite
+  working-tree or index content, create/delete/move/rewrite local refs or history,
+  alter the stash, configuration or repository administrative state, or publish to a
+  remote — with the interrogators, artifact producers, create-only plumbing, and
+  repo-creating forms deliberately omitted and justified in the function's own comment.
+  The `-`-excluding token boundary is documented as load-bearing (`--prune`,
+  `ls-remote`, `merge-base`, `--no-merges` and `--tags` still classify read-only), the
+  `fetch` allowance from #1415 is preserved and its own residual recorded, and the
+  negative-shape-match residual (a sink-routing construct can still hide a subcommand,
+  e.g. `git ('cle'+'an')`) is documented as deferred to an allowlist inversion, alongside
+  the two further families a spelling blocklist can never close: a runtime `.gitconfig`
+  alias, where the mutating subcommand is not in the text at all (`git co`, `git ci`), and
+  `-c core.pager=`/`-c alias.z=!`/`--exec-path=`, where the subcommand is irrelevant. The
+  scan is whole-command rather than argv-aware, so a listed word now also matches outside
+  the git call (PowerShell's `switch` keyword), inside it as a pathspec or ref
+  (`git log -- config/`, `git show HEAD:docs/notes/a.md`), or as a flag value
+  (`git log --grep clean`) — all fail-SAFE, costing friction rather than safety. The
+  comment also now records that `archive -o`/`diff --output=` can truncate an
+  operator-named file yet stay read-only BY DESIGN, since this predicate governs
+  repository state rather than the filesystem. No live exposure: `block-no-verify` is the
+  only caller passing `readonly-ok` today, so the change lands ahead of any widening of
+  that scope.
+
+## [0.28.25]
+
+### Fixed
+
+- **PowerShell fail-closed block messages no longer assert a git command is present
+  ([#2662](https://github.com/melodic-software/claude-code-plugins/issues/2662)).**
+  The sink is gated by `ps::might_invoke_git` (possibly-git), so `iex` /
+  computed-call / computed-launcher paths can block with no git token. Headlines
+  now say the command cannot be parsed with confidence (and, for
+  `block-dangerous-git`, that it could reach git) without claiming git was found.
+
+- **`block-hook-bypass` sources the PowerShell classifier only on PowerShell tool
+  calls ([#2663](https://github.com/melodic-software/claude-code-plugins/issues/2663)).**
+  `ps-command.sh` (~41 KB) is no longer parsed on every Bash PreToolUse; the
+  Bash lane still sources only `hook-utils.sh` at file scope.
+
+- **`block-dangerous-git` honors sink-shape allow-list tokens on the PowerShell
+  fail-closed branch
+  ([#2664](https://github.com/melodic-software/claude-code-plugins/issues/2664)).**
+  Operators can narrow that sink with `ps-unparsable-dynamic-invocation`,
+  `ps-unparsable-launcher`, `ps-unparsable-special-construct`, or
+  `ps-unparsable-herestring-unbalanced` without the global kill switch.
+  Destructive-form tokens (`reset-hard`, …) still do not open the sink.
+  Allowing a sink shape blanks that opaque region and keeps checking any
+  remaining visible commands — a compound like
+  `Invoke-Expression '…'; git reset --hard` still requires `reset-hard`
+  (Codex review on #2667).
+
+## [0.28.24]
+
+### Added
+
+- **`block-windows-drive-tmp`** ([#2594](https://github.com/melodic-software/claude-code-plugins/issues/2594)):
+  PreToolUse Bash|PowerShell guard that fails closed on Windows when a write target is a
+  drive-root temp path — POSIX `/tmp`, MSYS `/c/tmp`, `C:\tmp`, or drive-root `\tmp` —
+  which resolve to `<drive>:\tmp` instead of `%TEMP%` and accumulate at the volume root.
+  Redirects and write utilities are blocked with an actionable redirect-to-`%TEMP%` /
+  `$TEMP` / `$env:TEMP` message. Non-Windows hosts are untouched; `%TEMP%` / `$TEMP` /
+  `$TMP` / `$TMPDIR` / `$env:TEMP` / `/var/tmp` usage is allowed. Kill switch:
+  `block_windows_drive_tmp_enabled` (default on).
+
+## [0.28.23]
+
+### Fixed
+
+- **Assignment without spaces (`$x=git …`) still counts as git (Claude review on #2592).** The command-position predecessor class now includes `=` so `$x=git reset --hard` (including inside `{}`/`()`) remains blocked, and the Bash hand-off strips a PowerShell `$var=` / `$var+=` prefix so the RHS command word is visible to the tokenizer.
+
+- **Drive-relative `C:git.exe` still counts as git (Codex review on #2592).** The command-position predecessor class now includes `:` so `& 'C:git.exe' --% reset --hard` remains blocked.
+
+- **PowerShell git probe matches `git` in command position only (#2592).**
+  `ps::might_invoke_git` (and the twin probe in `ps::git_command_is_readonly`) no
+  longer treats any `git` substring as an invocation. Hyphenated identifiers
+  (`block-dangerous-git`, `NO-GIT`), `.git` directory names, and an intermediate
+  path directory named `Git` no longer engage the fail-closed sink when paired
+  with ordinary `{}`/`()` PowerShell grouping. Real `git` / `git.exe` command
+  words — including path-qualified and quoted forms — still do.
+
 ## [0.28.22]
 
 ### Changed

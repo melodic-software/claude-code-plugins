@@ -56,6 +56,12 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-convention-violation.sh",
             "timeout": 60,
             "statusMessage": "Checking commit subject / PR title against the team convention..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-windows-drive-tmp.sh",
+            "timeout": 60,
+            "statusMessage": "Checking for Windows drive-root /tmp writes..."
           }
         ]
       },

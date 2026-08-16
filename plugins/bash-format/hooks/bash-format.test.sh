@@ -564,6 +564,15 @@ if jq -e '(.systemMessage | contains("shellcheck")) and (.hookSpecificOutput.add
 else
   fail "shellcheck-absent: notice missing or malformed: $OUT_SC"
 fi
+if jq -e '
+  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
+  ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
+' <<<"$OUT_SC" >/dev/null 2>&1; then
+  ok "shellcheck-absent -> notice-only latch + PATH diagnostic (#2732)"
+else
+  fail "shellcheck-absent latch/PATH diagnostic wrong: $OUT_SC"
+fi
 OUT_SC2=$(run_no_tools "$REPO/clean.sh")
 if [[ -z "$OUT_SC2" ]]; then
   ok "shellcheck-absent -> second run same session is silent (once-per-session)"

@@ -1,5 +1,14 @@
 # Changelog — ecosystem-commands convention
 
+## 1.3.0 — 2026-08-15
+
+Additive schema change: new optional `code-fix-cmd` key for semantic/code-changing autofixes
+(ruff `check --fix`, golangci-lint `--fix`, biome `check --write`, …). Clarifies that `fix-cmd`
+is **format-only** (whitespace / import layout / style). `/toolchain:lint --fix` runs `fix-cmd`;
+`--code-fix` runs `code-fix-cmd` behind that skill's confirmation / `--yes` gate. Null when
+absent — tolerant readers ignore the unknown key until they upgrade. Closes
+melodic-software/claude-code-plugins#2649.
+
 ## 1.2.3 — 2026-07-26
 
 Docs-only, no schema shape change: the task-runner deferral's "Revisit triggers" label becomes

@@ -8,7 +8,9 @@ and self-hosted environments are Team/Enterprise features and deliberately out o
 
 Basis and freshness: every repository row below was derived from a shallow clone of that repo's
 default branch on 2026-08-13; platform claims rest on the rung-1 doc fetches recorded in
-[CLOUD-SESSIONS.md](CLOUD-SESSIONS.md). Recheck trigger, per the
+[CLOUD-SESSIONS.md](CLOUD-SESSIONS.md); the environment itself was verified live on 2026-08-14
+from a cloud session inside it — results in [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654),
+folded in below. Recheck trigger, per the
 [upstream-drift convention](conventions/upstream-drift/README.md): a repo changes its toolchain
 pins (`global.json`, `.node-version`, `.python-version`, lockfiles) or its `.claude/` config, or
 a verification session (see [checklist](#verification-checklist)) contradicts a row.
@@ -20,9 +22,11 @@ result is cached as a filesystem snapshot (the "warm boot": script runs once, la
 from the snapshot; rebuilds only on script/network edits or ~7-day expiry). So the fleet uses
 **one shared environment** whose setup script installs the *union* of static toolchains the
 repos pin — .NET SDKs, Node 24, `gh`, PowerShell — inside the ~5-minute cache-build budget, while
-**each repo owns its own bootstrap** in a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
-SessionStart hook that installs manifest-driven dependencies (`npm ci`, repo-local .NET, `uv
-sync`). The environment stays generic; repos opt in by adopting the hook pattern.
+**each repo owns its own bootstrap**: a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
+`.claude/cloud-bootstrap.sh` that installs manifest-driven dependencies (`npm ci`, repo-local
+.NET, `uv sync`), run by the environment's setup script pre-launch (the call that gets the repo's
+plugins loaded at turn one) and re-run per session by a registered SessionStart hook as drift
+repair. The environment stays generic; repos opt in by adopting the pattern.
 
 ## Fleet audit (2026-08-13)
 
@@ -36,7 +40,7 @@ Go plus the module `toolchain` mechanism covers this); **PowerShell** (`pwsh` �
 
 | Repo | Stack / pins | `.claude/` today | Cloud needs beyond the shared env |
 |---|---|---|---|
-| claude-code-plugins | Node (`.node-version`), npm, ruff, lint pins | Full bootstrap hook exists but is **not registered** (see [findings](#findings)); marketplace declared (`directory` source) | Re-register the SessionStart hook (and decide `enabledPlugins`) |
+| claude-code-plugins | Node (`.node-version`), npm, ruff, lint pins | Full bootstrap hook **registered** (#2655), marketplace declared, full catalog enabled (#2631) | None — re-verify per the [checklist](#verification-checklist) |
 | medley | .NET 10.0.302 (repo-local `.dotnet` supported), Node 24.18.0, Python 3.14, npm, Playwright visual CI | Rich guard/telemetry hooks, 54 plugins, 13 `.mcp.json` servers — **no dependency bootstrap hook** | Add bootstrap hook: .NET into `.dotnet`, `npm ci`, `uv sync`; Playwright browsers on demand |
 | github-iac | .NET 10.0.302, Pulumi (C#), Node 24.18.0, npm | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (.NET, `npm ci`); `pulumi` CLI only if sessions should run previews |
 | ci-workflows | .NET 10.0.400, pwsh + Pester + PSScriptAnalyzer, Go fixtures | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (.NET 10.0.400); pwsh comes from the shared env |
@@ -56,76 +60,63 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 
 ## Step 1 — the shared environment (claude.ai UI, one time)
 
+> **Rollout direction (2026-08-15):** account rollout and per-repo migration prompts live in
+> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md). Fleet repos are
+> renaming their committed bootstrap from `.claude/hooks/session-start.sh` to
+> `.claude/cloud-bootstrap.sh` (one script, two callers — the environment's cache build
+> pre-launch, and the SessionStart hook per session). The standards `cloud-environment`
+> component invokes **only** the new path — no legacy fallback, by decision — so completing a
+> repo's migration is what turns on its pre-launch bootstrap; until then that repo's sessions
+> rely on the per-session hook alone. Pre-launch execution is what makes marketplace plugins
+> load at turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box) — there is no API.
-Either edit **Default** in place or add a new environment named e.g. **Melodic** so Default stays
-pristine:
+Edit **Default** in place — the paste-once rollout settles on one account-wide Default rather
+than a separate named environment (see
+[One environment per account?](../prompts/cloud-bootstrap-rollout.md#one-environment-per-account)):
 
-- **Network access**: start with **Trusted**. The one at-risk install is the .NET installer
-  (`dot.net/v1/dotnet-install.sh` redirects through `aka.ms` to `builds.dotnet.microsoft.com` /
-  `download.visualstudio.microsoft.com`, none of which appear on the documented default
-  allowlist; all probed reachable from a cloud session on 2026-08-13, so the documented list may
-  be conservative). If the verification session shows the .NET step failing with `403` /
-  `x-deny-reason: host_not_allowed`, switch to **Custom**, check **Also include default list of
-  common package managers**, and add: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
-  `download.visualstudio.microsoft.com` (`dot.net` is already on the default list the checkbox
-  retains; it is listed here so the recovery path stands even without the checkbox).
+- **Network access**: **Custom**, with **Also include default list of common package managers**
+  checked, plus these hosts: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
+  `download.visualstudio.microsoft.com`. This is a hard requirement, not a fallback: the 2026-08-14
+  verification run ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654),
+  Blocker 1) reproduced the .NET installer's redirect chain being `403`-blocked under Trusted
+  (session-side probes on 2026-08-13 had suggested the documented allowlist was conservative; the
+  setup-script build proved otherwise). Trusted works only if the fleet ever drops .NET from the
+  environment.
 - **Environment variables**: none. There is no secrets store — anything here is readable by every
   session in the environment. `gh`/git auth comes from the GitHub proxy automatically.
-- **Setup script**: paste the script below.
+- **Setup script**: paste only the three-line bootstrap below. The real script is the
+  [`cloud-environment` component in standards](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/setup.sh)
+  (standards is the org baseline SSOT and is public, so the raw fetch needs no credentials and
+  `raw.githubusercontent.com` is on the default allowlist) — edits to what environments install
+  land there by reviewed PR, never by hand-editing this account-scoped UI field.
 
 ```bash
 #!/bin/bash
-# Melodic shared cloud environment — repo-agnostic, static installs only.
-# Hard limits: must exit 0; keep total runtime well under ~5 minutes so the
-# environment cache (the warm-boot snapshot) can build. Per-repo work lives in
-# each repo's committed SessionStart hook, not here.
-export DEBIAN_FRONTEND=noninteractive
-
-# Track A: apt tools — gh CLI + PowerShell (packages.microsoft.com is allowlisted)
-(
-  apt-get update -y || true
-  # gh comes from Ubuntu's own archives: the official cloud-environments worked
-  # example is exactly `apt update && apt install -y gh`, and cli.github.com
-  # (the newer upstream apt repo) is NOT on the default allowlist, so this is
-  # the only Trusted-compatible route. A silent miss here is caught by the
-  # verification checklist's `gh --version` step.
-  apt-get install -y gh || true
-  . /etc/os-release
-  curl -fsSL "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" \
-    -o /tmp/msprod.deb &&
-    dpkg -i /tmp/msprod.deb && apt-get update -y && apt-get install -y powershell || true
-) &
-
-# Track B: .NET SDKs — the fleet's exact global.json pins (rollForward: disable)
-(
-  curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh || exit 0
-  for v in 10.0.302 10.0.400; do
-    bash /tmp/dotnet-install.sh --version "$v" --install-dir /opt/dotnet || true
-  done
-  ln -sf /opt/dotnet/dotnet /usr/local/bin/dotnet || true
-) &
-
-# Track C: Node 24.18.0 — fleet .node-version pin; the VM image ships 20/21/22
-(
-  export NVM_DIR="${NVM_DIR:-/opt/nvm}"
-  if [ -s "$NVM_DIR/nvm.sh" ]; then
-    . "$NVM_DIR/nvm.sh" && nvm install 24.18.0 && nvm alias default 24.18.0 || true
-  fi
-) &
-
-wait
-
-# Bake the checked-out repo's own bootstrap into the cached snapshot (no-op for
-# repos without the hook; hooks are idempotent so any repo/cache pairing is safe)
-[ -f .claude/hooks/session-start.sh ] && CLAUDE_CODE_REMOTE=true bash .claude/hooks/session-start.sh || true
+curl -fsSL https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/setup.sh \
+  -o /tmp/melodic-env-setup.sh && bash /tmp/melodic-env-setup.sh
 exit 0
 ```
 
-Update the .NET version list here when a repo's `global.json` bumps — the pins duplicate the
-repos' manifests by necessity (the script cannot read repos it isn't running in), which is why
-each repo's hook *also* installs its exact SDK repo-locally: the env copy is a warm cache, the
-hook is the correctness guarantee.
+What the canonical script does (details and lifecycle in the
+[component README](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/README.md)):
+parallel tracks install `gh` + PowerShell (apt), the fleet's exact .NET SDK pins into
+`/opt/dotnet`, and Node 24.18.0 via the VM's nvm; it then runs the checked-out repo's own
+`.claude/cloud-bootstrap.sh` — baking its results into the snapshot, and, because it runs before
+the session process launches, making the repo's plugins live at turn one. Every step logs with a timestamp to
+`/var/log/melodic-env-setup.log`, and `/opt/melodic-env-setup.done` (version + timestamp) is
+written strictly last — so a missing stamp is the signature of an interrupted cache build
+([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 2), fixed
+by forcing a rebuild.
+
+Two lifecycle caveats: the fleet's toolchain pins are duplicated into the component by necessity
+(the script cannot read repos it isn't running in) — each repo's bootstrap *also* installs its
+exact SDK repo-locally, so the env copy is a warm cache and the bootstrap is the correctness
+guarantee. And
+a merged component change does **not** reach existing environments on its own: the snapshot
+rebuilds only on an edit to the environment's script/network fields or ~7-day cache expiry, so
+after a standards bump, force a rebuild with any trivial edit to the script field.
 
 ## Step 2 — per-repo templates
 
@@ -145,7 +136,7 @@ in cloud sessions, unlike anything user-scoped):
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/cloud-bootstrap.sh"
           }
         ]
       }
@@ -160,19 +151,21 @@ in cloud sessions, unlike anything user-scoped):
 }
 ```
 
-**`.claude/hooks/session-start.sh`** — manifest-driven, so one template serves the fleet; delete
-the blocks a repo doesn't need. Design rules (same as this repo's production hook): cloud-only
-guard, idempotent (hooks run on every startup *and* resume), warn-and-continue for anything the
-session can limp along without, and `$CLAUDE_ENV_FILE` as the only way to shape the session's
-environment (append `export`-lines, dedup-guarded):
+**`.claude/cloud-bootstrap.sh`** — manifest-driven, so one template serves the fleet; delete
+the blocks a repo doesn't need. Design rules (same as this repo's production bootstrap):
+cloud-only guard, idempotent (the SessionStart hook re-runs it on every startup *and* resume,
+on top of the environment's pre-launch call), warn-and-continue for anything the session can
+limp along without, and `$CLAUDE_ENV_FILE` as the only way to shape the session's environment
+(append `export`-lines, dedup-guarded):
 
 ```bash
 #!/usr/bin/env bash
-# SessionStart bootstrap — cloud sessions only; idempotent; warn-and-continue.
+# Cloud bootstrap — cloud sessions only; idempotent; warn-and-continue. Run by
+# the environment setup script pre-launch and by the SessionStart hook.
 set -u
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
-warn() { printf 'session-start: %s\n' "$*" >&2; }
+warn() { printf 'cloud-bootstrap: %s\n' "$*" >&2; }
 
 env_line() { # append an export line to the session env, once
   [ -n "${CLAUDE_ENV_FILE:-}" ] || return 0
@@ -198,10 +191,19 @@ if [ -f .node-version ]; then
 fi
 
 # --- npm dependencies, skipped when already in sync --------------------------
+# Put hook-consumed npm CLIs (e.g. markdownlint-cli2) in the root package-lock
+# and, after npm ci, symlink them into ~/.local/bin — hook processes inherit
+# Claude Code's environ (which includes ~/.local/bin) but not the nvm prefix
+# npm -g would use, and CLAUDE_ENV_FILE PATH repairs reach Bash tools only.
 if [ -f package-lock.json ]; then
   if [ ! -f node_modules/.package-lock.json ] ||
     [ package-lock.json -nt node_modules/.package-lock.json ]; then
     npm ci --no-audit --no-fund || warn "npm ci failed"
+  fi
+  mkdir -p "$HOME/.local/bin"
+  if [ -x node_modules/.bin/markdownlint-cli2 ]; then
+    ln -sfn "$PWD/node_modules/.bin/markdownlint-cli2" \
+      "$HOME/.local/bin/markdownlint-cli2"
   fi
 fi
 
@@ -266,33 +268,53 @@ transcript to confirm the task itself succeeded.
 ## Verification checklist
 
 Run once after creating the environment (and after any setup-script edit — each edit rebuilds
-the cache). Start a cloud session on this repo in the new environment and ask Claude to verify:
+the cache). Executed live on 2026-08-14; results and forensics in
+[#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654). Start a cloud
+session on this repo in the new environment and ask Claude to verify:
 
+0. **The completion stamp first**: `cat /opt/melodic-env-setup.done` (version + timestamp). A
+   missing stamp means the cache build was interrupted before the script finished — the exact
+   #2654 Blocker 2 failure, where dpkg logs showed the build stopping ~13 s in with PowerShell
+   and the baked-in bootstrap never run. Force a rebuild (any trivial script-field edit) before
+   debugging anything else; `/var/log/melodic-env-setup.log` shows how far the build got.
 1. `gh --version`, `pwsh --version`, `dotnet --list-sdks` (expect 10.0.302 and 10.0.400),
    `node --version` (expect the `.node-version` pin), `check-tools` for the VM inventory.
-2. The repo's hook ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
-   `actionlint`), and re-running the hook is a fast no-op.
+2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
+   `actionlint`), and re-running the bootstrap is a fast no-op.
 3. `echo $GH_TOKEN` prints `proxy-injected` (GitHub proxy is authenticating).
-4. Marketplace plugins loaded (`/plugin` → installed list shows `@melodic-software` entries) in a
-   session on a repo that declares them (songwriting or medley).
-5. If the .NET setup-script step failed (`dotnet` missing), apply the Custom-allowlist fallback
-   from [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) and re-verify.
+4. Marketplace plugins loaded, in a session on a repo that declares them (songwriting or
+   medley): make the session's *first* message a plugin slash command and confirm it resolves —
+   `/plugin` is not available in cloud sessions, and a Bash-side
+   `claude plugin list` proves only disk state, not that the session loaded anything (see the
+   same-session limit in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+5. If the .NET setup-script step failed (`dotnet` missing), confirm the environment actually has
+   the Custom allowlist from [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) —
+   under Trusted this step *always* fails (#2654 Blocker 1) — then rebuild and re-verify.
 6. Python: in a claude-code-proxy or medley session, `uv python install 3.14` — if the download
    is `403`-blocked (release assets ride the GitHub proxy's repository scope), fall back to the
-   VM's system Python for tooling or add the astral-sh host to a Custom allowlist.
+   VM's system Python for tooling or add the astral-sh host to a Custom allowlist. This repo's
+   cloud bootstrap installs from `.github/requirements-ci.txt` with `--require-hashes`; that
+   pin list includes cp311 wheels so the cloud VM's system Python 3.11 can satisfy `pyyaml`
+   (CI itself uses 3.14).
 
 ## Findings
 
-- **This repo's bootstrap is currently unwired.** `.claude/hooks/session-start.sh` exists and
-  `docs/CLOUD-SESSIONS.md` §"How this repository is set up" describes `settings.json` registering
-  it (plus a nine-plugin `enabledPlugins` set), but the committed `settings.json` on `main`
-  carries neither key — confirmed empirically in the session that produced this doc: `npm ci`
-  had not run and the hook-pinned tools were absent at session start. The `claude-ops`
-  converge/sync machinery owns committed plugin enablement (see #2539), so this doc does not
-  patch `settings.json` unilaterally: **decide whether the removal was intentional**, then either
-  re-register the hook (snippet in [Step 2](#step-2--per-repo-templates)) or update
-  CLOUD-SESSIONS.md to describe the deliberate state. Until one of those lands, cloud sessions on
-  this repo start without their toolchain.
+- **Resolved: this repo's bootstrap was unwired; it is now registered.** The doc's original
+  finding (committed `settings.json` carried neither the SessionStart hook nor `enabledPlugins`)
+  was confirmed live by the 2026-08-14 verification run (#2654 check 2/4: empty
+  `node_modules/.bin`, zero plugins). #2631 enabled the catalog; #2655 registered the SessionStart hook
+  on a `startup|resume` matcher — and #2657 closed the last hook blocker (the
+  `--require-hashes` pin list lacked cp311 wheels for the cloud VM's Python 3.11, so the hook
+  failed deterministically; verified against PyPI's published digests, a coverage gap rather
+  than tampering). A 2026-08-15 session then confirmed the wiring end to end — the hook ran at
+  startup and installed all 65 plugins — and established the follow-on limit now recorded in
+  `docs/CLOUD-SESSIONS.md` §"Plugins in sessions on this repo": hook-time installs land on disk
+  but are never loaded by the session that ran them (the registry is read before the hook), so
+  plugins go live at turn one only when the cache build runs the bootstrap pre-launch, which the
+  standards `cloud-environment` component does. Remaining #2654 actions are environment-side,
+  not repo-side: switch the environment to the Custom allowlist
+  ([Step 1](#step-1--the-shared-environment-claudeai-ui-one-time)) and rebuild the interrupted
+  cache, then re-run the [checklist](#verification-checklist).
 - **`dotfiles` cannot deliver user config to the cloud.** By platform design nothing from
   `~/.claude` reaches cloud sessions; the repo remains editable in the cloud, but any behavior it
   installs locally must be re-homed (repo `.claude/`, plugins, or the environment) to exist

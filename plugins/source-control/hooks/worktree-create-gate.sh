@@ -162,11 +162,13 @@ if [[ -z "$repo_dir" ]]; then
   repo_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
 fi
 
-# Root resolution mirrors the skill's, and deliberately reads the option from the
-# environment rather than substituting `${user_config.worktree_root}` into a
-# command: a value substituted into a shell field would be executed by the shell,
-# which is why Claude Code rejects that form outright and exports
-# CLAUDE_PLUGIN_OPTION_<KEY> instead.
+# The plugin option is read from the environment rather than substituting
+# `${user_config.worktree_root}` into a command: a value substituted into a shell
+# field would be executed by the shell, which is why Claude Code rejects that
+# form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead. It rides the
+# helper's --fallback-root rung, BELOW the `melodic.worktreeroot` git config key
+# the helper reads from the target repository (includes on) — most specific
+# first, per reference/worktree-root-convention.md (#2610/#2612).
 root="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
 # An unexpanded placeholder is an unset value wearing a string's clothes.
 # SC2016: the single-quoted ${user_config token is matched literally on purpose —
@@ -188,19 +190,17 @@ fi
 
 args=(--name "$name" --repo-dir "$repo_dir")
 if [[ -n "$root" ]]; then
-  args+=(--root "$root")
-else
-  # No configured root: fall back to the plugin data directory, which is harness
-  # state rather than a checkout, so it satisfies the outside-every-repository
-  # invariant on its own. Passed through the helper's file channel because that is
-  # the interface the helper documents for a value it must read verbatim.
-  data_root="${CLAUDE_PLUGIN_DATA:-}"
-  if [[ -z "$data_root" ]]; then
-    gate::refuse \
-      'set the worktree_root plugin option to a directory outside every repository, then retry' \
-      'neither worktree_root nor CLAUDE_PLUGIN_DATA is set, so there is no root outside the repository to place this worktree under' \
-      'letting it land inside the repository is the one outcome this gate exists to prevent'
-  fi
+  args+=(--fallback-root "$root")
+fi
+# The plugin data directory backs the helper's LAST rung — harness state rather
+# than a checkout, so it satisfies the outside-every-repository invariant on its
+# own. Passed through the helper's file channel because that is the interface
+# the helper documents for a value it must read verbatim. No pre-refusal here
+# when both the option and the data dir are absent: the melodic.worktreeroot git
+# config key may still supply the root, and only the helper (which has resolved
+# the repository) can know — its exit 3 is the honest refusal.
+data_root="${CLAUDE_PLUGIN_DATA:-}"
+if [[ -n "$data_root" ]]; then
   root_file="$(mktemp "${TMPDIR:-/tmp}/worktree-create-gate.XXXXXX")" || {
     gate::refuse \
       'check that TMPDIR points at a writable directory with space free, then retry' \
@@ -234,8 +234,8 @@ if ((status != 0)); then
     ;;
   3)
     gate::refuse \
-      'set the worktree_root plugin option to a directory outside every repository, then retry' \
-      'the helper found no usable external root (exit 3) and refused rather than falling back to the in-repo default'
+      'set the melodic.worktreeroot git config key (git config --global melodic.worktreeroot <dir>) or the worktree_root plugin option to a directory outside every repository and on the same drive as the repository (Windows), then retry' \
+      'the helper refused with exit 3 — no usable external root, a root inside a repository, or a cross-drive root on Windows'
     ;;
   4)
     gate::refuse \

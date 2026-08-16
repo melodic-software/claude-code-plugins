@@ -156,9 +156,12 @@ silent skip or a coerced-to-zero budget.
 
 ## Gotchas
 
-- The script needs a git repository — several checks (trigger-keyword preservation, vendor
-  byte-identity, committed-artifact scan) read `git show HEAD:` / `git ls-files`. Outside a repo it
-  exits 2 (env error).
+- A git repository is optional. Git-backed checks (trigger-keyword preservation, vendor
+  byte-identity, stale-tracking metadata, committed-artifact scan) skip with a note when cwd
+  is outside a repo — marketplace plugin-cache installs are plain trees. Set
+  `CHECK_SKILL_SKILLS_ROOT` (or `CLAUDE_PROJECT_DIR`) so the non-git checks still resolve a
+  skills root; without either and without a git toplevel, the script exits 2 naming the
+  missing root.
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
   to a WARN rather than failing, so a run on a machine without Node still gates on the other twenty.
 - **Check 6 defers to the repo's markdownlint config — run it from inside that repo.** `markdownlint-cli2`
@@ -211,7 +214,8 @@ silent skip or a coerced-to-zero budget.
 - `check-evals-quality.sh` resolves each case's `files` entries relative to the skill directory
   first, then the evals directory. An entry that is prose (environment description) rather than a
   real path FAILs Q4 — describe environment state in the case's `prompt` parenthetical instead,
-  or ship a fixture.
+  or ship a fixture. When `files` is empty/absent, path-shaped tokens in `prompt`/`expected_output`
+  that resolve nowhere WARN under the same Q4 roots unless the case sets `narration: true`.
 - `listing-budget` never asserts a resolved live value (context window and `skillListingBudgetFraction`
   are both consumer settings this static check cannot observe) — it reports against a documented,
   overridable default and always exits 0. A clean report is a signal to investigate against `/doctor`

@@ -45,6 +45,15 @@ state and records that binding.
   that discovers scheduling surfaces, wires the free CI-cron/local-scheduler defaults as reviewable
   changes, homes each routine's work-class mapping on the security surface, and
   detect-diff-reconciles existing org schedulers and bots instead of duplicating them.
+- **Routine prerequisite resolution** (`reference/prerequisite-resolution.md`): fail-closed,
+  per-identity-per-surface verdicts (`supported` / `conditional` / `unsupported` / `unknown`) for
+  which catalog identities can run against a repository, composing owning seams rather than a new
+  prober — with `deferred(<trigger>)` (the row's own join trigger) marking `join:` rows that
+  have no identities yet. Per-identity
+  facts live in each `v1` leaf; `generated/identity-prerequisites.json` is the drift-gated
+  emission derived from those leaves (generator under `skills/setup/scripts/`);
+  `skills/setup/scripts/resolve-prerequisites.mjs` is the deterministic per-surface resolver;
+  the setup skill's prerequisite-resolution slice (`check` / `apply`) consumes it.
 - **Runner design pack** (`reference/runner.md`): the architect-ready design contract for the
   autonomous-drain runner — the composition spine and its eight seams, the lifecycle state
   model, the two-family stop-criteria taxonomy with terminal-handoff escalation and

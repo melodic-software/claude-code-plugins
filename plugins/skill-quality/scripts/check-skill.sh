@@ -19,14 +19,19 @@
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
 #   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
-#   3. <git-root>/.claude/skills (default)
+#   3. <git-root>/.claude/skills (default, when cwd is inside a git repo)
+#
+# A git repository is OPTIONAL. Marketplace plugin-cache installs are plain
+# directory trees (no .git). When cwd is not inside a git repo, set
+# CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) and the non-git checks still
+# run; git-backed checks (3, 8, 9, 13) skip with a note.
 #
 # Base ref for the git-backed diff checks (3, 8, 9):
 #   CHECK_SKILL_BASE_REF (default HEAD). These checks diff the WORKING TREE
 #   against this ref, so the default catches an uncommitted rewrite. For a
 #   post-commit audit (where HEAD == tree hides an already-committed change),
 #   run on a clean tree with CHECK_SKILL_BASE_REF pointing before the change
-#   (e.g. HEAD^ or a merge-base).
+#   (e.g. HEAD^ or a merge-base). Ignored when not in a git repo.
 #
 # NOT covered here: the SHARED listing budget (skillListingBudgetFraction) that
 # every loaded skill draws from together, a different cross-skill limit from
@@ -78,8 +83,11 @@
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
-#     HEAD). The default catches an uncommitted rewrite; a post-commit audit
-#     sets the base ref before the change and runs on a clean tree (see above).
+#     HEAD) when a git repo is available. Outside a repo (plugin-cache install)
+#     those checks — and check 13's committed-artifact scan — skip with a note;
+#     every other check still runs. The default catches an uncommitted rewrite;
+#     a post-commit audit sets the base ref before the change and runs on a
+#     clean tree (see above).
 #   - Frontmatter must open with `---` on line 1; content before the fence is
 #     not treated as frontmatter.
 #   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12,
@@ -122,10 +130,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Git is optional. Plugin-cache installs are plain trees; non-git checks still
+# run when CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) points at them.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-if [[ -z "$REPO_ROOT" || ! -d "$REPO_ROOT" ]]; then
-  printf 'Error: not in a git repo\n' >&2
-  exit 2
+HAVE_GIT=0
+if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
+  HAVE_GIT=1
 fi
 
 # shellcheck source=./skill-frontmatter.sh
@@ -133,8 +143,9 @@ source "$SCRIPT_DIR/skill-frontmatter.sh"
 
 # Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
 # HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
+# Validated only when a git repo is present; ignored otherwise.
 BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
-if [[ "$BASE_REF" != "HEAD" ]] &&
+if [[ "$HAVE_GIT" == 1 && "$BASE_REF" != "HEAD" ]] &&
   ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
   printf 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit\n' "$BASE_REF" >&2
   exit 2
@@ -144,19 +155,31 @@ SKILL_NAME="${1:?Usage: check-skill.sh [--require-evals] <skill-name>}"
 
 # Resolve the skills root without baking a repo layout (convention-resolution
 # ladder): explicit override, then plugin project dir, then git-root default.
+# Outside a git repo the git-root step is unavailable — require an explicit
+# root (or CLAUDE_PROJECT_DIR) rather than aborting solely for missing VCS.
 if [[ -n "${CHECK_SKILL_SKILLS_ROOT:-}" ]]; then
   SKILLS_ROOT="$CHECK_SKILL_SKILLS_ROOT"
 elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   SKILLS_ROOT="$CLAUDE_PROJECT_DIR/.claude/skills"
-else
+elif [[ "$HAVE_GIT" == 1 ]]; then
   SKILLS_ROOT="$REPO_ROOT/.claude/skills"
+else
+  printf 'Error: not in a git repo and no skills root set — set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository\n' >&2
+  exit 2
 fi
 
 # Anchor a relative skills root to the project root. The setup action persists a
 # project-relative path; if the skill is invoked from a subdirectory a relative
 # root would otherwise resolve against the cwd and miss the skills.
 if [[ "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
-  SKILLS_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}/$SKILLS_ROOT"
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    SKILLS_ROOT="$CLAUDE_PROJECT_DIR/$SKILLS_ROOT"
+  elif [[ "$HAVE_GIT" == 1 ]]; then
+    SKILLS_ROOT="$REPO_ROOT/$SKILLS_ROOT"
+  else
+    printf 'Error: relative skills root %s needs CLAUDE_PROJECT_DIR or a git repository to anchor against\n' "$SKILLS_ROOT" >&2
+    exit 2
+  fi
 fi
 
 SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
@@ -167,9 +190,13 @@ SKILL_MD="$SKILL_DIR/SKILL.md"
 # the conventional .claude/skills. Ask git for the prefix rather than
 # string-stripping REPO_ROOT — on Git Bash `git rev-parse` and `pwd` can differ
 # in drive-letter case / slash form, which would silently break the strip.
-# Empty when the skill dir is outside the repo (git-backed checks then no-op).
-SKILL_REL="$(git -C "$SKILL_DIR" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
-SKILL_REL="${SKILL_REL%/}"
+# Empty when not in a git repo, or when the skill dir is outside the repo
+# (git-backed checks then no-op).
+SKILL_REL=""
+if [[ "$HAVE_GIT" == 1 ]]; then
+  SKILL_REL="$(git -C "$SKILL_DIR" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
+  SKILL_REL="${SKILL_REL%/}"
+fi
 
 # Tunables (listing description cap; SKILL.md line caps; vendor sync age).
 DESC_CHAR_CAP=1536
@@ -318,7 +345,9 @@ fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------
 
-if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+if [[ "$HAVE_GIT" != 1 ]]; then
+  note "not in a git repo — trigger-keyword preservation (check 3) skipped"
+elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
   BASE_TRIG="$(fm_listing_triggers "$BASE_FM_3")"
   CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
@@ -443,7 +472,7 @@ while IFS= read -r ref; do
     fi
     resolve_base="$PLUGIN_DIR"
   fi
-  if git -C "$REPO_ROOT" check-ignore -q "$resolve_base/$check_ref" 2>/dev/null; then
+  if [[ "$HAVE_GIT" == 1 ]] && git -C "$REPO_ROOT" check-ignore -q "$resolve_base/$check_ref" 2>/dev/null; then
     note "check-5 skip (gitignored runtime path): $check_ref"
     continue
   fi
@@ -548,8 +577,11 @@ fi
 
 # Only meaningful when the skill has a HEAD baseline: a brand-new vendored skill
 # staged before a pre-commit run has no prior vendor/ to preserve, so its staged
-# files must not read as "changed vs HEAD".
-if [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+# files must not read as "changed vs HEAD". Outside a git repo there is no
+# baseline to compare — skip rather than abort the whole gate.
+if [[ "$HAVE_GIT" != 1 ]]; then
+  [[ -d "$SKILL_DIR/vendor" ]] && note "not in a git repo — vendor byte-identity (check 8) skipped"
+elif [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs $BASE_REF"
   else
@@ -572,7 +604,9 @@ fi
 
 # --- Check 9: stale-tracking metadata keys preserved vs HEAD ---------------
 
-if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+if [[ "$HAVE_GIT" != 1 ]]; then
+  note "not in a git repo — stale-tracking metadata (check 9) skipped"
+elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
   for key in upstream-version synced upstream-sha; do
     if grep -qE "^[[:space:]]*$key:" <<<"$BASE_FM"; then
@@ -625,9 +659,13 @@ fi
 
 # --- Check 13: no committed cache/build artifacts ----------------------------
 
-CACHE_HITS="$(git -C "$REPO_ROOT" ls-files "$SKILL_REL" 2>/dev/null | grep -E '__pycache__|\.pyc$|/node_modules/' || true)"
-if [[ -n "$CACHE_HITS" ]]; then
-  err "committed cache/build artifact(s) under the skill dir: $(printf '%s' "$CACHE_HITS" | head -3 | tr '\n' ' ')"
+if [[ "$HAVE_GIT" != 1 ]]; then
+  note "not in a git repo — committed-artifact scan (check 13) skipped"
+else
+  CACHE_HITS="$(git -C "$REPO_ROOT" ls-files "$SKILL_REL" 2>/dev/null | grep -E '__pycache__|\.pyc$|/node_modules/' || true)"
+  if [[ -n "$CACHE_HITS" ]]; then
+    err "committed cache/build artifact(s) under the skill dir: $(printf '%s' "$CACHE_HITS" | head -3 | tr '\n' ' ')"
+  fi
 fi
 
 # --- Check 14: evals/evals.json presence -------------------------------------

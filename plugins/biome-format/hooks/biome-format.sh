@@ -176,7 +176,8 @@ fi
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$BIOME_BIN" ]]; then
   if hook::notice_once "biome-format-biome" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or PATH) — format/lint skipped for this session. Install: npm install --save-dev @biomejs/biome"
+    hook::emit_skip_notice PostToolUse "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here; a repo-local install (npm i -D @biomejs/biome) is the reliable route.
+PATH probed: ${PATH:-<unset>}"
   fi
   emit_skipped
 fi

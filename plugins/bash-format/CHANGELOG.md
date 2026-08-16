@@ -3,6 +3,13 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.16]
+
+### Fixed
+
+- **Accurate PATH-miss notices with probe latch wording + `PATH probed:` diagnostic (#2732).** Skip is for this edit (probe re-runs; only the notice latches). Names
+  Claude Code environment inheritance vs profile PATH; does not probe nvm layouts.
+
 ## [0.7.15]
 
 ### Changed

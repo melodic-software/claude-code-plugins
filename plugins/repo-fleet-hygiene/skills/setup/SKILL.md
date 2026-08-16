@@ -2,7 +2,7 @@
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it — adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides — preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--max-depth <1..12>]"
+argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--skip <name>]... [--max-depth <1..12>]"
 ---
 
 ## Purpose
@@ -10,9 +10,12 @@ argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]
 Verify and manage the audit's optional Git-format configuration. Setup owns only this file; it never
 edits Claude Code settings, `pluginConfigs`, Git remotes, branches, worktrees, or the installed plugin.
 
-The config is optional — with none, the audit runs against the current project by default — so its
-absence is a reported INFO, never a FAIL. `check` inspects read-only; `apply` creates or updates the
-file, then re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then
+The config file itself is optional to *create*, but a no-argument `/repo-fleet-hygiene:audit` now
+requires scope from somewhere: CLI bare path / `--root` / `--repo`, or `fleet.root` / `fleet.repo`
+entries in a consumed config. Absence of every config on the ladder is therefore INFO for `check`
+(nothing to validate yet) and a hard failure for a subsequent no-argument audit — not a silent
+default to the current project. `check` inspects read-only; `apply` creates or updates the file,
+then re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then
 the write. All non-interactive: when the arguments fully specify the change, `apply` proceeds without
 prompting.
 
@@ -31,10 +34,14 @@ report header names which config (if any) was consumed.
 ```text
 check | apply [--config <path>] [--root <dir>]... [--repo <dir>]...
         [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]...
-        [--max-depth <1..12>]
+        [--skip <name>]... [--max-depth <1..12>]
 ```
 
-`--max-depth` writes `[fleet] maxDepth`; this skill owns the config file that carries it.
+`--max-depth` writes `[fleet] maxDepth`; `--skip` writes repeatable `[fleet] skip` entries. This
+skill owns the config file that carries both. Explicit `fleet.skip` entries **replace** the audit's
+default discovery skip list (they do not append) — say that when writing them, because "extend" is
+the naive reading. To extend without shrinking, write the six defaults (`.`, `..`, `.git`,
+`node_modules`, `vendor`, `.venv`) plus the extra names.
 
 ## `check` (read-only)
 
@@ -57,6 +64,9 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
    normalized key. Flag as FAIL only a key that is not a normalizable `github.com/owner/repository`.
 6. **Acknowledged identities** — INFO listing each `fleet.ackUnavailable` entry (normalized). FAIL any
    value that is not a normalizable `github.com/owner/repository`.
+7. **Discovery skip names** — INFO listing each `fleet.skip` entry. FAIL any value that is empty or
+   contains a path separator (must be a bare directory name). Remind that any present `fleet.skip`
+   **replaces** the audit default skip list rather than appending.
 
 ## `apply` (idempotent)
 
@@ -72,6 +82,12 @@ Run `check`, then create or update the config from the supplied arguments.
    `[fleet] ackUnavailable` entry, deduplicating case-insensitively against entries already
    present. Like roots/repos, apply is additive — removing an acknowledgment is a manual edit of
    the consumer's own config file.
+   Validate each `--skip` value as a bare directory name (reject empty and any path separator);
+   write it as a repeatable `[fleet] skip` entry, deduplicating exact matches against entries
+   already present. State the replace semantics when writing: any `fleet.skip` present replaces the
+   audit's default skip list (`.`, `..`, `.git`, `node_modules`, `vendor`, `.venv`) rather than
+   appending — to extend, include those defaults plus the new names. Removing a skip entry is a
+   manual edit.
 2. If the config exists, read it with `git config --file <path> --list --show-origin`. Preserve every
    unrelated entry. Never source it.
 3. State the proposed additions/updates before writing. With complete arguments, proceed
@@ -107,6 +123,8 @@ Run `check`, then create or update the config from the supplied arguments.
    - **`maxDepth`** — when present, confirm it is an integer in `1..12`
    - **Canonical identity** and **acknowledged identities** — confirm each key/value normalizes to
      `github.com/owner/repository`
+   - **Discovery skip names** — when present, confirm each `fleet.skip` value is a bare directory
+     name (non-empty, no path separator)
 
    Do **not** invoke the collector to verify a write. It is the full fleet walk this skill says it
    never runs — per-repository network queries across every configured root, minutes on a real fleet
@@ -127,6 +145,7 @@ Re-running `apply` with the same arguments after everything resolves changes not
     repo = ../../special/repo      # repeatable exact target
     maxDepth = 5                   # integer 1..12
     ackUnavailable = github.com/owner/repository   # repeatable; acknowledge a known-inaccessible identity
+    skip = vendor                  # repeatable; REPLACE default discovery skip list (not append)
 
 [canonical "github.com/owner/repository"]
     path = ../../../canonical-checkout
@@ -137,6 +156,12 @@ Re-running `apply` with the same arguments after everything resolves changes not
 affecting non-404/403 failures or successful-response evidence. Use it for foreseeable 404s:
 upstream repositories made private or deleted, or repositories owned by a different GitHub account
 than the authenticated `gh` login.
+
+`skip` replaces the audit's default discovery skip list (`.`, `..`, `.git`, `node_modules`,
+`vendor`, `.venv`) whenever any entry is present. It does **not** append — a lone `skip = third_party`
+means only `third_party` is skipped (plus unconditional `.` / `..`). To extend the defaults, write
+all six plus the extra names. CLI `--skip` and config `fleet.skip` compose additively with each
+other the same way other scope inputs do.
 
 Resolution priority is explicit audit CLI override, canonical config entry, then the discovered
 checkout's own **main worktree** (the first record of `git worktree list --porcelain`). A canonical

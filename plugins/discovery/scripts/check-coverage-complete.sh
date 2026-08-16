@@ -17,6 +17,10 @@
 # Usage:
 #   bash check-coverage-complete.sh <ledger-path>
 #   bash check-coverage-complete.sh --help
+#   ./check-coverage-complete.sh <ledger-path>
+#
+# Python twin (same exit contract): check-coverage-complete.py — use when the
+# Bash tool cannot run this form but python3 is reachable.
 #
 # Ledger shape (the Done column is located by header name, not by position, so
 # adding a column ahead of it does not silently change what is graded):

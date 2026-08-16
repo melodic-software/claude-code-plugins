@@ -1,6 +1,6 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites and per-guard toggle state for this machine. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, or 'install the commit-msg hook' / 'enforce the commit convention for every committer'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-commit-msg (opt-in: install the tool-agnostic commit-msg convention hook into this repo's personal .git/hooks). Re-runnable and safe."
-argument-hint: "check | apply | apply install-commit-msg"
+description: "Verify the guardrails hooks' runtime prerequisites and per-guard toggle state for this machine. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, or 'install the commit-msg hook' / 'enforce the commit convention for every committer', or 'install the pre-commit content hook' / 'enforce secrets and hardcoded-path checks on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-commit-msg (opt-in: install the tool-agnostic commit-msg convention hook into this repo's personal .git/hooks) | apply install-pre-commit-content (opt-in: install the write-path-independent secret/hardcoded-path pre-commit hook into this repo's personal .git/hooks). Re-runnable and safe."
+argument-hint: "check | apply | apply install-commit-msg | apply install-pre-commit-content"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
 resolves. This plugin owns no consumer-project configuration — every tunable is a native
-`userConfig` option (eight per-guard toggles plus the `cli_flag_verify_bins`,
+`userConfig` option (thirteen per-guard toggles plus the `cli_flag_verify_bins`,
 `cli_flag_verify_skip_bins`, and `block_dangerous_git_allow` scalars) — so `apply` is pure
 guidance and writes nothing.
 
@@ -60,7 +60,7 @@ nothing — it only points:
   directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
   record while the effective install stays in place, so the reinstall lands at a scope that
   does not load. Uninstalling also drops the stored `pluginConfigs` entry, so the reinstall must
-  re-supply **every** key whose value should stay non-default — this plugin declares sixteen, and
+  re-supply **every** key whose value should stay non-default — this plugin declares twenty, and
   a reinstall that passes only the key being changed silently re-enables every guard the operator
   had turned off and discards every `*_allow`, `*_bins`, and `*_prefixes` list. Record the current
   values before uninstalling; afterwards there is nothing left to read them from.
@@ -123,13 +123,68 @@ is inert, not harmful.
   `guardrails-commit-msg-convention` marker) — the hook is derived FROM the tracked
   config and is not an independent convention signal.
 
+## `apply install-pre-commit-content` (opt-in, explicit argument only)
+
+The DEPTH layer for content invariants that Write|Edit-matched guards alone cannot
+close: a git `pre-commit` hook scanning every staged blob for the same high-confidence
+secret patterns and hardcoded machine-path patterns the CC-layer
+`secret-pattern-detection` / `hardcoded-path-check` guards use — via copies of the same
+libs (`lib/secret-detection/`, `lib/path-detection/`). Catches the damage class a Bash
+staged write (`jq … > /tmp/x && mv /tmp/x dest`) can introduce while skipping those
+tool-matched gates. Never runs from bare `apply`; only the explicit
+`install-pre-commit-content` argument installs anything.
+
+**Lane: personal `.git/hooks/` only.** Same personal-lane contract as
+`install-commit-msg` — invisible to teammates, uncommitted, removable by deleting the
+hook and its `guardrails-content-lib/` directory. A committed team lane is deliberately
+NOT scaffolded; when the team wants shared enforcement, add the same checks to the
+repo's hook manager or CI instead.
+
+**Preflight — refuse rather than surprise (run all, report, stop on any REFUSE):**
+
+1. **Managed-repo detection.** `git config --get core.hooksPath` non-empty, or
+   `lefthook.yml`/`.lefthook.yml`, `.husky/`, or a `pre-commit` config managing hooks →
+   REFUSE: the repo's hook manager owns this surface. Remediation: add the content scan
+   to the manager's own `pre-commit` entry (point it at the shipped template + libs, or
+   an equivalent CI job).
+2. **Existing `pre-commit` hook.** Present and NOT sentinel-marked → offer exactly two
+   paths and default to refusing: **chain** (rename the existing hook to
+   `pre-commit.pre-guardrails`; the installed hook runs it first and its rejection is
+   final) or **refuse** (leave everything untouched). Never overwrite.
+3. **Sentinel-marked hook already installed** → idempotent re-install: overwrite the
+   guardrails-owned hook and refresh `guardrails-content-lib/` in place, report
+   "refreshed".
+
+**Install (on a clean preflight):** copy
+`${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/pre-commit-content-invariants.sh` to
+`<git-dir>/hooks/pre-commit`, and copy `${CLAUDE_PLUGIN_ROOT}/lib/secret-detection/` plus
+`${CLAUDE_PLUGIN_ROOT}/lib/path-detection/` to
+`<git-dir>/hooks/guardrails-content-lib/{secret,path}-detection/` (resolve `<git-dir>` via
+`git rev-parse --absolute-git-dir`), `chmod +x` the hook.
+
+**Verify + report:** stage a throwaway clean file and a throwaway file containing a
+synthetic high-confidence secret pattern (e.g. a `ghp_` + 36-char fixture — never a live
+token); show both hook outcomes; state the removal path (delete `pre-commit` and
+`guardrails-content-lib/`; restore `pre-commit.pre-guardrails` if chaining renamed one).
+
+**Known interactions (state them in the report):**
+
+- `--no-verify` skips pre-commit hooks; `block-no-verify` refuses that flag in Claude
+  sessions — the designed exit is fixing the staged content.
+- The CC-layer Write|Edit guards usually block first in a Claude session; this hook is
+  the backstop for write paths those guards never see (Bash staged moves, editor
+  saves, IDE commits, humans outside Claude).
+- `block-hook-bypass`'s same-command staged-move detector narrows one spelling; this
+  hook closes the damage class regardless of write path.
+
 ## What this skill does NOT do
 
 - Exercise a guard — any matching tool call does that end-to-end.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Install any tool, during either `check` or `apply` — guidance only. The ONLY write this
-  skill ever performs is the explicit `apply install-commit-msg` action's two files in the
-  operator's own `.git/hooks/`, behind its preflight.
+- Install any tool, during either `check` or `apply` — guidance only. The ONLY writes
+  this skill ever performs are the explicit `apply install-commit-msg` /
+  `apply install-pre-commit-content` actions' files in the operator's own `.git/hooks/`,
+  behind their preflight.
 - Touch `core.hooksPath`, a hook manager's config, or any tracked file — the team
   enforcement lane is a human decision in a PR.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act

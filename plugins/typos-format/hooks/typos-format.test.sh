@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Black-box contract test for typos-format.sh (the typos-format plugin hook).
 #
-# Proves WIRING: the hook fires on any file (no extension filter) UNCONDITIONALLY
-# — with or without a consumer typos config — is REPORT-ONLY by default
-# (#1809's single-writer decision), applies typos' safe corrections in place
-# only under the typos_format_write_changes opt-in, honors typos' own
+# Proves WIRING: the hook's read-only scan fires on any file (no extension
+# filter) UNCONDITIONALLY — with or without a consumer typos config — is
+# REPORT-ONLY by default (#1809's single-writer decision), applies typos'
+# safe corrections in place only under the typos_format_write_changes opt-in
+# AND only for write-allowlisted extensions (#2650), honors typos' own
 # typos.toml > _typos.toml > .typos.toml > Cargo.toml > pyproject.toml
 # precedence when a config IS present, surfaces residual (unfixable) findings
 # via additionalContext with remediation guidance, honors the kill switch, and
@@ -379,6 +380,94 @@ else
   fail "stub/report-only: emitted a systemMessage without mutating anything"
 fi
 
+# --- Write opt-in + denied extension: still report-only (#2650) --------------
+# --write-changes is silent for applied corrections, so an unbounded write path
+# is unbounded blast radius. A fixture/golden/lock-adjacent extension must stay
+# byte-identical even when typos_format_write_changes is true; findings are
+# still reported.
+printf 'this has teh typo\n' >"$STUB_REPO/fixture.snap" # spellchecker:disable-line
+BEFORE_SNAP="$(cat "$STUB_REPO/fixture.snap")"
+OUT_SNAP=$(run_stub "$STUB_REPO/fixture.snap")
+RC_SNAP=$?
+if [[ $RC_SNAP -eq 0 ]]; then ok "stub/write-ext-deny: exit 0"; else fail "stub/write-ext-deny: exit $RC_SNAP"; fi
+if [[ "$(cat "$STUB_REPO/fixture.snap")" == "$BEFORE_SNAP" ]]; then
+  ok "stub/write-ext-deny: .snap left byte-identical under write opt-in"
+else
+  fail "stub/write-ext-deny: denied extension was rewritten: $(cat "$STUB_REPO/fixture.snap")"
+fi
+CTX_SNAP=$(printf '%s' "$OUT_SNAP" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SNAP" | grep -qi 'allowlist' && printf '%s' "$CTX_SNAP" | grep -q 'teh'; then # spellchecker:disable-line
+  ok "stub/write-ext-deny: findings reported with write-allowlist skip note"
+else
+  fail "stub/write-ext-deny: skip note or findings missing: $CTX_SNAP"
+fi
+if printf '%s' "$CTX_SNAP" | grep -q 'REWROTE'; then
+  fail "stub/write-ext-deny: claimed a rewrite for a denied extension: $CTX_SNAP"
+else
+  ok "stub/write-ext-deny: no rewrite claimed"
+fi
+if [[ -z "$(printf '%s' "$OUT_SNAP" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+  ok "stub/write-ext-deny: no user-channel mutation message"
+else
+  fail "stub/write-ext-deny: emitted a systemMessage without mutating anything"
+fi
+
+
+# --- Write opt-in + lockfile basename: report-only even for *.json (#2650 P2) -
+printf 'this has teh typo\n' >"$STUB_REPO/package-lock.json" # spellchecker:disable-line
+BEFORE_LOCK="$(cat "$STUB_REPO/package-lock.json")"
+OUT_LOCK=$(run_stub "$STUB_REPO/package-lock.json")
+RC_LOCK=$?
+if [[ $RC_LOCK -eq 0 ]]; then ok "stub/write-lockfile-deny: exit 0"; else fail "stub/write-lockfile-deny: exit $RC_LOCK"; fi
+if [[ "$(cat "$STUB_REPO/package-lock.json")" == "$BEFORE_LOCK" ]]; then
+  ok "stub/write-lockfile-deny: package-lock.json left byte-identical under write opt-in"
+else
+  fail "stub/write-lockfile-deny: lockfile was rewritten: $(cat "$STUB_REPO/package-lock.json")"
+fi
+CTX_LOCK=$(printf '%s' "$OUT_LOCK" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_LOCK" | grep -qi 'lockfile basename' && printf '%s' "$CTX_LOCK" | grep -q 'teh'; then # spellchecker:disable-line
+  ok "stub/write-lockfile-deny: findings reported with lockfile skip note"
+else
+  fail "stub/write-lockfile-deny: skip note or findings missing: $CTX_LOCK"
+fi
+if printf '%s' "$CTX_LOCK" | grep -q 'REWROTE'; then
+  fail "stub/write-lockfile-deny: claimed a rewrite for a lockfile: $CTX_LOCK"
+else
+  ok "stub/write-lockfile-deny: no rewrite claimed"
+fi
+
+# Extensionless path is denied the same way (unknown extension).
+printf 'this has teh typo\n' >"$STUB_REPO/LICENSE" # spellchecker:disable-line
+BEFORE_LIC="$(cat "$STUB_REPO/LICENSE")"
+OUT_LIC=$(run_stub "$STUB_REPO/LICENSE")
+if [[ "$(cat "$STUB_REPO/LICENSE")" == "$BEFORE_LIC" ]]; then
+  ok "stub/write-ext-deny-extensionless: extensionless path left byte-identical under write opt-in"
+else
+  fail "stub/write-ext-deny-extensionless: rewritten: $(cat "$STUB_REPO/LICENSE")"
+fi
+CTX_LIC=$(printf '%s' "$OUT_LIC" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_LIC" | grep -qi 'no extension' && printf '%s' "$CTX_LIC" | grep -q 'teh'; then # spellchecker:disable-line
+  ok "stub/write-ext-deny-extensionless: findings reported with extensionless skip note"
+else
+  fail "stub/write-ext-deny-extensionless: skip note or findings missing: $CTX_LIC"
+fi
+
+# Allowlisted prose still writes under the same opt-in (positive control for the
+# gate — existing .txt cases cover this too; .md pins a second allowlisted class).
+printf 'this has teh typo\n' >"$STUB_REPO/prose.md" # spellchecker:disable-line
+OUT_MD=$(run_stub "$STUB_REPO/prose.md")
+if grep -q ' the ' "$STUB_REPO/prose.md"; then
+  ok "stub/write-ext-allow: .md still rewritten under write opt-in"
+else
+  fail "stub/write-ext-allow: allowlisted .md not rewritten: $(cat "$STUB_REPO/prose.md")"
+fi
+CTX_MD=$(printf '%s' "$OUT_MD" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_MD" | grep -qF '"teh" -> "the"'; then # spellchecker:disable-line
+  ok "stub/write-ext-allow: allowlisted rewrite still disclosed"
+else
+  fail "stub/write-ext-allow: disclosure missing: $CTX_MD"
+fi
+
 # --- Applied + residual in one run: both sections, one document --------------
 printf 'this has teh typo and wnat and a disallowme term\n' >"$STUB_REPO/both.txt" # spellchecker:disable-line
 OUT_BOTH=$(run_stub "$STUB_REPO/both.txt")
@@ -394,6 +483,48 @@ if printf '%s' "$OUT_BOTH" | jq -e '.systemMessage and .hookSpecificOutput.addit
   ok "stub/both: both channels composed into ONE stdout document"
 else
   fail "stub/both: channels not composed: $OUT_BOTH"
+fi
+
+# --- Residual render: multi-candidate vs single-candidate vs null (#2659) ----
+# typos returns a correction LIST. When length > 1 it refuses to auto-apply, so
+# disclosing only corrections[0] as a definite "should be X" instructs the agent
+# to make an edit the tool itself declined. Multi-candidate residuals must read
+# as ambiguous; single-candidate residuals keep the quoted definite form;
+# null-correction residuals stay on the disallowed arm.
+printf 'this has wnat and a disallowme term\n' >"$STUB_REPO/multi-residual.txt" # spellchecker:disable-line
+OUT_MR=$(run_stub "$STUB_REPO/multi-residual.txt")
+CTX_MR=$(printf '%s' "$OUT_MR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+# Exact multi-candidate shape — quoting only want (corrections[0]) is the bug.
+if printf '%s' "$CTX_MR" | grep -qF '"wnat" (line 1) should be want or what (ambiguous — typos will not auto-correct this).'; then # spellchecker:disable-line
+  ok "stub/multi-candidate-residual: ambiguous findings list every candidate"
+else
+  fail "stub/multi-candidate-residual: expected ambiguous multi-candidate render, got: $CTX_MR"
+fi
+if printf '%s' "$CTX_MR" | grep -qE '"wnat" \(line 1\) should be "want"\.'; then # spellchecker:disable-line
+  fail "stub/multi-candidate-residual: multi-candidate still rendered as a single definite correction: $CTX_MR"
+else
+  ok "stub/multi-candidate-residual: does not present corrections[0] as a definite fix"
+fi
+if printf '%s' "$CTX_MR" | grep -qF '"disallowme" (line 1) is disallowed, no known correction.'; then
+  ok "stub/multi-candidate-residual: null-correction arm unchanged"
+else
+  fail "stub/multi-candidate-residual: null-correction arm missing or altered: $CTX_MR"
+fi
+
+# Report-only leaves a single-candidate finding residual; that arm must still
+# quote the one correction as a definite suggestion (not the ambiguous form).
+printf 'this has teh typo\n' >"$STUB_REPO/single-residual.txt" # spellchecker:disable-line
+OUT_SR1=$(run_stub_default "$STUB_REPO/single-residual.txt")
+CTX_SR1=$(printf '%s' "$OUT_SR1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SR1" | grep -qF '"teh" (line 1) should be "the".'; then # spellchecker:disable-line
+  ok "stub/single-candidate-residual: single correction still renders as a definite suggestion"
+else
+  fail "stub/single-candidate-residual: expected quoted single-candidate render, got: $CTX_SR1"
+fi
+if printf '%s' "$CTX_SR1" | grep -qi 'ambiguous'; then
+  fail "stub/single-candidate-residual: single-candidate marked ambiguous: $CTX_SR1"
+else
+  ok "stub/single-candidate-residual: not marked ambiguous"
 fi
 
 # --- A residual that MOVED between the passes is not a rewrite ---------------

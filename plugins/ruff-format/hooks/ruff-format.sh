@@ -192,7 +192,8 @@ fi
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$RUFF_BIN" ]]; then
   if hook::notice_once "ruff-format-ruff" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or PATH) — format/lint skipped for this session. Install: https://docs.astral.sh/ruff/installation/"
+    hook::emit_skip_notice PostToolUse "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here; a project .venv install is the reliable route. Install: https://docs.astral.sh/ruff/installation/
+PATH probed: ${PATH:-<unset>}"
   fi
   emit_skipped
 fi

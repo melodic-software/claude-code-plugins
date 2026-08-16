@@ -225,6 +225,50 @@ ps::call_target_is_bare_computed() {
   [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\(] ]]
 }
 
+# True (0) when a bare computed *variable* call carries a positional write
+# shape that the named-parameter probes miss. Set-Content/Add-Content take
+# Path+Value positionally (`& $w f.txt x`); Out-File commonly takes pipeline
+# input plus a path (`$data | & $w out.txt`). Count *leading* non-flag tokens
+# after the target (stop at the first dash-flag) so `& $py script.py` (one
+# positional) and `& $python -m unittest discover` (flag-first) stay allowed
+# while two leading positionals still fail closed. A pipeline into the call
+# needs only one leading positional — the content arrives via `|`.
+# Subexpression targets (`& ('Set-'+'Content') …`) already trip
+# `ps::has_special_constructs` via `()` and do not need this probe.
+ps::computed_call_has_positional_write_signal() {
+  local lc="$1" rest="" tok count=0 piped=0
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  local re_pipe='^(.*)[.\&][[:space:]]*\$'
+  lc="${lc//\`/}"
+  lc="${lc,,}"
+  [[ "$lc" =~ $re_var ]] || return 1
+  rest="${BASH_REMATCH[4]}"
+  if [[ "$lc" =~ $re_pipe ]]; then
+    [[ "${BASH_REMATCH[1]}" == *'|'* ]] && piped=1
+  fi
+  # Truncate at statement / pipeline continuations so trailing clauses do not
+  # inflate the positional count.
+  rest="${rest%%[\;\|\&]*}"
+  # Drop redirect operands (`> f`, `2> err`) — those are covered by the
+  # redirect probe; they are not Path+Value positionals.
+  rest=$(printf '%s' "$rest" | sed -E 's/[0-9*]*>+[^[:space:]]*//g; s/[0-9*]*<+[^[:space:]]*//g')
+  # shellcheck disable=SC2086 # intentional word-split on PowerShell tokens
+  for tok in $rest; do
+    [[ -z "$tok" ]] && continue
+    if [[ "$tok" == -* ]]; then
+      break
+    fi
+    count=$((count + 1))
+  done
+  if (( count >= 2 )); then
+    return 0
+  fi
+  if (( piped == 1 && count >= 1 )); then
+    return 0
+  fi
+  return 1
+}
+
 # True (0) when the call/dot-source target is a DOUBLE-quoted string that
 # INTERPOLATES a variable or subexpression — `& "$tool" …`, `& "$(Get-Tool)" …`,
 # `& "C:\tools\$ver\x.exe" …`. Grounded in PowerShell `about_Quoting_Rules`:
@@ -256,10 +300,23 @@ ps::call_target_is_interpolating_string() {
 # possibly-git. Over-inclusive by construction — it only gates the fail-closed
 # branch, so a false positive costs at most an over-block on a command that also
 # carries an unparsable construct.
+#
+# The literal `git` probe is COMMAND-POSITION, not a substring scan (#2592). A
+# predecessor of any non-alnum (the earlier shape) fired on hyphenated identifiers
+# (`block-dangerous-git`, `NO-GIT`) and on an intermediate path directory
+# (`…\Git\bin\bash.exe`), engaging the fail-closed sink for PowerShell that never
+# invokes git. Command-position predecessors are statement/pipeline boundaries,
+# path separators, and quotes (so `& 'git'` / `C:\…\git.exe` still count); the
+# trailing boundary excludes a further `/` or `\` so `git` must be the final path
+# component, not a directory name. `.git` stays inert because `.` is not a
+# command-position predecessor.
 ps::might_invoke_git() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] && return 0
+  # Predecessor class includes `:` so a drive-relative `& 'C:git.exe'` still
+  # counts (Codex #2592 review) and `=` so `$x=git …` (no space) still counts
+  # (Claude #2592 review), while `.git` stays inert (`.` is not listed).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   # Call / dot-source of a COMPUTED target — `& $x …`, `& (…)`, `& "$x" …`,
   # `. $x …` — which could resolve to git. A CONSTANT target (`& 'git' …`,
@@ -278,16 +335,135 @@ ps::might_invoke_git() {
 }
 
 # True (0) when every git invocation in the text is plausibly read-only — fetch,
-# log, status, rev-list, merge-base, etc. — with no commit/push/reset-class
-# subcommand visible. Used to narrow the fail-closed sink for guards that only
-# care about mutating git (#1415): `git fetch | ForEach-Object { }` must not
-# block just because `git` appears alongside `{}` grouping.
+# log, status, rev-list, merge-base, etc. — with no mutating subcommand visible.
+# Used to narrow the fail-closed sink for guards that only care about mutating
+# git (#1415): `git fetch | ForEach-Object { }` must not block just because `git`
+# appears alongside `{}` grouping.
+#
+# THE PREDICATE, stated so the list below is derivable rather than remembered. A
+# subcommand is NOT read-only when it can create, modify, delete, or overwrite
+# content in the working tree or the index; create, delete, move, or rewrite
+# local refs or history; alter the stash, the configuration, or repository
+# administrative state (object store, reflog, sparse-checkout, submodules); or
+# publish to a remote. Everything else stays read-only: the interrogators
+# (log/status/diff/show/grep/blame/rev-list/rev-parse/ls-files/ls-tree/ls-remote/
+# cat-file/merge-base/describe/shortlog/cherry/range-diff/fsck/verify-*/
+# fast-export), the artifact producers that never touch REPOSITORY state
+# (archive, bundle, format-patch, request-pull, send-email, mailsplit, diagnose,
+# bugreport), the create-only plumbing that can neither overwrite nor delete
+# (write-tree, hash-object, commit-tree, merge-tree, pack-objects, index-pack,
+# unpack-objects, unpack-file, mktree, mktag), the lossless representation
+# rewrite (pack-refs), and the repo-creating forms that cannot destroy existing
+# work (clone refuses a non-empty target; init on an existing repo
+# re-initializes without data loss).
+#
+# "ARTIFACT PRODUCER" MEANS REPOSITORY STATE, NOT THE FILESYSTEM. Several of the
+# omitted forms take an operator-named output path and will happily truncate it:
+# `git archive -o README.md HEAD`, `git diff --output=README.md`,
+# `git format-patch -o <dir>`. That is a WRITE, but it is not git mutating the
+# repository — it is the operator naming a destination, exactly as `>` would.
+# This predicate is about repository state, so those stay read-only BY DESIGN;
+# clobbering an explicitly-named output file is out of scope here and belongs to
+# the write-side guards, not to a git-subcommand classifier. Recorded so a future
+# reader does not mistake the omission for an oversight.
+#
+# DUAL-MODE SUBCOMMANDS ARE BLOCKED WHOLE. `tag` and `notes` were already listed
+# despite having read-only list forms (`git tag`, `git notes list`), so the
+# established policy is "a subcommand with any mutating mode is not read-only".
+# `branch`, `config`, `remote`, `bisect`, `reflog`, `rerere`, `submodule`,
+# `sparse-checkout`, `commit-graph`, `multi-pack-index`, `worktree`, `subtree`,
+# `credential`, `interpret-trailers` (mutating only under `--in-place`), the
+# foreign-SCM bridges `svn`/`p4`/`cvsexportcommit`, and the widely-installed
+# third-party subcommands `filter-repo`/`lfs`/`annex` follow that precedent
+# rather than a fresh argument each — `git svn dcommit`, `git p4 submit`,
+# `git filter-repo --force`, `git lfs prune` and `git annex drop` all destroy or
+# publish, so each is listed even though every one of them has an interrogator
+# mode (`git svn log`, `git lfs ls-files`).
+#
+# SYNONYMS COUNT AS SEPARATE SPELLINGS. `stage` is git's own documented synonym
+# for `add` (git-stage(1): "This is a synonym for git-add"), so listing `add`
+# alone left the identical index write reachable under another name. Likewise
+# `send-pack` and `http-push` are the plumbing beneath `push` — and crucially
+# `send-pack` does NOT run the pre-push hook that `push` runs, so omitting it
+# left this guard's own subject matter (hook bypass) wide open. Note the boundary
+# class means `--staged` does NOT match `stage` (the trailing `d` is alphanumeric),
+# so `git diff --staged` stays read-only.
+#
+# THE BOUNDARY CLASS EXCLUDES `-` ON PURPOSE, and that is load-bearing in both
+# directions. A hyphen neither opens nor closes a token, so an option that merely
+# spells a listed word is NOT matched (`--add`, `--prune`, `--force`, PowerShell's
+# `-replace`) and neither is a hyphenated sibling (`ls-remote` does not match
+# `remote`, `merge-base`/`--no-merges` do not match `merge`, `--tags` does not
+# match `tag`) — which is exactly what keeps the #1415 read-only allowance intact.
+# The same rule is why `checkout-index`, `sparse-checkout`, `merge-file`,
+# `merge-index`, `merge-one-file`, `filter-branch`, `fast-import`,
+# `commit-graph`, `multi-pack-index`, `update-index`, `update-ref` and
+# `update-server-info` each need their OWN entry instead of riding on
+# `checkout`/`merge`/`branch`/`commit`/`update-*`.
+#
+# THE SCAN IS WHOLE-COMMAND, NOT ARGV-AWARE, so a listed word matches ANYWHERE in
+# the text — not only in subcommand position. Three distinct shapes hit this:
+#   1. outside the git call entirely — PowerShell's `switch` keyword, a `config`
+#      variable name, `git log | Where-Object { $_ -match 'clean' }`;
+#   2. INSIDE the git call as a pathspec or ref — `git log -- config/`,
+#      `git diff -- src/remote/`, `git show HEAD:docs/notes/a.md`,
+#      `git ls-files -- tests/clean/`. Directory names like `add/`, `config/`,
+#      `remote/`, `clean/` and `rm/` are common, so this is the widest friction
+#      class and the one most likely to surprise;
+#   3. as a flag VALUE — `git log --grep clean`.
+# All three are fail-SAFE: they route to the fail-closed sink and BLOCK, costing
+# friction rather than safety. Narrowing them requires argv-aware parsing of a
+# string this function is only ever handed BECAUSE it could not be parsed — so it
+# is the same redesign the residual below defers to, not a separate fix.
+#
+# `fetch` IS A DELIBERATE, DOCUMENTED EXCEPTION. It writes the object store and
+# remote-tracking refs, and `git fetch <remote> +<src>:<dst>` can even force-update
+# a LOCAL ref, so the allowance is not airtight. It is kept because it is the exact
+# case #1415 exists for; listing it would retire that allowance rather than fix it.
+#
+# RESIDUAL (documented, deferred — same class as the file-header residuals). This
+# is a NEGATIVE shape match on SPELLINGS, so three families defeat it and no
+# addition to the list above can close any of them:
+#   a. THE SUBCOMMAND IS OBSCURED. It only ever runs on commands that ALREADY
+#      carry a construct the Bash tokenizer cannot read, so that construct can
+#      also hide the subcommand — `git ('cle'+'an') -fdx`, `git $sub -fdx`, a
+#      subcommand assembled inside an `iex` payload.
+#   b. THE SUBCOMMAND IS NOT IN THE TEXT AT ALL. A user alias resolves at runtime
+#      from `.gitconfig`: `git co`, `git ci -m x`, `git unstage f`, `git pf`, or
+#      an `!`-shell alias running anything. Nothing in the string names the
+#      mutating operation, so un-mangling cannot recover it. This is a strictly
+#      DIFFERENT class from (a) and a blocklist can never converge on it.
+#   c. THE SUBCOMMAND IS IRRELEVANT. `-c core.pager=./x`, `-c core.editor=./x`,
+#      `-c alias.z=!./x`, `--exec-path=.` turn a read-only `git log` into
+#      arbitrary local execution.
+# The mangle-resistant fix for all three is to INVERT this into an allowlist —
+# read-only iff every git occurrence is followed by a known interrogator — which
+# is a redesign of the #1415 allowance, not a widening of this list. Until then
+# this narrows the sink on a best-effort basis and is never the only thing between
+# a destructive form and the repository: the DEFAULT `mutating` sink scope (what
+# block-dangerous-git uses) does not consult this function at all.
 ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] || return 1
-  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit|push|reset|rebase|checkout|merge|cherry-pick|revert|stash|am|tag|notes|worktree)([^[:alnum:]_.-]|$) ]] &&
-    return 1
+  # Same command-position git probe as ps::might_invoke_git (#2592).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
+  # Mutating subcommands, alphabetical, split across six tests purely for
+  # reviewability. Each alternation stays a LITERAL in pattern position — never a
+  # variable spliced into the pattern (see the call-target note above for why a
+  # silently-non-matching predicate here would fail OPEN).
+  #
+  # A HYPHENATED SIBLING NEEDS ITS OWN ENTRY. The token boundary excludes `-`
+  # (load-bearing, so `--prune` and `--tags` stay read-only), which means a
+  # listed stem never matches its hyphenated relatives: `commit` does not cover
+  # `commit-graph`, and `credential` does not cover `credential-cache` /
+  # `credential-store`. Both of those write credentials to disk or manage a
+  # caching daemon, so each is spelled out rather than left to the stem.
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(add|am|annex|apply|bisect|branch|checkout|checkout-index|cherry-pick|citool|clean|commit)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit-graph|config|credential|credential-cache|credential-store|cvsexportcommit|fast-import|filter-branch|filter-repo|gc|gui|http-push|interpret-trailers|lfs)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(maintenance|merge|merge-file|merge-index|merge-one-file|mergetool|multi-pack-index|mv|notes|p4|prune)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(prune-packed|pull|push|quiltimport|read-tree|rebase|receive-pack|reflog|remote|repack)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(replace|rerere|reset|restore|revert|rm|send-pack|sparse-checkout|stage|stash)([^[:alnum:]_.-]|$) ]] && return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(submodule|subtree|svn|switch|symbolic-ref|tag|update-index|update-ref|update-server-info|worktree)([^[:alnum:]_.-]|$) ]] && return 1
   return 0
 }
 
@@ -350,10 +526,11 @@ ps::might_write_via_python3() {
   # target (so the launcher/token tests miss it) and it is not a launcher, so match
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
-  # matched. ps::write_bypass catches only an UNQUOTED `& $`/`& (`; this closes the
-  # quoted-interpolated form for the python-write lane — which is why this lane
-  # takes only the interpolating-string half of the shared call-target predicate
-  # and not the bare-computed half.
+# matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
+# write indicator or special construct (#2722); this closes the
+# quoted-interpolated form for the python-write lane — which is why this lane
+# takes only the interpolating-string half of the shared call-target predicate
+# and not the bare-computed half.
   ps::call_target_is_interpolating_string "$recovered" && return 0
   # Must name a python interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])(pypy|python|py)[0-9]*([.][0-9]+)*([.]exe)?([^[:alnum:]_.]|$) ]] || return 1
@@ -474,10 +651,296 @@ ps::classify_git_command() {
   # `.exe` only on its msys/cygwin branch.
   local reduced="${PS_BLANKED//\\//}"
   reduced=$(printf '%s' "$reduced" | sed -E 's/[Gg][Ii][Tt]\.[Ee][Xx][Ee]/git/g')
+  # PowerShell `$var=cmd` / `$var+=cmd` begins a new pipeline on the RHS without
+  # requiring whitespace. Bash expands `$var` and leaves `=cmd` as a non-git
+  # word, so strip the assignment prefix so the RHS command word is visible
+  # (Claude review on #2592: `$x=git reset --hard`).
+  reduced=$(printf '%s' "$reduced" | sed -E 's/\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*(\+=|-=|\*=|\/=|%=|=)[[:space:]]*/ /g')
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
   PS_SAFE_COMMAND="$reduced"
   return 0
+}
+
+# Blank opaque regions for an allowlisted sink trigger so the caller can keep
+# checking independently visible command text. Writes the remainder to
+# PS_SAFE_COMMAND. An allow token must not fail-open a compound command whose
+# sibling segments are ordinary destructive git forms (Codex review on #2667).
+#
+# Blanking is trigger-shaped:
+#   dynamic-invocation — iex / Invoke-Expression / & '…' / . "…" statements
+#   launcher           — Start-Process / pwsh / powershell / cmd statements
+#   special-construct  — `--%` tails, `{}`/`()` groups, backtick escapes
+#   herestring-unbalanced — from the hanging opener through end of input
+#
+# Statement tails stop at top-level `;` / newline / `|` / `&&` / `||` so a
+# pipeline consumer or following statement remains for normal checks.
+ps::blank_sink_opaque_regions() {
+  local cmd="$1" trigger="$2"
+  case "$trigger" in
+  dynamic-invocation) ps::_blank_cmd_statements "$cmd" "dynamic" ;;
+  launcher) ps::_blank_cmd_statements "$cmd" "launcher" ;;
+  special-construct) ps::_blank_special_construct_regions "$cmd" ;;
+  herestring-unbalanced) ps::_blank_unbalanced_herestring_tail "$cmd" ;;
+  *)
+    # shellcheck disable=SC2034
+    PS_SAFE_COMMAND=""
+    ;;
+  esac
+}
+
+# True when CMD at index IDX is a statement/pipeline boundary predecessor
+# (start, whitespace, or `;|&{}()`), so a following word is in command position.
+ps::_at_command_position() {
+  local cmd="$1" idx="$2" prev
+  ((idx == 0)) && return 0
+  prev="${cmd:idx-1:1}"
+  [[ "$prev" == [[:space:]\;\|\&\{\}\(\)] ]]
+}
+
+# Consume a double-quoted span starting at IDX (points at "); returns end index
+# (one past the closer, or past end of string if unbalanced).
+ps::_skip_double_quote() {
+  local cmd="$1" i="$2" n=${#1} c
+  i=$((i + 1))
+  while ((i < n)); do
+    c="${cmd:i:1}"
+    if [[ "$c" == '`' ]]; then
+      i=$((i + 2))
+      continue
+    fi
+    if [[ "$c" == '"' ]]; then
+      echo $((i + 1))
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  echo "$n"
+}
+
+# Consume a single-quoted span starting at IDX (points at ').
+ps::_skip_single_quote() {
+  local cmd="$1" i="$2" n=${#1} c
+  i=$((i + 1))
+  while ((i < n)); do
+    c="${cmd:i:1}"
+    if [[ "$c" == "'" ]]; then
+      echo $((i + 1))
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  echo "$n"
+}
+
+# Advance IDX to the end of the current statement/pipeline element at depth 0
+# (stop before top-level `;`, newline, `|`, `&&`, `||`). Quote- and depth-aware.
+ps::_skip_statement_tail() {
+  local cmd="$1" i="$2" n=${#1} depth=0 c
+  while ((i < n)); do
+    c="${cmd:i:1}"
+    if ((depth == 0)); then
+      if [[ "$c" == "'" ]]; then
+        i=$(ps::_skip_single_quote "$cmd" "$i")
+        continue
+      fi
+      if [[ "$c" == '"' ]]; then
+        i=$(ps::_skip_double_quote "$cmd" "$i")
+        continue
+      fi
+      if [[ "$c" == ';' || "$c" == $'\n' ]]; then
+        echo "$i"
+        return 0
+      fi
+      if [[ "$c" == '|' ]]; then
+        # `|` and `||` both end this pipeline element / statement.
+        echo "$i"
+        return 0
+      fi
+      if [[ "$c" == '&' && "${cmd:i+1:1}" == '&' ]]; then
+        echo "$i"
+        return 0
+      fi
+      # Bare `&` is the call operator (or background) — part of this statement.
+    fi
+    case "$c" in
+    '{') depth=$((depth + 1)) ;;
+    '}') ((depth > 0)) && depth=$((depth - 1)) ;;
+    '(') depth=$((depth + 1)) ;;
+    ')') ((depth > 0)) && depth=$((depth - 1)) ;;
+    *) ;;
+    esac
+    i=$((i + 1))
+  done
+  echo "$n"
+}
+
+# Blank dynamic-invocation or launcher statements in CMD. KIND is `dynamic` or
+# `launcher`. Writes PS_SAFE_COMMAND.
+ps::_blank_cmd_statements() {
+  local cmd="$1" kind="$2" n=${#1} i=0 out="" c rest lc matched end word j
+  while ((i < n)); do
+    c="${cmd:i:1}"
+    if [[ "$c" == "'" ]]; then
+      end=$(ps::_skip_single_quote "$cmd" "$i")
+      out+="${cmd:i:end-i}"
+      i=$end
+      continue
+    fi
+    if [[ "$c" == '"' ]]; then
+      end=$(ps::_skip_double_quote "$cmd" "$i")
+      out+="${cmd:i:end-i}"
+      i=$end
+      continue
+    fi
+    matched=0
+    if ps::_at_command_position "$cmd" "$i"; then
+      rest="${cmd:i}"
+      lc="${rest,,}"
+      case "$kind" in
+      dynamic)
+        if [[ "$lc" =~ ^(iex|invoke-expression)([^a-z0-9_-]|$) ]]; then
+          if [[ "$lc" == iex* ]]; then word=3; else word=18; fi
+          # iex / Invoke-Expression — blank through end of this pipeline element.
+          end=$(ps::_skip_statement_tail "$cmd" $((i + word)))
+          i=$end
+          out+=" "
+          matched=1
+        elif [[ "$c" == '&' || "$c" == '.' ]]; then
+          # Call / dot-source of a STRING LITERAL — same dynamic-invocation shape.
+          j=$((i + 1))
+          while ((j < n)) && [[ "${cmd:j:1}" == [[:space:]] ]]; do j=$((j + 1)); done
+          if ((j < n)) && [[ "${cmd:j:1}" == "'" || "${cmd:j:1}" == '"' ]]; then
+            end=$(ps::_skip_statement_tail "$cmd" "$i")
+            i=$end
+            out+=" "
+            matched=1
+          fi
+        fi
+        ;;
+      launcher)
+        if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([^a-z0-9_-]|$) ]]; then
+          end=$(ps::_skip_statement_tail "$cmd" "$i")
+          i=$end
+          out+=" "
+          matched=1
+        fi
+        ;;
+      *) ;;
+      esac
+    fi
+    if ((matched)); then
+      continue
+    fi
+    out+="$c"
+    i=$((i + 1))
+  done
+  # shellcheck disable=SC2034
+  PS_SAFE_COMMAND="$out"
+}
+
+# Blank special-construct opaque regions: `--%` through statement end, matched
+# `{}`/`()` groups, and backtick escapes. Writes PS_SAFE_COMMAND.
+# Also move locals to top of _blank_special_construct_regions
+ps::_blank_special_construct_regions() {
+  local cmd="$1" n=${#1} i=0 out="" c end depth open close
+  while ((i < n)); do
+    c="${cmd:i:1}"
+    if [[ "$c" == "'" ]]; then
+      end=$(ps::_skip_single_quote "$cmd" "$i")
+      out+="${cmd:i:end-i}"
+      i=$end
+      continue
+    fi
+    if [[ "$c" == '"' ]]; then
+      end=$(ps::_skip_double_quote "$cmd" "$i")
+      out+="${cmd:i:end-i}"
+      i=$end
+      continue
+    fi
+    if [[ "$c" == '`' ]]; then
+      # Backtick escape / line-continuation — drop the escape and its follower.
+      i=$((i + 2))
+      out+=" "
+      continue
+    fi
+    if [[ "${cmd:i:3}" == '--%' ]]; then
+      end=$(ps::_skip_statement_tail "$cmd" "$i")
+      i=$end
+      out+=" "
+      continue
+    fi
+    if [[ "$c" == '{' || "$c" == '(' ]]; then
+      open="$c"
+      if [[ "$open" == '{' ]]; then close='}'; else close=')'; fi
+      depth=1
+      i=$((i + 1))
+      while ((i < n && depth > 0)); do
+        c="${cmd:i:1}"
+        if [[ "$c" == "'" ]]; then
+          i=$(ps::_skip_single_quote "$cmd" "$i")
+          continue
+        fi
+        if [[ "$c" == '"' ]]; then
+          i=$(ps::_skip_double_quote "$cmd" "$i")
+          continue
+        fi
+        if [[ "$c" == '`' ]]; then
+          i=$((i + 2))
+          continue
+        fi
+        if [[ "$c" == "$open" ]]; then
+          depth=$((depth + 1))
+        elif [[ "$c" == "$close" ]]; then
+          depth=$((depth - 1))
+        fi
+        i=$((i + 1))
+      done
+      out+=" "
+      continue
+    fi
+    out+="$c"
+    i=$((i + 1))
+  done
+  # shellcheck disable=SC2034
+  PS_SAFE_COMMAND="$out"
+}
+
+# Blank from an unbalanced here-string opener through end of input. Writes
+# PS_SAFE_COMMAND (prefix before the hanging opener, if any).
+ps::_blank_unbalanced_herestring_tail() {
+  local cmd="$1" line out="" pending="" in_hs=0 hs_quote="" first2 closer opener_scan
+  # Mirror ps::blank_herestrings' opener detection; once an opener has no closer,
+  # drop it and everything after (extent unknown — trailing code may be inside).
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if ((in_hs)); then
+      first2="${line:0:2}"
+      closer="${hs_quote}@"
+      if [[ "$first2" == "$closer" ]]; then
+        out+="${pending}${line:2}"$'\n'
+        pending=""
+        in_hs=0
+        hs_quote=""
+      fi
+      continue
+    fi
+    opener_scan=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
+    if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
+      hs_quote="${line: -1}"
+      pending="${line%??}"
+      in_hs=1
+      continue
+    fi
+    out+="${line}"$'\n'
+  done < <(printf '%s\n' "$cmd")
+  if ((in_hs)); then
+    # Hanging opener: keep only the prefix before it; drop the opaque tail.
+    # shellcheck disable=SC2034
+    PS_SAFE_COMMAND="$out$pending"
+    return 0
+  fi
+  # shellcheck disable=SC2034
+  PS_SAFE_COMMAND="${out%$'\n'}"
 }
 
 # One line naming the construct that actually routed this command to the sink,
@@ -526,10 +989,13 @@ ps::print_sink_trigger_line() {
   esac
 }
 
-# Shell-agnostic block text for a PowerShell git command the guard cannot parse
-# with confidence. Printed to stderr by the caller before it exits 2.
+# Shell-agnostic block text for a PowerShell command the guard cannot parse with
+# confidence. The sink is gated by ps::might_invoke_git (possibly-git, not is-git),
+# so the headline must not claim a git command is present — iex / a computed call
+# / a computed launcher can reach here with no git token at all (#2662).
+# Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_block_message() {
-  echo "BLOCKED: this PowerShell git command cannot be parsed with confidence — blocked (fail-closed)." >&2
+  echo "BLOCKED: this PowerShell command cannot be parsed with confidence — blocked (fail-closed)." >&2
   ps::print_sink_trigger_line
   echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
   echo "  @'" >&2
@@ -539,15 +1005,18 @@ ps::print_unparsable_block_message() {
   echo "If this is a false positive, set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
 }
 
-# Shell-agnostic block text for a PowerShell git command block-dangerous-git
-# cannot parse with confidence. That guard also owns destructive non-commit forms,
-# so its message names them rather than the commit form. Printed to stderr by the
-# caller before it exits 2.
+# Shell-agnostic block text for a PowerShell command block-dangerous-git cannot
+# parse with confidence and that could reach git. That guard also owns destructive
+# non-commit forms, so its message names them rather than the commit form. The
+# headline does not assert that a git command is present — the sink is possibly-git
+# (#2662). Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_git_block_message() {
-  echo "BLOCKED: this PowerShell 'git' command cannot be parsed with confidence — blocked (fail-closed)." >&2
-  echo "A git command the guard cannot faithfully tokenize could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
+  echo "BLOCKED: this PowerShell command cannot be parsed with confidence and could reach git — blocked (fail-closed)." >&2
+  echo "A command the guard cannot faithfully tokenize could hide a destructive git form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
   ps::print_sink_trigger_line
-  echo "If this is a false positive, set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+  # Sink-shape allow tokens (ps-unparsable-<trigger>) are distinct from destructive
+  # form tokens so an existing allow-list value cannot silently open this branch (#2664).
+  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, or ps-unparsable-herestring-unbalanced), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
@@ -565,7 +1034,10 @@ ps::print_unparsable_git_block_message() {
 #     scoped to match the Bash guard, which allows `<tool> ... > out` (the
 #     producer is the tool, not a content author);
 #   - iex / invoke-expression, whose run string is opaque here — fail closed,
-#     mirroring the git guards' sink.
+#     mirroring the git guards' sink;
+#   - a call/dot-source of a COMPUTED target (`& ('Set-'+'Content') …`,
+#     `& $w -Value …`, `& $w > f`) when a write indicator or special construct
+#     is also present — not the bare `& $tool …` / `. $PROFILE` residual (#2722).
 # Backticks are deleted before matching so an escape-obfuscated name (`Set``-Content`)
 # resolves to its real form.
 #
@@ -573,7 +1045,7 @@ ps::print_unparsable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head lcq q="\"'"
+  local cmd="$1" scan lcs seg lc head lcq q="\"'" gate blanked_gate
   ps::blank_herestrings "$cmd"
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
@@ -589,12 +1061,27 @@ ps::write_bypass() {
   fi
   # A call/dot-source of a COMPUTED target — `& ('Set-'+'Content') …`, `& $w …`
   # — evaluates an expression into the command name; it cannot be proven
-  # non-writer, so it fails closed like iex (review round 5). Mirrors
-  # ps::might_invoke_git's treatment of the same shape on the git side. Both
-  # this and the quoted-writer check above accept a statement/block separator
+  # non-writer, so it fails closed like iex WHEN a write signal is also present
+  # (review round 5, narrowed in #2722). Mirrors the git lane: ps::might_invoke_git's
+  # computed-target probe only runs after ps::has_special_constructs (or another
+  # sink trigger) has already routed the command. A construct-free `& $tool …` /
+  # `. $PROFILE` with no redirect and no -Value is the same deferred
+  # variable-command-word residual has_dynamic_invocation documents for git.
+  # Both this and the quoted-writer check above accept a statement/block separator
   # boundary (`;& …`), not only whitespace (review round 6).
-  if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\(\$] ]]; then
-    return 0
+  if ps::call_target_is_bare_computed "$lcq"; then
+    blanked_gate=$(ps::blank_quoted_spans "$lcq")
+    # fd-dup merges (`2>&1`) are plumbing, not file writes — strip before the
+    # redirect probe so `& $tool 2>&1` does not look like a producer redirect.
+    # Redirect / -va* probes run on quote-blanked text so a quoted `>` or
+    # `-value` substring in message text is not a write signal (#2722 review).
+    gate=$(printf '%s' "$blanked_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    if ps::has_special_constructs "$blanked_gate" ||
+      [[ "$gate" == *'>'* ]] ||
+      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
+      ps::computed_call_has_positional_write_signal "$blanked_gate"; then
+      return 0
+    fi
   fi
 
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")

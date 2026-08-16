@@ -3,13 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Locked CI-only toolchain for the Claude Code plugin marketplace.",
+  "description": "Locked CI-only toolchain for the Claude Code plugin marketplace (claude CLI, Biome, and markdownlint-cli2 for the markdown-format hook's repo-local node_modules/.bin probe).",
   "engines": {
     "node": ">=24"
   },
   "devDependencies": {
     "@anthropic-ai/claude-code": "2.1.232",
-    "@biomejs/biome": "2.5.7"
+    "@biomejs/biome": "2.5.7",
+    "markdownlint-cli2": "0.23.2"
   },
   "allowScripts": {
     "@anthropic-ai/claude-code@2.1.209": true

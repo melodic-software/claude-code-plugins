@@ -28,13 +28,13 @@
     {
       "id": 3,
       "name": "validates-names-against-installed-correctors",
-      "prompt": "re-anchor setup check (batch_exclude = point-dont-copy, notaskill)",
-      "expected_output": "The check globs the installed corrector directories and validates each overlaid name. It reports point-dont-copy as a valid exclusion and flags notaskill as a FAIL (matches no installed corrector), with remediation to fix the value through the plugin configuration prompt. It flags contradictions (a name both excluded and promoted/demoted) and no-op promotes/demotes.",
+      "prompt": "re-anchor setup check (batch_exclude = point-dont-copy, notaskill; batch_promote = scrutinize-dont-coast, use-your-skills)",
+      "expected_output": "The check globs the installed corrector directories and validates each overlaid name. It reports point-dont-copy as a valid exclusion and flags notaskill in batch_exclude as a FAIL (matches no installed corrector), with remediation to fix the value through the plugin configuration prompt. For batch_promote it warns visibly that scrutinize-dont-coast (never) and use-your-skills (core) are not situational and are not promoted. It flags contradictions (a name both excluded and promoted/demoted) and no-op demotes.",
       "files": [],
       "expectations": [
         "Validates overlay names against the globbed installed correctors",
-        "Flags an unknown corrector name as a FAIL with native-reconfiguration remediation",
-        "Reports contradictions and no-op promote/demote entries"
+        "Flags an unknown exclude/demote name as a FAIL with native-reconfiguration remediation",
+        "Warns on non-situational batch_promote entries (never/core/unknown) and does not treat them as successful promotes"
       ]
     }
   ]

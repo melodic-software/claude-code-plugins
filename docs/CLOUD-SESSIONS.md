@@ -106,19 +106,23 @@ plus the cost model of
   `CLAUDE_CODE_REMOTE` and make every step idempotent; the cost is paid per session.
 - **Neither is for processes**: the cache keeps files, not running services. Start databases or
   `docker compose` stacks per session (ask Claude, or start them from the hook).
-- **Performance lever — cache the hook's work**: the setup script runs after the repository is
-  cloned, so a guarded line in the environment's setup script can run this repo's bootstrap and
-  bake its results into the cached snapshot, dropping per-session hook time to the idempotent
-  re-check (~3 s here):
+- **The setup script is the only pre-launch slot — plugins require it, and it caches the
+  bootstrap's work**: the setup script runs after the repository is cloned and before the
+  session's Claude Code process starts, so a guarded line in the environment's setup script can
+  run this repo's bootstrap and bake its results into the cached snapshot. That drops
+  per-session hook time to the idempotent re-check (~3 s here) — and, more importantly, it is
+  the only point where `claude plugin install` can land before the process reads its plugin
+  registry, which is what makes plugins live in a session at all (see the same-session limit
+  under [Plugins in sessions on this repo](#plugins-in-sessions-on-this-repo)):
 
   ```bash
-  [ -f .claude/hooks/session-start.sh ] && CLAUDE_CODE_REMOTE=true bash .claude/hooks/session-start.sh || true
+  [ -f .claude/cloud-bootstrap.sh ] && CLAUDE_CODE_REMOTE=true bash .claude/cloud-bootstrap.sh || true
   ```
 
   The guard keeps it a no-op for repositories without the script, so the environment stays
   generic, and this repo's ~40 s bootstrap fits comfortably inside the five-minute cache-build
   budget. (How the cache interacts with sessions across *different* repos isn't documented;
-  the idempotent hook makes either behavior safe.)
+  the idempotent script makes either behavior safe.)
 
 ### One environment or several?
 
@@ -134,23 +138,35 @@ allowlist.
 
 ## How this repository is set up
 
-The environment side stays generic (Default environment, Trusted network, no variables, at most
-the optional `gh` setup-script one-liner from above). The repo side:
+The environment side stays generic (Default environment, Trusted network, no variables, the
+`gh` setup-script one-liner and the guarded pre-launch bootstrap call from above). The repo side:
 
-- [`.claude/settings.json`](../.claude/settings.json) registers the `SessionStart` hook
-  (matcher `startup|resume`).
-- [`.claude/hooks/session-start.sh`](../.claude/hooks/session-start.sh) is the bootstrap. Cloud
+- [`.claude/cloud-bootstrap.sh`](../.claude/cloud-bootstrap.sh) is the bootstrap, with two
+  callers: the account environments' setup scripts run it (with `CLAUDE_CODE_REMOTE=true`)
+  after clone and before the session process launches — the only path that gets plugins loaded
+  at turn one — and the `SessionStart` hook registered in
+  [`.claude/settings.json`](../.claude/settings.json) (matcher `startup|resume`) re-runs the
+  same script per session start/resume as drift repair, since the environment cache can be
+  ~7 days stale. Cloud
   VMs only; ~40 s on a fresh VM, ~3 s on re-runs. It provisions the tool inventory
   [`ci.yml`](../.github/workflows/ci.yml) pins, reading in-repo manifests wherever one exists:
 
 | Tool | Pin source | Required? |
 |---|---|---|
 | Node | `.node-version` (via the VM's nvm) | required — CI pins a major the VM image doesn't ship |
-| claude CLI + Biome | root `package-lock.json` (`npm ci`) | required |
-| ruff | `.github/requirements-ci.txt` (hash-locked) | required |
-| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the hook (GitHub release binaries) | best effort — warns and continues |
-| markdownlint-cli2, check-jsonschema | pinned in the hook (npm -g / uv tool) | best effort |
+| claude CLI + Biome + markdownlint-cli2 | root `package-lock.json` (`npm ci`) | required — markdownlint stays repo-local so the `markdown-format` hook's `node_modules/.bin` probe (and a `~/.local/bin` symlink the bootstrap adds for PATH-based resolution) can see it; `npm -g` into the nvm prefix is invisible to hooks (#2739 / #2748) |
+| ruff, pytest, pyyaml | `.github/requirements-ci.txt` (hash-locked) | required — `--require-hashes` fails closed |
+| shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries → `~/.local/bin`) | best effort — warns and continues |
+| check-jsonschema | pinned in the bootstrap (uv tool / pip `--user`) | best effort |
 | full git history + `origin/main` | `git fetch` | best effort — the base-ref diff gates need it |
+| the enabled plugin catalog | `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
+
+The bootstrap's startup `report_tool` resolves each binary under a **hook-safe PATH**
+(the process PATH with the nvm prefix stripped) and prints the resolved path, so an
+`npm -g` install that only the SessionStart shell can see cannot print false-green
+again. `CLAUDE_ENV_FILE` PATH repairs still reach subsequent Bash tool calls only —
+hook processes inherit Claude Code's own environ, which includes `~/.local/bin` but
+not the nvm global prefix.
 
 Best-effort rather than required, deliberately: the plugin contract suites SKIP visibly when an
 optional tool is absent and CI remains the enforcing gate, while a required install failure would
@@ -158,32 +174,105 @@ block the session from starting. GitHub release-asset downloads are additionally
 because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
 documents that release assets from repositories not attached to the session can return 403.
 
-Not installed at session start (install on demand when working in those areas): the four plugin
-npm roots (`plugins/miro`, `plugins/knowledge/skills/video-digest/extraction`,
-`plugins/knowledge/skills/course-digest/extraction`,
-`plugins/ai-briefing/skills/generate/output/build`) and
-`.github/standards/runner-policy` — each is an `npm ci` in that directory; the heavy ones pull
+Not installed at session start (install on demand when working in those areas): the plugin npm
+packages — `plugins/miro` and `.github/standards/runner-policy` are each an `npm ci` in their
+own directory, while the video-digest, course-digest, and ai-briefing suites install through
+their skills' entry scripts (`plugins/knowledge/skills/video-digest/scripts/run-tests.sh
+install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,
+`plugins/ai-briefing/skills/generate/scripts/run-tests.sh install`); the heavy ones pull
 Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
 
 ### Plugins in sessions on this repo
 
 Being the marketplace doesn't make this repo's plugins active in a session — plugins load only
-when a marketplace is declared and plugins are enabled. `.claude/settings.json` does both, which
-is the documented path for cloud sessions (see
+when a marketplace is declared, enabled, **and installed**. `.claude/settings.json` declares and
+enables; the cloud bootstrap installs (see
 [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
 [extraKnownMarketplaces / enabledPlugins](https://code.claude.com/docs/en/settings#plugin-settings)):
 
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
-  with a relative path, which
-  [resolves against the repository's checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths)
-  — cloud sessions install from the clone at session start; local collaborators are prompted
-  once they trust the folder.
-- `enabledPlugins` turns on a deliberately lean default set, curated to mirror this repo's own
-  gates rather than everything the marketplace ships (every enabled plugin adds per-turn context
-  cost): the six format/lint-on-edit hooks (`markdown-format`, `bash-format`, `biome-format`,
-  `typos-format`, `actionlint`, `eol-normalizer`), plus `guardrails`, `source-control`, and
-  `skill-quality`. The session-start hook provisions every tool those hooks shell out to.
-- Everything else stays on demand: `/plugin install <name>@melodic-software` in any session.
+  with a relative path, so a session exercises the plugin code on the current branch rather than
+  published `main`. Local collaborators are prompted once they trust the folder.
+- **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
+  [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
+  groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
+  while hooks and the `env` block are used whether or not it is. Observed on 2026-08-15: a cloud
+  session on this repo had `projects["<repo-root>"].hasTrustDialogAccepted` set to `false` in
+  `~/.claude.json`, an empty `~/.claude/plugins/installed_plugins.json`, no plugin skill loaded
+  and every `/plugin` command unknown — while the same settings file's `env` block *had* applied.
+  That is exactly the split the table predicts, and it is why
+  [what carries over](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
+  promising plugins "installed at session start from the marketplace you declared" did not hold
+  here. Hooks run untrusted, so a hook can repair the on-disk state — but not the running
+  session; see the next bullet.
+- **A SessionStart install is never visible to the session that ran it.** Observed 2026-08-15 in
+  a cloud session on this repo: the hook completed `65 enabled, 65 newly installed, 0 failed`,
+  `~/.claude/plugins/installed_plugins.json` and user-scope `settings.json` were fully populated
+  with the whole catalog — yet the same session's plugin registry stayed empty: its first
+  message, a plugin slash command, returned "Unknown command", and a mid-session probe of the
+  skill registry resolved no plugin skill. The command/skill registry is built when the Claude
+  Code process starts, before SessionStart hook effects land, and is not re-read afterwards; the
+  [hooks reference](https://code.claude.com/docs/en/hooks#sessionstart) documents no same-session
+  pickup, and neither `/plugin` nor `--plugin-dir` exists in cloud sessions to force one. On an
+  ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is
+  already built, so the hook alone can never produce a session with plugins loaded. What the
+  hook still buys is correct on-disk state for any process start that happens *after* it — a
+  resume (confirmed 2026-08-15: stopping and resuming the same session restarted the process,
+  which re-read the registry and loaded the full catalog, plugin skills resolving from the
+  first post-resume turn), and (the fix for turn one) the environment setup script
+  running this same bootstrap at cache-build time, before any session process launches: the
+  guarded one-liner in the
+  [setup-script lever above](#setup-script-vs-sessionstart-hook-decision-criteria), implemented
+  fleet-wide by the standards `cloud-environment` component that
+  [CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md)'s step-1 stub fetches. Whether the cached
+  snapshot's `~/.claude` actually reaches sessions is undocumented — after adding the line,
+  rebuild the cache (edit saves the script) and verify with a fresh session whose *first*
+  message is a plugin slash command.
+- **Harness residual — first-turn slash of just-installed plugins (#2733).** The "Unknown
+  command" outcome above is **not remediable inside any plugin in this repository**: the
+  command registry is a Claude Code harness property (built at process start, not re-read).
+  Track occurrences via `/claude-ops:known-issues` and, when reproducible on a fresh cloud
+  session after a confirmed pre-launch bootstrap, report upstream (`anthropics/claude-code`)
+  with the bootstrap log plus the first-turn transcript. In-session workarounds when a
+  first-turn slash returns `Unknown command:` (a) **resume** the session so the process
+  restarts and reloads the registry, or retry the slash on a later turn after a resume; (b)
+  **direct-file fallback** — read `plugins/<plugin>/skills/<skill>/SKILL.md` from the repo
+  working tree and follow it manually (note: this bypasses skill-load string substitutions
+  such as `${CLAUDE_EFFORT}`). Prefer fixing the environment so the setup-script path
+  pre-installs before process start; do not invent plugin-side registry hacks.
+- Being a `directory` source may compound it —
+  [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
+  and the carry-over note qualifies install-at-session-start with "requires network access to reach
+  the marketplace source". The two candidates were not separated, because the trust gate alone
+  accounts for the symptom and the bootstrap makes both moot.
+- The bootstrap therefore registers the checkout by absolute path and installs the enabled set
+  explicitly — for the benefit of the *next* process start, per the timing bullet above. It
+  never calls `claude plugin marketplace remove`, which deletes the marketplace's
+  entry from `.claude/settings.json` and would have the script mutate tracked config.
+- On resume it also repairs [same-version commit drift](MIGRATION-PLAYBOOK.md): because a
+  directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a
+  presence check alone would keep serving whichever commit installed first. The script compares the
+  `gitCommitSha` recorded at install time against `HEAD` and forces the documented
+  uninstall/install/enable cycle for the plugins whose own directory changed between the two, so
+  the usual resume stays cheap. Uncommitted edits are out of scope by design — use
+  `claude --plugin-dir ./plugins/<name>`, which takes session precedence over the cached install.
+- **Consumer repos** should declare the marketplace with a `github` source —
+  `{"source": "github", "repo": "melodic-software/claude-code-plugins"}` — since the relative
+  `directory` source is specific to this repo, whose reason to exist is validating in-flight
+  plugin changes. Declaring it is necessary but, per the trust gate above, not sufficient in a
+  cloud session; verify in a fresh session and add the same bootstrap-plus-hook setup if the
+  catalog does not load.
+- `enabledPlugins` turns on the whole catalog, so this repo dogfoods everything it publishes and a
+  regression in any plugin surfaces here first. The trade is context: every enabled plugin adds
+  per-turn cost, so a *consumer* repo should enable only the plugins it needs rather than copying
+  this set wholesale. The cloud bootstrap provisions every tool the format/lint-on-edit hooks
+  (`markdown-format`, `bash-format`, `biome-format`, `typos-format`, `actionlint`,
+  `eol-normalizer`) shell out to.
+- Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
+  without disturbing the rest. Two entries carry required `userConfig` credentials that are unset
+  here — `miro` (`miro_api_token`) and `dometrain` (`dometrain_api_key`) — so their bundled MCP
+  servers exit at startup until configured; set them with `/plugin configure`, or flip those two
+  to `false` if a session shouldn't try.
 
 ### GitHub MCP tools vs the gh CLI
 
@@ -200,13 +289,18 @@ Both exist in cloud sessions and don't conflict — they serve different callers
 
 ### Maintenance caveats
 
-- Some hook pin sources are materialized from `melodic-software/standards` (see
-  [`AGENTS.md`](../AGENTS.md)) — of the files the hook reads, `.node-version` is in the synced
-  set (verified against the `chore: sync standards components` history on 2026-07-30), so its
-  Node pin updates arrive via sync. `.claude/settings.json` and the hook script itself are
-  repo-owned.
-- The hook's own version pins exist only because those tools have no in-repo manifest; the cloud
-  proxy blocks the GitHub API and `releases/latest` redirects, so the hook can't self-resolve
-  "latest". Each GitHub-release asset also carries a pinned SHA-256 the hook verifies before
-  installing (mismatch refuses the install and warns). Bump pin and hash together when the
-  corresponding configs bump.
+- Some bootstrap pin sources are materialized from `melodic-software/standards` (see
+  [`AGENTS.md`](../AGENTS.md)) — of the files the bootstrap reads, `.node-version` is in the
+  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so
+  its Node pin updates arrive via sync. `.claude/settings.json` and the bootstrap script itself
+  are repo-owned.
+- `.github/requirements-ci.txt` is hash-locked. The lockfile carries ABI-specific hashes for both
+  the CI interpreter (cp314 / 3.14) and the cloud VM system Python (cp311 / 3.11; #2657), so the
+  bootstrap always installs with `--require-hashes` and a digest mismatch stays fatal —
+  no interpreter-mismatch skip, no unpinned fallback. Installs use `pip` rather than `uv`, whose
+  PyPI fetches time out against the VM's egress proxy.
+- The bootstrap's own version pins exist only because those tools have no in-repo manifest; the
+  cloud proxy blocks the GitHub API and `releases/latest` redirects, so the script can't
+  self-resolve "latest". Each GitHub-release asset also carries a pinned SHA-256 the script
+  verifies before installing (mismatch refuses the install and warns). Bump pin and hash together
+  when the corresponding configs bump.

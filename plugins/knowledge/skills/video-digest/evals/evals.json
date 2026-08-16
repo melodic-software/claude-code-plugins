@@ -36,7 +36,7 @@
       "prompt": "Run /knowledge:video-digest resume stop-prompting-claude-use-karpathy-s-met-7zZy1QTvokM",
       "expected_output": "Reads watch.json, identifies next incomplete phase, refreshes continuation-prompt.md, emits copy/paste resume prompt.",
       "expectations": [
-        "Invokes run.mjs watch/run-resume.js (node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs) with video slug",
+        "Invokes run.mjs watch/run-resume.js (node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs) with slice slug",
         "Reports nextPhase from phase map (acquire → transcript → watching → vision → harvest → research → synthesis)",
         "Does NOT restart from acquire when later phases are complete"
       ]

@@ -3,6 +3,205 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1]
+
+### Changed
+
+- **Join-row marker parameterized: `deferred-class` → `deferred(<trigger>)`** (#2717). The
+  naming ruling on #2717 landed after the contract document shipped; the subsequent
+  reconciliation ratified the verdict tokens as shipped and adopted the ruling's requirement
+  that the deferred marker carry the row's own join trigger — a bare marker discards the
+  condition under which a deferral is revisited, the half that makes it auditable. Updated in `reference/prerequisite-resolution.md` and the README bullet;
+  ADR 0011 carries the reconciliation amendment.
+
+## [0.22.0]
+
+### Added
+
+- **Prerequisite-resolution setup slice** (#2725). Extends `/autonomy:setup` with
+  `check` (per-identity verdicts + provenance across declared surfaces via
+  `scripts/check-prerequisite-resolution.mjs`; engine health-check liveness) and
+  `apply` (detect-diff-reconcile, prose-context proposals into non-security keys,
+  human ratify → additive `prerequisite_resolution` section with `surface_refs` and
+  no `surfaces` map; narrowing-only enablement; org-rung interviewed never
+  auto-written; security binding prepared never written). Spoke:
+  `context/prerequisite-resolution-slice.md`. Co-located slice test + evals 30–31.
+
+## [0.21.0]
+
+### Added
+
+- **Deterministic prerequisite resolver** (#2724).
+  `skills/setup/scripts/resolve-prerequisites.mjs` resolves the verdict set for every
+  `v1` identity on a named scheduling surface, reading
+  `generated/identity-prerequisites.json` (never leaf prose). Repo-file and
+  harness-context probes compose `.claude/autonomy/binding.json` declarations,
+  `.claude/ecosystems/*.yaml` (resolved / `enabled: false` not configured),
+  `.work-item-tracker.json` + adapter `capabilities.json`, and `.mcp.json`
+  (presence vs enablement). Precedence follows ADR 0011 Decision 2: declaration
+  narrows; a ran-negative probe caps declarations (contradiction finding);
+  unprobeable stays distinct from absent. Output is wall-clock-free (byte-identical
+  consecutive runs). Liveness: engine health-check taxonomy row, fail-loud.
+  Seven graded fixtures under `skills/setup/scripts/fixtures/prerequisite-resolution/` with
+  co-located `*.test.sh` + manifest.
+
+## [0.20.0]
+
+### Added
+
+- **Generated identity-and-prerequisite emission with drift gate** (#2723).
+  `skills/setup/scripts/generate-identity-prerequisites.mjs` derives
+  `generated/identity-prerequisites.json` from every `v1` leaf's `## Prerequisites`
+  section — one machine-readable record per identity (Access class, isolation floor,
+  connector entitlements + rung, structured `needs` with probe class / seam) — so the
+  resolver reads structure, never leaf prose. Leaves remain the authored single home;
+  `--check` fails CI on drift (wired through `scripts/validate-plugins.sh`). Co-located
+  `*.test.sh` + manifest cover clean `--check`, a hand-edited drift fixture, leaf↔emission
+  parity, and posture divergence (`dependency-update-wave` L2 vs L3).
+
+## [0.19.1]
+
+### Changed
+
+- **`cant-fail-test-repair` row amended: the detection portion is now built (#2684).** The Judgment
+  cell and the class-parameters bullet record the shipped `testing:audit` script detector as the
+  `DET` detect portion, which carries the no-agent-session property per the portion-split mapping
+  rule. The repair judgment — the routine itself — remains unbuilt, so Status stays
+  `join: proven recurring manual pattern`, the row does not flip to `v1`, and no `routines/` leaf
+  is added: `v1` means a proven manual pattern, and a detector proves detection, never the repair
+  pattern that trigger names.
+
+## [0.19.0]
+
+### Added
+
+- **Per-identity prerequisite sections on every `v1` routine leaf** (#2718). Each of the ten
+  leaves under `reference/routines/` gains a `## Prerequisites` section owning Access class,
+  isolation floor, connector entitlements (and which rung owns each), `executor_class` merge
+  cap, and repo needs — derived through the Phase 1 vocabulary in
+  `prerequisite-resolution.md`, with floors and the merge cap cited from the guardrail slice
+  rather than re-derived. Posture-divergent classes (`dependency-update-wave`,
+  `doc-freshness-sweep`, `ci-health-review`) show distinct prerequisite sets per identity.
+  Verdict tokens are `supported` | `conditional` | `unsupported` | `unknown`.
+
+## [0.18.0]
+
+### Added
+
+- **Routine prerequisite resolution contract** (`reference/prerequisite-resolution.md`, #2717).
+  Owns the per-repo, per-scheduling-surface question the catalog's Access-to-prerequisites
+  section left unanswered: which routine identities can run here, and why. Grain is one
+  resolution per routine identity on its bound surface; candidate set is `v1` only, with
+  `join:` rows reporting under the `deferred-class` marker (not a verdict) and `not-a-routine`
+  rows out of domain. Verdicts are fail-closed — `supported` / `conditional` / `unsupported` /
+  `unknown` — with `unknown` first-class and a positive verdict required to be reachable.
+  Declared narrows and fills; a probe that ran and returned negative caps every declaration
+  (contradiction emitted as a finding). Composes owning seams (toolchain, `claude-config`,
+  tracker, setup slices) presence-gated; never admission data; recomputes at every consumption;
+  scheduled runs read committed surfaces only. One pointer in `routines.md` §Access to
+  prerequisites; one README bullet. Implementation (leaf sections, generated emission, resolver,
+  setup slice) remains in follow-on issues.
+
+## [0.17.0]
+
+### Added
+
+- **Nine routine-catalog rows for every class considered, including the ones deliberately not built
+  (#2682).** A catalog that lists only what shipped cannot be reasoned from — a reader asking "why
+  isn't there a clone unifier?" finds silence, which reads as an oversight rather than a decision.
+  Every new row derives its guardrail class **through the mapping rules**, never by hand: three
+  Tier-1 classes with join triggers (`formal-logic-modeling`, `cant-fail-test-repair`,
+  `layering-enforcement`), two Tier-2 (`clone-trend-gate`, `stale-flag-removal`), and four Tier-3
+  recording why they are not built (`logic-simplification-sweep`, `abstraction-flattening`,
+  `ant-only-shipper`, `gui-crash-fuzzing`). A tenth class, `dead-code-sweep`, already had a row and
+  was amended rather than duplicated — see Changed.
+- **A `Class parameters` section**, the contract's third progressive-disclosure tier: normative
+  detail a row's six cells cannot hold, binding whether or not the class ever gains a leaf. Most
+  load-bearing: `dead-code-sweep`'s quarantine window floor of **30–90 days with staged quarantine,
+  never one day**, not tunable downward by an org binding — the bound derives from what the window
+  must out-last, since 30 days is the shortest window spanning a monthly invocation cadence at all
+  and 90 spans a quarterly one, while a one-day window spans nothing and turns a detector false
+  positive into a deletion before anything can contradict it. Also: `clone-trend-gate` is detection
+  and trend gating only, with the unify *decision* excluded rather than deferred (no surveyed clone
+  tool automates it, so there is nothing to defer to); `stale-flag-removal`'s and
+  `ant-only-shipper`'s dispositions never automate, because which branch survives and whether to
+  promote are product calls; and `clone-trend-gate` and `coverage-mutation-watch` carry identical
+  cells but are distinct classes over distinct observables, which only a parameter can say.
+- **A `join (external): …` catalog status** for a class deferred on world state no adopting org can
+  act on. The pre-existing `join:` triggers are all conditions an org can satisfy;
+  `logic-simplification-sweep` and `abstraction-flattening` wait on published evidence and a
+  published validated detector respectively, which no adopter step fires. One token carrying both
+  semantics made those two rows read as backlog items rather than records.
+
+### Changed
+
+- **`dead-code-sweep` amended, not duplicated (#2682).** It was `DET detect` only; the
+  quarantine-exit judgment makes it a hybrid whose judgment portion derives `C3`, because liveness
+  is not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat
+  the build. `C3` is the **class-level** derivation: deleting a symbol on a published,
+  cross-repo-consumed surface is a contract change, so the structural axis fires per item and
+  escalates that item to `C4`. The class does not derive `C4` wholesale, or the direct-change
+  rule's `C2`/`C3` branch would be nearly unpopulated for repo-scoped deletion work. Its precedent
+  pointer was updated in step: the pointer describes deletion pipelines, and the staged quarantine
+  is the row's own normative content rather than a property read off them.
+- **Four general derivation rules now live in `## Mapping rules` itself**, where an org classifying
+  a novel class will actually look — three of them relocated from a per-class note, each a place an
+  independent re-derivation showed a careful reader can stop early or over-read. A hybrid row is
+  portion-split and so binds a posture-qualified identity, its `Derived row` cell carries the
+  judgment portion's class, and it is **never** flagged `not-a-routine` — that flag is reserved for
+  a wholly deterministic class. `AGT/HUM` assigns a **disposition, not a class**, so it never
+  terminates a derivation; a row stopping there would carry a human-gated disposition with no
+  verification topology, checker floor, or cost tier. The structural-blast-radius axis fires on the
+  change's **target**, not on the file it lives in — and because no catalog column records a target,
+  two rows can carry identical axis cells and derive different classes, which the rule now says
+  outright. Fourth and newly stated: a risk-raising axis evaluates **per item** as well as
+  class-wide, so a class whose axis fires on only some items derives the lower class and records the
+  escalation rather than deriving the higher one wholesale.
+- **`gui-crash-fuzzing` re-scored against the GUI-actuation mapping rule.** Its `Derived row` cell
+  now applies the rule that unattended GUI actuation requires `L3`, which the `repo` access class
+  alone does not give. The `L3` comes from that mapping rule directly and not from the guardrail
+  matrix's min-isolation column, which is indexed by work class and which a row deriving no class
+  cannot reach. Its class parameter also records that reproducibility
+  triage of a filed crash is *excluded* from the class rather than left as an unmodelled judgment
+  portion — a filed crash is ordinary queue intake — so the `DET` exit is complete rather than
+  skipping a split.
+- **Deployment-specific and over-precise claims removed from normative text.** A binding parameter
+  no longer rests on this fleet's inventory ("ships no GUI to fuzz"), a two-significant-figure
+  reproducibility statistic, or universal negatives over unnamed literature. Surveyed-record
+  hedging replaces them throughout both files, matching the register the one well-calibrated claim
+  in the section already used. The precedent-pointer scope line likewise no longer implies the list
+  is exhaustive, and the reviewer-burden deferral no longer cites a "trust-path" commitment that
+  appears nowhere else in the repository.
+- **`guardrails/isolation-ladder.md` now names both demands for `L3`.** It scoped kernel separation
+  to untrusted-provenance (`C5`) work alone, while the routine catalog's access rule has always also
+  required it for unattended GUI actuation — a demand that reaches classes deriving no work class,
+  so it cannot travel through the matrix's min-isolation column. The ladder is the contract's source
+  of truth for when a level applies, and was incomplete against that charter.
+- **`guardrails/work-classes.md` records what may never enter a promotion predicate (#2683).** An
+  acceptance or merge rate is never a promotion input and is not an efficacy signal, in either role,
+  at any cell. The rule rests on the one finding verified at primary source — Lenarduzzi et al.'s,
+  that code quality did not affect pull-request acceptance at all — rather than on the three design
+  families the survey found pointing the same way, only one of which was checked against its source.
+  The section distinguishes the two shipped terms that sit closest to the line, so the
+  new prohibition cannot be misread as contradicting the predicates above it: `0 human-reverted
+  merges` is a correctness signal (a human asserting the change was wrong), not an acceptance rate
+  (how much got merged); and `≥ 20 autonomous C2 merges over ≥ 14 days` is a **volume floor**, not
+  an acceptance rate — the two behave oppositely under the move that makes an acceptance metric
+  untrustworthy, since a ratio rises when its denominator shrinks (attempting less, or attempting
+  only what is certain to land) while a count has no denominator to shrink. The section also
+  enumerates every distinct term type the predicate table actually uses — seven, where the prose
+  previously named four.
+- **The reviewer-burden term is recorded as deferred with an explicit trigger, not omitted
+  (#2683).** It needs a denominator, and a denominator needs three org-scale things this contract
+  does not have — a population to divide by, a non-merge outcome signal, and a lookback window with
+  a demotion rule. Without them the term moves with volume rather than
+  trustworthiness — which would reward a cell for producing less. Recorded because a designated
+  planning pass was asked to settle it, and silence would have left that obligation unfilled.
+- **Standing constraint on any future tuner:** its signal set stays disjoint from promotion
+  evidence. Overlap is a self-dealing loop — a tuner optimizing a signal that also promotes a cell
+  can raise that signal to reduce scrutiny of the tuner's own output. Binds the tuner's inputs, not
+  its intent, and binds whether or not the reviewer-burden term is ever activated.
+
 ## [0.16.12]
 
 ### Changed

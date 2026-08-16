@@ -1,6 +1,6 @@
 ---
 description: "Audit and remediate skill-encapsulation violations — external citations reaching into private surfaces inside `.claude/skills/<X>/` or `plugins/<plugin>/skills/<X>/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into <skill>', 'check skill boundaries', 'public API drift', or before refactoring a skill."
-argument-hint: "[detect|fix|file-issues]"
+argument-hint: "[detect|sweep|fix <file>:<line>|file-issues]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -29,31 +29,59 @@ The **Skill** surface — public = frontmatter + documented actions + args/flags
 
 Workflows and git hooks needing logic that ALSO lives in a skill must not reach into skill internals. Pick a sharing technique by logic size — scripts/ facade (the skill exposes a public `scripts/<name>.sh` entry delegating to a private backend; hooks/CI invoke it), intentional duplication, plugin packaging, or headless `claude -p '/skill <action>'` invocation — per `context/public-surface-contract.md` "CI / git-hook consumption — entry surface, not internals".
 
-The choice is per-cite. The bundled detect script is this plugin's detector; any hard gate (pre-commit hook, CI job, drift comparison against a vendored copy) is whatever the consuming repo wires around it.
+The choice is per-cite. The bundled `detect.sh` is a **candidate enumerator**: it lists path shapes that *may* be private-surface cites. Exit 1 means candidates exist after mechanical filters — not that those hits are adjudicated violations. Classification (filter taxonomy below) is required before treating a hit as illegal. Do not hard-gate CI or pre-commit on `detect.sh`'s exit code alone.
 
 ## Action router
 
 | Argument | Action | Purpose |
 |----------|--------|---------|
-| *(empty)* / `detect` | Default | Run detection grep, classify legal vs illegal, output violation table |
+| *(empty)* / `detect` | Default | Run detection grep, classify legal vs illegal, output violation table — behind the no-scope confirmation below when nothing narrows the scope |
+| `sweep` | Explicit repo-wide detect | Default detect minus the no-scope confirmation — for when the user already said "whole repo" |
 | `fix <file>:<line>` | Targeted remediation | Interactive Path A (promote-out) vs Path B (route-via-`/<skill>`) for one hit |
 | `file-issues` | Batch | File one tracking work item per illegal hit in the consumer's tracker (e.g. `gh issue create`); emit a checklist if no tracker is available |
 
 One action per response.
 
+### No inherited scope — confirm before a repo-wide run
+
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+This skill's trigger is "no inherited scope" (not only "clean tree") — a dirty tree with unrelated
+edits still needs the confirm when nothing names the detect surface.
+
+The default action's domain is the whole repo, but a bare invocation does not prove the user meant
+that. When the invocation arrives with NO inherited working set — no diff in flight, no prior audit
+notes, nothing in the conversation narrowing the scope — ask ONE confirmation before running the
+detection, presenting these prescribed defaults for adjustment:
+
+| Default | Value |
+|---------|-------|
+| Scope | entire tracked repo (the detect script's scan domain) |
+| Mode | detect + classify only; remediation stays a separate, user-approved step |
+| Worker fan-out | off — classify in-session. When the user opts into subagent classification or remediation, run 2–3 concurrent workers, no more, while rate-limit telemetry is absent; when the `rate-limit-guard` plugin's snapshot is readable, resolve pacing from its reader contract instead (that contract owns the snapshot path, staleness rule, and thresholds — read them there) |
+
+An inherited scope — or a scope the user already stated in the invocation ("across the repo",
+"audit this directory") — suppresses the question; audit that surface directly. `sweep` is the
+explicit opt-in that skips the confirmation and runs the repo-wide detect immediately.
+
 ## Detection
 
 `bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh"` (`--apply-filters` optional)
 
-- Any path into a subdirectory under a skill (`<X>/<any-subdir>/...` — regardless of subdir name) **except `scripts/`** (entry-surface carve-out, see below)
+`detect.sh` enumerates **candidates**, not adjudicated violations. With `--apply-filters`, stderr summary keys are `raw` / `mech-filtered` / `candidates`. Exit 1 = candidates remain; exit 0 = no candidates (not a clean bill of health — see limitations below).
+
+Matched shapes:
+
+- Any path into a subdirectory under a skill (`<X>/<any-subdir>/...` — regardless of subdir name, including uppercase / single-char / digit-leading / underscore-leading segments) **except `scripts/`** (entry-surface carve-out, see below)
 - Heading-anchor cites into `SKILL.md` body structure (`<X>/SKILL.md#<anchor>`)
 - Any `*.schema.json` file at any depth (`<X>/<file>.schema.json`)
+
+Matched path prefixes: `.claude/skills/<X>/...`, `plugins/<plugin>/skills/<X>/...`, and relative forms (`skills/<X>/...` plugin-README short cites, plus `../`-prefixed cites whose lexical resolution lands on a private skill surface — including sibling-skill links that never spell `skills/` in the cite text).
 
 Legal external cites: bare `<X>/SKILL.md` path (discouraged but legal — natural-language + slash invocation is canonical), `<X>/<file>.json` data files at skill root (data-file carve-out), and `<X>/scripts/<entry>` entry scripts (entry-surface carve-out below).
 
 **scripts/ entry-surface carve-out:** a skill's `scripts/` is its declared ENTRY surface per `context/public-surface-contract.md`. Harness / CI / hooks / workflow registries MAY path-cite a skill's entry scripts directly, so this inbound audit treats `<X>/scripts/...` cites as legal (like data files and bare `SKILL.md`) and never flags them. The skill-to-skill half of the asymmetry — a sibling SKILL.md citing another skill's `scripts/` stays slash-only — is out of this inbound audit's scope; a consuming repo that wants it enforced wires its own outbound gate.
 
-The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files — each filtered to what exists.
+The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, `plugins/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files — each filtered to what exists.
 
 Or invoke the skill (the agent applies the filter taxonomy below):
 
@@ -63,17 +91,17 @@ Or invoke the skill (the agent applies the filter taxonomy below):
 
 ## Filter taxonomy — legal hits
 
-`detect.sh` output is broad without `--apply-filters`. Use the filter taxonomy below for KIND-1/2/3; `--apply-filters` drops self-citation, plugin cache, and worktree paths.
+`detect.sh` output is broad without `--apply-filters`. Use the filter taxonomy below for KIND-1/2/3; `--apply-filters` drops only the mechanically-decidable subset (self-citation and worktree paths). Remaining rows are **candidates** — apply KIND-1/2/3, mirror-automation, glob-config, and plugin-cache judgment in-session before calling anything a violation.
 
 | Filter | Hit shape | Why legal |
 |--------|-----------|-----------|
-| **Self-citation** | `.claude/skills/<X>/SKILL.md` cites `.claude/skills/<X>/<private-path>` | Intra-skill progressive disclosure (per `context/public-surface-contract.md`) |
+| **Self-citation** | A skill cites its own internals — absolute (`.claude/skills/<X>/...` / `plugins/.../skills/<X>/...`), bare `skills/<X>/...`, or a `../` cite that resolves into the same skill | Intra-skill progressive disclosure (per `context/public-surface-contract.md`) |
 | **KIND-1 meta-prose** | A rule or doc describing the encapsulation contract itself, OR documenting skill internals as a worked example / historical narrative / empirically-verified quirk | Self-referential explanatory prose, not citation |
 | **KIND-2 forced-cite** | Another tool's semantics structurally require a verbatim path (a path-scoped rule trigger, a watch-glob, a drift-gate comparing against a vendored copy) | Citation IS the structural contract |
 | **KIND-3 self-test** | This skill's / a hook's own regression fixtures embed literal violation strings | Exercise the filter; not real citations |
 | **Mirror-automation** | A scheduled-automation prompt (e.g. `.claude/routines/<name>.md`) cites `.claude/skills/<name>/<private-path>` when its basename matches the skill name | Such prompts are cron arms of slash skills; mirror cites are part of the skill contract per the Public surface matrix |
 | **Glob-config** | Skill-internal path used as a glob/filter in an exclusion list, hooks allowlist, or `.gitignore` — not a content `Read` cite | Path is structural filter syntax, not progressive-disclosure content (overlaps KIND-2; named separately for grading) |
-| **Plugin cache** | `~/.claude/plugins/cache/<plugin>/...` | Upstream territory; foreign contract |
+| **Plugin cache** | `~/.claude/plugins/cache/<plugin>/...` | Upstream territory; foreign contract. These paths never match the detector PATTERN (not under a skill root), so `--apply-filters` has no cache branch — classify as legal if they appear in a manual/agent sweep |
 | **Worktree path** | `<worktree-root>/<n>/.claude/skills/<X>/...` (per the repo's worktree convention — e.g. `.worktrees/`, `.claude/worktrees/`, `.git/worktrees/`) | Worktrees share the tracked tree; same rules apply at the root path |
 
 Hits that survive ALL filters = illegal. Report.
@@ -133,8 +161,9 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 
 ## Summary
 - Total raw hits: M
-- Filtered legal: M-N
-- Illegal violations: N
+- Mechanically filtered: M-C
+- Candidates (need taxonomy classification): C
+- Adjudicated illegal after filters: N
 - Path A candidates: a
 - Path B candidates: b
 - Missing public action (Path B blocked): c
@@ -181,6 +210,7 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 | Condition | Action |
 |-----------|--------|
 | `context/public-surface-contract.md` changes | Re-sync the Public surface matrix here and the pattern comments in `scripts/detect.sh` |
+| Scan scope changes in `scripts/detect.sh` (dirs, file globs, include flags) | Update the Detection scan-scope sentence here so docs and script cannot drift |
 | A new CI workflow or git hook needs skill logic | Pick a technique from `context/public-surface-contract.md` "CI / git-hook consumption — entry surface, not internals"; prefer a skill `scripts/` facade the hook invokes — no vendored copy |
 | Violations recur across audits | Promote the `detect` action to a scheduled cadence in the consumer repo (e.g. `/loop` or `/schedule`) |
 | Anthropic ships a native skill-boundary linter | Demote this skill to advisory or sunset it |

@@ -3,6 +3,52 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.4]
+
+### Changed
+
+- **`audit-instructions`: ratify the C6/I15 boundary against C6's widened population (#2705).**
+  `conflict-criteria.md` 1.5.0 no longer routes every `~/.claude/` half to I15. C6 owns
+  instruction-content conflicts whose both anchors are in `discover-instruction-surfaces`
+  (project **and** user root-level CLAUDE.md / rules) — **including user↔project**. I15 keeps
+  nested `CLAUDE.md`, auto-memory, settings, and every surface outside that population, plus
+  memory-layer precedence adjudication for the pairs it retains. SKILL.md "What this skill does
+  NOT do", eval 7, and new eval 18 pin the routing; ADR 0004/0005 carry superseding notes so the
+  immutable records stay accurate beside the live table.
+
+## [0.38.3]
+
+### Fixed
+
+- **`audit-pass`: non-git refusal narrative no longer cites a missing state-key rung.** The gate
+  still refuses a non-git target (non-zero, before Phase 0, naming the path and the cost). The
+  justifying list dropped the stale claim that §3 / `lib/state-key.sh` has no no-git fallback — the
+  shared keyer already has a `nonrepo/` rung — and now argues from the four remaining losses: no
+  HEAD baseline, no Class 3 worktree derivation, unevaluable `git status --porcelain` assertion 2.1,
+  and (decisive) no tracked team layer so suppression can never persist. Eval 30's expected output
+  and "do not invent fallbacks" expectation track the same four-reason framing. (#2729)
+
+## [0.38.2]
+
+### Changed
+
+- **`audit-pass`: the `<state-key>` scheme definition moved out to the repo convention.** The
+  canonical grammar and segment derivations now live in the `plugin-data-report-keying` convention
+  doc (encapsulation audit, Path A promotion — all six `extract-ssot verify` gates passed);
+  `reference/run-state-and-resumability.md` §3 names the convention and keeps only the one-line
+  grammar as a marked intentional duplicate (an installed copy ships without repo-level docs, so no
+  path link crosses the plugin boundary) plus the in-plugin operational pointer, `lib/state-key.sh`.
+  The canonical prose definition lives only in the convention doc; the shared `lib/state-key.sh`
+  header keeps a named operational duplicate so the executable ships self-described.
+- **State-key attributions follow the promotion.** `audit-instructions`, `audit-prompting-postures`,
+  and the shared `lib/state-key.sh` header now name the `plugin-data-report-keying` convention as
+  the scheme's source instead of `audit-pass`'s §3, which no longer specifies it.
+- **`audit-instructions`: `conflict-criteria.md` names the C6 sibling in public terms.** The
+  cross-plugin relative link into `claude-memory:audit`'s private criteria file is gone
+  (encapsulation audit; Path A promotion refused at Rule of Three — the boundary's other
+  reproductions are immutable ADRs); the check is cited by skill name + check id with the question
+  quoted inline.
+
 ## [0.38.1]
 
 ### Fixed

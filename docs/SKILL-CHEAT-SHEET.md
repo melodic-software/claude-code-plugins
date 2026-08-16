@@ -86,10 +86,11 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | --- | --- | --- |
 | [`/evals:design`](../plugins/evals/skills/design/SKILL.md) | `evals` | Interview for success criteria and scaffold an eval suite in the consumer repo |
 | [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
-| [`/mutation-testing:audit`](../plugins/mutation-testing/skills/audit/SKILL.md) | `mutation-testing` | Report surviving mutants on the diff, read-only, with survivors triaged |
+| [`/mutation-testing:audit`](../plugins/mutation-testing/skills/audit/SKILL.md) | `mutation-testing` | Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged |
 | [`/mutation-testing:principles`](../plugins/mutation-testing/skills/principles/SKILL.md) | `mutation-testing` | Answer mutation-testing questions from the primary literature |
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
+| [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail — report, gate, or persist |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests — never retry blindly |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |
@@ -220,7 +221,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions |
 | [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry — token burn, cost, hook latency, trends |
 | [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current — refresh, update, install per policy |
-| [`/repo-fleet-hygiene:audit`](../plugins/repo-fleet-hygiene/skills/audit/SKILL.md) | `repo-fleet-hygiene` | weekly | Audit git and GitHub hygiene across all local repositories, read-only |
+| [`/repo-fleet-hygiene:apply`](../plugins/repo-fleet-hygiene/skills/apply/SKILL.md) | `repo-fleet-hygiene` | weekly | Execute a fleet action plan behind one confirmation gate |
+| [`/repo-fleet-hygiene:audit`](../plugins/repo-fleet-hygiene/skills/audit/SKILL.md) | `repo-fleet-hygiene` | weekly | Discover a repository fleet and coordinate read-only evidence handoffs |
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
 | [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | `source-control` | continuous | Tiered fleet pass advancing your open PRs |
 | [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalated and untriaged items to resolution in one view |

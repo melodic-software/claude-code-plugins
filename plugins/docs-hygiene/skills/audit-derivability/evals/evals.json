@@ -81,11 +81,11 @@
       "id": 7,
       "name": "load-bearing-deletion-uses-fresh-context-spot-test",
       "prompt": "You've read an architecture doc and it looks entirely re-derivable from the code, so you're inclined to delete it. It is load-bearing — several teams rely on it. How do you confirm the deletion is safe?",
-      "expected_output": "Does NOT confirm the deletion from its own (now doc-contaminated) context — having read the doc, it knows the answers and would overestimate derivability (a self-grade). Delegates the empirical spot-test to a FRESH-CONTEXT, NON-FORK subagent that has not seen the doc: it reproduces the doc's key conclusions from native exploration only, then compare. Explicitly avoids the Agent tool's `fork` subagent type for uncontaminated spot-tests — official docs contrast it (inherits parent conversation) with a skill's `context: fork` (starts blank); #1258 contests the Agent-tool half at runtime, so cite documented guidance, not a settled probe result. Convergence confirms derivable; divergence means the doc owns something — keep it.",
+      "expected_output": "Does NOT confirm the deletion from its own (now doc-contaminated) context — having read the doc, it knows the answers and would overestimate derivability (a self-grade). Delegates the empirical spot-test to a FRESH-CONTEXT, NON-FORK subagent that has not seen the doc: it reproduces the doc's key conclusions from native exploration only, then compare. Explicitly avoids the Agent tool's `fork` subagent type for uncontaminated spot-tests — official docs contrast it (inherits parent conversation) with a skill's `context: fork` (starts blank); an internal melodic-software tracker issue contests the Agent-tool half at runtime, so cite documented guidance, not a settled probe result. Convergence confirms derivable; divergence means the doc owns something — keep it.",
       "files": [],
       "expectations": [
         "Delegates the derivability confirmation to a fresh-context subagent that has NOT seen the doc",
-        "Explicitly uses a non-fork subagent and avoids the Agent tool's `fork` subagent type for uncontaminated spot-tests (official-docs contrast; #1258 contests runtime inheritance)",
+        "Explicitly uses a non-fork subagent and avoids the Agent tool's `fork` subagent type for uncontaminated spot-tests (official-docs contrast; an internal tracker issue contests runtime inheritance)",
         "Frames self-judgment from the doc-contaminated context as unreliable (self-grade / fresh-eyes rationale)",
         "Treats divergence/failure of the fresh agent as evidence the doc owns non-derivable facts (keep)"
       ]
@@ -112,6 +112,55 @@
         "The whole-document verdict is `keep-owns-facts`",
         "Line-level noise (the dated citation) is routed to `/docs-hygiene:audit-noise`, not classified here",
         "Prose flavor is routed to `/docs-hygiene:compress`, not classified here"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "empty-target-offers-repo-wide-sweep",
+      "prompt": "Run the audit with no argument in a repository whose working tree is clean (no uncommitted .md files).",
+      "expected_output": "Does not dead-end and does not start scanning on its own. Reports there are no uncommitted .md files, then OFFERS escalation to a repo-wide corpus sweep of tracked markdown, presenting the prescribed defaults (all tracked .md files, batched read-only subagents, low bounded concurrency, capped spot-tests) for confirmation — via AskUserQuestion where available. On decline or no answer, ends as the friendly no-op suggesting a file/dir target or `sweep <dir>`.",
+      "files": [],
+      "expectations": [
+        "Reports the clean tree / absence of uncommitted .md files",
+        "Offers a repo-wide sweep with prescribed defaults instead of only dead-ending",
+        "Does NOT start the repo-wide sweep without explicit user confirmation",
+        "On decline or no answer, falls back to the friendly no-op"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "runtime-scaffold-is-out-of-scope",
+      "prompt": "Audit derivability of a skill's templates/checklist.md whose owning SKILL.md instructs agents to copy the template into their working notes and tick each phase as it completes.",
+      "expected_output": "Recognizes the file as a functional artifact — an input the skill consumes/copies at runtime, not prose a reader learns from — and records it `out-of-scope: functional artifact` with NO verdict. Does not grade it delete or convert-to-pointer on the grounds that it restates the skill's phase list; the four factors presuppose a document read for its claims, and a scaffold has none.",
+      "files": [],
+      "expectations": [
+        "Classifies the checklist template as a functional artifact / runtime scaffold, not a document",
+        "Emits `out-of-scope: functional artifact` rather than any of the four verdicts",
+        "Does NOT recommend converting the template to a pointer or deleting it"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "deliberate-empty-state-is-an-owned-decision",
+      "prompt": "Audit derivability of a repository's root CLAUDE.md that is completely empty. The repo's git log shows a commit that deliberately emptied it as part of a recorded instruction-baseline reset experiment.",
+      "expected_output": "Checks git history before grading the empty file, finds the deliberate reset commit, and returns `keep-owns-facts`: the emptiness is a recorded decision (Factor 4 decisions class). Does NOT grade the file `delete` merely because it is empty and trivially reconstructible.",
+      "files": [],
+      "expectations": [
+        "Consults git history before an actionable verdict on the empty file",
+        "Recognizes the deliberate emptying as an owned decision (Factor 4)",
+        "The verdict is `keep-owns-facts`, not `delete`"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "pointer-verdict-verifies-its-anchor",
+      "prompt": "You are about to issue a convert-to-pointer verdict recommending the doc be replaced with a pointer at scripts/cleanup-config.sh. Finish the verdict.",
+      "expected_output": "Verifies the recommended anchor exists before the verdict ships (one ls or equivalent). If scripts/cleanup-config.sh does not exist, the verdict names the real file(s) that do (or downgrades/withholds the pointer recommendation) — it never ships a pointer at a nonexistent anchor, which is worse than the doc it replaces. The rationale records the verification.",
+      "files": [],
+      "expectations": [
+        "Checks the pointer target's existence before finalizing the verdict",
+        "Does not ship a pointer verdict citing a nonexistent anchor",
+        "Records the verification (or the corrected anchor) in the verdict rationale"
       ]
     }
   ]

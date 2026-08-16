@@ -3,6 +3,59 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4]
+
+### Changed
+
+- **`skills/audit/TODO.md` is now a pointer, not a policy summary.** A repo-wide derivability audit
+  (#2695) spot-tested it: every load-bearing claim was reproducible from
+  `references/shared/approvals.md`, `references/windows/remediation-policy.md`, and the approvals
+  schema — and its denylist summary had already drifted (missing rationale and the BITS
+  precondition). The file keeps the no-state banner and points at those two sources instead of
+  restating them. The `scripts/linux|macos/NOT_IMPLEMENTED.md` placeholders were audited too and
+  deliberately kept: they own the removal criterion (all eight seeded checks ported or explicitly
+  not-applicable) that no code states.
+
+## [0.10.3]
+
+### Changed
+
+- **`audit`'s Windows check catalog no longer path-cites `disk-hygiene`'s private safety model.**
+  The live-scratchpad caveat is stated as an attribute of `disk-hygiene:clean`'s safety model in
+  prose (encapsulation audit, Path B).
+- **Test runner gains a public entry surface (#2702).** `skills/audit/scripts/run-tests.ps1` is a
+  thin pass-through wrapper over the private Pester runner in `tests/`; the README invokes the
+  wrapper, closing the encapsulation hit at that cite.
+
+## [0.10.2]
+
+### Fixed
+
+- **Invalid catalog entries now surface as UNKNOWN findings, not silent run-log skips
+  (#2575).** When `Assert-CatalogEntry` rejected an entry, the orchestrator continued
+  (correct for availability) but only wrote `catalog_entry_invalid skip …` to the run
+  log — so `latest.json`, severity counts, the rendered report, and the run delta showed
+  nothing. A registered check with a typo (the field case: `chezmoi-drift` declaring a
+  category outside the enum) was indistinguishable from a check that was never
+  registered. Each rejected entry now synthesizes a schema-valid `UNKNOWN` CheckResult
+  (`ran_successfully: false`, error = the assertion message) via
+  `New-InvalidCatalogEntryResult` and feeds the normal reporting path. Id stays the
+  entry's kebab-valid `id` when present, else a collision-checked
+  `invalid-catalog-entry-<index>` fallback (against catalog / already-emitted result
+  ids); category stays the declared value when legal, else `reliability`. Id-less
+  overlay rows in `checks.local.jsonc` are retained through `Merge-CatalogOverlay` so
+  they reach the same reporting path. The category vocabulary parity guard covers this
+  helper as a fifth copy alongside the two schemas and two validators.
+
+## [0.10.1]
+
+### Fixed
+
+- **NOT_IMPLEMENTED scaffold docs use a legal check category (#2576).** Linux/macOS
+  `NOT_IMPLEMENTED.md` instructed `category: "platform"`, which is outside the
+  check-result schema enum and would be rejected by `Assert-CheckResult`. Both
+  docs now use `reliability`.
+
 ## [0.10.0]
 
 ### Added

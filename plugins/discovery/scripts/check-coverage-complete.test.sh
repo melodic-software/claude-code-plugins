@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-coverage-complete.sh.
+# Black-box contract test for check-coverage-complete.sh and its .py twin.
 #
 # Self-contained and cwd-independent; mutates only its own mktemp dir.
 #
 # The cases that matter are the ones where a wrong answer is invisible: a
 # malformed ledger must never read as "complete", and an unmarked box in a
-# column that is not Done must never read as "incomplete".
+# column that is not Done must never read as "incomplete". Both
+# implementations must agree on every exit code and greppable summary.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUT="$SCRIPT_DIR/check-coverage-complete.sh"
+SUTS=(
+  "bash:$SCRIPT_DIR/check-coverage-complete.sh"
+  "python3:$SCRIPT_DIR/check-coverage-complete.py"
+)
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -21,18 +25,29 @@ fail() {
   fails=$((fails + 1))
 }
 
-# run <expected-exit> <label> [args...]
+# run_one <sut-spec> <expected-exit> <label> [args...]
+run_one() {
+  local sut_spec="$1" expected="$2" label="$3"
+  shift 3
+  local runner="${sut_spec%%:*}" path="${sut_spec#*:}"
+  local out actual
+  out="$("$runner" "$path" "$@" 2>&1)"
+  actual=$?
+  if [[ "$actual" -eq "$expected" ]]; then
+    pass "$label [$runner] (exit $actual)"
+  else
+    fail "$label [$runner] — expected exit $expected, got $actual: $out"
+  fi
+}
+
+# run <expected-exit> <label> [args...]  — every SUT
 run() {
   local expected="$1" label="$2"
   shift 2
-  local out actual
-  out="$(bash "$SUT" "$@" 2>&1)"
-  actual=$?
-  if [[ "$actual" -eq "$expected" ]]; then
-    pass "$label (exit $actual)"
-  else
-    fail "$label — expected exit $expected, got $actual: $out"
-  fi
+  local sut
+  for sut in "${SUTS[@]}"; do
+    run_one "$sut" "$expected" "$label" "$@"
+  done
 }
 
 ledger() {
@@ -219,6 +234,52 @@ empty="$WORK/empty.md"
 : >"$empty"
 run 2 "empty file fails closed" "$empty"
 
+# A ledger that exists but cannot be decoded as UTF-8 is ungradeable (exit 2), not
+# incomplete (exit 1). The Python twin must catch UnicodeDecodeError rather than
+# letting an uncaught exception become exit 1.
+bad_utf8="$WORK/bad-utf8.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | '
+  # shellcheck disable=SC2059
+  printf '\xff'
+  printf ' alpha | criterion | [x] |\n'
+} >"$bad_utf8"
+# Bash/awk may still grade bytes; the .py twin must exit 2. Run the twin alone.
+for sut in "${SUTS[@]}"; do
+  runner="${sut%%:*}"
+  path="${sut#*:}"
+  [[ "$runner" == "python3" ]] || continue
+  out="$("$runner" "$path" "$bad_utf8" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -eq 2 ]]; then
+    pass "non-UTF-8 ledger fails closed as ungradeable [$runner]"
+  else
+    fail "non-UTF-8 ledger should exit 2 [$runner] — got $rc: $out"
+  fi
+done
+
+# Permission denied after is_file() is likewise ungradeable for the Python twin.
+unreadable="$WORK/unreadable.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | alpha | criterion | [x] |\n'
+} >"$unreadable"
+chmod 000 "$unreadable"
+for sut in "${SUTS[@]}"; do
+  runner="${sut%%:*}"
+  path="${sut#*:}"
+  [[ "$runner" == "python3" ]] || continue
+  out="$("$runner" "$path" "$unreadable" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -eq 2 ]]; then
+    pass "unreadable ledger fails closed as ungradeable [$runner]"
+  else
+    fail "unreadable ledger should exit 2 [$runner] — got $rc: $out"
+  fi
+done
+chmod 644 "$unreadable" 2>/dev/null || true
+
 # --- usage ------------------------------------------------------------------
 
 run 0 "--help exits 0" --help
@@ -227,28 +288,32 @@ run 2 "two ledgers is a usage error" "$all_marked" "$one_unmarked"
 
 # --- output contract --------------------------------------------------------
 
-out="$(bash "$SUT" "$all_marked" 2>&1)"
-if [[ "$out" == *"rows=2"* && "$out" == *"unmarked=0"* && "$out" == *"status=complete"* ]]; then
-  pass "complete ledger prints a greppable summary"
-else
-  fail "complete ledger summary — got: $out"
-fi
+for sut in "${SUTS[@]}"; do
+  runner="${sut%%:*}"
+  path="${sut#*:}"
+  out="$("$runner" "$path" "$all_marked" 2>&1)"
+  if [[ "$out" == *"rows=2"* && "$out" == *"unmarked=0"* && "$out" == *"status=complete"* ]]; then
+    pass "complete ledger prints a greppable summary [$runner]"
+  else
+    fail "complete ledger summary [$runner] — got: $out"
+  fi
 
-out="$(bash "$SUT" "$one_unmarked" 2>&1)"
-if [[ "$out" == *"rows=2"* && "$out" == *"unmarked=1"* && "$out" == *"status=incomplete"* ]]; then
-  pass "incomplete ledger prints a greppable summary"
-else
-  fail "incomplete ledger summary — got: $out"
-fi
+  out="$("$runner" "$path" "$one_unmarked" 2>&1)"
+  if [[ "$out" == *"rows=2"* && "$out" == *"unmarked=1"* && "$out" == *"status=incomplete"* ]]; then
+    pass "incomplete ledger prints a greppable summary [$runner]"
+  else
+    fail "incomplete ledger summary [$runner] — got: $out"
+  fi
 
-# The failing case must name WHICH rows are unmarked; "some row somewhere" sends
-# the reader back to eyeball the table the gate exists to replace.
-out="$(bash "$SUT" "$none_marked" 2>&1)"
-if [[ "$out" == *"alpha"* && "$out" == *"beta"* ]]; then
-  pass "incomplete ledger names the unmarked items"
-else
-  fail "incomplete ledger should name unmarked items — got: $out"
-fi
+  # The failing case must name WHICH rows are unmarked; "some row somewhere" sends
+  # the reader back to eyeball the table the gate exists to replace.
+  out="$("$runner" "$path" "$none_marked" 2>&1)"
+  if [[ "$out" == *"alpha"* && "$out" == *"beta"* ]]; then
+    pass "incomplete ledger names the unmarked items [$runner]"
+  else
+    fail "incomplete ledger should name unmarked items [$runner] — got: $out"
+  fi
+done
 
 if [[ "$fails" -eq 0 ]]; then
   printf '\nAll checks passed.\n'

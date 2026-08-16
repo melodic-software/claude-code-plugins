@@ -3,6 +3,292 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **Configurable discovery skip list via `--skip` / `fleet.skip` (#2712).** Repeatable CLI
+  `--skip <name>` and config `fleet.skip` replace the default directory-name skip list
+  (`.`, `..`, `.git`, `node_modules`, `vendor`, `.venv`) rather than appending — so an operator
+  can shrink (reach a repo under `vendor/`) or extend (skip a differently named vendored tree).
+  CLI and config compose additively with each other like other scope inputs. Values must be bare
+  directory names; empty values (including a bare `skip =` config line) and path separators
+  hard-fail. `.` and `..` stay skipped
+  unconditionally. Nested-repository early return (stop descending when a directory carries a
+  `.git` marker) is documented in the audit skill. Setup `apply --skip` writes `fleet.skip`.
+
+## [0.22.5]
+
+### Fixed
+
+- **Symlinked/junctioned intermediate directories under discovery are disclosed, not silent (#2711).**
+  Discovery still does not follow links. Each skipped intermediate symlink (or Windows directory
+  junction, which tests as a symlink under Git Bash) becomes an `UNKNOWN` `discovery-symlink-skip`
+  finding and is counted on the `Discovery skips:` header line. Symlinked discovery roots remain
+  refused as before. Fleet-level `UNKNOWN` findings (including these skips) now also move the
+  overall `Fleet verdict` off `CLEAN`, so a root whose only content is a skipped symlink cannot
+  report a clean walk.
+
+## [0.22.4]
+
+### Fixed
+
+- **Audit `Scope:` header no longer conflates `--root` and `--repo` counts (#2710).**
+  Provenance now reports each flag's count separately (omitting zeros) so a
+  `--repo`-only invocation cannot read as mixed `--root/--repo` scope.
+
+## [0.22.3]
+
+### Fixed
+
+- **security-review.md no longer names deleted REST-era `MERGED_PR_BATCH_LIMIT` /
+  `MERGED_PR_HEAD_LIMIT` constants (#2709).** The live GraphQL collector constants
+  (`MERGED_PR_GRAPHQL_ALIAS_PAGE`, `MERGED_PR_GRAPHQL_JQ`) are documented instead,
+  with historical wording for the retired names so an auditor is not sent looking
+  for symbols that do not exist.
+
+## [0.22.2]
+
+### Fixed
+
+- **Exact-OID merged evidence on a protected branch is no longer computed and discarded (#2687).**
+  A branch carrying a `MERGED` PR whose `headRefOid` equals the local tip fell through both arms
+  of the match block when it was also protected: `merged-worktree` requires a non-main worktree,
+  and `merged-local-branch` requires `protected=false`, so a branch checked out in the main
+  worktree — or the canonical checkout's current branch — satisfied neither and emitted nothing.
+  The weaker `merged-pr-tip-drift` below carries no protection guard and did emit, so silence on
+  the strong path read as "nothing merged" rather than "merged, but protected". A new `HIGH`
+  `merged-protected-branch` finding reports it and names which protection applies — `HIGH` because
+  the evidence is the same successful `MERGED` PR with an exact `headRefOid` match that the
+  sibling kinds carry, and the confidence model separates evidence strength from disposition. The
+  protection rule is unchanged: the kind is absent from `branch_action_kind()`, so it never becomes
+  a cleanup candidate, inflates a rollup count, or enters an action plan. Only the main-worktree
+  and current-branch protections are reachable; the default branch is excluded from merge-evidence
+  collection upstream and never reaches this classification.
+
+## [0.22.1]
+
+### Fixed
+
+- **Documented audit argument grammar restored after a silent prose revert (#2599).** Bare
+  positional paths and drive roots, `--project-dir` as a config rung only, the hard no-scope
+  failure, and the `bare-repo-with-working-tree` handoff row again match `audit-fleet.sh` (the
+  #2646 rebase had carried pre-#2638 skill prose forward). README / plugin / skill copy no longer
+  claim machine-wide no-argument discovery as shipped; Quick start uses an explicit `--repo`.
+
+## [0.22.0]
+
+### Added
+
+- **`/repo-fleet-hygiene:apply` — execute a prior audit action plan behind one gate (#2597).**
+  New skill + `apply-plan.sh` consume the machine-readable plan from `:audit` (`--plan-file`).
+  Default is dry-run with live OID refresh; `--apply` requires interactive confirmation or
+  `--yes` for non-interactive consent. One confirmation covers the whole fleet plan. Branch
+  deletes run before worktree cleanups. Mutable tips are re-derived immediately before every
+  delete; OID drift, missing plan OIDs, protected/current/attached branches, and dirty/unpushed
+  worktrees skip fail-closed. Batched `merged-local-branch` deletion is owned here so
+  `audit-fleet.sh` stays read-only (no execute flag on the auditor allowlist) and
+  `repo-hygiene:clean` keeps its per-branch interactive deletion model.
+
+### Changed
+
+- **Fleet cleanup-plan contract marked shipped.** README epic table and audit skill prose point
+  operators at `:apply` for execution; audit `--apply-plan` remains the read-only approval
+  artifact.
+
+## [0.21.1]
+
+### Fixed
+
+- **Bare-repo-with-working-tree coverage restored in the audit suite (#2656).** The collector
+  still emitted the finding after the #2633/#2640 rewrite, but the suite no longer asserted
+  `Finding: bare-repo-with-working-tree` under `--detail`. Coverage is restored, and the
+  out-of-suite finding-kind gate now requires that needle (not a bare token / `F_KIND`
+  mention) so false-green setup references cannot satisfy it.
+
+## [0.21.0]
+
+### Fixed
+
+- **Worktree layout naming matches `/source-control:worktree create` (#2606 review).** Expected
+  dirnames use `origin` only (else `<checkout-basename>-<slug>`); under-root paths whose basename
+  already carries the create-time `<owner>-<repo>-<slug>` / `<repo>-<slug>` prefix stay conforming
+  after branch rename or detach instead of recomputing layout from porcelain's current branch.
+
+### Added
+
+- **Worktree-root conformance against the configured convention (#2606).** The audit reads
+  `melodic.worktreeroot` (git config, gated on `rev-parse --git-dir`, attributed with
+  `--show-origin`) when present on the first resolvable TARGET, else source-control's
+  `worktree_root` (`CLAUDE_PLUGIN_OPTION_*` or user `pluginConfigs`). Linked worktrees that pass
+  existence and root-verifiability checks are classified as conforming, outside the root /
+  wrong `<owner>-<repo>-<slug>` (or `<repo>-<slug>` without origin) layout (expected location named;
+  physical-path comparison so symlink aliases of the configured root do not false-positive), or
+  tool-owned (Codex/Cursor). Missing / unverifiable / non-root registrations keep their own findings
+  and are excluded from conformance denominators. The collector uses one fleet-wide root
+  (intentionally different per-repository `includeIf` roots are not modeled). When `pluginConfigs`
+  cannot be read because `jq` is missing, emit `UNKNOWN` `worktree-root-pluginconfigs-unreadable`
+  instead of a false unconfigured report. When no root is configured, placement is reported without
+  asserting a convention. Per-repository and fleet rollups always state the classifiable counts —
+  including when every classifiable linked worktree already conforms.
+
+## [0.20.0]
+
+### Added
+
+- **`merged-remote-branch` findings for heads still on origin after merge (#2607).** When
+  `delete_branch_on_merge` is not enabled (or a remote head survived), the collector reports merged
+  remote branches that remain on the configured remote and hands off exact cleanup guidance.
+  Enabling GitHub auto-delete remains complementary and is not changed by this release.
+
+### Fixed
+
+- **`merged-remote-branch` requires live remote proof for HIGH (#2607 review).** A last-fetched
+  remote-tracking tip match alone does not prove the head still exists after merge-and-auto-delete
+  without a pruning fetch. The collector now runs allowlisted `git ls-remote --heads` before HIGH;
+  probe failure demotes to MEDIUM (cached observation); empty ls-remote emits no finding.
+
+## [0.19.2]
+
+### Changed
+
+- **The plugin contract now matches its fleet-level job (#2597).** README, manifest, and audit-skill
+  framing assign machine-wide discovery, evidence rollup, and action-plan handoff to
+  `repo-fleet-hygiene`, while per-repository branch/worktree decisions and cleanup remain with
+  `repo-hygiene` and `source-control`.
+- **The fleet cleanup-plan boundary is explicit.** The machine-readable rollup from #2608 is on
+  `main`; a future consumer groups repository-qualified actions for the sibling owners, requires one
+  explicit fleet confirmation, and re-derives mutable OIDs before execution. This release still
+  refuses to invent an execute/auto-delete mode until that consumer ships.
+- **Remaining unshipped epic capabilities are named as contracts, not advertised as commands.**
+  Worktree-root conformance (#2606) remains a child-issue contract. GraphQL merge evidence (#2604)
+  and rollup/handoff framing (#2608/#2609) are on `main`; merged remote branches (#2607) track the
+  open follow-up PR.
+
+## [0.19.1]
+
+### Changed
+
+- **Bare paths and drive roots are valid discovery roots (#2599).** A positional `<dir>` (including
+  Windows drive roots such as `D:`) is equivalent to `--root <dir>` (normalized to `D:/`). Symlinked
+  discovery roots are refused. A `--root` that exists but is not readable/executable hard-fails with
+  `discovery root is not traversable` instead of recording a `ROOT_LABEL` and reporting a clean empty
+  audit. An empty walked root remains a valid zero-repository audit.
+- **No-argument audits no longer fall back to the session project directory (#2599).** Without a
+  bare path, `--root`/`--repo`, or config-supplied `fleet.root`/`fleet.repo`, the collector hard-fails
+  and names how to set scope (`/repo-fleet-hygiene:setup apply` or explicit CLI roots). This is a
+  breaking change for bare `/repo-fleet-hygiene:audit` invocations that previously audited
+  `$CLAUDE_PROJECT_DIR` as an implicit `--repo`.
+
+## [0.19.0]
+
+### Fixed
+
+- **Restore aliased GraphQL merge evidence, per-repository rollup, and fleet action plans after
+  the #2633 squash regression.** The bare-repo merge accidentally replaced the collector with a
+  pre-GraphQL script, dropping `MERGED_PR_GRAPHQL_*`, rollup/`--apply-plan`, and related tests
+  while the changelog still documented 0.17.0/0.18.0 behavior. Re-integrates those surfaces with
+  `#2602` bare-repo classification and `#2598` discovery-skip degradation.
+
+## [0.18.2]
+
+### Added
+
+- **`bare-repo-with-working-tree` finding (#2602).** A path with `core.bare=true` that still has
+  populated working-tree content or registered linked worktrees is classified as `MEDIUM` manual
+  review instead of rejected as "not a Git working tree". The finding names
+  `git config --local core.bare false` as the preferred remedy and states that linked worktrees are
+  unaffected. Discovery and `--repo` no longer abort the whole run on this administrative anomaly.
+  Ordinary `git init --bare` hubs (administrative entries at the repository root, no `.git`
+  subdirectory) are not this finding.
+
+## [0.18.0]
+
+### Added
+
+- **Per-repository rollup is the default audit presentation (#2608).** The report opens with a
+  fleet header and a per-repository rollup of counts by finding kind, plus an explicit
+  `CLEAN` / `N candidates` / `BLOCKED (evidence gap)` verdict (and a fleet verdict). Per-item
+  evidence moves behind `--detail`, where findings are collapsed to one entry per target so a
+  path that carries both `locked-worktree` and `worktree-nested-in-repository` is triaged once.
+- **Fleet-scale action plan + `--apply-plan` dry-run (#2609).** Every audit writes a
+  machine-readable action-plan JSON (path via `--plan-file`, otherwise a temp file named in the
+  report) that lists recommended skill invocations once per repository — `/repo-hygiene:clean git`
+  for merged local branches, `/source-control:worktree cleanup --dry-run` for worktree candidates —
+  ordered so branch cleanups precede worktree cleanups. `--apply-plan PATH` re-renders that plan as
+  a single-gate dry-run approval artifact; producing or applying the plan never mutates. Re-derive
+  OIDs at real execution time.
+
+### Fixed
+
+- **Plan JSON preserves UTF-8 paths (#2608/#2609 review).** `json_escape` no longer turns each
+  non-ASCII UTF-8 byte into a separate `\u00XX` code point (which mojibaked paths such as `répô`);
+  ASCII controls stay escaped and UTF-8 sequences pass through intact.
+- **Action-plan targets are real array elements (#2609 review).** Paths may legally contain
+  newlines, and bash scalars cannot store NUL, so in-band delimiters are unsafe. Targets are kept
+  as parallel `ACTION_TARGET_OWNER` / `ACTION_TARGET_VALUE` entries so one path cannot forge several
+  plan targets.
+- **Unwritable `--plan-file` fails closed (#2609 review).** A failed plan redirection now exits
+  nonzero via `fail` before the report claims `Action plan: <path>` or prints an `--apply-plan`
+  command for a missing artifact.
+- **Rollup candidates track actionable kinds (#2608 review).** `N candidates` / fleet candidate
+  counts follow `merged-local-branch` and worktree cleanup plan kinds, not mere HIGH/MEDIUM
+  confidence — so manual-review findings such as `locked-worktree` or `merged-pr-tip-drift` no longer
+  inflate candidates while `Actions: none`.
+
+## [0.17.0]
+
+### Changed
+
+- **Merged-PR evidence uses aliased GraphQL and retires REST window/privacy findings (#2604).** One
+  `gh api graphql` query per repository page (≤100 exact `headRefName` aliases, `first:1`,
+  `states:[MERGED]`) replaces per-repo `gh pr list --state merged` and the privacy-gated `--head`
+  fallback. Measured rate cost stays 1 per call. Retires `merged-pr-window-truncated` and
+  `merge-evidence-privacy-gated`. Fail-closed `github-pr-evidence-unavailable` when GraphQL fails.
+  Branch matching stays exact (`feature/auth` never conflates with `feature/auth-v2`).
+
+## [0.14.1]
+
+### Fixed
+
+- **Discovery husks under `--root` no longer abort the fleet (#2598).** A path discovered beneath a
+  `--root` that is unreadable or not a Git working tree (despite a `.git` marker) now degrades
+  per-entry like a stale config entry: the audit continues, the header reports
+  `Discovery skips: N non-repository, M unreadable`, and each `.git` husk becomes an `UNKNOWN`
+  `discovery-skip` finding. An explicitly supplied `--repo` that is not a working tree still
+  hard-fails. SKILL.md graceful degradation and the confidence-model tier table updated to match.
+
+## [0.14.0]
+
+### Changed
+
+- **Worktree disposability ownership moves to `source-control:worktree` (#2605).** Linked unlocked
+  worktrees with reliable admin emit one `MEDIUM` `worktree-status-handoff` per repository naming
+  those paths and routing to `/source-control:worktree status` (stranded / unknown / safe). The
+  collector no longer emits `reclaimable-worktree` or `worktree-disposability-unverifiable` from
+  `git status --porcelain`. When `source-control` is absent, name the listed targets and the missing
+  collaborator — do not substitute a weaker verdict. Retires the weaker fleet-local reclaimable axis
+  relative to #2601's ignored-files hardening of that same finding.
+
+## [0.13.2]
+
+### Fixed
+
+- **Moved-identity checkouts keep branch and worktree analysis (#2600).** Emitting
+  `github-remote-moved` no longer reads as a silent stop: evidence states that classification
+  continues against the resolved `full_name`, and the collector regression fixture requires both
+  `merged-worktree` and `merged-local-branch` exact-OID findings from that resolved identity.
+
+## [0.13.1]
+
+### Fixed
+
+- **`merged-pr-tip-drift` evidence no longer claims commits "may never have been pushed" (#2603).**
+  Absence from the last-fetched remote-tracking ref does not prove the tip was never on GitHub —
+  post-merge head deletion plus prune is the common case, and the tip object may still exist on the
+  remote. The non-matching push-state clause now states that the tip differs from the merged PR
+  `headRefOid` and that commits may still be on the remote.
+
 ## [0.13.0]
 
 ### Added

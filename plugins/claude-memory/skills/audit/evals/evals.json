@@ -124,6 +124,18 @@
         "Names the leftover path to the user and explains it cannot be attributed to a project",
         "Offers to run a fresh audit for this project"
       ]
+    },
+    {
+      "id": 11,
+      "name": "c6-owns-user-project-instruction-conflicts",
+      "prompt": "My ~/.claude/CLAUDE.md says never use AskUserQuestion, and this project's CLAUDE.md says always use AskUserQuestion before any destructive action. Is that your C6 check or audit-instructions' I15?",
+      "expected_output": "C6 owns it. Both anchors are in the discover-instruction-surfaces population (user CLAUDE.md and project CLAUDE.md), and Step 3 compares user-scope surfaces against project ones as live conflicts. I15 does not grade that pair when this skill is installed — it routes here. Nested CLAUDE.md, auto-memory, and skill-body halves stay with I15 because they are outside this population; I15 also keeps memory-layer precedence adjudication for pairs it retains.",
+      "files": [],
+      "expectations": [
+        "Attributes the user↔project CLAUDE.md contradiction to C6 Consistency, not to I15",
+        "Names discover-instruction-surfaces (or Step 3 cross-scope comparison) as why both sides are in population",
+        "States that nested CLAUDE.md / auto-memory / non-memory surfaces remain outside C6 and belong to I15"
+      ]
     }
   ]
 }

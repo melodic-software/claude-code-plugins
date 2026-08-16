@@ -122,6 +122,11 @@ waves:
 
 Default: sequential. Parallel is opt-in via the batch-action argument `--parallel-waves`. Parallel collisions are a real bug class (no file locking); the default conservatism is intentional.
 
+**Worker concurrency and rate limits.** Whatever the wave grouping allows, concurrent worker
+dispatches stay under the `context/orchestrated-mode.md` ceiling (default 2, static) and honor its
+between-dispatch rate-limit-guard check when the consuming machine exposes the guard's snapshot.
+Wave grouping decides *what may* run together; the ceiling decides *how much* actually does.
+
 ## Step 7 — Lesson injection
 
 Each subagent dispatched in this batch receives the lesson snapshot from Step 1 in its prompt:

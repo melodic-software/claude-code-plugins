@@ -3,6 +3,28 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Changed
+
+- **C6/I15 boundary ratified against the widened discover-instruction-surfaces population (#2705).**
+  C6 criteria 1.5.4 and the audit SKILL.md / workflow now state explicitly that C6 owns
+  instruction-content conflicts across scopes — **including user↔project** — when both anchors are
+  in `discover-instruction-surfaces`. Nested `CLAUDE.md`, auto-memory, and non-memory surfaces stay
+  with `claude-config:audit-instructions` I15 (precedence / settings / out-of-population pairs).
+  Step 3 now compares every distinct population pair for contradictions (including
+  CLAUDE.md↔CLAUDE.local.md and rule↔rule), not only the prior cross-scope redundancy pass.
+  New eval 11 pins the ownership claim; sibling `conflict-criteria.md` on the config side was the
+  stale half this closes.
+
+## [0.9.1]
+
+### Changed
+
+- **Shared `lib/state-key.sh` re-synced from canonical.** The header now names the
+  `plugin-data-report-keying` convention as the scheme's source (previously `audit-pass`'s §3,
+  which no longer specifies it after the encapsulation-audit promotion). Behavior unchanged.
+
 ## [0.9.0]
 
 ### Added

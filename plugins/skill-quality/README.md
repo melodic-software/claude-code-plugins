@@ -94,15 +94,19 @@ After the schema, `check-evals-quality.sh` (bash + jq) lints eval CONTENT determ
 `FAIL:` tier — duplicate case ids/names, empty criterion items, `files` fixture entries that
 resolve to no path under the skill or evals directory. `WARN:` tier (advisory, exit 0) — a case
 carrying both `expectations` and `assertions`, identical prompt+files pairs, vague whole-item
-phrasing ("the output is good"), a thin sole-criterion `expected_output`, and a set with no
-refusal/guardrail or anti-pattern case. It deliberately does not flag low case count. Run
+phrasing ("the output is good"), a thin sole-criterion `expected_output`, a set with no
+refusal/guardrail or anti-pattern case, and (Q4 prose) an empty `files` list with
+path-shaped tokens in `prompt`/`expected_output` that resolve nowhere (silence with
+`narration: true` or declare fixtures). It deliberately does not flag low case count. Run
 `--help` on the script for the full Q1-Q9 list; without `jq` it exits 2 and the schema verdict
 stands alone.
 
 ## Requirements
 
-- A git repository — several checks read `git show HEAD:` / `git ls-files`; outside a repo the script
-  exits 2.
+- A skills root — via `CHECK_SKILL_SKILLS_ROOT`, `CLAUDE_PROJECT_DIR`, or a git repository
+  (last-resort default `.claude/skills`). Git-backed checks (trigger preservation, vendor
+  identity, stale metadata, committed artifacts) skip with a note outside a repo so
+  marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
   twenty-one still gate.
 

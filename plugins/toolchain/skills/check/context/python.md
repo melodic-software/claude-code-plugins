@@ -6,9 +6,12 @@
 # Check (CI mode — no auto-fix)
 cd "$PROJECT_DIR" && uv run ruff check . --no-fix
 
-# Fix
-cd "$PROJECT_DIR" && uv run ruff check . --fix
+# Code-fix (semantic lint autofixes — /toolchain:lint --code-fix only)
+cd "$PROJECT_DIR" && uv run ruff check <files> --fix --no-unsafe-fixes --unfixable F401
 ```
+
+`--unfixable F401` matches the `ruff-format` hook: protects just-added imports during iterative
+editing; F401 still surfaces as a finding — only auto-deletion is suppressed.
 
 ## Format
 
@@ -16,8 +19,8 @@ cd "$PROJECT_DIR" && uv run ruff check . --fix
 # Check (CI mode)
 cd "$PROJECT_DIR" && uv run ruff format . --check
 
-# Fix
-cd "$PROJECT_DIR" && uv run ruff format .
+# Fix (format-only — /toolchain:lint --fix)
+cd "$PROJECT_DIR" && uv run ruff format <files>
 ```
 
 ## Test
@@ -28,7 +31,7 @@ cd "$PROJECT_DIR" && uv run pytest tests/ -x -q
 
 ## Type check
 
-Part of `check-cmd` (no fix mode — `fix-cmd` only runs the two ruff commands):
+Part of `check-cmd` (no fix mode — `fix-cmd` is format-only; `code-fix-cmd` is ruff check only):
 
 ```bash
 cd "$PROJECT_DIR" && uv run pyright

@@ -197,7 +197,8 @@ GOIMPORTS_BIN="$(command -v goimports 2>/dev/null)" || GOIMPORTS_BIN=""
 
 if [[ -z "$GOIMPORTS_BIN" ]]; then
   if hook::notice_once "go-format-goimports" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "go-format: no 'goimports' binary found on PATH — format/import-fix skipped for this session. Install: go install golang.org/x/tools/cmd/goimports@latest"
+    hook::emit_skip_notice PostToolUse "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: go install golang.org/x/tools/cmd/goimports@latest
+PATH probed: ${PATH:-<unset>}"
   fi
   emit_skipped
 fi

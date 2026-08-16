@@ -3,6 +3,33 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.11]
+
+### Fixed
+
+- **Eval-quality Q4 no longer silent on `files: []` + prose-only paths (#2746).**
+  `check-evals-quality.sh` still FAILs unresolvable/`..`/absolute entries in the
+  declared `files` array. It now also WARNs when `files` is empty/absent, the case
+  is not `narration: true`, and `prompt`/`expected_output` contain a path-shaped
+  token (`dir/…/file.ext`) that resolves to nothing under the skill or evals
+  directory — the dodge that let compress evals 3/8/10 clear the gate while naming
+  unreachable paths. Opt out with `narration: true` (schema field added) or declare
+  a real fixture in `files`. Branch-like tokens and bare filenames stay out of scope.
+  Host-shaped skips require a DNS-like first segment ending in an alphabetic label
+  (so `v1.2/schema/config.json` stays in scope); the PROSE escape gate keeps only
+  the reachable `../` check before the existence WARN.
+
+## [0.15.10]
+
+### Fixed
+
+- **Static gates run against non-git plugin-cache installs (#2619).** `check-skill.sh` and
+  `check-listing-budget.sh` no longer exit 2 with `Error: not in a git repo` when cwd is outside
+  a git repository. Marketplace cache trees are plain directories; with
+  `CHECK_SKILL_SKILLS_ROOT` (or `CLAUDE_PROJECT_DIR`, or an explicit listing-budget root) the
+  non-git checks still run. Git-backed checks (3/8/9/13) skip with a note. Exit 2 remains only
+  when no skills root can be resolved at all.
+
 ## [0.15.9]
 
 ### Changed

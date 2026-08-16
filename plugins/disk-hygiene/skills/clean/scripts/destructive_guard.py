@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import shutil
 import json
 import math
 import os
@@ -101,11 +102,9 @@ def _is_current_python(value: str) -> bool:
     try:
         runtime = Path(sys.executable).resolve(strict=True)
         candidate = Path(value).absolute()
-        return (
-            os.path.normcase(os.fspath(candidate))
-            == os.path.normcase(os.fspath(runtime))
-            and os.path.samefile(candidate, runtime)
-        )
+        return os.path.normcase(os.fspath(candidate)) == os.path.normcase(
+            os.fspath(runtime)
+        ) and os.path.samefile(candidate, runtime)
     except OSError:
         return False
 
@@ -267,8 +266,10 @@ def _plugin_cache_family_root() -> str | None:
     the escape exists so a consumer's own ``tools/hygiene.py`` is not mistaken
     for this engine (#1640, #1611), and a previous version of this plugin is
     not a consumer's tool. Handing it the escape leaves the kill switch
-    unenforced against it whenever the clean skill is not the active work,
-    because the plugin-level gate is the only guard in that state (#1805).
+    unenforced against it whenever only the plugin-level gate is armed
+    (before the skill-frontmatter belt registers, or in sessions that never
+    invoke ``clean``), because the plugin-level gate is the only guard in
+    that state (#1805).
 
     The prefix is derived from this module's OWN path rather than from
     ``--plugin-root``: ``__file__`` is the file actually executing, so it needs
@@ -317,13 +318,17 @@ def _engine_script_path() -> Path:
 def _probe_script_path() -> Path:
     """The one bundled kill-switch probe path, likewise shared."""
     return (
-        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
+        Path(__file__).resolve().parents[2]
+        / "setup"
+        / "scripts"
+        / "kill_switch_probe.py"
     )
 
 
 def _display_path(path: Path) -> str:
     """A Bash-friendly absolute spelling of a bundled script path."""
     return os.fspath(path).replace("\\", "/")
+
 
 # Everything a path we care about cannot contain. Enumerating SHELL syntax here
 # would be a losing game — an assignment (`engine=hygiene.py`), a list separator
@@ -463,8 +468,8 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     with no separator, an alias inside a command the literal parser rejects
     when the marker is absent, and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
-    preview/approval-token containment (and to the skill-scoped belt during
-    active cleanup).
+    preview/approval-token containment (and to the skill-frontmatter belt for
+    the rest of the session once that belt has registered).
     """
 
     def _is_interpreter(word: str) -> bool:
@@ -500,9 +505,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         """
         if _samefile(word):
             return True
-        return not os.path.isabs(word) and _samefile(
-            os.path.join(bundled.parent, word)
-        )
+        return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
 
     allow_backslash = tool_name == "PowerShell"
     marker_candidates = _marker_tokens(command)
@@ -641,13 +644,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 def resolve_mode() -> str:
     """Resolve which registration surface launched this guard.
 
-    ``belt`` (default) is the skill-scoped deployment: deny-by-default Bash and
-    deletion-spelling PowerShell discipline, tolerable only while the clean skill
-    is the active work. ``engine-gate`` is the plugin-level deployment: it cares
-    ONLY about engine invocations (kill switch + data-root authority must hold in
-    every session), so any command that does not reference the engine defers
-    instantly — a plugin-level hook must never tax unrelated work. An
-    unrecognized or absent value falls back to ``belt``, the stricter mode.
+    ``belt`` (default) is the skill-frontmatter deployment: deny-by-default Bash
+    (with a small read-only supporting allowlist) and deletion-spelling PowerShell
+    discipline. Claude Code registers skill-frontmatter ``PreToolUse`` hooks for
+    the rest of the session after the skill is invoked — not only while cleanup is
+    the active work — so this mode stays armed session-wide once registered
+    (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
+    engine invocations (kill switch + data-root authority must hold in every
+    session), so any command that does not reference the engine defers instantly
+    — a plugin-level hook must never tax unrelated work. An unrecognized or
+    absent value falls back to ``belt``, the stricter mode.
     """
     value = _argv_flag_value(sys.argv[1:], _MODE_FLAG)
     return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
@@ -881,35 +887,66 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             or not _argument(tokens[6])
         ):
             return None
-        # --confirmed-large-scan is the sole valueless scan flag; strip at most
-        # one so the remainder is the pure flag/value-pair grammar every other
-        # optional follows.
+        # --confirmed-large-scan and --root-children are the valueless scan
+        # flags; strip at most one of each so the remainder is the pure
+        # flag/value-pair grammar every other optional follows. --root-child
+        # is repeatable (one basename per occurrence) and is stripped next.
         optionals = list(tokens[7:])
         confirmed = optionals.count("--confirmed-large-scan")
         if confirmed > 1:
             return None
         if confirmed:
             optionals.remove("--confirmed-large-scan")
-        if len(optionals) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
-            optionals,
+        root_children = optionals.count("--root-children")
+        if root_children > 1:
+            return None
+        if root_children:
+            optionals.remove("--root-children")
+        root_child_names: list[str] = []
+        remaining: list[str] = []
+        index = 0
+        while index < len(optionals):
+            if optionals[index] == "--root-child":
+                if index + 1 >= len(optionals) or not _argument(optionals[index + 1]):
+                    return None
+                name = optionals[index + 1]
+                # Immediate basename only — no separators, no . / ..
+                if (
+                    "/" in name
+                    or "\\" in name
+                    or name in {".", ".."}
+                    or not name
+                ):
+                    return None
+                root_child_names.append(name)
+                index += 2
+                continue
+            remaining.append(optionals[index])
+            index += 1
+        if root_child_names and not root_children:
+            return None
+        if len(remaining) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
+            remaining,
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
             authority,
         ):
             return None
         return "scan"
-    # preview and handoff-verify share one grammar — `--snapshot <path>` plus a
-    # subcommand-specific second required pair — so they are checked once and
-    # differ only in that pair's flag name.
+    # preview and handoff-verify share the two required pairs. Handoff verify
+    # alone may also name a read-only VCS evidence file.
     second_flag = {"preview": "--plan", "handoff-verify": "--paths"}.get(tokens[2])
     if second_flag is not None:
+        optional_flags = {"--data-root"}
+        if tokens[2] == "handoff-verify":
+            optional_flags.add("--vcs-evidence")
         valid = (
-            len(tokens) in {7, 9}
+            len(tokens) in {7, 9, 11}
             and tokens[3] == "--snapshot"
             and _argument(tokens[4])
             and tokens[5] == second_flag
             and _argument(tokens[6])
             and _consume_optional_pairs(
-                tokens[7:], frozenset({"--data-root"}), authority
+                tokens[7:], frozenset(optional_flags), authority
             )
         )
         return tokens[2] if valid else None
@@ -956,6 +993,316 @@ def is_exact_kill_switch_probe(command: str) -> bool:
     return _script_path_key(tokens[1]) == _script_path_key(str(_probe_script_path()))
 
 
+# Narrow belt-mode Bash allowlist for cleanup inspection (#2591). Bare names are
+# accepted only when ``shutil.which`` lands under a trusted system directory;
+# absolute paths under those same directories are accepted when the basename is
+# allowlisted. Relative path-qualified forms (``./ls``) fail closed. Every shape
+# still has to clear ``_literal_shell_words`` (no metacharacters, operators, or
+# redirections). Deletion authority remains the engine's own containment.
+_READONLY_SUPPORTING_BASH_HEADS = frozenset(
+    {
+        "ls",
+        "test",
+        "stat",
+        "du",
+        "pwd",
+        "basename",
+        "dirname",
+        "find",
+        "file",
+    }
+)
+# GNU/BSD find primaries that write or execute; a literal allowlist cannot prove
+# an ``-exec`` payload harmless, so any of these fails closed.
+_FIND_SIDE_EFFECT_PRIMARIES = frozenset(
+    {
+        "-delete",
+        "-exec",
+        "-execdir",
+        "-ok",
+        "-okdir",
+        "-fprint",
+        "-fprint0",
+        "-fprintf",
+        "-fls",
+    }
+)
+
+
+def _parse_bracket_test_words(command: str) -> list[str] | None:
+    """Parse ``[ ... ]`` with the same literal rules as other supporting commands.
+
+    ``[`` / ``]`` are otherwise rejected as shell metacharacters; here they are
+    required bookends and every interior character still faces the expansion /
+    operator deny list.
+    """
+    text = command.strip()
+    if len(text) < 2 or text[0] != "[" or text[-1] != "]":
+        return None
+    interior = text[1:-1]
+    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+        return None
+    stripped = interior.strip()
+    if not stripped:
+        return []
+    return _literal_shell_words(stripped)
+
+
+def _is_readonly_find(tokens: list[str]) -> bool:
+    """True only when ``find`` carries no side-effect primary."""
+    for token in tokens[1:]:
+        if token.casefold() in {name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES}:
+            return False
+    return True
+
+
+def _readonly_supporting_basename(head: str) -> str:
+    """Basename of a supporting command head on either path separator.
+
+    On Windows, strip a trailing executable extension (``.exe`` / ``.EXE`` /
+    ``.com`` / ``.bat`` / ``.cmd``) so a real Git-for-Windows binary such as
+    ``ls.EXE`` matches ``_READONLY_SUPPORTING_BASH_HEADS`` (#2774).
+    """
+    name = _PATH_SEPARATOR.split(head.rstrip("/\\"))[-1]
+    if os.name == "nt":
+        lower = name.lower()
+        for ext in (".exe", ".com", ".bat", ".cmd"):
+            if lower.endswith(ext):
+                return name[: -len(ext)]
+    return name
+
+
+# Absolute prefixes where an allowlisted head may live after realpath. A
+# repo-controlled ``./ls`` on PATH, or a user ``~/bin/ls``, must not inherit
+# belt approval. ``Path.resolve`` follows symlinks so a trusted-prefix symlink
+# into an untrusted tree also fails closed.
+_TRUSTED_READONLY_BIN_PREFIXES = (
+    "/bin/",
+    "/usr/bin/",
+    "/usr/local/bin/",
+    "/sbin/",
+    "/usr/sbin/",
+    # Windows Git Bash / MSYS common locations
+    "/mingw64/bin/",
+)
+# Relative binary directories inside a Git-for-Windows installation where an
+# allowlisted read-only head legitimately lives. Joined onto the RESOLVED
+# installation root, never matched as a substring (see below).
+_NT_GIT_TRUSTED_BIN_SUBDIRS = (
+    ("usr", "bin"),
+    ("mingw64", "bin"),
+    ("mingw32", "bin"),
+)
+# Relative binary directories inside the resolved Windows system root.
+_NT_SYSTEM_TRUSTED_BIN_SUBDIRS = (
+    ("System32",),
+    ("SysWOW64",),
+)
+
+
+def _nt_known_git_installation_roots() -> tuple[Path, ...]:
+    """Git-for-Windows roots from well-known *machine* install locations.
+
+    Never derived from ``PATH`` / ``shutil.which("git")``: a project-controlled
+    directory ahead on ``PATH`` can plant ``cmd/git.exe`` and poison the trusted
+    root, recreating the arbitrary-executable bypass the anchored-prefix change
+    closed. Only the per-machine installer destinations under ``ProgramFiles``
+    and ``ProgramFiles(x86)`` contribute roots, and only when that directory
+    actually exists.
+
+    ``%LOCALAPPDATA%\\Programs\\Git`` is intentionally excluded: it is a
+    user-writable path, so treating it as a trust root would let a local
+    plant under the profile contribute allowlisted heads whenever it exists
+    (#2774). Environment-variable control of ``ProgramFiles`` remains a
+    stronger precondition than PATH planting, but these roots are still
+    environment-derived — not independently attested install locations.
+    """
+    candidates: list[tuple[str, tuple[str, ...]]] = [
+        ("ProgramFiles", ("Git",)),
+        ("ProgramFiles(x86)", ("Git",)),
+    ]
+    roots: list[Path] = []
+    for key, rel in candidates:
+        base = os.environ.get(key)
+        if not base:
+            continue
+        try:
+            candidate = Path(base).joinpath(*rel).resolve()
+        except OSError:
+            continue
+        if candidate.is_dir():
+            roots.append(candidate)
+    return tuple(roots)
+
+
+@functools.lru_cache(maxsize=1)
+def _nt_trusted_readonly_bin_roots() -> tuple[Path, ...]:
+    """Resolved absolute directories on Windows whose contents the belt trusts.
+
+    Built from well-known Git installation roots (ProgramFiles /
+    ProgramFiles(x86) only — not user-writable LocalAppData) and
+    ``%SystemRoot%`` — because a SUBSTRING match on a path fragment such as
+    ``/git/usr/bin/`` is satisfied by any repository-controlled directory that
+    merely spells that fragment (``D:/anyrepo/git/usr/bin/find``), which would
+    hard-``allow`` a planted binary carrying an allowlisted basename. Anchoring
+    to the resolved root removes that bypass; an unresolvable root contributes
+    NO trusted directories. Git roots are never taken from ``PATH``. Environment
+    variables still supply the roots — they are not independently attested.
+    """
+    roots: list[Path] = []
+    for git_root in _nt_known_git_installation_roots():
+        roots.extend(git_root.joinpath(*parts) for parts in _NT_GIT_TRUSTED_BIN_SUBDIRS)
+    system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT")
+    if system_root:
+        try:
+            resolved_system = Path(system_root).resolve()
+        except OSError:
+            resolved_system = None
+        if resolved_system is not None:
+            roots.extend(
+                resolved_system.joinpath(*parts)
+                for parts in _NT_SYSTEM_TRUSTED_BIN_SUBDIRS
+            )
+    return tuple(roots)
+
+
+def _is_within_directory(path: Path, directory: Path) -> bool:
+    """True when ``path`` sits under ``directory`` as an ANCHORED path prefix.
+
+    Compared case-insensitively (Windows paths are case-insensitive) on posix
+    spellings, and via a trailing separator so a sibling directory whose name
+    merely starts with the trusted one (``.../Gitx/usr/bin``) cannot match.
+    """
+    base = directory.as_posix().casefold().rstrip("/")
+    if not base:
+        return False
+    return path.as_posix().casefold().startswith(base + "/")
+
+
+def _path_under_trusted_readonly_bin(path: Path) -> bool:
+    """True when ``path`` is a real file under a trusted system binary directory."""
+    if not path.is_file():
+        return False
+    if os.name == "nt":
+        if any(
+            _is_within_directory(path, root)
+            for root in _nt_trusted_readonly_bin_roots()
+        ):
+            return True
+    key = path.as_posix()
+    return any(key.startswith(prefix) for prefix in _TRUSTED_READONLY_BIN_PREFIXES)
+
+
+def _trusted_system_readonly_head(head: str) -> bool:
+    """True when ``head`` is a trusted-system executable for the allowlist.
+
+    Absolute paths only: require the real path (symlink-resolved) under a
+    trusted prefix. Bare names are denied — ``shutil.which`` finds the system
+    binary while Bash still executes an exported function of the same name
+    first (``BASH_FUNC_ls%%``), so a which()-based identity check cannot prove
+    what the shell will run. Relative path-qualified forms are denied.
+
+    On Windows, Git Bash spells system tools as MSYS paths (``/usr/bin/ls``).
+    Native ``Path.is_absolute()`` requires both a drive and a root, so those
+    POSIX-style heads are NOT absolute to pathlib — the MSYS reinterpretation
+    against known Git installation roots MUST run before the ``is_absolute``
+    gate, or the allowlist accepts nothing on Windows (#2774). Native
+    ``Path.resolve`` would otherwise map ``/usr/bin/ls`` onto the current drive.
+    """
+    if not head:
+        return False
+    if "/" not in head and "\\" not in head:
+        return False
+    # MSYS absolute path BEFORE is_absolute(): /usr/bin/ls → <GitRoot>/usr/bin/ls[.exe]
+    if os.name == "nt" and head.startswith("/") and not head.startswith("//"):
+        rel_parts = tuple(part for part in head.split("/") if part)
+        if not rel_parts:
+            return False
+        for git_root in _nt_known_git_installation_roots():
+            mapped = git_root.joinpath(*rel_parts)
+            for variant in (mapped, mapped.with_suffix(".exe"), mapped.with_suffix(".EXE")):
+                try:
+                    resolved = variant.resolve()
+                except OSError:
+                    continue
+                if _path_under_trusted_readonly_bin(resolved):
+                    return True
+        return False
+    candidate = Path(head)
+    if not candidate.is_absolute():
+        return False
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return False
+    return _path_under_trusted_readonly_bin(resolved)
+
+
+def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
+    """Parse ``/usr/bin/[ ... ]`` (absolute ``[``) into ``(head, interior_words)``.
+
+    Bare ``[ ... ]`` is intentionally not accepted: a shell function named ``[``
+    shadows the binary the same way a function shadows bare ``ls``.
+    ``_literal_shell_words`` rejects ``[``/``]`` as metacharacters, so this
+    path is parsed with the same bookend rules as the bare form, then the
+    absolute head is identity-checked separately.
+    """
+    text = command.strip()
+    space = text.find(" ")
+    if space < 0:
+        return None
+    head = text[:space]
+    if not head.endswith("["):
+        return None
+    if "/" not in head and "\\" not in head:
+        return None
+    rest = text[space + 1 :]
+    # ``/usr/bin/[`` receives ``]`` as its own final argv word.
+    if rest != "]" and not rest.endswith(" ]"):
+        return None
+    interior = "" if rest == "]" else rest[:-1].strip()
+    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+        return None
+    if not interior:
+        return head, []
+    words = _literal_shell_words(interior)
+    if words is None:
+        return None
+    return head, words
+
+
+def is_exact_readonly_supporting_command(command: str) -> bool:
+    """Return True for one literal-form read-only supporting Bash command (#2591).
+
+    The belt remains deny-by-default; this opens only the small inspection set
+    needed after the skill-frontmatter hook stays armed for the rest of the
+    session (#2618). Engine containment is still the deletion authority.
+    Heads must be absolute paths under a trusted system directory — bare names
+    are denied because exported shell functions shadow them.
+    """
+    absolute_bracket = _absolute_bracket_test_words(command)
+    if absolute_bracket is not None:
+        head, bracket_words = absolute_bracket
+        return bool(bracket_words) and _trusted_system_readonly_head(head)
+    # Bare ``[ ... ]`` is never allowlisted (function-shadowable bookend).
+    if _parse_bracket_test_words(command) is not None:
+        return False
+    tokens = _literal_shell_words(command)
+    if tokens is None or not tokens:
+        return False
+    head = tokens[0]
+    basename = _readonly_supporting_basename(head)
+    if basename not in _READONLY_SUPPORTING_BASH_HEADS:
+        return False
+    if not _trusted_system_readonly_head(head):
+        return False
+    if basename == "find":
+        return _is_readonly_find(tokens)
+    if basename == "test":
+        return len(tokens) >= 2
+    return True
+
+
 _POWERSHELL_MUTATION_WORDS = re.compile(
     r"(?i)(?<![\w./\\-])("
     r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|clear-recyclebin|rimraf|unlink"
@@ -968,7 +1315,37 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
-_POWERSHELL_OUTPUT_REDIRECT = re.compile(r"(?<![<>])>(?![=>])")
+# Exclude the two redirect forms that cannot name a file:
+#   - stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
+#     streams and never designates a file;
+#   - the `$null` discard (`2>$null`, `*>$null`, `>$null`): PowerShell's
+#     /dev/null. Spelled as guardrails' `ps::write_bypass` spells it — a `>`
+#     whose target is `$null` — and case-insensitively, because PowerShell
+#     variable names are. Only horizontal whitespace is skipped between `>`
+#     and `$null`, so a trailing `>` cannot borrow a `$null` from the next
+#     line. After `$null`, require a real token terminator (whitespace, `;`,
+#     `|`, `)`, `}`, or end-of-string): punctuation continuations like
+#     `>$null/out.txt` or `2>$null\evil.ps1` are still file redirects because
+#     PowerShell concatenates the literal path onto the empty `$null` expansion.
+# File redirects still match: `2>out.txt`, `> out.txt`, `1>file`, and a command
+# that discards one stream while redirecting another (`... 2>$null > out.txt`),
+# whose second `>` has no `$null` after it.
+# Append (`>>`) is NOT covered here: `(?![=>&])` rejects the first `>` of the
+# pair and the lookbehind rejects the second, so `>>` is invisible — see
+# `_POWERSHELL_APPEND_REDIRECT` (#2675).
+_POWERSHELL_OUTPUT_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
+# File append (`>>`, `2>>file`, `*>>file`). Matched separately rather than by
+# widening the single-`>` lookahead, which is load-bearing for the stream-merge
+# and `$null`-discard exclusions above. Exclude `>> $null` the same way
+# guardrails' `ps::write_bypass` excludes the `$null` discard — case-
+# insensitively, horizontal whitespace only, and with a real token terminator
+# after `$null` (whitespace, `;`, `|`, `)`, `}`, or end-of-string) so
+# punctuation continuations like `>>$null/out.txt` stay flagged.
+_POWERSHELL_APPEND_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>>(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path
 # (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
@@ -982,6 +1359,29 @@ _POWERSHELL_ROBOCOPY_PURGE = re.compile(
 _POWERSHELL_QUALIFIED_DELETE = re.compile(
     r"(?i)[a-z][\w.]*\\(remove-item|clear-content|clear-recyclebin)(?![\w-])"
 )
+# Manual-handoff Recycle Bin spellings the skill prefers (#2595). VisualBasic
+# FileIO is also reachable via deletefile/deletedirectory word matches; keep an
+# explicit type-qualified form so the verdict names the preferred path. Shell
+# .Application NameSpace(10) (CSIDL_BITBUCKET; also 0xa) + MoveHere/InvokeVerb
+# had no prior coverage.
+_POWERSHELL_VB_FILESYSTEM_DELETE = re.compile(
+    r"(?i)Microsoft\.VisualBasic\.FileIO\.FileSystem\s*\]?\s*::\s*"
+    r"Delete(?:File|Directory)\b"
+)
+_POWERSHELL_SHELL_APP_NAMESPACE_BIN = re.compile(
+    r"(?i)NameSpace\s*\(\s*(?:10|0x0*a)\s*\)"
+)
+_POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
+    r"(?i)(?<![\w])(?:MoveHere|InvokeVerb)\b"
+)
+
+
+def _is_shell_application_recycle_bin_delete(command: str) -> bool:
+    """True for Shell.Application Recycle Bin MoveHere / InvokeVerb shapes."""
+    return (
+        _POWERSHELL_SHELL_APP_NAMESPACE_BIN.search(command) is not None
+        and _POWERSHELL_SHELL_APP_BIN_ACTION.search(command) is not None
+    )
 
 
 def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
@@ -1012,6 +1412,18 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "exact guarded command shapes, not PowerShell. To READ the engine "
             "source, use non-shell file tools.",
         )
+    if _POWERSHELL_VB_FILESYSTEM_DELETE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
+            "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
+        )
+    if _is_shell_application_recycle_bin_delete(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged a Shell.Application NameSpace(10) Recycle Bin "
+            "MoveHere/InvokeVerb deletion.",
+        )
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:
         return _powershell_mutation_verdict(
@@ -1022,9 +1434,11 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     if new_item_force:
         return _powershell_mutation_verdict(
             enabled,
-            'disk-hygiene flagged New-Item -Force (truncates an existing file).',
+            "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
-    if _POWERSHELL_OUTPUT_REDIRECT.search(command):
+    if _POWERSHELL_OUTPUT_REDIRECT.search(
+        command
+    ) or _POWERSHELL_APPEND_REDIRECT.search(command):
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",
@@ -1077,15 +1491,24 @@ def _bash_denial_guidance(authority: str | None) -> str:
         )
     )
     subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
+    supporting = ", ".join(sorted(_READONLY_SUPPORTING_BASH_HEADS | {"["}))
     return (
         "Disk-hygiene fails closed: Bash is restricted to exact bundled "
         f"{subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} invocations of "
         f'"{_display_path(_engine_script_path())}", plus the argument-free '
-        f'read-only kill-switch probe "{_display_path(_probe_script_path())}" — '
+        f'read-only kill-switch probe "{_display_path(_probe_script_path())}", '
+        f"plus literal-form read-only supporting commands ({supporting}; find "
+        "without -delete/-exec/-ok/-fprint side-effect primaries; [ only as an "
+        "absolute-path complete /usr/bin/[ ... ] expression with the closing ] "
+        "bookend; every head, [ included, only as an absolute path under a "
+        "trusted system directory — bare names are denied because exported "
+        "shell functions shadow them) — "
         "all of them using the hook's absolute Python interpreter "
-        f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
+        f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
+        "commands are denied because shell functions and aliases can replace them."
         + data_sentence
-        + " Use non-Bash read-only tools for supporting inspection."
+        + " Supporting inspection may use that small Bash allowlist or non-Bash "
+        "read-only tools; everything else stays denied."
     )
 
 
@@ -1258,6 +1681,25 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             )
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
+        return 0
+    if is_exact_readonly_supporting_command(command):
+        # Engine-gate mode runs in every consumer session. A hard `allow` here
+        # would bypass the user's permission prompt for an allowlisted command
+        # that also names the engine path (#2774). `ask` keeps the ergonomic
+        # win while preserving the prompt for sessions that never invoked clean.
+        permission = (
+            "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
+        )
+        print(
+            json.dumps(
+                decision(
+                    permission,
+                    "Exact literal-form read-only supporting Bash command "
+                    "(disk-hygiene belt inspection allowlist).",
+                )
+            )
+        )
+        _emit_guard_telemetry(start, tool_name, "ok", decision_value=permission)
         return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview", "handoff-verify"}:

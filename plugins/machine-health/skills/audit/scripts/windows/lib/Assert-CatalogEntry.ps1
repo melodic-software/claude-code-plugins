@@ -11,9 +11,10 @@ function covers the fields and rules the orchestrator relies on.
 
 Returns $true on success; throws on violation with a message that names the
 offending entry by id (or a stable index when id is missing/invalid).
-Callers typically wrap in try/catch and skip invalid entries with a warning
-so a single typo does not prevent the orchestrator from running the rest
-of the catalog.
+Callers typically wrap in try/catch, continue past the bad entry so a single
+typo does not take down the run, and synthesize an UNKNOWN CheckResult via
+New-InvalidCatalogEntryResult so the skip is visible in the report — not only
+in the run log.
 #>
 
 function Assert-CatalogEntry {

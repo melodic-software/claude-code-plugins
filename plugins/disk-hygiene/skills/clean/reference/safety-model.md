@@ -22,13 +22,17 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 ## Non-overridable checks
 
 - target containment; an OS-managed root (per `system_roots()` — the OS drive holding an existing
-  Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied,
-  while a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume metadata
-  every volume has and no OS-install marker) is a valid target rather than blanket-denied — but as a
-  known-large root it is routed through the large-target scan gate below (bound or confirm), and
-  deletion stays gated by the preview and per-tier approval;
+  Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
+  a recursive walk target, while `--root-children` may address that same root only as a listing of
+  immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
+  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied
+  — but as a known-large root it is routed through the large-target scan gate below (bound or
+  confirm), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
-  registry/profile hive, VCS metadata or tracked file;
+  registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
+  verifier may classify a whole standalone Git checkout `clear` under the complete evidence bundle
+  below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
@@ -119,6 +123,42 @@ it exists exactly where `execution-platform-unsupported` blocks the engine lane 
 deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
 per item, under the final human permission prompt the PowerShell guard raises.
 
+### Standalone Git checkout evidence
+
+VCS protection remains categorical in preview, apply, and every handoff verification that does not
+explicitly supply `--vcs-evidence`. The evidence mode can relax only
+`vcs-tracked-content`, `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the opaque scan
+boundary at that `.git` marker. It does so only when all four live gates pass for every repository
+marker within the one approved checkout:
+
+1. `git status --porcelain=v1 --untracked-files=all --ignored=matching --ignore-submodules=none`
+   exits successfully and emits nothing — including gitignored-but-present paths (`.env`, local
+   databases, IDE state) that ordinary porcelain status would omit.
+2. Every `refs/heads/*` tip, plus a detached `HEAD` when present, is confirmed by exact SHA through
+   the configured `github.com` remote's `gh api repos/<owner>/<repo>/commits/<sha>` endpoint. An
+   unborn repository with no local heads satisfies this gate vacuously; a missing remote is accepted
+   only in that case.
+3. Every SHA emitted by `git stash list --format=%H` also appears in the stash list of at least one
+   declared independent checkout outside all approved deletion paths; no stashes satisfies the gate.
+4. The checkout is one exact path in the existing human-approved `handoff-paths.json`. The evidence
+   option adds no approval surface and creates no token.
+
+The engine discovers `.git` markers from live descendants and requires their repository-root set to
+equal the evidence file exactly. `git rev-parse --show-toplevel` must bind each marker to the declared
+root, and `--git-common-dir` must resolve inside the approved checkout; this rejects linked
+worktrees. Stash-copy paths must be absolute, non-link checkout roots, independent of the candidate
+and every path approved in the same handoff, and must resolve a `--git-common-dir` distinct from
+(and not nested under) the source repository's common Git directory — a linked worktree of the
+candidate shares stash refs and is not an independent backup. Only GitHub.com is implemented:
+unsupported providers, missing tools, timeouts, diagnostics, malformed output, set mismatches,
+dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
+categorical reasons.
+
+Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
+link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
+deletion remains a per-path manual handoff under the existing final permission prompt, and the
+verdict still expires immediately.
+
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
 | `clear` | Every check passed against live state at emission time | Delete this exact path immediately — verify one path per deletion, never one batch for all (earlier checks age while later paths are probed) |
@@ -134,7 +174,7 @@ any delay or interruption means re-running handoff-verify. Managed-state exclusi
 always was in the manual lane — model judgment plus human review of the audit report — because
 snapshot entries carry no owner claim for the engine to check.
 
-The skill-scoped Bash guard accepts only complete literal words in the four declared engine command
+The skill-frontmatter Bash belt accepts only complete literal words in the four declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
@@ -178,22 +218,31 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
-Because this lane enumerates spellings instead of denying unknown commands, its coverage is
-knowingly partial: the flagged set is deletion- and recycle-shaped (plus `robocopy` mirror/purge/move
-and .NET `Delete`), so destructive **non-deletion** spellings — `Move-Item`/`mv`, `Rename-Item`,
-overwriting writers (`Set-Content`, `Out-File`, `>`, `New-Item -Force`), and volume operations
-(`Format-Volume`, `Clear-Disk`) — reach the tool with no guard verdict at all, in audit-only mode
-included. The only thing standing between them and the filesystem is the consumer's own permission
-policy, never this guard: the manual handoff's per-path approval covers the paths selected for
-removal, so it does not reach what such a command collaterally destroys — a `Move-Item -Force`
-destination, a truncated `Out-File` target, or an entire volume.
+The flagged set is no longer deletion-shaped only. Since #2470 it also covers destructive
+**non-deletion** spellings: `Move-Item`/`mv`/`move`, `Rename-Item`/`ren`/`rename`, the overwriting
+writers (`Set-Content`, `Out-File`, `Add-Content`, `New-Item -Force`, and both `>` file redirection
+and `>>` append — with PowerShell's stream merges and `$null` discards excluded),
+and the volume operations (`Format-Volume`, `Clear-Disk`, `Initialize-Disk`), alongside `robocopy`
+mirror/purge/move and .NET `Delete`. Each resolves against the kill switch on the same terms as a
+deletion spelling: `ask` when execution is enabled, denied outright in audit-only. Issue #387, which
+recorded the move/rename/overwrite/format gap, is closed.
 
-TODO(#387): extend the flagged set to those spellings.
+Because the lane still **enumerates** spellings rather than denying unknown commands, its coverage
+remains knowingly partial — a raised bar, not a fail-closed lane. Concrete residuals: the
+module-qualified form (`Module\Cmdlet`) is covered only for `Remove-Item`, `Clear-Content`, and
+`Clear-RecycleBin`, so a module-qualified `Move-Item` passes; the .NET pattern matches `Delete`
+alone, so writer and mover calls such as `[System.IO.File]::WriteAllText` or `::Move` pass; and any
+spelling nobody enumerated passes. For anything that passes, the only thing standing between it and
+the filesystem is the consumer's own permission policy, never this guard — the manual handoff's
+per-path approval covers the paths selected for removal, so it does not reach what such a command
+collaterally destroys: a `Move-Item -Force` destination, a truncated `Out-File` target, or an entire
+volume. The engine's own containment, revalidation, and platform gates remain the deletion
+authority.
 
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
 `hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-scoped belt** (the clean skill's frontmatter hook, shell form through the same launcher
+**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher
 since 0.17.9) — and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
@@ -214,8 +263,17 @@ resolves `false` (audit-only mode), `false` is guard-enforced — denied outrigh
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
-the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
-skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
+the **skill-frontmatter belt** (`powershell_decision`) — denied outright in audit-only — for the **rest of
+the session after the skill is invoked**. Claude Code registers a skill's frontmatter `PreToolUse` hooks
+when the skill is invoked and keeps them registered session-wide; the skills reference states it plainly
+("Hooks that Claude Code registers when the skill is invoked and keeps running for the rest of the
+session"). There is no harness-level "while the skill is active" window for hooks (#2618). The asymmetry
+is easy to misread and is worth naming: a skill's `allowed-tools` and `disallowed-tools` grants DO clear
+on the user's next message, but its `hooks` do not — so "skill-scoped" is true of the tool grants and
+false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
+the same session (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
+retracted by finishing the cleanup — only the session's end clears it.
+An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees** — every Bash engine `apply`, and on
 PowerShell only the flagged spellings above — so an unreadable toggle never silently disables the
 guard.
@@ -244,7 +302,9 @@ premises if 2.1.207's user-scope-only `pluginConfigs` behavior changes upstream.
 
 PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool on 2.1.218 (payload
 `tool_name` is literally `PowerShell`, confirmed by a live block through that tool); there is no harness
-firing divergence. The gate defers instantly (no output) for any command that does not reference the
+firing divergence. Read `tool_name` from the stdin payload, never from an env var — `CLAUDE_TOOL_NAME`
+does not exist. Where both surfaces see the same command their verdicts are idempotent. The gate defers
+instantly (no output) for any command that does not reference the
 engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
 preview/approval-token containment). The model additionally reads the `disk_hygiene_enabled` value from
@@ -255,7 +315,7 @@ deletion authority.
 
 **Hook launch form, and what it does and does not bound (0.17.8 #1416; extended to the belt in
 0.17.9, #2568).** All three registrations — the engine gate on `PreToolUse`, its detector on `Stop`,
-and the skill-scoped belt in the clean skill's frontmatter — use **shell form**: the `command` string
+and the skill-frontmatter belt in the clean skill's frontmatter — use **shell form**: the `command` string
 names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`. Exec form was not viable: it is
 a bare `PATH` lookup, and on Windows `"command": "bash"` resolves to the WSL relay
 `System32\bash.exe` before Git Bash while `"command": "python3"` resolves to the zero-length
@@ -301,7 +361,7 @@ independently and out of scope here; the detector's command-substring filter mat
 way it is invisible to the engine gate's own coverage marker (see above); and it never retroactively
 scans a prior session's transcript — only the transcript named by the current `Stop` event's own
 `transcript_path`. Interpreter resolution is no longer one of those gaps: since #1504 the wired hooks
-— and since #2568 the skill-scoped belt — launch through the shared `hooks/run-python-hook.sh`, which
+— and since #2568 the skill-frontmatter belt — launch through the shared `hooks/run-python-hook.sh`, which
 tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsApps` alias stub, and —
 in monitor mode — emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher

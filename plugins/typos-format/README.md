@@ -21,18 +21,23 @@ opt-in required.
   on a consumer typos config existing. When a config IS present, typos' own
   file-anchored discovery still finds and applies it (allowlist/exclude), in
   its documented precedence order — this plugin never re-implements that walk.
-- **No extension filter.** Unlike sibling formatter plugins (Ruff, Markdown),
-  typos is language-agnostic — it runs on any edited file.
+- **Scan is language-agnostic; write is extension-scoped.** The read-only scan
+  runs on any edited file (unlike sibling formatter plugins). Opt-in write mode
+  only calls `--write-changes` for an explicit allowlist of source, prose, and
+  hand-edited config extensions — unknown extensions, extensionless paths, and
+  fixture/lock/binary-adjacent types stay report-only even when
+  `typos_format_write_changes` is on (#2650).
 - **Report-only by default.** A dictionary autocorrect is a content mutation
   you never asked for, and an unconditional writer here raced sibling
   formatter hooks on the same file with no defined ordering (#1809). Out of
   the box the hook reports findings and never modifies a file.
-- **Fix in place is an opt-in.** With `typos_format_write_changes` set to
-  `true`, `typos --write-changes` applies every correction it has confidence
-  in. Residual findings — an entry with no known correction (e.g. a
-  blank-correction `extend-words` entry marking a term "disallowed"), or one
-  with more than one candidate correction — surface as advisory context, never
-  auto-applied.
+- **Fix in place is an opt-in, then an allowlist.** With
+  `typos_format_write_changes` set to `true`, `typos --write-changes` applies
+  every correction it has confidence in — but only when the edited path's
+  extension is on the write allowlist. Residual findings — an entry with no
+  known correction (e.g. a blank-correction `extend-words` entry marking a
+  term "disallowed"), or one with more than one candidate correction — surface
+  as advisory context, never auto-applied.
 - **Every applied rewrite is disclosed.** A correction changes the content of
   your file, so the hook reports each one it applied — the word, its
   replacement, and the line — to Claude *and* to you, capped at ten per run
@@ -102,7 +107,7 @@ Two `userConfig` options tune the hook itself:
 | Option | Default | Effect |
 |--------|---------|--------|
 | `typos_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
-| `typos_format_write_changes` | `false` | Set `true` to apply corrections in place (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. |
+| `typos_format_write_changes` | `false` | Set `true` to apply corrections in place for write-allowlisted extensions (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. Denied extensions stay report-only even when this is on. |
 
 Set them interactively with `/plugin configure typos-format@<marketplace>`, or headless on the
 install command:
@@ -126,7 +131,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-check on edit of any file, unconditionally (report-only unless typos_format_write_changes is on) |
-| `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. |
+| `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
 
 ### How to set these
 

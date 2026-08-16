@@ -3,6 +3,124 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.8]
+
+### Fixed
+
+- **Worktree create refuses a cross-drive unconfigured default on Windows (#2806).**
+  `scripts/worktree-create.sh` same-drive guard now fails closed at rung 4 (plugin
+  data-dir default) with the same remedy-first exit 3 as rungs 1–3, instead of
+  warn-and-proceed. An unconfigured cross-drive machine no longer creates a
+  worktree that `git worktree move` will fail on with EXDEV / Improper link; the
+  refusal is visible on the `WorktreeCreate` hook path (non-zero stderr), where
+  the previous exit-0 warning was dropped to the debug log. Skill create contract
+  (`skills/worktree/SKILL.md`, `context/create.md`, evals) documents cross-drive
+  as an exit-3 case alongside missing/nested roots.
+
+## [0.54.7]
+
+### Added
+
+- **Stale-base squash-merge hygiene (#2691).** Document the babysit/pull-request rule: never
+  squash-merge while the head is behind its base (even when `mergeStateStatus` is CLEAN under
+  a non-strict ruleset). Point at `scripts/check-stale-base-overlap.sh` and the durable
+  `requiredStatusChecks.strict` setting in the org's branch-protection / ruleset repo.
+
+## [0.54.6]
+
+### Changed
+
+- **Nesting-invariant probe run recorded as inconclusive (#2768).**
+  `fixtures/nesting-invariant-probe.sh` was executed on Claude Code **2.1.232** with every
+  discriminator pinned (creation=`git worktree add`, launch=`cd`+`claude -p --settings`,
+  glob=`src/**`, parent rule committed, four placements). All four arms hit the script's
+  fixture-failure trap — zero `InstructionsLoaded` events because the CLI was
+  unauthenticated — which is **not** a null finding about the leak. README and SKILL.md
+  stamp refreshed; arm statuses remain disputed/untested. Probe now prints pinned
+  discriminators and surfaces `claude` stderr on a zero-event arm.
+
+## [0.54.5]
+
+### Fixed
+
+- **Nesting-invariant SSOT test enforces the unconditional expiry date arm (#2767).**
+  `nesting-invariant-ssot.test.sh` previously only asserted the literal strings
+  `as-of **2026-08-07**` and `Unconditional expiry` — so the stamp could pass its
+  expiry and the suite stayed green forever. It now parses the as-of date and both
+  expiry arms, fails when today is on or after the date arm, asserts the version
+  arm is present and `N.N.N`-shaped (not evaluated — CI has no live Claude Code
+  version), and proves the red path with an injected post-expiry "today".
+
+## [0.54.4]
+
+### Changed
+
+- **Docs:** `/worktree audit` no longer enumerates a subset of non-`safe` Work values
+  (#2766). SKILL.md Step 1 flags any Work value other than `safe` (owned by
+  `context/status.md`), so the list cannot drift when the axis gains a value.
+  `context/audit.md` health presentation adds `in-progress` and `dirty` — the two
+  classes `cleanup` refuses — alongside stranded/unproven. Docs-only.
+
+## [0.54.3]
+
+### Changed
+
+- **Docs:** `/worktree create` and `/worktree cleanup` now document `git worktree repair`
+  (#2765). `context/create.md` adds a cross-drive / move-unavailable caveat with the
+  unlock → copy → `repair` → re-lock sequence (helper-created worktrees are locked).
+  `context/cleanup.md` Step 5 names `repair` alongside `prune` and states the
+  distinction. Docs-only; no behavior change.
+
+## [0.54.2]
+
+### Fixed
+
+- **Worktree create enforces the same-drive-on-Windows invariant (#2764).**
+  `scripts/worktree-create.sh` now compares the repository and resolved worktree
+  path drive letters (path-shape gate: both sides must match `<letter>:/`, so
+  POSIX and UNC stay inert). An explicit or configured root on a different drive
+  (rungs 1–3: `--root` / `melodic.worktreeroot` / `--fallback-root`) is refused
+  with exit 3 and a remedy-first message. The unconfigured plugin-data-dir
+  default (rung 4) warns loudly and still creates — refusing would fail every
+  harness-driven `WorktreeCreate` on a cross-drive machine. Closes the gap where
+  the invariant was stated in `plugin.json` and the containment message but never
+  enforced; `git worktree move` cannot cross volumes (`rename()` / EXDEV).
+
+## [0.54.1]
+
+### Changed
+
+- **setup:** Two articles dropped from the local-overlay fixture's prose comment
+  (`.claude/source-control.local.md`) by the repo-wide `/docs-hygiene:compress` pass —
+  semantic-diff verified (0 semantic loss). No behavior change.
+
+## [0.54.0]
+
+### Added
+
+- **`worktree-add-containment-gate` PreToolUse Bash hook (#2611).** Blocks a raw
+  `git worktree add` whose statically-resolved target lands inside a git working tree
+  or a `.git` / bare directory, naming the configured external root
+  (`melodic.worktreeroot`, then `worktree_root`, then the plugin data dir). Conforming
+  targets pass silently; unresolved targets pass. Kill switch:
+  `worktree_add_containment_gate_enabled`.
+- **`scripts/worktree-root-doctor.sh` (#2612).** Conformance check for the
+  `melodic.worktreeroot` convention against the live repository: makes the silent
+  `includeIf` failure classes loud (unfired or unrecognized conditions, missing
+  include files, parse-order shadowing, scoped-read divergence, identity partials,
+  a root inside a repository) and names which rule supplied the root.
+  `/worktree audit` runs it as part of its configuration-health step. Convention
+  owner doc: `reference/worktree-root-convention.md`.
+
+### Changed
+
+- **Worktree root resolution prefers `melodic.worktreeroot` over the plugin option (#2610/#2612).**
+  `scripts/worktree-create.sh` and `hooks/worktree-create-gate.sh` resolve most-specific-first:
+  explicit `--root`, then the git config key (includes on), then `--fallback-root` (plugin option),
+  then the plugin data directory. Documented in `reference/worktree-root-convention.md`. The
+  `/worktree create` skill passes `${user_config.worktree_root}` via `--fallback-root-file` (not
+  `--root-file`) so the primary creation flow honors the same precedence.
+
 ## [0.53.25]
 
 ### Changed

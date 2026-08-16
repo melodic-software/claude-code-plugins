@@ -263,6 +263,56 @@ assert_eq "the configured root wins over the data dir" \
 assert_file_absent "nothing created under the data dir when a root is configured" \
   "$DATA_DIR/worktrees/acme-widget-feat-precedence"
 
+# --- Case: melodic.worktreeroot wins over --fallback-root (plugin option) -----
+# The git config key is machine truth every consumer can read; the plugin option
+# only this plugin can read, so it ranks below (#2610/#2612).
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+config_root="$TEST_TMPDIR_NATIVE/config-root"
+fallback="$TEST_TMPDIR_NATIVE/fallback-root"
+git -C "$repo" config --local melodic.worktreeroot "$config_root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/gitconfig --fallback-root "$fallback" --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+assert_exit "melodic.worktreeroot plus --fallback-root creates (exit 0)" 0 "$?"
+assert_eq "melodic.worktreeroot wins over --fallback-root" \
+  "$config_root/acme-widget-feat-gitconfig" "$out"
+assert_file_absent "nothing under the fallback root when git config supplies one" \
+  "$fallback/acme-widget-feat-gitconfig"
+
+# --- Case: explicit --root wins over melodic.worktreeroot (most specific first) ---
+# A per-invocation caller decision outranks the machine convention; without this,
+# setting the key would silently override every deliberate --root.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+explicit_root="$TEST_TMPDIR_NATIVE/explicit-root"
+git -C "$repo" config --local melodic.worktreeroot "$TEST_TMPDIR_NATIVE/keyed-root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/explicit --root "$explicit_root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root plus melodic.worktreeroot creates (exit 0)" 0 "$?"
+assert_eq "explicit --root wins over melodic.worktreeroot" \
+  "$explicit_root/acme-widget-feat-explicit" "$out"
+assert_file_absent "nothing under the keyed root when --root is explicit" \
+  "$TEST_TMPDIR/keyed-root/acme-widget-feat-explicit/README.md"
+
+# --- Case: melodic.worktreeroot is multi-valued and the LAST value wins -----------
+# includeIf layering APPENDS values in parse order rather than replacing them, so
+# a per-identity include's answer is the last parsed — a first-wins read would
+# silently return the machine default and defeat the whole per-identity layer.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+git -C "$repo" config --local --add melodic.worktreeroot "$TEST_TMPDIR_NATIVE/first-root"
+git -C "$repo" config --local --add melodic.worktreeroot "$TEST_TMPDIR_NATIVE/last-root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/lastwins --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+assert_exit "a multi-valued key creates (exit 0)" 0 "$?"
+assert_eq "the LAST melodic.worktreeroot value wins" \
+  "$TEST_TMPDIR_NATIVE/last-root/acme-widget-feat-lastwins" "$out"
+assert_file_absent "nothing under the earlier value" \
+  "$TEST_TMPDIR/first-root/acme-widget-feat-lastwins/README.md"
+
+# --- Case: a melodic.worktreeroot pointing inside a repository refuses (exit 3) ---
+# The containment guard judges the RESOLVED root whatever rung supplied it; a
+# misconfigured key must not become a licensed nesting.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+git -C "$repo" config --local melodic.worktreeroot "$repo/.claude/worktrees"
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/keynested --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "an in-repo melodic.worktreeroot refuses exit 3" 3 "$?"
+assert_contains "the in-repo key refusal names the repository" "$err" "inside the repository"
+
 # --- Case: a missing --data-root-file path is a usage error (exit 2) ---
 # Mirrors the --root-file contract: a caller naming a file that is not there has a
 # broken handoff, which is not the same as declining to supply one.
@@ -797,5 +847,76 @@ else
   fail "plain removal exits non-zero while the lock is armed" "non-zero" "0"
 fi
 assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
+
+# --- Unit: same-drive policy (#2764/#2806) ------------------------------------
+# Path-shape gate is pure string work; extract the helpers so Linux CI can prove
+# refuse / inert / same-drive without a second volume. Integration coverage
+# on a real NTFS dual-drive host is the Windows backslash block's sibling.
+eval "$(awk '/same-drive helpers \(begin\)/{p=1; next} /same-drive helpers \(end\)/{p=0} p' "$HELPER")"
+# shellcheck disable=SC2034 # consumed by check_same_drive, eval'd in above from worktree-create.sh
+PROG=worktree-create.sh
+
+# letter extraction
+assert_eq "drive letter from C:/repos" "C" "$(windows_drive_letter 'C:/repos/foo')"
+assert_eq "drive letter casefolds" "D" "$(windows_drive_letter 'd:/Worktrees')"
+assert_eq "drive letter from /cygdrive/d" "D" "$(windows_drive_letter '/cygdrive/d/worktrees')"
+windows_drive_letter '/tmp/foo' >/dev/null 2>&1
+assert_exit "POSIX path has no drive letter" 1 "$?"
+windows_drive_letter '//server/share/x' >/dev/null 2>&1
+assert_exit "UNC path has no drive letter" 1 "$?"
+# `/d/...` is MSYS-only; on POSIX it must stay inert so `/usr` is never drive U:.
+case "$(uname -s 2>/dev/null || true)" in
+MINGW* | MSYS* | CYGWIN*)
+  assert_eq "MSYS /d/ form is drive D" "D" "$(windows_drive_letter '/d/worktrees')"
+  err=$(check_same_drive 'C:/repos/acme' '/d/worktrees/acme-x' 1 2>&1 >/dev/null)
+  assert_exit "MSYS root vs Windows repo refuses cross-drive" 3 "$?"
+  ;;
+*)
+  windows_drive_letter '/d/worktrees' >/dev/null 2>&1
+  assert_exit "POSIX /d/ path is not a drive letter" 1 "$?"
+  ;;
+esac
+
+# same-drive: proceed
+check_same_drive 'C:/repos/acme' 'C:/worktrees/acme-x' 1 >/dev/null 2>&1
+assert_exit "same-drive explicit root proceeds" 0 "$?"
+check_same_drive 'c:/repos/acme' 'C:/worktrees/acme-x' 2 >/dev/null 2>&1
+assert_exit "same-drive casefold proceeds" 0 "$?"
+check_same_drive 'C:/repos/acme' '/cygdrive/c/worktrees/acme-x' 1 >/dev/null 2>&1
+assert_exit "same-drive Cygwin form proceeds" 0 "$?"
+
+# inert when either side lacks a drive letter
+check_same_drive '/tmp/repo' 'D:/worktrees/x' 1 >/dev/null 2>&1
+assert_exit "inert when repo has no drive letter" 0 "$?"
+check_same_drive 'C:/repos/acme' '/var/worktrees/x' 1 >/dev/null 2>&1
+assert_exit "inert when worktree has no drive letter" 0 "$?"
+check_same_drive '/tmp/repo' '/var/worktrees/x' 1 >/dev/null 2>&1
+assert_exit "inert on POSIX both sides" 0 "$?"
+
+# rungs 1–3 refuse cross-drive
+err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 1 2>&1 >/dev/null)
+assert_exit "rung-1 cross-drive refuses exit 3" 3 "$?"
+assert_contains "rung-1 refuse names both drives" "$err" "drive C:"
+assert_contains "rung-1 refuse names the foreign drive" "$err" "drive D:"
+assert_contains "rung-1 refuse is remedy-first (melodic.worktreeroot)" "$err" "melodic.worktreeroot"
+assert_contains "rung-1 refuse names EXDEV" "$err" "EXDEV"
+
+err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 2 2>&1 >/dev/null)
+assert_exit "rung-2 (melodic.worktreeroot) cross-drive refuses exit 3" 3 "$?"
+
+err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 3 2>&1 >/dev/null)
+assert_exit "rung-3 (--fallback-root) cross-drive refuses exit 3" 3 "$?"
+
+err=$(check_same_drive 'C:/repos/acme' '/cygdrive/d/worktrees/acme-x' 1 2>&1 >/dev/null)
+assert_exit "rung-1 Cygwin foreign drive refuses exit 3" 3 "$?"
+
+# rung 4 refuses like rungs 1–3 (#2806; fixture paths stay drive-letter-only — no Users/ home literals)
+err=$(check_same_drive 'C:/repos/acme' 'D:/claude/plugins/cache/worktrees/acme-x' 4 2>&1 >/dev/null)
+assert_exit "rung-4 cross-drive refuses exit 3" 3 "$?"
+assert_contains "rung-4 refuse names both drives" "$err" "drive C:"
+assert_contains "rung-4 refuse names the foreign drive" "$err" "drive D:"
+assert_contains "rung-4 refuse is remedy-first (melodic.worktreeroot)" "$err" "melodic.worktreeroot"
+assert_contains "rung-4 refuse names EXDEV" "$err" "EXDEV"
+assert_contains "rung-4 refuse names Improper link" "$err" "Improper link"
 
 [[ $FAILED -eq 0 ]] || exit 1

@@ -50,7 +50,7 @@ justified.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2):
+Name concrete, located findings (per the method doc's step 2, self-audit):
 
 - a decision justified only by precedent — "that's how this repo does it",
   "the existing code does X, so match it" — with no rationale stated;
@@ -64,6 +64,16 @@ Correct each forward now: re-derive the inherited choice from its actual
 purpose, and either confirm it with a live rationale or challenge it with
 the first-principles alternative. Do not stop at restating what the
 inherited source says — reason about whether it should still hold.
+
+## Reciprocal boundaries
+
+Siblings carve their axes out of this one; keep the carve-outs in sync from
+this side too. Conformance to an EXTERNAL vendor's current docs is
+`/discipline:recheck-against-upstream`'s axis; the production-side rule that
+new work reuses or openly replaces an established way (never a silent second
+way) is `/discipline:reuse-or-replace`'s; a technology/dependency selection is
+`/discipline:pick-for-the-problem`'s. This skill owns the general evaluation
+of inherited content's justification.
 
 ## When the inherited content is a shared standard
 
