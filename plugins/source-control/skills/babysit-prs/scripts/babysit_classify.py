@@ -285,6 +285,21 @@ def body_text(item: dict[str, Any]) -> str:
 # --- Finding heuristics -------------------------------------------------------
 
 
+def _redact_negated_severity(text: str) -> str:
+    """Redact negated findings ahead of a STRUCTURED-severity scan.
+
+    The three substitutions are order-dependent -- one pattern's removal can
+    create or destroy another's match -- so the sequence is defined once here
+    rather than restated at each scan site. `has_blocking_text` deliberately
+    does NOT route through this: it omits the CRITICAL/IMPORTANT marker
+    redaction, and that omission is what keeps the prose vocabulary distinct
+    from the structured one.
+    """
+    redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
+    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
+    return NEGATED_BLOCKING_TERM_RE.sub("", redacted)
+
+
 def has_blocking_text(text: str) -> bool:
     """Apply blocking heuristics after redacting common negated findings."""
     redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
@@ -300,10 +315,7 @@ def has_blocking_severity(text: str) -> bool:
     high-severity finding is blocking even when its prose contains none of
     `BLOCKING_TEXT_RE`'s imperative terms.
     """
-    redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
-    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
-    redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
-    return bool(BLOCKING_SEVERITY_RE.search(redacted))
+    return bool(BLOCKING_SEVERITY_RE.search(_redact_negated_severity(text)))
 
 
 # --- Approval verdict --------------------------------------------------------
@@ -325,9 +337,7 @@ def approval_downgrade(text: str) -> bool:
         return False
     if not APPROVAL_VERDICT_RE.search(text):
         return False
-    redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
-    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
-    redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
+    redacted = _redact_negated_severity(text)
     if BLOCKING_SEVERITY_RE.search(redacted):
         return False
     return not REQUIRED_FIX_RE.search(redacted)

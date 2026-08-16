@@ -31,8 +31,9 @@ import pathlib
 import sys
 from dataclasses import dataclass, field
 
-PLUGIN_ROOT = pathlib.Path(__file__).resolve().parents[4]
-SCRIPTS = pathlib.Path(__file__).resolve().parent.parent
+_HERE = pathlib.Path(__file__).resolve()
+PLUGIN_ROOT = _HERE.parents[4]
+SCRIPTS = _HERE.parent.parent
 GENERATED_DOC = SCRIPTS.parent / "reference" / "guard-contract.md"
 
 MERGE_CLI = "skills/babysit-prs/scripts/babysit_merge.py"

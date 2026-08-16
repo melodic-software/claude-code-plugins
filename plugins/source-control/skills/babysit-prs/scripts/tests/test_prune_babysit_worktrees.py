@@ -24,7 +24,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
@@ -374,15 +373,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # the owning repository.
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
             tmp = pathlib.Path(td)
-            root = tmp / "root"
-            root.mkdir()
-            wt = root / "owner__repo__pr-5"
-            wt.mkdir()
-            owner_repo = tmp / "somerepo"
-            pointer = wt / ".git"
-            pointer.write_text(
-                f"gitdir: {owner_repo}/.git/worktrees/x\n", encoding="utf-8"
-            )
+            root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
             with mock.patch.object(
                 pathlib.Path, "rmdir", side_effect=OSError("locked")
@@ -397,7 +388,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
 
     def _orphan_with_pointer(
         self, tmp: pathlib.Path
-    ) -> "tuple[pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]":
+    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]:
         root = tmp / "root"
         root.mkdir()
         wt = root / "owner__repo__pr-5"
@@ -783,18 +774,8 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         lease_path.parent.mkdir(parents=True)
         lease_path.write_text("{}", encoding="utf-8")
 
-        argv = [
-            "prune_babysit_worktrees.py",
-            "--root",
-            str(root),
-            "--state-dir",
-            str(state_dir),
-            *extra_argv,
-        ]
-        buffer = io.StringIO()
-        with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
-            exit_code = prune.main()
-        return exit_code, json.loads(buffer.getvalue()), orphan_dir, lease_path
+        exit_code, report = run_main(root, state_dir, *extra_argv)
+        return exit_code, report, orphan_dir, lease_path
 
     def test_orphan_dropped_action_with_exit_code_zero(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
@@ -841,22 +822,12 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            argv = [
-                "prune_babysit_worktrees.py",
-                "--root",
-                str(root),
-                "--state-dir",
-                str(state_dir),
-                "--pr",
-                "owner/repo#9",
-                "--lease-token",
-                "caller-token",
+            exit_code, report = run_main(
+                root, state_dir,
+                "--pr", "owner/repo#9",
+                "--lease-token", "caller-token",
                 "--apply",
-            ]
-            buffer = io.StringIO()
-            with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
-                exit_code = prune.main()
-            report = json.loads(buffer.getvalue())
+            )
 
             self.assertFalse(orphan_dir.exists())
             self.assertTrue(lease_path.exists())
@@ -883,19 +854,8 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
             (orphan_dir / "uncommitted-work.txt").write_text("keep", encoding="utf-8")
             state_dir = tmp / "state"
 
-            argv = [
-                "prune_babysit_worktrees.py",
-                "--root",
-                str(root),
-                "--state-dir",
-                str(state_dir),
-                "--apply",
-            ]
-            buffer = io.StringIO()
-            with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
-                with contextlib.redirect_stderr(io.StringIO()) as warnings:
-                    exit_code = prune.main()
-            report = json.loads(buffer.getvalue())
+            with contextlib.redirect_stderr(io.StringIO()) as warnings:
+                exit_code, report = run_main(root, state_dir, "--apply")
 
             self.assertTrue(orphan_dir.exists())
 

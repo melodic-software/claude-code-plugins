@@ -980,13 +980,13 @@ def evaluate(
             ),
             None,
         )
-        satisfied = bool(match) and (match or {}).get("category") == "success"
+        category = match.get("category") if match else None
         required_check_status.append(
             {
                 "context": ctx,
                 "found": bool(match),
-                "satisfied": satisfied,
-                "category": (match or {}).get("category"),
+                "satisfied": category == "success",
+                "category": category,
             }
         )
 

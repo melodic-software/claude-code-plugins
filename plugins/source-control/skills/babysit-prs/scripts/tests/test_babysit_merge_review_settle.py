@@ -310,7 +310,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["state"], "settling")
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 40)
 
-
     def test_newest_wins_across_distinct_check_identities_too(self) -> None:
         result = self._evaluate(
             reviews=[],
