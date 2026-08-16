@@ -34,17 +34,21 @@ Tri-state: `available` → prefer caveman; `absent` OR `unknown` → treat as ab
 **Step B — caveman backend (preferred when available):** cross-tool-call steps (Bash state does not persist across tool calls — no `trap … EXIT`, no relying on `$tempdir` in a later call):
 
 1. **Bash call 1** — create a temp copy and echo its absolute path (no EXIT trap):
+
    ```bash
    tempdir=$(mktemp -d)
    cp "$target" "$tempdir/$(basename "$target")"
    printf '%s\n' "$tempdir/$(basename "$target")"
    ```
+
 2. **Skill call** — `Skill(caveman:compress, args="<absolute-path-from-step-1>")` on that temp copy. Caveman may write `<file>.original.md` beside the copy inside the tempdir.
 3. **Bash call 2** — on caveman success, copy the compressed file back and remove the tempdir explicitly:
+
    ```bash
    cp "<absolute-path-from-step-1>" "$target"
    rm -rf "$(dirname "<absolute-path-from-step-1>")"
    ```
+
    On caveman failure, skip the `cp` and still `rm -rf` the tempdir so the real target is untouched.
 
 Tempdir wrapper contains caveman's hardcoded `<file>.original.md` backup write. Real-path file replaced only on success. Consumers may add a defensive `**/*.original.md` entry to their `.gitignore` as belt-and-suspenders against cleanup races or future caveman backup-path-convention changes.
