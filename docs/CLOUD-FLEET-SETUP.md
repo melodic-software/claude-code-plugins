@@ -47,11 +47,11 @@ Go plus the module `toolchain` mechanism covers this); **PowerShell** (`pwsh` �
 
 ## Bootstrap adoption (2026-08-16)
 
-Adoption is complete and no longer a per-repo decision surface: every melodic-software
-repository a cloud session can attach carries `.claude/cloud-bootstrap.sh`, registers it as a
-`startup|resume` SessionStart hook, declares the `melodic-software` marketplace, and enables the
-catalog. The per-repo enumeration this doc used to carry is therefore retired rather than
-corrected — it restated state that is cheaper to read from the repos themselves.
+Adoption is complete and no longer a per-repo decision surface: all fifteen non-archived
+melodic-software repositories (`gh repo list melodic-software --json name,isArchived`) carry
+`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, declare the
+`melodic-software` marketplace, and enable the catalog. Read adoption state from the repos
+rather than from a table here; a per-repo enumeration in this doc can only lag them.
 
 The script is owned upstream, not per repo: standards
 [`components/cloud-bootstrap`](https://github.com/melodic-software/standards/blob/main/components/cloud-bootstrap/README.md)
@@ -170,8 +170,9 @@ and it lives in standards
 [`components/cloud-bootstrap`](https://github.com/melodic-software/standards/blob/main/components/cloud-bootstrap/README.md);
 that README is the contract, and the
 [sync manifest](https://github.com/melodic-software/standards/blob/main/distribution/sync-manifest.yml)
-decides whether a repo takes it `managed` or owns it `locally-owned`. A second copy of the
-script is what let this doc drift out of step with the fleet, so it keeps none.
+decides whether a repo takes it `managed` or owns it `locally-owned`. The script has exactly one
+copy; this doc does not carry a second one. Both links are subject to the
+[status note above](#bootstrap-adoption-2026-08-16) until standards#397 merges.
 
 Repo-specific steps — extra lockfile locations, pinned hygiene binaries, symlinks — go in a
 committed `.claude/cloud-bootstrap.local.sh`, which the canonical script runs after its generic

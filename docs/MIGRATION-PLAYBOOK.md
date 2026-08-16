@@ -450,11 +450,12 @@ can read afterward. A final version bump is pointless: there is no artifact left
 
 Consumer guidance to state in that PR body:
 
-- Installed copies keep working. The cache is a local snapshot, so a consumer who already installed
-  the plugin keeps it until they uninstall; retirement removes future installs and updates, not the
-  copy on disk.
-- Consumers should drop the plugin's `enabledPlugins` entry. An entry naming a plugin the
-  marketplace no longer publishes is dead weight and will not resolve on a fresh machine.
+- Installed copies keep working. The install is a version-keyed local snapshot — the same property
+  "Same-version commit drift" documents above — so a consumer who already installed the plugin
+  keeps it until they uninstall; retirement removes future installs and updates, not the copy on
+  disk.
+- Consumers should drop the plugin's `enabledPlugins` entry, which now names a plugin the
+  marketplace no longer publishes.
 - No tombstone and no `renames` entry. The map is frozen-historical (see "Version pinning and update
   delivery" above), and a retirement has no successor id to point at anyway; if the capability moved
   into another plugin, say which one in the PR body and in the surviving plugin's changelog.
