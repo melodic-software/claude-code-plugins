@@ -3,6 +3,24 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Changed
+
+- **The security review no longer restates the GraphQL alias page size as a literal (#2825).**
+  `reference/security-review.md` asserted the aliased-GraphQL rate cost as `≤100 aliases / ≤100
+  nodes per page` inside the current-state `Data egress` item, duplicating a value owned by
+  `MERGED_PR_GRAPHQL_ALIAS_PAGE`. It now names the constant, matching how the same document already
+  refers to it earlier. Documentation only; no collector behavior changes.
+- **`.git`'s role in the discovery skip list is documented as redundant (#2826).** `--skip` /
+  `fleet.skip` replace the default list, so an explicit list drops `.git` from `SKIP_NAMES` — but
+  `discover_repositories` takes the nested-repository early return on any directory holding a `.git`
+  marker, before the child loop that consults `SKIP_NAMES` runs. Dropping `.git` therefore cannot
+  expose repository internals to discovery. `usage()` and the resolution comment now say so, so an
+  operator shrinking the list does not misjudge the blast radius. The entry stays in the default
+  list as defence in depth against a future refactor of that early return. Documentation only; no
+  discovery behavior changes.
+
 ## [0.23.0]
 
 ### Added

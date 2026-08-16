@@ -46,7 +46,9 @@ plus your names; to shrink (e.g. reach a repo under vendor/), omit the names you
 want walked. CLI and config entries compose additively with each other the same
 way other scope inputs do. Values must be bare directory names (no empty value,
 no path separator). . and .. stay skipped unconditionally even when an explicit
-list omits them.
+list omits them. .git is defence in depth only: a directory holding a .git marker
+is recorded as a repository and never descended into, so dropping .git from the
+list does not expose repository internals to discovery.
 EOF
 }
 
@@ -709,7 +711,10 @@ fi
 # appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
 # config compose additively with each other like other scope inputs; with neither supplied, keep
 # today's six-name default. . and .. stay skipped unconditionally even when an explicit list omits
-# them.
+# them. .git is kept in the default list as defence in depth against a future refactor, not because
+# discovery would otherwise walk it: discover_repositories takes the nested-repository early return
+# on any directory holding a .git marker, so the child loop that consults SKIP_NAMES never runs
+# there (#2826).
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
