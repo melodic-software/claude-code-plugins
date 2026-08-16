@@ -1429,11 +1429,19 @@ def _shell_verb_name_deletes(verb: str) -> bool:
 
 
 def _shell_application_recycle_bin_delete_reason(command: str) -> str | None:
-    """Reason for a Shell.Application Recycle Bin deletion spelling, or None.
+    """Reason for a COM shell deletion spelling, or None.
 
     The bin-id branch is tested first so a command satisfying both (a bin-id
     `NameSpace` whose item is deleted with `InvokeVerb`) keeps naming the folder
     id in its verdict.
+
+    Only that first branch requires a `Shell.Application` context. The verb-arg
+    branch below is deliberately context-free: it matches a literal delete verb
+    passed to `InvokeVerb` on ANY COM object, with no `Shell.Application` or
+    `NameSpace` call required anywhere in the command. A caller reading only the
+    function name should not infer otherwise — the name is historical, and the
+    reason string the second branch returns says "COM shell delete verb" rather
+    than naming `Shell.Application` for exactly this reason.
     """
     if (
         _POWERSHELL_SHELL_APP_NAMESPACE_BIN.search(command) is not None
