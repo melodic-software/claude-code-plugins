@@ -202,13 +202,15 @@ Verify before starting (stop and route to the fix path on failure):
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node
 dependencies; the media binaries are OS-level installs via your platform's package manager.
 
-**Optional — faster-whisper** (`large-v3`, `batch_size=8`): enables the `asr` transcript rung,
-which runs for caption-absent entries under `watch` only — the `transcript` action never
-downloads media, and ASR needs the media file. Detected at runtime through the machine's Python
-(`python`, `python3`, or `py` — whichever imports `faster_whisper`) and **never auto-installed**.
-When it is absent the digest still completes, without a transcript, and the reason is recorded in
-the `transcriptDegradation` field (`watch.json` phase metrics and the CLI's stdout JSON) — never
-silently.
+**Optional — faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
+selected automatically for caption-absent entries and available on request via
+`--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only — ASR
+needs the media file and the `transcript` action never downloads media. Detected at runtime
+through the machine's Python (`python`, `python3`, or `py` — whichever imports `faster_whisper`)
+and **never auto-installed**. When it is absent the pipeline degrades explicitly rather than
+failing: it falls back to a caption strategy where a caption exists, otherwise completes the
+digest without a transcript, and either way records the reason in the `transcriptDegradation`
+field (`watch.json` phase metrics and the CLI's stdout JSON) — never silently.
 
 ## Eval fixtures
 

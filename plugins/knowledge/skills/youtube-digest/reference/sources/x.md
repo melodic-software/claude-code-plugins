@@ -123,7 +123,8 @@ cannot run there at all — a caption-absent `transcript` run always degrades.
 (`description`) plus harvested links as the lexicon. The ASR rung is faster-whisper large-v3 at
 `batch_size=8`, an optional closed-by-default capability delivered as a documented prerequisite
 plus runtime detection — **never auto-installed**. The lexicon is repair-only: feeding it to ASR
-as an `initial_prompt` was probed and made proper-noun accuracy worse, so the rung runs without one.
+as an `initial_prompt` was probed and yielded no net proper-noun gain while worsening a
+hallucination, so the rung runs without one.
 
 ## Failure patterns
 
