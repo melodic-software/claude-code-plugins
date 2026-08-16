@@ -1543,14 +1543,14 @@ mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo/context"
 cp "$SCRIPT" "$fx/scripts/"
 out="$(
   cd "$fx" &&
-    git init -q &&
-    git config user.email test@example.com &&
-    git config user.name test &&
-    git commit -q --allow-empty -m base &&
-    base="$(git rev-parse HEAD)" &&
+    git -C "$fx" init -q &&
+    git -C "$fx" config user.email test@example.com &&
+    git -C "$fx" config user.name test &&
+    git -C "$fx" commit -q --allow-empty -m base &&
+    base="$(git -C "$fx" rev-parse HEAD)" &&
     printf '%s\n' 'stat -c %Y "$f"' >'plugins/alpha/skills/demo/context/mtime.md' &&
-    git add -A >/dev/null 2>&1 &&
-    git commit -q -m add-skill-md &&
+    git -C "$fx" add -A >/dev/null 2>&1 &&
+    git -C "$fx" commit -q -m add-skill-md &&
     SHELL_PORTABILITY_TOKENS="$(one_token_list 'stat[[:space:]]+-c')" bash scripts/check-shell-portability.sh "$base" 2>&1
 )"
 rc=$?
@@ -1639,15 +1639,15 @@ cp "$SCRIPT" "$fx/scripts/"
 quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
-    git init -q &&
-    git config user.email test@example.com &&
-    git config user.name test &&
-    git commit -q --allow-empty -m base &&
-    base="$(git rev-parse HEAD)" &&
+    git -C "$fx" init -q &&
+    git -C "$fx" config user.email test@example.com &&
+    git -C "$fx" config user.name test &&
+    git -C "$fx" commit -q --allow-empty -m base &&
+    base="$(git -C "$fx" rev-parse HEAD)" &&
     printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >'plain.sh' &&
     printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$quoted_name" &&
-    git add -A >/dev/null 2>&1 &&
-    git commit -q -m add-scripts &&
+    git -C "$fx" add -A >/dev/null 2>&1 &&
+    git -C "$fx" commit -q -m add-scripts &&
     SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh "$base" 2>&1
 )"
 rc=$?
