@@ -121,14 +121,38 @@ filler() {
 # globals afterwards. Env overrides go on the call as a prefix
 # (`SILENT_REVERT_THRESHOLD=20 run_canary ...`), which bash applies to the
 # child process the function launches.
+#
+# CANARY_SCRIPT names the detector to run, relative to the fixture root. It
+# defaults to the shipped path; the pin-discrimination cases below point it at a
+# deliberately de-pinned copy so a run with the flag and a run without it can be
+# compared. Set it as an env prefix on the call, never as a global assignment,
+# so it cannot leak into the next case.
+#
+# A FIXTURE THAT FAILED TO BUILD MUST NOT LOOK LIKE A RESULT. mk_repo yields
+# MK_REPO_FAILED when mktemp or git init fails, and `cd` into a path that does
+# not exist makes the subshell exit 1 -- which is BYTE-IDENTICAL to the detector
+# firing. Every `expect_rc=1` case (the false-positive-resistance ones, the
+# cases that must FIRE) would then report `ok` while testing nothing, which is
+# the fail-open the whole suite exists to prevent. mktemp really did fail
+# transiently during #2837's development, so this is a measured mode, not a
+# hypothetical one. RC=99 is outside the detector's contract (0/1/2), so no
+# assertion can mistake it for an expected status, and the case is also counted
+# as a failure here so the reason is named rather than inferred.
 RC=0
 OUT=""
 run_canary() {
   local repo="$1"
   shift
+  local script="${CANARY_SCRIPT:-scripts/check-silent-revert.sh}"
+  if [[ -z "$repo" || ! -d "$repo" || ! -f "$repo/$script" ]]; then
+    fail "fixture setup failed: no usable repository at '${repo:-<empty>}' (wanted $script) -- the harness could not build its fixture, so nothing was tested"
+    RC=99
+    OUT="fixture setup failed"
+    return 0
+  fi
   local tmp
   tmp="$(mktemp)"
-  (cd "$repo" && bash scripts/check-silent-revert.sh "$@") >"$tmp" 2>&1
+  (cd "$repo" && bash "$script" "$@") >"$tmp" 2>&1
   RC=$?
   OUT="$(cat "$tmp")"
   rm -f "$tmp"
@@ -254,13 +278,22 @@ t_rename_is_not_a_removal() {
 # settings deciding them means a red build on a clean tree -- which is exactly
 # what #2843's first CI run hit, from `diff.algorithm = histogram`.
 #
-# Two keys are measured here because they were both live exposures:
-# `diff.algorithm` changes which lines a hunk calls deleted, and
+# This case is the anchor for the claim attribute_file's pin table makes, and
+# it is deliberately the SAME claim: identical counts regardless of the
+# CALLER's configuration. The cases after it prove each individual pin is what
+# holds that true; this one proves the property itself, against several hostile
+# keys at once.
+#
+# Four keys, all live exposures: `diff.algorithm` changes which lines a hunk
+# calls deleted, `diff.renames` decomposes a rename into delete + add,
+# `diff.external` replaces git's diff output wholesale, and
 # `blame.ignoreRevsFile` REASSIGNS authorship away from the listed commits.
-# The second is the nastier of the two -- on the real corpus it swung one
-# attribution 853 -> 259 -- and it also does not respond to `-c key=`, only to
-# the `--no-ignore-revs-file` option, so this case is what keeps that
-# non-obvious distinction from being "simplified" back into a broken pin.
+# The last is the nastiest -- on the real corpus it swung one attribution
+# 853 -> 259 -- and it also does not respond to `-c key=`, only to the
+# `--no-ignore-revs-file` option, so this case is what keeps that non-obvious
+# distinction from being "simplified" back into a broken pin. `diff.external`
+# names a path that does not exist on purpose: a pin that failed would make git
+# try to run it, and the canary must not depend on how that failure presents.
 t_counts_are_immune_to_ambient_git_config() {
   local repo clean_sink hostile_sink cfg revs
   repo="$(mk_repo)"
@@ -279,6 +312,7 @@ t_counts_are_immune_to_ambient_git_config() {
   {
     printf '[blame]\n\tignoreRevsFile = %s\n' "$revs"
     printf '[diff]\n\talgorithm = histogram\n\trenames = false\n'
+    printf '\texternal = %s\n' "$repo/never-run-this-diff.sh"
   } >"$cfg"
 
   FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=20 \
@@ -301,6 +335,288 @@ t_counts_are_immune_to_ambient_git_config() {
     )"
   fi
   rm -f "$clean_sink" "$hostile_sink"
+}
+
+# --------------------------------------------------------------------------
+# 2b. Every pinned flag must be LOAD-BEARING, proven by taking it away.
+# --------------------------------------------------------------------------
+# The immunity case above proves the SHIPPED detector does not move under
+# hostile config. It cannot prove that any individual pin is what holds it
+# still: a flag whose knob turned out not to matter would pass that case
+# identically. A pin nobody can show is load-bearing is a pin the next tidy
+# deletes as noise, so each case below runs one fixture and one hostile config
+# TWICE -- against the shipped detector and against a copy with exactly one
+# flag removed -- and asserts the two DISAGREE. A case that passes both ways
+# is worthless, which is the whole reason these exist.
+#
+# strip_pin <repo> <name> <sed-expr> writes scripts/<name>.sh and fails LOUDLY
+# when the edit matched nothing. A sed that silently matches nothing -- after
+# someone reflows the call it targets, say -- yields a "stripped" copy byte
+# identical to the shipped one, and every assertion below would then pass
+# while comparing a script against itself. That is the same fail-open shape as
+# a fixture that never got built, so it is caught the same way.
+strip_pin() {
+  local repo="$1" name="$2" expr="$3"
+  local src="$repo/scripts/check-silent-revert.sh" dst="$repo/scripts/$name.sh"
+  [[ -f "$src" ]] || {
+    fail "strip_pin($name): no detector at $src -- the fixture was never built"
+    return 1
+  }
+  sed "$expr" "$src" >"$dst" 2>/dev/null
+  if cmp -s "$src" "$dst"; then
+    fail "strip_pin($name): the edit matched nothing, so the 'stripped' copy is identical to the shipped detector and this case would pass either way"
+    return 1
+  fi
+  return 0
+}
+
+# -M. Without it, `diff.renames = false` in the caller's config decomposes a
+# `git mv` into a whole-file delete plus an add, every line of the moved file
+# is attributed to whoever last touched it, and relocating a large file a
+# recent commit added FIRES. This repo restructures skills and docs constantly,
+# so that is a live false-positive class. t_rename_is_not_a_removal covers the
+# behaviour; this covers the pin that survives a hostile caller.
+t_rename_pin_is_load_bearing() {
+  local repo culprit cfg intact_rc stripped_rc
+  repo="$(mk_repo)"
+  printf 'the alpha guard rejects a relocation outside the session root, case %s\n' \
+    $(seq 1 500) >"$repo/moved.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  git_test_config "$repo" mv moved.txt relocated.txt >/dev/null
+  git_test_config "$repo" commit -qm "refactor: relocate the guard (#99)"
+
+  cfg="$repo/no-renames-gitconfig"
+  printf '[diff]\n\trenames = false\n' >"$cfg"
+
+  strip_pin "$repo" no-rename-pin '/git diff/ s/ -M / /g' || return 0
+
+  GIT_CONFIG_GLOBAL="$cfg" run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" CANARY_SCRIPT=scripts/no-rename-pin.sh \
+    run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 0 ]] && [[ "$stripped_rc" -eq 1 ]]; then
+    ok "the -M pin is load-bearing: stripped it reports a pure rename as a 500-line removal, pinned it stays clean"
+  else
+    fail "the -M pin did not discriminate (pinned rc=$intact_rc want 0, stripped rc=$stripped_rc want 1): $OUT"
+  fi
+}
+
+# --no-ext-diff. `diff.external` is what difftastic's and delta's own install
+# instructions tell people to put in their global config, so this is ordinary
+# developer configuration rather than an exotic one -- and it is a FALSE GREEN:
+# the external command replaces git's diff output entirely, no @@ hunk headers
+# reach attribute_file, every commit attributes nothing, and the canary reports
+# `ok` on a real incident. Measured on the shipped corpus before the pin:
+# cc58cbc53 under `[diff] external = /usr/bin/true` exited 0 with an empty
+# findings sink, against 853 + 298 on a clean config.
+#
+# Only the hunk-producing diff carries the flag, and that is measured rather
+# than assumed: adding it to the `--name-only` enumeration alone leaves the
+# false green fully intact (rc 0, empty sink), because --name-only never runs a
+# diff driver. Pinning it there too would be decoration this case could not
+# defend.
+t_ext_diff_pin_is_load_bearing() {
+  local repo cfg intact_rc stripped_rc intact_sink stripped_sink
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 300 alpha
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+
+  cfg="$repo/ext-diff-gitconfig"
+  printf '[diff]\n\texternal = /usr/bin/true\n' >"$cfg"
+
+  strip_pin "$repo" no-ext-pin 's/ --no-ext-diff//' || return 0
+
+  intact_sink="$(mktemp)"
+  stripped_sink="$(mktemp)"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
+    run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$stripped_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/no-ext-pin.sh run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 1 ]] && [[ -s "$intact_sink" ]] &&
+    [[ "$stripped_rc" -eq 0 ]] && [[ ! -s "$stripped_sink" ]]; then
+    ok "the --no-ext-diff pin is load-bearing: stripped it is a FALSE GREEN under diff.external, pinned it still fires"
+  else
+    fail "the --no-ext-diff pin did not discriminate (pinned rc=$intact_rc want 1 with findings, stripped rc=$stripped_rc want 0 with none): pinned=[$(tr '\n' ';' <"$intact_sink")] stripped=[$(tr '\n' ';' <"$stripped_sink")]"
+  fi
+  rm -f "$intact_sink" "$stripped_sink"
+}
+
+# --no-textconv, on BOTH the diff and the blame. A `.gitattributes` entry like
+# this repository's own `*.md diff=markdown` names a driver; a developer who
+# then defines `diff.markdown.textconv` in their global config turns that name
+# into a CONTENT TRANSFORMER, and git feeds the transformed text to diff and to
+# blame alike. `--no-ext-diff` does NOT cover this -- it disallows
+# `diff.<name>.command`, not textconv -- so measuring the two separately is the
+# only way to know the pin set is complete.
+#
+# The nastiest arm is the MIXED one, which is why it is asserted here rather
+# than left to inference. attribute_file computes -L ranges from the DIFF's
+# view of the file and hands them to BLAME. Pin only the diff and the two views
+# disagree, so the ranges land on the wrong lines: measured on an 80-line
+# single-culprit finding, a textconv prepending ten lines silently re-cut it
+# into 60 against the real culprit plus 20 against the base commit. That is not
+# a visible error, it is a quiet reattribution -- and at the shipped threshold
+# it is exactly how a true finding slips under the line.
+#
+# `git blame` applying textconv by default is UNDOCUMENTED: `git blame -h`
+# lists no --textconv/--no-textconv and git-blame's manual page contains no
+# occurrence of the word, though both spellings are accepted and the flag is
+# demonstrably load-bearing. So this case is also the record of why a flag with
+# no entry in its own command's help is not decoration. `--no-ext-diff` is the
+# mirror image and deliberately NOT on the blame call: it is accepted there,
+# but blame never runs an external diff driver, so it would be decoration.
+t_textconv_pin_is_load_bearing() {
+  local repo cfg clean_sink intact_sink both_sink blame_sink clean_rc intact_rc
+  repo="$(mk_repo)"
+  printf '*.md diff=markdown\n' >"$repo/.gitattributes"
+  # A transformer that CHANGES the line count, which is what makes a
+  # diff/blame disagreement observable rather than merely cosmetic.
+  {
+    printf '#!/bin/sh\n'
+    printf 'printf "textconv filler line %%s\\n" 1 2 3 4 5 6 7 8 9 10\n'
+    # $1 is the GENERATED script's argument, not this one's -- it must reach the
+    # file literally, so the single quotes are the point.
+    # shellcheck disable=SC2016
+    printf 'cat "$1"\n'
+  } >"$repo/shift-textconv.sh"
+  chmod +x "$repo/shift-textconv.sh"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: name a diff driver for markdown"
+
+  add_block "$repo" feature.md 300 alpha
+  drop_block "$repo" feature.md alpha "feat: unrelated feature (#99)"
+
+  cfg="$repo/textconv-gitconfig"
+  printf '[diff "markdown"]\n\ttextconv = %s\n' "$repo/shift-textconv.sh" >"$cfg"
+
+  strip_pin "$repo" no-textconv-pin 's/ --no-textconv//g' || return 0
+  strip_pin "$repo" blame-textconv-unpinned '/git blame/ s/ --no-textconv//' || return 0
+
+  clean_sink="$(mktemp)"
+  intact_sink="$(mktemp)"
+  both_sink="$(mktemp)"
+  blame_sink="$(mktemp)"
+
+  FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  clean_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
+    run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$both_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/no-textconv-pin.sh run_canary "$repo" --commit HEAD
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$blame_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/blame-textconv-unpinned.sh run_canary "$repo" --commit HEAD
+
+  local sk
+  for sk in "$clean_sink" "$intact_sink" "$both_sink" "$blame_sink"; do
+    sort -o "$sk" "$sk"
+  done
+
+  if [[ "$clean_rc" -eq 1 ]] && [[ -s "$clean_sink" ]] &&
+    [[ "$intact_rc" -eq "$clean_rc" ]] && cmp -s "$clean_sink" "$intact_sink" &&
+    ! cmp -s "$clean_sink" "$both_sink" && ! cmp -s "$clean_sink" "$blame_sink"; then
+    ok "the --no-textconv pin is load-bearing on the diff AND the blame: unpinned either way a textconv driver moves the attribution, pinned both it is unchanged"
+  else
+    fail "the --no-textconv pin did not discriminate (clean rc=$clean_rc, pinned rc=$intact_rc): clean=[$(tr '\n' ';' <"$clean_sink")] pinned=[$(tr '\n' ';' <"$intact_sink")] both-stripped=[$(tr '\n' ';' <"$both_sink")] blame-only-stripped=[$(tr '\n' ';' <"$blame_sink")]"
+  fi
+  rm -f "$clean_sink" "$intact_sink" "$both_sink" "$blame_sink"
+}
+
+# --no-show-signature. This repository REQUIRES signed commits, so every commit
+# the canary scans on main carries one. `log.showSignature = true` in the
+# CALLER's config -- an ordinary thing for a reviewer to set -- makes git
+# prepend the verification result to `git log --format=` output ON STDOUT,
+# which is exactly what `$(...)` captures. declares_removal reads the subject
+# as `%B | head -1`, so the subject it matches becomes
+# `Good "git" signature for ...`, the intent match goes blind, and the one
+# deliberate revert in main's history fires as a false positive with the
+# signature line printed where the report's subject belongs.
+#
+# This pin protects INTENT DETECTION, not the counts. No `git diff` and no
+# `git blame` output passes through it, so no calibration figure moves in
+# either direction -- unlike the two pins above, whose whole exposure is the
+# numbers.
+#
+# Two things make or break this case, both measured rather than assumed:
+#
+#   The fixture commit must actually CARRY A SIGNATURE. With
+#   commit.gpgsign=false -- what git_init_test_repo sets, and what every other
+#   case here uses -- git has nothing to verify, prints nothing extra, and the
+#   case would pass with and without the pin while proving nothing. The
+#   signature is therefore grafted on directly: the commit object is re-emitted
+#   with a `gpgsig` header and HEAD repointed at it. That needs no signing
+#   program, no key, no keyring, no agent and no network, which keeps the case
+#   hermetic on every platform -- an ephemeral ssh key does not, because
+#   ssh-keygen refuses a private key whose permissions it considers too open
+#   and Windows temp directories hand out exactly such ACLs.
+#
+#   It does not matter that the grafted signature is not valid. git runs the
+#   verification either way and prints its verdict ahead of the message, which
+#   is the whole failure: an unverifiable signature prints MORE noise, not
+#   less. The case asserts on the detector's BEHAVIOUR rather than on the
+#   wording of that verdict, which varies by git version and signature format.
+#
+#   The declared form must be SUBJECT-derived (`revert:` here). The body forms
+#   -- `This reverts commit`, `Intentional-removal:` -- grep the whole message
+#   with `^` anchors and survive the prepended lines untouched, so a body
+#   fixture would also pass both ways.
+t_show_signature_pin_is_load_bearing() {
+  local repo cfg intact_rc stripped_rc intact_out grafted
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/f.tmp" || true
+  mv "$repo/f.tmp" "$repo/feature.txt"
+  printf 'unrelated work from the stale branch\n' >>"$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm 'revert: remove the alpha guard (#99)'
+
+  # Graft a signature header on. The blank line that ends the header block is
+  # where it goes; everything else about the commit is reproduced verbatim.
+  git_test_config "$repo" cat-file commit HEAD >"$repo/raw-commit"
+  awk '
+    !grafted && /^$/ {
+      print "gpgsig -----BEGIN SSH SIGNATURE-----"
+      print " U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZ3JhZnRlZGZpeHR1cmVzaWduYXR1"
+      print " cmVub3RhcmVhbGtleQAAAANnaXQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkA"
+      print " AABAZ3JhZnRlZGZpeHR1cmVzaWduYXR1cmVieXRlc25vdGFyZWFsc2lnbmF0dXJlYXRhbGxo"
+      print " ZXJlAA=="
+      print " -----END SSH SIGNATURE-----"
+      grafted = 1
+    }
+    { print }
+  ' "$repo/raw-commit" >"$repo/raw-commit-signed"
+  grafted="$(git_test_config "$repo" hash-object -t commit -w --stdin <"$repo/raw-commit-signed")"
+  git_test_config "$repo" update-ref HEAD "$grafted"
+  if ! git_test_config "$repo" cat-file commit HEAD 2>/dev/null | grep -q '^gpgsig'; then
+    fail "the fixture commit carries no signature header, so log.showSignature would print nothing and this case would pass with or without the pin (not a pass)"
+    return 0
+  fi
+
+  cfg="$repo/show-signature-gitconfig"
+  printf '[log]\n\tshowSignature = true\n[gpg]\n\tformat = ssh\n' >"$cfg"
+
+  strip_pin "$repo" no-signature-pin 's/ --no-show-signature//g' || return 0
+
+  GIT_CONFIG_GLOBAL="$cfg" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  intact_out="$OUT"
+  GIT_CONFIG_GLOBAL="$cfg" SILENT_REVERT_THRESHOLD=20 \
+    CANARY_SCRIPT=scripts/no-signature-pin.sh run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 0 ]] && printf '%s' "$intact_out" | grep -q '^declared ' &&
+    [[ "$stripped_rc" -eq 1 ]]; then
+    ok "the --no-show-signature pin is load-bearing: stripped it reads a signed revert's subject as gpg output and fires, pinned it reads the declaration"
+  else
+    fail "the --no-show-signature pin did not discriminate (pinned rc=$intact_rc want 0 and declared, stripped rc=$stripped_rc want 1): $intact_out"
+  fi
 }
 
 # --------------------------------------------------------------------------
@@ -452,6 +768,28 @@ t_range_mode_scans_every_commit() {
     ok "range mode scans every commit in the push"
   else
     fail "expected range mode to find the revert, rc=$RC: $out"
+  fi
+}
+
+# The `declared` disposition prints a two-line note, and the second line has to
+# END the line. Without its trailing newline the next commit's verdict is glued
+# onto it in range mode -- `...revert typeok 04a2ec188 fix(...)` -- which is
+# unreadable and, worse, makes the `ok` line invisible to any `^ok ` grep. Only
+# range mode shows it, because --commit mode stops after the one commit.
+t_declared_note_ends_its_line() {
+  local repo out base
+  repo="$(mk_repo)"
+  base="$(git -C "$repo" rev-parse HEAD)"
+  add_block "$repo" feature.txt 40 alpha
+  drop_block "$repo" feature.txt alpha 'revert: remove the alpha guard (#99)'
+  filler "$repo" 1
+  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" "$base..HEAD"
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s\n' "$out" | grep -q '^declared ' &&
+    printf '%s\n' "$out" | grep -q '^ok '; then
+    ok "the declared note ends its line, so the next commit's verdict is not glued to it"
+  else
+    fail "expected a standalone 'ok' line after the declared note, rc=$RC: $out"
   fi
 }
 
@@ -739,6 +1077,10 @@ t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
 t_counts_are_immune_to_ambient_git_config
+t_rename_pin_is_load_bearing
+t_ext_diff_pin_is_load_bearing
+t_textconv_pin_is_load_bearing
+t_show_signature_pin_is_load_bearing
 t_declared_forms
 t_conventional_revert_subject_is_declared
 t_prose_mentioning_revert_still_fires
@@ -747,6 +1089,7 @@ t_acknowledged_commit_is_cleared
 t_abbreviated_ack_does_not_clear
 t_default_threshold_is_wired
 t_range_mode_scans_every_commit
+t_declared_note_ends_its_line
 t_whole_file_deletion_is_attributed
 t_unresolvable_range_fails_closed
 t_root_commit_is_handled
