@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "prerequisite_resolution": {
+    "schema_version": "1.0",
+    "declarations": [
+      {
+        "surface": "ci-cron",
+        "identity": "advisory-cve-triage",
+        "need": "advisory_database",
+        "state": "present",
+        "rung": "repo-local"
+      }
+    ]
+  }
+}

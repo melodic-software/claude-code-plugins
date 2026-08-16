@@ -1,0 +1,33 @@
+{
+  "_comment": "Graded-fixture manifest for resolve-prerequisites.fixtures.test.mjs. Each key is a fixture directory under scripts/fixtures/prerequisite-resolution/. Assertions name identities and expected verdict substrings / finding kinds.",
+  "fixtures": {
+    "bare-repo": {
+      "surface": "ci-cron",
+      "assert": "bare-repo"
+    },
+    "fail-closed": {
+      "surface": "ci-cron",
+      "assert": "fail-closed"
+    },
+    "declared-absent-narrows": {
+      "surface": "ci-cron",
+      "assert": "declared-absent-narrows"
+    },
+    "probe-negative-caps": {
+      "surface": "ci-cron",
+      "assert": "probe-negative-caps"
+    },
+    "probe-could-not-run": {
+      "surface": "ci-cron",
+      "assert": "probe-could-not-run"
+    },
+    "posture-divergence": {
+      "surface": "ci-cron",
+      "assert": "posture-divergence"
+    },
+    "positive-verdict": {
+      "surface": "ci-cron",
+      "assert": "positive-verdict"
+    }
+  }
+}
