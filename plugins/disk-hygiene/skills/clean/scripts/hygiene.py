@@ -829,6 +829,145 @@ def entry_is_empty_directory(
     return not any(path.startswith(prefix) for path in paths)
 
 
+def child_rollup_name(relative: str) -> str:
+    """The immediate-child segment a snapshot-relative path belongs to."""
+    return relative.split("/", 1)[0]
+
+
+def child_rollup_bytes(entry: dict[str, Any]) -> int:
+    """The bytes one immediate child contributes to the target's walked total.
+
+    Mirrors ``scan_tree``'s own accumulation exactly: a walked directory's
+    ``logical_size`` is already its recursive subtotal, a file contributes its
+    recorded logical size, and a link or special entry contributes nothing
+    because the walk never traverses one. Keeping the two rules identical is
+    what makes the roll-up sum to ``target_logical_bytes`` when every immediate
+    child was walked.
+    """
+    if entry.get("kind") == "directory":
+        size = entry.get("logical_size")
+        return int(size) if isinstance(size, int) else 0
+    if entry.get("kind") == "file":
+        return entry_logical_file_bytes(entry)
+    return 0
+
+
+def empty_child_rollup_bucket() -> dict[str, Any]:
+    """The per-child accumulator, in one place so its shape cannot drift."""
+    return {
+        "self": None,
+        "descendants": 0,
+        "newest": None,
+        "qualifiers": set(),
+        "reclaimable": 0,
+    }
+
+
+def children_rollup(
+    entries: list[dict[str, Any]],
+    *,
+    unknown_paths: Iterable[str] = (),
+    unwalked_reasons: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """One row per immediate child of the target: bytes, count, newest mtime, coverage.
+
+    The bounded pass the skill recommends (``--max-depth 1``) leaves every
+    non-empty immediate child uninventoried, so the per-child question the
+    operator is told to reason in — how big is it, how much is in it, when was
+    it last touched — has no answer anywhere in the flat entry list. This
+    assembles that answer from what the walk ALREADY recorded: it opens no
+    directory and stats no path, so it can never turn a bounded pass into an
+    unbounded one. The cost of the roll-up is one linear pass over ``entries``.
+
+    Precisely because nothing extra is walked, a child is credited with numbers
+    only when its whole subtree was inventoried. ``walked`` is the single
+    discriminator: true means every aggregate is exact, false means they are all
+    ``null`` — never 0, which stays the genuine "this is empty" answer — with
+    the causes in ``unwalked_reasons``. A partial sum is never presented as a
+    total. Every immediate child gets a row whatever its coverage, so a gap is
+    visible per child rather than only in ``truncated_paths``. (In
+    ``--root-children`` mode "every child" means every SELECTED child: the walk
+    never looks at an unselected sibling, so the row set follows the selection
+    the payload records in ``root_children_selected``.)
+
+    ``logical_bytes`` alone would mislead exactly where this engine refuses to:
+    it is a LOGICAL total, and a cloud placeholder's remote size, a hard link's
+    shared object, and a sparse file's unallocated extent all inflate it above
+    what deleting the child would return. So each row carries the same two
+    channels every other byte-bearing surface here does — ``size_qualifiers``,
+    the union of qualifiers observed in the subtree, and
+    ``reclaimable_local_bytes``, which counts only unqualified files, mirroring
+    ``target_reclaimable_local_bytes``.
+
+    ``unknown_paths`` is every relative path the walk could not fully account
+    for (truncations, scan errors, ``not-walked`` records); a path marks its own
+    child row when it IS the child and marks the child's row as
+    ``descendant-not-walked`` when it lives below one. A path recorded as
+    unknown with no more specific cause falls back to the bare ``not-walked``,
+    the same qualifier the flat entry carries.
+    """
+    reasons = unwalked_reasons or {}
+    gaps: dict[str, set[str]] = {}
+    for path in unknown_paths:
+        if not isinstance(path, str) or not path or path == ".":
+            continue
+        name = child_rollup_name(path)
+        gaps.setdefault(name, set()).add(
+            reasons.get(path, "not-walked")
+            if path == name
+            else "descendant-not-walked"
+        )
+    totals: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        relative = entry.get("path")
+        # `.` is the target itself, never one of its children: `scan_tree` keeps
+        # the target's record out of `entries`, and the same skip in the gap loop
+        # above keeps a target-level truncation from inventing a `.` child row.
+        if not isinstance(relative, str) or not relative or relative == ".":
+            continue
+        name = child_rollup_name(relative)
+        bucket = totals.setdefault(name, empty_child_rollup_bucket())
+        if relative == name:
+            bucket["self"] = entry
+        else:
+            bucket["descendants"] = bucket["descendants"] + 1
+        mtime = entry.get("mtime_ns")
+        if isinstance(mtime, int):
+            newest = bucket["newest"]
+            bucket["newest"] = mtime if newest is None else max(newest, mtime)
+        bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
+        local = entry_reclaimable_local_bytes(entry)
+        if local is not None:
+            bucket["reclaimable"] = bucket["reclaimable"] + local
+    rows: list[dict[str, Any]] = []
+    for name in sorted(set(totals) | set(gaps)):
+        bucket = totals.get(name) or empty_child_rollup_bucket()
+        child = bucket["self"]
+        causes = set(gaps.get(name, ()))
+        if child is None:
+            # An immediate child whose own record never reached the inventory
+            # (its lstat or its parent's scandir failed) is a coverage gap, not
+            # a zero-byte child.
+            causes.add("scan-error")
+        walked = not causes
+        rows.append(
+            {
+                "name": name,
+                "kind": child.get("kind") if child is not None else None,
+                "walked": walked,
+                "logical_bytes": child_rollup_bytes(child)
+                if walked and child is not None
+                else None,
+                "reclaimable_local_bytes": bucket["reclaimable"] if walked else None,
+                "size_qualifiers": sorted(bucket["qualifiers"]) if walked else None,
+                "entry_count": bucket["descendants"] if walked else None,
+                "newest_mtime_ns": bucket["newest"] if walked else None,
+                "unwalked_reasons": sorted(causes),
+            }
+        )
+    return rows
+
+
 def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
     """Return every inventory path that has at least one inventoried descendant.
 
@@ -1286,6 +1425,9 @@ def scan_tree(
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     truncated: list[str] = []
+    # Why each uninventoried path is uninventoried, so the per-child roll-up can
+    # name the cause instead of reporting an undifferentiated gap.
+    unwalked_reasons: dict[str, str] = {}
     repositories, repo_errors = discover_enclosing_git(target)
     exact_names = set(policy["protected_exact_names"])
     known_mounts, mount_error = linux_mount_points()
@@ -1343,10 +1485,12 @@ def scan_tree(
                         subtotal: int | None = None
                         walked = False
                         truncated.append(relative)
+                        unwalked_reasons[relative] = "vcs-boundary"
                     elif protections:
                         subtotal = None
                         walked = False
                         truncated.append(relative)
+                        unwalked_reasons[relative] = "protected"
                     elif max_depth is not None and depth >= max_depth:
                         # A depth cut is the one truncation reason emptiness can
                         # answer. One cheap first-child probe (no recursion, no
@@ -1366,6 +1510,7 @@ def scan_tree(
                             subtotal = None
                             walked = False
                             truncated.append(relative)
+                            unwalked_reasons[relative] = "depth-cut"
                         else:
                             subtotal = 0
                     else:
@@ -1373,6 +1518,7 @@ def scan_tree(
                         if subtotal is None:
                             # scandir failed inside this child: unknown, not empty.
                             walked = False
+                            unwalked_reasons[relative] = "scan-error"
                     data = metadata(path, kind, subtotal, walked=walked)
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
@@ -1387,6 +1533,7 @@ def scan_tree(
                     data = metadata(path, kind)
             except OSError as exc:
                 errors.append({"path": relative, "error": str(exc)})
+                unwalked_reasons[relative] = "scan-error"
                 continue
             if len(entries) >= MAX_SNAPSHOT_ENTRIES:
                 raise HygieneError(
@@ -1425,6 +1572,18 @@ def scan_tree(
         for item in errors
         if isinstance(item, dict) and isinstance(item.get("path"), str)
     }
+    # Everything the walk could not fully account for, from all three places it
+    # can be recorded: an explicit truncation, a scan error (which never adds a
+    # truncation and can leave no entry at all), and a `not-walked` record.
+    unknown_paths = (
+        set(truncated)
+        | error_paths
+        | {
+            entry["path"]
+            for entry in entries
+            if "not-walked" in (entry.get("size_qualifiers") or [])
+        }
+    )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -1444,6 +1603,11 @@ def scan_tree(
         "errors": errors,
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
+        "children_rollup": children_rollup(
+            entries,
+            unknown_paths=unknown_paths,
+            unwalked_reasons=unwalked_reasons,
+        ),
         "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
     if root_children is not None:
@@ -3354,11 +3518,13 @@ def main(argv: list[str] | None = None) -> int:
                         "snapshot": str(output_path),
                         "entries": len(snapshot["entries"]),
                         "hinted_entries": hinted,
+                        "unhinted_entries": len(snapshot["entries"]) - hinted,
                         "target_logical_bytes": snapshot["target_logical_bytes"],
                         "target_reclaimable_local_bytes": snapshot[
                             "target_reclaimable_local_bytes"
                         ],
                         "truncated_paths": snapshot["truncated_paths"],
+                        "children_rollup": snapshot["children_rollup"],
                         "errors": snapshot["errors"],
                         "policy_sources": policy["policy_sources"],
                         "os_autoclean": advisory,
@@ -3366,8 +3532,12 @@ def main(argv: list[str] | None = None) -> int:
                             "Root-children mode inventoried only the selected "
                             "immediate directories; the volume root itself and "
                             "every skipped OS-owned/hidden/system/reparse entry "
-                            "were never walked. Hints are discovery signals, "
-                            "never cleanup verdicts."
+                            "were never walked — so children_rollup covers the "
+                            "selected children only. unhinted_entries is "
+                            "entries minus hinted_entries: every inventoried "
+                            "entry no hint judged, left to positional review. "
+                            "Hints are discovery signals, never cleanup "
+                            "verdicts."
                         ),
                     }
                 )
@@ -3416,12 +3586,14 @@ def main(argv: list[str] | None = None) -> int:
                     "snapshot": str(output_path),
                     "entries": len(snapshot["entries"]),
                     "hinted_entries": hinted,
+                    "unhinted_entries": len(snapshot["entries"]) - hinted,
                     "empty_directory_count": snapshot["empty_directory_count"],
                     "target_logical_bytes": snapshot["target_logical_bytes"],
                     "target_reclaimable_local_bytes": snapshot[
                         "target_reclaimable_local_bytes"
                     ],
                     "truncated_paths": snapshot["truncated_paths"],
+                    "children_rollup": snapshot["children_rollup"],
                     "errors": snapshot["errors"],
                     "policy_sources": policy["policy_sources"],
                     "os_autoclean": advisory,
@@ -3429,8 +3601,15 @@ def main(argv: list[str] | None = None) -> int:
                         "Safe tidiness is the primary objective; reclaimable "
                         "bytes are a secondary signal. empty_directory_count "
                         "names walked empty directories (logical_size 0, not "
-                        "truncated) so zero-byte residue stays visible. Hints "
-                        "are discovery signals, never cleanup verdicts. "
+                        "truncated) so zero-byte residue stays visible. "
+                        "unhinted_entries is entries minus hinted_entries — "
+                        "every inventoried entry no hint judged, left to "
+                        "positional review — so hint coverage reads as a rate, "
+                        "not a bare count. Hints are discovery signals, "
+                        "never cleanup verdicts. children_rollup carries one "
+                        "row per immediate child; its logical_bytes, "
+                        "entry_count and newest_mtime_ns are exact where "
+                        "walked is true and null where it is false, never 0. "
                         "target_reclaimable_local_bytes excludes every entry "
                         "whose size_qualifiers is non-empty (cloud-placeholder, "
                         "hardlinked, sparse, not-walked); target_logical_bytes "

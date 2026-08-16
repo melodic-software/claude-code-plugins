@@ -377,6 +377,71 @@ A depth-limited scan records every directory it declined to enter in `truncated_
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
 as `truncated-not-inventoried`; they are coverage gaps, never candidates.
 
+`children_rollup` states that same coverage per immediate child of the target, so a gap is visible
+against the child an operator actually reasons about rather than only in a flat path list. Every
+immediate child the run covered gets exactly one row, whatever that row's coverage — omission would
+read as absence. (In `--root-children` mode the run covers the SELECTED children only: an unselected
+sibling is never opened, never inventoried, and owes no row. `root_children_selected` in the same
+payload names what was in scope.)
+
+| Field | Meaning |
+|---|---|
+| `name` | The immediate child's own name (never a path) |
+| `kind` | The entry kind the walk recorded — `directory`, `file`, `link`, `other` — or `null` when no inventory record survived |
+| `walked` | `true` only when the child's whole subtree was inventoried |
+| `logical_bytes` | Recursive LOGICAL total, qualifiers included; `null` unless `walked` |
+| `reclaimable_local_bytes` | Recursive total over unqualified files only — bytes deleting the child is expected to return locally; `null` unless `walked` |
+| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, …); `null` unless `walked` |
+| `entry_count` | Inventoried descendants, excluding the child's own record; `null` unless `walked` |
+| `newest_mtime_ns` | Newest `mtime_ns` across the child and its inventoried descendants; `null` unless `walked` |
+| `unwalked_reasons` | Sorted causes when `walked` is false: `depth-cut`, `protected`, `vcs-boundary`, `scan-error`, `descendant-not-walked`, or the bare `not-walked` fallback when the walk recorded no more specific cause. Empty when `walked` |
+
+`walked` is the single discriminator, and every aggregate moves with it: all exact, or all `null`.
+Two failure modes are closed by construction. A partial subtree sum is never presented as a child's
+total — a child that was itself entered but holds an unwalked descendant is `descendant-not-walked`,
+`null`. And `null` never degrades to `0`, because `0` is the genuine "this child is empty" answer
+that keeps zero-byte residue first-class.
+
+**That first case is a gap the flat entry list does not state, which is the sharpest reason to read
+the roll-up.** A directory's own record gets the `not-walked` qualifier only from ITS OWN branch —
+VCS boundary, protection, depth cut, or its own `scandir` failure. It is never propagated up from a
+descendant, and only `target_identity` is special-cased to append it whenever anything truncated. So
+an intermediate child holding an unwalked descendant keeps `walked: true`, an empty
+`size_qualifiers`, and a `logical_size` that is a PARTIAL sum indistinguishable from a complete one:
+a target holding `repo_child/.git` (a VCS boundary) plus `repo_child/src.py` records
+`repo_child` at `logical_size: 10`, `size_qualifiers: []`, with only `repo_child/.git` in
+`truncated_paths`. The roll-up is what makes that gap legible per child — it draws
+`descendant-not-walked` from the walk's coverage record rather than from the child's own qualifier —
+so never read a directory's `logical_size` as a total without checking whether anything beneath it
+is in `truncated_paths`.
+
+The third failure mode — a byte figure that overstates what deleting would return — is closed by
+pairing, not by omission. `logical_bytes` is a logical total, so a cloud placeholder's REMOTE size, a
+hard link's shared object, and a sparse file's unallocated extent all inflate it; `size_qualifiers`
+says which of those are present in the subtree and `reclaimable_local_bytes` counts only unqualified
+files, exactly as `target_reclaimable_local_bytes` does for the target. Rank a child on the
+reclaimable figure and state the qualified bytes separately with their reasons — never read
+`logical_bytes` as space a delete would give back. A `link` child is the limiting case: it reads
+`logical_bytes: 0` because the walk never traverses a link, and 0 is the honest figure for deleting
+the link itself, whatever the target holds.
+
+The roll-up is assembled from what the walk already recorded: it opens no directory and stats no
+path, so it cannot turn a bounded pass into an unbounded one. That is measured, not asserted —
+`test_bounded_rollup_opens_no_directory_the_bounded_walk_did_not` counts `os.scandir`, the engine's
+only directory-enumeration route, and on a 740-path fixture the `--max-depth 1` pass opens 8
+directories, stats 41 paths and inventories 8 entries both with the roll-up and without it, against
+20 opens, 4,427 stats and 740 entries for the unbounded walk. The cost of that guarantee is the
+honest limit an operator has to read the block with: under `--max-depth 1` a recursive total for a
+NON-EMPTY child is not knowable without walking it, so every such child reads `depth-cut` and
+`null`. The bounded pass delivers the complete frontier, per-child coverage, and exact numbers for
+loose files and empty children; a per-child total is bought by fanning a deeper scan out over that
+subtree.
+
+The `scan-complete` summary reports hint coverage in three terms — `entries`, `hinted_entries`, and
+`unhinted_entries` (`entries` minus `hinted_entries`). The third is what makes the first two
+readable: without a denominator for what no hint judged, a run that annotated 7 of 40,247 entries is
+indistinguishable from a thorough one.
+
 A scan of a known-large root — the user home directory, or a non-OS volume root (a Windows Dev
 Drive) now that reasoned classification admits it as a valid target — is gated before it walks.
 Absent an explicit `--max-depth` bound or a `--confirmed-large-scan` acknowledgement, the engine
