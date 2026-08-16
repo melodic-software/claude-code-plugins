@@ -30,8 +30,10 @@ here, which is why it is a repo convention with a detector rather than a note.
 
 ## The rules
 
-Four rules, in the order they should be reached for. The first is the one that would have prevented
-the motivating incident (#2834) outright; conversion is what to do when it does not apply.
+Five rules, in the order they should be reached for. The first is the one that would have prevented
+the motivating incident (#2834) outright; conversion is what to do when it does not apply. Rule 5 —
+never `export` a conversion suppressor — has its own section below, because it is what actually
+recurred (#2870).
 
 1. **Prefer a path the native side computes itself.** When the consumer is already `cd`-ed into the
    directory it should write to — or can be given a base it owns — pass a *relative* destination and
@@ -54,6 +56,72 @@ the motivating incident (#2834) outright; conversion is what to do when it does 
    unconverted literal, because the unconverted literal is precisely what writes to the wrong place —
    unobserved. `emit-windows-path.sh` exits non-zero when `cygpath` is missing or fails, and prints
    nothing on stdout for that argument.
+
+## Never `export` a path-conversion suppressor
+
+Rule 5, added after #2870, and the one that has actually fired since the rest of this document
+shipped.
+
+Git Bash normally rewrites POSIX-looking argv into Windows form before spawning a native binary, so
+`git worktree add /d/worktrees/x` reaches `git.exe` as `D:/worktrees/x` and lands correctly. Two
+environment variables switch that off: `MSYS_NO_PATHCONV` and `MSYS2_ARG_CONV_EXCL`. They exist for a
+real reason — see the next section — but **exporting** either one disables conversion for *every
+later command in the same shell*, including commands the author was not thinking about.
+
+That is how `D:\d` was created a third time. A lane exported `MSYS_NO_PATHCONV=1` to stop MSYS
+mangling a `<rev>:<path>` argument, then, seven segments later in the same command string, ran a
+`git worktree add` whose `/d/worktrees/...` argument was **textually identical to one the same lane
+had already run successfully**. The path was never the variable; the environment was.
+
+The distinction is mechanical, and `git rev-parse --sq-quote` shows exactly what `git.exe` received:
+
+```text
+bash -c 'git rev-parse --sq-quote /d/probe'                      ->  'D:/probe'   converted
+bash -c 'MSYS_NO_PATHCONV=1; git rev-parse --sq-quote /d/probe'  ->  'D:/probe'   bare assignment: no effect
+bash -c 'export MSYS_NO_PATHCONV=1; git rev-parse ... /d/probe'  ->  '/d/probe'   THE DEFECT
+bash -c 'MSYS_NO_PATHCONV=1 git ... /d/a; git ... /d/b'          ->  '/d/a' then 'D:/b'   prefix scopes it
+```
+
+So, in preference order:
+
+1. **Use Windows-native paths** (`D:/repos/...`) for path arguments, and the question never arises.
+2. If a suppressor is genuinely needed, use it as a **per-command prefix** —
+   `MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"` — which scopes it to that one
+   command and nothing after it.
+3. Never `export` it, and never `declare -x` / `typeset -x` it. A bare assignment is not a middle
+   ground either: it has no effect at all, because the MSYS runtime reads the *environment*.
+
+[`plugins/guardrails/hooks/block-exported-msys-pathconv.sh`](../../../plugins/guardrails/hooks/block-exported-msys-pathconv.sh)
+enforces this as a `PreToolUse` block.
+
+## The colon-argument mangling this is usually a workaround for
+
+MSYS also rewrites an argument it reads as a colon-separated PATH list, converting `:` to `;` and `/`
+to `\`. It is what sends people reaching for the suppressor above:
+
+```text
+git show origin/main:.github/workflows/ci.yml
+fatal: ambiguous argument 'origin\main;.github\workflows\ci.yml': unknown revision or path not in the working tree.
+```
+
+The conversion is **conditional**, which is why it reads as a bad revision rather than a shell
+problem. Measured on this machine, `A:B` is treated as a path list when `A` contains a `/` **and**
+`B` begins with a dot-name (a `.` followed by something that is not `/` or `.`):
+
+| argument | converted? |
+| --- | --- |
+| `origin/main:.github/workflows/ci.yml` | yes |
+| `origin/main:.claude/settings.json` | yes |
+| `origin/main:scripts/foo.sh` | no |
+| `origin/main:./scripts/foo.sh` | no |
+| `origin/main:../x` | no |
+| `HEAD:.github/x` | no |
+| `aaa:.bbb` | no |
+
+`.github/`, `.claude/` and `.chezmoi*` are exactly the directories this repo's agents read most, so
+the exposure is routine rather than exotic. Unlike the drive-root class, this one **fails loudly** and
+creates nothing. The fix is a per-command `MSYS_NO_PATHCONV=1` prefix, or `git show` against a
+`-C <windows-path>` checkout with the path spelled relative — never an export.
 
 ## Do not reuse the hook-utils path helpers for this
 

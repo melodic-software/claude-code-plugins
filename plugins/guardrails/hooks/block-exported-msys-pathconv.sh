@@ -134,7 +134,7 @@ block() {
   printf '%s\n' \
     'BLOCKED: exporting MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL switches off MSYS path conversion for EVERY later command in this command string.' \
     'A later path argument then reaches a Windows-native program unconverted, and git resolves a leading / against the CURRENT DRIVE:' \
-    '  git worktree add /d/worktrees/x   ->   <current-drive>:\d\worktrees\x   (a phantom tree, and a run that measured the wrong thing)' \
+    '  git worktree add /d/worktrees/x   ->   <current-drive>:/d/worktrees/x   (a phantom tree, and a run that measured the wrong thing)' \
     'Fix, in preference order:' \
     '  1. Use Windows-native paths for path arguments -- git -C D:/repos/... show ... -- so the question does not arise.' \
     '  2. If you need the suppressor for a <rev>:<path> argument, use it as a PER-COMMAND PREFIX, which scopes it to that one command:' \

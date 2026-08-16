@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/block-exported-msys-pathconv.schema.json",
+  "title": "block-exported-msys-pathconv telemetry data",
+  "description": "Per-hook `data` payload for the block-exported-msys-pathconv guard. Discovered from the envelope `hook` value \"block-exported-msys-pathconv\". Evolves additive-only. Carries NO full command string.",
+  "type": "object",
+  "required": ["tool", "subject", "form"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "The invoking tool — \"Bash\" or \"PowerShell\"; this guard matches both."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Privacy-safe command subject: `Bash:<first-token>` for a Bash call, with leading sudo / env-assignment prefixes stripped and the token basenamed; the bare tool name (`PowerShell`) for a PowerShell call, which is not tokenized. NEVER the full command or its arguments."
+    },
+    "form": {
+      "type": "string",
+      "description": "The matched form when blocked: \"export\" (an exported MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, including the declare -x / typeset -x spellings) | \"too-long\" (command named one of the variables but exceeded the parse cap, so it was blocked fail-closed). Empty string when the command was allowed (status ok)."
+    }
+  }
+}
