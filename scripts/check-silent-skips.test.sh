@@ -237,6 +237,21 @@ else
 fi
 rm -rf "$f"
 
+# --- scripts/*.test.sh: inline then ok "skip ..." also fails ----------------
+f="$(new_fixture)"
+script_test_file "$f" demo.test.sh 'if anchor_missing; then ok "skip historical proof"; fi'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "inline then ok skip should fail, got success: $out"
+else
+  if echo "$out" | grep -q "SILENT SKIP: scripts/demo.test.sh:1" &&
+    echo "$out" | grep -q "skip scored as PASS"; then
+    ok "inline then ok \"skip ...\" fails with file:line"
+  else
+    fail "expected SILENT SKIP for inline then ok skip, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- scripts/*.test.sh: annotated ok "skip ..." passes ---------------------
 f="$(new_fixture)"
 script_test_file "$f" demo.test.sh "$(printf '%s\n' \

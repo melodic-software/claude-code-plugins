@@ -127,7 +127,9 @@ scan_test_skip_pass() {
     function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_skip_ok(l) {
-      return l ~ /^[[:space:]]*ok[[:space:]]+["'\'']skip[[:space:]]/
+      # Match at a shell command boundary (not only line-start), so one-line
+      # forms like `if x; then ok "skip ..."; fi` are caught too.
+      return l ~ /(^|[^[:alnum:]_])ok[[:space:]]+["'\'']skip[[:space:]]/
     }
     {
       line = $0
