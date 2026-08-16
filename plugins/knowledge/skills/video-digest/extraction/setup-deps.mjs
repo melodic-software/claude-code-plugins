@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Install the youtube extraction pipeline's node dependencies into
+ * Install the video extraction pipeline's node dependencies into
  * `${CLAUDE_PLUGIN_DATA}/node_modules` — a per-plugin directory that survives
  * plugin updates (plugins-reference, persistent data directory). The plugin
  * ships without a committed `node_modules`; this runs once on first use and
@@ -38,7 +38,7 @@ fs.mkdirSync(data, { recursive: true });
 function computeStamp() {
   const hash = createHash("sha256");
   const files = ["package.json"];
-  // Vendored libs are shared plugin-wide (both youtube and course-digest consume
+  // Vendored libs are shared plugin-wide (both video-digest and course-digest consume
   // them), so they live at the plugin root, not under this skill.
   const vendorRoot = path.join(here, "..", "..", "..", "vendor");
   if (fs.existsSync(vendorRoot)) {
@@ -61,11 +61,11 @@ function computeStamp() {
 }
 
 const stamp = computeStamp();
-const stampPath = path.join(data, ".youtube-extraction.stamp");
+const stampPath = path.join(data, ".video-extraction.stamp");
 const installed = fs.existsSync(path.join(data, "node_modules", "@melodic", "video-digestion"));
 
 if (installed && fs.existsSync(stampPath) && fs.readFileSync(stampPath, "utf8") === stamp) {
-  process.stdout.write("youtube extraction deps already current.\n");
+  process.stdout.write("video extraction deps already current.\n");
   process.exit(0);
 }
 
@@ -86,4 +86,4 @@ if (result.status !== 0) {
 }
 
 fs.writeFileSync(stampPath, stamp);
-process.stdout.write(`youtube extraction deps installed to ${path.join(data, "node_modules")}.\n`);
+process.stdout.write(`video extraction deps installed to ${path.join(data, "node_modules")}.\n`);

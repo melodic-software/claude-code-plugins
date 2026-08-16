@@ -159,7 +159,7 @@ because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#gi
 documents that release assets from repositories not attached to the session can return 403.
 
 Not installed at session start (install on demand when working in those areas): the four plugin
-npm roots (`plugins/miro`, `plugins/knowledge/skills/youtube-digest/extraction`,
+npm roots (`plugins/miro`, `plugins/knowledge/skills/video-digest/extraction`,
 `plugins/knowledge/skills/course-digest/extraction`,
 `plugins/ai-briefing/skills/generate/output/build`) and
 `.github/standards/runner-policy` — each is an `npm ci` in that directory; the heavy ones pull

@@ -852,7 +852,7 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the miro plugin build cannot be affected — reporting success."
 
-  # The knowledge plugin's youtube-digest extraction pipeline is a Node package
+  # The knowledge plugin's video-digest extraction pipeline is a Node package
   # with a typecheck and vitest suite no other lane installs or runs. Its
   # committed lockfile pins the shared vendor/ packages as packed installs
   # (install-links via the package's .npmrc), so manifest/lockfile drift breaks
@@ -861,7 +861,7 @@ jobs:
   # fail-closed docs-only gate as plugin-gate and miro-plugin. (Scoping this
   # lane to its own paths — skipping it on unrelated diffs — is the same
   # separately-tracked optimization noted on miro-plugin.)
-  youtube-extraction:
+  video-extraction:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -885,22 +885,22 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+          cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
       - name: Install dependencies
         if: steps.scope.outputs.docs_only != 'true'
         run: npm ci
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        working-directory: plugins/knowledge/skills/video-digest/extraction
       - name: Typecheck
         if: steps.scope.outputs.docs_only != 'true'
         run: npm run build
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        working-directory: plugins/knowledge/skills/video-digest/extraction
       - name: Test
         if: steps.scope.outputs.docs_only != 'true'
         run: npm test
-        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+        working-directory: plugins/knowledge/skills/video-digest/extraction
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the video extraction suite cannot be affected — reporting success."
 
   # ai-briefing's build/render pipeline is a Node package (native `node --test`
   # suite) no other lane installs or runs — including test/url-policy.test.js,
@@ -911,7 +911,7 @@ jobs:
   # that suite runs locally only, so a future refactor could silently break the
   # predicate with nothing red in CI (#1488). Same never-skip, self-test-first,
   # fail-closed docs-only gate as plugin-gate, miro-plugin and
-  # youtube-extraction. (Scoping this lane to its own paths — skipping it on
+  # video-extraction. (Scoping this lane to its own paths — skipping it on
   # unrelated diffs — is the same separately-tracked optimization noted on
   # miro-plugin.)
   ai-briefing-build:
@@ -953,13 +953,13 @@ jobs:
 
   # The knowledge plugin's course-digest extraction pipeline is a Node package
   # (typecheck + vitest suite) no other lane installs or runs — same shape as
-  # youtube-extraction, including the shared vendor/ packages pulled in as
+  # video-extraction, including the shared vendor/ packages pulled in as
   # file: dependencies via the package's .npmrc install-links=true. Without
   # this lane the suite (utils, the adapter contract, the dometrain/teachable
   # adapters, clerk/teachable-sso auth, config, and the hotmart/mux players)
   # runs locally only, so a future refactor could silently break it with
   # nothing red in CI (#1507). Same never-skip, self-test-first, fail-closed
-  # docs-only gate as plugin-gate, miro-plugin, youtube-extraction and
+  # docs-only gate as plugin-gate, miro-plugin, video-extraction and
   # ai-briefing-build. (Scoping this lane to its own paths — skipping it on
   # unrelated diffs — is the same separately-tracked optimization noted on
   # miro-plugin.)
@@ -1160,7 +1160,7 @@ jobs:
       - contract-clause-coverage-gate
       - plugin-gate
       - miro-plugin
-      - youtube-extraction
+      - video-extraction
       - ai-briefing-build
       - course-digest-extraction
       - runner-policy

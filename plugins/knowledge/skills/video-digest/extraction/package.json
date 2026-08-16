@@ -1,9 +1,9 @@
 {
-  "name": "@melodic/youtube-extraction",
+  "name": "@melodic/video-extraction",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "YouTube video acquisition and transcript pipeline for the knowledge plugin's youtube skill",
+  "description": "Video acquisition and transcript pipeline for the knowledge plugin's video-digest skill",
   "scripts": {
     "transcript": "node transcript/run-transcript.js",
     "watch": "node watch/run-watch.js",
