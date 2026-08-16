@@ -4,6 +4,26 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.1.0 — 2026-08-15
+
+Second adopter tabled, with its rules admitted to the crosswalk (#2684). Minor under this
+contract's own rule: a new adopter row and additive crosswalk rows, no obligation changed.
+
+- **Three `testing:audit` rows join the severity crosswalk** — `rule-zero-assertion`,
+  `rule-recomputed-expectation`, `rule-mock-only-oracle` — each arguing IMPORTANT through
+  `severity.md`'s first-match walk (CRITICAL fails every limb because a can't-fail test is evidence
+  about the suite's oracle, never a source defect; IMPORTANT's degradation-with-a-named-trigger limb
+  matches, the trigger being a regression that ships under a green run). All three are contained to
+  `Location` yet none is auto-applicable: the repair encodes the intended oracle, which is judgment
+  Step 4 surfaces. The set is the crosswalk's first **fully mechanical** selection — no withholding
+  verdict exists, so the fail-safe criterion is met by construction, and the one uncertainty
+  (deliberate interaction-style tests) resolves toward emitting with `Confidence` omitted rather
+  than toward silence. Its decline evidence is stated in the rows: an in-file
+  `cant-fail-ok: <reason>` annotation, counted in `## Surfaces`.
+- **`testing:audit` tabled as the second adopter**, added by the change that makes it true. The
+  flat-map sentence under the crosswalk is rescoped from "the two emitting rules" to per-producer
+  flatness, which its argument already meant.
+
 ## 2.0.2 — 2026-08-15
 
 Docs-only: the self-ignore-guard bullet's consequence sentence was universally
