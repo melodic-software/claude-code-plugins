@@ -87,41 +87,53 @@ read_window() {
 # grouping by hookName alone would let registration B's first failure hide
 # behind registration A's earlier warning.
 #
-# `launch` classifies the record: a hook that never LAUNCHED and one that RAN
-# and exited non-zero are different incidents with different remedies, and only
-# the first is fixed by restarting the session (#2849). `exitCode` alone cannot
-# carry the split — every record in the observed corpus has a non-null exitCode
-# (175/175 on 2026-08-16), and 1 is the code the WSL relay reports for its exec
-# failures, so "exitCode is not null" and "exitCode != 1" both misclassify. The
-# discriminator is the shell's own exec-failure surface: 126/127, or an
-# exec-failure signature in stderr. The signature set stays narrow on purpose —
-# `command not found`, `cannot execute`, and cmd.exe's `is not recognized as an
-# internal or external command` are all excluded because a hook that launched
-# fine prints them from a command IT ran, which would re-introduce this defect
-# in a new shape. That exclusion costs nothing on the codes: 126/127 already
-# cover the hook's own command for a POSIX shell, and cmd.exe reports a missing
-# command as 9009, not 127, so its phrase could never have been told apart from
-# a hook's own missing subcommand anyway. Classification reads the FULL stderr,
-# before the 160-char truncation below: the observed `execvpe` signature STARTS
-# at offset 90-94 across the measured records and survives truncation today, but
-# that is luck, not contract.
+# `class` classifies the record THREE ways: a hook that never LAUNCHED, one that
+# RAN and exited non-zero, and one whose record cannot settle which. They are
+# different incidents with different remedies, and only the first is fixed by
+# restarting the session (#2849). `exitCode` alone cannot carry the split — every
+# record in the observed corpus has a non-null exitCode (175/175 on 2026-08-16),
+# and 1 is the code the WSL relay reports for its exec failures, so "exitCode is
+# not null" and "exitCode != 1" both misclassify. Neither can 126/127 on its own:
+# a registered shell hook that DID launch exits 126 or 127 whenever a command IT
+# ran was missing or not executable, and calling that a launch failure emits the
+# restart-the-session remedy and reproduces exactly the misdiagnosis this hook
+# exists to fix. The corpus shows the two signals are close to independent — 163
+# records carry an `execvpe` signature at exitCode 1, and the single exitCode 127
+# record carries no stderr signature at all — so neither alone is sufficient:
+#   - launch failure        stderr carries an exec-failure signature. Signature
+#                           evidence decides this REGARDLESS of exit code.
+#   - completed non-zero    no signature, and exitCode is not 126 or 127.
+#   - ambiguous             no signature, but exitCode is 126 or 127. Both
+#                           readings stay possible; the message says so plainly
+#                           and gives both remedies rather than picking one.
+# This deliberately REFINES acceptance criterion 2 of #2849, which kept the
+# launch-failure wording for 126/127 OR a signature. That `or` is too loose for
+# the reason above; the refinement is disclosed in the PR body and the CHANGELOG.
 #
-# Two accepted residuals, both resolved toward the launch-failure label because
-# nothing in the attachment can settle them:
-#   - A wrapper that DID launch can still exit 126/127 when a command IT ran was
-#     missing or not executable.
-#   - A launched hook can print `execvpe` about a child of its own.
-# Both are named by the acceptance criteria as launch-failure evidence, and both
-# are strictly narrower than the unconditional sentence they replace.
+# The signature set stays narrow on purpose — `command not found`, `cannot
+# execute`, and cmd.exe's `is not recognized as an internal or external command`
+# are all excluded because a hook that launched fine prints them from a command
+# IT ran, which would re-introduce this defect in a new shape. Classification
+# reads the FULL stderr, before the 160-char truncation below: the observed
+# `execvpe` signature STARTS at offset 90-94 across the measured records and
+# survives truncation today, but that is luck, not contract.
+#
+# One accepted residual remains, resolved toward the launch-failure label because
+# nothing in the attachment can settle it: a launched hook can print `execvpe`
+# about a child of its own. The other former residual — a wrapper that launched
+# and then exited 126/127 from a command it ran — is no longer resolved at all;
+# it IS the `ambiguous` class.
 #
 # The class is counted PER RECORD, not read off the last one. `group_by` below
 # collapses a registration's records into one line, and a registration can fail
-# both ways within a single unwarned batch (an intermittent relay hiccup between
-# two runs of the same hook). Inheriting `launch` from `last` the way `exitCode`
-# and `stderr` do would relabel the whole group by whichever record happened to
-# come last, and would drop the other class's sentence from the message
-# entirely — the same misclassification defect this change exists to fix, in a
-# narrower shape. `launchCount` keeps both classes visible.
+# more than one way within a single unwarned batch (an intermittent relay hiccup
+# between two runs of the same hook). Inheriting the class from `last` the way
+# `exitCode` and `stderr` do would relabel the whole group by whichever record
+# happened to come last, and would drop the other classes' sentences from the
+# message entirely — the same misclassification defect this change exists to fix,
+# in a narrower shape. The per-class counts below keep every class present in a
+# group visible, and the message flags are computed from those counts, never
+# from a single collapsed value.
 SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
   jq -cRs '[
       split("\n")[] | fromjson?
@@ -130,14 +142,19 @@ SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
       | {hookName: (.hookName // "unknown"),
          command: ((.command // "") | .[0:120]),
          exitCode: (.exitCode // null),
-         launch: ((.exitCode == 126 or .exitCode == 127)
-                  or ((.stderr // "")
-                      | test("execvpe|execve\\(|exec format error"; "i"))),
+         class: (if ((.stderr // "")
+                     | test("execvpe|execve\\(|exec format error"; "i"))
+                 then "launch"
+                 elif (.exitCode == 126 or .exitCode == 127) then "ambiguous"
+                 else "completed" end),
          stderr: ((.stderr // "") | .[0:160])}
     ]
     | group_by(.hookName + "	" + .command)
     | map({hookName: .[0].hookName, command: .[0].command,
-           count: length, launchCount: (map(select(.launch)) | length),
+           count: length,
+           launchCount: (map(select(.class == "launch")) | length),
+           ambiguousCount: (map(select(.class == "ambiguous")) | length),
+           completedCount: (map(select(.class == "completed")) | length),
            exitCode: last.exitCode, stderr: last.stderr})' 2>/dev/null)
 [[ -n "$SUMMARY" && "$SUMMARY" != "[]" ]] || exit 0
 
@@ -181,32 +198,43 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
     (if (.stderr == "" or .stderr == $ph) then "(none — hook produced no stderr)"
      else .stderr end) as $err |
     (if .exitCode == null then "?" else (.exitCode|tostring) end) as $ec |
-    (if .launchCount == .count then "launch failure"
-     elif .launchCount == 0 then "completed non-zero exit"
-     else "\(.launchCount) launch failure + \(.count - .launchCount) completed non-zero exit"
-     end) as $kind |
+    ([{n: .launchCount, label: "launch failure"},
+      {n: .ambiguousCount,
+       label: "ambiguous: exit 126/127 with no exec-failure signature"},
+      {n: .completedCount, label: "completed non-zero exit"}]
+     | map(select(.n > 0))) as $classes |
+    (if ($classes | length) == 1 then $classes[0].label
+     else ($classes | map("\(.n) \(.label)") | join(" + ")) end) as $kind |
     "\(.hookName) [\(.command)] (\(.count)x; \($kind); exit \($ec); last stderr: \($err))"
   ] | join("; ")')
 
+# Computed from the per-record class counts, never from a collapsed single
+# value: a group whose only launch-failure record is not its last must still
+# raise the launch flag, and its own line above must still show the mix.
 HAS_LAUNCH=$(jq -rn --argjson new "$NEW" '[$new[] | .launchCount > 0] | any')
-HAS_COMPLETED=$(jq -rn --argjson new "$NEW" '[$new[] | .launchCount < .count] | any')
+HAS_AMBIGUOUS=$(jq -rn --argjson new "$NEW" '[$new[] | .ambiguousCount > 0] | any')
+HAS_COMPLETED=$(jq -rn --argjson new "$NEW" '[$new[] | .completedCount > 0] | any')
 
-# The diagnosis and the remedy are per-class, so both sentences can appear when
-# one warning batches records of both classes; the per-record `$kind` above says
-# which record earned which. The launch-failure wording is kept VERBATIM where
-# it is correct — it is right for the 164 exec-failure records in the observed
-# corpus — and is simply not asserted about a hook that ran to completion. The
+# The diagnosis and the remedy are per-class, so several sentences can appear
+# when one warning batches records of different classes; the per-registration
+# `$kind` above says which records earned which. The launch-failure wording is
+# kept VERBATIM where it is correct — it is right for the 163 signature-carrying
+# records in the observed corpus — and is simply not asserted about a hook that
+# ran to completion, nor about a record that cannot settle the question. The
 # completed branch stays event-agnostic: 2593's record is a Stop hook, where
 # there is no guarded tool call to proceed.
 MSG="claude-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}."
 if [[ "$HAS_LAUNCH" == "true" ]]; then
   MSG="${MSG} A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open)."
 fi
+if [[ "$HAS_AMBIGUOUS" == "true" ]]; then
+  MSG="${MSG} Exit 126 or 127 with no exec-failure signature in stderr is ambiguous — a shell reports those codes both for a registered command it could not execute at all and for a hook that ran and could not execute a command of its own, and the record cannot tell them apart. Both are possible: check that the registered command exists, is executable, and resolves on this platform, AND read the hook's own logic for a command it could not run."
+fi
 if [[ "$HAS_COMPLETED" == "true" ]]; then
   MSG="${MSG} A hook that exited non-zero with no exec-failure evidence enforced nothing either, and Claude Code told nobody — but nothing here points at the launch path, so its own exit status and stderr above are where the failure is."
 fi
 MSG="${MSG} Confirm hook_failure_audit_enabled stays true via /plugin configure claude-ops@<marketplace> (default true)."
-if [[ "$HAS_LAUNCH" == "true" ]]; then
+if [[ "$HAS_LAUNCH" == "true" || "$HAS_AMBIGUOUS" == "true" ]]; then
   MSG="${MSG} If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
 fi
 
