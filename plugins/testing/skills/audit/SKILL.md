@@ -133,9 +133,12 @@ line above it, or inside the body — the same recorded-decision shape as the re
   an identifier, so a regex directly after `return` is not masked. Wrongly reading division as a
   regex would mask real code, which is the worse direction; no false positive has been observed
   from the narrow set.
+<!-- spellchecker:off -->
+<!-- xdescribe below is the Jasmine/Jest suite-skip global, not a typo -->
 - **Skips are honored at both levels** — test-level (`it.skip`/`x`-prefixed/`@skip`/`[Fact(Skip=…)]`)
   and suite-level (`xdescribe`/`describe.skip`/`context.skip`/`suite.skip`): a test that does not
   run is not judged.
+<!-- spellchecker:on -->
 - **Fixture corpora under `evals/fixtures/` are pruned** — a detector's planted-defect fixtures are
   not the consumer's defects. Point `$CANT_FAIL_SCAN_ROOT` at one explicitly to scan it.
 - **A platform-skipped assertion is unverified on the platform that skips it** — a green local run is

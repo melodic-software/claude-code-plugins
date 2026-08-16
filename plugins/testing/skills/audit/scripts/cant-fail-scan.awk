@@ -27,7 +27,7 @@ BEGIN {
   file_mock = 0
   prev_raw = ""
   FATAL = 0
-  sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only
+  sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only  # spellchecker:disable-line
   sr_depth = 0
   last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
 
@@ -40,7 +40,7 @@ BEGIN {
   if (LANG_ID == "js") {
     # The trailing t.<method> alternative is the AVA / node-tap vocabulary —
     # those runners assert through the test-context object, not expect/assert.
-    ANY_ERE = "expect[[:space:]]*\\(|[Aa]ssert|[Ss]hould|[Vv]erify|[Tt]hrows|rejects|resolves|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate|fail[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])t[[:space:]]*\\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)"
+    ANY_ERE = "expect[[:space:]]*\\(|[Aa]ssert|[Ss]hould|[Vv]erify|[Tt]hrows|rejects|resolves|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate|fail[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])t[[:space:]]*\\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)" # spellchecker:disable-line
     MOCKA_ERE = "toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast|sinon\\.assert|calledOnce|calledTwice|calledThrice|calledWith|callCount"
     MOCKC_ERE = "jest\\.(mock|fn|spyOn)|vi\\.(mock|fn|spyOn)|sinon\\.(stub|spy|fake|mock)|createMock|\\.mockReturnValue|\\.mockResolvedValue|\\.mockImplementation"
     # Full mock-interaction chains, removed before deciding whether a real
@@ -50,9 +50,9 @@ BEGIN {
     STRIP_ERE = "expect[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)[[:space:]]*(\\.[[:space:]]*not)?[[:space:]]*\\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|sinon\\.assert\\.[A-Za-z]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)"
     TEST_START_ERE = "(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\\.[[:space:]]*(only|concurrent|failing|sequential))*[[:space:]]*(\\.[[:space:]]*each[[:space:]]*\\([^)]*\\)[[:space:]]*)?\\("
     TEST_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xit|xtest)[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\\.[[:space:]]*(skip|todo)"
-    SUITE_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\\.[[:space:]]*skip)[[:space:]]*\\("
+    SUITE_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\\.[[:space:]]*skip)[[:space:]]*\\(" # spellchecker:disable-line
   } else if (LANG_ID == "py") {
-    ANY_ERE = "[Aa]ssert|\\.raises|\\.warns|self\\.fail|[Ee]xpect|[Vv]erify|[Ss]hould|[Cc]heck|[Ee]nsure|[Vv]alidate"
+    ANY_ERE = "[Aa]ssert|\\.raises|\\.warns|self\\.fail|[Ee]xpect|[Vv]erify|[Ss]hould|[Cc]heck|[Ee]nsure|[Vv]alidate" # spellchecker:disable-line
     MOCKA_ERE = "assert_called|assert_any_call|assert_has_calls|assert_not_called|assert_awaited|call_count|mock_calls|\\.called([^A-Za-z0-9_]|$)"
     MOCKC_ERE = "MagicMock|AsyncMock|Mock\\(|create_autospec|patch\\(|patch\\.object|mocker\\."
     # Second alternative: an assert statement WHOSE SUBJECT is a mock property.
