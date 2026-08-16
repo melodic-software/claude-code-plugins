@@ -584,7 +584,13 @@ t_replay_asserts_the_recorded_attribution() {
   # pass: an expectation silently misread is the same false green the canary
   # exists to remove.
   local bad
-  for bad in "[${culprit:0:9}=40]" "[$culprit=many]" "[$culprit]" "[]"; do
+  # The last two shapes have no closing bracket. They matter most: a leading `[`
+  # that is never closed used to fail the field-detection glob outright, so the
+  # remainder became free-text note and the row fell back to passing on exit
+  # status alone -- reintroducing the pre-#2833 gap by the one route nobody
+  # would think to look at. Raised on #2843 by two independent review lanes.
+  for bad in "[${culprit:0:9}=40]" "[$culprit=many]" "[$culprit]" "[]" \
+    "[$culprit=40" "["; do
     printf 'fires %s %s malformed\n' "$sha" "$bad" >"$repo/scripts/inc.txt"
     SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
       run_canary "$repo" --verify-known-incidents

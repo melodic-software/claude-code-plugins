@@ -586,9 +586,19 @@ verify_known_incidents() {
     fi
 
     # Split the optional bracketed attribution field off the free-text note.
+    #
+    # A leading `[` COMMITS the row to carrying an attribution. Testing for the
+    # closing bracket as part of the same condition would be a silent trapdoor:
+    # a truncated or typo'd row like `fires <sha> [culprit=40 a note` would fail
+    # the glob, the whole remainder would become free text, and the row would
+    # fall back to passing on exit status alone -- the exact pre-#2833 gap this
+    # replay exists to close, reached by the one route nobody would look at.
+    # An unterminated field is malformed, so it takes the malformed path.
     attribution=""
     note="$rest"
-    if [[ "$rest" == \[*\]* ]]; then
+    if [[ "$rest" == \[* ]]; then
+      [[ "$rest" == \[*\]* ]] ||
+        die "unterminated attribution field for $sha in $INCIDENTS_FILE (no closing ']'): $rest"
       attribution="${rest%%\]*}]"
       note="${rest#*\]}"
       note="${note# }"
