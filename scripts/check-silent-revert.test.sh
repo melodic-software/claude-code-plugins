@@ -249,6 +249,60 @@ t_rename_is_not_a_removal() {
   fi
 }
 
+# The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
+# what the replay's recorded expectations assert on, so a developer's ambient
+# settings deciding them means a red build on a clean tree -- which is exactly
+# what #2843's first CI run hit, from `diff.algorithm = histogram`.
+#
+# Two keys are measured here because they were both live exposures:
+# `diff.algorithm` changes which lines a hunk calls deleted, and
+# `blame.ignoreRevsFile` REASSIGNS authorship away from the listed commits.
+# The second is the nastier of the two -- on the real corpus it swung one
+# attribution 853 -> 259 -- and it also does not respond to `-c key=`, only to
+# the `--no-ignore-revs-file` option, so this case is what keeps that
+# non-obvious distinction from being "simplified" back into a broken pin.
+t_counts_are_immune_to_ambient_git_config() {
+  local repo clean_sink hostile_sink cfg revs
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  local culprit
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  add_block "$repo" feature.txt 30 beta
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+
+  clean_sink="$(mktemp)"
+  hostile_sink="$(mktemp)"
+  cfg="$repo/hostile-gitconfig"
+  revs="$repo/ignore-revs.txt"
+  printf '%s\n' "$culprit" >"$revs"
+  # Deliberately hostile but entirely legitimate developer settings.
+  {
+    printf '[blame]\n\tignoreRevsFile = %s\n' "$revs"
+    printf '[diff]\n\talgorithm = histogram\n\trenames = false\n'
+  } >"$cfg"
+
+  FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=20 \
+    run_canary "$repo" --commit HEAD
+  local clean_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$hostile_sink" SILENT_REVERT_THRESHOLD=20 \
+    run_canary "$repo" --commit HEAD
+  local hostile_rc="$RC"
+
+  sort -o "$clean_sink" "$clean_sink"
+  sort -o "$hostile_sink" "$hostile_sink"
+
+  if [[ -s "$clean_sink" ]] && [[ "$clean_rc" -eq "$hostile_rc" ]] &&
+    cmp -s "$clean_sink" "$hostile_sink"; then
+    ok "attribution counts are identical under hostile ambient git config"
+  else
+    fail "ambient git config changed the attribution (rc $clean_rc vs $hostile_rc): $(
+      printf 'clean=[%s] hostile=[%s]' "$(tr '\n' ';' <"$clean_sink")" \
+        "$(tr '\n' ';' <"$hostile_sink")"
+    )"
+  fi
+  rm -f "$clean_sink" "$hostile_sink"
+}
+
 # --------------------------------------------------------------------------
 # 3. Declared-intent forms. Constrained matching only.
 # --------------------------------------------------------------------------
@@ -684,6 +738,7 @@ t_quiet_below_threshold
 t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
+t_counts_are_immune_to_ambient_git_config
 t_declared_forms
 t_conventional_revert_subject_is_declared
 t_prose_mentioning_revert_still_fires

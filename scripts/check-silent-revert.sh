@@ -311,20 +311,27 @@ attribute_file() {
   # Old-side hunk ranges (the parent's line numbers) with at least one deleted
   # line. --unified=0 keeps each hunk tight to its own deletions.
   #
-  # --diff-algorithm and -M are pinned so the measurement cannot drift with
-  # AMBIENT GIT CONFIG. Both are the git defaults, so this changes nothing about
+  # EVERY config knob that can move a count is pinned on the command line, in
+  # BOTH the diff below and the blame beneath it -- see the blame call for its
+  # own pins. All of them are the git defaults, so this changes nothing about
   # what CI detects; it makes a local run match CI rather than the reverse.
   #
   # This is not defensive decoration. The algorithm choice changes which lines a
   # hunk calls deleted, and therefore the per-culprit counts this canary
-  # thresholds on: measured on cc58cbc53, the eda5ae5ed attribution is 298 lines
-  # under git's default `myers` and 301 under `diff.algorithm = histogram`, a
-  # setting plenty of developers carry globally. Three lines is harmless; the
-  # principle is not, because the same drift can carry a count across the
-  # 200-line threshold and make a commit fire on one machine and stay silent on
-  # another. The header's whole calibration -- "fires on 5 commits over 500, 1%"
-  # -- describes one algorithm, and this is what keeps the shipped detector and
-  # that number talking about the same thing. Found via #2833, whose exact-count
+  # thresholds on. Measured on the real corpus, pre-pin, once under each
+  # algorithm -- every calibration figure in the header above was taken on a
+  # machine carrying `diff.algorithm = histogram`, and git's default disagrees:
+  #
+  #        commit                          histogram   myers (git default)
+  #        6f0a31109 (#2640)                     390                   447
+  #        91e77fc16 (#2135)                     340                   323
+  #        eda5ae5ed's share of cc58cbc53        301                   298
+  #
+  # Those are not rounding. 390 -> 447 is 15%, and the same drift can carry a
+  # count across the 200-line threshold and make a commit fire on one machine
+  # and stay silent on another. The header's calibration describes ONE
+  # configuration, and these pins are what keep the shipped detector and those
+  # numbers talking about the same thing. Found via #2833, whose exact-count
   # replay assertions turned a silent divergence into a red build.
   #
   # -M pins the same exposure for rename detection, which the note above calls
@@ -359,7 +366,24 @@ attribute_file() {
   # matching hex-then-two-numbers and checking the length explicitly is both
   # interval-free and unambiguous against the `author`/`filename`/`summary`
   # lines it must not match.
-  git blame --line-porcelain "${ranges[@]}" "$parent" -- "$file" 2>/dev/null |
+  #
+  # blame gets the same ambient-config treatment as the diff above, and it is
+  # the bigger exposure of the two. `blame.ignoreRevsFile` REASSIGNS authorship
+  # away from the listed commits, which is precisely the quantity the replay's
+  # attribution expectations assert on: measured on cc58cbc53 with that setting
+  # naming bfb66beb8, its attribution collapses 853 -> 259 while eda5ae5ed's
+  # rises 298 -> 322. A developer carrying that config globally -- a normal
+  # thing to do in a repo with a bulk-reformat commit -- would get
+  # `FAIL ... NOT as recorded` on a clean tree.
+  #
+  # It has to be the --no-ignore-revs-file OPTION. `-c blame.ignoreRevsFile=`
+  # does NOT clear it: the documented "an empty file name resets the list"
+  # applies to the option, and the -c form was measured leaving the hostile
+  # value fully in effect (853 -> 259 with the reset supposedly applied). The
+  # negated option is the only form that actually resets, so the obvious
+  # symmetry with the -c pins above is wrong here and is deliberately not used.
+  git blame --no-ignore-revs-file --line-porcelain \
+    "${ranges[@]}" "$parent" -- "$file" 2>/dev/null |
     awk '
       /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
       /^\t/ { if (sha != "") printf "%s\t%s\n", sha, substr($0, 2) }
