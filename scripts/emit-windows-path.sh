@@ -51,7 +51,9 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: emit-windows-path.sh [-w|--backslash] <path>..." >&2
+  printf 'usage: emit-windows-path.sh [-m|--mixed | -w|--backslash] <path>...\n' >&2
+  printf '       -m  mixed form, C:/dir/file (default)\n' >&2
+  printf '       -w  backslash form, C:\\dir\\file\n' >&2
 }
 
 form="-m"

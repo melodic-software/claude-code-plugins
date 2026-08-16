@@ -54,6 +54,24 @@ if ((RC == 0)) && grep -q 'usage:' <<<"$OUT"; then
 else
   fail "--help should exit 0 with usage: rc=$RC out=$OUT"
 fi
+# Every accepted option must appear in the banner: an option the header comment
+# documents but the banner omits is how a caller concludes it does not exist.
+for opt in -m --mixed -w --backslash; do
+  if grep -q -- "$opt" <<<"$OUT"; then
+    pass "the usage banner documents $opt"
+  else
+    fail "usage banner omits an accepted option ($opt): $OUT"
+  fi
+done
+# ... and each must actually be accepted, not merely advertised.
+for opt in -m --mixed; do
+  run linux-gnu "$opt" /srv/build/out.zip
+  if ((RC == 0)) && [[ "$OUT" == "/srv/build/out.zip" ]]; then
+    pass "$opt is accepted as the mixed-form selector"
+  else
+    fail "$opt rejected or mishandled: rc=$RC out=$OUT"
+  fi
+done
 
 # --- 2. POSIX host: pass through unchanged, exit 0 --------------------------
 run linux-gnu /srv/build/out.zip
