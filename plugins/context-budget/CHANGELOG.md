@@ -5,6 +5,22 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Added
+
+- Three fix-path eval cases: mutation only on the explicit `fix` argument (a mid-report aside is
+  not an override), user-global settings stay print-only inside the fix path with the auto-mode
+  classifier caveat stated as the reason, and one-lever-at-a-time apply → re-measure → ledger
+  with batch requests refused on attribution grounds. Eval file passes the evals-quality gate
+  with zero warnings.
+
+### Verified
+
+- Acceptance sweeps recorded: the shipped plugin greps clean of every research-run figure
+  (cite-never-transcribe), the catalogue contract test and hook contract test pass, and the
+  skill-layout gate reports zero errors.
+
 ## [0.4.0]
 
 ### Added

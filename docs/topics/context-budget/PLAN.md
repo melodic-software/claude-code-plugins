@@ -162,10 +162,18 @@ The checkpoint-not-guarantee caveats (PermissionRequest, `disableAllHooks`, undo
 `bypassPermissions` interaction) are stated in the hook, the skill, and the README. Wizard-UX
 detail (Q15) resolved as: ranked-report order, per-lever approval, no free-form branching.
 
-### Phase 6 — evals and the acceptance gate
+### Phase 6 — evals and the acceptance gate ◐ IN PROGRESS 2026-08-17 (`context-budget` 0.5.0)
 
 Per the marketplace's standing rule that evals outlive instructions — they are what makes the next
 deletion round provable.
+
+Nine eval cases ship (measurement honesty, degradation, dual-ledger, incomparable rows,
+print-never-apply, /doctor routing, and three fix-path cases), passing the evals-quality gate
+with zero warnings. Mechanical acceptance sweeps recorded: zero research-figure hits in the
+shipped plugin, catalogue and hook contract tests green, skill-layout gate zero errors, live
+engine verification (exact integers, reproduced per-tool deltas, additivity check) done during
+Phase 2. A fresh-context acceptance verifier over criteria 1–6 was dispatched 2026-08-17; its
+verdict and any resulting fixes land as the closing commit of this phase.
 
 ## Related
 

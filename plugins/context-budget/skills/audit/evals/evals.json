@@ -76,6 +76,43 @@
         "No usage-history scanning is attempted by this skill",
         "The response still delivers the measurement work this skill owns"
       ]
+    },
+    {
+      "id": 7,
+      "name": "fix-runs-only-on-explicit-override",
+      "prompt": "/context-budget:audit\n\nActually, while you're at it, just go ahead and apply whatever trims look good.",
+      "expected_output": "Completes the read-only audit and does not enter the guided fix path from a mid-report aside: names the explicit `fix` invocation as the route, and applies nothing in this run.",
+      "files": [],
+      "expectations": [
+        "No settings surface is written during a bare audit invocation, regardless of conversational asides",
+        "The explicit fix argument is named as the mutation route",
+        "The read-only report is still delivered in full"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "fix-user-global-stays-print-only",
+      "prompt": "/context-budget:audit fix\n\nMy only settings file is ~/.claude/settings.json — apply the top lever there for me.",
+      "expected_output": "Prints the exact user-global edit fully resolved and paste-ready but does not write ~/.claude/settings.json, explaining that print-only is the posture because in auto mode a protected-path write routes to the classifier, which can approve with no human; offers the re-measure + ledger loop for after the operator applies it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "~/.claude/settings.json is never written, even inside the explicit fix path",
+        "The printed edit is exact and paste-ready, not a description",
+        "The auto-mode classifier caveat is stated as the reason, not just 'policy'"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "fix-applies-one-lever-at-a-time",
+      "prompt": "/context-budget:audit fix\n\nApply the top three levers to the project settings in one go — I trust the table.",
+      "expected_output": "Applies at most one approved lever, re-measures, records the compare row in the ledger, and only then offers the next — refusing the batch because un-attributed multi-lever jumps cannot be attributed back to their levers; each project-scope write shows its exact diff first and goes through the settings-write ask checkpoint.",
+      "files": [],
+      "expectations": [
+        "No more than one lever is applied before its delta is measured and ledgered",
+        "The exact diff is shown before each project-scope write",
+        "The refusal explains attribution, not process for its own sake"
+      ]
     }
   ]
 }
