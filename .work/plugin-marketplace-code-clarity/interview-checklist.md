@@ -32,15 +32,21 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 
 - Q1 | answered | round 1 | What prompted this — agent-written diffs, legacy sweeps, or standing posture? | Agent-written code is the prime driver; on invocation the skill ENFORCES: remove comments, make code more expressive. Every surviving comment must earn its keep.
 - Q2 | answered | round 1 | Deliverable shape — new code-tidying skill vs tidy extension vs rule/posture? | New skill inside code-tidying. Caveat: research must settle whether comment-removal and refactor-to-expressive are one concern or two (different criteria/rubric ⇒ maybe two components).
-- Q3 | open | round 1 | Doctrine — where on the Ousterhout ⇄ Clean Code spectrum; which comments survive? | Research returned: spectrum only governs class-C width; re-asked concretely as Q4.
-- Q4 | open | round 2 | Class-C width: which comments survive? | User pushback on "why-comments" as a survival category: rationale should live in context/git history/understanding, not lengthy justification comments. Terse-constraint refinement proposed in round 3 — awaiting confirm.
+- Q3 | answered | round 3 | Doctrine — where on the Ousterhout ⇄ Clean Code spectrum; which comments survive? | Resolved via research + Q4: the canon's agreed floor (delete class A; refactor-then-delete class B) plus the Q4 terse earn-its-keep rule for class C. Verified research artifact: .work/plugin-marketplace-code-clarity/RESEARCH.md.
+- Q4 | answered | round 3 | Class-C width: which comments survive? | Earn-its-keep test, final: a comment survives only if (a) it carries information code cannot express, (b) it is load-bearing at the point of reading (future editor risks a bug/misuse without it), and (c) it is terse (1-2 lines). Lengthy why-comment treatment: extract durable constraint to a one-liner, route narrative to the commit message, delete the rest. Justification-of-choices always routes out of code (commit/PR/ADR). Q3 resolves with this: the spectrum question dissolves into the agreed floor + this class-C rule.
 - Q5 | answered | round 2 | Should the skill flag MISSING comments? | No. Treats existing comments/expressiveness only.
 - Q6 | answered | round 2 | One skill vs two components? | One skill hosting the explicit three-way triage (delete / refactor-then-delete / keep).
 - Q7 | answered | round 2 | Mode: applies edits vs read-only? | Applies edits, safety gradient: class-A deletes near-mechanical; class-B refactors only with a test/lint safety net, else proposed not applied.
 - Q8 | answered | round 2 | Default run scope? | Uncommitted/diff-scoped default; explicit file/dir target optional.
 - Q9 | answered | round 2 | Naming approach? | Run /naming:name-it-better once scope locks; user criteria (semantically correct, explicit over implicit) as declared conventions.
-- Q10 | open | round 3 | Doc-comment fence: are public-API docstrings/XML-docs exempt; are private docstrings triaged like comments? |
-- Q11 | open | round 3 | Ecosystem exclusions: any language/file-type the skill must not touch (markdown excluded by default)? |
+- Q10 | answered | round 3 | Doc-comment fence? | Public-API doc comments (docstrings, C# XML docs, JSDoc on exported surfaces) are EXEMPT — never touched. Private/internal doc comments get the same three-way triage as regular comments.
+- Q11 | answered | round 3 | Ecosystem exclusions? | Code files only, language-agnostic; markdown excluded (docs-hygiene territory, same fence as audit-comment-residue). No per-language exclusions — the Q7 safety gradient (class-B proposed-not-applied without a test net) covers fragile ecosystems.
+
+## Resolved (round 3, 2026-08-17)
+
+Q4, Q10, Q11 locked per user ("go with the recommendations"; Q4 confirmed with the
+terse earn-its-keep refinement). Frontier empty pending answer validation
+(/planning:audit-answers per user's verifier-agents request) and the confirmation gate.
 
 ## Resolved (round 2, 2026-08-17)
 
@@ -51,13 +57,13 @@ context/git history; terse constraint comments acceptable. Round 3 asks Q4-revis
 ## Decision tree (`me` mode)
 
 - [x] Motivation / primary use case (Q1) — agent-written code, enforcement-on-invocation
-- [x] Deliverable shape (Q2) — new code-tidying skill; one-vs-two-concerns pending research
-- [ ] Comment doctrine + aggressiveness (Q3) — leaning Clean Code; blocked by: research
-- [ ] Mode: audit-only vs applies edits (blocked by: Q2 conflation outcome)
-- [ ] Trigger surface: on-demand vs proactive/standing (blocked by: Q1, Q2)
-- [ ] Plugin home + name (home decided: code-tidying; NAME open — criteria locked: semantically correct, explicit over implicit, meaning obvious at invocation)
-- [ ] Overlap fences vs audit-comment-residue / tidy #14-#15 / naming (blocked by: Q3, research)
-- [ ] Ecosystem scope + detection approach (blocked by: Q2)
+- [x] Deliverable shape (Q2) — one new code-tidying skill hosting the three-way triage (Q6)
+- [x] Comment doctrine + aggressiveness (Q3/Q4) — agreed floor; class C = terse earn-its-keep
+- [x] Mode (Q7) — applies edits; class-B safety gradient (test net or propose-only)
+- [x] Trigger surface (Q8) — on-demand, diff-scoped default, optional explicit target
+- [ ] Plugin home + name — home: code-tidying; NAME pending /naming:name-it-better run (Q9; criteria: semantically correct, explicit over implicit)
+- [x] Overlap fences (Q10/Q11 + project-fit) — audit-comment-residue keeps residue classification; tidy keeps lane machinery; public-API docs exempt; markdown excluded
+- [x] Ecosystem scope (Q11) — language-agnostic code files; missing-comment flagging out (Q5)
 
 ## Research dispatch (round 1.5)
 
