@@ -12,6 +12,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   renews only after the worker returns. Branch-push activity stays deferred.
   CONTRACT documents clock skew, TOCTOU (revalidation is intent, not CAS),
   ttl-0 born-expired, and comment-id monotonicity as an adapter requirement.
+  Workers renew before the TTL deadline with a safety margin, not only at phase
+  boundaries. local-markdown `renew-lease` refuses expired (including ttl-0)
+  leases the same way the GitHub adapter does.
 
 ## [0.35.27]
 
