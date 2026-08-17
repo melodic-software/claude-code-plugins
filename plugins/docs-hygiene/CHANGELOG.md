@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.15.3]
+## [0.16.1]
 
 ### Changed
 

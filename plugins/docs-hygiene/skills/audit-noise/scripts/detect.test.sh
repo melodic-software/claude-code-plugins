@@ -276,6 +276,24 @@ EOF
 rr_out="$(bash "$DETECT" "$RUNNING_RETRO_CHILD")"
 assert_contains "concrete child under .work/running-retros/ is a ghost ref" "$rr_out" "Finding shape: ghost-ref"
 
+OVERENG_BARE="$TEST_TMPDIR/overengineering-bare.md"
+cat >"$OVERENG_BARE" <<'EOF'
+# Overengineering bare-root fixture
+
+Findings live under .work/overengineering/ on the auditing branch.
+EOF
+oe_bare_out="$(bash "$DETECT" "$OVERENG_BARE")"
+assert_not_contains "bare .work/overengineering/ is not a ghost ref" "$oe_bare_out" "Finding shape: ghost-ref"
+
+OVERENG_CHILD="$TEST_TMPDIR/overengineering-child.md"
+cat >"$OVERENG_CHILD" <<'EOF'
+# Overengineering child fixture
+
+See .work/overengineering/feat-x/findings.md for the audit ledger.
+EOF
+oe_child_out="$(bash "$DETECT" "$OVERENG_CHILD")"
+assert_contains "concrete child under .work/overengineering/ is a ghost ref" "$oe_child_out" "Finding shape: ghost-ref"
+
 PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
 cat >"$PLACEHOLDER" <<'EOF'
 # Placeholder fixture

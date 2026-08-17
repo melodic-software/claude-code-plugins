@@ -61,8 +61,9 @@ audit_noise_convention_roots_pattern() {
 # sharing its line. Angle-bracket slot variables (root followed by '<') are
 # schema placeholders and never match the candidate pattern; the reserved
 # concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/,
-# <memory_dir>/running-retros/ — reserved first-level names under the memory
-# root per docs/conventions/topic-docs/) are exempt only in bare form — a
+# <memory_dir>/running-retros/, <memory_dir>/overengineering/ — reserved
+# first-level names under the memory root per docs/conventions/topic-docs/)
+# are exempt only in bare form — a
 # concrete child under them flags. Configured non-default roots from the
 # concern file scan alongside the defaults. The bare-root exemption is for
 # memory roots only — never for the contract root (default or configured).
