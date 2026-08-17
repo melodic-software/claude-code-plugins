@@ -10,7 +10,7 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 - [x] Step 2: Frontier-rounds loop — 3 rounds, Q1–Q18, two background fact agents
 - [x] Step 3: Stop condition — register gate clean (18 registered, 0 open, 1 deferred), user confirmed round 3
 - [x] Step 4: PLAN.md Brief written (docs/topics/pocock-shipping-breakdown/PLAN.md); brief cross-check clean
-- [ ] Step 5: Hand off — /work-items:decompose publishes container + lane items (awaiting breakdown approval)
+- [x] Step 5: Hand off — breakdown approved and PUBLISHED 2026-08-17 via GitHub MCP (no gh in cloud session; seam bypass recorded as finding on #2942). Container #2933 (work-map, needs-human) carries the Brief; 19 sub-issues natively linked: A=#2934 B=#2935 C=#2936 D=#2937 F=#2938 W=#2939 X=#2940 binding=#2941 hygiene=#2942 lease=#2943 local-md=#2944 topology=#2945 linear=#2946 provenance=#2947 Y=#2948 E=#2949 onboarding=#2950 jira-write=#2951 gitea=#2952. Blocked-by edges in body text (native edges backfill from a gh session): 2949←2934, 2950←2942, 2951←2945, 2952←2950. Course SSOT skeleton created at docs/upstream/aihero-shipping-course.md.
 
 ## Session-shorthand glossary
 
