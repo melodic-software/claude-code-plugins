@@ -32,14 +32,21 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 
 ## Open-question register
 
-- Q1 | open | round 1 | Deliverable shape of this effort |
-- Q2 | open | round 1 | Lane inventory + priority confirmation |
-- Q3 | open | round 1 | Spec-on-tracker: adopt container-item capability? |
-- Q4 | open | round 1 | Cross-tracker flow (Jira source → GitHub agentic surface) |
-- Q5 | open | round 1 | Review deltas: originating-item axis + container close-out review |
-- Q6 | open | round 1 | Rerouting recipe home |
-- Q7 | open | round 1 | /goal route-away delta in draft-goal-condition |
-- Q8 | open | round 1 | Where course-derived provenance records live |
+- Q1 | answered | round 1 | Deliverable shape | Brief → decompose → issues on this repo; DOGFOOD his workflow: one session, one PR, clear/handoff between lanes
+- Q2 | answered | round 1 | Lane inventory | accepted, A headline; ADD scrutiny posture lane (existing state not presumed correct; verifier agents over existing surfaces) + mapping-doc accuracy update
+- Q3 | answered | round 1 | Spec-on-tracker | YES — extend decompose + plan close-out (not a new to-spec skill); final shape still subject to scrutiny-lane findings; hard-coded conventions must become consumer-configurable
+- Q4 | answered | round 1 | Cross-tracker flow | own investigation item + separate per-provider adapter tickets; Linear likely first (user's personal dogfood target; day job has no GitHub); GitHub PR/issue shared-numbering concern recorded
+- Q5 | answered | round 1 | Review deltas | YES both (originating-item axis + container close-out review), one lane item
+- Q6 | answered | round 1 | Rerouting home | absorb into decompose as re-decompose flow
+- Q7 | answered | round 1 | /goal route-away | YES, one Step 0 router row
+- Q8 | answered | round 1 | Provenance home | new docs/upstream/aihero-shipping-course.md + fix existing map where stale/inaccurate
+- Q9 | open | round 2 | Canonical naming: work item vs ticket |
+- Q10 | open | round 2 | Binding-config scrutiny: own lane item? |
+- Q11 | open | round 2 | Skill granularity: superset vs broken-down |
+- Q12 | open | round 2 | Which provider adapters get tickets |
+- Q13 | open | round 2 | Dogfood mechanics: hand-publish spec container this session |
+
+Pending facts (block round 3): Agent A = mattpocock/skills bring-over audit; Agent B = seam/binding scrutiny + adapter shipping model trade-offs.
 
 ## Decision tree (`me` mode)
 
