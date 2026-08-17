@@ -105,6 +105,14 @@ code=$?
 assert_exit "tier scan exits 0" 0 "$code"
 assert_contains "root CLAUDE.md is always" "$out" "$d/CLAUDE.md	lines=3	words=4	h2=0	tier=always"
 assert_contains "nested subtree CLAUDE.md is invocation" "$(printf '%s\n' "$out" | grep 'packages/api/CLAUDE.md')" "tier=invocation"
+
+# Single-file mode must carry the same nesting semantics: the as-typed path
+# is the tier-relevant form (bare CLAUDE.md = working-dir file; a nested
+# relative path keeps its subtree nesting).
+out_sf="$( (cd "$d" && bash "$SCRIPT" CLAUDE.md) 2>&1)"
+assert_contains "single-file bare CLAUDE.md is always" "$(printf '%s\n' "$out_sf" | grep '^file')" "tier=always"
+out_sf="$( (cd "$d" && bash "$SCRIPT" packages/api/CLAUDE.md) 2>&1)"
+assert_contains "single-file nested CLAUDE.md is invocation" "$(printf '%s\n' "$out_sf" | grep '^file')" "tier=invocation"
 assert_contains "unscoped rule is always" "$out" "style.md"
 assert_contains "unscoped rule tier" "$(printf '%s\n' "$out" | grep 'style.md')" "tier=always"
 assert_contains "paths-scoped rule is invocation" "$(printf '%s\n' "$out" | grep 'scoped.md')" "tier=invocation"

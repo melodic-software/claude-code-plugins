@@ -66,8 +66,15 @@ TROOTS=()
 HUB_ROOTS=()
 for arg in "$@"; do
   if [[ -f "$arg" ]]; then
+    # Root "." keeps the AS-TYPED path as the tier-relevant relative form: a
+    # bare `CLAUDE.md` is the invoker's working-directory file (always tier),
+    # while `packages/api/CLAUDE.md` keeps its nesting (subtree tier). Using
+    # dirname here would collapse every file arg to its basename and
+    # misclassify a directly-targeted nested CLAUDE.md as always-loaded.
+    # An absolute file arg carries no cwd anchor and classifies by its full
+    # path (nested form); the judgment layer owns that ambiguity.
     TARGETS+=("$arg")
-    TROOTS+=("$(dirname "$arg")")
+    TROOTS+=(".")
   elif [[ -d "$arg" ]]; then
     while IFS= read -r f; do
       TARGETS+=("$f")
