@@ -1,5 +1,5 @@
 ---
-description: "Audit an existing enforcement surface — agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations — under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only — it walks and reports, and the only file it writes is its own findings artifact. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'what automation can we retire', 'too many guards', 'process cruft', 'do we still need this gate', 'enforcement clutter', 'retire dead automation', 'why does this check exist'. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks — the sibling `realign` skill executes accepted findings behind a per-item human gate."
+description: "Audit an existing enforcement surface — agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations — under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only — it walks and reports; everything it writes unasked stays in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'what automation can we retire', 'too many guards', 'process cruft', 'do we still need this gate', 'enforcement clutter', 'retire dead automation', 'why does this check exist'. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks — the sibling `realign` skill executes accepted findings behind a per-item human gate."
 argument-hint: "[layer ...] [unattended] — layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -58,6 +58,15 @@ route is the file-write tool: write the full content to a neutral filename in th
 directory, then rename it to the contract's filename. **A shell content-write is never acceptable** —
 it routes the deliverable around the write path the harness governs, and quoting, expansion, and
 encoding silently transform what it carries. Where neither route is available, say so and stop.
+
+**Two auxiliary writes are sanctioned, and only these.** (a) The topic-docs **self-ignore guard**:
+the convention's once-per-session check that the resolved memory root gitignores itself, creating
+that root-local `.gitignore` (announced) when absent — a memory-tier write, never the consumer's
+root `.gitignore`. (b) The resolution rungs' **concern-file persistence** (rungs 2–4 of
+`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`): a tracked write that happens only on the user's
+explicit confirmation of the offered location — declining leaves the resolution session-local and
+the run proceeds; a non-interactive or `unattended` run skips the ask-and-persist rungs entirely and
+never performs it. Anything beyond the findings artifact and these two is outside the contract.
 
 Executing what a finding recommends belongs to `overengineering:realign`, behind an explicit per-item
 human gate. Name it as the next step; never start it unasked.

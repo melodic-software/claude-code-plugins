@@ -50,6 +50,13 @@ recomputed on every run, and is exactly why operator judgments are not kept here
 4. Ask once — one question, recommended option first; persist the answer to the concern file.
 5. The documented default: `.work/overengineering/<branch-slug>/`.
 
+**Persisting at rungs 2–4 is ask-gated, never automatic.** Each of those rungs persists the
+resolution to the concern file only on the user's explicit confirmation; declining is a valid answer
+that leaves the resolution session-local, and the run proceeds either way. A non-interactive context
+never reaches these rungs (see below). This is the audit's one sanctioned tracked write, and the
+audit SKILL's "Read-only contract" discloses it — the read-only headline is scoped to unasked
+writes, which all stay in the memory tier.
+
 Only rungs 1 and 5 compose `overengineering/<branch-slug>` themselves. Rungs 2–4 yield whatever
 location the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A
 skill that hardcodes the default's shape writes where the other side never looks, and realign's
