@@ -24,7 +24,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   single-quote expression treated it as a delimiter and matched from the
   apostrophe in one string to the apostrophe in the next — deleting everything
   between them. The whole command above reduced to the single token
-  `Write-Host`. This is an ENTRY-side failure, not a mis-measurement: with the
+  `Write-Host`. This is an ENTRY-side failure, not a measurement error: with the
   `(` deleted, `ps::has_special_constructs` saw no construct,
   `ps::has_dynamic_invocation` saw no call and `ps::has_launcher` saw no
   launcher, so `ps::classify_git_command` never entered the fail-closed sink and

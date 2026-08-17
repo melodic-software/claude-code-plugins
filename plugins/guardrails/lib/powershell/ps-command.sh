@@ -253,7 +253,7 @@ ps::blank_herestrings() {
 #   in:  Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"
 #   out: Write-Host
 #
-# That is not a mis-measurement, it is the ERASURE of the command every
+# That is not a measurement error, it is the ERASURE of the command every
 # sink-trigger scan is about to look at. With the `(` gone, has_special_constructs
 # saw no construct, has_dynamic_invocation saw no call, has_launcher saw no
 # launcher — so classify_git_command never entered the fail-closed sink at all,
