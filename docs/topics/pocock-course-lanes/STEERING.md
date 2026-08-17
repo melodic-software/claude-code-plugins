@@ -62,4 +62,9 @@ Interview-first per contract; register gate clean (12/12); user confirmed. Desig
 | Pruning doctrine (L7) | PARITY — no work | Three pruning tests confirmed covered at parity or stronger (SSOT decomposition table: extract-ssot, audit-derivability, audit-instructions/unhobble) |
 | Cross-skill invocation phrasing (upstream `.agents/invocation.md`) | ROUTE | Stays lane 6's candidate (#2904); lane 8 owns invocation doctrine; the new skill's body stays silent on it |
 
-Lane 7 status: decisions closed; implementation issues filed at lane close (see #2909 checklist).
+Lane 7 status: CLOSED 2026-08-17 — Brief locked (`docs/topics/authoring-steering-skill/PLAN.md`),
+surface enumeration verified and committed (`docs/topics/authoring-steering-skill/design/agent-doc-surfaces.md`),
+build filed as [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962)
+(skill + evals + philosophy cross-ref) and
+[#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963) (audit-side
+criterion), SSOT annotated. Next: lane 8 (#2910).

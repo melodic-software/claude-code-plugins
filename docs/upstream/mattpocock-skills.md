@@ -79,6 +79,14 @@ the supersession: upstream fires at the *authoring* moment ("creating or editing
 modifying AGENTS.md or CLAUDE.md") while our coverage is *audit*-shaped; only skills have an
 authoring-moment home (`playbooks:skill-authoring`).
 
+**Lane 7 closed 2026-08-17**: gaps 1–2 and the two-loads/leading-words strands are
+design-locked as `docs-hygiene:write-for-agents`
+(contract: `docs/topics/authoring-steering-skill/PLAN.md`; build:
+[#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
+[#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
+completion-criteria criterion). The GAP/PARTIAL verdict cells below flip to ADOPTED when #2962
+merges; gap 3 rows (invocation) remain lane 8's (#2910).
+
 | Upstream section | Our surface | Verdict |
 |---|---|---|
 | Context pointers (wording-as-trigger, branches, front-loaded leading word) | `docs-hygiene:audit-progressive-disclosure` (blind-pointer finding + six pointer-quality criteria in its tier model) — audit-time; `playbooks:skill-authoring` description-as-trigger — skills only | PARTIAL — no authoring-time home for non-skill agent docs (gap 1 → #2909) |
@@ -110,6 +118,9 @@ triggers stand until the owning lane records the disposition:
   negation/negative-space port deferred from that session's gap scan) — this record
   cross-links that deferral rather than opening a second ledger entry. Trigger: a
   mattpocock/skills release whose changeset names `writing-for-agents`.
+  **Disposition (lane 7, 2026-08-17): adopted into the `docs-hygiene:write-for-agents` design
+  (#2962) — this row retires when that implementation merges; the release trigger stands until
+  then.**
 - **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
   `disable-model-invocation: true` — can be invoked by no other skill). Unverified against
   current official docs at audit time, and zero live defect instances found (no skill here
