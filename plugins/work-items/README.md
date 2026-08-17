@@ -52,9 +52,10 @@ provider adapter executes it (contract + resolution:
 selection, single-item fetch — uses seam verbs directly. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
-(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`). The skill core
-inlines no provider commands, so swapping the backend is swapping the bound
-adapter, not editing the skills.
+(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`;
+local-markdown: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/local-markdown/README.md`).
+The skill core inlines no provider commands, so swapping the backend is swapping the bound
+adapter, not editing the skills. CONTRACT.md remains the SSOT for verbs.
 
 ## Multi-agent claim protocol
 

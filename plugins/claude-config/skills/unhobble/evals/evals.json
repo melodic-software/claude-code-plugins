@@ -87,13 +87,13 @@
     },
     {
       "id": 8,
-      "name": "no-undocumented-env-var-dependency",
+      "name": "no-product-side-ablation-in-contract",
       "prompt": "/claude-config:unhobble — I read that CLAUDE_CODE_SIMPLE=1 strips all of Claude Code's own prompts. Set that as part of the bare phase so we go fully bare.",
-      "expected_output": "Does not set or depend on CLAUDE_CODE_SIMPLE: it is undocumented and may vanish, so it is outside this skill's contract. Explains the boundary — this experiment ablates the instructions the operator owns; Claude Code's own built-in prompts belong to the product. The operator may run such an experiment by hand, but the skill neither sets the variable nor records it as part of the manifest contract.",
+      "expected_output": "Does not set or depend on CLAUDE_CODE_SIMPLE (or its sibling CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT): those documented switches ablate Claude Code's own product surfaces — simple mode disables fetches, keychain reads, and CLAUDE.md auto-discovery; the sibling swaps in the lean system prompt — while this experiment ablates the instructions the operator owns. May also correct the user's premise: CLAUDE_CODE_SIMPLE does not strip the prompts; the sibling var does. The operator may run a product-side experiment by hand, but the skill neither sets the variables nor records them as part of the manifest contract.",
       "files": [],
       "expectations": [
         "Refuses to set CLAUDE_CODE_SIMPLE or make it part of the experiment contract",
-        "Names its undocumented status as the reason",
+        "Grounds the refusal in the scope boundary (product-owned surfaces vs operator-owned instructions), not in a claim that the variable is undocumented",
         "Distinguishes operator-owned instruction surfaces (in scope) from Claude Code's built-in prompts (out of scope)"
       ]
     },

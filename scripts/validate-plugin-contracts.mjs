@@ -122,7 +122,13 @@ if (canonicalLifecycleContent === null) {
   failures.push("docs/PLUGIN-ARTIFACT-PROTOCOL.md: shared lifecycle protocol is required");
 }
 
-const lifecycleProtocolCopies = ["discovery", "planning", "implementation", "verification"].map((plugin) =>
+const lifecycleProtocolCopies = [
+  "discovery",
+  "planning",
+  "implementation",
+  "verification",
+  "overengineering",
+].map((plugin) =>
   join(pluginRoot, plugin, "reference", "artifact-protocol.md"),
 );
 for (const path of lifecycleProtocolCopies) {

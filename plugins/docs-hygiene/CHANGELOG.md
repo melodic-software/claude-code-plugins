@@ -1,5 +1,14 @@
 # Changelog — docs-hygiene plugin
 
+## [0.16.1]
+
+### Changed
+
+- `audit-noise` ghost-ref bare-root exemption tracks the topic-docs concern-scoped
+  roster's fourth reserved name, `overengineering/` (topic-docs convention 2.5.1):
+  a bare `.work/overengineering/` citation on a durable surface is not a ghost ref;
+  a concrete child under it still flags.
+
 ## [0.16.0]
 
 ### Added

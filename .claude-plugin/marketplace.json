@@ -263,6 +263,12 @@
       "tags": ["tidy", "refactoring", "simplify", "boy-scout", "comments", "maintenance", "skill"]
     },
     {
+      "name": "coupling",
+      "source": "./plugins/coupling",
+      "category": "maintenance",
+      "tags": ["coupling", "cohesion", "decouple", "connascence", "dependency-injection", "refactoring", "skill"]
+    },
+    {
       "name": "session-flow",
       "source": "./plugins/session-flow",
       "category": "workflow",
@@ -304,6 +310,12 @@
       "source": "./plugins/context-guard",
       "category": "claude-code",
       "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
+    },
+    {
+      "name": "context-budget",
+      "source": "./plugins/context-budget",
+      "category": "claude-code",
+      "tags": ["context-window", "startup-payload", "token-budget", "tool-schemas", "measurement", "attribution", "ledger", "skill"]
     },
     {
       "name": "plugin-quality",
@@ -532,6 +544,22 @@
         "gui",
         "screenshot",
         "accessibility",
+        "skill"
+      ]
+    },
+    {
+      "name": "overengineering",
+      "source": "./plugins/overengineering",
+      "category": "quality",
+      "tags": [
+        "overengineering",
+        "enforcement-surface",
+        "audit",
+        "realign",
+        "retirement",
+        "yagni",
+        "carry-cost",
+        "automation-sprawl",
         "skill"
       ]
     }
