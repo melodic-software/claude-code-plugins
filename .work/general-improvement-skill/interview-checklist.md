@@ -20,10 +20,19 @@ Mode: `me` (relentless, user-invoked). Domain: engineering (build artifact = new
 - Q4 | answered | round 1 | V1 dimensions | REVISED by user: code/product level, performance, config/automation OUTSIDE the codebase (GitHub labels, Actions sync), Claude Code operational setup (cloud env, MCP servers); docs/markdown explicitly OUT (existing lanes own it). Measurement-first: metrics/telemetry is not a fast-follow — "to self-improve you have to measure a baseline"; when data is missing, the improvement IS setting up data capture. App-level observability (e.g. Azure App Insights) as an evidence source.
 - Q5 | open | round 1 | Cross-repo scope in V1? | unanswered from round 1 — re-asked round 2
 - Q6 | open | round 1 | Apply vs discover-only | implied discover→interview→pipeline handoff; confirm in round 2
-- Q7 | open | round 2 | Evidence ladder as the core mechanic (no baseline → instrumentation IS the top recommendation)? |
-- Q8 | open | round 2 | V1 evidence sources (repo-native vs external telemetry)? |
-- Q9 | open | round 2 | Home + naming (new plugin? noun? skill verb)? |
-- Q10 | open | round 2 | Plugin-candidate discovery in V1 or separate? |
+- Q7 | answered | round 2 | Evidence ladder as the core mechanic | YES — accepted recommendation; skill identity
+- Q8 | answered | round 2 | V1 evidence sources | Tiered + presence-gated; Tier 0 repo-native in V1; Tier 1 claude-ops:observability; Tier 2 app telemetry via configured MCP; App Insights adapter timing deferred (Q12)
+- Q9 | answered | round 2 | Home + naming | New plugin `improvement`, skill `find` → /improvement:find
+- Q10 | deferred | round 2 | Plugin-candidate discovery | post-V1 — distinct discovery intent; later sibling under `improvement` or `plugin-quality`; also in Brief's Deferred questions
+- Q11 | open | round 3 | Unattended noise controls (cap / dedupe / rejection memory) as V1 requirements? |
+- Q12 | deferred | round 2 | Tier 2 App Insights adapter timing (post-V1 unless MCP already configured) | also in Brief's Deferred questions
+
+## Round 2 resolutions (user: "go with your recommendations", plus one refinement)
+
+- Q3: answered — YES lean unattended mode (tech-debt-sweep C1 contract: report + filed work items, human-gated prioritization)
+- Q5: answered — single repo per invocation, repo as parameter; fleet later via composition
+- Q6: answered WITH REFINEMENT — discover/deliberate by default; on explicit user request ("go implement this") it MAY proceed to execution but ONLY by chaining the repo's normal pipeline (interview → discovery:explore/research → planning:plan → implementation:implement → verification:confirm), delegated to those skills — never inline editing
+- Probe (noise tolerance): unanswered → re-asked as Q11
 
 ## Probe result (round 1)
 
