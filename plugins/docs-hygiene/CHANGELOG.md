@@ -15,10 +15,11 @@
   orphan/chain detection) with a 28-case contract test, a
   `context/tier-model.md` reference (official numbers, split triggers,
   pointer-quality criteria, citation posture), evals with three fixture sets,
-  and participation in the shared clean-tree fallback. Design contract:
-  `docs/topics/progressive-disclosure-skill/PLAN.md`; grounded in a verified
-  multi-source research pass over Anthropic's prescribed progressive-disclosure
-  model. Notable postures: thresholds advisory (ceilings, not targets),
+  and participation in the shared clean-tree fallback. Design contract locked
+  via interview + verified multi-source research over Anthropic's prescribed
+  progressive-disclosure model (#2888; the contract slice was pruned before
+  merge per the topic-docs convention). Notable postures: thresholds advisory
+  (ceilings, not targets),
   two-band TOC treatment reflecting the official 100-vs-300-line
   inconsistency, never flagging small single-file skills for lacking spokes,
   and flagging pointer chains deeper than one level.
