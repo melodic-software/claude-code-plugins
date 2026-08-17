@@ -98,7 +98,7 @@ an interactive session — do not fabricate a map.
    memory-tier `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline
    instead of pointing at paths other readers cannot resolve) /
    **Decisions-so-far** (a *pointer index* of resolved-in-scope decisions — each home is its own item's
-   resolution comment, never recopied here; mis-scoped closures do not get a pointer) /
+   resolution comment, never recopied here; wrongly scoped closures do not get a pointer) /
    **Not-yet-specified** (fog, prose — fog never graduates into Out-of-scope) /
    **Out-of-scope** (scope exclusions, not unphraseable fog). Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
 3. **Create typed decision items** as sub-issues of the map, one per sharp question. Type
@@ -146,7 +146,7 @@ an interactive session — do not fabricate a map.
 5. **Graduate on every resolution.** When the decision resolves **in scope**: post the resolution as a
    comment on the item, add its one-line pointer (title, number as suffix) to the map's
    *Decisions-so-far* index, then close the item (comment → index → close, as one atomic sequence).
-   If the item is **mis-scoped** (on the tracker but not this effort): close it and add one
+   If the item is **wrongly scoped** (on the tracker but not this effort): close it and add one
    Out-of-scope line linking it — it does **not** get a Decisions-so-far pointer. Fog stays in
    Not-yet-specified and never graduates into Out-of-scope. If the resolution sharpened
    previously-foggy uncertainty, chart the new sharp items now.

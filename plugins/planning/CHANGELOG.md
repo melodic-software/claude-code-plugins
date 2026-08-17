@@ -9,7 +9,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`wayfind`: refer-by-name narration and out-of-scope ledger semantics.** Human-facing
   reports name items by title (number as a link or suffix). Out-of-scope is for scope, not
-  sharpness; a mis-scoped item closes with an Out-of-scope line and does not enter
+  sharpness; a wrongly scoped item closes with an Out-of-scope line and does not enter
   Decisions-so-far. C20 map-as-index was already present (#2939).
 
 ## [0.30.5]

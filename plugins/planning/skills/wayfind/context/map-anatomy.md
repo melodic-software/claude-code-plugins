@@ -41,7 +41,7 @@ section on a young map usually means you haven't looked hard enough.>
 
 <Explicitly excluded — decided NOT to pursue. This ledger is for **scope**, not sharpness.
 Fog (cannot yet phrase the question) stays in Not-yet-specified and never graduates here.
-Recording an exclusion is itself a decision; note why. A mis-scoped existing decision item
+Recording an exclusion is itself a decision; note why. A wrongly scoped existing decision item
 is closed with one line here linking it; it does not get a Decisions-so-far pointer — that
 index is for resolved-in-scope decisions.>
 ```

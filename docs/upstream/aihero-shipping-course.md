@@ -59,7 +59,7 @@ Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
 - **C18 ADOPTED** in `planning:wayfind` only (not generalized to work-items): human-facing
   narration refers to items by title, with the number as a link or suffix.
 - **C19 ADOPTED**: Out-of-scope is for scope, not sharpness; fog never graduates there; a
-  mis-scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
+  wrongly scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
 - **C20 ALREADY-PRESENT**: map body is a stable index not a mirror; Decisions-so-far is a
   pointer INDEX; Notes are links not recaps — recorded here, not restated in the skill docs.
 
