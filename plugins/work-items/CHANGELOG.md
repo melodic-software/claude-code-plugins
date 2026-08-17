@@ -7,11 +7,14 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
-- **`decompose`:** prefactor slices as blockers, one-fresh-window sizing beside
-  S/M/L (no token folklore), integration-branch fallback when expand-contract
-  batches cannot land green alone, "work the frontier" in the report, and a
-  PR-variant agent brief (current-behavior-of-the-diff / finish-what-exists)
-  (#2935).
+- **`decompose`:** prefactor look-ahead at draft time (prefactor slices block
+  the work they unblock); "one fresh context window" granularity bar alongside
+  S/M/L (qualitative; no token folklore); expand-contract stays default, with
+  an integration-branch fallback when migrate batches cannot land green alone;
+  present/report "work the frontier" (unblocked slices first). PR-variant
+  agent brief for items with attached code (`agent-brief.md`) does not replace
+  the bug/feature template. Approval gate, born-triaged, and blockers-first
+  publish are unchanged (#2935).
 
 ## [0.35.26]
 
