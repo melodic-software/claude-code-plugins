@@ -5,6 +5,19 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1]
+
+### Fixed
+
+- Ledger run IDs are collision-safe: a same-second rerun of the same lever (or a re-appended
+  row) now lands in a numbered-suffix run file instead of silently overwriting the earlier one —
+  the one-file-per-run contract held only by luck before (PR review finding). Test added.
+- Windows command shims spawn correctly: binary resolution now prefers `claude.exe` over
+  `claude.cmd`, and a `.cmd`/`.bat` shim is executed through the shell (Node cannot spawn
+  command shims directly), so shim-only Windows installs measure instead of degrading
+  (PR review finding). Untested on real Windows hardware — recorded as a manual-verification
+  gap, matching the repo's convention.
+
 ## [0.6.0]
 
 ### Changed

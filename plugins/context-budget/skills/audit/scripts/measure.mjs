@@ -122,7 +122,9 @@ function resolveBinary(explicit) {
     }
     return realpathSync(explicit);
   }
-  const exts = process.platform === 'win32' ? ['.cmd', '.exe', ''] : [''];
+  // .exe before .cmd: a real executable spawns everywhere, while a .cmd shim
+  // needs a shell (see spawnBinary); prefer the form that works unaided.
+  const exts = process.platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
   for (const dir of (process.env.PATH || '').split(delimiter)) {
     if (!dir) continue;
     for (const ext of exts) {
@@ -135,8 +137,16 @@ function resolveBinary(explicit) {
   return null;
 }
 
+// Node cannot execute Windows command shims (.cmd/.bat) directly — they need
+// a shell. Route those through spawnSync's shell mode; real executables spawn
+// unaided on every platform.
+function spawnBinary(bin, args, opts) {
+  const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
+  return spawnSync(bin, args, { ...opts, ...(needsShell ? { shell: true } : {}) });
+}
+
 function binaryVersion(bin) {
-  const r = spawnSync(bin, ['--version'], { encoding: 'utf8', timeout: 30000 });
+  const r = spawnBinary(bin, ['--version'], { encoding: 'utf8', timeout: 30000 });
   const m = ((r.stdout || '') + (r.stderr || '')).match(/(\d+\.\d+\.\d+)/);
   return m ? m[1] : null;
 }
@@ -353,7 +363,7 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
 function cliSnapshot({ bin, deny, label }) {
   const args = ['-p', '/context'];
   if (deny.length) args.push('--disallowedTools', ...deny);
-  const r = spawnSync(bin, args, { encoding: 'utf8', input: '', timeout: SPAWN_TIMEOUT_MS });
+  const r = spawnBinary(bin, args, { encoding: 'utf8', input: '', timeout: SPAWN_TIMEOUT_MS });
   if (r.error || r.status !== 0 || !r.stdout) {
     throw new ParseError(`headless /context failed (exit ${r.status ?? 'spawn-error'}): `
       + `${(r.stderr || String(r.error || '')).trim().slice(0, 300)}`);
@@ -601,10 +611,17 @@ function ledgerAppend(dir, rowFile) {
     usageError(`--append expects a ${LEDGER_SCHEMA} row (from \`compare\`); got schema ${JSON.stringify(row.schema)}`);
   }
   const slug = String(row.lever ?? 'compare').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'compare';
-  const runId = `${(row.timestampUtc || nowUtc()).replace(/[:-]/g, '')}-${slug}`;
+  const base = `${(row.timestampUtc || nowUtc()).replace(/[:-]/g, '')}-${slug}`;
   const runsDir = join(dir, 'runs');
   mkdirSync(runsDir, { recursive: true });
-  const runPath = join(runsDir, `${runId}.json`);
+  // One file per run is the contract: a same-second rerun of the same lever
+  // must not overwrite the earlier point, so collide into a numbered suffix.
+  let runId = base;
+  let runPath = join(runsDir, `${runId}.json`);
+  for (let n = 2; existsSync(runPath); n++) {
+    runId = `${base}-${n}`;
+    runPath = join(runsDir, `${runId}.json`);
+  }
   writeFileSync(runPath, `${JSON.stringify(row, null, 2)}\n`);
   appendFileSync(join(dir, 'ledger.jsonl'), `${JSON.stringify({ runId, ...row })}\n`);
   process.stdout.write(`${JSON.stringify({ appended: true, runId, runPath, ledger: join(dir, 'ledger.jsonl') }, null, 2)}\n`);

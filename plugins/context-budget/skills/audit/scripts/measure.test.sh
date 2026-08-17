@@ -195,6 +195,14 @@ node "$ENGINE" ledger --list --dir "$LDIR" >"$listed"
   ok "ledger list returns both rows" ||
   fail "ledger list wrong row count"
 
+# Same row appended again (same timestamp + lever): the run file must not be
+# overwritten — the runId collides into a numbered suffix.
+node "$ENGINE" ledger --append "$row" --dir "$LDIR" >/dev/null
+runfiles=$(find "$LDIR/runs" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+[[ "$runfiles" == "3" ]] &&
+  ok "colliding runId gets a suffix instead of overwriting (3 run files)" ||
+  fail "runId collision overwrote: expected 3 run files, found $runfiles"
+
 # --- ledger: schema-checked append ----------------------------------------
 
 node "$ENGINE" ledger --append "$WORK/a.json" --dir "$LDIR" >/dev/null 2>&1
