@@ -130,9 +130,38 @@ vendored Boris doctrine (sections 63-64: compact lossy vs clear-plus-brief, rot 
 300k-400k with the 400000 env-var practice) is cited as vendored nuance, aligned with house
 stance, its figures held as named anchors never adopted numbers.
 
-## Lanes 4 through 5
+## Lane 4: plan mode / asset rush (issue #2902, decided 2026-08-17)
 
-Rows land here as each lane closes: plan mode (#2902) and interview parity (#2903).
+Basis: the "Why Plan Mode Sucks" lesson (source:
+`docs/topics/pocock-course-lanes/lessons/04-why-plan-mode-sucks.md`), graded against
+`planning:interview` (pre-clarity stance, auto-detect, auto-guard, `lock` STOP-on-gap, the
+general-domain shared-understanding terminal) and `planning:plan` (approval gate, Open Decisions
+before the plan body, devils-advocate dispatch, decision confidence gate), plus verdicts C7-C9.
+Register Q31-Q35 under the user's restated acceptance.
+
+| Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
+|---|---|---|---|
+| Agents rush from prompt to implementation with no alignment step (the asset rush) | `planning:interview` is the pipeline's pre-clarity stage: a contract locked before exploration, planning, or execution | **ADOPT** (convergent) | The critique is the design rationale the pipeline already embodies; behavior-change work is interview-first by default, with auto-detect keeping it cheap. As-of 2026-08-17 |
+| Plan mode is a buffer between exploration and implementation: a plan document you review, then proceed | Plan mode is treated as a permission/safety gate; alignment is owned upstream by the interview contract | **COVERED** (position) | The harness feature is not rejected, it is repositioned: a permission mode cannot produce shared understanding, and nothing in the family asks it to. As-of 2026-08-17 |
+| "Plan mode is still rushing": the plan reads like the implementation; the decisions are already made and written down | Two structural answers: the Brief locks intent BEFORE `/planning:plan`, and the plan skill itself refuses to lock decisions inline (Open Decisions surfaced before the plan body; a confidence gate routes judgment calls back to interview rounds; user approval gate before any code; fresh-context devils-advocate stress-test) | **ADOPT** (convergent, already answered structurally) | His diagnosis names exactly the failure the pipeline's two gates exist to prevent; no change needed. As-of 2026-08-17 |
+| Root cause is the sycophantic trait: told to produce, the agent produces | Interview stance: recommendations-first but facts-are-mine/decisions-are-the-user's; the auto-guard forbids resolving a genuine user choice; `/planning:audit-answers` is the producer-not-critic control | **COVERED** | The trait is countered by structure, not exhortation; "sycophancy" and "asset rush" go to lane 6 as term candidates. As-of 2026-08-17 |
+| The design concept (Brooks): shared understanding is not an asset; conversation sharpens it | The general-domain interview terminal drives to a shared understanding and STOPS: no Brief, no artifact, no pipeline handoff | **COVERED** (embodied) | Q33: the endpoint already exists; the term maps to our "shared understanding" (lane-6 adoption candidate); no mechanism change earned. As-of 2026-08-17 |
+| Walkthrough: cycle `shift+tab` until plan mode is on | Verified harness behavior | **CONFIRMED** | Verdict C7 (two-pool); no fixed press count is taught. As-of 2026-08-17 |
+| Walkthrough: "I can view the plan by typing `/plan`" | Verified harness behavior | **REJECT** (stale walkthrough) | Verdict C9 PARTIALLY TRUE: `/plan [description]` ENTERS plan mode; no documented command views the current plan (absence half two-pool; positive half docs-only). The lesson's critique is unaffected by its stale demo. As-of 2026-08-17 |
+| Walkthrough: review the generated plan, modify, then proceed (approval flow) | Verified harness behavior | **CONFIRMED** | Verdict C8 (two-pool; flow details docs-only); the newer EnterPlanMode tool postdates the lesson. As-of 2026-08-17 |
+| "A different approach" replaces this (the grilling tease) | Lane 5's subject | **NOT RELEVANT** (here) | Graded in the grilling-parity lane (#2903). As-of 2026-08-17 |
+
+House decisions recorded alongside the rows (Q31-Q35, 2026-08-17): the `lock`/auto-synthesize
+audit concludes LICENSED EXCEPTION, not quiet rush: the auto-guard bars synthesizing genuine
+user decisions, `lock` is user-invoked (the invocation is the confirmation) with STOP-on-gap,
+the default action leans to relentless interviewing, and `/planning:audit-answers` supplies the
+producer-not-critic check (exercised live in this effort, where it corrected two decisions). No
+work items filed: no plugin change was decided; lane-6 parcels are the three term candidates
+(design concept mapped to shared understanding, asset rush, sycophancy) and coverage phrasing.
+
+## Lane 5
+
+Rows land here when the interview-parity lane closes (#2903).
 
 ## Coverage index and consolidation
 
