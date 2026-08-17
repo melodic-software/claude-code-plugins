@@ -66,8 +66,11 @@
 # hook can see. DECLARED RESIDUAL FALSE POSITIVES, accepted fail-closed: an
 # export spelling inside a heredoc body (a heredoc line is indistinguishable
 # from a plain second command line without real parsing — use the Write tool
-# for such documents), and prose quoting the export next to a shell word in the
-# same command string.
+# for such documents), and prose that quotes the export — or a
+# suppressor-prefix-on-shell spelling — alongside a shell word in the same
+# command string, including a shell name sitting at the very end of a quoted
+# string (quote normalization means `... in bash"` reads as the word `bash`).
+# All of these err fail-closed with an instructive message.
 #
 # Kill switch: block_exported_msys_pathconv_enabled userConfig option.
 #
@@ -257,17 +260,20 @@ leaks_into_child_shell() {
   # shellcheck disable=SC2206
   tokens=($s)
   for tok in "${tokens[@]}"; do
+    # Strip quoting from BOTH sides of every token before any matching — a
+    # suppressor assignment, a launcher, or a shell is recognized by what it
+    # is, not how it is spelled. `/usr/bin/env bash`, a quoted `'bash'`, and
+    # a quote-leading `"MSYS_NO_PATHCONV=1` (the first word of a quoted child
+    # command string) all leaked through literal-spelling checks (PR #2878
+    # review and verification).
+    tok="${tok#\'}"
+    tok="${tok#\"}"
+    tok="${tok%\'}"
+    tok="${tok%\"}"
     if ((seen)); then
       # Still in the prefix: further NAME=value assignments keep it open.
       [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-      # Judge every candidate by its BASENAME, with any quoting stripped on
-      # both sides — a launcher or a shell is recognized by what it is, not
-      # how it is spelled (`/usr/bin/env bash` and a quoted `'bash'` both
-      # leaked through literal-spelling checks; PR #2878 review).
-      tok="${tok#\'}"
-      tok="${tok#\"}"
-      tok="${tok%\'}"
-      tok="${tok%\"}"
+      # Judge every candidate command word by its BASENAME.
       base="${tok##*/}"
       base="${base##*\\}"
       base="${base%.exe}"

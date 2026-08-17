@@ -198,6 +198,12 @@ run_win "quoted absolute shell path with an export (blocked)" \
   "'/c/Program Files/Git/bin/bash.exe' -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
 run_win_pwsh "PowerShell call operator on a quoted bash.exe path with an export (blocked)" \
   '& "C:\Program Files\Git\bin\bash.exe" -c "export MSYS_NO_PATHCONV=1; git status"' 2
+# The assignment side of the walk gets the same quote normalization as the
+# command-word side: the first word of a quoted child command string arrives
+# as `"MSYS_NO_PATHCONV=1`, and the inner prefix leaks within the inner shell
+# just the same (fresh-context verification finding on PR #2878).
+run_win "prefix at the start of a quoted child command string (blocked)" \
+  "bash -c \"MSYS_NO_PATHCONV=1 bash -c 'git worktree add /d/worktrees/x'\"" 2
 # DECLARED RESIDUAL, pinned as deliberate: a heredoc body line is
 # indistinguishable from a plain second command line without real shell
 # parsing, so an export spelling there still blocks (fail-closed). Use the
