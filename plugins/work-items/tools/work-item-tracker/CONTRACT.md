@@ -335,7 +335,9 @@ role entry) — with the shipped default `work-map` when the key is absent or em
 in `lib/labels.sh`). The remapped label must exist in the consuming repo, and remapping a
 repo that already holds containers requires relabeling them — the frontier exclusion is an
 exact match against the resolved string, so items still carrying the old marker would
-surface as frontier items. Read one container's children with
+surface as frontier items. `planning:wayfind` maps share this contract and resolve the
+same binding key (its `tracker-mechanics` doc carries the read), so one remap governs both
+container producers. Read one container's children with
 `list-sub-items <container>`; read the workable frontier within one container with
 `list-frontier --parent <container>`. Aside from that exclusion the frontier is
 label-agnostic and simply never surfaces items that are assigned or blocked.

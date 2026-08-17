@@ -17,9 +17,28 @@ blocker count. (`assignees` and `labels` ARE flat arrays — `| length` is corre
 closes. Frontier must count only **OPEN** blockers (`.blockedBy.nodes[] | select(.state=="OPEN")`),
 or every item whose blocker ever closed is stranded off the frontier forever.
 
+## Resolve the container label (once per session, before any map read or write)
+
+The map marker is the **container label** the work-item tracker seam defines — the same
+`config.container_label` binding key, same shipped default (`work-items` CONTRACT.md,
+"Containers and state"). Resolving it here instead of hardcoding `work-map` keeps wayfind
+maps and decompose containers on ONE marker: a repo that remaps the label would otherwise
+strand wayfind maps on the old string, where the seam's frontier exclusion no longer
+matches them and `/work-items:work-loop` would surface a map as a claimable item.
+
+```shell
+# Same key the seam reads; degrade to the shipped default when no binding, key, or jq.
+CONTAINER_LABEL=$(jq -r '.config.container_label // empty' \
+  "$(git rev-parse --show-toplevel)/.work-item-tracker.json" 2>/dev/null)
+CONTAINER_LABEL=${CONTAINER_LABEL:-work-map}
+```
+
+The snippets below use `"$CONTAINER_LABEL"`; prose that says `work-map` means the shipped
+default. (The seam validates the key's type and existence; this read only consumes it.)
+
 ## Bootstrap labels (first use in a repo)
 
-`/planning:wayfind` uses its own taxonomy — `work-map`, `wayfind: research|interview|design|prototype|task`
+`/planning:wayfind` uses its own taxonomy — the container label (default `work-map`), `wayfind: research|interview|design|prototype|task`
 (axis labels follow the colon-space grammar so label-as-code owners with a `prefix: value` convention
 can declare them verbatim), `needs-human`. At chart-mode entry, **verify** the taxonomy is present because an unknown `--label`
 fails `gh issue create`. Read the consuming repository's instructions and configuration for label
@@ -31,7 +50,7 @@ provisioning repository and never creates labels ad hoc:
 ```shell
 # Presence check only — never create. Route missing labels to the repository-declared owner.
 have=$(gh label list --json name --jq '.[].name')
-for L in work-map 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human; do
+for L in "$CONTAINER_LABEL" 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human; do
   grep -qxF "$L" <<<"$have" || echo "MISSING (route to repository label owner): $L"
 done
 ```
@@ -39,8 +58,8 @@ done
 ## Create / extend the map
 
 ```shell
-# Map issue: bare `work-map` marker + any repo program labels. Body per context/map-anatomy.md.
-gh issue create --title "Map: <effort>" --label work-map --body-file <map-body.md>
+# Map issue: bare container-label marker + any repo program labels. Body per context/map-anatomy.md.
+gh issue create --title "Map: <effort>" --label "$CONTAINER_LABEL" --body-file <map-body.md>
 ```
 
 A map is never assigned and never carries a claim label — it is a container, not a work item.

@@ -1,6 +1,7 @@
 # Map anatomy — the five sections + invariants
 
-A decision map is one tracker issue (bare `work-map` marker) whose sub-issues are typed
+A decision map is one tracker issue (bare container-label marker — default `work-map`,
+resolved per `tracker-mechanics.md`) whose sub-issues are typed
 decision items. The issue **body** carries five sections. Everything volatile (each decision's
 actual resolution, current frontier, claim state) lives on the items, not recopied into the
 body — the body is a stable index, not a mirror.

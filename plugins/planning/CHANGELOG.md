@@ -14,6 +14,19 @@ All notable changes to the `planning` plugin are documented here. Format follows
   (that path owns the mechanics; close-out only sequences it). Partial ships
   leave the container open; no container or no plugin skips silently.
 
+### Changed
+
+- **`wayfind`: container label resolved from the seam's binding key, not hardcoded
+  (#2934 review).** The map marker previously appeared as a literal `work-map` in the
+  bootstrap check, the create command, the open-maps pre-compute, and prose. Now that
+  `config.container_label` is a live per-repo remap in the work-item tracker seam, a
+  hardcoded literal would strand wayfind maps on the old string after a remap — no longer
+  matching the seam's frontier exclusion, so `/work-items:work-loop` would surface a map
+  as a claimable item. `tracker-mechanics.md` gains a resolve-once snippet (same key,
+  shipped default `work-map` when no binding/key/jq); the create/bootstrap snippets use
+  `"$CONTAINER_LABEL"`; the `SKILL.md` pre-compute resolves the label inline with the
+  same fallback.
+
 ## [0.30.6]
 
 ### Changed
