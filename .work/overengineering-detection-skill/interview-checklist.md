@@ -5,38 +5,45 @@ Mode: `me` (relentless, user-invoked "/interview me first"). Domain: engineering
 ## Steps
 
 - [x] Step 1: Survey before you ask
-- [ ] Step 1.5: Auto-detect — SKIPPED (`me` forces Q&A)
-- [ ] Step 2: Drive the frontier-rounds loop
+- [x] Step 1.5: Auto-detect — SKIPPED (`me` forces Q&A)
+- [ ] Step 2: Drive the frontier-rounds loop (round 2 in flight)
 - [ ] Step 3: Stop condition + register gate + confirmation gate
-- [ ] Step 4: Persist the contract (PLAN.md Brief)
+- [ ] Step 4: Persist the contract (PLAN.md Brief) — partial Brief started incrementally
 - [ ] Step 5: Hand off
 
 ## Session-shorthand glossary
 
-- **enforcement surface** — the union of things that gate or nag work: Claude Code hooks/guards, git hooks, CI/CD workflow checks, branch protections, GitHub apps, external integrations, standing instructions.
-- **peel-back** — evidence-gated retirement of an existing enforcement artifact (the inverse of adding one).
+- **enforcement surface** — the union of things that gate, nag, or automate work: Claude Code hooks/guards/standing instructions/skills-as-clutter, git hooks, CI/CD workflow checks, branch protections, GitHub apps and issues automation, external integrations.
+- **peel-back / realign** — evidence-gated retirement or simplification of an existing enforcement artifact (the inverse of adding one); "realign" is the user's framing: a course-correction process, not a one-shot fix.
 - **#2021 precedent** — this repo's "instruction-economy evidence gate": two guardrails prose-injector guards were config-disabled by default because their evidence didn't earn their standing cost.
+- **heat map** — friction/attention signal built from history: where maintenance touches, overrides, suppressions, and failures cluster.
+- **rediscovery** — for each artifact, reconstructing the original problem it solved, then re-solving it fresh (native/built-in options first) to see if a simpler solution now exists (tech drift, or it was AI slop from the start).
 
 ## Open-question register
 
-- Q1 | open | round 1 | Audit surface scope — full enforcement surface vs Claude-only vs include code-level overengineering? |
-- Q2 | open | round 1 | Verdict model — evidence-earned-keep (retirement default) vs advisory complexity report? |
-- Q3 | open | round 1 | Mutation posture — read-only audit + separate gated peel action? |
-- Q4 | open | round 1 | Fleet scope — single-repo core composing with fleet orchestration, or fleet-native? |
-- Q5 | open | round 1 | Automation cadence for V1 — on-demand only vs include scheduled/routine lane? |
-- Q6 | open | round 1 | Research depth — /discovery:research-deep consensus pass before planning? |
+- Q1 | answered | round 1 | Audit surface scope | Enforcement surface is V1; code-level product-code lane is a SEPARATE deferred lane (placeholder + follow-up issue); design the core scrutiny method to be lane-reusable
+- Q2 | answered | round 1 | Verdict model | Evidence-earned-keep; scrutinize everything; full-context evidence (history, heat maps, friction); reverse-engineer original problem + re-solve simpler; NEVER trust markdown/comments as evidence (claims to verify, not proof); lean simpler/native/built-in unless uncovered use cases; weigh refactoring cost/pain/testing; repeatable self-correcting process
+- Q3 | answered | round 1 | Mutation posture | Default = audit/review/report (read-only). Separate explicit action starts the realignment process, which itself drives the SDLC skills (interview/explore/research/plan) with the user — never applied on a whim
+- Q4 | answered | round 1 | Fleet scope | Single-repo core; strictly consumer-agnostic per plugin philosophy (no org/repo hardcoding); any upstream-routing (synced/managed files) must be generically detected/declared, presence-gated; fleet coverage via composition
+- Q5 | answered | round 1 | V1 cadence | On-demand human-in-the-loop V1; scheduled/daily lane deferred but designed-for (diffable persisted findings enabling delta runs)
+- Q6 | answered | round 1 | Research depth | /discovery:research-deep (consensus, authorities) + /discovery:explore over the enforcement surface for real examples, after Brief locks
+- Q7 | open | round 2 | Placement + naming — new plugin `overengineering` with V1 skill `audit` (+ explicit realign override), vs two skills, vs claude-config residence? |
+- Q8 | open | round 2 | Neighbor boundaries — route presence-gated to siblings (audit-instructions, unhobble, audit-automation-gaps, plugin-quality) or own their layers? |
+- Q9 | open | round 2 | Evidence sources + minimum bar — which empirical sources count, and what must a verdict cite? |
+- Q10 | open | round 2 | Uncertain-intent handling — optional mid-audit user checkpoint (attended) / open-questions ledger (unattended)? |
+- Q11 | open | round 2 | Deferred-lanes mechanics — follow-up GitHub issue(s) for product-code lane + scheduled lane, Brief out-of-scope? |
 
 ## Decision tree (`me` mode)
 
-- [ ] Surface scope (Q1)
-- [ ] Verdict/evidence model (Q2)
-- [ ] Mutation posture (Q3)
-- [ ] Fleet scope (Q4)
-- [ ] Cadence/autonomy (Q5)
-- [ ] Research depth + pipeline (Q6)
-- [ ] Placement: new plugin vs skill in existing plugin (blocked by: Q1, Q4)
-- [ ] Naming (blocked by: placement)
-- [ ] Relationship to neighbors: audit-automation-gaps / audit-instructions / unhobble / plugin-quality:audit (blocked by: Q1, Q2)
-- [ ] Evidence sources the verdicts cite (blocked by: Q2)
-- [ ] Human-gate shape for retirements (blocked by: Q3)
-- [ ] V1 vs deferred lanes (blocked by: Q4, Q5)
+- [x] Surface scope (Q1) — enforcement surface V1; product-code lane deferred, method designed lane-reusable
+- [x] Verdict/evidence model (Q2) — evidence-earned-keep + scrutinize-everything + rediscovery + cost-weighing
+- [x] Mutation posture (Q3) — read-only default; explicit realign action orchestrating SDLC skills with user
+- [x] Fleet scope (Q4) — single-repo, consumer-agnostic, generic managed-source detection
+- [x] Cadence/autonomy (Q5) — on-demand V1; scheduled deferred, designed-for
+- [x] Research depth + pipeline (Q6) — research-deep + explore after Brief
+- [ ] Placement: new plugin vs existing (Q7)
+- [ ] Naming (Q7)
+- [ ] Neighbor boundaries (Q8)
+- [ ] Evidence sources + bar (Q9)
+- [ ] Uncertain-intent / user-checkpoint shape (Q10)
+- [ ] Deferred-lane mechanics (Q11)
