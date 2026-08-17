@@ -13,17 +13,16 @@
 
 **{Term}**:
 {One or two sentence definition. What it IS, not what it does or how to do it.}
-_Avoid_: {alternative names to NOT use — pick the best term, list rest as aliases to avoid}
+_Avoid_: {OPTIONAL — alternative names NOT to use; omit the line when no genuine competing alias exists}
 
 **{Term 2}**:
 {Definition using glossary's own terms where possible.}
-_Avoid_: {aliases}
 ```
 
 ## Rules
 
 - **Add a term only when the user understands it.** The glossary records compressed knowledge, not a dictionary the user reads to learn. Wait for evidence of comprehension before promoting
-- **Be opinionated.** When several words exist for the same concept, pick the best one and list the rest as `_Avoid_`. This is how language compresses
+- **Be opinionated.** When several words exist for the same concept, pick the best one and list the rest as `_Avoid_`. This is how language compresses. When no genuine alias exists, omit the `_Avoid_` line — never invent a weak one to fill the template
 - **Keep definitions tight.** One or two sentences. Define what the term IS
 - **Use the glossary's own terms inside definitions.** Once a term is in the glossary, prefer it everywhere — including inside other definitions. This makes complex terms easier to grasp later
 - **Group under subheadings** when natural clusters emerge. Flat list is fine when terms cohere
