@@ -58,10 +58,47 @@ completes as a merged PR unit) and the promote-content-never-file rule (durable 
 into committed artifacts; no handoff file is ever committed). Both in
 [#2956](https://github.com/melodic-software/claude-code-plugins/issues/2956).
 
-## Lanes 2 through 5
+## Lane 2: phase boundaries (issue #2900, decided 2026-08-17)
 
-Rows land here as each lane closes: phase boundaries (#2900), compaction doctrine (#2901),
-plan mode (#2902), and interview parity (#2903).
+Basis for all lane 2 rows: the course lesson "Clear, Compact, Handoff, Or Subagent" (verbatim
+paste, 2026-08-17, session cache). Our side read live the same day:
+`plugins/session-flow/skills/workflow/context/continuation.md`, the workflow SKILL.md, the
+sibling continuation skills, and `plugins/context-guard/reference/reader-contract.md`
+(exploration verified by a fresh-context agent, 23/23 sampled claims confirmed). The repo-side
+tree (`PHASE-BOUNDARIES.md`) was previously audited in the SSOT (ask-matt row,
+[mattpocock-skills.md](mattpocock-skills.md)); rows below cite that audit where the course
+restates it.
+
+| Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
+|---|---|---|---|
+| The five-option decision belongs at the phase boundary only; work the questions in order; they are subjective judgment calls | Router runs "at a phase boundary"; compact edge is boundary-only; "ask in order, first yes wins"; mid-stage with a healthy window the step is skipped; judgment tests govern degraded or unknown zones | **COVERED** | Parity: boundary-only trigger, ordered first-yes-wins discipline, and the judgment-call framing were all recorded at parity in the prior repo-tree audit; the course version adds nothing new here. As-of 2026-08-17 |
+| Five options: continue, clear, compact, handoff, subagent | Derived outcome set of six terminals (continue, `/clear`, `session-flow:handoff`, `session-flow:continue-in-background`, `session-flow:clean-stop`, `/compact`); subagent delegation is non-terminal via `session-flow:orchestrate` | **COVERED** (stronger) | Our outcome set is derived from installed mechanisms, adding clean-stop (machine going away) and user-gated background continuation his tree lacks; the subagent difference is decided in the AFK row below. As-of 2026-08-17 |
+| Compact "compresses your context and seeds a new session with it" | No such claim anywhere in the family; fork-vs-compaction tradeoff owned by handoff | **REJECT** (as a harness claim) | Refuted harness claim: verdict C4 in the pocock-course-lanes contract (two-pool, 2026-08-17): compaction continues the SAME session over a structured summary; only fork or `--fork-session` makes a new session id. The lesson's operational advice (compact last, steer the summary) is unaffected and covered below. As-of 2026-08-17 |
+| Continue first when the next phase needs this phase as a primary source; the implementation wants the grilling reasoning verbatim | Q2 prefers continue "when the next stage consumes this stage's reasoning verbatim; a summary of the reasoning is not the reasoning" | **COVERED** (previously ADOPTED) | The course version confirms the criterion already adopted from the repo tree in the v1.2 sync (PR #2082); ours zone-gates it (never overrides a degraded zone, where handoff remains the route). As-of 2026-08-17 |
+| Numeric anchors: 30k tokens after grilling means continue; 80k with a small task fits; 150k means leave; smart zone budget ~150k | No inlined numbers; the router consumes only the context-guard zone word per its reader contract; band values live in the contract as declared judgment defaults | **REJECT** (as adopted numbers) | Claim-ladder bucket ii (amendment A1): his figures are recorded as folklore anchors with named provenance, never adopted as numbers; our baseline is instrumented zone readings plus context-guard's declared judgment-default bands. Confirms the repo-tree rejection of the ~150k figure without repeating its "measured bands" overclaim (lane-6 correction pending). As-of 2026-08-17 |
+| Clear when the context is irrelevant and disposable; the cheapest move, takes zero time | Q3: `/clear`, "the cheapest reset, asked before any writing mechanism: capturing state nothing needs is pure cost" | **COVERED** | Parity; ours orders it after the hard-fact questions (machine going away, explicit background request) with each edge's ordering purpose stated. As-of 2026-08-17 |
+| Handoff is narrow: only for passing to another agent, another directory or colleague, or forking a mid-phase side task | Q4 handoff covers state-must-survive as well as boundary crossing; the session-chain use is named first-class per lane 1 | **REJECT** (the narrowing) | Confirms both the lane-1 UNION decision (issue 2899) and the prior repo-tree rejection: the narrowing contradicts our fork-beats-compaction stance, where handoff replaces compaction in a deep window with nothing travelling at all. Routing-signals deliverable already filed: [#2956](https://github.com/melodic-software/claude-code-plugins/issues/2956). As-of 2026-08-17 |
+| AFK criterion: if the task can run away-from-keyboard with no steering, spawn a subagent (a tree terminal) | Delegation is deliberately non-terminal, owned by `session-flow:orchestrate`; autonomous feasibility lives in Q1's feasibility half | **ADOPT** (modified) | Q20 decision (user-delegated to the session, 2026-08-17): adopt the AFK question as a router edge that points to orchestrate for the spawn-brief decision; delegation stays non-terminal so orchestrate keeps spawn ownership, and continue-in-background's explicit-intent launch gate is untouched because the router suggests and never launches. Filed: [#2971](https://github.com/melodic-software/claude-code-plugins/issues/2971). As-of 2026-08-17 |
+| Compact is the default, not the first reach; it sits at the bottom; pass it a steering instruction | Q5 fallthrough: `/compact` "at a phase boundary only, with a steering hint naming what the summary must keep", ordered last deliberately | **COVERED** (stronger) | Parity or stronger: ours adds the least-intelligent-point warning and defers the full tradeoff to handoff's "Fork beats compaction when the window is deep". `/compact [instructions]` support is verdict C6, CONFIRMED docs-only single-pool. As-of 2026-08-17 |
+| Every move except continue converts a primary source into a secondary source; pay the lossiness only when staying costs more | Q2's reasoning-verbatim criterion embodies the same trade; handoff owns the fork-vs-compact statement of it | **COVERED** | The concept is present without the dictionary vocabulary; adopting the terms (primary and secondary source, smart zone, AFK, phase boundary) is lane-6 territory ([#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904)). As-of 2026-08-17 |
+
+House decisions recorded alongside the rows (not lesson claims), all from the lane interview
+(Q21-Q23, 2026-08-17): the Q9 router evolution consumes plan, work-item state, and session
+history via presence-gated pointers to the existing informants (orient's read patterns,
+reconcile's liveness answer, the workflow checklist, the work-item seam), never duplicated
+reads; autonomy is two-tier (a per-invocation explicit `auto` opt-in at top level, mirroring
+continue-in-background's explicit-words precedent and never a standing config, plus the
+orchestrator relay codified as the autonomous tier for delegated work) with the I23
+reconciliation stated in the build item; the router's missing eval coverage and the
+context-guard reader-contract drift are filed as their own items. Filed:
+[#2971](https://github.com/melodic-software/claude-code-plugins/issues/2971),
+[#2972](https://github.com/melodic-software/claude-code-plugins/issues/2972),
+[#2973](https://github.com/melodic-software/claude-code-plugins/issues/2973).
+
+## Lanes 3 through 5
+
+Rows land here as each lane closes: compaction doctrine (#2901), plan mode (#2902), and
+interview parity (#2903).
 
 ## Coverage index and consolidation
 
