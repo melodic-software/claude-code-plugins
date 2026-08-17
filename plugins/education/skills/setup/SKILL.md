@@ -39,10 +39,14 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
      repo-tree guard refuses it and falls back to `${CLAUDE_PLUGIN_DATA}` (same effective root
      as unset).
 4. Explain the effective teach workspace root:
-   - empty or unexpanded `workspace_root` — `/education:teach` resolves its documented ladder
-     (project declaration → this setting → one-time ask → OS Documents `Claude Learning/` home
-     for topic mode → plugin data); codebase-mode workspaces stay under plugin data by default
-     (their lessons can embed private-repo snippets; Documents roots are often cloud-synced);
+   - empty or unexpanded `workspace_root` — FIRST read the rung-3 pointer file
+     `${CLAUDE_PLUGIN_DATA}/workspace-root`: when present and it names an existing directory,
+     report THAT path as the effective topic-mode root (it persists a prior one-time ask, and
+     also records the migration-offer outcome); when absent or invalid, report the documented
+     ladder (project declaration → this setting → one-time ask → OS Documents `Claude Learning/`
+     home for topic mode → plugin data); codebase-mode workspaces stay under plugin data by
+     default either way (their lessons can embed private-repo snippets; Documents roots are
+     often cloud-synced);
    - configured directory outside the consuming project — both modes root there;
    - configured directory that is `${CLAUDE_PROJECT_DIR}` or nested under it — teach's
      repo-tree guard refuses it (a committed root requires a declaration in the project's own
