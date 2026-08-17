@@ -70,7 +70,7 @@ context/lessons.md: flip the lesson default to interactive self-contained HTML (
 
 **Sanity Check:** `grep -c "assets/" plugins/education/skills/teach/SKILL.md` ≥ 1; `grep -ci "shuffl" plugins/education/skills/teach/context/lessons.md` ≥ 1; `grep -ci "copy.*back\|paste.*back" plugins/education/skills/teach/context/lessons.md` ≥ 1 (result-return contract present); replacement rule stated once in full (lessons.md carries it; SKILL.md `grep -c "never both"` ≤ 1); `grep -c "durable trio stays markdown" plugins/education/skills/teach/context/lessons.md` = 1 (token absent from current file — non-vacuous).
 
-### Phase 3: Workspace-root resolution ladder [TODO]
+### Phase 3: Workspace-root resolution ladder [DONE]
 
 **Work item 1 — pre-flight consumer sweep (contract migration; reviewer #2):** `grep -rn "CLAUDE_PLUGIN_DATA" plugins/education/` — every hit is a consumer to amend or explicitly keep: known today are `evals/evals.json` eval 1 ("under the plugin data dir" expectation — amend to root-ladder expectation), `context/lessons.md` HTML-placement rule (~line 52, also carries the raw topic-docs URL → replace with relational `docs/conventions/topic-docs/` pointer + URL fallback, F8), SKILL.md Resume/Status header (~line 97), pre-compute block, and the layout section itself. Document each hit's disposition before editing.
 

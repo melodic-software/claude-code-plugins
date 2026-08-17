@@ -24,10 +24,10 @@ Two modes share pedagogy but differ in source material:
 
 ## Workspace layout
 
-All persistent learning state lives under the plugin's own per-plugin data directory, which survives plugin updates and does not pollute the consuming repo:
+Learning state is the user's own study material — user documents, not machine internals. Every workspace lives at `<workspace-root>/<project-slug>/<mode>/<topic>/`, where `<workspace-root>` resolves per "Workspace root resolution" below (topic mode defaults to the OS Documents folder's `Claude Learning/` home where one is eligible; codebase mode defaults to `${CLAUDE_PLUGIN_DATA}`); no root ever pollutes the consuming repo unless the project itself declares one:
 
 ```text
-${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/
+<workspace-root>/<project-slug>/<mode>/<topic>/
 ├── MISSION.md               WHY the user is learning this — goal, success criteria, constraints (workspace-global)
 ├── GLOSSARY.md              durable terminology SSOT — add only when the user demonstrates understanding (global)
 ├── RESOURCES.md             curated high-trust sources (knowledge + wisdom communities) (global)
@@ -45,21 +45,47 @@ ${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/
 
 Path resolution rules every action MUST follow:
 
-- **`<project-slug>`** — **canonicalize the project path FIRST**, then derive BOTH the basename-slug and the hash from that one canonical path, so a project opened via a symlink and via its real path map to the same workspace (otherwise the alias basename would still split it — `alias-<hash>` vs `realname-<hash>`). Canonical path: `realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"` (e.g. macOS repos under `/private/var/…`). Then `<project-slug>` = the **basename of the canonical path** slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` (the fallback covers stock macOS). The hash discriminator is required because the basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from. `scripts/list-workspaces.sh` implements this derivation for the pre-compute probe below; this bullet stays normative for it.
+- **`<project-slug>`** — **canonicalize the project path FIRST**, then derive BOTH the basename-slug and the hash from that one canonical path, so a project opened via a symlink and via its real path map to the same workspace (otherwise the alias basename would still split it — `alias-<hash>` vs `realname-<hash>`). Canonical path: `realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"` (e.g. macOS repos under `/private/var/…`) — and when the project is a **linked git worktree**, hoist to the main repository first: if `git rev-parse --git-common-dir` names a `.git` outside the project, the directory holding it is the canonical path, so all worktrees of one repo share one workspace. Then `<project-slug>` = the **basename of the canonical path** slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` (the fallback covers stock macOS). The hash discriminator is required because the basename alone collides when two clones share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from. `scripts/list-workspaces.sh` implements this derivation (including the worktree hoist, and a compat scan that lists pre-hoist per-worktree slugs labeled `(legacy worktree slug)`); this bullet stays normative for it.
 - **`<mode>`** — literally `topic` or `codebase`, matching the action that created the workspace. This level keeps the two modes independent: `/education:teach topic auth-flow` and `/education:teach codebase auth-flow` in the same project resolve to separate workspaces (`.../topic/auth-flow/` vs `.../codebase/auth-flow/`) instead of one seeding over the other's `MISSION.md` / `RESOURCES.md`.
 - **`<topic>`** and **`<concept>`** — content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`. **Record the exact raw subject/concept name** (`MISSION.md`'s `# Mission: {Topic}` title for a topic; for a concept, the lesson's `**Concept:**` line in `lesson.md` or its `<meta name="concept" content="…">` in `lesson.html` — the lesson carries the raw name in whichever of the two formats it is written, so the guard below never depends on the extension) so it is the source of truth for collision checks. **Guard against slug collisions** — distinct subjects can normalize to the same slug (`C++` and `C#` → `c`; `Node.js` and `Node JS` → `node-js`), which would silently share one workspace. Before creating a workspace whose slug directory already exists, read that existing workspace's recorded raw name; if it names a DIFFERENT subject, append `-` plus the first 4 hex chars of `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new slug, keeping per-subject state isolated while leaving non-colliding slugs readable.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
-- `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions.
+- `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions. A user-chosen root (Documents home, configured root) gets its `Claude Learning/`-style home created only at first workspace creation there — the platform Documents directory itself is NEVER created by this skill.
 
 Lessons default to interactive, self-contained `lesson.html` where the learner's host can render it; on headless hosts, and where interactivity pays nothing, the lesson is `lesson.md` (one lesson file per concept, never both — the platform-aware format decision, identity/meta, and replacement rules live in [context/lessons.md](context/lessons.md)). The durable trio — `reference.md`, learning records, `GLOSSARY.md` — stays markdown, the diffable source of truth; `exercise.md` stays markdown too, and only the workspace-less `primer` renders to a temp path.
 
+## Workspace root resolution
+
+### Effective configuration (substituted at load)
+
+The value below substitutes from this plugin's stored configuration when this skill loads. A surviving literal `${user_config.…}` placeholder means the key is unset — apply its documented unset behavior, and never paste the raw placeholder into a shell command (the probe script also filters it defensively).
+
+| Key | Value | Unset behavior |
+| --- | --- | --- |
+| `workspace_root` | `${user_config.workspace_root}` | unset → continue down the ladder (rungs 3–5). Value grammar per the `knowledge.library_dir` precedent: absolute, `~`-home-relative, or `${NAME}`/`%NAME%` env refs; a relative value resolves against the project. A value inside the consuming repo is refused (rung-1 project declaration is the only path to a committed root). |
+
+### The ladder
+
+Resolve `<workspace-root>` by the first rung that answers. Cross-root semantics: for a given `<project-slug>/<mode>/<topic>`, the ladder-highest root wins; duplicates found at lower roots are surfaced to the user, never merged.
+
+1. **Project declaration** — a `teach workspace root: <path>` declaration in the consuming project's CLAUDE.md or rules files (the repo's config-cascade convention). The only rung that may name a path inside the consuming repo — an explicit team choice that commits personal learning state.
+2. **`workspace_root` userConfig** — the table above; surfaced and validated by `/education:setup`.
+3. **Ask-once** — first workspace creation with rungs 1–2 unset in an interactive session: ask ONCE where learning state should live, offering the rung-4 default. Persist the answer in the pointer file `${CLAUDE_PLUGIN_DATA}/workspace-root` (never a `pluginConfigs` write), and recommend making it durable via the native `workspace_root` userConfig (`/education:setup`). The pointer file is a **machine-local cache only**: before asking, adopt without asking an existing `Claude Learning/` home at the rung-4 location or an existing workspace tree at a configured root. It also records the migration-offer outcome (below). Non-interactive/headless sessions skip this rung silently; when plugin-data is unavailable, fall through silently rather than erroring.
+4. **OS Documents default — `topic` mode only.** Resolve mechanically with `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" --default-root`: the platform Documents directory (Windows Documents known folder resolved native-side and converted per the marketplace `docs/conventions/windows-path-emit/` convention — OneDrive-redirected and space-bearing paths handled, fail-loud; macOS `~/Documents`; Linux `xdg-user-dir DOCUMENTS`) qualifies ONLY when it already exists AND is not `$HOME` itself (unconfigured `xdg-user-dir` echoes `$HOME`), and the home inside it is the properly-cased `Claude Learning/` (English name; localize only if the user asks). Exit 1 from `--default-root` = no eligible default → rung 5.
+5. **`${CLAUDE_PLUGIN_DATA}` fallback** — headless/unset/no-Documents hosts, and the compat home where every pre-ladder workspace already lives.
+
+**Mode split:** the Documents default applies to `topic` workspaces only; **`codebase` workspaces stay under `${CLAUDE_PLUGIN_DATA}` by default**. Documents roots are commonly cloud-synced (OneDrive/iCloud), and codebase lessons embed repo snippets that must not silently leave the machine for a private repo — a codebase workspace lands at a user-chosen root only via explicit rung 1–2 configuration.
+
+**Migration and compat:** plugin-data workspaces stay readable forever — rung 5 is always scanned. When an interactive session resolves a higher root while plugin-data workspaces exist, offer a ONE-TIME migration (move the tree); record the outcome either way in the rung-3 pointer file and never re-offer. Never force-migrate; if compat ever cannot stay scan-only, stop and ask the user.
+
+**Root hazards (documented, not silent):** cloud-synced roots — machine-scoped slugs mean the same repo on two machines gets sibling workspaces in one synced root (no illusory continuity), and sync conflicts can collide on `learning-records/NNNN`; gitignored in-repo roots fragment across worktrees; temp roots die with the session; committed roots put personal learning state in a shared repo (explicit rung-1 team choice only).
+
 ## Pre-computed Context
 
-Gather with one Bash call (worktree-isolated agents refuse `$`-expansion in pre-compute blocks; #1687):
+Gather with one Bash call (worktree-isolated agents refuse `$`-expansion in pre-compute blocks; #1687 — and `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a bash `bad substitution` that kills the whole call before any fallback):
 
-- Existing workspaces — `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
+- Plugin-data workspaces — `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
 
-Treat failure as `"none"` and continue.
+Treat failure as `"none"` and continue. This probe covers rung 5 only. After resolving the ladder in the body, re-invoke the script as an ordinary Bash call with every resolved root as an argument, ladder-highest first — `list-workspaces.sh "${CLAUDE_PROJECT_DIR}" <root>...` — and distinguish its exits: **exit 2 = probe broken** (usage error / all roots filtered as unset) → glob the resolved roots manually before creating any workspace; a printed `none` with exit 0 = genuinely no workspaces.
 
 ## Action Router
 
@@ -95,7 +121,7 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 
 ## Resume, Status, and workspace resolution
 
-`resume` and `status` operate over the workspaces under `${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/` (both modes):
+`resume` and `status` operate over the workspaces under `<workspace-root>/<project-slug>/<mode>/<topic>/` for EVERY root the ladder resolves (both modes; one body re-invocation of `list-workspaces.sh` with all roots — see "Pre-computed Context"):
 
 - **`resume [<topic>]`** — with a topic argument, resolve that workspace directly (disambiguating by `<mode>` if the same topic exists in both) and follow "Resume (subsequent sessions)". With no argument, list the workspaces sorted by most-recently-modified (git or filesystem mtime of the workspace files) and ask the user which to resume — never silently pick one when more than one exists.
 - **`status`** — for each workspace, show its mode, topic, the count of `learning-records/`, the current frontier concept (from the latest records), and the last-touched date (mtime). One line per workspace; no file bodies loaded.

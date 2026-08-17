@@ -34,6 +34,11 @@
       "type": "directory",
       "title": "Quiz report library directory",
       "description": "Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree."
+    },
+    "workspace_root": {
+      "type": "directory",
+      "title": "Teach workspace root",
+      "description": "Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the OS Documents folder's 'Claude Learning' home (topic mode only), then the plugin's persistent data directory. Codebase-mode workspaces stay under plugin data unless a project declaration or this setting names a root, since their lessons can embed private-repo snippets and Documents roots are often cloud-synced. Grammar: absolute, ~-home-relative, or ${NAME} / %NAME% environment references; a relative value resolves against the project; a value inside the consuming repo is refused — declare an in-repo root in the project's own CLAUDE.md or rules instead."
     }
   }
 }

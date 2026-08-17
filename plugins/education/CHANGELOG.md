@@ -3,6 +3,31 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **Learning workspaces are classified as user documents, not machine state — a deliberate,
+  documented deviation from the plugin philosophy's plugin-data default.** A learning workspace
+  is the user's own long-lived study material (mission, glossary, lessons, references): it should
+  be visible, portable, and survive plugin removal the way documents do, not live in an opaque
+  machine-state directory. `teach` therefore resolves a workspace-root ladder — project
+  declaration → `workspace_root` userConfig → one-time ask → the OS Documents folder's
+  `Claude Learning/` home → `${CLAUDE_PLUGIN_DATA}` — and topic-mode workspaces default to the
+  Documents home where one is eligible. **Codebase-mode workspaces stay under plugin data by
+  default**: their lessons embed repo snippets, and Documents roots are commonly cloud-synced
+  (OneDrive/iCloud), so repo-derived state must not silently leave the machine for a private
+  repo — privacy beats visibility there. Existing plugin-data workspaces stay readable forever
+  (the ladder always scans that root); migration is a one-time offer, never forced.
+
+### Added
+
+- **`workspace_root` userConfig** for teach, mirroring the `knowledge.library_dir` value
+  grammar; surfaced by `/education:setup`.
+- **`list-workspaces.sh` multi-root scan + `--default-root`** (OS Documents resolution with the
+  exists-and-not-`$HOME` guard), linked-worktree slug hoisting via `git rev-parse
+  --git-common-dir` with legacy per-worktree slugs still scanned and labeled.
+
 ## [0.6.4]
 
 ### Changed
