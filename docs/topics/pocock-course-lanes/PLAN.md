@@ -1,8 +1,9 @@
 # pocock-course-lanes
 
-Interview in progress (`/planning:interview me`, round 2 open). This Brief persists locked
-decisions incrementally so a cloud-session loss never discards resolved branches; the working
-ledger lives in the topic's memory slice (`.work/pocock-course-lanes/`, disposable per session).
+Brief locked via `/planning:interview me` (rounds 1–3, all nine questions decided; register
+gated clean). The working ledger lives in the topic's memory slice
+(`.work/pocock-course-lanes/`, disposable per session — this committed file is the durable
+record).
 
 ## Brief
 
@@ -31,7 +32,12 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
    compaction-mechanics claims verified against official docs.
 4. **handoff** — his 15-line skill vs our save-point engine; the purpose-argument adoption
    candidate; handoff-file expiry/accumulation; ephemerality philosophy (OS temp vs memory
-   tier).
+   tier). **Use-case boundary evaluation** (user, round 3): our dominant real use is a hard
+   session-chain handoff — dumb-zone escape → session-ID chain → whole-picture reconstruction
+   for retrospectives; functionally a compact-replacement that regathers — while his taxonomy
+   centers on crossing boundaries (other agent, other repo, colleague, forked side task).
+   Decide which use cases our handoff officially owns, which route elsewhere, and whether the
+   session-chain/retrospective use deserves first-class support.
 5. **phase-boundaries decision tree** — element-by-element re-audit of the
    `session-flow:workflow` continuation router against the *course* version of his tree (the
    SSOT audited repo `PHASE-BOUNDARIES.md`, not this lesson); includes subagent-not-a-terminal
@@ -78,13 +84,27 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
 - Executing plugin changes inside a lane session.
 - Re-auditing the mattpocock/skills repo itself (SSOT current; recheck trigger unchanged).
 
+### Decided in rounds 2–3 (previously deferred)
+
+- Q6 — lane order: handoff → phase-boundaries → compaction → plan-mode → grilling →
+  vocabulary/provenance.
+- Q7 — dispatch: one background `/discovery:research` for the harness-claims bundle
+  (`autoCompactWindow`, compaction mechanics, plan-mode behavior — verified against current
+  official docs); `/discovery:explore` and `/planning:brainstorm` fire per lane at open;
+  nothing else speculative. (The pre-lane inventory recheck already ran — see below.)
+- Q8 — durability: git + GitHub are the only durable spine; `.work/` never load-bearing;
+  every session ends with clean-stop semantics (commit + push + issue updates), never a
+  machine-local handoff file; one GitHub issue per lane; contract branch PRs when locked,
+  then one branch + PR per lane.
+- Q9 — decision-matrix skill: evolve `session-flow:workflow`'s `continue` router (no new
+  skill) to consume session history, the overarching plan, work-item state, and the
+  context-guard zone; **suggest-by-default, autonomous only as an explicit opt-in**, designed
+  around instruction-audit check I23 (no exit menus injected into model context). This is
+  lane 5's build deliverable.
+
 ### Deferred questions
 
-- Q6 (arbiter: USER-RESERVED) — lane ordering / priority.
-- Q7 (arbiter: USER-RESERVED) — dispatch model: which explore/research runs fire now in
-  background vs at lane open.
-- Q8 (arbiter: USER-RESERVED) — per-session management + durability mechanics (end-of-session
-  ritual, branch policy for lane docs).
+*(none — all nine questions decided)*
 
 ## Upstream recheck — 2026-08-17 (pre-lane gate)
 
