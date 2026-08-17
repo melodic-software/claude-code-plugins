@@ -1,5 +1,16 @@
 # Derivability rubric — scoring the four factors
 
+## Contents
+
+- [The core question, precisely](#the-core-question-precisely)
+- [Factor 1 — Derivable?](#factor-1--derivable)
+- [Factor 2 — Re-derivation cost](#factor-2--re-derivation-cost)
+- [Factor 3 — Drift risk](#factor-3--drift-risk)
+- [Factor 4 — Fact ownership (the trump card)](#factor-4--fact-ownership-the-trump-card)
+- [Audience: agent-facing vs human-facing](#audience-agent-facing-vs-human-facing)
+- [The empirical spot-test — protocol](#the-empirical-spot-test--protocol)
+- [Worked examples](#worked-examples)
+
 Reference for `/docs-hygiene:audit-derivability`. The SKILL.md carries the
 verdict contract; this file is the scoring detail, the fact-ownership mapping,
 and worked examples. Load it when a verdict is close or contested.

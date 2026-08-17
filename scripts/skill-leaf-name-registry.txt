@@ -64,6 +64,12 @@ setup *
 # skill surface reports, the mode gates. Its one persisted write sits behind
 # the explicit --persist-findings override the verb table sanctions, landing
 # only in the memory tier (#2684).
+# ai-slop joins on the same grounds: its object — AI-writing tells in markdown
+# prose — is supplied by the namespace, and the contract is exactly the verb's
+# (read-only findings report on bare invocation). Its mutation path sits behind
+# the explicit `fix` argument the verb table sanctions, its findings file lands
+# only in the memory tier through the detector-findings rung order, and tracked
+# source is untouched until the user asks for the rewrite (#2892).
 # overengineering joins on the same grounds: its object — the repo's existing
 # enforcement surface, judged for what no longer earns its carry cost — is
 # supplied by the namespace, so a topic qualifier would say it twice. The
@@ -75,7 +81,7 @@ setup *
 # human gate. The obvious alternative leaf names are worse: `audit-enforcement`
 # repeats the namespace, and a retirement-flavored verb like `prune` would
 # promise mutation the verb table reserves for clean/tidy/fix.
-audit claude-config,claude-memory,codebase-health,github,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,repo-fleet-hygiene,testing
+audit ai-slop,claude-config,claude-memory,codebase-health,github,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,repo-fleet-hygiene,testing
 
 # Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
 # skill, toolchain checks a build.

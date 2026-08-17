@@ -1,5 +1,14 @@
 # Orchestrated whole-repo mode
 
+## Contents
+
+- [Roles](#roles)
+- [Worker tiering](#worker-tiering)
+- [Concurrency — static, conservative, capped](#concurrency--static-conservative-capped)
+- [Rate-limit guard integration (when present)](#rate-limit-guard-integration-when-present)
+- [Cadence and commits](#cadence-and-commits)
+- [Cross-references](#cross-references)
+
 Defaults for running the extract-ssot pipeline at whole-repo scale —
 hundreds to thousands of tracked markdown files, dozens of candidate
 clusters — where identify/verify/execute becomes a multi-agent batch

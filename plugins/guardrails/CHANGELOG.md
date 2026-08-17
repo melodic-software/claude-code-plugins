@@ -3,6 +3,268 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2]
+
+### Fixed
+
+- **PowerShell guards: a `$( … )` call target is refused like its `( … )` twin
+  ([#2924](https://github.com/melodic-software/claude-code-plugins/issues/2924)).**
+  `& $($w) f.txt x` and `& $($w) @p` exited 0 from `block-hook-bypass` while the
+  identical `& ($w) f.txt x` exited 2 — a working `Set-Content <path> <value>`
+  through a computed call target, waved through. The git lane carried the same
+  hole: `& $($g) reset --hard` exited 0 from `block-dangerous-git` while
+  `& ($g) reset --hard` exited 2. Both were introduced by 0.28.33.
+
+  `$( … )` and `( … )` are the same construct — each evaluates an expression
+  into the command name — but only the paren spelling was recognized. So `& $(`
+  ENTERED the computed-target gate (`ps::call_target_is_bare_computed` matches
+  `[.&][[:space:]]*[$(]`, and the `$` admits it) and then matched no call site
+  in any measuring probe: `ps::call_target_is_bare_subexpression` wanted `(`
+  immediately after the operator, and both
+  `ps::computed_call_has_positional_write_signal` and
+  `ps::computed_call_has_splat_operand` want a `$name` or `${name}` target.
+  Gate entered, zero arms fired, command allowed. Before 0.28.33 the blanket
+  `ps::has_special_constructs` arm covered the shape incidentally, via the
+  parentheses inside `$(`.
+
+  `ps::call_target_is_bare_subexpression` now accepts an OPTIONAL `$` before the
+  opening paren, so both spellings reach one verdict on both lanes. Unlike the
+  braced-name fix in 0.29.1 there is nothing to consume upstream — `$(` survives
+  backtick deletion, quote blanking, and lowercasing intact — so the evidence is
+  still present where the predicate runs and the fix belongs there.
+
+  A subexpression target is refused BY SHAPE, regardless of its operands, so
+  `& $($py) script.py` now blocks exactly as `& ($py) script.py` always has.
+  That is not the grouping-as-write-signal over-block removed in 0.28.33: that
+  change dropped grouping ANYWHERE ELSE in the command as a signal and
+  deliberately kept the target-is-subexpression arm. Pinned by twenty tests
+  across the two lanes, each `$( … )` row paired with its `( … )` twin so the
+  two spellings cannot drift apart again, and
+  `& ('Set-'+'Content') f.txt x` kept as the tripwire for the escaped `\$` in
+  the widened pattern.
+
+  Not covered, unchanged, and pre-existing rather than introduced by 0.28.33
+  (all exit 0 on the pre-0.28.33 base as well): interpolating quoted targets
+  (`& "$env:writer" f.txt x`), index and member targets (`& $tools[0] …`,
+  `& $tools.writer …`), and quoted operands erasing the positional write signal
+  ([#2906](https://github.com/melodic-software/claude-code-plugins/issues/2906)).
+
+## [0.29.1]
+
+### Fixed
+
+- **PowerShell write guard: a BRACED call target is measured like its bare twin
+  ([#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)).**
+  `& ${env:writer} f.txt x` and `& ${env:writer} @p` exited 0 from
+  `block-hook-bypass` while the identical `& $env:writer …` exited 2 — a
+  fail-open on a working file write, introduced by 0.28.33. `${env:w}` and
+  `$env:w` are the same reference (`about_Variables`; `${env:t} -eq $env:t` is
+  True), and `ps::call_target_is_bare_computed` admits both because it only
+  looks for the `$`. But the two probes that MEASURE a call site keyed on the
+  bare spelling alone, so a braced target entered the computed-target gate and
+  then matched no call site at all: every arm stayed silent and the command fell
+  through allowed. Before 0.28.33 the blanket `ps::has_special_constructs` arm
+  had been covering the shape incidentally, via the braces themselves.
+
+  Both probes now accept `${…}` alongside the bare form. The gate ENTRY
+  predicate is deliberately left as it is — teaching the measuring probes closes
+  the hole, whereas narrowing entry to match would open a second one. Pinned by
+  seven tests, each braced row paired with its bare twin so the two spellings
+  cannot drift apart again, plus `& ${env:py} script.py` holding the allowed
+  side so a braced target does not itself become a write signal.
+
+  A braced name may also carry a backtick-ESCAPED closing brace — ``${my`}w}``
+  names the variable ``my}w`` — and the library deletes backticks to recover a
+  cmdlet name obfuscated with PowerShell's escape character. Deleting first
+  rendered that text `${my}w}`, which is indistinguishable from a `${my}`
+  reference followed by a literal `w}`: no rule applied afterwards can tell them
+  apart, so the call site disappeared entirely and the command fell through
+  allowed for the same reason. The escape is now consumed while it still exists,
+  by `ps::fold_escaped_brace_closers`, before any caller deletes backticks; an
+  escaped backtick is consumed as a unit so it cannot lend its second backtick to
+  a following brace, leaving the obfuscation recovery untouched. The target token
+  may additionally carry non-space text glued after its closing brace
+  (`& ${env:w}riter f.txt x`), which PowerShell concatenates and which previously
+  made the whole call site unmatchable. Operands are still measured exactly as
+  before once the site is found, so widening the target token decides only where
+  measuring starts, never the verdict. Eight further tests pin the escaped-closer
+  and glued-target shapes, including two escaped closers in one name and the
+  allowed one-positional twin.
+
+## [0.29.0]
+
+### Added
+
+- **`block-exported-msys-pathconv`: block an EXPORTED MSYS path-conversion
+  suppressor on Windows
+  ([#2870](https://github.com/melodic-software/claude-code-plugins/issues/2870)).**
+  New `PreToolUse` guard on `Bash|PowerShell`, default on, kill switch
+  `block_exported_msys_pathconv_enabled`. Blocks `export MSYS_NO_PATHCONV` /
+  `export MSYS2_ARG_CONV_EXCL` (including `export --`, and the `declare` /
+  `typeset` spellings with the export flag in any cluster — `-x`, `-rx`,
+  `-gx`, `-x -g`), which switch off MSYS argv rewriting for *every later
+  command in the same command string*. A later path argument then reaches a Windows-native program
+  unconverted, and git resolves the leading `/` against the current drive —
+  `git worktree add /d/worktrees/x` becomes `<current-drive>:\d\worktrees\x`.
+  That is how `D:\d` was recreated a third time, by a lane that exported the
+  variable seven segments earlier to work around an unrelated problem (MSYS
+  mangling a `<rev>:<path>` argument).
+
+  A second leaking form is matched too: a prefix whose command word is a
+  **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env MSYS_NO_PATHCONV=1 sh -c
+  '…'`). The prefix scopes to one *process*, and when that process is an
+  interpreter, one process is every command in the script — verified
+  behaviorally, where the same prefix on `git` directly leaves only the first
+  argument unconverted. An adversarial review found this as an undeclared false
+  negative; closing it cost **zero** additional false positives on the same
+  14,234-command corpus (its single match was already blocked by the export
+  rule). A prefix on a non-shell command word — the safe idiom, 193 corpus
+  uses — stays allowed.
+
+  The guard deliberately does **not** match a path shape. The incident command's
+  path argument was textually identical to one the same lane had already run
+  successfully, so a `/[a-z]/` matcher has a false negative on the real defect —
+  and measured a 45.7% firing rate across 14,234 real Bash commands (81% on
+  `git worktree add` alone), because in an ordinary shell MSYS converts those
+  correctly. The export form fires on **0.32%** of the same corpus (46 commands,
+  spanning four lanes and two repositories) and leaves the safe per-command
+  prefix idiom (193 uses) and bare assignments untouched. The distinction is
+  mechanical rather than heuristic: `bash -c 'export MSYS_NO_PATHCONV=1; git
+  rev-parse --sq-quote /d/probe'` yields `'/d/probe'` while the bare-assignment
+  and per-command-prefix forms both yield `'D:/probe'` for the following command.
+
+  Review rounds refined the matcher in both directions. Without a shell word
+  in the command string, the export keyword must sit at command position, so
+  commit messages, `echo` arguments, and grep patterns that merely quote the
+  forbidden spelling stay allowed; with a shell word present, quoted text can
+  execute and any occurrence still blocks. Launchers and shells are judged by
+  quote-stripped basename, so `/usr/bin/env bash -c`, `command bash -c`, a
+  quoted `'bash'`, and a quoted `"C:\...\bash.exe"` behind PowerShell's call
+  operator all block, as does a suppressor prefix opening a quoted child
+  command string.
+
+  Declared coverage gaps: a suppressor exported by a script the command invokes,
+  `set -a` plus a bare assignment, an expansion-built value, an export guarded
+  by a keyword rather than a separator (`if ...; then export ...`), and any
+  spawner outside the two tool surfaces (CI runners, `subprocess`). Declared
+  residual false positives, accepted fail-closed: an export spelling inside a
+  heredoc body, and prose quoting a forbidden spelling alongside a shell word
+  in the same command string.
+
+### Changed
+
+- **`block-windows-drive-tmp`: reciprocal sibling cross-reference.** Its header
+  now records why the new guard is a separate hook rather than an extension of
+  this one — disjoint scopes (path-shape/write-target vs environment variable),
+  neither firing on the other's cases.
+
+## [0.28.33]
+
+### Fixed
+
+- **PowerShell guards: a grouping construct plus a bare-computed call target is
+  no longer treated as a git signal or a write signal
+  ([#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)).**
+  `$py = "..."; if (-not (Test-Path $py)) { $py = (Get-Command python).Source };
+  & $py run.py --flag` exited 2 from all three blocking hooks. Either factor
+  alone was already allowed — grouping by the #2592 command-position fix, a bare
+  `& $tool` call target by the variable-command-word residual — so only their
+  conjunction blocked, and each hook reported a different explanation of a shape
+  that is not dangerous. Two independent paths produced it, both closed:
+  `ps::might_invoke_git` now matches only the SUBEXPRESSION half of a computed
+  call target (`& ('g'+'it') …`), which assembles a name no literal probe can
+  see, and not the bare-variable half; `ps::write_bypass`'s computed-target
+  branch no longer gates on a blanket `ps::has_special_constructs` but on the
+  three shapes that gate actually carried — a subexpression call target, `--%`
+  stop-parsing, and a SPLAT (`& $w @p`).
+
+  Still blocked, pinned by new tests on all three hooks: a subexpression call or
+  dot-source target with the same grouping present; a literal `git` command word
+  inside the grouping; a computed launcher; an interpolating-string target; and
+  all four #2722 write signals (`-Value`, `>`, positional Path+Value, pipeline
+  into a path) re-run inside a `foreach`. `GROUPING_ONLY` (grouping with a
+  literal call target) gains the pin it never had.
+
+  Two shapes the blanket grouping test had been carrying by accident are now
+  carried on purpose, so the branch does not lose reach. Splatting into a
+  computed writer (`& $w @p`) is caught even when the hashtable was built in an
+  earlier command — previously only the same-command `$p = @{…}; & $w @p` form
+  tripped, and only via its braces. And
+  `ps::computed_call_has_positional_write_signal` now measures EVERY `& $var`
+  call site rather than the leftmost, so a nested write
+  (`& $ic -ScriptBlock { & $w f.txt $x }`, whose outer target's first token is a
+  flag and therefore contributes no positionals) still fails closed. Both are
+  pinned.
+
+  The positional signal now CLASSIFIES operands rather than merely counting
+  them: a parenthesized subexpression is one operand however many words it
+  spans, and the two-positional arm fires only when at least one operand is a
+  visible literal. `& $py $script (Join-Path $dir "$id.jsonl")` — every operand
+  computed — exits 0 from `block-hook-bypass` too, with or without the
+  enclosing `foreach`, while `& $py $script out.jsonl` still blocks: a visible
+  literal beside another positional is exactly the Path+Value shape
+  (`& $w f.txt x`) the #2722 signal exists for. The concession this line makes
+  is pinned as deliberate: a writer name, path, AND value all staged into
+  variables inside one command string (`& $w $path $value`) is a deliberately
+  evasive shape of the same class as the `node -e` writes the hook's scope note
+  already excludes, and a pipeline into the call keeps failing closed on ANY
+  operand, computed or not, because the content demonstrably arrives via `|`.
+
+  The SPLAT arm is scoped to its own call's operands rather than matched
+  anywhere in the command. A whole-command `@name` scan made an unrelated splat
+  the write signal for a call it has nothing to do with:
+  `Write-Output @args; & $py script.py` exited 2 while the identical command
+  without `@args` was allowed, and neither statement writes a file — this
+  issue's own signal-detected-anywhere over-block, one shape narrower. Every
+  `& $var` / `. $var` site is walked and truncated at a statement separator or
+  closing brace, so a later statement's splat stays out of an earlier call's
+  operands. Unlike the positional probe it does not stop at the first
+  dash-flag — a splat supplies parameters wherever it sits — so
+  `& $w -Encoding utf8 @p` still blocks, as do `& $w @p` with the hashtable
+  built earlier and a splat on a nested call inside a script block. The `>`
+  redirect and `-va*` probes keep their whole-command scope: pre-existing
+  precedent, not a shape this issue reopened.
+
+  Both call-site probes now derive a call's operands from a shared
+  bracket-depth-aware scan (`ps::call_site_operand_region`) rather than
+  truncating at the first `}`. A first-`}` truncation assumed no `}` can occur
+  inside the call's own operands before a token of interest, which is false for
+  `${scope:name}`, a `{…}` script block, and a `@{…}` hashtable literal — so a
+  real write whose splat or Path+Value pair sat after such an operand
+  (`& $w ${script:Path} @Body`, `& $w ${script:Path} f.txt x`) had everything
+  from the `}` onward dropped before either probe ran, and was allowed. The
+  region now ends only at a separator at depth zero or at the closer of an
+  ENCLOSING construct, and a splat inside a script-block operand is left to the
+  nested call site that owns it. Only `()` and `{}` drive that depth: ending the
+  region early is the fail-OPEN direction, so `[]` is carried as ordinary text
+  rather than risking an unmatched `]` cutting a scan short. All four decoy
+  shapes are pinned.
+
+## [0.28.32]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
+## [0.28.31]
+
+### Fixed
+
+- **Test harness no longer lets a fixture's git identity land in the caller's
+  repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  `guardrails-test-helpers.sh` now clears `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` at source time. `git -C <fixture>` is a readability guard, not an isolation
+  guarantee: an exported **absolute** `GIT_DIR` overrides repository discovery,
+  so `git config`'s default `--local` scope resolves to the caller's gitdir and
+  the fixture identity is written there instead — leaving the fixture with no
+  `.git` and silently re-authoring the caller's next commit. `GIT_CONFIG` is
+  cleared as a **second** leak path rather than another spelling of the first:
+  it replaces the file the `git config` subcommand reads and writes, so an
+  identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped hook behavior is affected.
+
 ## [0.28.30]
 
 ### Changed

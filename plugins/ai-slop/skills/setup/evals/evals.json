@@ -1,0 +1,41 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-read-only",
+      "prompt": "/ai-slop:setup check",
+      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (user-global, team, local overlay), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
+      "files": [],
+      "expectations": [
+        "Reports the effective config per key with the winning layer named",
+        "Flags drift such as unknown keys or an unsupported em-dash threshold key",
+        "Writes nothing — check is read-only"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-writes-team-layer-only-with-confirmation",
+      "prompt": "/ai-slop:setup apply — user asks to exempt docs/style-guide.md from the em-dash rule",
+      "expected_output": "A diff of .claude/ai-slop.json adding docs/style-guide.md to em_dash_allowed_paths is shown and explicitly confirmed before writing. The user-global and .local.json layers are named as self-service options, never written by the skill.",
+      "files": [],
+      "expectations": [
+        "Shows the proposed team-layer diff and waits for explicit confirmation before writing",
+        "Writes ONLY .claude/ai-slop.json, never the user-global or local overlay layers",
+        "Adds the exemption under em_dash_allowed_paths rather than excluded_paths (the file should still be scanned by other rules)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "em-dash-default-posture-holds",
+      "prompt": "/ai-slop:setup apply — user asks to raise the em-dash threshold repo-wide",
+      "expected_output": "The skill explains the em-dash rule is zero-tolerance by design with per-document exemption as the supported mechanism, offers em_dash_allowed_paths for the documents that genuinely need em dashes, and does not invent a threshold key for the rule.",
+      "files": [],
+      "expectations": [
+        "Explains the zero-tolerance default and that exemption is per-document, not per-threshold",
+        "Offers em_dash_allowed_paths (or disabled_rules with its trade-off named) as the supported paths",
+        "Does not write a nonexistent em-dash threshold key"
+      ]
+    }
+  ]
+}

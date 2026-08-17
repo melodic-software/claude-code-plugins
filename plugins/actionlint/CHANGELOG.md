@@ -3,6 +3,13 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.16]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
 ## [0.8.15]
 
 ### Changed

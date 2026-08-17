@@ -170,7 +170,6 @@ while IFS= read -r line; do
   status_field="${status_field%"${status_field##*[![:space:]]}"}"
   status_field="$(printf '%s' "$status_field" | tr '[:upper:]' '[:lower:]')"
 
-  # A row must carry at least id | status | round | question.
   field_count="$(printf '%s' "$row" | awk -F'|' '{print NF}')"
   if [[ "$field_count" -lt 4 ]]; then
     die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line"
