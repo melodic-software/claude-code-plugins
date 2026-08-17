@@ -46,13 +46,28 @@
 # whose command word is a SHELL (`MSYS_NO_PATHCONV=1 bash -c '...'`), which
 # leaks into every command inside that child. See `leaks_into_child_shell`.
 #
+# QUOTED PROSE VS EXECUTED CODE. The matcher does not parse shell syntax, but
+# it does discriminate mechanically: the export keyword must sit at COMMAND
+# POSITION (start of string, or after ; & | ( ` { or a newline) UNLESS the
+# command also names a shell word (bash/sh/dash/zsh/ksh/eval), in which case
+# quoted text may be handed to that shell and execute, so any occurrence
+# matches. This keeps `git commit -m "fix: block export MSYS_NO_PATHCONV=1"`
+# and `echo "export MSYS_NO_PATHCONV=1"` allowed while `bash -c 'export
+# MSYS_NO_PATHCONV=1; ...'` stays blocked.
+#
 # DECLARED COVERAGE GAPS (out of scope, documented rather than hidden): a
 # suppressor exported by a SCRIPT the command invokes rather than in the command
 # string; `set -a` followed by a bare assignment; a value assembled through an
 # expansion; a prefix on a non-shell interpreter that itself spawns native
-# children (`MSYS_NO_PATHCONV=1 python script.py`); and any spawner outside the
-# Bash/PowerShell tool surfaces (CI runners, Node/Python `subprocess`), which no
-# PreToolUse hook can see.
+# children (`MSYS_NO_PATHCONV=1 python script.py`); an export guarded by a
+# keyword rather than a separator (`if true; then export ...`), which is not at
+# a recognized command position; and any spawner outside the Bash/PowerShell
+# tool surfaces (CI runners, Node/Python `subprocess`), which no PreToolUse
+# hook can see. DECLARED RESIDUAL FALSE POSITIVES, accepted fail-closed: an
+# export spelling inside a heredoc body (a heredoc line is indistinguishable
+# from a plain second command line without real parsing — use the Write tool
+# for such documents), and prose quoting the export next to a shell word in the
+# same command string.
 #
 # Kill switch: block_exported_msys_pathconv_enabled userConfig option.
 #
@@ -158,13 +173,58 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long"
 fi
 
-# The export forms. `export`/`declare -x`/`typeset -x` may carry other
-# assignments before the one that matters (`export A=1 MSYS_NO_PATHCONV=1`), so
-# leading `NAME=value` pairs are skipped. A BARE assignment is deliberately not
+# True when the command names a POSIX-shell word (or eval) as a token basename.
+# Used to pick the matching mode for is_exported_suppressor: with a shell in
+# the command string, quoted text can be handed to it and EXECUTE, so an export
+# spelling anywhere is live; without one, quoted text is inert prose.
+contains_shell_word() {
+  local s="$1" tok base
+  local -a tokens=()
+  # Intentional word-split of the static matcher subject into tokens.
+  # shellcheck disable=SC2206
+  tokens=($s)
+  for tok in "${tokens[@]}"; do
+    tok="${tok#\'}"
+    tok="${tok#\"}"
+    base="${tok##*/}"
+    base="${base##*\\}"
+    base="${base%.exe}"
+    case "$base" in
+    bash | sh | dash | zsh | ksh | eval) return 0 ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
+# The export forms. `export` (optionally with the `--` end-of-options marker)
+# may carry other assignments before the one that matters (`export A=1
+# MSYS_NO_PATHCONV=1`), so leading `NAME=value` pairs are skipped. `declare`/
+# `typeset` export when ANY of their flag tokens carries `x` — `-x`, `-rx`,
+# `-gx`, `-x -g` — so the flag cluster is matched as a region and checked for
+# `x` afterward rather than spelled into the regex (a literal `-x` alone was a
+# reviewed false-negative on PR #2878). A BARE assignment is deliberately not
 # matched: it does not enter the environment and therefore does not suppress.
 is_exported_suppressor() {
-  local s="$1"
-  [[ "$s" =~ (^|[^[:alnum:]_.-])(export|declare[[:space:]]+-x|typeset[[:space:]]+-x)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)([=[:space:]\;\|\&]|$) ]]
+  local s="$1" lead nl=$'\n'
+  local assign='([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
+  local name='(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)'
+  local tail='([=[:space:]\;\|\&]|$)'
+  if contains_shell_word "$s"; then
+    # A shell word is present: quoted text may execute, so match loosely.
+    lead='(^|[^[:alnum:]_.-])'
+  else
+    # No shell word: only an export at command position executes.
+    lead="(^|[;&|(\`{${nl}])[[:space:]]*"
+  fi
+  if [[ "$s" =~ ${lead}export[[:space:]]+(--[[:space:]]+)?${assign}${name}${tail} ]]; then
+    return 0
+  fi
+  if [[ "$s" =~ ${lead}(declare|typeset)[[:space:]]+((-[A-Za-z-]+[[:space:]]+)+)${assign}${name}${tail} ]]; then
+    # Group 3 is the whole flag region; export only if some flag carries x.
+    [[ "${BASH_REMATCH[3]}" == *x* ]] && return 0
+  fi
+  return 1
 }
 
 # A prefix whose command word is a SHELL leaks just as far, because the child
@@ -194,17 +254,22 @@ leaks_into_child_shell() {
   tokens=($s)
   for tok in "${tokens[@]}"; do
     if ((seen)); then
-      # Still in the prefix: further NAME=value assignments and a bare `env`
-      # keep the prefix open; anything else is the command word.
-      [[ "$tok" == "env" || "$tok" == "env.exe" ]] && continue
+      # Still in the prefix: further NAME=value assignments keep it open.
       [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-      # Command word: judge its basename, with any quoting stripped.
+      # Judge every candidate by its BASENAME, with any quoting stripped — a
+      # launcher or a shell is recognized by what it is, not how it is spelled
+      # (`/usr/bin/env bash` leaked through a bare-literal `env` check; PR
+      # #2878 review).
       tok="${tok#\'}"
       tok="${tok#\"}"
       base="${tok##*/}"
       base="${base##*\\}"
       base="${base%.exe}"
       case "$base" in
+      # Launchers that re-exec their argument keep the prefix open, as do
+      # their option flags (`env -i`, `command -p`, ...). Treating an option
+      # of a NON-launcher as prefix-continuing errs fail-closed, never open.
+      env | command | builtin | exec | nohup | -*) continue ;;
       bash | sh | dash | zsh | ksh) return 0 ;;
       *) seen=0 ;;
       esac

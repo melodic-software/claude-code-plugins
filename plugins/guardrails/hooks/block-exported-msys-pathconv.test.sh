@@ -73,6 +73,33 @@ run_win "declare -x form (blocked)" 'declare -x MSYS_NO_PATHCONV=1; git status' 
 run_win "typeset -x form (blocked)" 'typeset -x MSYS2_ARG_CONV_EXCL=1; git status' 2
 run_win "export at the very start of the command (blocked)" 'export MSYS_NO_PATHCONV=1' 2
 
+# --- 2b. Valid export spellings one flag away from the obvious one -----------
+# All of these genuinely export the suppressor (bash `help export` / `help
+# declare`), so each is the same defect in a different spelling. Reviewed as
+# false negatives on PR #2878.
+run_win "export -- end-of-options form (blocked)" \
+  'export -- MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x' 2
+run_win "declare -rx combined flags (blocked)" \
+  'declare -rx MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x' 2
+run_win "declare -gx combined flags (blocked)" \
+  'declare -gx MSYS_NO_PATHCONV=1; git status' 2
+run_win "declare -xg combined flags, x first (blocked)" \
+  'declare -xg MSYS_NO_PATHCONV=1; git status' 2
+run_win "declare -x -g separate flags (blocked)" \
+  'declare -x -g MSYS_NO_PATHCONV=1; git status' 2
+run_win "declare -g -x separate flags, x second (blocked)" \
+  'declare -g -x MSYS_NO_PATHCONV=1; git status' 2
+run_win "typeset -gx combined flags (blocked)" \
+  'typeset -gx MSYS2_ARG_CONV_EXCL=1; git status' 2
+# ...while declare/typeset WITHOUT the export flag stays a shell-local (or
+# readonly) variable that never reaches the environment: allowed.
+run_win "declare -r without x stays allowed" \
+  'declare -r MSYS_NO_PATHCONV=1; git status' 0
+run_win "declare -p inspection stays allowed" \
+  'declare -p MSYS_NO_PATHCONV' 0
+run_win "export -n un-export stays allowed" \
+  'unset MSYS_NO_PATHCONV; git status; export -n MSYS_NO_PATHCONV' 0
+
 # --- 3. The SAFE idioms (allowed) --------------------------------------------
 # These are the measured 193 real uses the guard must not touch. A per-command
 # prefix scopes suppression to one command; a bare assignment does nothing at
@@ -99,6 +126,17 @@ run_win "prefix on sh -c (blocked)" \
   "MSYS2_ARG_CONV_EXCL='*' sh -c 'git worktree add /d/worktrees/x'" 2
 run_win "prefix on an absolute bash path (blocked)" \
   "MSYS_NO_PATHCONV=1 /usr/bin/bash -c 'git worktree add /d/worktrees/x'" 2
+# A LAUNCHER between the prefix and the shell is recognized by its basename,
+# not its literal spelling — `/usr/bin/env bash` leaked through a bare-literal
+# `env` check on two prior rounds of this PR's review.
+run_win "prefix on /usr/bin/env bash -c (blocked)" \
+  "MSYS_NO_PATHCONV=1 /usr/bin/env bash -c 'git worktree add /d/worktrees/x'" 2
+run_win "prefix on command bash -c (blocked)" \
+  "MSYS_NO_PATHCONV=1 command bash -c 'git worktree add /d/worktrees/x'" 2
+run_win "prefix on env -i bash (blocked, fail-closed on launcher flags)" \
+  "MSYS_NO_PATHCONV=1 env -i bash -c 'git worktree add /d/worktrees/x'" 2
+run_win "prefix on exec bash (blocked)" \
+  "MSYS_NO_PATHCONV=1 exec bash -c 'git worktree add /d/worktrees/x'" 2
 # ...but a prefix on a NON-shell command word stays allowed: that is the safe
 # idiom the corpus uses 193 times, and narrowing it would be the false-positive
 # tail that gets a guard disabled.
@@ -130,6 +168,35 @@ run_win "gh issue body mentioning it (allowed)" \
 run_win "unset, not export (allowed)" 'unset MSYS_NO_PATHCONV; git status' 0
 run_win "a similarly named variable (allowed)" 'export MSYS_NO_PATHCONV_NOTES=1; git status' 0
 run_win "echo of the name (allowed)" 'echo "MSYS_NO_PATHCONV"' 0
+
+# --- 4b. Quoted prose vs executed code ---------------------------------------
+# An export spelling inside quoted text is inert UNLESS the command also names
+# a shell that could execute it. Without a shell word in the command string,
+# the keyword must sit at command position to match. Reviewed as false
+# positives on PR #2878: this repo documents this very guard, so its own
+# commit messages and docs quote the forbidden spelling constantly.
+run_win "the full assignment quoted in a commit message (allowed)" \
+  'git commit -m "fix: block export MSYS_NO_PATHCONV=1"' 0
+run_win "echo of the full export command (allowed)" \
+  'echo "export MSYS_NO_PATHCONV=1"' 0
+run_win "grep for the export spelling (allowed)" \
+  "grep -rn 'export MSYS_NO_PATHCONV=1' docs/" 0
+# ...but the same quoted spelling handed to a shell EXECUTES, and stays
+# blocked (matching goes loose whenever a shell word is present):
+run_win "quoted export handed to bash -c (blocked)" \
+  "bash -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
+run_win "quoted export handed to eval (blocked)" \
+  'eval "export MSYS_NO_PATHCONV=1"; git status' 2
+# DECLARED RESIDUAL, pinned as deliberate: a heredoc body line is
+# indistinguishable from a plain second command line without real shell
+# parsing, so an export spelling there still blocks (fail-closed). Use the
+# Write tool for documents that must carry the spelling.
+run_win "export spelling in a heredoc body still blocks (residual, deliberate)" \
+  $'cat > notes.md <<\'EOF\'\nexport MSYS_NO_PATHCONV=1\nEOF' 2
+# A multi-line command with a REAL export on its second line must keep
+# blocking — this is why a newline counts as command position.
+run_win "export on the second line of a multi-line command (blocked)" \
+  $'cd /tmp\nexport MSYS_NO_PATHCONV=1\ngit worktree add /d/worktrees/x' 2
 
 # --- 5. Commands that never name either variable (allowed, fast path) --------
 run_win "ordinary git worktree add with an MSYS path (allowed)" \
