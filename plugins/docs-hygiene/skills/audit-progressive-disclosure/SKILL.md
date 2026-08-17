@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep '\.md$' | head -10 || echo "none"`
+Uncommitted .md files (sample, first 10): !`git status --porcelain 2>/dev/null | grep '\.md$' | head -10 || echo "none"`
 
 ## Purpose
 
@@ -74,9 +74,12 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
    `.claude/rules/`, skill/agent/command trees) minus `**/evals/fixtures/**`, `**/vendor/**`, and
    `CHANGELOG.md`; scan via one `detect.sh` pass per top-level root; report-first. Unattended,
    surface the offer as blocked and stop.
-2. Empty arg AND uncommitted `.md` files → batch audit over those files.
-3. Single file path → single-file audit. 4. Directory path → recursive batch.
-4. First positional == `audit` → audit on the rest (explicit form).
+2. Empty arg AND uncommitted `.md` files → batch audit over ALL of them — re-derive the full
+   list in-session (`git status --porcelain`); the pre-computed sample above caps at 10 and is
+   orientation, never the corpus.
+3. Single file path → single-file audit.
+4. Directory path → recursive batch.
+5. First positional == `audit` → audit on the rest (explicit form).
 
 ## Hard rules
 

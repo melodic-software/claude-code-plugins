@@ -95,11 +95,16 @@ mkdir -p "$d/.claude/rules" "$d/skill/context"
 {
   printf '# Notes\n\nFloating file.\n'
 } >"$d/notes.md"
+mkdir -p "$d/packages/api"
+{
+  printf '# API conventions\n\n- local fact\n'
+} >"$d/packages/api/CLAUDE.md"
 
 out="$(bash "$SCRIPT" "$d" 2>&1)"
 code=$?
 assert_exit "tier scan exits 0" 0 "$code"
-assert_contains "CLAUDE.md is always" "$out" "CLAUDE.md	lines=3	words=4	h2=0	tier=always"
+assert_contains "root CLAUDE.md is always" "$out" "$d/CLAUDE.md	lines=3	words=4	h2=0	tier=always"
+assert_contains "nested subtree CLAUDE.md is invocation" "$(printf '%s\n' "$out" | grep 'packages/api/CLAUDE.md')" "tier=invocation"
 assert_contains "unscoped rule is always" "$out" "style.md"
 assert_contains "unscoped rule tier" "$(printf '%s\n' "$out" | grep 'style.md')" "tier=always"
 assert_contains "paths-scoped rule is invocation" "$(printf '%s\n' "$out" | grep 'scoped.md')" "tier=invocation"
@@ -127,7 +132,8 @@ assert_contains "unresolved counted" "$out" "unresolved=1"
 d3="$(fixture_dir)"
 mkdir -p "$d3/skill/context"
 {
-  printf -- '---\ndescription: x\n---\n\n## Hub\n\nSee [context/linked.md](context/linked.md) for detail.\n'
+  # shellcheck disable=SC2016  # literal backticks belong in the fixture text
+  printf -- '---\ndescription: x\n---\n\n## Hub\n\nSee [context/linked.md](context/linked.md) for detail.\n\nAlso see `context/ticked.md` when calibrating.\n'
 } >"$d3/skill/SKILL.md"
 {
   printf '# Linked\n\nOnward: [deep.md](deep.md)\n'
@@ -138,12 +144,24 @@ mkdir -p "$d3/skill/context"
 {
   printf '# Orphan\n\nUnreferenced.\n'
 } >"$d3/skill/context/orphan.md"
+{
+  printf '# Ticked\n\nReferenced by backtick mention only.\n'
+} >"$d3/skill/context/ticked.md"
+{
+  printf '# Cycle A\n\nSee [cycle-b.md](cycle-b.md).\n'
+} >"$d3/skill/context/cycle-a.md"
+{
+  printf '# Cycle B\n\nSee [cycle-a.md](cycle-a.md).\n'
+} >"$d3/skill/context/cycle-b.md"
 out="$(bash "$SCRIPT" "$d3" 2>&1)"
 assert_contains "orphan spoke detected" "$out" "orphan	$d3/skill/context/orphan.md"
 assert_not_contains "linked spoke not orphaned" "$out" "orphan	$d3/skill/context/linked.md"
 assert_not_contains "chain-target spoke not orphaned" "$out" "orphan	$d3/skill/context/deep.md"
+assert_not_contains "backtick-mentioned spoke not orphaned" "$out" "orphan	$d3/skill/context/ticked.md"
+assert_contains "disconnected cycle member A is orphaned" "$out" "orphan	$d3/skill/context/cycle-a.md"
+assert_contains "disconnected cycle member B is orphaned" "$out" "orphan	$d3/skill/context/cycle-b.md"
 assert_contains "spoke-to-spoke chain detected" "$out" "chain	$d3/skill/context/linked.md	3	deep.md"
-assert_contains "summary counts orphan and chain" "$out" "orphans=1	chains=1"
+assert_contains "summary counts orphans and chains" "$out" "orphans=3	chains=3"
 
 # --- TOC heuristic -----------------------------------------------------------
 
@@ -154,9 +172,19 @@ d4="$(fixture_dir)"
 {
   printf '# Ref2\n\n- [a](#a)\n\n## a\n'
 } >"$d4/ref2.md"
+{
+  printf '# Deep anchors\n'
+  for i in $(seq 1 45); do printf 'filler line %s\n' "$i"; done
+  printf -- '- [a](#a)\n- [b](#b)\n- [c](#c)\n'
+} >"$d4/ref3.md"
+{
+  printf '# Compact\n\nJump: [a](#a) [b](#b) [c](#c)\n\n## a\n\n## b\n\n## c\n'
+} >"$d4/ref4.md"
 out="$(bash "$SCRIPT" "$d4" 2>&1)"
-assert_contains "3+ anchor links = toc yes" "$(printf '%s\n' "$out" | grep 'ref.md	')" "toc=yes"
+assert_contains "3+ anchor links near top = toc yes" "$(printf '%s\n' "$out" | grep 'ref.md	')" "toc=yes"
 assert_contains "under 3 anchors = toc no" "$(printf '%s\n' "$out" | grep 'ref2.md	')" "toc=no"
+assert_contains "anchors deep in the body = toc no" "$(printf '%s\n' "$out" | grep 'ref3.md	')" "toc=no"
+assert_contains "one-line compact TOC = toc yes" "$(printf '%s\n' "$out" | grep 'ref4.md	')" "toc=yes"
 
 # --- de-duplication when a file arrives twice --------------------------------
 
