@@ -42,9 +42,10 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 - Q8 | answered | round 1 | Provenance home | new docs/upstream/aihero-shipping-course.md + fix existing map where stale/inaccurate
 - Q9 | open | round 2 | Canonical naming: work item vs ticket |
 - Q10 | open | round 2 | Binding-config scrutiny: own lane item? |
-- Q11 | open | round 2 | Skill granularity: superset vs broken-down |
-- Q12 | open | round 2 | Which provider adapters get tickets |
+- Q11 | answered | round 2 | Skill granularity | keep supersets; ADD principle: his implement's value = zero-assembly working default chain — scrutiny lane checks ours composes out-of-the-box AND every link configurable, never hard-coded; good defaults + consumer override
+- Q12 | answered | round 2 | Provider adapters | order accepted with AMENDMENT: Linear = FULL verb parity with github adapter (read+write+claim/lease+sub-items+edges+frontier), measured by conformance suite; GitHub is reference impl only, not priority
 - Q13 | open | round 2 | Dogfood mechanics: hand-publish spec container this session |
+- Probe R2 | open | round 2 | Day-job constraint: does org block external SaaS (flips Linear → self-hosted Gitea/Forgejo)? |
 
 Pending facts (block round 3): Agent A = mattpocock/skills bring-over audit; Agent B = seam/binding scrutiny + adapter shipping model trade-offs.
 
