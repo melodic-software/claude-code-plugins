@@ -14,6 +14,10 @@ baseline in `review`) are not provenance records and stay in place.
 attribution table below — re-audit the affected row(s). Release notes name skills explicitly
 (`gh release view <tag> -R mattpocock/skills`).
 
+**Sibling source:** the AI Hero course lessons (same author, prose lessons with no release
+signal) are recorded separately in [aihero-course.md](aihero-course.md), under its own
+divergence-at-re-fetch recheck regime.
+
 ## Attribution table
 
 | Upstream skill / source | Ours | Relation | What was taken / rejected |
