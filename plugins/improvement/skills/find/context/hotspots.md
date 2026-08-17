@@ -13,6 +13,10 @@ records LOC alongside it.
 
 ## Step 0 — history-depth gate (always first)
 
+Every `git` command in this recipe runs against the TARGET repository's root — when the target
+is not the session's working directory, prefix each with `git -C <target-root>` (root resolved
+per SKILL.md "Repo as parameter") so the evidence never comes from the invoking repo.
+
 Churn from partial history produces confidently-wrong rankings, which are worse than no
 rankings. Run this gate before counting anything:
 

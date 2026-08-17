@@ -44,8 +44,16 @@ run's final output instead, add a `gap: persistence — CLAUDE_PLUGIN_DATA unset
 inline, dismissed-candidate memory unavailable this run` line, and skip the dismissed-memory
 read/write (nothing is suppressed, nothing is recorded).
 
-`<state-key>` = `<repo-identity>/<worktree-discriminator>`, derived by running commands (never
-by testing a placeholder):
+`<state-key>` is produced by the plugin's shipped helper — run it, never re-derive the key from
+the description below (the helper is byte-identical across plugins per
+`docs/conventions/plugin-data-report-keying/README.md`, and a hand-derived variation makes the
+skill miss its own prior reports and dismissed-memory):
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+```
+
+For reference, the key's shape is `<repo-identity>/<worktree-discriminator>`:
 
 - **repo-identity** — the first configured remote URL (`git remote` then `git remote get-url`),
   normalized to `host/owner/repo`: lowercased, scheme/credentials/`.git` suffix stripped. No

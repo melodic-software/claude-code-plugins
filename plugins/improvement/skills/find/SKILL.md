@@ -43,8 +43,13 @@ Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each
 - **Size band.** `--small` / `--medium` / `--large` (or equivalent prose: "quick wins only", "big
   swings") restricts candidates to that size band. Default: all sizes, ranked together.
 - **Repo as parameter.** One repo per invocation. An explicit repo path in the arguments makes that
-  checkout the target; otherwise the current repo is. Fleet-wide sweeps are out of scope — compose
-  with `repo-fleet-hygiene` externally, one invocation per repo.
+  checkout the target; otherwise the current repo is. When the target is not the session's working
+  directory, resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor
+  EVERY probe to it — `git -C <root>` for every git command here and in the `context/` recipes,
+  and file reads under that root — so the evidence never silently comes from the invoking repo.
+  The precomputed branch/log lines above describe the session's cwd, not the target; re-run them
+  with `-C <root>` in that case. Fleet-wide sweeps are out of scope — compose with
+  `repo-fleet-hygiene` externally, one invocation per repo.
 - **Mode.** Interactive is the default. Unattended is entered ONLY when the caller declares it (see
   Unattended mode) — never inferred from context.
 

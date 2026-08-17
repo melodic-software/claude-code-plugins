@@ -10,6 +10,10 @@ a non-GitHub forge (GitLab, Gitea, Azure DevOps, ...), record an evidence-gap li
 `gap: ci-health — non-GitHub forge; this recipe covers GitHub Actions only` — and rank without
 CI evidence. Never adapt these calls by guesswork against another forge's API.
 
+Owner/repo for every call below comes from the TARGET repository's remote
+(`git -C <target-root> remote get-url origin`), never from the session's cwd — the target may be
+a different checkout (SKILL.md "Repo as parameter").
+
 ## Access probe ladder (probe in order, record the outcome)
 
 1. **GitHub MCP tools** — the `actions_*` toolset (`actions_list`, `actions_get`,

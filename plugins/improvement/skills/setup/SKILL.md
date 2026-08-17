@@ -52,10 +52,15 @@ per FAIL. Modify nothing, and do NOT run a scan — that is `/improvement:find`.
    FAIL, naming the entry. Where the session can enumerate available MCP servers, note (INFO)
    any declared server not currently available — at find-time that source becomes an
    evidence-gap line, which may be expected on this machine.
-4. **Tracked, not ignored.** A present team file must be committed to be team-shared: run
-   `git check-ignore -v .claude/improvement.md`; a non-empty result is FAIL with the matching
-   pattern. The `.local.md` overlay is expected to be gitignored — an overlay that is tracked or
-   staged is FAIL (a personal deviation can reach team history); an ignored overlay is INFO.
+4. **Tracked, not ignored.** A present team file must be committed to be team-shared, and
+   "not ignored" is not "tracked" — probe both: `git check-ignore -v .claude/improvement.md`
+   (non-empty result is FAIL with the matching pattern) AND
+   `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit is FAIL: the file is
+   present but untracked — the state immediately after `apply` writes it — so teammates will not
+   receive it until it is committed; report "untracked, commit it" and, if it is staged but
+   uncommitted, say that instead via `git diff --cached --name-only`). The `.local.md` overlay is
+   expected to be gitignored — an overlay that is tracked or staged is FAIL (a personal deviation
+   can reach team history); an ignored overlay is INFO.
 5. **Overlay divergence.** INFO: when the overlay or user-global layer changes the team file's
    effect (a different window, extra exclusions, an added or opted-out source), say so
    explicitly, since `apply` writes only the team file.
