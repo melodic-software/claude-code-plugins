@@ -74,7 +74,7 @@ Create `plugins/ai-slop/skills/audit/reference/catalog.md`: every tell from Wiki
 
 Plugin scaffold (`.claude-plugin/plugin.json` on the `naming` plugin's manifest shape, `README.md`, `CHANGELOG.md`, `skills/audit/` skeleton `SKILL.md`, **plus a `skills/setup/` skill** — required by `docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" because the plugin has a consumer-project configuration surface). `scripts/detect.sh` implements two seed rules (`rule-em-dash`, `rule-ai-vocabulary`) with: word-boundary matching; fenced-code-block and inline-code exemption; **an in-file opt-out marker** (HTML comment, audit-noise's `is_ignore_line_marker` precedent) honored line- and block-level; **consumer config read** (thresholds, banned-word additions/removals, path exclusions) resolved per `docs/conventions/config-cascade/README.md`, with **neutral defaults not calibrated to this repo**; **portable Unicode matching** — `LC_ALL=C` byte-sequence classes for em-dash (`\xE2\x80\x94`), curly quotes, and emoji ranges, POSIX ERE only (no `grep -P`), per the cross-platform contract; and the sibling chunk affordances (`--paths-file`, `--offset`, `--limit`) with repo-wide input from `git ls-files '*.md'`. `scripts/fixtures/` (slop + clean samples), `scripts/detect.test.sh` per shell-test-helpers. **detect.sh emits its own parseable report only** — the findings FILE is model-persisted by the skill (Phase 5), not by the script.
 
-**Sanity Check:** `bash detect.test.sh` exit 0; slop fixture fires both rule ids with the fired threshold in output, clean fixture fires zero; a fixture line carrying the opt-out marker is not flagged (test assertion); `shellcheck` + `shfmt -d` clean; `LC_ALL=C bash detect.sh <slop-fixture>` produces identical output to the default locale (portability probe).
+**Sanity Check:** `bash detect.test.sh` exit 0; slop fixture fires both rule ids with the fired condition in output (`rule-ai-vocabulary`: the threshold that fired; `rule-em-dash`: the zero-tolerance marker), clean fixture fires zero; a fixture line carrying the opt-out marker is not flagged (test assertion); `shellcheck` + `shfmt -d` clean; `LC_ALL=C bash detect.sh <slop-fixture>` produces identical output to the default locale (portability probe).
 
 ### Phase 3: Full mechanical roster + calibration [TODO]
 
@@ -112,7 +112,7 @@ Deterministic layer is TDD-shaped: fixtures are written with expected findings B
 
 ## Risks and mitigations
 
-- **False positives on deliberate house style** (this repo uses em-dashes heavily) → threshold + exemption calibration phase (Phase 3) against the live corpus before any crosswalk row lands; `recorded-only` demotion path.
+- **False positives on deliberate house style** (this repo uses em-dashes heavily) → exemption calibration in Phase 3 against the live corpus before any crosswalk row lands: `rule-em-dash` calibrates per-document exemptions ONLY (the Q12 zero-tolerance exception — never re-thresholded), other rules calibrate thresholds; the `recorded-only` demotion path EXCLUDES `rule-em-dash` (user-fixed — demoting it requires a user gate, not calibration judgment).
 - **Substring traps** (`slop`→`slope` class) → word-boundary matching mandated in Phase 2 seed rules and tested per rule.
 - **Crosswalk admission friction** → rows drafted from severity.md tests read this session; if a row cannot be argued, the rule demotes to `recorded-only` rather than shipping unargued.
 - **Wiki page drift** → four-part upstream record with revision-pinned basis and named recheck trigger.

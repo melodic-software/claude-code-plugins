@@ -25,6 +25,7 @@ there is no new type or contract to design — the design work is conformance:
 plugins/ai-slop/
 ├── .claude-plugin/plugin.json          # standard manifest (naming plugin as reference shape)
 ├── README.md / CHANGELOG.md
+├── skills/setup/SKILL.md               # required: plugin has a consumer-config surface
 └── skills/audit/
     ├── SKILL.md                        # /ai-slop:audit — read-only default; fix behind explicit arg
     ├── reference/catalog.md            # distilled tell catalog (schema below)
@@ -33,6 +34,11 @@ plugins/ai-slop/
         ├── detect.test.sh              # fixture-driven tests (shell-test-helpers convention)
         └── fixtures/                   # slop samples with known expected findings
 ```
+
+Consumer-config surface (thresholds, word-lists, path exclusions, in-file opt-out marker) resolves
+per `docs/conventions/config-cascade/README.md`. `rule-em-dash` is zero-tolerance by default with
+per-document exemption only (user decision at plan approval). PLAN.md Phase 2 is the operative
+spec where this sketch and the plan differ.
 
 Catalog entry schema (internal, one row/section per wiki tell):
 
@@ -47,7 +53,8 @@ v1            script | rubric | recorded-only (wikipedia-specific tells are reco
 
 Upstream-drift stamp: page-level four-part record in catalog.md front section (claim = catalog
 derives from the cited revision; basis = page URL + revision id; as-of date; recheck trigger =
-a new revision of the page touching a section the catalog maps).
+a recurring observable occasion — each ai-slop release and each fleet audit; per-revision was
+rejected after measuring the page at 50+ edits/week).
 
 ## Threads directional, none open
 
