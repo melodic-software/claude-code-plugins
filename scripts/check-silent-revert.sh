@@ -285,15 +285,28 @@
 #   malformed and must NOT be restored byte-for-byte, and #2829 restored the
 #   intent instead. A marker survives that rewrite; the hunk cannot.
 #
-# Markers resolve PATH-SCOPED, which is load-bearing rather than tidy. Both
-# markers on the f603880da row also occur elsewhere in the same plugin on
-# current main -- the engine script, its test file, CHANGELOG.md -- so a
-# repo-wide `git grep` for either one matches today no matter what the two
-# BOUND files contain, and would report the incident restored on a tree where
-# it is not. Stated in the present tense on purpose: the sibling copies are a
-# property of main as it stands now, not of the tree during the #2828 window.
-# CHANGELOG.md got its copy from 534eac138, the restore itself, so during the
-# absence a repo-wide grep for the evals marker still matched nothing.
+# Markers resolve PATH-SCOPED, which is load-bearing rather than tidy. Each
+# marker on the f603880da row also occurs on current main in a file of the same
+# plugin that is NOT the file it binds to -- but not in the SAME files, so the
+# sites do not distribute across both. The README marker occurs in the engine
+# script and again in that script's test file, and not in CHANGELOG.md; the
+# evals marker occurs in CHANGELOG.md, and in neither the engine script nor its
+# test file. What both share is that a sibling copy exists at all, which is
+# enough: a repo-wide `git grep` for either one matches today no matter what the
+# two BOUND files contain, and would report the incident restored on a tree
+# where it is not.
+#
+# The two halves also acquired their siblings at different times, and only one
+# of them is a present-tense-only property. CHANGELOG.md got its copy of the
+# evals marker from 534eac138, the restore itself, so a repo-wide grep for that
+# marker matched nothing at any point during the absence. The README marker's
+# siblings are older than the restore: 94ae28728 (#2803) -- one of the two
+# re-lands that missed the README -- put that string into the engine script and
+# its test file, and never into README.md, and it did so BEFORE 7b47d2253 merged
+# this canary. So for the entire tail of the absence that the replay actually
+# covered, a repo-wide grep for the README marker did match, on a tree whose
+# bound file did not have it. For that half the widened path is not a
+# hypothetical failure mode; it is the answer the incident would have produced.
 #
 # Cost: one exact-path read per marker row -- `git cat-file`
 # at a rev, a tracked-path read in the working tree -- with the match done by
@@ -953,8 +966,28 @@ verify_known_incidents() {
 # marker whose distinguishing feature is its leading spaces would be recorded
 # without them and match more loosely than the reader intended.
 #
-# For the same reason a marker must occur exactly ONCE in the file it binds to.
-# `grep -qF` answers "is this string anywhere in this file", so a bare
+# The ONE reserved position is a LEADING `[`, which commits the row to
+# carrying a disposition, in the same positional slot-after-the-key the
+# attribution field uses on a `fires` row. An unterminated `[` is exit 2 rather
+# than being re-read as ordinary marker text: a row that quietly degrades into
+# "no disposition, strange marker" is the false green this file exists to
+# remove, reached by the one route nobody would look at.
+#
+# The disposition requires a NON-EMPTY reason, exactly as declares_removal()
+# requires of `Intentional-removal:`. `[not-restored:]` is rejected, not read as
+# a mute -- a marker nobody has to justify is a mute button, and this corpus is
+# an audit trail.
+#
+# The disposition ends at the FIRST `]`, so a REASON may not contain `]`. That
+# is the only qualification on "any character", it applies to the reason alone,
+# and the marker text after the disposition is still unrestricted. It cannot be
+# enforced after the fact: a truncated reason and a legitimate row whose marker
+# happens to contain `]` are byte-indistinguishable, so any check that rejects
+# the first rejects the second too. A reason truncated at a stray `]` shows up
+# in the `noted` line, which prints it verbatim to the human reading the trail.
+#
+# Literal matching is also why a marker must occur exactly ONCE in the file it
+# binds to. `grep -qF` answers "is this string anywhere in this file", so a bare
 # identifier that appears at its definition AND at a use site is satisfied by a
 # re-land that restored only the use -- a PARTIAL re-land reported as `ok`,
 # which is the exact failure this assertion exists to catch (#2828 was a
@@ -979,28 +1012,9 @@ verify_known_incidents() {
 # that a FUTURE partial re-land, in either direction, could satisfy them. Fixed
 # before it was needed rather than after.
 #
-# Nothing enforces this: it is a corpus-review obligation, because a
+# Nothing enforces the once-rule: it is a corpus-review obligation, because a
 # check that counted occurrences would turn every row into an exact-shape
 # assertion and go red on edits that restored the content perfectly well.
-# The ONE reserved position is a LEADING `[`, which commits the row to
-# carrying a disposition, in the same positional slot-after-the-key the
-# attribution field uses on a `fires` row. An unterminated `[` is exit 2 rather
-# than being re-read as ordinary marker text: a row that quietly degrades into
-# "no disposition, strange marker" is the false green this file exists to
-# remove, reached by the one route nobody would look at.
-#
-# The disposition requires a NON-EMPTY reason, exactly as declares_removal()
-# requires of `Intentional-removal:`. `[not-restored:]` is rejected, not read as
-# a mute -- a marker nobody has to justify is a mute button, and this corpus is
-# an audit trail.
-#
-# The disposition ends at the FIRST `]`, so a REASON may not contain `]`. That
-# is the only qualification on "any character", it applies to the reason alone,
-# and the marker text after the disposition is still unrestricted. It cannot be
-# enforced after the fact: a truncated reason and a legitimate row whose marker
-# happens to contain `]` are byte-indistinguishable, so any check that rejects
-# the first rejects the second too. A reason truncated at a stray `]` shows up
-# in the `noted` line, which prints it verbatim to the human reading the trail.
 
 # parse_incidents_file <fires-shas-out> <markers-out>
 #
