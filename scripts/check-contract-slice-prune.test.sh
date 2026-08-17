@@ -21,7 +21,16 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-git_q() { git -c user.email=t@t -c user.name=t -c commit.gpgsign=false "$@" >/dev/null 2>&1; }
+# Fixture git commands must not spawn background maintenance. On git >= 2.46,
+# `git commit` and `git merge` fork `git maintenance run --auto --quiet
+# --detach`, and the DETACHED child outlives the foreground command: it takes
+# `.git/objects/maintenance.lock` before it even evaluates whether any task has
+# work to do, so it keeps writing into the fixture after the test has moved on.
+# That child raced this suite's `rm -rf "$repo"` cleanup on CI ("Directory not
+# empty") and its interference red-lined an unrelated case in the same run
+# (#2918). `maintenance.auto=false` stops the fork at the source; `gc.auto=0`
+# is the belt-and-suspenders for the legacy auto-gc path.
+git_q() { git -c user.email=t@t -c user.name=t -c commit.gpgsign=false -c maintenance.auto=false -c gc.auto=0 "$@" >/dev/null 2>&1; }
 
 # mk_repo <baseline-content>: throwaway git repo with the gate installed, one
 # base commit on a `base` branch, and a checked-out `work` branch.
@@ -362,6 +371,42 @@ printf 'contract_dir: docs/topics/legacy\n' >"$repo/.claude/topic-docs.yaml"
 (cd "$repo" && git_q mv docs/topics/legacy/PLAN.md docs/topics/legacy/legacy/PLAN.md)
 commit_work "$repo"
 if run_diff "$repo" >/dev/null; then ok "a grandfathered slice may migrate into a nested root"; else fail "most-specific matching must not punish a legitimate migration"; fi
+rm -rf "$repo"
+
+# --- fixture git commands spawn no background maintenance --------------------
+# The regression guard for the cleanup race: a detached `git maintenance run
+# --auto` child spawned by a fixture commit or merge outlives the foreground
+# command and writes into the fixture while (or after) the suite deletes it.
+# git_q must therefore suppress the fork entirely. GIT_TRACE2_EVENT records
+# every child process the traced commands start, so a maintenance (or legacy
+# auto-gc) fork is caught deterministically here rather than probabilistically
+# in a cleanup race.
+repo="$(mk_repo)"
+trace="$(mktemp)"
+printf 'edit\n' >>"$repo/README.md"
+(
+  cd "$repo" || exit 1
+  export GIT_TRACE2_EVENT="$trace"
+  git_q add -A
+  git_q commit -m traced-commit
+  git_q checkout -b side
+  printf 'side\n' >>README.md
+  git_q add -A
+  git_q commit -m side
+  git_q checkout work
+  printf 'diverge\n' >other.md
+  git_q add -A
+  git_q commit -m diverge
+  # Divergent histories force a REAL merge commit; a fast-forward could skip
+  # the post-merge hook point this guard exists to observe.
+  git_q merge side
+)
+if grep -Eq '"child_start".*"(maintenance|gc)"' "$trace"; then
+  fail "a fixture commit/merge spawned a background maintenance/gc child (cleanup race #2918)"
+else
+  ok "fixture git commands spawn no background maintenance"
+fi
+rm -f "$trace"
 rm -rf "$repo"
 
 # --- usage ------------------------------------------------------------------
