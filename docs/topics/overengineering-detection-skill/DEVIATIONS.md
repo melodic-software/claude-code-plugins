@@ -66,3 +66,15 @@ Known transient: `scripts/check-plugin-manifest-presence.sh` is red between Phas
    standing-instruction ablation the evidence cannot settle") — same route target.
 5. Tooling note for later phases: the Write tool refuses `report-*`/`findings-*` filenames in
    subagents; write under a neutral name and `mv` (shell heredoc is hook-blocked).
+
+## Phase 4 (commit 2a55bd60)
+
+1. **Minimal argument surface** — finding ids and layer names narrow the queue; no mode verbs
+   (ablation-window conclusion handled by the status-driven queue, not a `conclude-ablations`
+   action). Worker discretion; brief left arguments unspecified.
+2. **Six evals, not seven** — the branch/schema refusal is body-covered rather than a seventh
+   scenario, staying tight to the plan's mandated six.
+3. **`workflow-stage: implement`** (sibling audit uses `anytime`) — matches the skill's mutating
+   role.
+4. **Two `!` precompute injections** (branch, UTC date) with fallbacks; date needed so observation
+   windows and suppression entries never carry a guessed date.
