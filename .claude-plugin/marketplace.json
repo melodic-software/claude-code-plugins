@@ -449,6 +449,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "ai-slop",
+      "displayName": "AI Slop",
+      "source": "./plugins/ai-slop",
+      "category": "quality",
+      "tags": ["ai-slop", "ai-writing", "slop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
+    },
+    {
       "name": "miro",
       "source": "./plugins/miro",
       "category": "design",

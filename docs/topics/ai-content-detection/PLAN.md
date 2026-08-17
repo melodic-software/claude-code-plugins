@@ -98,7 +98,7 @@ Author the full skill: frontmatter (description with triggers, `argument-hint: [
 
 **Sanity Check:** `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/ai-slop/skills" bash plugins/skill-quality/scripts/check-skill.sh audit` exit 0 (and `… check-skill.sh setup` exit 0); `grep -q 'semantic' SKILL.md`; `grep -q 'refuse' SKILL.md` (unreachable-contract refusal present); an end-to-end manual run over the fixture corpus produces a findings file passing a frontmatter + leading-rule-id grep assertion (recorded in the phase close-out, not in detect.test.sh).
 
-### Phase 6: Registration + docs + quality gates [TODO]
+### Phase 6: Registration + docs + quality gates [DONE]
 
 Marketplace entry in `.claude-plugin/marketplace.json` (category, tags), `docs/CATALOG.md` row, plugin README (purpose, actions, catalog pointer, config surface, dogfood follow-up noted), plugin CHANGELOG 0.1.0. **Convention adopter bookkeeping**: add the ai-slop row to `docs/conventions/detector-findings/README.md` "Adopters" (tabled only now — after conformance exists) with the minor version bump in that convention's `CHANGELOG.md`; add the catalog's upstream-drift adopter row per that convention's adopted-on-touch mechanism (+ its changelog bump). Repo-wide lint gates (markdownlint-cli2, typos, editorconfig-checker).
 
