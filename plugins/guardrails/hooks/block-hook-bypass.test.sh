@@ -955,6 +955,120 @@ run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
 run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
 
+# --- fd-dup merge must not hide a computed writer's operands (#2927) ---------
+# The `&` inside `2>&1` sits at bracket depth ZERO, and ps::call_site_operand_region
+# ends a call's operand region at a depth-zero `;` `|` `&`. So the region of
+# `& $w 2>&1 f.txt x` was truncated to `" 2>"`, both measuring probes went silent,
+# and a working `Set-Content <path> <value>` — verified as a real write under
+# pwsh — fell through ALLOWED. The strip that already existed for the redirect
+# probe now runs before EVERY probe in the branch, so the remaining `&`
+# characters really are separators. Each row is a shape the truncation hid.
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup before positional Path+Value (blocked — #2927)" \
+  "& \$w 2>&1 f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup before a splat (blocked — #2927)" \
+  "& \$w 2>&1 @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup with an env: target (blocked — #2927)" \
+  "& \$env:w 2>&1 f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup on a piped computed call (blocked — #2927)" \
+  "'x' | & \$w 2>&1 f.txt" 2
+# The walk measures EVERY call site, so the fd-dup on a NON-leftmost one is
+# reached too — an earlier bare `& $w` must not consume the scan.
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup on a non-leftmost call site (blocked — #2927)" \
+  "& \$w; & \$w2 2>&1 f.txt x" 2
+# The deliberately ACCEPTED behavior change: once the merge is stripped, one
+# literal positional before it and one after it read as the Path+Value pair. That
+# is consistent with `& $py script.py arg`, which already blocked, so the class is
+# narrow — it needs BOTH sides of the merge to carry a positional.
+# shellcheck disable=SC2016
+run_pwsh "PS: positional on each side of an fd-dup (blocked — accepted #2927 change)" \
+  "& \$py a.py 2>&1 b.txt" 2
+# The protective half of the strip, which the fix must not undo: a merge with no
+# operands after it is plumbing, and a tool's own capture-and-redirect is a tool
+# producer, not a content author.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed call with a bare fd-dup (still allowed — #2927)" \
+  "& \$tool 2>&1" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: computed call, flag-first, trailing fd-dup (still allowed — #2927)" \
+  "& \$py -m pip install x 2>&1" 0
+
+# --- call-site boundaries PowerShell's tokenizer honors (#2928) -------------
+# The separator classes were derived from bash character classes rather than from
+# PowerShell's tokenizer, so any spelling PowerShell separates and bash does not
+# made the call site vanish from every measuring probe — a fail-OPEN. Two members
+# were proven with real writes under pwsh; both are pinned here.
+#
+# The Unicode separators are built from BYTE ESCAPES, never pasted as literal
+# characters. A raw U+00A0 in this file is one formatter or `.gitattributes` rule
+# away from becoming a plain space, at which point the row degrades to
+# `& $w f.txt x` — which blocks anyway, so the case would pass while pinning
+# nothing.
+# U+00A0 NO-BREAK SPACE and U+2003 EM SPACE.
+PS_NBSP=$'\xc2\xa0'
+PS_EMSP=$'\xe2\x80\x83'
+# Gap 1: `=` was absent from the separator class, so an assignment with no space
+# before the call operator never entered the gate — while the spaced form did.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a computed writer call (blocked — #2928)" \
+  "\$a=& \$w f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment, spaced contrast (blocked — pre-existing)" \
+  "\$a = & \$w f.txt x" 2
+# The `=` widening has to reach the QUOTED-writer and SUBEXPRESSION-target
+# predicates too, not just the bare-variable one: entry and measurement moving
+# apart is what produced #2922 and #2924.
+run_pwsh "PS: unspaced assignment before a quoted writer name (blocked — #2928)" \
+  "\$a=& 'Set-Content' f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a subexpression target (blocked — #2928)" \
+  "\$a=& (\$w) f.txt x" 2
+# Gap 2: PowerShell's tokenizer treats U+00A0 as token-separating whitespace and
+# bash's `[[:space:]]` does not, so the whole call site disappeared. Normalized at
+# intake instead of widened into the classes — under a single-byte locale the two
+# bytes of U+00A0 inside a bracket expression become independent members, and
+# `\xa0` is the second byte of `à`, which would over-block ordinary accented
+# paths.
+# shellcheck disable=SC2016
+run_pwsh "PS: U+00A0 between a computed target and its positionals (blocked — #2928)" \
+  "& \$w${PS_NBSP}f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: U+00A0 before a splat (blocked — #2928)" \
+  "& \$w${PS_NBSP}@p" 2
+# U+2003 is the same defect, not a separate one: the whole measured set of
+# PowerShell-separating Unicode spaces is normalized, so a second member proves
+# the class moved rather than one character.
+# shellcheck disable=SC2016
+run_pwsh "PS: U+2003 between a computed target and its positionals (blocked — #2928)" \
+  "& \$w${PS_EMSP}f.txt x" 2
+# Both gaps at once.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment plus U+00A0 (blocked — #2928)" \
+  "\$a=& \$w${PS_NBSP}f.txt x" 2
+# THE OVER-BLOCK GUARD ON THE NORMALIZATION. If the U+00A0 bytes had gone into a
+# character class, `\xa0` would match on its own under a single-byte locale and
+# split an accented literal into two operands — reopening #2848 one shape
+# narrower. These stay allowed.
+# shellcheck disable=SC2016
+run_pwsh "PS: accented single positional after a computed target (allowed — #2928 guard)" \
+  "& \$py café.py" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: accented flag operand after a computed target (allowed — #2928 guard)" \
+  "& \$py -m café" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: accented single positional, writer-shaped target (allowed — #2928 guard)" \
+  "& \$w café.txt" 0
+# U+200B and U+FEFF are deliberately NOT normalized. They measured as ZERO-width
+# under `[System.Management.Automation.Language.Parser]::ParseInput` — the token
+# does not split, so the call target never resolves and there is no write to hide.
+# shellcheck disable=SC2016
+run_pwsh "PS: U+200B does not separate tokens (allowed — #2928 scope)" \
+  "& \$w"$'\xe2\x80\x8b'"f.txt x" 0
+
 # Interpreter-producer writes under the PowerShell tool: PowerShell is not
 # faithfully bash-tokenizable, so this lane follows the SINK DOCTRINE — block on
 # the mangle-resistant co-occurrence of a raw write indicator (_py_write) AND a

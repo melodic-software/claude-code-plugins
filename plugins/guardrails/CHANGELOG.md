@@ -3,6 +3,86 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.3]
+
+### Fixed
+
+- **PowerShell guards: an fd-dup merge no longer hides a computed writer call's
+  operands ([#2927](https://github.com/melodic-software/claude-code-plugins/issues/2927)).**
+  `& $w 2>&1 f.txt x` exited 0 from `block-hook-bypass` while the identical
+  `& $w f.txt x` exited 2 — a working `Set-Content <path> <value>`, verified as a
+  real write under `pwsh`, waved through. `& $w 2>&1 @p`, `& $env:w 2>&1 f.txt x`,
+  `'x' | & $w 2>&1 f.txt`, and the same shape on a non-leftmost call site were all
+  allowed too. Pre-existing rather than a 0.28.x regression: every shape measured
+  0 on the pre-0.28.33 base as well.
+
+  `ps::call_site_operand_region` ends a call's operand region at a statement or
+  pipeline separator (`;` `|` `&`) at bracket depth ZERO, and the `&` inside
+  `2>&1` sits at depth zero. So the region of `& $w 2>&1 f.txt x` was truncated to
+  `" 2>"`, both measuring probes went silent, and the command fell through
+  ALLOWED. `ps::write_bypass` already knew fd-dup merges are plumbing rather than
+  writes and stripped them — but only into a separate `gate` variable that fed the
+  `>` redirect probe alone, while the measuring probes were handed the unstripped
+  text. That divergence between what the gate stripped and what the probes
+  measured WAS the defect; the strip now runs once, before every probe in the
+  branch, so the remaining `&` characters really are separators.
+
+  Deliberately ACCEPTED behavior change: with the merge stripped,
+  `& $py a.py 2>&1 b.txt` reads as two positionals with a visible literal and
+  moves from 0 to 2. The class is narrow — it needs a positional on BOTH sides of
+  the merge — and it is consistent with `& $py script.py arg`, which already
+  blocked. `& $tool 2>&1` (plumbing, no operands after the merge) and
+  `git status 2>&1 > out.txt` (a tool producer) both stay allowed, which is what
+  the strip existed to protect.
+
+- **PowerShell guards: call-site boundaries now follow PowerShell's tokenizer,
+  not bash's character classes
+  ([#2928](https://github.com/melodic-software/claude-code-plugins/issues/2928)).**
+  Two spellings PowerShell separates and bash does not made a whole call site
+  invisible to every measuring probe, each proven as a real write under `pwsh`:
+  `$a=& $w f.txt x` (assignment with no space before the call operator) and
+  `& $w<U+00A0>f.txt x` (a no-break space between the target and its operands).
+  Both exited 0 while their ordinary-whitespace twins exited 2. Pre-existing, not
+  a 0.28.x regression.
+
+  `=` is now in the separator class of every call-target predicate — gate entry
+  (`ps::call_target_is_bare_computed`), the subexpression and interpolating-string
+  halves, the `re_var` of both measuring probes, and the quoted-writer regex in
+  `ps::write_bypass`. Entry and measurement had to move together: widening entry
+  alone is precisely the "gate admits, probes cannot see" mechanism behind
+  [#2922](https://github.com/melodic-software/claude-code-plugins/issues/2922) and
+  [#2924](https://github.com/melodic-software/claude-code-plugins/issues/2924), so
+  widening one without the others would have manufactured a third instance.
+  `ps::might_invoke_git`'s launcher class gained `=` for the same reason
+  (`$p=Start-Process ('g'+'it') reset` was evading the fail-closed sink that the
+  spaced form already reached).
+
+  The Unicode gap is closed by NORMALIZING at intake rather than by widening the
+  character classes. Under a single-byte locale a multi-byte sequence inside a
+  bracket expression decomposes into independent byte members, and `\xa0` is the
+  second byte of `à`, so a class-widening fix would have split ordinary accented
+  paths into extra operands — an over-block of exactly the class
+  [#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)
+  exists to keep closed. `ps::blank_herestrings` now maps every code point
+  PowerShell's tokenizer treats as token-separating whitespace to an ASCII space,
+  spelled as raw UTF-8 byte sequences so the substitution is identical under the C
+  and UTF-8 locales. The set was derived by parsing each candidate with
+  `[System.Management.Automation.Language.Parser]::ParseInput` and keeping only
+  those that genuinely split a call into three command elements; U+200B and
+  U+FEFF are excluded because they measured as zero-width and never separate.
+  `,& $w f.txt x`, raised as a possible third member, was ruled out the same way —
+  it does not parse.
+
+  Because the normalization sits at intake, it also closes the same evasion on the
+  git lanes: `git commit --no-verify<U+00A0>-m x` and
+  `git<U+00A0>commit --no-verify -m x` now exit 2 from `block-no-verify`, and
+  `git push --force<U+00A0>origin main` and `git<U+00A0>reset --hard` exit 2 from
+  `block-dangerous-git`. All four exited 0 before.
+
+  The six `#2848` must-allow cases stay at 0 on all three blocking hooks, and
+  `& $py café.py`, `& $py -m café`, and `& $w café.txt` are pinned at 0 as the
+  guard against the Latin-1-supplement over-block.
+
 ## [0.29.2]
 
 ### Fixed
