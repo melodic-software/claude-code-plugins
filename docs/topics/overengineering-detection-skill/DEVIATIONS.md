@@ -78,3 +78,15 @@ Known transient: `scripts/check-plugin-manifest-presence.sh` is red between Phas
    role.
 4. **Two `!` precompute injections** (branch, UTC date) with fallbacks; date needed so observation
    windows and suppression entries never carry a guessed date.
+
+## Phase 5 (commits 5ae7047c + 61fc5133)
+
+1. **Roster registration completed across all four SSOT-linked surfaces** (orchestrator follow-up
+   commit 61fc5133, extending the plan's Phase 5 scope per the Phase 2 deviation): topic-docs
+   CHANGELOG 2.5.1, tier row, schema `memory_dir` description, and the docs-hygiene `audit-noise`
+   bare-root exemption (script + SKILL.md prose, plugin 0.15.3 + changelog; detect.test.sh 59/59).
+   Precedent followed: convention 2.4.4 (`running-retros`) updated the same surface set. The
+   audit-noise evals' three-name enumeration is scenario stimulus and stays true with four roots —
+   left unchanged.
+2. **Verb row placed alphabetically** in the verb table (matching existing order) rather than
+   appended.
