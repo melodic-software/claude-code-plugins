@@ -43,3 +43,23 @@ Lesson key: 1 The Steering Map · 2 Steering With A Pointer · 3 What Are Agent 
 
 Suggested run order: 7 → 8 → 9 (impact order; 7 and 8 both feed lane 6's harvest, so all three
 should close before lane 6 does).
+
+## Lane 7 decision rows (closed 2026-08-17)
+
+Interview-first per contract; register gate clean (12/12); user confirmed. Design contract:
+`docs/topics/authoring-steering-skill/PLAN.md`. Rows for lane 6's `aihero-course.md` harvest:
+
+| Claim / concern (lesson) | Verdict | Detail |
+|---|---|---|
+| Authoring-time doctrine needs a firing home at the writing moment (L1, L2, L4) | ADOPT | New skill `docs-hygiene:write-for-agents` — model-invoked, write-side complement to the audit siblings; design contract in the topic PLAN.md; built via filed implementation issues |
+| Scope = agent-consumed docs (L4) | ADOPT (generalized) | User-widened beyond upstream's skills/AGENTS.md/CLAUDE.md: any agent-consumed markdown in the repo; auto-read surfaces are the high-value core, grounded in a docs-verified enumeration (research artifact in topic memory slice; adapted into the skill's reference) |
+| Completion-criteria doctrine (L4) | ADOPT (both moments) | Write-side in the new skill; audit-side as a new `skill-quality:check` criterion so the existing fleet gets graded too |
+| Two loads — cognitive load as budget (L1) | ADOPT | Doctrine operates in the skill body; PLUGIN-PHILOSOPHY Instruction economy gains a one-line cross-reference |
+| Leading words + negation (L4) | ADOPT | Folded into the skill design; SSOT tracked strand retires when the implementation merges (cross-links the interview-batch-rounds deferral) |
+| Pointer wording: cover branches, front-load leading word (L2) | ADOPT (adapted) | Inline in the skill; pointer-quality criteria stay pointed-at in `audit-progressive-disclosure` |
+| Trigger enforcement via hook (session-start or otherwise) | REJECT | Probable overengineering (user-decided); trigger reliability instead gated by a shipped plugin-eval suite — positives per trigger family fire, negative controls don't, all-pass gates the implementation PR |
+| Vendoring/wrapping upstream `writing-for-agents` | REJECT | Adapted new skill, house doctrine and naming grammar; SSOT decomposition table carries provenance |
+| Pruning doctrine (L7) | PARITY — no work | Three pruning tests confirmed covered at parity or stronger (SSOT decomposition table: extract-ssot, audit-derivability, audit-instructions/unhobble) |
+| Cross-skill invocation phrasing (upstream `.agents/invocation.md`) | ROUTE | Stays lane 6's candidate (#2904); lane 8 owns invocation doctrine; the new skill's body stays silent on it |
+
+Lane 7 status: decisions closed; implementation issues filed at lane close (see #2909 checklist).
