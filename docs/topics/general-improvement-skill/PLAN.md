@@ -200,7 +200,7 @@ Required body sections (each is a grep-able heading):
 - **Sanity Check:** no `name:` key in frontmatter (defaults to directory name):
   `grep -c '^name:' plugins/improvement/skills/find/SKILL.md` returns 0
 
-### Phase 3: Evidence recipes (`context/` leaves) [TODO]
+### Phase 3: Evidence recipes (`context/` leaves) [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
