@@ -6,14 +6,17 @@ cloud sessions (web, `claude --cloud`, mobile, desktop, and routines) with warm-
 Account context this plan is built for: a personal (Max) claude.ai account — organization-shared
 and self-hosted environments are Team/Enterprise features and deliberately out of scope.
 
-Basis and freshness: every repository row below was derived from a shallow clone of that repo's
-default branch on 2026-08-13; platform claims rest on the rung-1 doc fetches recorded in
-[CLOUD-SESSIONS.md](CLOUD-SESSIONS.md); the environment itself was verified live on 2026-08-14
-from a cloud session inside it — results in [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654),
-folded in below. Recheck trigger, per the
-[upstream-drift convention](conventions/upstream-drift/README.md): a repo changes its toolchain
-pins (`global.json`, `.node-version`, `.python-version`, lockfiles) or its `.claude/` config, or
-a verification session (see [checklist](#verification-checklist)) contradicts a row.
+Basis and freshness: the toolchain inventory below was derived from shallow clones of every
+fleet repo's default branch on 2026-08-13; bootstrap adoption was re-verified on 2026-08-16 by
+reading each repo's `.claude/` contents and `settings.json` at `origin/main` (`gh api
+repos/melodic-software/<repo>/contents/.claude`); platform claims rest on the rung-1 doc fetches
+recorded in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md); the environment itself was verified live on
+2026-08-14 from a cloud session inside it — results in
+[#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), folded in below.
+Recheck trigger, per the [upstream-drift convention](conventions/upstream-drift/README.md): a
+repo changes its toolchain pins (`global.json`, `.node-version`, `.python-version`, lockfiles)
+or its `.claude/` config, or a verification session (see [checklist](#verification-checklist))
+contradicts a claim here.
 
 ## The design in one paragraph
 
@@ -22,13 +25,17 @@ result is cached as a filesystem snapshot (the "warm boot": script runs once, la
 from the snapshot; rebuilds only on script/network edits or ~7-day expiry). So the fleet uses
 **one shared environment** whose setup script installs the *union* of static toolchains the
 repos pin — .NET SDKs, Node 24, `gh`, PowerShell — inside the ~5-minute cache-build budget, while
-**each repo owns its own bootstrap**: a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
+**each repo carries its own bootstrap**: a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
 `.claude/cloud-bootstrap.sh` that installs manifest-driven dependencies (`npm ci`, repo-local
 .NET, `uv sync`), run by the environment's setup script pre-launch (the call that gets the repo's
 plugins loaded at turn one) and re-run per session by a registered SessionStart hook as drift
-repair. The environment stays generic; repos opt in by adopting the pattern.
+repair. Both halves stay generic — the script is one canonical file distributed from standards,
+and a repo's own steps live beside it in `.claude/cloud-bootstrap.local.sh`.
 
-## Fleet audit (2026-08-13)
+## Fleet toolchain inventory (2026-08-13)
+
+The union the shared environment's setup script installs — the one input to
+[Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) that lives nowhere else.
 
 Pinned toolchains found: **.NET SDK 10.0.302** (medley, github-iac — `rollForward: disable`, so
 the exact patch is required) and **10.0.400** (ci-workflows); **Node 24.18.0**
@@ -38,21 +45,23 @@ claude-code-proxy — the VM has `uv`, see the caveat below); **Go 1.26.6** (ci-
 Go plus the module `toolchain` mechanism covers this); **PowerShell** (`pwsh` — six repos carry
 `PSScriptAnalyzerSettings.psd1`; ci-workflows also runs Pester) — not pre-installed.
 
-| Repo | Stack / pins | `.claude/` today | Cloud needs beyond the shared env |
-|---|---|---|---|
-| claude-code-plugins | Node (`.node-version`), npm, ruff, lint pins | Full bootstrap hook **registered** (#2655), marketplace declared, full catalog enabled (#2631) | None — re-verify per the [checklist](#verification-checklist) |
-| medley | .NET 10.0.302 (repo-local `.dotnet` supported), Node 24.18.0, Python 3.14, npm, Playwright visual CI | Rich guard/telemetry hooks, 54 plugins, 13 `.mcp.json` servers — **no dependency bootstrap hook** | Add bootstrap hook: .NET into `.dotnet`, `npm ci`, `uv sync`; Playwright browsers on demand |
-| github-iac | .NET 10.0.302, Pulumi (C#), Node 24.18.0, npm | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (.NET, `npm ci`); `pulumi` CLI only if sessions should run previews |
-| ci-workflows | .NET 10.0.400, pwsh + Pester + PSScriptAnalyzer, Go fixtures | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (.NET 10.0.400); pwsh comes from the shared env |
-| ci-runner | Go 1.26.6, Docker | AGENTS.md only | Likely none — Go toolchain auto-resolves via `proxy.golang.org` (allowlisted) |
-| claude-code-proxy | Python ≥3.14, uv (`uv.lock`), ruff, lefthook | none | Add bootstrap hook (`uv sync`); verify `uv python install 3.14` (caveat below) |
-| provisioning | Node 24.18.0, npm, pwsh; content targets **Windows hosts** (winget runbooks) | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (`npm ci`); sessions can lint/edit but never exercise Windows steps |
-| standards | Node 24.18.0, npm, biome/ruff configs | settings + CLAUDE.md, no bootstrap hook | Add bootstrap hook (`npm ci`) |
-| dotfiles | chezmoi-style user config (Windows-heavy), Node 24.18.0, pyproject | worktree helper hooks | Bootstrap hook optional (lint tooling). **Key fact: `dot_claude` content shapes `~/.claude`, which never reaches cloud sessions** — anything wanted in the cloud must be repo-committed or env-provided |
-| knowledge-corpus | content (32 MB) | marketplace declared | None |
-| songwriting | content | marketplace + `songwriting` plugin enabled — already the model citizen | None |
-| codex-plugins | Node 24 (major), npm, tests | AGENTS.md only | Add bootstrap hook (`npm ci`) if cloud work is expected |
-| cursor-plugins / claude-lane-sandbox / .github | content / sandbox / org meta | minimal | None |
+## Bootstrap adoption (2026-08-16)
+
+Adoption is complete and no longer a per-repo decision surface: all fifteen non-archived
+melodic-software repositories (`gh repo list melodic-software --json name,isArchived`) carry
+`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, declare the
+`melodic-software` marketplace, and enable the catalog. Read adoption state from the repos
+rather than from a table here; a per-repo enumeration in this doc can only lag them.
+
+The script is owned upstream, not per repo: standards
+[`components/cloud-bootstrap`](https://github.com/melodic-software/standards/blob/main/components/cloud-bootstrap/README.md)
+is the canonical source and its README is the contract — what the generic script does, the
+frozen calling contract with the environment, and the take / enrich / customize modes.
+[`distribution/sync-manifest.yml`](https://github.com/melodic-software/standards/blob/main/distribution/sync-manifest.yml)
+records which repositories take it `managed` (byte-exact materialization, so a fix lands once
+and fans out as sync PRs) and which own their copy `locally-owned`; read the manifest rather
+than a copy of it. Repo-specific steps go in a never-synced `.claude/cloud-bootstrap.local.sh`,
+never in an edit to a materialized script.
 
 Out of scope: the three archived repos, and `kyle-sexton/prereq-cancelled-verify` +
 `kyle-sexton/autonomy-demo-scratch` (a session can attach repos from only one owner; audit those
@@ -60,15 +69,14 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 
 ## Step 1 — the shared environment (claude.ai UI, one time)
 
-> **Rollout direction (2026-08-15):** account rollout and per-repo migration prompts live in
-> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md). Fleet repos are
-> renaming their committed bootstrap from `.claude/hooks/session-start.sh` to
-> `.claude/cloud-bootstrap.sh` (one script, two callers — the environment's cache build
-> pre-launch, and the SessionStart hook per session). The standards `cloud-environment`
-> component invokes **only** the new path — no legacy fallback, by decision — so completing a
-> repo's migration is what turns on its pre-launch bootstrap; until then that repo's sessions
-> rely on the per-session hook alone. Pre-launch execution is what makes marketplace plugins
-> load at turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+> **Rollout:** the paste kit for this step lives in
+> [prompts/cloud-bootstrap-rollout.md](../prompts/cloud-bootstrap-rollout.md), and it supersedes
+> any older advice to stand up a separate named Melodic environment — one environment per
+> account, the **Default** one, edited in place. The committed bootstrap has one name
+> (`.claude/cloud-bootstrap.sh`) and two callers: the environment's cache build pre-launch, and
+> the SessionStart hook per session. The standards `cloud-environment` component invokes only
+> that path — no legacy fallback, by decision — and pre-launch execution is what makes
+> marketplace plugins load at turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
 
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box) — there is no API.
@@ -118,10 +126,10 @@ a merged component change does **not** reach existing environments on its own: t
 rebuilds only on an edit to the environment's script/network fields or ~7-day cache expiry, so
 after a standards bump, force a rebuild with any trivial edit to the script field.
 
-## Step 2 — per-repo templates
+## Step 2 — per-repo wiring
 
-Two files per repo that needs dependencies. Both are committed, so every cloud session picks
-them up from the clone; nothing depends on `~/.claude`.
+Two committed files per repo, so every cloud session picks them up from the clone; nothing
+depends on `~/.claude`.
 
 **`.claude/settings.json`** — register the hook (merge into the existing file where one exists),
 and declare the marketplace the way medley and songwriting already do (`github` source — resolves
@@ -151,92 +159,24 @@ in cloud sessions, unlike anything user-scoped):
 }
 ```
 
-**`.claude/cloud-bootstrap.sh`** — manifest-driven, so one template serves the fleet; delete
-the blocks a repo doesn't need. Design rules (same as this repo's production bootstrap):
-cloud-only guard, idempotent (the SessionStart hook re-runs it on every startup *and* resume,
-on top of the environment's pre-launch call), warn-and-continue for anything the session can
-limp along without, and `$CLAUDE_ENV_FILE` as the only way to shape the session's environment
-(append `export`-lines, dedup-guarded):
+**`.claude/cloud-bootstrap.sh`** — do not author one. The canonical script is generic and
+manifest-driven (it carries no repo names, no marketplace identifiers, and no pinned versions),
+and it lives in standards
+[`components/cloud-bootstrap`](https://github.com/melodic-software/standards/blob/main/components/cloud-bootstrap/README.md);
+that README is the contract, and the
+[sync manifest](https://github.com/melodic-software/standards/blob/main/distribution/sync-manifest.yml)
+decides whether a repo takes it `managed` or owns it `locally-owned`. The script has exactly one
+copy; this doc does not carry a second one. A repo onboarding before its manifest row lands
+copies the component file verbatim as an interim `.claude/cloud-bootstrap.sh` and proposes the
+row; the sync replaces the copy byte-exact when the row merges.
 
-```bash
-#!/usr/bin/env bash
-# Cloud bootstrap — cloud sessions only; idempotent; warn-and-continue. Run by
-# the environment setup script pre-launch and by the SessionStart hook.
-set -u
-[ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
-cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
-warn() { printf 'cloud-bootstrap: %s\n' "$*" >&2; }
-
-env_line() { # append an export line to the session env, once
-  [ -n "${CLAUDE_ENV_FILE:-}" ] || return 0
-  grep -qxF "$1" "$CLAUDE_ENV_FILE" 2>/dev/null || printf '%s\n' "$1" >>"$CLAUDE_ENV_FILE"
-}
-
-# --- Node from .node-version (VM nvm at /opt/nvm; image ships 20/21/22) ------
-if [ -f .node-version ]; then
-  pin="$(tr -d '[:space:]' <.node-version)"
-  if [ "$(node --version 2>/dev/null)" != "v$pin" ]; then
-    export NVM_DIR="${NVM_DIR:-/opt/nvm}"
-    if [ -s "$NVM_DIR/nvm.sh" ]; then
-      set +u
-      . "$NVM_DIR/nvm.sh"
-      nvm install "$pin" >/dev/null && nvm alias default "$pin" >/dev/null ||
-        warn "Node $pin install failed; continuing on $(node --version 2>/dev/null || echo 'no node')"
-      set -u
-    else warn "nvm not found; Node $pin unavailable"; fi
-  fi
-  node_bin="$(dirname -- "$(command -v node)")"
-  # shellcheck disable=SC2016
-  env_line "export PATH=\"$node_bin:$PWD/node_modules/.bin:\$PATH\""
-fi
-
-# --- npm dependencies, skipped when already in sync --------------------------
-# Put hook-consumed npm CLIs (e.g. markdownlint-cli2) in the root package-lock
-# and, after npm ci, symlink them into ~/.local/bin — hook processes inherit
-# Claude Code's environ (which includes ~/.local/bin) but not the nvm prefix
-# npm -g would use, and CLAUDE_ENV_FILE PATH repairs reach Bash tools only.
-if [ -f package-lock.json ]; then
-  if [ ! -f node_modules/.package-lock.json ] ||
-    [ package-lock.json -nt node_modules/.package-lock.json ]; then
-    npm ci --no-audit --no-fund || warn "npm ci failed"
-  fi
-  mkdir -p "$HOME/.local/bin"
-  if [ -x node_modules/.bin/markdownlint-cli2 ]; then
-    ln -sfn "$PWD/node_modules/.bin/markdownlint-cli2" \
-      "$HOME/.local/bin/markdownlint-cli2"
-  fi
-fi
-
-# --- .NET SDK exactly as global.json pins, repo-local (.dotnet) --------------
-if [ -f global.json ]; then
-  sdk="$(jq -r '.sdk.version // empty' global.json 2>/dev/null)"
-  if [ -n "$sdk" ]; then
-    if [ ! -x .dotnet/dotnet ] || ! .dotnet/dotnet --list-sdks 2>/dev/null | grep -q "^$sdk "; then
-      # Download-then-run: a curl failure piped into bash exits 0 and would mask the miss
-      if ! curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh ||
-        ! bash /tmp/dotnet-install.sh --version "$sdk" --install-dir .dotnet; then
-        warn "dotnet $sdk install failed"
-      fi
-    fi
-    if [ -x .dotnet/dotnet ]; then
-      env_line "export DOTNET_ROOT=\"$PWD/.dotnet\""
-      # shellcheck disable=SC2016
-      env_line "export PATH=\"$PWD/.dotnet:\$PATH\""
-    fi
-  fi
-fi
-
-# --- Python dependencies via uv ----------------------------------------------
-if [ -f uv.lock ] && command -v uv >/dev/null; then
-  uv sync || warn "uv sync failed"
-fi
-
-exit 0
-```
-
-Adoption order by payoff: **medley** (biggest repo, most sessions likely), **github-iac**,
-**ci-workflows**, **standards**, **provisioning**, **claude-code-proxy**, then codex-plugins.
-songwriting, knowledge-corpus, ci-runner, and the content repos need nothing.
+Repo-specific steps — extra lockfile locations, pinned hygiene binaries, symlinks — go in a
+committed `.claude/cloud-bootstrap.local.sh`, which the canonical script runs after its generic
+toolchain stage and which is never synced and never overwritten. Same contract as its caller:
+cloud-only, idempotent, best effort, bash-3.2-safe, always exit 0. The seam is a
+canonical-script feature: it is live wherever the synced script is (the `managed` targets), and
+a `locally-owned` repo — this one included — owns its whole file instead, so it has no
+`cloud-bootstrap.local.sh` and needs none.
 
 ## Step 3 — routines
 

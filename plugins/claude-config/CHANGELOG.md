@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.6]
+
+### Changed
+
+- **README: the `claude-config-audit` rename entry is described as a historical migration aid.**
+  The marketplace `renames` map is frozen-historical — its existing entries stay so settings
+  carrying pre-rename plugin ids keep resolving, but no new entries are added and later renames
+  ship as clean breaking changes. The decision is recorded in `docs/MIGRATION-PLAYBOOK.md`;
+  the README previously read as if the map were the go-forward mechanism. Documentation only.
+
 ## [0.38.5]
 
 ### Changed
