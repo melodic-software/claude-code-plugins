@@ -47,7 +47,12 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 - Q13 | open | round 2 | Dogfood mechanics: hand-publish spec container this session |
 - Probe R2 | open | round 2 | Day-job constraint: does org block external SaaS (flips Linear → self-hosted Gitea/Forgejo)? |
 
-Pending facts (block round 3): Agent A = mattpocock/skills bring-over audit; Agent B = seam/binding scrutiny + adapter shipping model trade-offs.
+Facts landed (2026-08-17): Agent A report → upstream-bringover-audit.md (23 candidates C1-C23, upstream delta PRs #878/#880/#848/#879, worse-than-us list); Agent B report → seam-scrutiny-findings.md (binding options a-d, adapter-model trade-offs, adversarial findings F1.1-F1.7 + F3.1-F3.9).
+
+- Q14 | open | round 3 | Adapter shipping model: bundled / generated / hybrid |
+- Q15 | open | round 3 | Bring-over candidate disposition strategy (C1-C23) |
+- Q16 | open | round 3 | File seam-scrutiny findings as their own issues? |
+- Q17 | open | round 3 | Add lanes W (wayfind deltas) + X (authoring doctrine / invocation audit)? |
 
 ## Decision tree (`me` mode)
 
