@@ -30,20 +30,41 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 
 ## Open-question register
 
-- Q1 | open | round 1 | What prompted this — agent-written diffs, legacy sweeps, or standing posture? |
-- Q2 | open | round 1 | Deliverable shape — new code-tidying skill vs tidy extension vs rule/posture? |
-- Q3 | open | round 1 | Doctrine — where on the Ousterhout ⇄ Clean Code spectrum; which comments survive? |
+- Q1 | answered | round 1 | What prompted this — agent-written diffs, legacy sweeps, or standing posture? | Agent-written code is the prime driver; on invocation the skill ENFORCES: remove comments, make code more expressive. Every surviving comment must earn its keep.
+- Q2 | answered | round 1 | Deliverable shape — new code-tidying skill vs tidy extension vs rule/posture? | New skill inside code-tidying. Caveat: research must settle whether comment-removal and refactor-to-expressive are one concern or two (different criteria/rubric ⇒ maybe two components).
+- Q3 | open | round 1 | Doctrine — where on the Ousterhout ⇄ Clean Code spectrum; which comments survive? | User leans Clean Code (Martin): no comments unless really necessary; self-describing code via names/parameters/structure. RESEARCH FIRST before locking — must reconcile with existing marketplace doctrine (audit-comment-residue cites the aposd-vs-clean-code debate).
 
 ## Decision tree (`me` mode)
 
-- [ ] Motivation / primary use case (Q1)
-- [ ] Deliverable shape (Q2)
-- [ ] Comment doctrine + aggressiveness (Q3)
-- [ ] Mode: audit-only vs applies edits (blocked by: Q2)
+- [x] Motivation / primary use case (Q1) — agent-written code, enforcement-on-invocation
+- [x] Deliverable shape (Q2) — new code-tidying skill; one-vs-two-concerns pending research
+- [ ] Comment doctrine + aggressiveness (Q3) — leaning Clean Code; blocked by: research
+- [ ] Mode: audit-only vs applies edits (blocked by: Q2 conflation outcome)
 - [ ] Trigger surface: on-demand vs proactive/standing (blocked by: Q1, Q2)
-- [ ] Plugin home + name (blocked by: Q2)
-- [ ] Overlap fences vs audit-comment-residue / tidy #14-#15 / naming (blocked by: Q2, Q3)
+- [ ] Plugin home + name (home decided: code-tidying; NAME open — criteria locked: semantically correct, explicit over implicit, meaning obvious at invocation)
+- [ ] Overlap fences vs audit-comment-residue / tidy #14-#15 / naming (blocked by: Q3, research)
 - [ ] Ecosystem scope + detection approach (blocked by: Q2)
+
+## Research dispatch (round 1.5)
+
+Status: DISPATCHED via /discovery:research → discovery:researcher subagent (background).
+Pre-dispatch gate probes OK; baseline `.research-dispatch` touched in this slice.
+On return: run the parent-side acceptance gate (check-dispatch-artifact.sh with
+--newer-than, then check-coverage-complete.sh on research-checklist.md), dispatch the
+sibling verifier for verifier-owned criteria, apply project fit, then open round 2.
+
+Dispatched mid-interview per user request before locking Q3+downstream:
+
+1. What the canonical sources actually say about comments vs self-describing code:
+   Clean Code ch.4 (Martin), Fowler Refactoring (comments as smell / "deodorant",
+   refactor-first), Ousterhout APoSD (comments-are-underrated counterpoint) and the
+   aposd-vs-clean-code debate transcript, Code Complete ch.32 (McConnell),
+   Google eng-practices / style guidance.
+2. One concern or two: is "delete comments that shouldn't exist" a separate discipline
+   (own rubric) from "refactor code so the comment becomes unnecessary"?
+3. The concrete transformation catalog that dissolves a comment (extract function,
+   extract variable, rename, replace magic literal, guard clause, etc.).
+4. Guidance specific to AI/agent-written code over-commenting, if any exists.
 
 ## Session-shorthand glossary
 
