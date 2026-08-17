@@ -57,7 +57,7 @@ guidance <200 lines per CLAUDE.md.
 | Cline | `.clinerules` file or folder; global `~/Documents/Cline/Rules/` | Appended to system prompt; workspace wins |
 | Roo Code | `~/.roo/rules/`, `.roo/rules/` (+ per-mode variants); `.roorules` fallback | Auto-loaded, workspace wins |
 | Aider | `CONVENTIONS.md` | **NOT auto-read** — explicit `/read` / `--read` / `.aider.conf.yml` only |
-| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure; host dirs per agent (Claude `~/.claude/skills/`, Zed `~/.agents/skills/`) |
+| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure. The spec defines the folder format only; `.agents/skills/` (project) + `~/.agents/skills/` (user) is the shared cross-tool DISCOVERY convention — Codex CLI (layered lookup incl. `$REPO_ROOT/.agents/skills`, `$HOME/.agents/skills`, `/etc/codex/skills`), Cursor (also `.cursor/skills/`), Gemini CLI, VS Code Copilot, Zed. Claude Code notably uses its own `~/.claude/skills/`/`.claude/skills/` paths; whether it also reads `.agents` paths is a lane 9 (#2911) verification item |
 | OpenAI Codex | AGENTS.md root + nested | Native (standard's originator) |
 | Zed | `.rules` (accepts `.cursorrules`, AGENTS.md, CLAUDE.md); skills `~/.agents/skills/` | Auto-included; Rules Library → Skills in v1.4.0 |
 | JetBrains Junie | `.junie/guidelines.md` | Auto-read during generation |
@@ -83,6 +83,11 @@ corroborate the competitor paths themselves.
 - Goose `.goosehints`: UNVERIFIED candidate (all fetch paths blocked or 404 in the research
   container) — excluded from the table above; re-check at implementation if ecosystem coverage
   matters there.
+- `.agents/skills/` cross-tool convention (corrected 2026-08-17, user-raised): confirmed
+  directionally from multiple independent secondary pools + Cursor's own docs surfaced via
+  search (vendor hosts egress-blocked here) — MEDIUM; the spec repo itself confirms it defines
+  no directory locations. The Claude-Code-reads-`.agents`-paths question stays with #2911's
+  harness-claims bundle.
 - Fresh-context verifier catches (recorded 2026-08-17): Roo and Aider rows are single-pool
   (vendor primary only — accepted on the same vendor-authority basis, now flagged); the AGENTS.md
   "nearest wins" nested-precedence detail is thinly corroborated (standard's FAQ only); the
