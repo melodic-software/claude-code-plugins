@@ -263,6 +263,12 @@
       "tags": ["tidy", "refactoring", "simplify", "boy-scout", "comments", "maintenance", "skill"]
     },
     {
+      "name": "coupling",
+      "source": "./plugins/coupling",
+      "category": "maintenance",
+      "tags": ["coupling", "cohesion", "decouple", "connascence", "dependency-injection", "refactoring", "skill"]
+    },
+    {
       "name": "session-flow",
       "source": "./plugins/session-flow",
       "category": "workflow",
@@ -532,6 +538,22 @@
         "gui",
         "screenshot",
         "accessibility",
+        "skill"
+      ]
+    },
+    {
+      "name": "overengineering",
+      "source": "./plugins/overengineering",
+      "category": "quality",
+      "tags": [
+        "overengineering",
+        "enforcement-surface",
+        "audit",
+        "realign",
+        "retirement",
+        "yagni",
+        "carry-cost",
+        "automation-sprawl",
         "skill"
       ]
     }

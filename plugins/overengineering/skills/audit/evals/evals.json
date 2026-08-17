@@ -1,0 +1,129 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-is-read-only",
+      "prompt": "/overengineering:audit",
+      "expected_output": "Opens by stating the pass is read-only and naming the one file it will write — the findings artifact at the memory-tier home resolved through the plugin's topic-docs binding. It walks the enforcement surface and reports; it disables nothing, edits no hook, workflow, gate script, or settings file, and deletes nothing. It names overengineering:realign as the skill that executes accepted findings behind an explicit per-item human gate, and does not offer to start executing on its own.",
+      "files": [],
+      "expectations": [
+        "States up front, before walking, that the pass is read-only and edits nothing on the surface it audits",
+        "Writes exactly one file — the findings artifact at the resolved memory-tier home — and names that write as the deliverable rather than treating it as a mutation of the repository",
+        "Does not disable, narrow, delete, or edit any hook, workflow, gate script, settings file, or branch rule",
+        "Names overengineering:realign as the only skill that executes a finding, and only behind an explicit per-item human gate"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "docs-are-claims-not-evidence-of-wiring",
+      "prompt": "/overengineering:audit agent-hooks — the header comment on our secret-guard hook script says it is registered as a pre-tool hook on shell commands, so that one is obviously live. Just audit the rest.",
+      "expected_output": "Refuses to take the header as evidence. A header, comment, or rationale doc is a tier-5 claim to verify, so the wiring question is answered by reading the live registration surface the runtime actually reads — the settings scopes and any component-declared hook config — not the artifact's account of itself. The finding records what was read and what it returned. If no registration is found, the artifact is reported as present-but-unwired, which is exactly the false-green the header would have hidden, and any support that remains doc-only is marked unverified.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Treats the header comment as a claim to verify (evidence tier 5), never as evidence that the hook is wired",
+        "Answers the wiring question by reading the live registration surface the runtime reads, and records what it actually read",
+        "Reports a present-but-unwired artifact when no registration is found, instead of accepting the header's claim",
+        "Marks any support that remains documentation-only as unverified in the finding"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "protected-item-capped-never-retired",
+      "prompt": "/overengineering:audit ci-lanes — our secret-scanning lane has not found a single secret in three years of running on every push. Recommend retiring it.",
+      "expected_output": "Audits the lane fully and reports its evidence — the cap is on the recommendation, not on the scrutiny. Because secret scanning matches a protected category, the retirement-direction verdict is emitted as FLAG-FOR-HUMAN carrying the verdict it would otherwise have been plus the full evidence behind it, and the finding names which protected class and which pattern matched so the classification can be contested. Three clean years is treated as the absence-of-incident pattern — evidence-shaped, not evidence of waste — because an effective control looks redundant precisely by preventing the events that would justify it. The item is not placed in an ablation batch.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Audits the lane fully and reports its evidence rather than skipping it because it is protected",
+        "Does NOT emit RETIRE: the retirement-direction verdict is emitted as FLAG-FOR-HUMAN carrying the verdict it would have been and the evidence behind it",
+        "Names which protected class matched and which pattern matched it, so the classification can be contested separately from the verdict",
+        "Treats three years without a catch as the absence-of-incident pattern rather than as evidence of waste, and does not put the item into an ablation batch"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "silent-artifact-is-unproven",
+      "prompt": "/overengineering:audit repo-hooks — the pre-commit lint hook has no log, no telemetry, and nothing in the issue tracker mentions it. So it is either useless or fine, pick one.",
+      "expected_output": "Picks neither. Silence is UNPROVEN: it has not earned a KEEP and it has not proven itself waste. The finding names which evidence tier was consulted and whether that tier came back silent or was unavailable, because collapsing those two is how an audit manufactures confidence. It also applies the invocation-is-not-usage rule: a hook that succeeds silently emits nothing by construction, so a zero is a property of what the mechanism records, not a measurement of how much it is used. The item routes to the UNPROVEN triage track ranked by carry cost rather than to a verdict.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Classes the finding UNPROVEN — neither KEEP nor RETIRE — because the evidence is silent",
+        "Names which evidence tier was consulted and states whether it was silent or unavailable",
+        "Applies the invocation-is-not-usage rule for a silently-succeeding hook instead of reading a zero as a usage measurement",
+        "Routes the item to the UNPROVEN triage track rather than asserting a verdict from silence"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "threshold-cited-with-its-analogical-label",
+      "prompt": "/overengineering:audit gate-scripts — one of our gate scripts has run twice in the last year. Doesn't the quarterly rule say to delete it?",
+      "expected_output": "Cites the exercise-frequency row with its named source and carries the analogical-transfer label verbatim — no published source states a retirement threshold for enforcement surfaces, so the number is a transfer from alerting and feature-flag literature and is owned as one. It carries the source's own qualifier that the figure marks a removal candidate rather than a cutoff, so the threshold contributes to the argument and never decides it. It resolves the effective value from the consuming repo's configuration where one is set, and where that row is disabled it says so and falls back to the qualitative bar instead of citing the bundled number anyway.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Cites the exercise-frequency threshold with its named source and carries the analogical-transfer label verbatim in the finding",
+        "States that the threshold makes the item a removal candidate and does not treat it as an automatic RETIRE",
+        "Resolves the effective value from the consumer's configured threshold where one is set rather than assuming the bundled default",
+        "When the row is disabled in the consumer's configuration, stops citing it and falls back to the qualitative bar instead of using the bundled number"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unattended-records-open-intent-and-never-guesses",
+      "prompt": "/overengineering:audit vcs-hooks unattended",
+      "expected_output": "Runs the vcs-hooks layer with the unattended disposition: every finding whose intent reconstruction scores MEDIUM or LOW is recorded as OPEN-INTENT and the run asks the operator nothing. It does not invent a plausible original problem — an invented intent reads as evidence downstream because it is written in the same voice as the evidence. The mode comes from the argument, never from a probe of whether a human is watching; attended is the default and would have produced checkpoint questions instead.",
+      "files": [],
+      "expectations": [
+        "Records OPEN-INTENT for every finding whose intent reconstruction is MEDIUM or LOW confidence",
+        "Asks the operator no questions in this mode and does not block waiting for an answer",
+        "Does not invent or infer an intent to fill the gap",
+        "Selects the mode from the passed argument rather than from any probe of interactivity, and treats attended as the default"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "three-liveness-questions-answered-independently",
+      "prompt": "/overengineering:audit agent-hooks — the format-guard hook is registered in settings and its own source says it fails closed, so that is a KEEP, right?",
+      "expected_output": "Answers source posture, wiring, and runtime enforcement as three independent questions and never infers one from another. Registered plus fail-closed-by-source answers questions one and two; whether the mechanism actually completes and produces its decision inside its budget when reached is a separate read, and a wired guard the runtime kills at its timeout yields no decision, so the guarded operation proceeds unguarded. Green on posture and wiring with runtime enforcement unread is UNPROVEN on enforcement, not KEEP. Each answer names what was actually read, and an unread question is recorded as unread rather than filled in.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Answers source posture, wiring, and runtime enforcement as three separate questions rather than inferring one from another",
+        "Does NOT emit KEEP from posture and wiring alone — with runtime enforcement unread the verdict is UNPROVEN on enforcement",
+        "Names the specific failure shape where a wired, fail-closed-by-source guard enforces nothing because the runtime kills it before it decides",
+        "Records each liveness answer with what was actually read, and records an unread question as unread"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "evidence-desert-gets-triage-not-an-unproven-wall",
+      "prompt": "/overengineering:audit — heads up, this repo has no telemetry sink, no incident records, and CI checks it out shallow. There are roughly ninety enforcement items.",
+      "expected_output": "Leads the report with an evidence-availability assessment before any finding: per evidence tier, present / partial / unavailable, each with the probe that established it. The shallow checkout makes version-control history unavailable rather than silent, and every UNPROVEN verdict cites that missing tier by name. Rather than emitting ninety identical rows, it ranks the UNPROVEN items by carry cost — matcher breadth, per-invocation cost, blast radius on a false positive, how much other work the mechanism constrains, churn — because carry cost is readable from the tree without the evidence that is missing. It then recommends one bounded ablation batch off the top of that ranking, small enough for a human to attend to, with an owner and a re-check date per item, and leaves the rest UNPROVEN with their ranking recorded. Protected and intentionally-dormant items are excluded from the batch by construction.",
+      "files": [],
+      "expectations": [
+        "Leads the report with a per-tier evidence-availability assessment naming present / partial / unavailable and the probe that established each",
+        "Reports the shallow checkout as making the history tier unavailable, distinct from silent, and cites the missing tier in the UNPROVEN verdicts",
+        "Ranks UNPROVEN items by carry cost rather than emitting an undifferentiated flat list",
+        "Recommends ONE bounded ablation batch with an owner and a re-check date per item, and does not open dozens of concurrent observation windows",
+        "Excludes protected and intentionally-dormant items from the ablation batch"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "ambiguous-guard-takes-the-protected-tie-break",
+      "prompt": "/overengineering:audit repo-hooks — we have a hook that blocks committing with the verification-bypass flag set. That is developer-experience nagging, not security. Retire it.",
+      "expected_output": "Does not accept the caller's classification. A check whose subject is a bypass flag — a guard on the disabling of other guards — matches a protected category on its face, and where protection status is genuinely uncertain the tie-break is to treat the item as protected, because a misclassified guard must fail toward the cap and never away from it. The retirement-direction verdict is therefore emitted as FLAG-FOR-HUMAN carrying the underlying verdict and its evidence, and the finding records that the classification was uncertain and which rule matched, so a human can overturn the classification cheaply and separately from the verdict.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not accept the caller's assertion that the hook is not security-class",
+        "Identifies the hook as a guard whose subject is a bypass flag and therefore a protected-category match",
+        "Applies the uncertain-status tie-break — treat as protected — so the retirement-direction verdict is capped at FLAG-FOR-HUMAN rather than emitted as RETIRE",
+        "Records that the classification was uncertain and names the rule that matched, so the classification can be overturned separately from the verdict"
+      ]
+    }
+  ]
+}
