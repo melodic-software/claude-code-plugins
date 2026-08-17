@@ -52,10 +52,13 @@ Lane-5 infra rejections (v1.2):
   this marketplace doesn't build (docs-site build is out of scope per the topic plan). Reopen
   condition: a docs-site build landing in this repo — recorded here, deliberately not a TRACK
   row.
-- **`writing-for-agents` / `SKILL-MECHANICS.md` bulk**: rejected at parity or stronger — the
-  derivation-cache rubric, listing-budget check, and hub-and-spoke splitting are already covered
-  by our docs-hygiene and skill-quality machinery. Two strands are tracked, not rejected — see
-  the tracked section below.
+- **`writing-for-agents` / `SKILL-MECHANICS.md` bulk**: originally rejected at parity or
+  stronger (v1.2 lane 5). **Superseded 2026-08-17** by the steering-section re-evaluation:
+  parity holds only for the pruning/audit half; the authoring half carries three gaps, tracked
+  as course lanes 7–8
+  ([#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909),
+  [#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910)).
+  Section-by-section verdicts: the decomposition table below.
 
 The v1.2 behavior deltas (owned-skill lane), the `wait-what` port, the `wizard` port, and the
 infra subset (lane 5: shareable-HTML logic shell adopted — prototype row above; version-sync
@@ -63,9 +66,41 @@ script and "It's working if" rejected above; `.out-of-scope/` KB rejected as alr
 triage row above; two writing-for-agents strands tracked below) are all closed — no evaluations
 from the v1.2 audit remain open.
 
+## writing-for-agents decomposition (re-evaluated 2026-08-17)
+
+Steering-section session of the AI Hero course effort (course lanes 7–9:
+[#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909) /
+[#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910) /
+[#2911](https://github.com/melodic-software/claude-code-plugins/issues/2911)). Upstream
+re-verified current at v1.2.3 — no release past `84fdeff`; unreleased main drift (upstream
+PRs 878/880) is recorded in the pocock-course-lanes pre-lane recheck. Verdict per upstream
+section — where each concern lives here, or the recorded gap. The structural finding behind
+the supersession: upstream fires at the *authoring* moment ("creating or editing skills, or
+modifying AGENTS.md or CLAUDE.md") while our coverage is *audit*-shaped; only skills have an
+authoring-moment home (`playbooks:skill-authoring`).
+
+| Upstream section | Our surface | Verdict |
+|---|---|---|
+| Context pointers (wording-as-trigger, branches, front-loaded leading word) | `docs-hygiene:audit-progressive-disclosure` (blind-pointer finding + six pointer-quality criteria in its tier model) — audit-time; `playbooks:skill-authoring` description-as-trigger — skills only | PARTIAL — no authoring-time home for non-skill agent docs (gap 1 → #2909) |
+| The two loads (context load / cognitive load) | PLUGIN-PHILOSOPHY Instruction economy (context load only) | GAP — cognitive-load-as-budget doctrine absent (→ #2909) |
+| Information hierarchy (steps vs reference, ladder, co-location, sprawl) | three-tier load-cost model ≈ the ladder | PARTIAL — co-location and steps-vs-reference distinction absent (→ #2909) |
+| Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | none — the prior mapping was silent on this section (oversight, not a decision) | GAP (gap 2 → #2909) |
+| When to split (by sequence / by invocation) | tier-model split triggers are size/concern-based only | PARTIAL (→ #2909 / #2910) |
+| Leading words + negation | tracked strand (below) | TRACKED — disposition path #2909 |
+| Pruning: single source of truth | `docs-hygiene:extract-ssot` + the topic-docs single-home rule | PARITY+ |
+| Pruning: environment-as-truth ("cache") | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict + drift control) | PARITY+ (stronger — cache without drift control is not a cache) |
+| Pruning: relevance / sediment | `claude-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
+| Pruning: no-ops (model-relative, run-the-document test) | `claude-config:unhobble` (empirical — operationalizes his remove-and-observe test) + `audit-instructions` (judgment) | PARITY+ |
+| MECHANICS: invocation choice | undocumented setup-skill convention; `skill-quality:check listing-budget` instrument; no decision rubric | GAP (gap 3 → #2910) |
+| MECHANICS: splitting by invocation | none | GAP (→ #2910) |
+| MECHANICS: router skills | rejected only as the `ask-matt` port ("marketplace shape differs"); the pattern itself never evaluated | GAP (→ #2910) |
+| Invocation-reach invariant | tracked strand (below) | TRACKED — disposition path #2910 |
+
 ## Tracked (event-triggered re-evaluation)
 
-Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never dates:
+Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never dates. Since
+2026-08-17 each also has a disposition path through the steering course lanes; the event
+triggers stand until the owning lane records the disposition:
 
 - **Leading-words + negation doctrine** (upstream `writing-for-agents/SKILL.md:61-74`:
   pretrained "leading words" as compact behavior anchors; prompt the positive — prohibition
