@@ -223,7 +223,7 @@ explicit NOT-`review-findings` boundary with its rationale.
 - `grep -rn "\.work/" plugins/overengineering/` returns empty (no memory-tier citations in shipped files).
 - `grep -in "intentionally.dormant" plugins/overengineering/context/scrutiny-method.md` non-empty.
 
-### Phase 2: Plugin scaffold + registrations [TODO]
+### Phase 2: Plugin scaffold + registrations [DONE]
 
 Consumer configuration goes through the **config-cascade convention**
 (`docs/conventions/config-cascade/`), NOT `userConfig`: the Brief's "consumers can extend, narrow,
