@@ -345,11 +345,14 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
 ### Branch, worktree, and lease confinement
 
 The store is working-tree files (`<storage_dir>/<number>.md`). Visibility is
-therefore confined to the tree that holds those files: an item created on a
-feature branch is invisible on every other branch until the store directory is
-merged. `wit_next_number` is the max existing file number + 1 with no file
-lock, so two diverged branches (or two writers against one store) can both mint
-the same next number.
+therefore confined to the tree that holds those files. Untracked or uncommitted
+item files are **not** branch-isolated in the same worktree: `git switch`
+normally carries them onto the new branch (and a nonconflicting uncommitted
+lease edit can likewise follow). Invisibility holds for sibling worktrees that
+do not share those store files, and for committed store files on other branches
+until those commits are merged. `wit_next_number` is the max existing file
+number + 1 with no file lock, so two diverged branches (or two writers against
+one store) can both mint the same next number.
 
 A relative `config.storage_dir` roots against the **binding file's directory**,
 not the caller's CWD (`lib/binding.sh`). Distinct worktrees that climb to the
