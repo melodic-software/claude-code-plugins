@@ -3,6 +3,29 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **New skill `/code-tidying:dissolve-comments`** — the edit-applying enforcement
+  counterpart to `audit-comment-residue`: a three-way comment triage over a diff or
+  explicit target that deletes zero-information comments, dissolves code-expressible
+  comments into names and structure via named Fowler-catalog refactorings and then
+  deletes them, and keeps only terse, load-bearing comments code cannot express.
+  Class-B refactors apply only behind a discovered runnable test net (lint never opens
+  the apply path); `safe` mode restricts applied edits to removals. Public-API doc
+  comments, legal headers, machine-read directives, `TODO(#issue)` markers, and the
+  plugin's standard path-exclusion tier are never touched; removed narrative is staged
+  as a proposed commit-message block before deletion is final. Doctrine grounded in a
+  verified research pass (Fowler, Martin ⇄ Ousterhout debate, McConnell, Google
+  eng-practices, Anthropic prompting guidance) and locked in
+  `docs/topics/plugin-marketplace-code-clarity/PLAN.md`.
+
+### Fixed
+
+- **README skill list drift** — `audit-comment-residue` was missing from the README's
+  skill list; both it and the new `dissolve-comments` are now listed.
+
 ## [0.10.3]
 
 ### Changed

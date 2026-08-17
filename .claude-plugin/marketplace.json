@@ -260,7 +260,7 @@
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
       "category": "maintenance",
-      "tags": ["tidy", "refactoring", "simplify", "boy-scout", "maintenance", "skill"]
+      "tags": ["tidy", "refactoring", "simplify", "boy-scout", "comments", "maintenance", "skill"]
     },
     {
       "name": "session-flow",
