@@ -135,4 +135,10 @@ write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{
 wit_read_binding "$BINDING"
 assert_eq "configured-empty container label falls back to the default" "work-map" "$WIT_CONTAINER_LABEL"
 
+# A present non-string container_label is a configuration error, not a silent
+# stringification (jq -r would render 5 / true / {} as text no item carries).
+assert_rejected "numeric container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":5}}'
+assert_rejected "boolean container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":true}}'
+assert_rejected "object container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":{"a":1}}}'
+
 [[ $FAILED -eq 0 ]] || exit 1

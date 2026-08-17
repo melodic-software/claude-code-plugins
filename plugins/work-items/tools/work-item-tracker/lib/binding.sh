@@ -85,7 +85,13 @@ wit_read_binding() {
   # Container marker: config.container_label (a sibling of config.role_labels,
   # not inside it — the container label marks a graph root, not a worker role).
   # Same configured-over-default resolution: absent or empty falls to the
-  # shipped default (lib/labels.sh).
+  # shipped default (lib/labels.sh). A present non-string value is a
+  # configuration error, not a fallback: jq -r would stringify a number/bool/
+  # object into a label no item carries, silently letting containers onto the
+  # frontier (label-taxonomy.md: malformed entries stop, never default).
+  local container_type
+  container_type="$(jq -r '.config.container_label | type' "$path")"
+  [[ "$container_type" == "null" || "$container_type" == "string" ]] || return 1
   container="$(jq -r '.config.container_label // empty' "$path")"
   [[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"
   WIT_PROVIDER="$provider"

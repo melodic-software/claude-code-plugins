@@ -198,6 +198,14 @@ more than one session; the default answer is no, and the `decompose_container_pu
 config only pre-selects the offer — the Step 3 approval gate stays mandatory for the container
 exactly as for the slices. This skill's gate-free upstream analog is explicitly excluded.
 
+**Coordination provider required.** Offer the container only when the bound provider is a
+coordination surface. A `local-markdown` binding is worktree-confined — each worktree sees its
+own store, so a container published there is invisible to exactly the later sessions and worker
+worktrees it exists to brief (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`
+"local-markdown adapter": local-markdown "is never that surface"). On a `local-markdown`
+binding, skip the offer and, if the user asks for a container anyway, surface the redirect to a
+coordination provider instead of publishing a spec that cannot travel.
+
 **Publish — container first.** On approval, create the container before any slice so slice
 `create-item` calls can carry `--parent`:
 
