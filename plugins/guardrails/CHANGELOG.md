@@ -12,9 +12,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   ([#2870](https://github.com/melodic-software/claude-code-plugins/issues/2870)).**
   New `PreToolUse` guard on `Bash|PowerShell`, default on, kill switch
   `block_exported_msys_pathconv_enabled`. Blocks `export MSYS_NO_PATHCONV` /
-  `export MSYS2_ARG_CONV_EXCL` (and the `declare -x` / `typeset -x` spellings),
-  which switch off MSYS argv rewriting for *every later command in the same
-  command string*. A later path argument then reaches a Windows-native program
+  `export MSYS2_ARG_CONV_EXCL` (including `export --`, and the `declare` /
+  `typeset` spellings with the export flag in any cluster — `-x`, `-rx`,
+  `-gx`, `-x -g`), which switch off MSYS argv rewriting for *every later
+  command in the same command string*. A later path argument then reaches a Windows-native program
   unconverted, and git resolves the leading `/` against the current drive —
   `git worktree add /d/worktrees/x` becomes `<current-drive>:\d\worktrees\x`.
   That is how `D:\d` was recreated a third time, by a lane that exported the
@@ -44,9 +45,23 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   rev-parse --sq-quote /d/probe'` yields `'/d/probe'` while the bare-assignment
   and per-command-prefix forms both yield `'D:/probe'` for the following command.
 
+  Review rounds refined the matcher in both directions. Without a shell word
+  in the command string, the export keyword must sit at command position, so
+  commit messages, `echo` arguments, and grep patterns that merely quote the
+  forbidden spelling stay allowed; with a shell word present, quoted text can
+  execute and any occurrence still blocks. Launchers and shells are judged by
+  quote-stripped basename, so `/usr/bin/env bash -c`, `command bash -c`, a
+  quoted `'bash'`, and a quoted `"C:\...\bash.exe"` behind PowerShell's call
+  operator all block, as does a suppressor prefix opening a quoted child
+  command string.
+
   Declared coverage gaps: a suppressor exported by a script the command invokes,
-  `set -a` plus a bare assignment, an expansion-built value, and any spawner
-  outside the two tool surfaces (CI runners, `subprocess`).
+  `set -a` plus a bare assignment, an expansion-built value, an export guarded
+  by a keyword rather than a separator (`if ...; then export ...`), and any
+  spawner outside the two tool surfaces (CI runners, `subprocess`). Declared
+  residual false positives, accepted fail-closed: an export spelling inside a
+  heredoc body, and prose quoting a forbidden spelling alongside a shell word
+  in the same command string.
 
 ### Changed
 
@@ -54,6 +69,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   now records why the new guard is a separate hook rather than an extension of
   this one — disjoint scopes (path-shape/write-target vs environment variable),
   neither firing on the other's cases.
+
+## [0.28.31]
+
+### Fixed
+
+- **Test harness no longer lets a fixture's git identity land in the caller's
+  repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  `guardrails-test-helpers.sh` now clears `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` at source time. `git -C <fixture>` is a readability guard, not an isolation
+  guarantee: an exported **absolute** `GIT_DIR` overrides repository discovery,
+  so `git config`'s default `--local` scope resolves to the caller's gitdir and
+  the fixture identity is written there instead — leaving the fixture with no
+  `.git` and silently re-authoring the caller's next commit. `GIT_CONFIG` is
+  cleared as a **second** leak path rather than another spelling of the first:
+  it replaces the file the `git config` subcommand reads and writes, so an
+  identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped hook behavior is affected.
 
 ## [0.28.30]
 
