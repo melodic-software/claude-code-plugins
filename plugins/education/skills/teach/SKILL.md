@@ -32,12 +32,13 @@ ${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/
 ├── GLOSSARY.md              durable terminology SSOT — add only when the user demonstrates understanding (global)
 ├── RESOURCES.md             curated high-trust sources (knowledge + wisdom communities) (global)
 ├── NOTES.md                 teaching preferences + working notes — how the user wants to be taught (global)
+├── assets/                  shared lesson components — lesson.css + answer-shuffling quiz.js, spliced into HTML lessons (context/lessons.md "Assets library")
 ├── learning-records/        cross-cutting ZPD log — ADR-style insight records (append-only)
 │   ├── 0001-<slug>.md
 │   └── 0002-<slug>.md
 └── concepts/                per-concept slices
     └── <concept-slug>/      ONE tightly-scoped thing — things that change together, together
-        ├── lesson.md        the teaching unit — pedagogically ephemeral (rarely revisited, regenerable), NOT the topic-docs ephemeral tier; `lesson.html` instead when rendered as HTML, never both
+        ├── lesson.html      the teaching unit — pedagogically ephemeral (rarely revisited, regenerable), NOT the topic-docs ephemeral tier; `lesson.md` where the host can't render HTML (ONE lesson file per concept — format decision + replacement rules: context/lessons.md)
         ├── reference.md     durable compressed cheat-sheet (revisited; the rot-relevant artifact)
         └── exercise.md      colocated practice (optional)
 ```
@@ -50,7 +51,7 @@ Path resolution rules every action MUST follow:
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
 - `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions.
 
-`lesson` / `reference` / `exercise` default to `.md` — the durable teaching record stays markdown, the diffable source of truth. A lesson may be `lesson.html` instead where it pays, replacing `lesson.md` rather than joining it (one lesson file per concept, never both); it is a member of the concept slice either way, and only the workspace-less `primer` renders to a temp path. Placement, the replacement rule, and constraints: "Lessons and Reference".
+Lessons default to interactive, self-contained `lesson.html` where the learner's host can render it; on headless hosts, and where interactivity pays nothing, the lesson is `lesson.md` (one lesson file per concept, never both — the platform-aware format decision, identity/meta, and replacement rules live in [context/lessons.md](context/lessons.md)). The durable trio — `reference.md`, learning records, `GLOSSARY.md` — stays markdown, the diffable source of truth; `exercise.md` stays markdown too, and only the workspace-less `primer` renders to a temp path.
 
 ## Pre-computed Context
 
@@ -71,7 +72,7 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 | `mission` | Review or update learning mission | [context/mission.md](context/mission.md) |
 | `glossary` | Review or update compressed terminology | [context/glossary.md](context/glossary.md) |
 | `resources` | Manage curated learning sources | [context/resources.md](context/resources.md) |
-| `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes `concepts/<concept>/lesson.md` — or `lesson.html`, never both — pedagogically ephemeral but durable machine state on disk; distill a durable `reference.md` alongside — see [context/lessons.md](context/lessons.md) |
+| `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes the concept's single lesson file (`lesson.html`/`lesson.md` per [context/lessons.md](context/lessons.md)) — pedagogically ephemeral but durable machine state on disk; distill a durable `reference.md` alongside |
 | `primer <domain>` | Single-session domain primer — NO workspace | See "Primer action" below |
 | `exercise` | Colocated practice for a concept | Writes `concepts/<concept>/exercise.md`; design per [context/exercises.md](context/exercises.md) |
 | `assess` | Check understanding, update learning records | [context/assessment.md](context/assessment.md) |
@@ -146,7 +147,7 @@ Adjacent intake and sources, each only if installed: `/discovery:blindspot` when
 
 ## Lessons and Reference
 
-The unit of teaching is a **lesson** — one tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral in the **pedagogical** sense only — rarely revisited and regenerable — never in the topic-docs sense: a lesson is a member of its concept slice and stays in machine state. Alongside, distill the durable **reference** — the compressed cheat-sheet the user returns to. Authoring format, reuse-first scaffolds, HTML placement, inline citations: [context/lessons.md](context/lessons.md).
+The unit of teaching is a **lesson** — one tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral in the **pedagogical** sense only — rarely revisited and regenerable — never in the topic-docs sense: a lesson is a member of its concept slice and stays in machine state. Alongside, distill the durable **reference** — the compressed cheat-sheet the user returns to. Authoring format, the platform-aware HTML-first default, the assets splice, reuse-first scaffolds, inline citations: [context/lessons.md](context/lessons.md).
 
 ## Zone of Proximal Development
 
