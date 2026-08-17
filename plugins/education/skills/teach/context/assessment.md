@@ -14,6 +14,8 @@ Assessment updates the learner model — what's understood, what's frontier, wha
 | Mission shifted based on learning | Record as mission shift + update MISSION.md |
 | End of session | Prompt reflection, record demonstrated understanding from session |
 
+When assessing via quiz, hold the equal-length answer rule: multiple-choice options carry equal length and formatting weight, so presentation never signals the correct answer (design rules in [context/exercises.md](exercises.md)).
+
 ## Learning Record Format
 
 Records live per [SKILL.md](../SKILL.md) "Workspace layout" (`learning-records/` under the active topic workspace). Scan that directory for the highest existing `NNNN` and increment. Cross-link related records, the mission, and terms with wikilinks (`[[MISSION.md]]`, `[[GLOSSARY.md]]`, `[[0002-<slug>]]`).

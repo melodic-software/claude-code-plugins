@@ -104,14 +104,27 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 
 Every teaching session progresses through Knowledge → Skills → Wisdom. Don't skip layers; don't rush. Each layer has different teaching moves. The knowledge/skills balance varies by topic — theory-heavy subjects (theoretical physics) lean knowledge; practice-heavy ones (yoga, a framework) lean skills. Calibrate lesson design to the topic.
 
+### Fluency vs storage strength
+
+Optimize for **storage strength** — long-term retention — not **fluency**, in-the-moment recall that gives "an illusory sense of mastery" (upstream teach-skill terms; the research literature — Bjork — names the pair storage strength vs *retrieval* strength). Storage strength is built by **desirable difficulty**: retrieval practice (recall from memory before re-showing), spacing (distributing practice over time), and interleaving (mixing related topics in practice — **skills practice only**, never knowledge presentation). The asymmetry that governs lesson design: **for acquiring knowledge, difficulty is the enemy** — it eats the working memory understanding needs, so explanations stay clear and scaffolded; **for skill acquisition, difficulty is the tool** — effortful retrieval is what builds storage strength, so practice stays effortful. Quiz design inherits this: answer options carry equal length and formatting weight so presentation never leaks the answer (see [context/exercises.md](context/exercises.md)).
+
 ### Knowledge (declarative — what is it?)
 
 - Provide clear explanations with examples and counterexamples
-- Ground in primary sources — never parametric recall. A claim that drives a lesson is verified against a source fetched or a file Read THIS turn, not recalled from training data
-- For `topic` mode: fetch from `RESOURCES.md` entries, the project's research tooling if available, or documentation-lookup MCP servers / official docs
-- For `codebase` mode: Read actual source files, ADRs, convention docs, tests discovered per "Codebase mode"
+- Ground per "Research grounding" below — never parametric recall at any tier. A claim that drives a lesson is verified against a source fetched or a file Read THIS turn, not recalled from training data; the ladder decides *which* fetch, never *whether*
 - Use retrieval practice: ask the user to restate in their own words
 - Add to `GLOSSARY.md` only when the user demonstrates understanding
+
+### Research grounding
+
+Grounding is graduated — pick the cheapest tier that grounds the claim:
+
+- **Tier 0 — already-verified sources, no dispatch.** Repo files Read this turn (codebase mode) and `RESOURCES.md` citations already verified satisfy grounding for narrow or slow-domain claims. Escalate to tier 1 when a claim is contested, broad, or fast-domain (library APIs, framework syntax, tooling).
+- **Tier 1 — per-lesson research (default for fresh external claims).** `/discovery:research` when installed; fallback chain when absent: inline fetch of the authoritative source, `/context7:lookup` (if installed) for library docs, `/firecrawl:firecrawl` (if installed) when fetches are blocked — terminating at built-in WebSearch/WebFetch. Cap: roughly one research dispatch per session unless the subject shifts — batch open questions into one dispatch.
+- **Tier 2 — workspace seeding / broad subjects.** `/discovery:research-deep` (if installed) or dynamic workflows to seed `RESOURCES.md` when a workspace opens on a broad subject.
+- **Tier 3 — huge-subject corpus.** `/knowledge:map-corpus` plus its digest skills (if installed) to build a corpus map; `RESOURCES.md` points at the produced slices.
+
+Adjacent intake and sources, each only if installed: `/discovery:blindspot` when the learner doesn't know what they don't know (unknown-territory intake before the mission interview); `/dometrain:grounding` for course-grounded claims; `/x:read` when a resource lives in an X post or thread.
 
 ### Skills (procedural — how to do it?)
 
@@ -166,7 +179,7 @@ Coach through a depth-first, one-question-at-a-time dialog:
 ### New Workspace (first invocation)
 
 1. Create the workspace per "Workspace layout"
-2. Run the mission interview — WHY are they learning this? What's the concrete goal? What does success look like?
+2. Run the mission interview — WHY are they learning this? What's the concrete goal? What does success look like? **Harvest first:** extract every field the opening message already answers, confirm those in one restatement, and ask only the questions still open — never re-ask what the user already said
 3. Write `MISSION.md` with the answers
 4. Seed `RESOURCES.md` — for `topic` mode, find high-trust sources; for `codebase` mode, discover and list relevant repo files/docs per "Codebase mode"
 5. Assess the starting point — what do they already know? Record as `learning-records/0001-prior-knowledge.md`
