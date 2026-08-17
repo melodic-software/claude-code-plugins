@@ -73,10 +73,14 @@ gh api "repos/$OWNER/$REPO/actions/runs?created=2026-07-01..2026-07-07&per_page=
         | @tsv'
 ```
 
-Via the GitHub MCP tools, the same recipe holds: list runs per window with the `actions_list`
-tooling and read the same per-run fields (`conclusion`, `run_attempt`, `run_started_at`,
-`updated_at`) — the tools front the same endpoint. Use `get_job_logs` (failed-jobs-only option)
-when a candidate needs "why is CI red" specifics.
+Via the GitHub MCP tools, the per-run fields are the same (`conclusion`, `run_attempt`,
+`run_started_at`, `updated_at`) but the window mechanics are NOT: the `actions_list` tooling
+exposes no `created` date filter, so date-windowed iteration is unreachable through it. On the
+MCP path, read the most recent page(s) only, cite the covered span verbatim ("last N runs,
+&lt;oldest&gt;..&lt;newest&gt;"), and record the uncovered windows as a `gap:` line — never page deep to
+reach them and never present a recent-page sample as full-window coverage. Full date-window
+iteration needs the REST call above (`gh api` or an equivalent raw-request seam). Use
+`get_job_logs` (failed-jobs-only option) when a candidate needs "why is CI red" specifics.
 
 Derived signals:
 

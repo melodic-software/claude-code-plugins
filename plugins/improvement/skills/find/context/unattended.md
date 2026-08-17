@@ -38,6 +38,12 @@ This is consumer-repo-agnostic by design: the report never goes into the target 
 the recipe NEVER assumes any particular docs layout in the consuming repo (no topic-docs tree,
 no `docs/` conventions — a consumer repo has none of that).
 
+**`${CLAUDE_PLUGIN_DATA}` unset:** some environments do not provide the variable. Do not invent
+a substitute directory and do not write into the target repo: emit the complete report as the
+run's final output instead, add a `gap: persistence — CLAUDE_PLUGIN_DATA unset; report emitted
+inline, dismissed-candidate memory unavailable this run` line, and skip the dismissed-memory
+read/write (nothing is suppressed, nothing is recorded).
+
 `<state-key>` = `<repo-identity>/<worktree-discriminator>`, derived by running commands (never
 by testing a placeholder):
 

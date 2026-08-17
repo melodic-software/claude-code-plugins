@@ -122,6 +122,10 @@ Delegated findings keep their lane attribution in the evidence citation, and the
 same ranked list as native candidates. Where no lane is installed, the skill's own Tier 0 scan for
 that dimension stands alone — reuse-or-replace: never re-implement what an owned lane already does.
 
+In unattended mode, consult only lanes that run without interaction; a lane whose flow is
+interview- or confirmation-driven is skipped with a `gap:` line naming it, and Tier 0 stands
+alone for that dimension — never simulate a user to drive an interactive lane.
+
 ## Candidate output shape
 
 One ranked list, highest value-to-effort first. Every row carries:
