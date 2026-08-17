@@ -61,7 +61,4 @@ plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh
 plugins/typos-format/hooks/typos-format.test.sh
 plugins/work-items/skills/work/scripts/preflight.test.sh
 scripts/check-contract-slice-prune.test.sh
-scripts/check-shell-portability.test.sh
-scripts/check-skill-portability.test.sh
 scripts/check-stale-base-overlap.test.sh
-scripts/sync-standards-contract.test.sh
