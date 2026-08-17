@@ -70,7 +70,9 @@ Create `plugins/ai-slop/skills/audit/reference/catalog.md`: every tell from Wiki
 
 **Sanity Check:** `grep -c '^### rule-' catalog.md` equals the tell count recorded by this phase's first work item; `grep -q 'CC BY-SA 4.0' catalog.md`; `grep -qE 'oldid=[0-9]+' catalog.md`; `grep -qi 'changes were made\|changes-made' catalog.md`.
 
-### Phase 2: Tracer bullet — scaffold + two-rule detector, end to end [TODO]
+### Phase 2: Tracer bullet — scaffold + two-rule detector, end to end [DONE]
+
+*(Execution note 2026-08-17: fixtures are built inline in detect.test.sh's tmpdir per the audit-noise precedent, instead of shipped `scripts/fixtures/` files — removes the self-detection exemption surface for fixtures entirely.)*
 
 Plugin scaffold (`.claude-plugin/plugin.json` on the `naming` plugin's manifest shape, `README.md`, `CHANGELOG.md`, `skills/audit/` skeleton `SKILL.md`, **plus a `skills/setup/` skill** — required by `docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" because the plugin has a consumer-project configuration surface). `scripts/detect.sh` implements two seed rules (`rule-em-dash`, `rule-ai-vocabulary`) with: word-boundary matching; fenced-code-block and inline-code exemption; **an in-file opt-out marker** (HTML comment, audit-noise's `is_ignore_line_marker` precedent) honored line- and block-level; **consumer config read** (thresholds, banned-word additions/removals, path exclusions) resolved per `docs/conventions/config-cascade/README.md`, with **neutral defaults not calibrated to this repo**; **portable Unicode matching** — `LC_ALL=C` byte-sequence classes for em-dash (`\xE2\x80\x94`), curly quotes, and emoji ranges, POSIX ERE only (no `grep -P`), per the cross-platform contract; and the sibling chunk affordances (`--paths-file`, `--offset`, `--limit`) with repo-wide input from `git ls-files '*.md'`. `scripts/fixtures/` (slop + clean samples), `scripts/detect.test.sh` per shell-test-helpers. **detect.sh emits its own parseable report only** — the findings FILE is model-persisted by the skill (Phase 5), not by the script.
 
