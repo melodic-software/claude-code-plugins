@@ -2,7 +2,7 @@
 
 ## Brief
 
-> Status: LOCKED PENDING CONFIRMATION — all 14 interview questions answered
+> Status: LOCKED (user confirmed 2026-08-17) — all 14 interview questions answered
 > (`.work/overengineering-detection-skill/interview-checklist.md`, register gate clean).
 
 ### TLDR
@@ -97,9 +97,10 @@ solution, and (behind an explicit gate, with the user) realign to it.
 ### Out-of-scope (V1)
 
 - Code-level overengineering in product code — separate deferred lane; core method written
-  lane-reusable; tracked by follow-up issue (filed at handoff).
+  lane-reusable; tracked in
+  [#2897](https://github.com/melodic-software/claude-code-plugins/issues/2897).
 - Scheduled/daily autonomous runs — deferred; V1's diffable findings enable a later delta lane;
-  tracked by follow-up issue (filed at handoff).
+  tracked in [#2898](https://github.com/melodic-software/claude-code-plugins/issues/2898).
 - Fleet-native multi-repo scanning — fleet coverage composes per-repo via existing fleet machinery.
 
 ### Deferred questions

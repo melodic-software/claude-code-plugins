@@ -6,10 +6,10 @@ Mode: `me` (relentless, user-invoked "/interview me first"). Domain: engineering
 
 - [x] Step 1: Survey before you ask
 - [x] Step 1.5: Auto-detect — SKIPPED (`me` forces Q&A)
-- [ ] Step 2: Drive the frontier-rounds loop (round 2 in flight)
-- [ ] Step 3: Stop condition + register gate + confirmation gate
-- [ ] Step 4: Persist the contract (PLAN.md Brief) — partial Brief started incrementally
-- [ ] Step 5: Hand off
+- [x] Step 2: Drive the frontier-rounds loop (3 rounds, Q1–Q14)
+- [x] Step 3: Stop condition + register gate (exit 0) + confirmation gate (user: "Confirmed", 2026-08-17)
+- [x] Step 4: Persist the contract (PLAN.md Brief LOCKED; --brief cross-check exit 0)
+- [x] Step 5: Hand off — follow-up issues #2897/#2898 filed; /discovery:research-deep + /discovery:explore dispatched
 
 ## Session-shorthand glossary
 
