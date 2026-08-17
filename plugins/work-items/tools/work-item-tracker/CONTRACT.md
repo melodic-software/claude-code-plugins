@@ -3,7 +3,8 @@
 Provider-neutral CLI contract for work-item tracker operations. Skills and scripts call the
 core dispatcher (`work-item-tracker.sh`) only; the bound provider adapter executes the
 operation. The seam ships bundled with the `work-items` plugin and resolves plugin-dir
-canonical with a project-root fallback (see "Adapter resolution"). Direction locked by ADR 0022.
+canonical with a project-root fallback (see "Adapter resolution"). Direction locked by
+[ADR 0014](../../../../docs/adr/0014-resolve-seam-engine-plugin-canonical-and-adapters-consumer-first.md).
 
 ## Prerequisites
 
@@ -14,6 +15,47 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 - `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
   adapter gates on it at call time (exit `3`), not the dispatcher — minimal shared-code
   blast radius.
+
+### Degradation without `gh` (cloud / MCP-only sessions)
+
+Some execution environments have GitHub access but no `gh` binary — notably cloud sessions
+whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+seam **cannot run the `github` adapter at all**, reads and writes alike: the dispatcher's
+prerequisite gate exits `3` (the same first-run signal as a missing binding), and there is
+deliberately no silent fallback to another provider (the binding names the coordination
+surface; "Offline role activates only by manual binding switch" applies to degradation
+too). Honest limitation, recorded 2026-08-17 (#2942): this repository's own spec board
+(#2933) had to be published through MCP tools with blocking edges as body text, because
+the publishing session had no `gh`.
+
+Evaluated fallbacks, decided as follows:
+
+- **REST fallback inside the `github` adapter (`curl`) — explicitly deferred.** It would
+  duplicate `gh`'s auth, pagination, and endpoint surface inside the adapter, and would
+  silently fork identity routing ("Identity routing (GitHub adapter)" — the bot-wrapper
+  seam wraps `gh`, not raw HTTP). The native sub-issue/dependency surface is exactly what
+  gates `gh ≥ 2.94`; re-deriving it over raw REST is a second implementation to keep
+  conformant. Revisit if gh-less environments become a primary execution surface rather
+  than an occasional one.
+- **MCP tools as an adapter — rejected.** Adapters are shell verb-scripts; MCP tools are
+  callable only by the model, so a shell seam cannot invoke them. A session with MCP-only
+  GitHub access already has item CRUD through those tools directly — what it loses is the
+  seam's value-add (leases, frontier derivation, normalization, conformance).
+
+**Supported path — the backfill ritual.** A `gh`-less session that must publish anyway
+(the #2933 case) publishes through whatever GitHub surface it has, and:
+
+1. records every blocking edge as a structured body line — `Blocked by: <qualified id>`
+   ("ID grammar"; bare `#123` is never persisted) — and parent linkage via the provider
+   surface where it exists (MCP has native sub-issue support);
+2. leaves one provenance comment on the container naming the edges awaiting native
+   backfill;
+3. the next session with `gh ≥ 2.94` replays the recorded edges through the seam
+   (`link-blocks` / `add-sub-item`) and strikes the note.
+
+Leases are NOT part of the ritual: a `gh`-less session must not simulate claims by
+body-editing — claim/renew/reclaim stay seam-only, so an item worked this way is picked up
+as unclaimed coordination (acceptable for a publish, wrong for contended work).
 
 ## Setup (binding file)
 
@@ -260,9 +302,23 @@ leave the frontier treating the item as unassigned), supersede the lease, append
 explanatory comment, `reclaimed: true`. Ownership is **revalidated immediately before the
 mutation** — the activity round-trips open a window in which a concurrent claimer can renew
 or supersede the lease; if the active lease is no longer this one, or is now live, reclaim
-is a no-op (`reclaimed: false`), never a mutation. A live lease is never reclaimed.
+intends a no-op (`reclaimed: false`). That revalidation is **intent, not a guarantee**: it
+narrows the TOCTOU window but cannot close it — GitHub's issue-comment PATCH documents no
+If-Match / CAS, so a concurrent writer can still win the race and a reclaim can still mutate
+after a stale revalidation. Do not treat the check as CAS. A live lease is never the
+*intended* reclaim target.
 Branch-push activity signals are not implemented (deferred; comments + PR cross-references
-carry the check).
+carry the check). Long-running workers therefore **renew mid-flight** (`renew-lease` on the
+claim's `lease_comment_id`) rather than relying on push activity (`/work-items:work` Step 5).
+
+- **Clock skew.** Liveness compares provider timestamps (`renewed_at` in the marker) to the
+  local clock (`date -u`). Assume the two are close enough for the configured TTL;
+  sub-hour `ttl_minutes` make skew more visible.
+- **ttl-0.** A claim with `ttl_hours: 0` and `ttl_minutes: 0` is born expired. Conformance
+  relies on that; do not treat it as a live lease.
+- **Comment-id monotonicity.** Same-login race arbitration treats an earlier numeric lease
+  handle as the winner. GitHub lists issue comments by ascending ID by default; adapters
+  MUST emit ordered unique numeric `lease_comment_id` handles.
 
 ## Containers and state
 
@@ -293,6 +349,29 @@ label-agnostic and simply never surfaces items that are assigned or blocked.
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
+
+### Contract-version handshake
+
+Adapters resolve consumer-local first ("Adapter resolution"), so a consumer-owned,
+shadowing, or generated adapter can legitimately be built against a different contract
+revision than the engine dispatching to it. The dispatcher therefore performs a
+**directional tolerant-reader handshake** before every dispatch: it compares the manifest's
+declared `schema_version` to the core's contract version (`WIT_SCHEMA_VERSION`,
+`lib/json.sh`). Skew behavior, both directions:
+
+| Manifest vs core | Behavior |
+|---|---|
+| no valid `schema_version` (MAJOR.MINOR) | refuse: exit `3`, stderr says the manifest cannot handshake — consumer/generated adapters MUST declare one |
+| newer MAJOR | refuse: exit `3`, stderr names both versions — "update the `work-items` plugin" |
+| older MAJOR | refuse: exit `3`, stderr names both versions — "update or regenerate the adapter" |
+| same MAJOR, newer MINOR | proceed with a stderr notice: minors are additive, so the core (a tolerant reader) ignores fields it does not know; updating the plugin consumes them |
+| same MAJOR, MINOR ≤ core | proceed silently: additive fields introduced after the adapter's revision are optional by definition, so an older adapter simply omits them |
+
+Major skew is a **configuration error, not a degradation**: exit `3` is the same
+first-run/setup signal as a missing binding, pointing at the mismatched pair rather than
+failing later inside a verb with a shape error. The conformance suite asserts both refusal
+directions and the newer-minor notice against a synthetic skewed manifest, and every real
+conformance case exercises the passing handshake.
 
 ## Identity routing (GitHub adapter)
 
@@ -341,6 +420,39 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
 - **Offline role activates only by manual binding switch** — the local-markdown
   provider is used when a repo's binding names it, never as an automatic fallback
   from a network failure of another provider.
+
+### Branch, worktree, and lease confinement
+
+The store is working-tree files (`<storage_dir>/<number>.md`). Visibility is
+therefore confined to the tree that holds those files. Untracked or uncommitted
+item files are **not** branch-isolated in the same worktree: `git switch`
+normally carries them onto the new branch (and a nonconflicting uncommitted
+lease edit can likewise follow). Invisibility holds for sibling worktrees that
+do not share those store files, and for committed store files on other branches
+until those commits are merged. `wit_next_number` is the max existing file
+number + 1 with no file lock, so two diverged branches (or two writers against
+one store) can both mint the same next number.
+
+A relative `config.storage_dir` roots against the **binding file's directory**,
+not the caller's CWD (`lib/binding.sh`). Distinct worktrees that climb to the
+same binding therefore share one store when `storage_dir` is relative. Distinct
+worktrees that each carry their own copy of the binding and store — the
+`/work-items:work` skill's worker-worktree model — each have a divergent copy:
+an uncommitted lease is invisible to a sibling worktree; a committed lease is a
+lease-churn commit on that worktree's branch. A shared **absolute**
+`storage_dir` across worktrees is one store, so concurrent create/claim races
+on numbers and the lease marker.
+
+Claim identity is `git config user.name`, then `$USER`, then `local`. The same
+git user in two worktrees looks like the same holder. The lease handle is a
+store-global `lease_comment_id` in the marker JSON (not a GitHub comment id).
+The manifest declares `reclaim: false`; invoking `reclaim` exits `6`. On
+expiry, `list-items` reports empty `assignees` (effective post-expiry
+assignment) while `get-item` still shows the stored assignee.
+
+This confinement is why multi-session / multi-machine work needs a
+tracker-published spec on a coordination provider — a `work-map` container lane
+(see "Containers and state"). local-markdown is never that surface.
 
 ## jira adapter
 

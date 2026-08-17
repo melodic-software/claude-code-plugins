@@ -54,10 +54,13 @@ Lane-5 infra rejections (v1.2):
   this marketplace doesn't build (docs-site build is out of scope per the topic plan). Reopen
   condition: a docs-site build landing in this repo — recorded here, deliberately not a TRACK
   row.
-- **`writing-for-agents` / `SKILL-MECHANICS.md` bulk**: rejected at parity or stronger — the
-  derivation-cache rubric, listing-budget check, and hub-and-spoke splitting are already covered
-  by our docs-hygiene and skill-quality machinery. Two strands are tracked, not rejected — see
-  the tracked section below.
+- **`writing-for-agents` / `SKILL-MECHANICS.md` bulk**: originally rejected at parity or
+  stronger (v1.2 lane 5). **Superseded 2026-08-17** by the steering-section re-evaluation:
+  parity holds only for the pruning/audit half; the authoring half carries three gaps, tracked
+  as course lanes 7–8
+  ([#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909),
+  [#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910)).
+  Section-by-section verdicts: the decomposition table below.
 
 The v1.2 behavior deltas (owned-skill lane), the `wait-what` port, the `wizard` port, and the
 infra subset (lane 5: shareable-HTML logic shell adopted — prototype row above; version-sync
@@ -65,9 +68,55 @@ script and "It's working if" rejected above; `.out-of-scope/` KB rejected as alr
 triage row above; two writing-for-agents strands tracked below) are all closed — no evaluations
 from the v1.2 audit remain open.
 
+## writing-for-agents decomposition (re-evaluated 2026-08-17)
+
+Steering-section session of the AI Hero course effort (course lanes 7–9:
+[#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909) /
+[#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910) /
+[#2911](https://github.com/melodic-software/claude-code-plugins/issues/2911)). Upstream
+re-verified current at v1.2.3 — no release past `84fdeff`; unreleased main drift (upstream
+PRs 878/880) is recorded in the pocock-course-lanes pre-lane recheck. Verdict per upstream
+section — where each concern lives here, or the recorded gap. The structural finding behind
+the supersession: upstream fires at the *authoring* moment ("creating or editing skills, or
+modifying AGENTS.md or CLAUDE.md") while our coverage is *audit*-shaped; only skills have an
+authoring-moment home (`playbooks:skill-authoring`).
+
+**Lane 7 closed 2026-08-17**: gaps 1–2 and the two-loads/leading-words strands are
+design-locked as `docs-hygiene:write-for-agents`
+(contract: `docs/specs/write-for-agents-brief.md`; build:
+[#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
+[#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
+completion-criteria criterion). The GAP/PARTIAL verdict cells below flip to ADOPTED when #2962
+merges.
+
+**Lane 8 closed 2026-08-17**: gap 3 (invocation) is decided — invocation-mode rubric homed at
+`docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes;
+contract: `docs/specs/invocation-mode-doctrine-brief.md`); enforcement filed as
+[#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), the one re-grade
+flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
+
+| Upstream section | Our surface | Verdict |
+|---|---|---|
+| Context pointers (wording-as-trigger, branches, front-loaded leading word) | `docs-hygiene:audit-progressive-disclosure` (blind-pointer finding + six pointer-quality criteria in its tier model) — audit-time; `playbooks:skill-authoring` description-as-trigger — skills only | PARTIAL — no authoring-time home for non-skill agent docs (gap 1 → #2909) |
+| The two loads (context load / cognitive load) | PLUGIN-PHILOSOPHY Instruction economy (context load only) | GAP — cognitive-load-as-budget doctrine absent (→ #2909) |
+| Information hierarchy (steps vs reference, ladder, co-location, sprawl) | three-tier load-cost model ≈ the ladder | PARTIAL — co-location and steps-vs-reference distinction absent (→ #2909) |
+| Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | none — the prior mapping was silent on this section (oversight, not a decision) | GAP (gap 2 → #2909) |
+| When to split (by sequence / by invocation) | tier-model split triggers are size/concern-based only; invocation axis now owned by the rubric | PARTIAL — sequence half rides #2962; invocation half ADOPTED (lane 8: `docs/conventions/invocation-mode/`) |
+| Leading words + negation | tracked strand (below) | TRACKED — disposition path #2909 |
+| Pruning: single source of truth | `docs-hygiene:extract-ssot` + the topic-docs single-home rule | PARITY+ |
+| Pruning: environment-as-truth ("cache") | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict + drift control) | PARITY+ (stronger — cache without drift control is not a cache) |
+| Pruning: relevance / sediment | `claude-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
+| Pruning: no-ops (model-relative, run-the-document test) | `claude-config:unhobble` (empirical — operationalizes his remove-and-observe test) + `audit-instructions` (judgment) | PARITY+ |
+| MECHANICS: invocation choice | rubric at `docs/conventions/invocation-mode/` (model-invoked default + exception classes; the setup convention was already documented in PLUGIN-PHILOSOPHY, contra this row's earlier "undocumented" reading); `skill-quality:check listing-budget` instrument | ADOPTED (adapted — inverted default; lane 8, 2026-08-17; enforcement → #2968) |
+| MECHANICS: splitting by invocation | rubric § Splitting by invocation; #2962's when-to-split doctrine points there | ADOPTED (routed; lane 8, 2026-08-17) |
+| MECHANICS: router skills | rubric § Router-skill verdict; human-side answer = `docs/SKILL-CHEAT-SHEET.md` + `claude-ops:inventory`; composition-router carve-out (`discipline:sweep-all`) | REJECTED with reason (lane 8, 2026-08-17 — the always-present listing is the router under a model-invoked default) |
+| Invocation-reach invariant | tracked strand (below) | CONFIRMED (docs-verified 2026-08-17; lane 8 disposition below) |
+
 ## Tracked (event-triggered re-evaluation)
 
-Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never dates:
+Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never dates. Since
+2026-08-17 each also has a disposition path through the steering course lanes; the event
+triggers stand until the owning lane records the disposition:
 
 - **Leading-words + negation doctrine** (upstream `writing-for-agents/SKILL.md:61-74`:
   pretrained "leading words" as compact behavior anchors; prompt the positive — prohibition
@@ -77,13 +126,41 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   negation/negative-space port deferred from that session's gap scan) — this record
   cross-links that deferral rather than opening a second ledger entry. Trigger: a
   mattpocock/skills release whose changeset names `writing-for-agents`.
+  **Disposition (lane 7, 2026-08-17): adopted into the `docs-hygiene:write-for-agents` design
+  (#2962) — this row retires when that implementation merges; the release trigger stands until
+  then.**
 - **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
-  `disable-model-invocation: true` — can be invoked by no other skill). Unverified against
-  current official docs at audit time, and zero live defect instances found (no skill here
-  instructs model invocation of a `disable-model-invocation: true` target). Trigger: a
-  mattpocock/skills release whose changeset names `writing-for-agents`, OR a repo review/audit
-  surfacing a skill that instructs model invocation of a `disable-model-invocation: true`
-  target.
+  `disable-model-invocation: true` — can be invoked by no other skill).
+  **Disposition (lane 8, 2026-08-17): CONFIRMED against current official docs**
+  (code.claude.com/docs/en/skills, fetched 2026-08-17): `disable-model-invocation: true` →
+  "Description not in context, full skill loads when you invoke"; "By default, Claude can invoke
+  any skill that doesn't have `disable-model-invocation: true` set"; the flag "removes the skill
+  from Claude's context entirely" — and it also blocks subagent preload and (v2.1.196+)
+  scheduled-task prompts. The upstream-release trigger is retired (the invariant no longer
+  depends on upstream's wording — it is docs-confirmed and owned by
+  `docs/conventions/invocation-mode/README.md` § The invocation-reach invariant).
+  **Fired-and-resolved
+  (#2940 / Lane X C22):** fleet audit enumerated **57** skills with
+  `disable-model-invocation: true` and searched `SKILL.md`, evals, and reference docs for
+  Skill-tool invocation of those names (patterns such as "invoke `/plugin:skill` via the Skill
+  tool", "Call the Skill tool" + target, "Skill tool" + `:setup`). The explicit "via the Skill
+  tool" form is still **zero**. A follow-up pass also reworded operative slash-command
+  instructions against user-invoked-only targets in `repo-fleet-hygiene:audit` and
+  `claude-ops` `inventory` / `audit-performance` / `audit-install-state` (agent-operative
+  "execute/route/hand to /X" → "tell the user to run /X"; ownership and Question|Owner
+  boundary tables left intact). Human-relay phrasing ("tell the user to run /X",
+  "offering to run `/plugin:setup`") and Skill-tool hits on model-invocable skills
+  (`/toolchain:check`, `/implementation:implement-dispatch`, `/tdd:principles`,
+  `/session-flow:handoff`, `/testing:run-e2e`) are non-violations. Standing
+  `skill-quality:check` automation deferred (cross-plugin target resolution is not cheap under
+  the single skills-root model); doctrine lines live in `playbooks:skill-authoring` and
+  `skill-quality:check`. Canonical rewording if a future hit appears: "tell the user to run /X".
+  Same Lane X pass: C23 curate-language trigger comparison vs upstream artifact-anchored
+  `domain-modeling` rewording is **ALREADY-PRESENT** (ours already name glossary / domain term /
+  vocabulary) — one-shot, not a re-evaluation trigger. Re-trigger (audit-side only; the
+  upstream-release trigger is retired per the lane 8 disposition above): a repo review/audit
+  surfacing a new Skill-tool or operative slash-command invocation of a
+  `disable-model-invocation: true` target re-opens this strand.
 
 ## Harness findings learned from this upstream (recheck-worthy)
 
@@ -98,3 +175,7 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
 
 Full verified 35-skill upstream↔ours map (relations, v1.2 deltas, drift findings):
 [`docs/upstream/mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md).
+
+Shipping-course SSOT (distinct source from this skills-repo record; course pages
+are account-gated; recheck trigger lives there):
+[`aihero-shipping-course.md`](aihero-shipping-course.md).

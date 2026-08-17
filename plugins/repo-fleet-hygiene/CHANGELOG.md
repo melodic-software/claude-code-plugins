@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.4]
+
+### Fixed
+
+- **`audit` human-relays `/repo-fleet-hygiene:apply` (#2940).** Apply is
+  `disable-model-invocation: true`; operative instructions that told the agent to execute,
+  prefer, or hand execution to `:apply` now tell the user to run
+  `/repo-fleet-hygiene:apply`. Ownership prose ("Actual fleet mutation belongs to …")
+  unchanged.
+
 ## [0.23.3]
 
 ### Changed

@@ -8,7 +8,7 @@ bound adapter today.
 
 The tracker's capabilities are split across five focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
-about work items, tracked work, or what to do next):
+about work items, tickets, issues, tracked work, or what to do next):
 
 ```text
 /work-items:track                      # stats dashboard (default)
@@ -29,6 +29,13 @@ about work items, tracked work, or what to do next):
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows — inferring candidate items from the repo and interviewing per item — is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
+
+## Naming
+
+**Work item** is the canonical term. **Ticket** and **issue** are first-class
+synonyms for invocation — they appear in skill Use-when triggers so phrasing
+like "add a ticket" or "work the next issue" routes here — not a rename of the
+plugin, seam, or surface.
 
 ## `/work-items:track` actions
 
@@ -52,9 +59,10 @@ provider adapter executes it (contract + resolution:
 selection, single-item fetch — uses seam verbs directly. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
-(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`). The skill core
-inlines no provider commands, so swapping the backend is swapping the bound
-adapter, not editing the skills.
+(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`;
+local-markdown: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/local-markdown/README.md`).
+The skill core inlines no provider commands, so swapping the backend is swapping the bound
+adapter, not editing the skills. CONTRACT.md remains the SSOT for verbs.
 
 ## Multi-agent claim protocol
 
