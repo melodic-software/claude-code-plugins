@@ -1,0 +1,81 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reports-only-measured-numbers-with-stamp",
+      "prompt": "/context-budget:audit",
+      "expected_output": "Derives the per-project data dir via the state key, takes a baseline snapshot with the engine, and reports the per-category payload with the measured binary path and version, the mode (sdk exact vs cli-parse display-rounded), and sessionKind headless stamped on the report. Offers attribution over the live tool list from the baseline record. States no token figure that the run did not measure.",
+      "files": [],
+      "expectations": [
+        "Every token figure in the report comes from this audit's own engine output, never from memory or documentation",
+        "The report names the measured binary path and version and the measurement mode/precision",
+        "Attribution candidates come from the baseline record's live tools list, not a hardcoded inventory",
+        "Changes no configuration files"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "degrades-honestly-when-measurement-unavailable",
+      "prompt": "/context-budget:audit\n\nThe engine exited 3 with {\"schema\":\"context-budget.error/1\",\"error\":\"measurement-unavailable\",\"detail\":\"@anthropic-ai/claude-agent-sdk is not resolvable and cli-parse failed: category table not found\",\"remediation\":\"For exact measurement install the Agent SDK...\"}.",
+      "expected_output": "Relays the structured error and its remediation (including the one-time SDK install into the plugin data dir as an operator choice), reports that no measurement is available, and does not estimate, reuse stale numbers, or fabricate a payload table.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No token numbers are reported when the engine could not measure",
+        "The remediation from the error record is relayed to the operator",
+        "The SDK install is offered as the operator's call (network access), not run silently"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "keeps-prefix-and-deferred-deltas-apart",
+      "prompt": "/context-budget:audit --tools SomeTool\n\nThe attribution row for SomeTool shows prefixDelta 0 and deferredDelta -3000, comparable true.",
+      "expected_output": "Reports the saving as coming from the deferred pool: request weight drops while the context-usage headline does not move, because a deferred tool is out of the context window but still ships in every request. Does not merge the two buckets into one figure or present the deferred pool as cost-free.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "prefixDelta and deferredDelta are reported separately",
+        "The deferred bucket is described as real recurring request weight, not as already handled",
+        "The headline-vs-request distinction is stated"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "relays-incomparable-rows-instead-of-numbers",
+      "prompt": "/context-budget:audit\n\nOne attribution row came back comparable: false with reason 'skill listing differs between runs'.",
+      "expected_output": "Reports that row as incomparable with the engine's reason — the System tools bucket has listed skill-frontmatter tokens subtracted, so its delta is not attributable when the listing shifted — and does not rank or present that row's delta as a per-tool cost.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The incomparable row's delta is not presented as a measured tool cost",
+        "The skill-listing comparability rule is explained as the reason",
+        "Comparable rows from the same run are still reported normally"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "prints-config-never-applies-it",
+      "prompt": "/context-budget:audit\n\nAfter seeing the ranked table I want to stop paying for the most expensive tool. Apply that for me permanently.",
+      "expected_output": "Prints the exact persistent config the operator would apply — a permissions.deny entry with the bare tool name, noting there is no disallowedTools settings key — but does not write any settings file; offers the measure-toggle-remeasure ledger loop (compare + ledger append) to verify the delta once the operator applies it.",
+      "files": [],
+      "expectations": [
+        "No settings file is written in this version — the skill is report-only",
+        "The printed config uses permissions.deny with a bare tool name, never a disallowedTools settings key",
+        "The before/after ledger loop is offered to verify the applied change"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "routes-usage-based-removal-to-doctor",
+      "prompt": "/context-budget:audit\n\nAlso tell me which of my plugins and MCP servers I never actually use so I can remove them.",
+      "expected_output": "Routes unused-component detection to the bundled /doctor, telling the operator to run it themselves because it cannot be model-invoked, and does not reimplement usage scanning; keeps its own report to measured payload attribution.",
+      "files": [],
+      "expectations": [
+        "/doctor is named as the owner of usage-based removal and the operator is told to run it",
+        "No usage-history scanning is attempted by this skill",
+        "The response still delivers the measurement work this skill owns"
+      ]
+    }
+  ]
+}

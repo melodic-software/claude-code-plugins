@@ -306,6 +306,12 @@
       "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
     },
     {
+      "name": "context-budget",
+      "source": "./plugins/context-budget",
+      "category": "claude-code",
+      "tags": ["context-window", "startup-payload", "token-budget", "tool-schemas", "measurement", "attribution", "ledger", "skill"]
+    },
+    {
       "name": "plugin-quality",
       "source": "./plugins/plugin-quality",
       "category": "claude-code",

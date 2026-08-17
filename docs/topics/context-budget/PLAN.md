@@ -113,10 +113,17 @@ Five corrections owed regardless of whether the plugin ships; each is small and 
 `unhobble` `CLAUDE_CODE_SIMPLE` gotcha, the stale permission-rule-hygiene citation plus its
 tightening gap, the S7 coverage-matrix row this work closes, and the `discovery` preload bug.
 
-### Phase 2 — measurement engine
+### Phase 2 — measurement engine ✔ SHIPPED 2026-08-17 (`context-budget` 0.1.0)
 
 Baseline capture, A/B differencing driver, version-aware parser with the four known parse traps
 handled, binary pinning, graceful degradation. Ships with the ledger format.
+
+Landed as `plugins/context-budget/` (manifest, README, CHANGELOG, `skills/audit/` with
+`scripts/measure.mjs`, `reference/engine.md`, evals, hermetic tests; `lib/state-key.sh` adopted
+from the shared cluster; registered in the marketplace, catalog, leaf-name registry, and
+state-key sync). Verified live against the pinned v2.1.232 binary: sdk mode returns exact
+integers, the per-tool deny deltas reproduce and pass the engine's additivity check, cli-parse
+degrades with recorded caveats, and unparsable input exits 3 with a structured remediation.
 
 ### Phase 3 — lever catalogue
 
