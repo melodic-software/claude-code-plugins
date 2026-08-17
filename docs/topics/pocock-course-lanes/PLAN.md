@@ -106,6 +106,21 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
 
 *(none — all nine questions decided)*
 
+## Lane index (filed 2026-08-17, in locked run order)
+
+| Lane | Issue | Scope |
+|------|-------|-------|
+| 1 handoff | [#2899](https://github.com/melodic-software/claude-code-plugins/issues/2899) | use-case boundaries, purpose argument, expiry, ephemerality |
+| 2 phase boundaries | [#2900](https://github.com/melodic-software/claude-code-plugins/issues/2900) | tree re-audit + context-driven continuation router (build deliverable) |
+| 3 compaction doctrine | [#2901](https://github.com/melodic-software/claude-code-plugins/issues/2901) | fork-beats-compaction, auto-compact stance, evidence-degraded marker, harness claims |
+| 4 plan-mode | [#2902](https://github.com/melodic-software/claude-code-plugins/issues/2902) | asset-rush critique vs interview-first sequencing, lock-mode audit |
+| 5 grilling parity | [#2903](https://github.com/melodic-software/claude-code-plugins/issues/2903) | course-lesson deltas vs planning:interview |
+| 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | aihero-course.md, term adoption, SSOT TRACK annotations, coverage index |
+
+Background research dispatched pre-lane: harness-claims bundle →
+`.work/pocock-course-lanes/harness-claims/` (memory tier; re-dispatch `/discovery:research` if
+the slice is gone before lane 3/4 consume it).
+
 ## Upstream recheck — 2026-08-17 (pre-lane gate)
 
 `/discipline:recheck-against-upstream` run against mattpocock/skills HEAD `068b6e0`
