@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { writeStdout } from "@melodic/video-digestion/shared/terminal";
+import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
@@ -99,7 +99,7 @@ const isMain =
 
 if (isMain) {
   if (!sliceDir) {
-    process.stderr.write("Usage: node watch/rebuild-visual-frames.js <slice-dir>\n");
+    writeStderr("Usage: node watch/rebuild-visual-frames.js <slice-dir>");
     process.exit(2);
   }
   writeStdout(`${rebuildVisualFrames(sliceDir)}\n`);

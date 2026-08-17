@@ -220,7 +220,9 @@ function normalizeHostPath(p) {
   // and "c:/x" contain. POSIX paths keep their case (see above).
   const cased = driveMatch !== null ? slashed.toLowerCase() : slashed;
   const drive = driveMatch !== null ? driveMatch[1].toLowerCase() : null;
-  const anchor = drive !== null ? drive : cased.startsWith("/") ? "/" : "";
+  let anchor = "";
+  if (drive !== null) anchor = drive;
+  else if (cased.startsWith("/")) anchor = "/";
   if (anchor === "") return null;
   const body = anchor === "/" ? cased.slice(1) : cased.slice(drive.length + 1);
   const out = [];
@@ -324,8 +326,7 @@ function credentialExpansionProblem(entry, expanded) {
   const homeAnchored =
     !normalizedEntry.includes("://") && segments.length > 1 && isHomeEnvToken(segments[0]);
   if (!homeAnchored) {
-    const concreteSegments = normalizedEntry.split("/").filter((segment) => segment.length > 0);
-    if (concreteSegments.some((segment) => segment === "." || segment === "..")) {
+    if (segments.some((segment) => segment === "." || segment === "..")) {
       return "a concrete credential path must not contain dot-traversal segments — use the canonical path";
     }
     return normalizedExpanded === normalizedEntry
@@ -430,6 +431,14 @@ function isPlainObject(value) {
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
+}
+
+// A transcript's paired evidence lists are recorded as ONE comma-separated
+// string per field, positionally paired with the probed targets. A non-string
+// field yields the empty list, so the caller's length comparison against the
+// target count is what reports the mismatch.
+function splitRecordedList(raw) {
+  return typeof raw === "string" ? raw.split(",").map((entry) => entry.trim()) : [];
 }
 
 // Strict ISO 8601 date-time with an EXPLICIT offset (Z or +/-hh:mm),
@@ -1386,7 +1395,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // credential codes: one non-zero code per host — a single code cannot
   // prove denial toward every listed target.
   const rawEgressCodes = transcript.assertions.egress_denied.exit_code;
-  const egressCodes = typeof rawEgressCodes === "string" ? rawEgressCodes.split(",").map((code) => code.trim()) : [];
+  const egressCodes = splitRecordedList(rawEgressCodes);
   if (egressCodes.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(rawEgressCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded exit code per probed host is required, comma-separated and positionally paired with host: a single code cannot prove denial toward every listed target`;
   }
@@ -1399,8 +1408,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // claims "peer-substituted", and that same entry must then survive the
   // fingerprint comparison below, which is the actual evidence.
   const rawTransportForExit = transcript.assertions.egress_denied.transport_outcome;
-  const transportForExit =
-    typeof rawTransportForExit === "string" ? rawTransportForExit.split(",").map((entry) => entry.trim()) : [];
+  const transportForExit = splitRecordedList(rawTransportForExit);
   for (const [index, code] of egressCodes.entries()) {
     if (nonzeroExit(code)) continue;
     if (transportForExit[index] === "peer-substituted") continue;
@@ -1450,7 +1458,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // without --egress-hosts: reachability evidence is orthogonal to which
   // targets are trusted.
   const rawOuterCodes = transcript.assertions.egress_denied.outer_exit_code;
-  const outerCodes = typeof rawOuterCodes === "string" ? rawOuterCodes.split(",").map((code) => code.trim()) : [];
+  const outerCodes = splitRecordedList(rawOuterCodes);
   if (outerCodes.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.outer_exit_code ${JSON.stringify(rawOuterCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed host is required, comma-separated and positionally paired with host: a failed inner probe proves an egress boundary only when the outer context proves the target was reachable`;
   }
@@ -1471,8 +1479,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // matched per component).
   const credentialPaths = transcript.assertions.credentials_absent.path.split(",").map((entry) => entry.trim());
   const rawCredentialCodes = transcript.assertions.credentials_absent.exit_code;
-  const credentialCodes =
-    typeof rawCredentialCodes === "string" ? rawCredentialCodes.split(",").map((code) => code.trim()) : [];
+  const credentialCodes = splitRecordedList(rawCredentialCodes);
   if (credentialCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(rawCredentialCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded exit code per probed credential path is required, comma-separated and positionally paired with path: a single code cannot prove absence on every listed location`;
   }
@@ -1481,8 +1488,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // to the boundary's OWN home, so only a recorded host-side expansion names
   // the host credential location.
   const rawHostExpanded = transcript.assertions.credentials_absent.host_expanded;
-  const hostExpanded =
-    typeof rawHostExpanded === "string" ? rawHostExpanded.split(",").map((entry) => entry.trim()) : [];
+  const hostExpanded = splitRecordedList(rawHostExpanded);
   if (hostExpanded.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.host_expanded ${JSON.stringify(rawHostExpanded)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded host-side expansion per probed credential path is required, comma-separated and positionally paired with path: an in-shell home token expands to the boundary's own home, so only a recorded host-side expansion names the host credential location`;
   }
@@ -1497,8 +1503,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // itself must fail; "read-denied" for filesystem and env-token entries,
   // where no connection exists to fail.
   const rawTransportOutcomes = transcript.assertions.credentials_absent.transport_outcome;
-  const transportOutcomes =
-    typeof rawTransportOutcomes === "string" ? rawTransportOutcomes.split(",").map((outcome) => outcome.trim()) : [];
+  const transportOutcomes = splitRecordedList(rawTransportOutcomes);
   if (transportOutcomes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.transport_outcome ${JSON.stringify(rawTransportOutcomes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded transport outcome per probed credential path is required ("connect-failed" for a metadata URL, "read-denied" for a filesystem or env-token entry), comma-separated and positionally paired with path: without it a reachable metadata service's HTTP error is indistinguishable from a denied connection`;
   }
@@ -1512,8 +1517,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // exit as outer_exit_code, comma-separated and positionally paired with
   // path; every entry must be "0".
   const rawCredentialOuterCodes = transcript.assertions.credentials_absent.outer_exit_code;
-  const credentialOuterCodes =
-    typeof rawCredentialOuterCodes === "string" ? rawCredentialOuterCodes.split(",").map((code) => code.trim()) : [];
+  const credentialOuterCodes = splitRecordedList(rawCredentialOuterCodes);
   if (credentialOuterCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.outer_exit_code ${JSON.stringify(rawCredentialOuterCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed credential path is required, comma-separated and positionally paired with path: a failed inner read proves a credential boundary only when the outer context proves the target exists on the host`;
   }
@@ -1567,17 +1571,14 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
     return `transcript ${path} records ${egressHosts.length} egress entries naming only ${distinctEgressHosts.size} distinct target — repeating one host measures a single policy decision while presenting as several; probe at least two distinct external targets under different operators`;
   }
   const rawEgressTransport = egress.transport_outcome;
-  const egressTransport =
-    typeof rawEgressTransport === "string" ? rawEgressTransport.split(",").map((entry) => entry.trim()) : [];
+  const egressTransport = splitRecordedList(rawEgressTransport);
   if (egressTransport.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.transport_outcome ${JSON.stringify(rawEgressTransport)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded transport outcome per probed host is required, comma-separated and positionally paired with host: an exit code alone cannot distinguish a boundary that dropped the session from one that returned an interception response`;
   }
   const rawOuterFingerprints = egress.outer_peer_fingerprint;
   const rawInnerFingerprints = egress.inner_peer_fingerprint;
-  const outerFingerprints =
-    typeof rawOuterFingerprints === "string" ? rawOuterFingerprints.split(",").map((entry) => entry.trim()) : [];
-  const innerFingerprints =
-    typeof rawInnerFingerprints === "string" ? rawInnerFingerprints.split(",").map((entry) => entry.trim()) : [];
+  const outerFingerprints = splitRecordedList(rawOuterFingerprints);
+  const innerFingerprints = splitRecordedList(rawInnerFingerprints);
   if (outerFingerprints.length !== egressHosts.length || innerFingerprints.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.outer_peer_fingerprint ${JSON.stringify(rawOuterFingerprints)} and inner_peer_fingerprint ${JSON.stringify(rawInnerFingerprints)} for ${egressHosts.length} probed host entries — one recorded peer fingerprint per probed host is required on each side, comma-separated and positionally paired with host (the literal "none" where no handshake completed)`;
   }
@@ -1604,8 +1605,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
     }
   }
   const rawAddressFamilies = transcript.assertions.egress_denied.address_families;
-  const addressFamilies =
-    typeof rawAddressFamilies === "string" ? rawAddressFamilies.split(",").map((entry) => entry.trim()) : [];
+  const addressFamilies = splitRecordedList(rawAddressFamilies);
   if (addressFamilies.length === 0 || addressFamilies.some((family) => !ADDRESS_FAMILIES.has(family))) {
     return `transcript ${path} records assertions.egress_denied.address_families ${JSON.stringify(rawAddressFamilies)} — required, a non-empty comma-separated list drawn from ${[...ADDRESS_FAMILIES].join(" | ")}: a boundary sealed on one address family and open on the other passes an unrecorded probe, so the exercised families are recorded rather than inferred`;
   }
@@ -1700,7 +1700,7 @@ function verifyWorkspaceContainment(transcript, path) {
     ["host_post_absent", "every canary must still be absent on the host after teardown — a visible canary is a write that escaped the boundary"],
   ]) {
     const raw = workspace[field];
-    const codes = typeof raw === "string" ? raw.split(",").map((entry) => entry.trim()) : [];
+    const codes = splitRecordedList(raw);
     if (codes.length !== canaries.length) {
       return `transcript ${path} records assertions.workspace_host_write_contained.${field} ${JSON.stringify(raw)} for ${canaries.length} canary entries — one recorded exit code per canary is required, comma-separated and positionally paired with canaries: a single code cannot vouch for every path`;
     }
@@ -1892,25 +1892,17 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     isPlainObject(binding.promotion_state) &&
     isPlainObject(binding.promotion_state[cell]) &&
     binding.promotion_state[cell].state === "promoted";
-  if (
-    isPlainObject(binding.merge_policy) &&
-    binding.merge_policy.C2 === "auto" &&
-    binding.executor_class !== "vendor-hosted" &&
-    !ratifiedPromoted("C2-auto-merge")
-  ) {
-    findings.push(
-      'merge_policy.C2: "auto" without a ratified promotion_state.C2-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline',
-    );
-  }
-  if (
-    isPlainObject(binding.merge_policy) &&
-    binding.merge_policy.C3 === "auto" &&
-    binding.executor_class !== "vendor-hosted" &&
-    !ratifiedPromoted("C3-auto-merge")
-  ) {
-    findings.push(
-      'merge_policy.C3: "auto" without a ratified promotion_state.C3-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline',
-    );
+  for (const workClass of AUTO_MERGE_ELIGIBLE) {
+    if (
+      isPlainObject(binding.merge_policy) &&
+      binding.merge_policy[workClass] === "auto" &&
+      binding.executor_class !== "vendor-hosted" &&
+      !ratifiedPromoted(`${workClass}-auto-merge`)
+    ) {
+      findings.push(
+        `merge_policy.${workClass}: "auto" without a ratified promotion_state.${workClass}-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline`,
+      );
+    }
   }
   // For the promotable ai-review C3 cell, blocking is the EARNED flip
   // (advisory -> blocking per the security-review leaf) — a deliberate

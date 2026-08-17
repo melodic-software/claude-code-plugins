@@ -35,9 +35,6 @@ for test_file in "${test_files[@]}"; do
     function is_annotated(l) { return l ~ /#[[:space:]]*discriminating-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_required(l) { return l ~ /#[[:space:]]*discriminating-skip-required:/ }
-    function is_fail_disc(l) {
-      return l ~ /fail_discriminating_skip/
-    }
     function is_bad_skip(l) {
       return l ~ /skip_case/ &&
         (l ~ /did not pair/ || l ~ /did not produce both/)

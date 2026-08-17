@@ -68,12 +68,11 @@ line_has_git() {
 # scan_skill <skill_md> — print violation message on stdout when found.
 scan_skill() {
   local skill_md="$1"
-  local block line_count git_count=0
+  local block line_count=0 git_count=0
   block="$(precompute_block "$skill_md")"
   if [[ -z "${block//[[:space:]]/}" ]]; then
     return 0
   fi
-  line_count=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     # shellcheck disable=SC2016  # ERE matches literal backticks around precompute injections
     if grep -qE '!`[^`]+`' <<<"$line"; then

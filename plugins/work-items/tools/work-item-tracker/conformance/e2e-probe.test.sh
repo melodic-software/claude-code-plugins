@@ -2,8 +2,9 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 
-S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/e2e-probe.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+S="$SCRIPT_DIR/e2e-probe.sh"
+source "$SCRIPT_DIR/../tests/lib.sh"
 
 out="$(bash "$S" --help 2>/dev/null)"
 assert_eq "--help exit 0" "0" "$?"

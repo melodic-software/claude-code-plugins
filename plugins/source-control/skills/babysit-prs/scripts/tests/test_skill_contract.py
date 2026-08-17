@@ -14,6 +14,11 @@ import unittest
 SKILL = pathlib.Path(__file__).resolve().parents[2] / "SKILL.md"
 
 
+def _reference(name: str) -> str:
+    """Text of a `reference/` spoke sitting beside SKILL.md."""
+    return (SKILL.parent / "reference" / name).read_text(encoding="utf-8")
+
+
 def _table_row(skill_text: str, label: str) -> str:
     return next(
         line for line in skill_text.splitlines() if line.startswith(f"| {label}")
@@ -113,9 +118,7 @@ class SkillContractTests(unittest.TestCase):
         # Worker tier has no merge tier, so its push paragraph still spells the
         # full pinned merge command inline. Step 6 lives in the runbook spoke
         # after the line-cap extraction (#2424).
-        runbook = (SKILL.parent / "reference" / "runbook-cycle.md").read_text(
-            encoding="utf-8"
-        )
+        runbook = _reference("runbook-cycle.md")
         paragraph = _paragraph_containing(
             runbook, "In worker mode, after a worker's fix"
         )
@@ -130,9 +133,7 @@ class SkillContractTests(unittest.TestCase):
         # gap #675 closed): it points at safety.md, which holds both the base and
         # enabled-tier merge paths as one home so an enabled config cannot merge
         # via the flagless base path. The push discipline stays in the paragraph.
-        autopilot = (SKILL.parent / "reference" / "autopilot.md").read_text(
-            encoding="utf-8"
-        )
+        autopilot = _reference("autopilot.md")
         paragraph = _paragraph_containing(autopilot, "After the worker's final push")
         self.assertIn("fresh post-push snapshot", paragraph)
         self.assertIn("exact pushed commit", paragraph)
@@ -176,7 +177,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("Two Gates, One Merge-Ready Authority", paragraph)
 
     def test_safety_md_separates_the_two_gates(self) -> None:
-        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+        safety = _reference("safety.md")
 
         self.assertIn("## Two Gates, One Merge-Ready Authority", safety)
         self.assertIn(
@@ -195,7 +196,7 @@ class SkillContractTests(unittest.TestCase):
     def test_loop_md_reports_the_two_gates_as_separate_fields(self) -> None:
         # The §5.5 template pairing a single "Readiness: ready for merge" field
         # with the classification gate is what produced the false report (#601).
-        loop = (SKILL.parent / "reference" / "loop.md").read_text(encoding="utf-8")
+        loop = _reference("loop.md")
 
         self.assertIn("- [ ] Finding-classification gate:", loop)
         # The field holds the captured line, not a menu of shapes to pick from.
@@ -245,11 +246,7 @@ class SkillContractTests(unittest.TestCase):
         # stays with it and the push belongs to the dispatching context. Asserted
         # per section, with the negative, so the boundary cannot drift back to a
         # conflict worker that pushes while the markers still all appear somewhere.
-        sections = _sections(
-            (SKILL.parent / "reference" / "orchestration.md").read_text(
-                encoding="utf-8"
-            )
-        )
+        sections = _sections(_reference("orchestration.md"))
 
         for header in (
             "Why The Push Stays With The Orchestrator",
@@ -295,9 +292,7 @@ class SkillContractTests(unittest.TestCase):
         # The two contracts are the only differences from an ordinary worker;
         # every other worker rule (leases, concurrency cap, check-in) must keep
         # binding, so the vocabulary cannot quietly create an unowned actor.
-        orchestration = (SKILL.parent / "reference" / "orchestration.md").read_text(
-            encoding="utf-8"
-        )
+        orchestration = _reference("orchestration.md")
 
         self.assertIn("**A conflict worker is a worker.**", orchestration)
         self.assertIn("and it does not push", orchestration)
@@ -351,7 +346,7 @@ class SkillContractTests(unittest.TestCase):
                 self.assertIn(marker, spoke)
 
     def test_safety_md_codifies_the_tier_criteria(self) -> None:
-        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+        safety = _reference("safety.md")
         self.assertIn("ships **DISABLED**", safety)
         self.assertIn("babysit_autopilot_merge_tier", safety)
         for criterion in (
@@ -371,7 +366,7 @@ class SkillContractTests(unittest.TestCase):
         # second-account approve mechanic, and the review-context enabling
         # precondition are pinned so they cannot silently drift. Fenced command
         # lines land in their own paragraphs, so assert against the whole file.
-        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+        safety = _reference("safety.md")
 
         for header in (
             "Enabled-path merge command",
@@ -410,9 +405,8 @@ class SkillContractTests(unittest.TestCase):
         # the report quotes the verdict verbatim, and neither an UNPROVEN verdict
         # nor a denied call may be backfilled from live gh state. Pinned here
         # because a silent deletion would restore the exact ambiguity #787 hit.
-        reference = SKILL.parent / "reference"
-        safety = (reference / "safety.md").read_text(encoding="utf-8")
-        loop = (reference / "loop.md").read_text(encoding="utf-8")
+        safety = _reference("safety.md")
+        loop = _reference("loop.md")
 
         self.assertIn(
             "READINESS_UNPROVEN reason=<bad-args|identity-unresolved"
@@ -440,7 +434,7 @@ class SkillContractTests(unittest.TestCase):
         # design, so it does not show the sanctioned bin/-path form being denied.
         # The section must keep saying so, and keep citing dotfiles#315 -- the
         # evidence that does hold -- or it reverts to overclaiming a repro.
-        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+        safety = _reference("safety.md")
 
         self.assertIn("does **not** demonstrate that the sanctioned", safety)
         self.assertIn("generalization from other evidence", safety)
@@ -454,9 +448,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("treat the retry semantics of a classifier denial", safety)
 
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
-        spoke = (SKILL.parent / "reference" / "autopilot.md").read_text(
-            encoding="utf-8"
-        )
+        spoke = _reference("autopilot.md")
         autopilot = _paragraph_containing(spoke, '"Every PR" means every PR')
         drafts = _paragraph_containing(spoke, "**Draft PRs** are in scope")
 

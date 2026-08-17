@@ -52,6 +52,15 @@ function truncate(s: string): string {
   return s.slice(0, TRUNCATE_LENGTH - ELLIPSIS.length) + ELLIPSIS;
 }
 
+function formatItem(item: OverlapItem) {
+  return {
+    id: item.id,
+    content: truncate(item.content),
+    x: item.x,
+    y: item.y,
+  };
+}
+
 export function registerOverlapTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_detect_overlaps",
@@ -91,12 +100,6 @@ export function registerOverlapTools(server: McpServer, api: MiroApi): void {
       }
 
       const overlaps = detectOverlaps(items, threshold);
-      const formatItem = (item: OverlapItem) => ({
-        id: item.id,
-        content: truncate(item.content),
-        x: item.x,
-        y: item.y,
-      });
 
       return jsonResponse({
         total_items: items.length,

@@ -1,6 +1,3 @@
-# Returns 1 when jq is absent or zero filters were requested. Returns 2 when jq
-# is present but cannot parse the payload or record count mismatches (#2157).
-# Advisory callers allow on both codes; blocking guards exit 2 on rc 2.
 # shellcheck shell=bash
 # Shared hook utility library for this marketplace's hook plugins. Sourced
 # (not executed): kill switch, file_path parsing + path normalization,
@@ -813,10 +810,12 @@ hook::jq_field() {
 # the whole contract) would DROP the field here and silently shift every later
 # index onto the wrong filter. Emptiness stays the caller's decision.
 #
-# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent, when jq cannot
-# parse the payload, or when the record count does not match what was asked for
-# in EITHER direction (an over-count rejects too: two concatenated well-formed
-# JSON documents parse fine and yield twice the records). Every guardrail caller
+# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent or zero filters were
+# requested. Returns 2 when jq is present but cannot parse the payload, or when
+# the record count does not match what was asked for in EITHER direction (an
+# over-count rejects too: two concatenated well-formed JSON documents parse fine
+# and yield twice the records). Advisory callers allow on both codes; a blocking
+# guard branches on the codes and exits 2 on rc 2 (#2157). An advisory caller
 # spells that `|| exit 0`, a PreToolUse ALLOW, so what can reach it matters. NUL
 # CONTENT no longer can (#2122). A payload jq itself rejects — malformed JSON, a
 # wrongly typed field, an empty buffer — still does, exactly as it did before

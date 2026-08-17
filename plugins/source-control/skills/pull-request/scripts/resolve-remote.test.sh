@@ -35,10 +35,12 @@ make_repo() {
   echo "$repo"
 }
 
+# run_test <desc> <repo> <branch> <expected_out> <expected_exit> [resolver flags...]
 run_test() {
   local desc="$1" repo="$2" branch="$3" expected_out="$4" expected_exit="$5"
+  shift 5
   local actual_out actual_exit
-  actual_out=$(cd "$repo" && bash "$RESOLVER" "$branch" 2>/dev/null)
+  actual_out=$(cd "$repo" && bash "$RESOLVER" "$@" "$branch" 2>/dev/null)
   actual_exit=$?
   if [[ "$actual_out" == "$expected_out" && "$actual_exit" -eq "$expected_exit" ]]; then
     echo "PASS: $desc"
@@ -53,19 +55,7 @@ run_test() {
 
 # Same as run_test, but exercises the --push path (Git's push precedence).
 run_push_test() {
-  local desc="$1" repo="$2" branch="$3" expected_out="$4" expected_exit="$5"
-  local actual_out actual_exit
-  actual_out=$(cd "$repo" && bash "$RESOLVER" --push "$branch" 2>/dev/null)
-  actual_exit=$?
-  if [[ "$actual_out" == "$expected_out" && "$actual_exit" -eq "$expected_exit" ]]; then
-    echo "PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $desc"
-    echo "       got     out='$actual_out' exit=$actual_exit"
-    echo "       wanted  out='$expected_out' exit=$expected_exit"
-    FAIL=$((FAIL + 1))
-  fi
+  run_test "$1" "$2" "$3" "$4" "$5" --push
 }
 
 # origin present, no branch.<name>.remote configured -> origin.

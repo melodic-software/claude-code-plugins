@@ -5,6 +5,74 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4]
+
+Supersedes an intra-development entry of this same branch that was never published: it described an
+intermediate state of this work that review then reversed, so the two would have contradicted each
+other inside one release. Folded into this entry, which describes what actually ships. The `0.6.3`
+number went to the repository-wide batch-simplify pass that landed on `main` while this branch was
+in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
+
+### Changed
+
+- **The `auditor` grounds harness claims on the raw-markdown `curl` route, not `WebFetch`
+  (issue 2854).** Step 3 of `agents/auditor.md` prescribed `WebFetch` as the default for every
+  load-bearing harness-behavior claim. That is rung 2 of the ladder in
+  `docs/conventions/upstream-drift/README.md`, which the convention labels *degraded* and which
+  truncates long pages silently — and "not in the response" is indistinguishable from "not on the
+  page". The step now names the convention's rung-1 route (`curl` the `.md` channel to a file,
+  search the file locally) as the default and cites that convention as the owning record. The
+  tool-honesty note was amended in step: the step-3 `curl` joins Bash's enumerated uses, and the
+  network clause now permits it alongside `WebFetch` instead of capping network reach at `WebFetch`.
+  Realized cost that motivated this: two fabricated load-bearing doc quotes reached filed-ready
+  drafts in one audit chain, both attributed verbatim to the hooks reference, neither present in it.
+- **A quotation must survive a literal substring search of the fetched bytes — the FULL span that
+  gets emitted, not a fragment of it.** A check on a *distinctive fragment* proves the fragment and
+  nothing around it, so a genuine fragment spliced into a recalled surrounding sentence would clear
+  it: the very fabrication this change exists to stop. Step 3 requires the complete quoted span
+  exactly as it will appear in the finding to match under `grep -c -F` against the saved file, and
+  says what to do when the wording crosses a newline (`grep -F` is line-oriented): quote the single
+  line carrying the load-bearing claim, or emit each line as its own separately-verified span —
+  never verify one line and emit more.
+- **`WebFetch` is a real rung-2 fallback, in two cases, and never a dead end.** It applies where the
+  `.md` channel does not resolve for the page **or** where `curl` is not installed on the host
+  (`command -v curl`) — the rung-1 command is mandatory but not universally present, and a Git Bash
+  or Linux host without it would otherwise lose doc grounding entirely, having previously worked
+  through the built-in fetch tool. Either case is **recorded as rung 2**, and a rung-2 read grounds
+  a claim on the same terms as rung 1: the full emitted span matches, and the read shows it arrived
+  whole. A claim is unverified when **no** channel produced the bytes, when the read arrived
+  truncated, or when the emitted span did not match — not when the preferred channel was merely
+  unavailable. Rung 2 still never grounds an **absence** claim, because its truncation is silent.
+  `README.md`'s Requirements section declares `curl` in the same optional-with-degradation shape it
+  already uses for `gh` and `jq`.
+- **The step stands alone from a plugin cache.** The auditor often runs from an installed plugin
+  cache, where this repo's convention file may not be on disk — so a step that only pointed at it
+  could be unexecutable. The rules the step needs are stated inline (the rung-1 route, the
+  canonical-slug and first-heading identity checks that make an absence assertable — including the
+  carve-out that a differently-worded title is still the right page — the substring check), with the
+  convention named as the owning record for the full text rather than as a required dereference. The
+  agent's closing contract and its network clause were widened to match: both previously forbade the
+  fetch and the scratch file the new step requires.
+- **Doc citations carry their retrieval channel AND a byte count or line number, enforced at both
+  ends.** The agent's output contract requires both alongside the URL and fetch date, and states
+  what a rung-2 read records in place of a `wc -c` byte count so the two rungs are held to a
+  contract each can actually satisfy. `skills/audit/SKILL.md` step 3 records a finding whose citation
+  omits **either** field as unverified — a channel with no count and no line is a half-citation — so
+  the requirement binds where the output is consumed, not only where it is produced. The rung-2
+  substitute obeys the same "either" rule: its retrieved size and its arrived-whole confirmation are
+  independently mandatory, so a rung-2 read carrying a size but no closing-section confirmation — a
+  silently truncated read, the one failure rung 2 cannot detect for itself — is unverified rather
+  than grounded.
+
+## [0.6.3]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
 ## [0.6.2]
 
 ### Changed

@@ -259,8 +259,9 @@ else
   supplied_by="$win_origin"
   # shellcheck disable=SC2310  # pure predicate; both branches are handled
   if is_include_file "$win_origin"; then
+    win_origin_canon="$(canon "$win_origin")"
     for idx in "${!inc_resolved[@]}"; do
-      if [[ "${inc_resolved[idx]}" == "$(canon "$win_origin")" ]]; then
+      if [[ "${inc_resolved[idx]}" == "$win_origin_canon" ]]; then
         supplied_by="includeIf \"${inc_conds[idx]}\" via $win_origin"
         break
       fi
@@ -299,10 +300,8 @@ else
 
   # The root must satisfy the invariant the key exists for.
   root_expanded="$(expand_tilde "$win_val")"
-  if [[ -e "$root_expanded" ]]; then
-    if git -C "$root_expanded" rev-parse --show-toplevel >/dev/null 2>&1; then
-      warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
-    fi
+  if [[ -e "$root_expanded" ]] && git -C "$root_expanded" rev-parse --show-toplevel >/dev/null 2>&1; then
+    warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
   fi
 fi
 
@@ -311,7 +310,6 @@ fi
 # global ones into that identity's commits — and a wrong SSH signing key still
 # verifies Good locally (git derives the principal from the signature), so the
 # leak surfaces only on the forge.
-signing_configured=""
 signing_configured="$(git -C "$repo_dir" config --get user.signingkey 2>/dev/null | tr -d '\r')"
 for idx in ${inc_resolved[@]+"${!inc_resolved[@]}"}; do
   f="${inc_resolved[idx]}"

@@ -11,12 +11,9 @@ BeforeAll {
     # script itself imports the file from its own scope, but that doesn't make
     # the function visible here; we need our own copy to mock against.
     . (Join-Path $script:LibRoot 'Test-IsElevated.ps1')
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
-    function Invoke-DefenderExclusionsAsObject {
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
-    }
+    function Invoke-DefenderExclusionsAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 }
 
 Describe 'Test-DefenderExclusions -- elevation gate' -Tag 'check' {

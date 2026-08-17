@@ -176,7 +176,7 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
                 emit("V", path, line, command_node.value)
             else:
                 emit("X", path, line, "an exec-form hook whose `command` is not a scalar")
-        for _, value_node, _ in mapping_entries(node, set()):
+        for value_node, _ in entries.values():
             scan_node(value_node, path, offset, seen)
     seen.discard(id(node))
 

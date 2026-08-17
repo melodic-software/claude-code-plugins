@@ -16,6 +16,17 @@ import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-ses
 import { watchStatePath } from "./watch-state.js";
 
 /**
+ * Drop the absolute `path` field from a frame/sheet record.
+ *
+ * @param {Record<string, unknown>} record
+ * @returns {Record<string, unknown>}
+ */
+function withoutPath(record) {
+  const { path: _omit, ...rest } = record;
+  return rest;
+}
+
+/**
  * @param {string} sliceDir
  */
 export function sanitizeSliceTempPaths(sliceDir) {
@@ -39,23 +50,15 @@ export function sanitizeSliceTempPaths(sliceDir) {
       selection.tempSession = serializeTempSession(selection.tempSession);
     }
     if (Array.isArray(selection.selectedFrames)) {
-      selection.selectedFrames = selection.selectedFrames.map((frame) => {
-        const { path: _omit, ...rest } = frame;
-        return rest;
-      });
+      selection.selectedFrames = selection.selectedFrames.map(withoutPath);
     }
     if (Array.isArray(selection.contactSheets)) {
-      selection.contactSheets = selection.contactSheets.map((sheet) => {
-        const { path: _omit, ...rest } = sheet;
-        return rest;
-      });
+      selection.contactSheets = selection.contactSheets.map(withoutPath);
     }
     if (Array.isArray(selection.interleavedTimeline)) {
-      selection.interleavedTimeline = selection.interleavedTimeline.map((entry) => {
-        if (!entry?.frame) return entry;
-        const { path: _omit, ...frame } = entry.frame;
-        return { ...entry, frame };
-      });
+      selection.interleavedTimeline = selection.interleavedTimeline.map((entry) =>
+        entry?.frame ? { ...entry, frame: withoutPath(entry.frame) } : entry,
+      );
     }
     fs.writeFileSync(selectionPath, `${JSON.stringify(selection, null, 2)}\n`, "utf8");
     touched.push("key-frames/selection.json");

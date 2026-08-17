@@ -33,12 +33,9 @@ BeforeAll {
     . (Join-Path $script:LibRoot 'Get-WingetPackageUpdate.ps1')
     . (Join-Path $script:LibRoot 'Get-CisaKevCache.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
-    function Invoke-WingetUpgradesAsObject {
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
-    }
+    function Invoke-WingetUpgradesAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 
     function New-UpgradeRecord {
         param(

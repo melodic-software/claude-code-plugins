@@ -33,6 +33,7 @@ import { join } from "node:path";
 import { createLogger } from "@melodic/video-digestion/shared/logger";
 
 import {
+  formatLessonLabel,
   lessonDirName,
   loadCourseDir,
   parseCliArgs,
@@ -134,7 +135,7 @@ function classifyLesson(dedupEntry, durationSec) {
     classified.push({
       file: frame.file,
       timestamp: estimatedTimestamp,
-      timestampEstimated: !frame.isInterval,
+      timestampEstimated: isScene,
       type,
       description: null,
       keep,
@@ -164,7 +165,7 @@ for (const module of course.modules) {
   for (const lesson of module.lessons) {
     if (!lesson.hasScreenshots) continue;
 
-    const key = `M${module.position}L${lesson.position}`;
+    const key = formatLessonLabel(module, lesson);
     const dedupEntry = dedup[key];
     if (!dedupEntry) continue;
 

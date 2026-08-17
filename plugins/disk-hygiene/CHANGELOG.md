@@ -3,6 +3,102 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.14]
+
+### Added
+
+- **A per-immediate-child roll-up in every scan payload (#2851).** The skill tells operators to open
+  a large target with `--max-depth 1` and reason over its immediate children, but the engine emitted
+  only a flat per-entry list plus target-level totals — so the view the workflow prescribes existed
+  in no engine output, and the triage that surfaced this was run off a hand-built PowerShell table.
+  `children_rollup` now carries one row per immediate child with `name`, `kind`, `walked`,
+  `logical_bytes`, `reclaimable_local_bytes`, `size_qualifiers`, `entry_count`, `newest_mtime_ns`,
+  and `unwalked_reasons`; the row is present for every child the run covered, whatever that child's
+  coverage, so a gap is visible per child rather than only in `truncated_paths`. `scan-complete`
+  echoes the block alongside the snapshot.
+- **The roll-up's bytes carry the same qualifier channel every other byte surface here has (#2851).**
+  `logical_bytes` is a LOGICAL total, so a cloud placeholder's remote size, a hard link's shared
+  object, and a sparse file's unallocated extent all inflate it above what deleting the child would
+  return — and this is the block `SKILL.md` tells the operator to lead the report with. Each row
+  therefore also carries `size_qualifiers` (the union observed in the subtree) and
+  `reclaimable_local_bytes` (unqualified files only), mirroring `target_reclaimable_local_bytes`.
+  Both follow the same walked/null discipline as the other aggregates. Found by an adversarial
+  fresh-context verifier, which measured a walked row reporting `logical_bytes: 10000000` for a
+  sparse child in a payload whose `target_reclaimable_local_bytes` was 0.
+- **`unhinted_entries`, the third coverage term (#2851).** `scan-complete` already reported `entries`
+  and `hinted_entries`; it now also reports `entries` minus `hinted_entries` — every inventoried
+  entry no hint judged — so a run with 7 hinted entries out of 40,247 reads as 0.017 % hint coverage
+  rather than as seven findings. It counts every INVENTORIED entry, not only fully walked ones, which
+  is a deliberate narrowing of the request's "walked entries carrying no hint": counted that way the
+  three terms partition the inventory exactly, so `entries` is always `hinted_entries` plus
+  `unhinted_entries` and neither number needs a caveat to add up. `SKILL.md` §3 documents both the
+  roll-up block and the rate.
+
+### Disclosed deviation from the requested behavior
+
+- **Under `--max-depth 1` a non-empty child's totals are `null`, not numbers, and this is deliberate
+  (#2851).** The request asked for a recursive byte total, entry count, and newest mtime per
+  immediate child, populated under `--max-depth 1`. Those two constraints cannot both hold: a
+  recursive total for a non-empty child is only knowable by walking that child, and walking it is
+  precisely what the depth bound exists to prevent. Measured on a 740-path fixture, the bounded pass
+  opens 8 directories, stats 41 paths, and inventories 8 entries with the roll-up — byte-identical
+  to the same pass without it — while the unbounded walk costs 20 opens, 4,427 stats, and 740
+  entries. The roll-up therefore reads only what the walk already recorded and reports the honest
+  subset: exact numbers for loose files, empty children, and anything genuinely walked; `walked:
+  false` with all three aggregates `null` and a named cause (`depth-cut`) for everything else. A
+  partial subtree sum is never presented as a total and `null` never degrades to `0`, because `0`
+  remains the genuine "this child is empty" answer that the zero-byte-residue work depends on.
+
+## [0.20.13]
+
+### Changed
+
+- **Single, early-terminating read of the engine per hook launch (issue 2853).** The always-on
+  `Bash|PowerShell` launcher used to run two separate full-file `sed` passes over the ~3,500-line
+  engine — neither stopping at the match — to recover `MIN_PYTHON` from near the top of the file. It
+  now runs one `sed` whose address-block `q` terminates the read at the `MIN_PYTHON` line.
+  `hygiene.MIN_PYTHON` remains the floor's single origin (PR 1028), and `test_hygiene.py`'s
+  `VersionFloorTests` shape/count lock still passes; `hooks/run-python-hook.test.sh` now asserts
+  behaviorally (via a recording `sed` shim plus an argv replay against a two-floor fixture) that a
+  launch reads the engine exactly once and that the read stops at the first match instead of
+  scanning to EOF.
+- **README states the hook's measured always-on share (issue 2853).** The trust-surface record's
+  launch-count sentence is replaced with a measured figure per the hook-budget convention's method
+  (2026-08-16, Windows 11 + Git Bash): ≈ 190–300 ms per shell tool call for the engine-gate hook
+  across batches (92 single runs), ≈ 320–410 ms parallel wall for the two-registration set measured
+  concurrently (`&` + `wait`, 60 pairs), of which the engine read accounts for ≈ 24 ms (≈ 13%) in
+  the single-read form, down from ≈ 38 ms (≈ 19%) in the two-pass form. `hooks.json`'s
+  `"timeout": 60` is unchanged.
+
+## [0.20.12]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
+## [0.20.11]
+
+### Fixed
+
+- **Flag the ordinary send-an-item-to-the-Recycle-Bin spelling (#2850).** The `Shell.Application`
+  rule shipped for #2595 required the literal bin folder id — `NameSpace(10)` / `NameSpace(0xa)` —
+  so `$sh.NameSpace('<parent folder>').ParseName('victim').InvokeVerb('delete')`, which addresses
+  the item through its parent folder and never names the bin, returned no verdict and raised no
+  prompt. That shape is now keyed on the delete VERB rather than on the folder id, and returns
+  `ask` (or `deny` in audit-only mode) like every other recognized deletion spelling. The suffixed
+  `InvokeVerbEx` spelling is covered by the same token, which a word boundary closed after
+  `InvokeVerb` had excluded.
+- **What the rule deliberately still does not catch (#2850).** `MoveHere` into an ordinary
+  (non-bin) folder is a MOVE, not a deletion, and keeps deferring; so do `CopyHere` into an
+  ordinary folder, non-delete verbs such as `InvokeVerb('open')`, the omitted default verb, and an
+  opaque verb argument (`InvokeVerb($verb)`). The delete-verb set is enumerated, not identity-checked — a COM shell verb
+  is named by the item's own verb collection, so completeness is not implied — and the pattern set
+  now says so. The test note claiming `Move-Item` is the catch-all for these COM spellings is
+  corrected: `_POWERSHELL_MUTATION_WORDS` matches neither `MoveHere` nor `InvokeVerb`.
+
 ## [0.20.10]
 
 ### Fixed

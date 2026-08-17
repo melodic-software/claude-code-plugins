@@ -79,9 +79,9 @@ matched_baseline() {
 
 # plugin root that owns a path under plugins/<name>/… -> plugins/<name>
 plugin_root_of() {
-  local path="$1"
   # plugins / <name> / rest…  -> keep the first two segments
-  printf 'plugins/%s' "${path#plugins/}" | cut -d/ -f1-2
+  local rest="${1#plugins/}"
+  printf 'plugins/%s' "${rest%%/*}"
 }
 
 # consumed <fixture-path> -> 0 if some grader consumes it

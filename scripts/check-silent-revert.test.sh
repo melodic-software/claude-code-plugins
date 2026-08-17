@@ -1100,6 +1100,571 @@ t_replay_asserts_the_recorded_attribution() {
   fi
 }
 
+# --------------------------------------------------------------------------
+# 7. The restoration assertion (#2855). A `fires` row proves the removal is
+#    still DETECTED; these cases pin the other half -- that the content came
+#    back -- and every way that assertion could go quietly green.
+# --------------------------------------------------------------------------
+
+# mk_restoration_repo <repo>
+#
+# Lays out the three shapes the assertion has to tell apart:
+#   guarded.txt   holds the marker that IS restored
+#   elsewhere.txt holds a string that exists ONLY outside its bound path
+# and nothing anywhere holds the absent marker. Echoes the head sha.
+mk_restoration_repo() {
+  local repo="$1"
+  printf 'the restored guard rejects a relocation\nRESTORED_MARKER_SENTINEL\n' \
+    >"$repo/guarded.txt"
+  printf 'SCOPED_ONLY_ELSEWHERE lives here and nowhere else\n' >"$repo/elsewhere.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: the content an incident removed"
+  git -C "$repo" rev-parse HEAD
+}
+
+t_restoration_reports_present_and_absent_markers() {
+  local repo out sha
+  repo="$(mk_repo)"
+  sha="$(mk_restoration_repo "$repo")"
+
+  # A restored marker passes.
+  #
+  # This case is also the regression pin for a defect that made the whole mode
+  # inert in the other direction: the parsed marker view is delimited with an
+  # ASCII Unit Separator, and reading its first field back with a bare `cut -f1`
+  # (whose default delimiter is TAB) returned the WHOLE line, so the
+  # "does this fires row have a marker" lookup could never match and every
+  # corpus died with `carries no marker`. A green here proves the two views
+  # still agree on their separator.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL'; then
+    ok "a restored marker resolves and the assertion exits 0"
+  else
+    fail "a restored marker should have passed, rc=$RC: $out"
+  fi
+
+  # An absent marker is the finding this mode exists for.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt NEVER_PRESENT_ANYWHERE\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE'; then
+    ok "an absent marker fails the restoration assertion and names the content"
+  else
+    fail "an absent marker must fail the assertion, rc=$RC: $out"
+  fi
+
+  # A PARTIAL re-land -- the literal #2855 completion criterion. One fires row,
+  # two markers, one of them restored: the incident looks half-healthy, and an
+  # implementation that treats any matched marker as satisfying its row would
+  # report the row green. That shape passed every earlier case in this function
+  # (each row carried exactly one marker), so it gets its own pin: the mix must
+  # still exit 1 and name exactly the marker that is missing.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    printf 'marker %s guarded.txt NEVER_PRESENT_ANYWHERE\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] &&
+    printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL' &&
+    printf '%s' "$out" | grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE'; then
+    ok "a partial re-land (one marker back, one still absent) fails the assertion"
+  else
+    fail "a partially re-landed incident must still fail, rc=$RC: $out"
+  fi
+
+  # A dispositioned absent marker is a recorded decision, not a failure -- and
+  # the reason has to be printed, or the disposition is a mute button.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt [not-restored: superseded by the shared guard] NEVER_PRESENT_ANYWHERE\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] &&
+    printf '%s' "$out" | grep -q 'deliberately not restored: superseded by the shared guard'; then
+    ok "a dispositioned absent marker passes and prints its recorded reason"
+  else
+    fail "a dispositioned absent marker should have passed, rc=$RC: $out"
+  fi
+
+  # THE path-scoping case. The string exists in the repo, just not in the file
+  # it is bound to. A repo-wide grep reports this restored; that false green is
+  # exactly what happened on the real corpus, where both #2828 markers also
+  # occur in the engine script, its tests and CHANGELOG.md.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt SCOPED_ONLY_ELSEWHERE\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'NOT RESTORED: SCOPED_ONLY_ELSEWHERE'; then
+    ok "a marker present only OUTSIDE its bound path still fails (path-scoped)"
+  else
+    fail "a marker matched outside its bound path is a false green, rc=$RC: $out"
+  fi
+
+  # Same corpus, resolved at an explicit rev rather than the working tree --
+  # the form a reviewer replays an incident with.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration "$sha"
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -qF "resolved at $sha"; then
+    ok "the assertion resolves markers at an explicitly supplied rev"
+  else
+    fail "an explicit rev should have resolved, rc=$RC: $out"
+  fi
+
+  # A rev that does not exist is a shallow clone, not a pass.
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-restoration 0123456789abcdef0123456789abcdef01234567
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]]; then
+    ok "an unresolvable rev exits 2 rather than reporting content it never read"
+  else
+    fail "expected rc=2 on an unresolvable rev, got rc=$RC: $out"
+  fi
+}
+
+# Every way the corpus itself can be wrong must be exit 2 (cannot run), never a
+# pass. A marker list that quietly covers nothing is the same false green as a
+# detector that has stopped detecting.
+t_restoration_refuses_a_malformed_corpus() {
+  local repo out sha
+  repo="$(mk_repo)"
+  sha="$(mk_restoration_repo "$repo")"
+
+  # THE central refusal: a `fires` row with no marker. Skipping it would let
+  # this whole assertion be satisfied by pinning one historical incident while
+  # covering no future one.
+  printf 'fires %s a real drop with nothing recorded\n' "$sha" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'carries no marker'; then
+    ok "a fires row carrying no marker exits 2 rather than passing vacuously"
+  else
+    fail "a marker-less fires row must exit 2, rc=$RC: $out"
+  fi
+
+  # A marker naming no `fires` row covers nothing; it is a typo, not coverage.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    printf 'marker 0123456789abcdef0123456789abcdef01234567 guarded.txt RESTORED_MARKER_SENTINEL\n'
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "names no recorded 'fires' incident"; then
+    ok "a marker naming no fires row exits 2"
+  else
+    fail "an orphan marker row must exit 2, rc=$RC: $out"
+  fi
+
+  # Malformed marker rows. The last two are the ones that matter most: an
+  # EMPTY disposition reason must be rejected rather than read as a mute, and
+  # an unterminated `[` must not degrade back into ordinary marker text -- the
+  # false green reached by the one route nobody would look at.
+  local bad desc
+  while read -r desc bad; do
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s %s\n' "$sha" "$bad"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    if [[ "$RC" -eq 2 ]]; then
+      ok "a marker row with $desc exits 2"
+    else
+      fail "expected rc=2 for a marker row with $desc, got rc=$RC: $out"
+    fi
+  done <<'BAD_ROWS'
+no-marker-text guarded.txt
+a-disposition-where-the-path-should-be [not-restored: why] RESTORED_MARKER_SENTINEL
+an-empty-disposition-reason guarded.txt [not-restored:] RESTORED_MARKER_SENTINEL
+a-whitespace-only-disposition-reason guarded.txt [not-restored:   ] RESTORED_MARKER_SENTINEL
+an-unknown-disposition-keyword guarded.txt [ignored: why] RESTORED_MARKER_SENTINEL
+an-unterminated-disposition guarded.txt [not-restored: why RESTORED_MARKER_SENTINEL
+BAD_ROWS
+
+  # A corpus with no `fires` row at all must not report a serene pass. The
+  # marker-per-fires-row rule only bites while a `fires` row exists, so removing
+  # a row together with its markers is a mute button reached by deletion rather
+  # than by editing.
+  printf '# only comments here\n' >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "no 'fires' row"; then
+    ok "a corpus with no fires row exits 2 rather than passing while covering nothing"
+  else
+    fail "an empty corpus must exit 2, rc=$RC: $out"
+  fi
+  printf 'clean %s only a clean row\n' "$sha" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]]; then
+    ok "a corpus of only 'clean' rows exits 2"
+  else
+    fail "a clean-only corpus must exit 2, rc=$RC: $out"
+  fi
+
+  # A well-formed sha nobody can resolve is a shallow clone or a typo. A matched
+  # typo on a row AND its marker would otherwise assert content for an incident
+  # that never happened.
+  {
+    printf 'fires 0123456789abcdef0123456789abcdef01234567 not a real commit\n'
+    printf 'marker 0123456789abcdef0123456789abcdef01234567 guarded.txt RESTORED_MARKER_SENTINEL\n'
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'unreachable'; then
+    ok "a fires row naming an unreachable commit exits 2 even with a resolving marker"
+  else
+    fail "an unreachable incident commit must exit 2, rc=$RC: $out"
+  fi
+
+  # The disposition ends at the FIRST `]`, and a marker's text is unrestricted
+  # on BOTH sides of that rule. A dispositioned row whose marker text contains
+  # `]` is well-formed -- the split is unambiguous, the reason has no bracket,
+  # and only the marker does.
+  #
+  # This is the case a content-shaped ambiguity check gets wrong. A truncated
+  # reason and this legitimate row are byte-indistinguishable in shape, so a
+  # rule that rejects one rejects the other; the grammar is documented instead,
+  # and the recorded reason is printed verbatim so a truncation is visible to
+  # the human reading the trail.
+  printf 'expectations: ["x"] and ] alone\n' >>"$repo/guarded.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: bracketed content"
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt [not-restored: reason with no bracket] expectations: ["x"] and ] alone\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] &&
+    printf '%s' "$out" | grep -q 'present: expectations: \["x"\] and \] alone'; then
+    ok "a dispositioned row whose MARKER text contains ']' is well-formed"
+  else
+    fail "a bracketed marker on a dispositioned row must resolve, rc=$RC: $out"
+  fi
+
+  # And an ORDINARY marker's text may contain `]` freely too.
+  printf 'expectations: ["a", "b"]\n' >>"$repo/guarded.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: content with a bracket"
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt expectations: ["a", "b"]\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]]; then
+    ok "an undispositioned marker's text may contain ']'"
+  else
+    fail "a bracket in ordinary marker text must be fine, rc=$RC: $out"
+  fi
+
+  # Three readers parse this one file -- the replay, the restoration assertion,
+  # and the shipped-data grammar check -- and they must agree about what a
+  # comment is. An indented comment or a whitespace-only line is a
+  # formatting-only edit and must not turn the canary red.
+  {
+    printf '# leading comment\n'
+    printf '   # an INDENTED comment\n'
+    printf '   \n'
+    printf '\n'
+    printf 'fires %s a real drop\n' "$sha"
+    printf '  # indented comment between rows\n'
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]]; then
+    ok "indented comments and whitespace-only lines are skipped, not called unknown rows"
+  else
+    fail "a formatting-only corpus edit must not fail the assertion, rc=$RC: $out"
+  fi
+  # The replay reads the same corpus. It may legitimately report FAIL here (the
+  # fixture's `fires` row names a commit that adds rather than removes), but it
+  # must never exit 2 -- that is the "cannot parse" status, and reaching it
+  # would mean the two readers disagree about what a comment is.
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -ne 2 ]]; then
+    ok "the replay parses the same indented comments the restoration assertion does"
+  else
+    fail "the two readers disagree about comments, rc=$RC: $out"
+  fi
+
+  # An abbreviated sha would let a marker widen to a commit nobody recorded --
+  # the same discipline the acknowledgment file holds.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "${sha:0:9}"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]]; then
+    ok "an abbreviated sha on a marker row exits 2"
+  else
+    fail "expected rc=2 on an abbreviated marker sha, got rc=$RC: $out"
+  fi
+
+  # An unknown row kind is a corpus nobody can read, not a row to skip.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    printf 'markers %s guarded.txt typo in the row kind\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'unknown row kind'; then
+    ok "an unknown row kind exits 2"
+  else
+    fail "expected rc=2 on an unknown row kind, got rc=$RC: $out"
+  fi
+}
+
+# A marker's path must resolve to exactly ONE FILE. Handing it to a pathspec
+# instead lets a directory, a glob, a bare `.` or pathspec magic widen the
+# search to a SUPERSET of the bound file -- and because every marker string is
+# by construction also written in the corpus file itself, a widened path makes
+# this whole assertion tautologically satisfiable by its own corpus. That is a
+# false green reachable by a row that looks entirely reasonable, so each shape
+# is pinned here rather than left to reviewer vigilance.
+t_restoration_binds_a_marker_to_exactly_one_file() {
+  local repo out sha widened
+  repo="$(mk_repo)"
+  sha="$(mk_restoration_repo "$repo")"
+
+  # THE amplifier case, in its strongest form: the target content is nowhere in
+  # the repo, but the marker text is sitting in the corpus file itself. A
+  # pathspec of `.` used to report it restored.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s . NEVER_PRESENT_ANYWHERE\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -ne 0 ]]; then
+    ok "a marker bound to '.' cannot be satisfied by the corpus file itself"
+  else
+    fail "a '.' path let the corpus satisfy its own marker, rc=$RC: $out"
+  fi
+
+  # Every widening shape, at the working tree and at a rev. None may report the
+  # marker present, because the content lives only in guarded.txt while the
+  # marker is bound to something broader.
+  for widened in "." ".." "*" "plugins" "" "scripts" ":/" ":(glob)**/*"; do
+    [[ -n "$widened" ]] || continue
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s %s RESTORED_MARKER_SENTINEL\n' "$sha" "$widened"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    local wt_rc="$RC"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration "$sha"
+    if [[ "$wt_rc" -ne 0 ]] && [[ "$RC" -ne 0 ]]; then
+      ok "a widened marker path '$widened' never reports the marker present"
+    else
+      fail "widened path '$widened' gave a false green (worktree rc=$wt_rc, rev rc=$RC): $out"
+    fi
+  done
+
+  # A directory is a corpus error rather than a finding, and says so.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s scripts RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'bind a marker to exactly one file'; then
+    ok "a marker path naming a directory exits 2 and names the fix"
+  else
+    fail "a directory marker path must exit 2, rc=$RC: $out"
+  fi
+
+  # Working-tree mode must stay REPO-SCOPED. Reading the filesystem directly
+  # would let an untracked file -- content that is not on main and never was --
+  # satisfy a marker in exactly the mode the canary job runs, while the same row
+  # reports NOT RESTORED at an explicit rev. The two modes must agree.
+  printf 'RESTORED_MARKER_SENTINEL\n' >"$repo/untracked.txt"
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s untracked.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]]; then
+    ok "an untracked file cannot satisfy a marker in working-tree mode"
+  else
+    fail "an untracked path must not satisfy a marker, rc=$RC: $out"
+  fi
+  rm -f "$repo/untracked.txt"
+
+  # A TRACKED symlink is tracked as the link, but a filesystem read follows it,
+  # so a link committed into the repo could be answered with content from
+  # outside it -- while at a rev the same row reads the link's blob (its target
+  # string). Refused, so the two modes cannot answer different questions.
+  # Symlink creation needs privileges on Windows, so this case skips rather than
+  # fails when the fixture cannot be built.
+  if ln -s "$PWD/../outside-target.txt" "$repo/linked.txt" 2>/dev/null &&
+    [[ -L "$repo/linked.txt" ]]; then
+    git_test_config "$repo" add -A >/dev/null 2>&1
+    git_test_config "$repo" commit -qm "chore: a symlink" >/dev/null 2>&1
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s linked.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    # Assert the MESSAGE, not just a non-zero exit. The link's target does not
+    # exist, so with the `-L` guard deleted this row would still fail the `-f`
+    # test and die with rc=2 -- a bare `RC -ne 0` passes either way and pins
+    # nothing. Requiring the symlink wording is what makes this a regression
+    # test for the symlink guard rather than for dangling paths in general.
+    if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'is a symlink'; then
+      ok "a tracked symlink cannot satisfy a marker in working-tree mode"
+    else
+      fail "a symlinked marker path must be refused as a symlink, rc=$RC: $out"
+    fi
+    rm -f "$repo/linked.txt"
+    git_test_config "$repo" add -A >/dev/null 2>&1
+    git_test_config "$repo" commit -qm "chore: drop the symlink" >/dev/null 2>&1
+  fi
+
+  # The same refusal in EXPLICIT-REV mode, which resolves a marker a different
+  # way and so needs its own proof. `git cat-file -t` answers `blob` for a
+  # symlink, so the kind check lets it through, and `git cat-file blob` then
+  # hands back the link's TARGET PATH as though it were file content.
+  #
+  # Two things about this fixture are deliberate. It is built straight into the
+  # index with `update-index --cacheinfo` rather than with `ln -s`, so it runs
+  # on every platform -- the working-tree case above silently SKIPS wherever
+  # creating a symlink needs privileges, and a guard proven on no platform is
+  # not proven. And the path is NESTED, because a top-level fixture would still
+  # pass if the mode lookup could not descend into a subdirectory, while every
+  # marker path in the shipped corpus is nested.
+  local link_blob link_rev
+  link_blob="$(printf '../../guarded.txt' | git_test_config "$repo" hash-object -w --stdin)"
+  git_test_config "$repo" update-index --add \
+    --cacheinfo "120000,$link_blob,nested/dir/linked.txt"
+  git_test_config "$repo" commit -qm "chore: a nested symlink" >/dev/null
+  link_rev="$(git_test_config "$repo" rev-parse HEAD)"
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s nested/dir/linked.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-restoration "$link_rev"
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'is a symlink at'; then
+    ok "a tracked symlink cannot satisfy a marker in explicit-rev mode"
+  else
+    fail "a symlinked marker path at a rev must exit 2, rc=$RC: $out"
+  fi
+  git_test_config "$repo" rm -q --cached nested/dir/linked.txt >/dev/null
+  git_test_config "$repo" commit -qm "chore: drop the nested symlink" >/dev/null
+
+  # A path that leaves the repository is refused outright, in both modes,
+  # because a marker resolved outside the tree asserts nothing about main.
+  local escaping
+  for escaping in "/etc/hostname" "../guarded.txt" "a/../../guarded.txt" ".."; do
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s %s RESTORED_MARKER_SENTINEL\n' "$sha" "$escaping"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    if [[ "$RC" -eq 2 ]]; then
+      ok "a marker path escaping the repository ('$escaping') exits 2"
+    else
+      fail "escaping path '$escaping' must exit 2, rc=$RC: $out"
+    fi
+  done
+
+  # A glob that WOULD match the bound file under a pathspec is a corpus error,
+  # refused at parse time so both modes answer identically. Left to resolution,
+  # `git cat-file` would report absent (exit 1) while `git ls-files` would
+  # expand the glob and report present (exit 0) -- the two modes disagreeing on
+  # the same row is how a false green gets in.
+  local globbed
+  for globbed in "guarded*.txt" "guarded?.txt" "guarded[0-9].txt" ":(glob)guarded.txt"; do
+    {
+      printf 'fires %s a real drop\n' "$sha"
+      printf 'marker %s %s RESTORED_MARKER_SENTINEL\n' "$sha" "$globbed"
+    } >"$repo/scripts/inc.txt"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+    out="$OUT"
+    local wt_rc="$RC"
+    SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration "$sha"
+    if [[ "$wt_rc" -eq 2 ]] && [[ "$RC" -eq 2 ]]; then
+      ok "a glob marker path '$globbed' is refused identically in both modes"
+    else
+      fail "glob path '$globbed' must exit 2 in both modes (worktree=$wt_rc, rev=$RC): $out"
+    fi
+  done
+}
+
+# The two modes read the SAME file and must not disturb each other. The replay
+# has to step over marker rows (their second field is a path, not a sha), and
+# the restoration assertion has to step over the bracketed attribution field
+# #2833 puts after a fires row's sha.
+t_restoration_and_replay_share_the_corpus() {
+  local repo out sha culprit
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+  printf 'RESTORED_MARKER_SENTINEL\n' >"$repo/guarded.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "fix: re-land the content"
+
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'fires as recorded'; then
+    ok "the replay steps over marker rows instead of reading a path as a sha"
+  else
+    fail "marker rows must not disturb --verify-known-incidents, rc=$RC: $out"
+  fi
+
+  # Forward-compatibility with #2833/#2843: a bracketed attribution field after
+  # the sha is free text to the restoration parser, which validates the sha and
+  # nothing else on a fires row. This case is what keeps the two row-format
+  # extensions composable rather than colliding.
+  {
+    printf 'fires %s [%s=40] a real drop\n' "$sha" "$culprit"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL'; then
+    ok "a fires row carrying a bracketed attribution field still resolves its markers"
+  else
+    fail "the restoration parser must ignore a fires row's extra fields, rc=$RC: $out"
+  fi
+}
+
 # The shipped data files must parse and be non-empty, so a truncated or
 # malformed file cannot quietly turn the replay into a no-op.
 t_shipped_data_files_are_wellformed() {
@@ -1113,9 +1678,11 @@ t_shipped_data_files_are_wellformed() {
   fi
   n="$(grep -cE '^(fires|clean)[[:space:]]+[0-9a-f]{40}[[:space:]]' "$inc")"
   [[ "$n" -ge 2 ]] || bad=1
-  # Anything non-blank, non-comment must match the row grammar.
+  # Anything non-blank, non-comment must match the row grammar. `marker` rows
+  # (#2855) are part of that grammar: they carry the incident sha in the same
+  # second field, then a path, then free-text marker content.
   grep -vE '^[[:space:]]*(#|$)' "$inc" |
-    grep -qvE '^(fires|clean)[[:space:]]+[0-9a-f]{40}[[:space:]]' && bad=1
+    grep -qvE '^(fires|clean|marker)[[:space:]]+[0-9a-f]{40}[[:space:]]' && bad=1
   if [[ "$bad" -eq 0 ]]; then
     ok "silent-revert-incidents.txt is well-formed with $n pinned rows"
   else
@@ -1137,6 +1704,39 @@ t_shipped_data_files_are_wellformed() {
     ok "every shipped fires row carries a well-formed attribution field ($fires_rows rows)"
   else
     fail "a shipped fires row is missing or has a malformed [<sha>=<lines>] attribution field"
+  fi
+
+  # Every shipped `fires` row must carry at least one marker (#2855).
+  #
+  # --verify-restoration enforces this at run time too, but only in the canary
+  # job with full history. Pinning it HERE means a `fires` row landing without
+  # a marker is a red unit test on the PR that adds it, rather than a red
+  # canary after the merge -- and the whole point of this issue is that the
+  # restoration half must not depend on someone reading a post-merge log.
+  bad=0
+  local row_sha marker_shas
+  marker_shas="$(awk '$1 == "marker" { print $2 }' "$inc" | sort -u)"
+  while read -r row_sha; do
+    [[ -n "$row_sha" ]] || continue
+    printf '%s\n' "$marker_shas" | grep -qxF "$row_sha" || bad=1
+  done < <(awk '$1 == "fires" { print $2 }' "$inc")
+  if [[ "$bad" -eq 0 ]]; then
+    ok "every shipped fires row carries at least one restoration marker"
+  else
+    fail "a shipped fires row in silent-revert-incidents.txt carries no marker row"
+  fi
+
+  # And the reverse: a marker whose sha names no `fires` row is a typo that
+  # would silently cover nothing.
+  bad=0
+  while read -r row_sha; do
+    [[ -n "$row_sha" ]] || continue
+    awk '$1 == "fires" { print $2 }' "$inc" | grep -qxF "$row_sha" || bad=1
+  done < <(printf '%s\n' "$marker_shas")
+  if [[ "$bad" -eq 0 ]]; then
+    ok "every shipped marker row names a recorded fires incident"
+  else
+    fail "a marker row in silent-revert-incidents.txt names no fires row"
   fi
 
   bad=0
@@ -1177,6 +1777,10 @@ t_root_commit_is_handled
 t_empty_range_is_clean
 t_replay_fails_on_broken_expectation
 t_replay_asserts_the_recorded_attribution
+t_restoration_reports_present_and_absent_markers
+t_restoration_refuses_a_malformed_corpus
+t_restoration_binds_a_marker_to_exactly_one_file
+t_restoration_and_replay_share_the_corpus
 t_shipped_data_files_are_wellformed
 
 echo

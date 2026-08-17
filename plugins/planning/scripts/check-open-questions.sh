@@ -49,6 +49,21 @@ usage() {
   sed -n '/^# Mechanical/,/^#   `registered=/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
+# Print a markdown section's body: everything after the first heading whose text
+# matches `pattern` (matched case-insensitively, so a ledger that title-cases the
+# section still grades), up to the next heading of any level or end of file.
+# Exits 3 when no such heading exists — distinguishable from an empty section.
+extract_section() {
+  awk -v pattern="$1" '
+    /^#+[[:space:]]/ {
+      if (inside) { exit }
+      if (tolower($0) ~ pattern) { inside = 1; found = 1; next }
+    }
+    inside { print }
+    END { if (!found) { exit 3 } }
+  ' "$2"
+}
+
 ledger=""
 brief=""
 brief_named=0
@@ -100,18 +115,7 @@ if [[ "$brief_named" -eq 1 ]]; then
   [[ -f "$brief" ]] || die_ungradeable "--brief not found: $brief"
 fi
 
-# Extract the register section: from its heading to the next heading of any
-# level, or end of file. Matched case-insensitively on the heading text so a
-# ledger that title-cases the section still grades.
-section="$(awk '
-  /^#+[[:space:]]/ {
-    if (inside) { exit }
-    line = tolower($0)
-    if (line ~ /open-question register/) { inside = 1; found = 1; next }
-  }
-  inside { print }
-  END { if (!found) { exit 3 } }
-' "$ledger")"
+section="$(extract_section 'open-question register' "$ledger")"
 awk_status=$?
 
 if [[ "$awk_status" -eq 3 ]]; then
@@ -222,16 +226,7 @@ fi
 
 brief_state="unchecked"
 if [[ "$brief_named" -eq 1 ]]; then
-  # The Brief's `### Deferred questions` section, to end of the section.
-  deferred_section="$(awk '
-    /^#+[[:space:]]/ {
-      if (inside) { exit }
-      line = tolower($0)
-      if (line ~ /deferred questions/) { inside = 1; found = 1; next }
-    }
-    inside { print }
-    END { if (!found) { exit 3 } }
-  ' "$brief")"
+  deferred_section="$(extract_section 'deferred questions' "$brief")"
   brief_awk=$?
 
   if [[ "$brief_awk" -eq 3 ]]; then

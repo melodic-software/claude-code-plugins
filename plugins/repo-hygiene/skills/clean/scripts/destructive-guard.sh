@@ -41,13 +41,14 @@ fi
 is_destructive() {
   local cmd="$1"
   local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+)*'
+  local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)'
   if grep -qE '(^|[[:space:];&|(])rm[[:space:]]' <<<"$cmd" &&
     grep -qE '[[:space:]]-[a-zA-Z]*[rR]|[[:space:]]--recursive([[:space:]]|=|$)' <<<"$cmd" &&
-    grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)' <<<"$cmd"; then
+    grep -qE "$force_re" <<<"$cmd"; then
     return 0
   fi
   if grep -qE "git[[:space:]]+${gopt}clean[[:space:]]" <<<"$cmd" &&
-    grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)' <<<"$cmd"; then
+    grep -qE "$force_re" <<<"$cmd"; then
     return 0
   fi
   grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|git[[:space:]]+${gopt}stash[[:space:]]+(drop|clear)([[:space:]]|$)|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"

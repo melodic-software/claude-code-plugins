@@ -320,7 +320,7 @@ reconstruct_partial_edit() {
     # The anchor crosses into awk via the environment, not `-v`: `-v` processes
     # escape sequences in the value, so an anchor containing a backslash would
     # be silently transformed before the comparison.
-    occ=$(HOOK_ANCHOR="$anchor" HOOK_ANCHOR_WORD="${anchor// /}" awk '
+    occ=$(HOOK_ANCHOR="$anchor" awk '
       BEGIN {
         n = 0
         a = ENVIRON["HOOK_ANCHOR"]

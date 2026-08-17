@@ -155,6 +155,15 @@ sed -i.bak 's/Fixture skill mapped to the plan stage/edited by hand/' \
   && rm -f "$tree/plugins/alpha/skills/mapped/SKILL.md.bak"
 run_gen "$tree" --check
 if [[ "$CODE" -ne 0 && "$OUT" == *"drift"* ]]; then ok "--check fails on drift"; else fail "drift not detected (exit=$CODE: $OUT)"; fi
+# The drift DETAIL comes from scripts/lib/report-first-difference.mjs, the block
+# shared with scripts/generate-catalog.mjs. Assert on it separately: the header
+# line above is emitted by this generator, so a helper that threw or fell silent
+# would leave the case above green and the regression unseen.
+if [[ "$OUT" == *"First difference at generated line "* && "$OUT" == *"expected: "* && "$OUT" == *"found:    "* ]]; then
+  ok "drift report names the first differing generated line"
+else
+  fail "drift detail missing (exit=$CODE: $OUT)"
+fi
 rm -rf "$tree"
 
 # --- enforcement failure modes -------------------------------------------------

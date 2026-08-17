@@ -397,6 +397,13 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
   security review below.
 
+**The marketplace `renames` map is frozen-historical.** Its twelve entries stay: a consumer whose
+`enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
+entry strands them. But nothing new is added to it. A rename from here on is a clean breaking change
+carried by a version bump and a changelog note — the standing posture in
+[shadowed-skill-renames](topics/shadowed-skill-renames/PLAN.md) — so the map records migrations
+already shipped rather than serving as the go-forward mechanism.
+
 ### Same-version commit drift (directory-source marketplaces)
 
 For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
@@ -424,6 +431,34 @@ copies nothing — a false green that confirms the wrong state while the recorde
 - **Local iteration:** `claude --plugin-dir ./plugins/<name>` loads the working tree and takes
   session precedence over the cached install (see "Local development loop" below) — no reinstall
   needed for same-session edits after `/reload-plugins`.
+
+## Retiring a published plugin
+
+Creation and update delivery are above; this is the third move. Retirement is **one PR that removes
+both halves at once** — the plugin's `.claude-plugin/marketplace.json` catalog entry and its whole
+`plugins/<name>/` directory. The symmetry is not a convention to remember:
+`scripts/check-plugin-manifest-presence.sh` runs FORWARD (a catalog entry whose directory has no
+readable `plugin.json`) and INVERSE (a `plugins/*/` directory no catalog entry names), so removing
+either half alone fails the gate. Regenerate the derived surfaces in the same PR
+(`node scripts/generate-catalog.mjs`, `node scripts/generate-cheatsheet.mjs`) and sweep the repo for
+references to the dead plugin id.
+
+The plugin's `CHANGELOG.md` goes with its directory — `check-changelog-parity.sh --check-preserved`
+deliberately exempts a changelog whose directory is also gone, reading it as a removal rather than
+an absorbed section — so **the retirement is recorded in the PR body**, not in a changelog nobody
+can read afterward. A final version bump is pointless: there is no artifact left to deliver.
+
+Consumer guidance to state in that PR body:
+
+- Installed copies keep working. The install is a version-keyed local snapshot — the same property
+  "Same-version commit drift" documents above — so a consumer who already installed the plugin
+  keeps it until they uninstall; retirement removes future installs and updates, not the copy on
+  disk.
+- Consumers should drop the plugin's `enabledPlugins` entry, which now names a plugin the
+  marketplace no longer publishes.
+- No tombstone and no `renames` entry. The map is frozen-historical (see "Version pinning and update
+  delivery" above), and a retirement has no successor id to point at anyway; if the capability moved
+  into another plugin, say which one in the PR body and in the surviving plugin's changelog.
 
 ## Persistence, configuration & external integration
 

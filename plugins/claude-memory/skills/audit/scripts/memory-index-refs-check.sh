@@ -54,7 +54,11 @@ index="$memory_dir/MEMORY.md"
 
 # Fresh repo / no memory yet: nothing to check.
 if [[ ! -f "$index" ]]; then
-  [[ "$mode" == "count" ]] && echo "0" || echo "No MEMORY.md found ($memory_dir) — nothing to check."
+  if [[ "$mode" == "count" ]]; then
+    echo "0"
+  else
+    echo "No MEMORY.md found ($memory_dir) — nothing to check."
+  fi
   exit 0
 fi
 

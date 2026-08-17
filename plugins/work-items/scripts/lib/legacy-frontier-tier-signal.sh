@@ -19,11 +19,13 @@ wit_body_has_legacy_frontier_tier_signal() {
     '[Cc]apability tier:[[:space:]]*[Ff]rontier[[:space:]]*\(quota guard\)'
   )
 
+  # One grep over the catalogue joined as an ERE alternation (`|` binds loosest,
+  # so each entry stays intact) — a per-pattern loop forked grep once per entry.
   local pattern
-  for pattern in "${patterns[@]}"; do
-    if printf '%s' "$body" | grep -Eq "$pattern"; then
-      return 0
-    fi
-  done
+  pattern="$(printf '%s|' "${patterns[@]}")"
+  pattern="${pattern%|}"
+  if printf '%s' "$body" | grep -Eq "$pattern"; then
+    return 0
+  fi
   return 1
 }

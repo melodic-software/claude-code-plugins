@@ -20,8 +20,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 GATE = Path(__file__).resolve().parent / "check-contract-clause-coverage.py"
 
 REGISTRY = """{

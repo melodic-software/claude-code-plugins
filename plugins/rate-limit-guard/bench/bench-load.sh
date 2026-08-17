@@ -29,8 +29,8 @@ session_worker() {
       return 1
     fi
     now_ms t1
-    printf '%s\n' "$((t1 - t0))" >>"$log"
     spent=$((t1 - t0))
+    printf '%s\n' "$spent" >>"$log"
     ((spent < 1000)) && sleep "$(pace_sleep_arg "$spent")"
   done
 }

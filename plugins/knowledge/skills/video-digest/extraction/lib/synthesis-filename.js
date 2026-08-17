@@ -4,7 +4,7 @@
 
 import path from "node:path";
 
-import { slugifyTitle } from "../transcript/derive-video-slug.js";
+import { capSlug } from "../transcript/derive-video-slug.js";
 
 export const MAX_SYNTHESIS_NAME_CHARS = 48;
 
@@ -39,11 +39,31 @@ export const PIPELINE_PLACEHOLDER_GAP_PATTERNS = [
 const KEBAB_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.png$/;
 
 /**
+ * Pipeline-token slug prefixes stripped off a derived name. Order matters: the longer
+ * `densification-code` must be tried before its `densification` prefix.
+ *
+ * @type {readonly string[]}
+ */
+const FORBIDDEN_SLUG_PREFIXES = [
+  "densification-code",
+  "densification",
+  "dens-code",
+  "dens-demo",
+  "dens-terminal",
+  "dens-scene",
+  "code-code",
+  "code-demo",
+  "code-terminal",
+  "code-slides",
+  "win-code",
+];
+
+/**
  * @param {string} sessionSlug
  * @returns {boolean}
  */
 export function isForbiddenPipelineSessionSlug(sessionSlug) {
-  if (!sessionSlug || typeof sessionSlug !== "string") {
+  if (typeof sessionSlug !== "string") {
     return false;
   }
   const slug = sessionSlug.trim();
@@ -86,29 +106,18 @@ export function forbiddenSynthesisFileNameReason(fileName) {
  * @returns {string}
  */
 export function deriveSemanticNameFromGapNote(gapNote, reserved = new Set()) {
-  const cleaned = gapNote
+  const withoutOnScreenPrefix = gapNote
     .replace(/^On-screen visual:\s*/i, "")
-    .replace(/^On-screen\s*/i, "")
-    .replace(/^Densification window \([^)]+\) visual evidence\.?$/i, "")
-    .replace(/^Frame in code densification window\.?$/i, "")
+    .replace(/^On-screen\s*/i, "");
+  const cleaned = PIPELINE_PLACEHOLDER_GAP_PATTERNS.reduce(
+    (text, pattern) => text.replace(pattern, ""),
+    withoutOnScreenPrefix,
+  )
     .replace(/\s+not fully in transcript\.?$/i, "")
     .trim();
 
-  let slug = slugifyTitle(cleaned).slice(0, MAX_SYNTHESIS_NAME_CHARS).replace(/-+$/g, "");
-  const forbiddenSlugPrefixes = [
-    "densification-code",
-    "densification",
-    "dens-code",
-    "dens-demo",
-    "dens-terminal",
-    "dens-scene",
-    "code-code",
-    "code-demo",
-    "code-terminal",
-    "code-slides",
-    "win-code",
-  ];
-  for (const prefix of forbiddenSlugPrefixes) {
+  let slug = capSlug(cleaned, MAX_SYNTHESIS_NAME_CHARS);
+  for (const prefix of FORBIDDEN_SLUG_PREFIXES) {
     if (slug.startsWith(prefix)) {
       slug = slug.slice(prefix.length).replace(/^-+/, "");
     }
@@ -119,8 +128,8 @@ export function deriveSemanticNameFromGapNote(gapNote, reserved = new Set()) {
 
   let candidate = `${slug}.png`;
   let suffix = 2;
+  const stem = slug.slice(0, Math.max(8, MAX_SYNTHESIS_NAME_CHARS - 4));
   while (reserved.has(candidate)) {
-    const stem = slug.slice(0, Math.max(8, MAX_SYNTHESIS_NAME_CHARS - 4));
     candidate = `${stem}-${suffix}.png`;
     suffix += 1;
   }

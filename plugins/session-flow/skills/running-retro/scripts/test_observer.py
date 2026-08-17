@@ -614,6 +614,36 @@ class Locking(unittest.TestCase):
             self.assertEqual(sum(wins), 1, "exactly one racer may win the lock")
 
 
+@contextlib.contextmanager
+def fake_tasklist(stdout: bytes, captured: dict | None = None):
+    """Force `_pid_alive`'s "nt" branch with a canned `tasklist` stdout.
+
+    Forcing the branch regardless of the host platform keeps these assertions
+    from being skipped on Linux/mac CI. `observer.os` IS the `os` module, so
+    `os.name` is patched process-wide until the `finally` restores it. Pass
+    `captured` to record the kwargs `_pid_alive` handed `subprocess.run`.
+    """
+
+    class FakeProc:
+        pass
+
+    proc = FakeProc()
+    proc.stdout = stdout
+
+    def fake_run(cmd, **kw):
+        if captured is not None:
+            captured.update(kw)
+        return proc
+
+    saved_name, saved_run = observer.os.name, observer.subprocess.run
+    observer.os.name = "nt"
+    observer.subprocess.run = fake_run
+    try:
+        yield
+    finally:
+        observer.os.name, observer.subprocess.run = saved_name, saved_run
+
+
 class PidAlive(unittest.TestCase):
     def test_tasklist_call_uses_no_fixed_decoder(self):
         # #1512: tasklist's piped output follows the console output code page,
@@ -622,24 +652,9 @@ class PidAlive(unittest.TestCase):
         # "utf-8" (the earlier #1483 fix) nor a hardcoded "oem" decodes
         # correctly everywhere. _pid_alive must not pass any encoding/text
         # kwarg to subprocess.run and must match the PID against raw bytes.
-        # Force the "nt" branch regardless of the host platform running this
-        # test so the assertion is not skipped on Linux/mac CI.
-        captured = {}
-
-        class FakeProc:
-            stdout = b"12345 Console 1 10,000 K"
-
-        def fake_run(cmd, **kw):
-            captured.update(kw)
-            return FakeProc()
-
-        on, orr = observer.os.name, observer.subprocess.run
-        observer.os.name = "nt"
-        observer.subprocess.run = fake_run
-        try:
+        captured: dict = {}
+        with fake_tasklist(b"12345 Console 1 10,000 K", captured):
             self.assertTrue(observer._pid_alive(12345))
-        finally:
-            observer.os.name, observer.subprocess.run = on, orr
         self.assertNotIn("encoding", captured)
         self.assertNotIn("text", captured)
         self.assertNotIn("errors", captured)
@@ -652,34 +667,14 @@ class PidAlive(unittest.TestCase):
         # #1496's errors="replace" merely papered over). Raw-bytes matching
         # sidesteps decoding entirely, so this mojibake name must not affect
         # the ASCII-digit PID match.
-        class FakeProc:
-            stdout = b"\r\nt\x81st\x82.exe" + b" " * 20 + b"12345 Console 1  10,000 K"
-
-        def fake_run(cmd, **kw):
-            return FakeProc()
-
-        on, orr = observer.os.name, observer.subprocess.run
-        observer.os.name = "nt"
-        observer.subprocess.run = fake_run
-        try:
+        stdout = b"\r\nt\x81st\x82.exe" + b" " * 20 + b"12345 Console 1  10,000 K"
+        with fake_tasklist(stdout):
             self.assertTrue(observer._pid_alive(12345))
-        finally:
-            observer.os.name, observer.subprocess.run = on, orr
 
     def test_tasklist_call_no_match_when_pid_absent(self):
-        class FakeProc:
-            stdout = b"INFO: No tasks are running which match the specified criteria."
-
-        def fake_run(cmd, **kw):
-            return FakeProc()
-
-        on, orr = observer.os.name, observer.subprocess.run
-        observer.os.name = "nt"
-        observer.subprocess.run = fake_run
-        try:
+        with fake_tasklist(
+                b"INFO: No tasks are running which match the specified criteria."):
             self.assertFalse(observer._pid_alive(12345))
-        finally:
-            observer.os.name, observer.subprocess.run = on, orr
 
 
 class LedgerAndRetention(unittest.TestCase):
@@ -810,7 +805,6 @@ class LedgerAndRetention(unittest.TestCase):
         # The offset must advance by bytes read, not the stat size, or a session
         # that grows across polls re-emits its tail. Run the tailer while the file
         # grows in batches and assert exactly one observation per record.
-        import threading
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, analysis=False, idle_seconds=2.0, poll_seconds=0.15,
@@ -832,7 +826,6 @@ class LedgerAndRetention(unittest.TestCase):
                              f"expected {total} distilled events, got {len(lines)} (dupes/underread?)")
 
     def test_idle_confirmation_resumes_when_transcript_grows_again(self):
-        import threading
         rec = '{"type":"user","message":{"content":"x"}}\n'
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)

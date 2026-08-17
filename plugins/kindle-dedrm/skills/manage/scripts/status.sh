@@ -82,14 +82,14 @@ probe_calibre_plugins() {
     echo "calibre-not-found"
     return
   fi
-  local has_dedrm has_kfx has_dedrm_json
+  local dedrm_state kfx_state json_state
   local dedrm_match kfx_match
   dedrm_match=("${CALIBRE_PLUGINS_DIR}"/*[Dd]e[Dd][Rr][Mm]*)
   kfx_match=("${CALIBRE_PLUGINS_DIR}"/*KFX*)
-  has_dedrm=$([[ -e ${dedrm_match[0]} ]] && echo 1 || echo "")
-  has_kfx=$([[ -e ${kfx_match[0]} ]] && echo 1 || echo "")
-  has_dedrm_json=$([[ -f "${CALIBRE_PLUGINS_DIR}/dedrm.json" ]] && echo 1 || echo 0)
-  echo "dedrm=$([[ -n $has_dedrm ]] && echo present || echo absent),kfx=$([[ -n $has_kfx ]] && echo present || echo absent),dedrm.json=$([[ "$has_dedrm_json" == 1 ]] && echo present || echo absent)"
+  if [[ -e ${dedrm_match[0]} ]]; then dedrm_state=present; else dedrm_state=absent; fi
+  if [[ -e ${kfx_match[0]} ]]; then kfx_state=present; else kfx_state=absent; fi
+  if [[ -f "${CALIBRE_PLUGINS_DIR}/dedrm.json" ]]; then json_state=present; else json_state=absent; fi
+  echo "dedrm=${dedrm_state},kfx=${kfx_state},dedrm.json=${json_state}"
 }
 
 probe_book_count() {

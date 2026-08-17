@@ -308,8 +308,9 @@ colocated_suite() {
     ;;
   *) ;;
   esac
+  # An extensionless path keeps its whole name as the stem, which is what
+  # ${p%.*} already yields when there is no dot to strip.
   stem="${p%.*}"
-  [[ "$stem" == "$p" ]] && stem="$p" # extensionless
   if [[ -f "$stem.test.sh" ]]; then
     printf '%s' "$stem.test.sh"
   fi

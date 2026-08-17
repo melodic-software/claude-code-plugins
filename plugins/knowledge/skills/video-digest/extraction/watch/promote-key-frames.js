@@ -6,6 +6,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
+
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 const KEY_FRAME_IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|webp)$/i;
@@ -109,16 +111,14 @@ export async function runPromoteKeyFramesCli(argv) {
   const sliceDir = argv[2];
   const pairs = argv.slice(3);
   if (!sliceDir || pairs.length === 0) {
-    process.stderr.write(
-      "Usage: node watch/promote-key-frames.js <slice-dir> <source>:<dest-name> [...]\n",
-    );
+    writeStderr("Usage: node watch/promote-key-frames.js <slice-dir> <source>:<dest-name> [...]");
     return 1;
   }
 
   const promotions = pairs.map((pair) => parsePromotionPair(pair));
 
   const promoted = await promoteKeyFrames(sliceDir, promotions);
-  process.stdout.write(`${JSON.stringify({ promoted }, null, 2)}\n`);
+  writeStdout(JSON.stringify({ promoted }, null, 2));
   return 0;
 }
 
@@ -129,7 +129,7 @@ if (isMain) {
   runPromoteKeyFramesCli(process.argv)
     .then((code) => process.exit(code))
     .catch((err) => {
-      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+      writeStderr(err instanceof Error ? err.message : String(err));
       process.exit(1);
     });
 }

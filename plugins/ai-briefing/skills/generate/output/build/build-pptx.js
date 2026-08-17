@@ -77,6 +77,15 @@ function decorate(slide, { showFooter = true, eyebrow = null, showLogo = true } 
   }
 }
 
+// Hyperlinked source URLs as one text run per URL, separated by a small blank line.
+// Dangerous schemes are dropped here so no build path can emit them as a hyperlink.
+function urlRuns(urls, { fontSize, gapFontSize }) {
+  return urls.filter(isAllowedUrlScheme).flatMap((u, i) => [
+    ...(i > 0 ? [{ text: "\n", options: { fontSize: gapFontSize } }] : []),
+    { text: u, options: { fontFace: FONT_BODY, fontSize, color: theme.accent, hyperlink: { url: u } } },
+  ]);
+}
+
 function addSlideNumber(slide, n, total) {
   slide.addText(`${n} / ${total}`, {
     x: W - 1.2, y: H - 0.4, w: 1, h: 0.3,
@@ -318,11 +327,7 @@ function buildNews(s, slide) {
     });
 
     // ALL URLs — each as separate hyperlinked line
-    const urls = (b.urls ?? []).filter(isAllowedUrlScheme);
-    const urlBlock = urls.flatMap((u, j) => [
-      ...(j > 0 ? [{ text: "\n", options: { fontSize: 4 } }] : []),
-      { text: u, options: { fontFace: FONT_BODY, fontSize: 8.5, color: theme.accent, hyperlink: { url: u } } },
-    ]);
+    const urlBlock = urlRuns(b.urls ?? [], { fontSize: 8.5, gapFontSize: 4 });
     if (urlBlock.length > 0) {
       const bodyChars = b.body.length + b.title.length;
       const titleBodyLines = Math.max(2, Math.ceil(bodyChars / 110));
@@ -384,12 +389,8 @@ function buildCondensed(s, slide) {
       valign: "top",
     });
 
-    const urls = (b.urls ?? []).filter(isAllowedUrlScheme);
-    if (urls.length > 0) {
-      const urlText = urls.flatMap((u, j) => [
-        ...(j > 0 ? [{ text: "\n", options: { fontSize: 3 } }] : []),
-        { text: u, options: { fontFace: FONT_BODY, fontSize: 7, color: theme.accent, hyperlink: { url: u } } },
-      ]);
+    const urlText = urlRuns(b.urls ?? [], { fontSize: 7, gapFontSize: 3 });
+    if (urlText.length > 0) {
       slide.addText(urlText, {
         x: x + 0.2, y: y + rowH * 0.55, w: colW - 0.25, h: rowH * 0.4,
         valign: "top",

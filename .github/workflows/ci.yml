@@ -338,6 +338,57 @@ jobs:
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
 
+  # #2834: an MSYS path literal (`/d/...`) handed to a Windows-native consumer
+  # re-anchors to the CURRENT drive's root, so the consumer creates a phantom
+  # `<drive>:\<letter>\` tree and writes there. Nothing errors — the run just
+  # measures something other than what it claims. docs/conventions/
+  # windows-path-emit/ owns the rule; this lane holds its two artifacts to
+  # their contracts.
+  #
+  # What is REQUIRED here is the detectors' own unit contract — deterministic,
+  # fixture-scoped, and including the assertion that the drive-root scan is a
+  # reported no-op on a non-Windows host. Pointing the live scan at a runner's
+  # drive roots is deliberately NOT wired: it would put an unquantified
+  # false-positive tail on the required aggregate, which docs/adr/0003 rules
+  # out until a guard has measured precision. Self-test first, so a broken
+  # detector cannot mask a regression.
+  windows-path-emit-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the MSYS-to-Windows emit helper
+        run: bash scripts/emit-windows-path.test.sh
+      - name: Test the drive-root litter detector
+        run: bash scripts/check-drive-root-litter.test.sh
+      - name: Assert the drive-root scan is a no-op on a non-Windows host
+        run: scripts/check-drive-root-litter.sh
+
+  # The emit helper's whole reason to exist is its NT branch: cygpath's answer
+  # cannot be faked on Linux, so on a Linux runner those cases report NOT
+  # EXERCISED and the suite is green having proved nothing about them. That is
+  # exactly how an inert Windows-only surface shipped green in #2774. This job
+  # runs the same suites where the branch is real. Keep it SMALL: these two
+  # suites only, and never the live drive-root scan.
+  windows-path-emit-windows:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the MSYS-to-Windows emit helper on Windows
+        run: bash scripts/emit-windows-path.test.sh
+      - name: Test the drive-root litter detector on Windows
+        run: bash scripts/check-drive-root-litter.test.sh
+
   hook-utils-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -815,6 +866,34 @@ jobs:
       - name: Check every restatement carries the canonical clause's qualifiers
         run: python3 scripts/check-contract-clause-coverage.py
 
+  # `ci-status` below is the single check the org ci-gate ruleset keys on, and
+  # its own comment calls its `needs` list "the single source of truth for the
+  # lane list" — but nothing enforced the other direction. A job defined in THIS
+  # file and absent from that list still runs and still turns red in the run
+  # list, while `ci-status` reports success and the merge proceeds:
+  # informational, not a gate. `hook-utils-windows` states exactly that in prose
+  # above, and prose is not a gate — `managed-scope-sync` and `state-key-sync`
+  # shipped outside the aggregate for their whole lifetime while
+  # scripts/cross-plugin-source-registry.txt advertised each as a dedicated
+  # check (#2856). Same false-green class as `liveness-assertion`, on the merge
+  # gate itself. This lane closes the loop mechanically: every job here is in
+  # `ci-status.needs`, or carries a `# lane-coverage-ok: <reason>` annotation
+  # recording why it stays out. Static, one file, no diff and no base ref, and
+  # unrecognized YAML shape exits 2 rather than reporting coverage it did not
+  # parse. Self-test first so a broken detector cannot mask a regression.
+  lane-coverage-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the lane-coverage gate
+        run: bash scripts/check-lane-coverage.test.sh
+      - name: Check every ci.yml job is reachable from the ci-status aggregate
+        run: scripts/check-lane-coverage.sh --check
+
   # Deep plugin-contract lane and the heaviest suite (Node + Python installs,
   # every plugins/**/*.test.sh, manifest + catalog validation). A PR whose diff
   # is confined to the docs-only allowlist (scripts/docs-only-paths.txt) cannot
@@ -1267,7 +1346,11 @@ jobs:
       - hook-utils-sync
       - hook-utils-windows
       - disk-hygiene-guard-windows
+      - windows-path-emit-gate
+      - windows-path-emit-windows
       - parse-concern-value-sync
+      - managed-scope-sync
+      - state-key-sync
       - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
@@ -1285,6 +1368,7 @@ jobs:
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
+      - lane-coverage-gate
       - plugin-gate
       - miro-plugin
       - video-extraction

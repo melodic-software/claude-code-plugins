@@ -104,12 +104,13 @@ for skill in "${SKILLS[@]}"; do
       # prefix — banning SKILL_DIR alone still passes if a command is rerouted to
       # another invalid path such as bash /wrong/preflight.sh.
       required='bash ${CLAUDE_PLUGIN_ROOT}/skills/'"$skill"'/scripts/'
-      while IFS= read -r line; do
-        if [[ "$line" != *"$required"* ]]; then
-          fail "$f: context script invocation must use bash \${CLAUDE_PLUGIN_ROOT}/skills/$skill/scripts/… — got: ${line%%$'\n'}"
-        fi
-      done < <(grep -F 'skills/'"$skill"'/scripts/' "$f" || true)
-      if grep -qF 'skills/'"$skill"'/scripts/' "$f"; then
+      invocations="$(grep -F 'skills/'"$skill"'/scripts/' "$f" || true)"
+      if [[ -n "$invocations" ]]; then
+        while IFS= read -r line; do
+          if [[ "$line" != *"$required"* ]]; then
+            fail "$f: context script invocation must use bash \${CLAUDE_PLUGIN_ROOT}/skills/$skill/scripts/… — got: $line"
+          fi
+        done <<<"$invocations"
         pass "$f: context script invocations use interpreter-led \${CLAUDE_PLUGIN_ROOT} form"
       else
         pass "$f: context file has no bundled-script invocations to pin"

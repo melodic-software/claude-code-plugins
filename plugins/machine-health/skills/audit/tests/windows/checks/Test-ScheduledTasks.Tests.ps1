@@ -13,12 +13,9 @@ BeforeAll {
     # skips the main block, so this only defines the helper -- no orchestrator
     # code path runs.
     . $script:ScriptPath
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
-    function Invoke-ScheduledTasksAsObject {
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
-    }
+    function Invoke-ScheduledTasksAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 }
 
 # NOTE: deeper severity-rubric coverage for this check is limited by Pester 5

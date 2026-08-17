@@ -19,6 +19,10 @@ fail() {
   exit 2
 }
 
+print_field() {
+  printf '%s: %s\n' "$1" "$2"
+}
+
 usage() {
   cat <<EOF
 Usage: $PROG --plan-file PATH [--apply] [--yes]
@@ -160,14 +164,11 @@ def phase(op: str) -> int:
         return 2
     return 9
 
-def split_target(target: str, canonical: str) -> str:
+def split_target(target: str) -> str:
     # Targets are "canonical :: branch" or a worktree path. Prefer the branch form.
     sep = " :: "
     if sep in target:
-        left, right = target.split(sep, 1)
-        if left == canonical or not canonical:
-            return right.strip()
-        return right.strip()
+        return target.split(sep, 1)[1].strip()
     return ""
 
 def clean(s: str) -> str:
@@ -228,7 +229,7 @@ for _idx, action in ordered:
                 file=sys.stderr,
             )
             sys.exit(2)
-        ref_name = split_target(target_s, canonical)
+        ref_name = split_target(target_s)
         print(
             FS.join(
                 [
@@ -368,8 +369,7 @@ worktree_is_unsafe_to_remove() {
 oids_match() {
   local a=$1 b=$2
   [[ -n "$a" && -n "$b" ]] || return 1
-  # Compare by unique abbreviated prefix length (min 7) via rev-parse in a repo if both full,
-  # else case-insensitive equality / prefix match.
+  # Case-insensitive equality, or prefix match when one side is an abbreviated OID.
   # tr (not ${var,,}) keeps this Bash 3.2-safe on stock macOS.
   local al=${#a} bl=${#b}
   a="$(printf '%s' "$a" | tr '[:upper:]' '[:lower:]')"
@@ -597,7 +597,6 @@ else
 fi
 printf 'Confirmation model: ONE gate for this entire plan (not per repository)\n'
 printf 'Order rule: delete-merged-local-branches before cleanup-worktrees; re-derive OIDs at execution\n'
-print_field() { printf '%s: %s\n' "$1" "$2"; }
 print_field Plan "$PLAN_FILE"
 print_field Units "${#D_ACTION[@]}"
 print_field Mutable "$mutable"

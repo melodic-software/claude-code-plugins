@@ -201,11 +201,8 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
                 repos=scope_repos, authors=authors, limit=args.limit
             )
         else:
-            owners = [
-                owner.strip() for owner in args.owners.split(",") if owner.strip()
-            ]
             targets, errors = gh.discover_prs(
-                owners=owners, authors=authors, limit=args.limit
+                owners=_csv_list(args.owners), authors=authors, limit=args.limit
             )
 
     trigger_config = config.review_trigger

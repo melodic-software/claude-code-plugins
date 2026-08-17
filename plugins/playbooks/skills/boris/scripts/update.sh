@@ -71,17 +71,11 @@ sha256() {
   fi
 }
 
-# Read nested metadata.upstream-version from the SKILL.md frontmatter.
-current_local_version() {
+# Read nested metadata.<field> from the SKILL.md frontmatter.
+local_metadata_field() {
+  local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
-  awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+upstream-version:/{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
-}
-
-# Read nested metadata.synced from the SKILL.md frontmatter.
-current_local_synced() {
-  [[ -f "$FRONTMATTER_FILE" ]] || return 0
-  awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+synced:/{print $2;exit}' \
+  awk -v f="$field" '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == f":"{print $2;exit}' \
     "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
 }
 
@@ -127,7 +121,7 @@ run_check() {
   local local_ver upstream_ver upstream_md upstream_sha vendor_sha drift=0
 
   section "Frontmatter / upstream version"
-  local_ver=$(current_local_version)
+  local_ver=$(local_metadata_field "upstream-version")
   upstream_ver=$(fetch_upstream_version) || {
     err "failed to reach $VERSION_URL — network or DNS issue"
     return 2
@@ -144,7 +138,7 @@ run_check() {
   if [[ -n "$local_ver" && "$local_ver" != "$upstream_ver" ]]; then
     log "→ version drift: $local_ver → $upstream_ver"
     drift=1
-  elif [[ -n "$local_ver" && "$local_ver" == "$upstream_ver" ]]; then
+  elif [[ -n "$local_ver" ]]; then
     log "→ version match"
   fi
 
@@ -183,8 +177,8 @@ run_apply() {
   local prev_ver prev_synced upstream_ver upstream_md upstream_sha vendor_sha today
 
   section "Pre-state"
-  prev_ver=$(current_local_version)
-  prev_synced=$(current_local_synced)
+  prev_ver=$(local_metadata_field "upstream-version")
+  prev_synced=$(local_metadata_field "synced")
   log "previous metadata.upstream-version: ${prev_ver:-<unset>}"
   log "previous metadata.synced:           ${prev_synced:-<unset>}"
 

@@ -498,6 +498,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Detector findings (non-fanout producers reaching the apply relay) | [`docs/conventions/detector-findings/`](conventions/detector-findings/README.md) |
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
+| Windows path emission across the Git Bash → native boundary | [`docs/conventions/windows-path-emit/`](conventions/windows-path-emit/README.md) |
 
 ## Cross-platform contract
 

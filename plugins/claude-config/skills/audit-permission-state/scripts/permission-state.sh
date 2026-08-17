@@ -80,11 +80,13 @@ preferences-domain surfaces are optional and degrade to `skipped` with a notice.
 EOF
 }
 
+mode="full"
 case "${1:-}" in
 -h | --help)
   usage
   exit 0
   ;;
+--scopes) mode="scopes" ;;
 *) ;;
 esac
 
@@ -92,9 +94,6 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required" >&2
   exit 2
 fi
-
-mode="full"
-[[ "${1:-}" == "--scopes" ]] && mode="scopes"
 
 # `${BASH_SOURCE[0]%/*}` rather than `dirname`: `cd` and `pwd` are builtins, so
 # plugin-root resolution needs nothing on PATH. A missing external tool here
@@ -114,6 +113,13 @@ source "$MANAGED_SCOPE_LIB"
 # instead of letting a line-oriented read split one rule into two. Chosen to be
 # something no real rule text contains.
 NL_SENTINEL=$'\x01MULTILINE\x01'
+
+# The rule-extraction filter, shared by the settings-file reader and the Windows
+# registry reader below so the two cannot drift apart: one rule string per line,
+# with a rule carrying a literal newline or carriage return marked by the
+# sentinel and folded onto a single line rather than split into fragments.
+# shellcheck disable=SC2016 # a jq program: $k and $nl are jq variables bound with --arg, and must not expand in the shell
+RULES_JQ='.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end'
 
 # Strips a CRLF line ending WITHOUT touching a CR inside a string value.
 #
@@ -248,7 +254,6 @@ emit_file_rules() {
       # turned ONE rule into two bogus records, each a rule string that is not
       # in any settings file. A rule the reader cannot represent is reported as
       # unrepresentable; inventing two is strictly worse than admitting one.
-      # `@json` makes the newline visible as \n rather than splitting the line.
       case "$rule" in
       *"$NL_SENTINEL"*)
         printf 'NOTE: %s %s %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the file: %s\n' \
@@ -256,12 +261,10 @@ emit_file_rules() {
         ;;
       *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
       esac
-      # jq emits CRLF on Windows; a trailing \r would corrupt every rule string.
-      # Reading with @json keeps a multi-line rule on ONE line so the loop sees
-      # it whole; the sentinel below marks the ones that needed it.
+      # jq emits CRLF on Windows; a trailing \r would corrupt every rule string,
+      # so the stream is stripped of them before the loop reads it.
     done < <(crlf_strip <"$path" |
-      jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
-        '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
+      jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" "$RULES_JQ" 2>/dev/null |
       tr -d '\r')
   done
 }
@@ -410,8 +413,7 @@ else
           *) printf 'rule managed registry %s %s\n' "$kind" "$rule" ;;
           esac
         done < <(printf '%s' "$reg_json" |
-          jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
-            '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
+          jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" "$RULES_JQ" 2>/dev/null |
           tr -d '\r')
       done
       emit_file_conf managed registry < <(printf '%s' "$reg_json")

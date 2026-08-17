@@ -331,6 +331,8 @@ fi
 JOINER_LEN=0
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
+# Working-tree listing triggers, derived once: checks 3 and 12 both read them.
+CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
 DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
 ((WTU_LEN > 0)) && JOINER_LEN=3
@@ -350,7 +352,6 @@ if [[ "$HAVE_GIT" != 1 ]]; then
 elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
   BASE_TRIG="$(fm_listing_triggers "$BASE_FM_3")"
-  CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
   if [[ -n "$BASE_TRIG" ]]; then
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
     if [[ -n "$MISSING" ]]; then
@@ -376,8 +377,8 @@ elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null
       for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
         [[ -f "$other_md" ]] || continue
         [[ "$other_md" == "$SKILL_MD" ]] && continue
-        OTHER_NAME="${other_md%/SKILL.md}"
-        SIB_NAMES+=("${OTHER_NAME##*/}")
+        sib_path="${other_md%/SKILL.md}"
+        SIB_NAMES+=("${sib_path##*/}")
         SIB_TRIGS+=("$(fm_listing_triggers "$(skill_frontmatter::extract <"$other_md")")")
       done
       LOST=""
@@ -652,7 +653,7 @@ if [[ -n "$CUR_DESC" ]]; then
   CUR_TRIG_WTU="$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)"
   if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" && [[ -z "$CUR_TRIG_WTU" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
-  elif [[ -z "$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
+  elif [[ -z "$CUR_TRIG" ]]; then
     warn "'Use when:' triggers are not single-quoted — drop-regression protection (check 3) tracks only 'quoted' phrases; single-quote each trigger phrase to cover it"
   fi
 fi
@@ -698,7 +699,7 @@ fi
 # --- Check 17: vendor sync age ------------------------------------------------
 
 if [[ -d "$SKILL_DIR/vendor" ]]; then
-  SYNCED_VAL="$(awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+synced:/{print $2;exit}' <<<"$FRONTMATTER" | tr -d '"' | tr -d "'")"
+  SYNCED_VAL="$(awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+synced:/{print $2;exit}' <<<"$FRONTMATTER" | tr -d "\"'")"
   if [[ "$SYNCED_VAL" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
     # portability-ok: GNU-first, BSD fallback co-located (#1510) — was a real,
     # previously-unguarded gap: this check silently no-op'd on BSD/macOS.

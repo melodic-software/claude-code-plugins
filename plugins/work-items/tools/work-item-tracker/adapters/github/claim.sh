@@ -8,7 +8,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]" "$@"
 
-id="" ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
+ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
 id="${1:-}"
 [[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]"
 shift

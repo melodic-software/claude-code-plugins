@@ -50,9 +50,7 @@ function New-HealthResult {
     # auto-enumerate empty and single-element arrays into $null / scalar strings, producing
     # schema-invalid JSON. A generic List is preserved verbatim at every pipeline step.
     $commandsNormalized = [System.Collections.Generic.List[string]]::new()
-    if ($null -ne $Commands) {
-        foreach ($c in $Commands) { $commandsNormalized.Add($c) }
-    }
+    if ($null -ne $Commands) { $commandsNormalized.AddRange($Commands) }
     $detailNormalized = if ($null -ne $Detail) { $Detail } else { @{} }
 
     if ($AdminFields -and $AdminFields.Count -gt 0) {

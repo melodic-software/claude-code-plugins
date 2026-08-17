@@ -33,12 +33,9 @@ BeforeAll {
     $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
     . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
-    function Invoke-EventLogAsObject {
-        $raw = & $script:ScriptPath
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
-    }
+    function Invoke-EventLogAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 
     function New-NoiseEvent {
         param(

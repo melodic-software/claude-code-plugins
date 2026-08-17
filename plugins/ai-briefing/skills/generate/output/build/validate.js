@@ -33,7 +33,6 @@ const HTML = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.html`);
 const PDF = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pdf`);
 const PPTX = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pptx`);
 const SHOTS_DIR = shotsDir();
-await fs.mkdir(SHOTS_DIR, { recursive: true });
 // Purge stale screenshots before regen. Without this, section reordering
 // between meetings leaves orphan section-NN-foo.png files alongside the
 // current set, polluting the audit. Idempotent: only removes PNG/JSON.

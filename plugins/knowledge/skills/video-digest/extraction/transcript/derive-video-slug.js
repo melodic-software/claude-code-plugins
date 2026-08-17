@@ -22,6 +22,17 @@ export function slugifyTitle(text) {
 }
 
 /**
+ * Slugify, cap at `maxChars`, then re-trim the trailing `-` the cut can expose.
+ *
+ * @param {string} text
+ * @param {number} maxChars
+ * @returns {string}
+ */
+export function capSlug(text, maxChars) {
+  return slugifyTitle(text).slice(0, maxChars).replace(/-+$/g, "");
+}
+
+/**
  * Slice keys become on-disk directory segments under `.work/`, so the shared
  * slug derivation fails closed on anything that could traverse or terminate a
  * path (separators, dots, empty). Mirrors the adapter contract's
@@ -42,7 +53,7 @@ export function deriveVideoSlug(title, videoId) {
       `Unsafe slice key ${JSON.stringify(videoId)}: must match [A-Za-z0-9_-]+ (it becomes a directory segment under .work/)`,
     );
   }
-  const base = slugifyTitle(title).slice(0, MAX_TITLE_CHARS).replace(/-+$/g, "");
+  const base = capSlug(title, MAX_TITLE_CHARS);
   const prefix = base || "video";
   return `${prefix}-${videoId}`;
 }

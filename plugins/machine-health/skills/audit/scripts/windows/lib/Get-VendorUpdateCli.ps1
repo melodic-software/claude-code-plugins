@@ -40,15 +40,6 @@ function Get-VendorUpdateCli {
             Rationale = 'Intel Driver & Support Assistant -- GUI tool; no CLI scan.'
         }
         @{
-            Vendor    = 'ASUS'
-            CliName   = 'MyASUS.exe'
-            Paths     = @(
-                "$env:ProgramFiles\WindowsApps"
-            )
-            Rationale = 'MyASUS -- Store-app; check Customer Support > System Update.'
-            StoreApp  = $true
-        }
-        @{
             Vendor    = 'HP'
             CliName   = 'HPImageAssistant.exe'
             Paths     = @(
@@ -79,11 +70,6 @@ function Get-VendorUpdateCli {
 
     $found = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($c in $candidates) {
-        # Store apps: skip filesystem probe (naive path scan too expensive).
-        # Detection happens via the AppxPackage probe below. Users know if
-        # MyASUS is running.
-        if ($c.ContainsKey('StoreApp') -and $c.StoreApp) { continue }
-
         foreach ($p in $c.Paths) {
             if (Test-Path -LiteralPath $p) {
                 $found.Add([pscustomobject]@{
@@ -97,7 +83,9 @@ function Get-VendorUpdateCli {
         }
     }
 
-    # ASUS special-case: probe MyASUS via AppxPackage which is fast.
+    # ASUS special-case: MyASUS is a Store app, so it gets no filesystem
+    # candidate above -- a naive scan of WindowsApps is too expensive. The
+    # AppxPackage probe below is fast and is the only ASUS detection path.
     try {
         $myAsus = Get-AppxPackage -Name *MyASUS* -ErrorAction SilentlyContinue
         if ($myAsus) {

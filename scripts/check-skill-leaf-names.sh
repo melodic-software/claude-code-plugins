@@ -96,6 +96,16 @@ owner_set() {
   printf '%s\n' "$@" | sort | paste -sd, -
 }
 
+# The same normalization for the registry side, whose owner set arrives as one
+# comma-separated field. `read`, not array splitting: the field may be a literal
+# `*`, which unquoted word splitting would pathname-expand against the cwd.
+owner_set_field() {
+  local -a parts=()
+  IFS=',' read -ra parts <<<"$1"
+  # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
+  owner_set "${parts[@]}"
+}
+
 mode="${1:-discover}"
 case "$mode" in
 discover | --check) ;;
@@ -122,9 +132,8 @@ if [[ "$mode" == "discover" ]]; then
       if [[ "$accepted" == "*" ]]; then
         state="registered(*)"
       elif [[ -n "$accepted" ]]; then
-        IFS=',' read -ra accepted_owners <<<"$accepted"
-        # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
-        accepted="$(owner_set "${accepted_owners[@]}")"
+        # shellcheck disable=SC2310  # owner_set_field only sorts strings; nothing inside can fail
+        accepted="$(owner_set_field "$accepted")"
         [[ "$accepted" == "$actual" ]] && state="registered"
       fi
     fi
@@ -159,9 +168,8 @@ for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | so
   # Normalize the registry side too, so the comparison is genuinely set-vs-set
   # and a hand-edited entry does not fail on ordering alone.
   if [[ -n "$accepted" ]]; then
-    IFS=',' read -ra accepted_owners <<<"$accepted"
-    # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
-    accepted="$(owner_set "${accepted_owners[@]}")"
+    # shellcheck disable=SC2310  # owner_set_field only sorts strings; nothing inside can fail
+    accepted="$(owner_set_field "$accepted")"
   fi
 
   if [[ -z "$accepted" ]]; then

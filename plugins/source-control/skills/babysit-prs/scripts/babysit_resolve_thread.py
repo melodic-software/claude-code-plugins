@@ -267,18 +267,21 @@ HUMAN_DEFERRAL_RE = re.compile(
 )
 
 
+FORBIDDEN_CLASS_PATTERNS = (
+    FORBIDDEN_P01_BADGE_RE,
+    FORBIDDEN_P01_BRACKET_RE,
+    FORBIDDEN_P01_PREFIX_RE,
+    FORBIDDEN_P01_MUST_FIX_RE,
+    SEVERITY_BLOCK_WORD_RE,
+    SECURITY_TEXT_RE,
+)
+
+
 def _has_severity_marker(body: str) -> bool:
     """True for the forbidden class only: structured P0/P1 markers (badge,
     bracket, or declaration prefix), the word CRITICAL, or the word
     "security"."""
-    return (
-        bool(FORBIDDEN_P01_BADGE_RE.search(body))
-        or bool(FORBIDDEN_P01_BRACKET_RE.search(body))
-        or bool(FORBIDDEN_P01_PREFIX_RE.search(body))
-        or bool(FORBIDDEN_P01_MUST_FIX_RE.search(body))
-        or bool(SEVERITY_BLOCK_WORD_RE.search(body))
-        or bool(SECURITY_TEXT_RE.search(body))
-    )
+    return any(pattern.search(body) for pattern in FORBIDDEN_CLASS_PATTERNS)
 
 
 def _has_human_deferral_marker(body: str) -> bool:
@@ -983,6 +986,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    def _usage_error(message: str) -> int:
+        print(json.dumps({"pr": args.pr, "error": message}))
+        return 2
+
     extra_bot_logins = parse_extra_bot_logins(args.extra_bot_logins)
     allowed = parse_allowed_owners(args.allowed_owners)
     if not allowed:
@@ -1007,38 +1014,18 @@ def main() -> int:
         return 2
 
     if args.expected_comment_count is not None and not args.thread_id:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "error": (
-                        "--expected-comment-count requires --thread-id -- a count "
-                        "pin with no thread id to pin it to would silently fall "
-                        "through to resolving every eligible thread instead of refusing"
-                    ),
-                }
-            )
+        return _usage_error(
+            "--expected-comment-count requires --thread-id -- a count "
+            "pin with no thread id to pin it to would silently fall "
+            "through to resolving every eligible thread instead of refusing"
         )
-        return 2
 
     if args.expected_last_updated is not None and not args.thread_id:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "error": (
-                        "--expected-last-updated requires --thread-id -- a "
-                        "last-updated pin with no thread id to pin it to would "
-                        "silently fall through to resolving every eligible thread"
-                    ),
-                }
-            )
+        return _usage_error(
+            "--expected-last-updated requires --thread-id -- a "
+            "last-updated pin with no thread id to pin it to would "
+            "silently fall through to resolving every eligible thread"
         )
-        return 2
-
-    def _usage_error(message: str) -> int:
-        print(json.dumps({"pr": args.pr, "error": message}))
-        return 2
 
     evidence_args: dict[str, str | None] = {
         "--fix-commit": args.fix_commit,
@@ -1122,41 +1109,25 @@ def main() -> int:
             )
 
     if args.resolve and args.autonomous and not args.thread_id:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "error": (
-                        "--autonomous --resolve requires a single pinned "
-                        "--thread-id (with --expected-comment-count and "
-                        "--expected-last-updated); an unattended worker may not "
-                        "bulk-resolve. A worker's own push marks a thread "
-                        "isOutdated, so the bulk autonomous path would clear "
-                        "threads that changed since they were vetted with no proof "
-                        "the finding was addressed. Resolve each vetted thread "
-                        "individually as a per-thread pinned loop instead"
-                    ),
-                }
-            )
+        return _usage_error(
+            "--autonomous --resolve requires a single pinned "
+            "--thread-id (with --expected-comment-count and "
+            "--expected-last-updated); an unattended worker may not "
+            "bulk-resolve. A worker's own push marks a thread "
+            "isOutdated, so the bulk autonomous path would clear "
+            "threads that changed since they were vetted with no proof "
+            "the finding was addressed. Resolve each vetted thread "
+            "individually as a per-thread pinned loop instead"
         )
-        return 2
 
     if args.resolve and args.autonomous and args.allow_unpinned_thread:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "error": (
-                        "--allow-unpinned-thread is refused in --autonomous mode; "
-                        "there is no unpinned autonomous resolve. An unattended "
-                        "worker must pin every --thread-id resolve with "
-                        "--expected-comment-count and --expected-last-updated. "
-                        "--allow-unpinned-thread is an interactive-only override"
-                    ),
-                }
-            )
+        return _usage_error(
+            "--allow-unpinned-thread is refused in --autonomous mode; "
+            "there is no unpinned autonomous resolve. An unattended "
+            "worker must pin every --thread-id resolve with "
+            "--expected-comment-count and --expected-last-updated. "
+            "--allow-unpinned-thread is an interactive-only override"
         )
-        return 2
 
     if args.resolve and args.thread_id and not args.allow_unpinned_thread:
         missing = [
@@ -1168,22 +1139,14 @@ def main() -> int:
             if value is None
         ]
         if missing:
-            print(
-                json.dumps(
-                    {
-                        "pr": args.pr,
-                        "error": (
-                            "--resolve --thread-id requires both "
-                            "--expected-comment-count and --expected-last-updated "
-                            "to pin the comment count and latest comment-edit "
-                            "timestamp observed when the thread was vetted; "
-                            f"missing: {', '.join(missing)}; pass "
-                            "--allow-unpinned-thread to override interactively"
-                        ),
-                    }
-                )
+            return _usage_error(
+                "--resolve --thread-id requires both "
+                "--expected-comment-count and --expected-last-updated "
+                "to pin the comment count and latest comment-edit "
+                "timestamp observed when the thread was vetted; "
+                f"missing: {', '.join(missing)}; pass "
+                "--allow-unpinned-thread to override interactively"
             )
-            return 2
 
     owner = repo.split("/", 1)[0]
     if owner not in allowed:
@@ -1249,6 +1212,16 @@ def main() -> int:
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
         return 2
+
+    # One definition for both consumers below: the per-resolve audit record and
+    # the summary on stdout. Two copies of this rule could drift, and one of
+    # them is an append-only audit trail.
+    if args.autonomous:
+        mode = "autonomous"
+    elif args.independent_resolver:
+        mode = "independent-resolver"
+    else:
+        mode = "explicit"
 
     results: list[dict[str, object]] = []
     for thread in threads:
@@ -1331,13 +1304,7 @@ def main() -> int:
                         "pr": f"{repo}#{number}",
                         "thread_id": thread["id"],
                         "path": thread.get("path"),
-                        "mode": (
-                            "autonomous"
-                            if args.autonomous
-                            else "independent-resolver"
-                            if args.independent_resolver
-                            else "explicit"
-                        ),
+                        "mode": mode,
                         "disposition": args.disposition,
                         "expected_comment_count": args.expected_comment_count,
                         "expected_last_updated": args.expected_last_updated,
@@ -1353,13 +1320,7 @@ def main() -> int:
         json.dumps(
             {
                 "pr": f"{repo}#{number}",
-                "mode": (
-                    "autonomous"
-                    if args.autonomous
-                    else "independent-resolver"
-                    if args.independent_resolver
-                    else "explicit"
-                ),
+                "mode": mode,
                 "disposition": args.disposition,
                 "action": "resolve" if args.resolve else "list",
                 "onlyOutdated": args.only_outdated,

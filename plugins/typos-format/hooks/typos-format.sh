@@ -236,7 +236,10 @@ typos_write_lockfile_denied() {
   local base
   base="$(basename -- "$1")"
   case "$base" in
-  package-lock.json | npm-shrinkwrap.json | yarn.lock | pnpm-lock.yaml |   bun.lock | bun.lockb | Cargo.lock | poetry.lock | Pipfile.lock |   composer.lock | Gemfile.lock | go.sum | Podfile.lock | flipper.lock |   Package.resolved | packages.lock.json | project.assets.json)
+  package-lock.json | npm-shrinkwrap.json | yarn.lock | pnpm-lock.yaml | \
+  bun.lock | bun.lockb | Cargo.lock | poetry.lock | Pipfile.lock | \
+  composer.lock | Gemfile.lock | go.sum | Podfile.lock | flipper.lock | \
+  Package.resolved | packages.lock.json | project.assets.json)
     return 0
     ;;
   *)
@@ -541,8 +544,8 @@ else
 fi
 [[ "$APPLIED_COUNT" =~ ^[0-9]+$ ]] || APPLIED_COUNT=0
 [[ "$RESIDUAL_COUNT" =~ ^[0-9]+$ ]] || RESIDUAL_COUNT=0
-[[ -n "$APPLIED_LINES" ]] && APPLIED_LINES="$APPLIED_LINES"$'\n'
-[[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES="$RESIDUAL_LINES"$'\n'
+[[ -n "$APPLIED_LINES" ]] && APPLIED_LINES+=$'\n'
+[[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES+=$'\n'
 
 # Compose ONE stdout document. Claude Code parses a hook's entire stdout as a
 # single JSON document, so the agent-channel context and the user-channel

@@ -34,6 +34,9 @@ import guard_contract as contract  # noqa: E402
 
 BASH = shutil.which("bash")
 
+# A long option as it appears in a usage block or a documented command line.
+LONG_OPTION = re.compile(r"(?<![\w-])--[a-z0-9][a-z0-9-]*")
+
 
 def invoke(entry_point: str, argv: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
     """Run an entry point the way an operator would -- wrapper via bash, CLI via Python."""
@@ -331,19 +334,16 @@ class EffectsReachDiskAsClaimed(unittest.TestCase):
                     argv = tuple(arg.format(state_dir=tmp) for arg in row.argv)
                     proc = invoke(row.entry_point, argv)
                     after = state_fingerprint(state_dir)
+                delta = observed_delta(before, after)
                 self.assertEqual(
                     proc.returncode,
                     row.exit_code,
                     because(row.id, row.claim, f"exit {proc.returncode}: {proc.stderr[:400]}"),
                 )
                 self.assertEqual(
-                    observed_delta(before, after),
+                    delta,
                     row.delta,
-                    because(
-                        row.id,
-                        row.claim,
-                        f"observed {observed_delta(before, after)!r}",
-                    ),
+                    because(row.id, row.claim, f"observed {delta!r}"),
                 )
 
 
@@ -387,6 +387,13 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
 
     ABBREVIATION_PROBE = "--hel"  # spellchecker:disable-line
 
+    def _python_entry_points(self) -> list[str]:
+        catalogued = [
+            entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")
+        ]
+        self.assertTrue(catalogued, "no Python entry points catalogued")
+        return catalogued
+
     def test_every_catalogued_entry_point_exposes_help(self) -> None:
         """The abbreviation probe assumes `--help` is registered on every parser.
 
@@ -394,11 +401,7 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
         unrecognized whatever `allow_abbrev` is, so the entry point would pass
         the abbreviation gate while proving nothing about abbreviation policy.
         """
-        catalogued = [
-            entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")
-        ]
-        self.assertTrue(catalogued, "no Python entry points catalogued")
-        for path in catalogued:
+        for path in self._python_entry_points():
             with self.subTest(entry_point=path):
                 proc = subprocess.run(
                     [sys.executable, str(contract.plugin_path(path)), "--help"],
@@ -414,11 +417,7 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
                 )
 
     def test_every_python_entry_point_refuses_an_abbreviated_flag(self) -> None:
-        catalogued = [
-            entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")
-        ]
-        self.assertTrue(catalogued, "no Python entry points catalogued")
-        for path in catalogued:
+        for path in self._python_entry_points():
             with self.subTest(entry_point=path):
                 proc = subprocess.run(
                     [
@@ -605,7 +604,7 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
             f"{cli} --help does not open with a usage block; the registry moved",
         )
         usage = proc.stdout.split("usage:", 1)[1].split("\n\n", 1)[0]
-        flags = set(re.findall(r"(?<![\w-])--[a-z0-9][a-z0-9-]*", usage))
+        flags = set(LONG_OPTION.findall(usage))
         self.assertTrue(flags, f"{cli} usage block parsed to no long options")
         # `--help` never appears in usage -- argparse renders the pair as `-h`.
         # Its evidence is this call: the invocation above IS `--help` and it
@@ -637,7 +636,7 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                     cli = contract.WRAPPER_BACKING_CLI[wrapper]
                     if cli not in accepted:
                         accepted[cli] = self._accepted_flags(cli)
-                    for flag in re.findall(r"(?<![\w-])--[a-z0-9][a-z0-9-]*", tail):
+                    for flag in LONG_OPTION.findall(tail):
                         self.assertIn(
                             flag,
                             accepted[cli],

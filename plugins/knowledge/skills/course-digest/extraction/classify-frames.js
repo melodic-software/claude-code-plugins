@@ -23,6 +23,7 @@ import { createLogger } from "@melodic/video-digestion/shared/logger";
 
 import {
   detectFrameMethod,
+  formatLessonLabel,
   lessonDirName,
   loadCourseDir,
   parseCliArgs,
@@ -66,7 +67,7 @@ async function generateContactSheets(courseDir, course) {
   let generated = 0;
 
   for (const { module, lesson, pngs } of eachLessonWithFrames(courseDir, course)) {
-    const label = `M${module.position}L${lesson.position}`;
+    const label = formatLessonLabel(module, lesson);
     const outFile = join(outDir, `${label}-${lessonDirName(lesson.position, lesson.title)}.jpg`);
 
     if (existsSync(outFile)) {
@@ -94,7 +95,7 @@ async function computeDedup(courseDir, course) {
   const results = {};
 
   for (const { module, lesson, pngs } of eachLessonWithFrames(courseDir, course)) {
-    const key = `M${module.position}L${lesson.position}`;
+    const key = formatLessonLabel(module, lesson);
     // biome-ignore lint/performance/noAwaitInLoops: lesson dedup runs sequentially to cap memory on large courses
     const frameSet = await deduplicateFrames(pngs, {}, { log });
 

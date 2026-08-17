@@ -331,11 +331,7 @@ resolve_queue_labels() {
 }
 
 resolve_decision_label() {
-  if [[ -n "$DECISION_LABEL_ARG" ]]; then
-    DECISION_LABEL="$DECISION_LABEL_ARG"
-  else
-    DECISION_LABEL="$DEFAULT_DECISION_LABEL"
-  fi
+  DECISION_LABEL="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
 }
 
 fetch_repo_label_names() {

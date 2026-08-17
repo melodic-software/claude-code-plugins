@@ -168,12 +168,10 @@ run_script() {
     bash "$SCRIPT" "$@" 2>&1
 }
 
-# Variant for cases that need to capture exit code without folding stderr.
-# Output discarded; only exit code returned via $?.
+# Variant for cases that assert only the exit code: all output is discarded and
+# the exit code comes back via $?.
 run_script_silent() {
-  PATH="$STUB_DIR:$PATH" \
-    FETCH_ANNOT_REPO="example-org/example-repo" \
-    bash "$SCRIPT" "$@" >/dev/null 2>&1
+  run_script "$@" >/dev/null 2>&1
 }
 
 # ---- Cases ------------------------------------------------------------------

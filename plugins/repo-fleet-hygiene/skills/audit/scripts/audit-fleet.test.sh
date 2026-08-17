@@ -26,6 +26,15 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/prefix-fail" "$TMP/prefix-auth/.git" \
   "$TMP/bare-live/.git" "$TMP/bare-live-link" \
   "$TMP/bare-pure/objects" "$TMP/bare-pure/refs"
+# skip-root/keep/visible-repo/.git/modules/nested-decoy/.git: a repo-shaped decoy buried in a
+# discovered repository's .git tree. Two independent mechanisms keep it out of the report — the
+# nested-repository early return, and should_skip_dir_name's unconditional .git arm — so no case
+# here can isolate either one (#2844). It is not inert coverage — drop the early return and skip
+# cases go red, in two variants. Drop it together with .git from BOTH the unconditional arm and the
+# default list: the three replace-semantics cases go red, the default-list case still passes.
+# Drop it with .git removed from the arm ONLY: those three plus the default-list case go red, since
+# the shipped default (node_modules vendor .venv) carries no .git of its own. That is what defence
+# in depth buys.
 # bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
 # administrative anomaly the collector must classify rather than reject (#2602 / #2656).
 : >"$TMP/bare-live/README"
@@ -1436,15 +1445,6 @@ assert_contains_file() {
     printf 'PASS: %s\n' "$label"
   fi
 }
-assert_not_contains_in() {
-  local label="$1" pattern="$2" file="$3"
-  if grep -Fq -- "$pattern" "$file"; then
-    printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
-    failures=$((failures + 1))
-  else
-    printf 'PASS: %s\n' "$label"
-  fi
-}
 
 assert_contains_file "header names configured melodic worktree root" \
   "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
@@ -1484,7 +1484,7 @@ else
 fi
 assert_contains_file "renamed-branch path counted conforming" \
   "2 conforming, 2 outside/wrong-layout, 1 tool-owned of 5 linked" "$conform_out"
-assert_not_contains_in "configured-root run does not claim unconfigured" \
+assert_not_contains_file "configured-root run does not claim unconfigured" \
   "Finding: worktree-root-unconfigured" "$conform_out"
 
 # CONFORM_NO_ORIGIN: sole non-origin GitHub remote must not invent <owner>-<repo>- layout;
@@ -1502,7 +1502,7 @@ if grep -Fq 'Finding: worktree-wrong-layout' "$no_origin_out" ||
 else
   printf 'PASS: no-origin create-shaped worktree is conforming (checkout-basename layout)\n'
 fi
-assert_not_contains_in "no-origin layout does not expect upstream owner/repo prefix" \
+assert_not_contains_file "no-origin layout does not expect upstream owner/repo prefix" \
   "other-upstream-repo" "$no_origin_out"
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
@@ -1951,7 +1951,8 @@ else
 fi
 
 # Shrink: omit vendor from an explicit list so a repo under vendor/ is discovered.
-# .git is omitted on purpose (#2826): shrinking must not start walking .git internals.
+# The `.git` skip is NOT what this case observes — see the should_skip_dir_name contract assertion
+# below for why no discovery-level case can (#2844).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
   --skip node_modules --skip .venv >"$skip_out" 2>&1; then
   if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
@@ -1966,21 +1967,28 @@ else
   failures=$((failures + 1))
 fi
 
-# #2826: shrinking with --skip node_modules (omitting .git) still reaches vendor/ and
-# must not surface a decoy planted under a discovered repo's .git tree.
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
-  --skip node_modules >"$skip_out" 2>&1; then
-  if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
-    grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
-    ! grep -Fq "nested-decoy" "$skip_out" &&
-    grep -Fq "Repositories discovered (audit targets after deduplication): 3" "$skip_out"; then
-    printf 'PASS: --skip omitting .git still skips .git and reaches vendor/\n'
-  else
-    printf 'FAIL: --skip omitting .git still skips .git and reaches vendor/\n%s\n' "$(cat "$skip_out")" >&2
-    failures=$((failures + 1))
-  fi
+# #2826/#2844: should_skip_dir_name's unconditional .git arm, asserted as a FUNCTION CONTRACT.
+# This deliberately does NOT claim to protect discovery, and no discovery-level test can stand in
+# for it: the result is never consumed for `.git`, because the nested-repository early return fires
+# first on the identical path and predicate, so the child loop that calls this never runs for a
+# directory holding a .git marker. Driving the collector instead would be green with or without the
+# arm. Extracted the same way as the helpers above, since the function lives after the
+# source-early-return guard. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
+# omits it, while node_modules/vendor prove the configurable half still decides everything else.
+skip_name_probe="$(
+  SCRIPT="$SCRIPT" bash -c '
+    eval "$(sed -n "/^should_skip_dir_name()/,/^}/p" "$SCRIPT")"
+    SKIP_NAMES=(node_modules)
+    for name in .git node_modules vendor; do
+      if should_skip_dir_name "$name"; then printf "%s-skip\n" "$name"; else printf "%s-walk\n" "$name"; fi
+    done
+  '
+)"
+if [[ "$skip_name_probe" == $'.git-skip\nnode_modules-skip\nvendor-walk' ]]; then
+  printf 'PASS: should_skip_dir_name skips .git unconditionally under a shrunk SKIP_NAMES\n'
 else
-  printf 'FAIL: --skip omitting .git unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  printf 'FAIL: should_skip_dir_name skips .git unconditionally under a shrunk SKIP_NAMES (%s)\n' \
+    "$(printf '%s' "$skip_name_probe" | tr '\n' '/')" >&2
   failures=$((failures + 1))
 fi
 

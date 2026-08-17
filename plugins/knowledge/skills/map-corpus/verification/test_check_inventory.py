@@ -295,7 +295,6 @@ class TestParserDifferential(GateHarness):
     def test_duplicate_evidence_key_smuggle_rejected(self):
         inv = copy.deepcopy(self.inventory)
         row = inv["rows"][0]
-        good_evidence = json.dumps(row["evidence"])
         row_json = json.dumps(row)
         # inject a FIRST evidence key with a fabricated quote before the real one
         smuggled = row_json.replace(
@@ -307,7 +306,6 @@ class TestParserDifferential(GateHarness):
         full = full.replace(row_json, smuggled, 1)
         proc = self.run_gate(inventory_raw=full.encode("utf-8"), expect_code=2)
         self.assertIn(b"duplicate JSON key", proc.stderr)
-        _ = good_evidence
 
     def test_duplicate_key_in_manifest_rejected(self):
         with open(self.manifest_path, encoding="utf-8") as fh:

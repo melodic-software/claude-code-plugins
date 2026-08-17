@@ -29,6 +29,13 @@ usage() {
   sed -n '/^# Mechanical/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
+# Every failure in this gate is exit 2 (usage or environment error) on stderr;
+# exits 0 and 1 are the graded verdict and are printed on stdout instead.
+die() {
+  echo "error: $1" >&2
+  exit 2
+}
+
 limit=""
 file=""
 
@@ -40,10 +47,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --limit)
     limit="${2-}"
-    shift 2 || {
-      echo "error: --limit needs a value" >&2
-      exit 2
-    }
+    shift 2 || die "--limit needs a value"
     ;;
   --limit=*)
     limit="${1#*=}"
@@ -51,18 +55,14 @@ while [[ $# -gt 0 ]]; do
     ;;
   --file)
     file="${2-}"
-    shift 2 || {
-      echo "error: --file needs a value" >&2
-      exit 2
-    }
+    shift 2 || die "--file needs a value"
     ;;
   --file=*)
     file="${1#*=}"
     shift
     ;;
   *)
-    echo "error: unknown argument: $1" >&2
-    exit 2
+    die "unknown argument: $1"
     ;;
   esac
 done
@@ -70,20 +70,17 @@ done
 # The limit is supplied by the caller (read live from the official docs); this
 # gate deliberately has no default so a stale number can never be baked in.
 if [[ -z "$limit" ]]; then
-  echo "error: --limit <N> is required (pass the current limit read from the official /goal docs)" >&2
-  exit 2
+  die "--limit <N> is required (pass the current limit read from the official /goal docs)"
 fi
 if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -eq 0 ]]; then
-  echo "error: --limit must be a positive integer, got: $limit" >&2
-  exit 2
+  die "--limit must be a positive integer, got: $limit"
 fi
 
 # Read the condition. Command substitution strips trailing newlines, which is
 # the desired normalization: a pasted /goal condition carries none.
 if [[ -n "$file" ]]; then
   if [[ ! -f "$file" ]]; then
-    echo "error: --file not found: $file" >&2
-    exit 2
+    die "--file not found: $file"
   fi
   condition="$(cat -- "$file")"
 else
@@ -91,8 +88,7 @@ else
 fi
 
 if [[ -z "$condition" ]]; then
-  echo "error: empty condition (nothing to measure)" >&2
-  exit 2
+  die "empty condition (nothing to measure)"
 fi
 
 # Count characters (Unicode code points), not bytes.
@@ -106,8 +102,7 @@ fi
 # below would error-and-fall-through to a false "status=ok". Fail loudly instead:
 # a length gate that silently passes when its own counter broke is worse than useless.
 if ! [[ "$chars" =~ ^[0-9]+$ ]]; then
-  echo "error: character count failed (counter returned: '${chars:-<empty>}')" >&2
-  exit 2
+  die "character count failed (counter returned: '${chars:-<empty>}')"
 fi
 
 if [[ "$chars" -gt "$limit" ]]; then

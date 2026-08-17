@@ -13,8 +13,9 @@ their repo mid-session.
   written into the packet); (5) presence-gated review seams with stated fallbacks; (6) emit to
   the resolved sink behind an unconditional draft+confirm gate.
 - **Auditor agent** (`agents/auditor.md`) — the fresh-context specialist for steps 2–3. Tools:
-  Read/Grep/Glob/WebFetch plus Bash — named honestly: Bash is there for `claude plugin validate`
-  and config-resolution probes, not mutation.
+  Read/Grep/Glob/WebFetch plus Bash — named honestly: Bash is there for `claude plugin validate`,
+  config-resolution probes, and the fetch ladder's rung-1 `curl` of the raw-markdown docs channel,
+  not mutation.
 - **Reference corpus** (`skills/audit/references/`) — the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.
@@ -57,7 +58,9 @@ config.
 
 `gh` (authenticated) for the issue sink — optional; without it the ladder ends in a local
 markdown item. `jq` for the context-gate probe — optional; without it dispatch is conservative.
-Works on Git Bash (Windows), macOS, and Linux shells.
+`curl` for the auditor's rung-1 raw-markdown doc fetch — optional; without it the auditor falls
+back to `WebFetch` and records the read as rung 2, which still grounds a claim but never an
+absence. Works on Git Bash (Windows), macOS, and Linux shells.
 
 ## License
 

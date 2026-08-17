@@ -25,6 +25,7 @@ from contextlib import (
     redirect_stdout,
 )
 from pathlib import Path
+from typing import cast
 from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -2337,6 +2338,349 @@ class HygieneTests(unittest.TestCase):
             mock.patch("os.path.samefile", side_effect=FileNotFoundError),
         ):
             self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
+
+
+class ChildrenRollupTests(unittest.TestCase):
+    """Per-immediate-child roll-up: real numbers where walked, null where not.
+
+    The skill tells the operator to open a large target with ``--max-depth 1``.
+    These pin the view that pass has to produce, and pin the two ways it could
+    lie: presenting a partial as a total, or presenting an unknown as 0.
+    """
+
+    @staticmethod
+    def rollup_by_name(snapshot: dict[str, object]) -> dict[str, dict[str, object]]:
+        rows = cast("list[dict[str, object]]", snapshot["children_rollup"])
+        return {str(row["name"]): row for row in rows}
+
+    def build_fixture(self, root: Path) -> None:
+        """An empty child, a non-empty child, a protected child, a loose file."""
+        (root / "empty_child").mkdir(parents=True)
+        (root / "full_child" / "nested").mkdir(parents=True)
+        (root / "full_child" / "a.log").write_text("a" * 100, encoding="utf-8")
+        (root / "full_child" / "nested" / "b.log").write_text("b" * 200, encoding="utf-8")
+        (root / "Documents").mkdir()
+        (root / "Documents" / "kept.txt").write_text("k" * 50, encoding="utf-8")
+        (root / "loose.tmp").write_text("x" * 42, encoding="utf-8")
+
+    def test_bounded_scan_rolls_up_every_immediate_child(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            self.build_fixture(root)
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            rollup = self.rollup_by_name(snapshot)
+            # Populated under the bounded pass, and no child is omitted —
+            # including the ones whose subtrees were never opened.
+            self.assertEqual(
+                {"Documents", "empty_child", "full_child", "loose.tmp"}, set(rollup)
+            )
+            # An empty child is genuinely empty, not unknown: 0 is an answer.
+            self.assertTrue(rollup["empty_child"]["walked"])
+            self.assertEqual(0, rollup["empty_child"]["logical_bytes"])
+            self.assertEqual(0, rollup["empty_child"]["entry_count"])
+            self.assertIsNotNone(rollup["empty_child"]["newest_mtime_ns"])
+            self.assertEqual([], rollup["empty_child"]["unwalked_reasons"])
+            # A non-empty child at the cut is unknown — null and marked, never 0.
+            self.assertFalse(rollup["full_child"]["walked"])
+            self.assertIsNone(rollup["full_child"]["logical_bytes"])
+            self.assertIsNone(rollup["full_child"]["entry_count"])
+            self.assertIsNone(rollup["full_child"]["newest_mtime_ns"])
+            self.assertEqual(["depth-cut"], rollup["full_child"]["unwalked_reasons"])
+            # Protection, not depth, is why this one is unknown.
+            self.assertFalse(rollup["Documents"]["walked"])
+            self.assertIsNone(rollup["Documents"]["logical_bytes"])
+            self.assertEqual(["protected"], rollup["Documents"]["unwalked_reasons"])
+            # A loose file needs no walk to be fully known.
+            self.assertTrue(rollup["loose.tmp"]["walked"])
+            self.assertEqual("file", rollup["loose.tmp"]["kind"])
+            self.assertEqual(42, rollup["loose.tmp"]["logical_bytes"])
+            self.assertEqual(42, rollup["loose.tmp"]["reclaimable_local_bytes"])
+            self.assertEqual([], rollup["loose.tmp"]["size_qualifiers"])
+
+    def test_bounded_rollup_opens_no_directory_the_bounded_walk_did_not(self) -> None:
+        """The roll-up must not smuggle an unbounded walk into a bounded pass.
+
+        Measured, not assumed: every directory open goes through os.scandir, so
+        counting them counts the walk. The bounded pass may only open the target
+        plus the one first-child probe per depth-cut directory that the
+        empty-frontier fix already paid for.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            self.build_fixture(root)
+            real_scandir = os.scandir
+            opened: list[str] = []
+
+            def counting_scandir(path="."):
+                opened.append(str(path))
+                return real_scandir(path)
+
+            with mock.patch("os.scandir", counting_scandir):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), max_depth=1
+                )
+            names = sorted(Path(item).name for item in opened)
+            # target itself + the probe of each non-protected directory child.
+            # `full_child/nested` is never opened, so no descendant was walked.
+            self.assertEqual(["empty_child", "full_child", "target"], names)
+            self.assertNotIn(
+                "full_child/nested", {entry["path"] for entry in snapshot["entries"]}
+            )
+
+    def test_unbounded_scan_gives_children_exact_recursive_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            self.build_fixture(root)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            rollup = self.rollup_by_name(snapshot)
+            self.assertTrue(rollup["full_child"]["walked"])
+            self.assertEqual(300, rollup["full_child"]["logical_bytes"])
+            # a.log, nested, nested/b.log — the child itself is not a descendant.
+            self.assertEqual(3, rollup["full_child"]["entry_count"])
+            self.assertEqual([], rollup["full_child"]["unwalked_reasons"])
+            # Protection outlives the depth bound; that child stays unknown.
+            self.assertFalse(rollup["Documents"]["walked"])
+            self.assertIsNone(rollup["Documents"]["logical_bytes"])
+
+    def test_walked_child_totals_sum_to_the_target_total(self) -> None:
+        """No walked child's bytes may double-count or drop the target's rule."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "one" / "deep").mkdir(parents=True)
+            (root / "one" / "deep" / "a.bin").write_text("a" * 7, encoding="utf-8")
+            (root / "two").mkdir()
+            (root / "two" / "b.bin").write_text("b" * 11, encoding="utf-8")
+            (root / "c.bin").write_text("c" * 13, encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual([], snapshot["truncated_paths"])
+            self.assertTrue(all(row["walked"] for row in snapshot["children_rollup"]))
+            self.assertEqual(
+                snapshot["target_logical_bytes"],
+                sum(row["logical_bytes"] for row in snapshot["children_rollup"]),
+            )
+
+    def test_partial_child_subtree_reports_unknown_not_a_partial_sum(self) -> None:
+        """A walked child holding an unwalked descendant is NOT a total.
+
+        And the flat entry does not say so on its own: a directory gets the
+        `not-walked` qualifier only from its OWN branch, never propagated up
+        from a descendant, so `repo_child` keeps an EMPTY `size_qualifiers`
+        beside a `logical_size` that is a partial sum. Pinned here because it
+        is the sharpest reason to read the roll-up rather than the entry list —
+        if a future change starts propagating the qualifier, this assertion is
+        where the reference doc's explanation must be revisited.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "repo_child" / ".git").mkdir(parents=True)
+            (root / "repo_child" / ".git" / "obj").write_text("g" * 90, encoding="utf-8")
+            (root / "repo_child" / "src.py").write_text("p" * 10, encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+            rollup = self.rollup_by_name(snapshot)
+            self.assertEqual(10, entries["repo_child"]["logical_size"])
+            self.assertEqual([], entries["repo_child"]["size_qualifiers"])
+            self.assertEqual(["repo_child/.git"], snapshot["truncated_paths"])
+            self.assertFalse(rollup["repo_child"]["walked"])
+            self.assertIsNone(rollup["repo_child"]["logical_bytes"])
+            self.assertEqual(
+                ["descendant-not-walked"], rollup["repo_child"]["unwalked_reasons"]
+            )
+
+    def test_vcs_child_names_its_own_boundary_as_the_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            (root / ".git").mkdir()
+            with mock.patch.object(
+                hygiene, "hard_protection", side_effect=lambda *a, **k: []
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            rollup = self.rollup_by_name(snapshot)
+            self.assertFalse(rollup[".git"]["walked"])
+            self.assertEqual(["vcs-boundary"], rollup[".git"]["unwalked_reasons"])
+
+    def test_unreadable_child_is_marked_not_omitted(self) -> None:
+        """A child whose scandir fails keeps a row, with scan-error named."""
+        rows = hygiene.children_rollup(
+            [
+                {
+                    "path": "locked",
+                    "kind": "directory",
+                    "logical_size": None,
+                    "mtime_ns": 5,
+                    "size_qualifiers": ["not-walked"],
+                }
+            ],
+            unknown_paths={"locked"},
+            unwalked_reasons={"locked": "scan-error"},
+        )
+        self.assertEqual(1, len(rows))
+        self.assertFalse(rows[0]["walked"])
+        self.assertIsNone(rows[0]["logical_bytes"])
+        self.assertEqual(["scan-error"], rows[0]["unwalked_reasons"])
+
+    def test_child_with_no_inventory_record_is_still_a_row(self) -> None:
+        """An error that left no entry at all still owes the operator a row."""
+        rows = hygiene.children_rollup(
+            [],
+            unknown_paths={"vanished"},
+            unwalked_reasons={"vanished": "scan-error"},
+        )
+        self.assertEqual(
+            [
+                {
+                    "name": "vanished",
+                    "kind": None,
+                    "walked": False,
+                    "logical_bytes": None,
+                    "reclaimable_local_bytes": None,
+                    "size_qualifiers": None,
+                    "entry_count": None,
+                    "newest_mtime_ns": None,
+                    "unwalked_reasons": ["scan-error"],
+                }
+            ],
+            rows,
+        )
+
+    def test_an_unwalked_row_nulls_every_aggregate_including_the_byte_pair(self) -> None:
+        """`walked: false` must not leave one aggregate looking answered."""
+        rows = hygiene.children_rollup(
+            [
+                {"path": "deep", "kind": "directory", "logical_size": 5, "mtime_ns": 1},
+                {"path": "deep/f.bin", "kind": "file", "logical_size": 5, "mtime_ns": 3},
+            ],
+            unknown_paths={"deep/inner"},
+        )
+        self.assertEqual(1, len(rows))
+        for field in (
+            "logical_bytes",
+            "reclaimable_local_bytes",
+            "size_qualifiers",
+            "entry_count",
+            "newest_mtime_ns",
+        ):
+            self.assertIsNone(rows[0][field], field)
+        self.assertEqual(["descendant-not-walked"], rows[0]["unwalked_reasons"])
+
+    def test_qualified_bytes_never_pass_as_reclaimable(self) -> None:
+        """A logical total is not space a delete returns, and the row says so.
+
+        `logical_bytes` counts a cloud placeholder's REMOTE size, both names of
+        a hard link, and a sparse file's unallocated extent. Leading the report
+        with that number alone is exactly the overclaim the rest of this engine
+        refuses, so the row carries the qualifiers it saw and a reclaimable
+        figure computed the same way `target_reclaimable_local_bytes` is.
+        """
+        rows = hygiene.children_rollup(
+            [
+                {"path": "mixed", "kind": "directory", "logical_size": 3000, "mtime_ns": 1},
+                {
+                    "path": "mixed/remote.bin",
+                    "kind": "file",
+                    "logical_size": 2000,
+                    "mtime_ns": 2,
+                    "size_qualifiers": ["cloud-placeholder"],
+                },
+                {
+                    "path": "mixed/real.bin",
+                    "kind": "file",
+                    "logical_size": 1000,
+                    "mtime_ns": 3,
+                    "size_qualifiers": [],
+                },
+            ]
+        )
+        row = rows[0]
+        self.assertTrue(row["walked"])
+        self.assertEqual(3000, row["logical_bytes"])
+        self.assertEqual(1000, row["reclaimable_local_bytes"])
+        self.assertEqual(["cloud-placeholder"], row["size_qualifiers"])
+
+    def test_target_scandir_failure_claims_no_child_coverage(self) -> None:
+        rows = hygiene.children_rollup([], unknown_paths={"."})
+        self.assertEqual([], rows)
+
+    def test_the_target_itself_is_never_one_of_its_own_children(self) -> None:
+        """`.` is the target, so no roll-up row may be named for it."""
+        rows = hygiene.children_rollup(
+            [
+                {"path": ".", "kind": "directory", "logical_size": 9, "mtime_ns": 1},
+                {"path": "real", "kind": "file", "logical_size": 4, "mtime_ns": 2},
+            ]
+        )
+        self.assertEqual(["real"], [row["name"] for row in rows])
+
+    def test_root_children_mode_rolls_up_only_the_selected_children(self) -> None:
+        """Selection, not depth, bounds this walk — the roll-up must follow it.
+
+        An unselected sibling is never opened and never inventoried, so it owes
+        no row: root-children mode's "target" is the selection, and claiming a
+        row for a child the mode deliberately never looked at would report a
+        coverage gap the operator did not ask this run to cover.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "picked" / "deep").mkdir(parents=True)
+            (root / "picked" / "deep" / "a.bin").write_text("a" * 7, encoding="utf-8")
+            (root / "picked" / "b.bin").write_text("b" * 11, encoding="utf-8")
+            (root / "skipped").mkdir()
+            (root / "skipped" / "c.bin").write_text("c" * 13, encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), root_children=["picked"]
+            )
+            rollup = self.rollup_by_name(snapshot)
+            self.assertEqual({"picked"}, set(rollup))
+            self.assertTrue(rollup["picked"]["walked"])
+            self.assertEqual(18, rollup["picked"]["logical_bytes"])
+            # deep, deep/a.bin, b.bin — descendants only, correctly attributed.
+            self.assertEqual(3, rollup["picked"]["entry_count"])
+
+    def test_scan_command_emits_the_third_coverage_term(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir(parents=True)
+            self.build_fixture(root)
+            (root / "npm-cache").mkdir()
+            (root / "npm-cache" / "x.tmp").write_text("t", encoding="utf-8")
+            data_root = Path(temporary) / "data"
+            data_root.mkdir()
+            output = data_root / "runs" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with redirect_stdout(stdout_io):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                        "--max-depth",
+                        "1",
+                    ]
+                )
+            self.assertEqual(0, code)
+            result = json.loads(stdout_io.getvalue())
+            self.assertEqual("scan-complete", result["status"])
+            # entries = hinted + unhinted, exactly: every inventoried entry was
+            # either judged by a hint or left to positional review.
+            self.assertEqual(
+                result["entries"],
+                result["hinted_entries"] + result["unhinted_entries"],
+            )
+            self.assertGreater(result["unhinted_entries"], 0)
+            self.assertEqual(
+                {row["name"] for row in result["children_rollup"]},
+                {"Documents", "empty_child", "full_child", "loose.tmp", "npm-cache"},
+            )
 
 
 class VersionFloorTests(unittest.TestCase):
@@ -6173,6 +6517,9 @@ class GuardTests(unittest.TestCase):
             "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
             "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(10).MoveHere($path)",
             "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
+            # #2850: the send-to-the-bin spelling names the item's PARENT folder,
+            # so no bin id appears anywhere in the command.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('delete')",
             "Move-Item C:/tmp/old C:/tmp/new",
             "Rename-Item C:/tmp/old C:/tmp/new",
             "Set-Content C:/tmp/file.txt 'overwrite'",
@@ -6321,6 +6668,7 @@ class GuardTests(unittest.TestCase):
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($path,'OnlyErrorDialogs','SendToRecycleBin')",
             "(New-Object -ComObject Shell.Application).NameSpace(10).MoveHere($path)",
             "$shell.NameSpace(0xa).ParseName($path).InvokeVerb('delete')",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('delete')",
         ):
             result = self.run_guard_powershell_disabled(command)
             assert result is not None, command
@@ -6363,14 +6711,59 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
+    def test_powershell_shell_app_send_to_bin_via_parent_folder_prompts(self) -> None:
+        """#2850: the send-to-the-bin spelling names the PARENT folder, not the bin.
+
+        `NameSpace()` takes the containing folder's path and the delete verb is
+        invoked on the item, so no Recycle Bin folder id (10 / 0xa) appears
+        anywhere in the command. The verdict must key on the delete verb.
+        """
+        for command in (
+            "$sh = New-Object -ComObject Shell.Application; "
+            "$item = $sh.NameSpace('C:\\some\\parent').ParseName('victim'); "
+            "$item.InvokeVerb('delete')",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('delete')",
+            '$sh.NameSpace("C:\\some\\parent").ParseName("victim").InvokeVerb("Delete")',
+            # A menu accelerator names the same verb.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('&Delete')",
+            # `InvokeVerbEx` is the same call with arguments; a word boundary
+            # closed immediately after `InvokeVerb` would not cover the suffixed
+            # spelling.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerbEx('delete')",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "ask",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+            self.assertRegex(
+                result["hookSpecificOutput"]["permissionDecisionReason"],
+                r"Recycle Bin",
+                command,
+            )
+
     def test_powershell_shell_app_without_bin_action_defers(self) -> None:
         """Listing the bin is not a deletion spelling; MoveHere/InvokeVerb is required."""
         for command in (
             "(New-Object -ComObject Shell.Application).NameSpace(10).Items()",
             "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(10)",
-            # MoveHere against a non-bin namespace is outside this Recycle Bin rule;
-            # Move-Item remains the catch-all for rename/move cmdlets.
+            # MoveHere into an ordinary (non-bin) folder is a MOVE, not a
+            # deletion, so it stays outside the Recycle Bin rule — including the
+            # verb-keyed half added for #2850. Nothing else on this lane covers
+            # it either: `_POWERSHELL_MUTATION_WORDS` matches neither `MoveHere`
+            # (the `move` entry's trailing `(?![\w-])` rejects the `here`) nor
+            # `InvokeVerb`, so `Move-Item` is not the catch-all for these COM
+            # spellings. Widening the mutation-word set is its own change.
             "(New-Object -ComObject Shell.Application).NameSpace('C:\\tmp').MoveHere($path)",
+            # CopyHere copies; the original is untouched.
+            "(New-Object -ComObject Shell.Application).NameSpace('C:\\tmp').CopyHere($path)",
+            # Non-delete verbs, and the omitted verb (the default, typically
+            # "open"), are not deletions.
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb('open')",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').InvokeVerb()",
+            "$sh.NameSpace('C:\\some\\parent').ParseName('victim').Verbs()",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 

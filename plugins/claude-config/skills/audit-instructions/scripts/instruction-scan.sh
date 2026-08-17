@@ -158,71 +158,45 @@ I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 
 rows=()
 
+# collect_rows <file> <check-id> <ere> <grep-flags> [<require-ere>] [<reject-ere>]
+#
+# Append one `file:line:check-id` row per line of <file> matching <ere>. The
+# grep flags travel per call because I28-a is case-SENSITIVE by design — the
+# all-caps marker IS the signal — while every other family folds case.
+# <require-ere> keeps only hits whose text also matches (I27's brevity token,
+# which must land on the SAME line as the effort directive); <reject-ere> drops
+# hits whose text matches (I6's rationale marker).
+collect_rows() {
+  local file="$1" id="$2" ere="$3" grep_flags="$4" require="${5:-}" reject="${6:-}"
+  local hit lineno text
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    text="${hit#*:}"
+    if [[ -n "$reject" ]] && printf '%s\n' "$text" | grep -qiE "$reject"; then
+      continue
+    fi
+    if [[ -n "$require" ]] && ! printf '%s\n' "$text" | grep -qiE "$require"; then
+      continue
+    fi
+    rows+=("$file:$lineno:$id")
+  done < <(grep "$grep_flags" "$ere" "$file" 2>/dev/null)
+}
+
 scan_file() {
-  local file="$1" hit lineno text
+  local file="$1"
   [[ -f "$file" ]] || return 0
 
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    text="${hit#*:}"
-    printf '%s\n' "$text" | grep -qiE "$RATIONALE_ERE" && continue
-    rows+=("$file:$lineno:I6")
-  done < <(grep -niE "$I6_ERE" "$file" 2>/dev/null)
-
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    rows+=("$file:$lineno:I10")
-  done < <(grep -niE "$I10_ERE" "$file" 2>/dev/null)
-
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    rows+=("$file:$lineno:I23")
-  done < <(grep -niE "$I23_ERE" "$file" 2>/dev/null)
-
-  local fam ere
-  for fam in a b c; do
-    case "$fam" in
-      a) ere="$I8_A_ERE" ;;
-      b) ere="$I8_B_ERE" ;;
-      c) ere="$I8_C_ERE" ;;
-      *) continue ;;
-    esac
-    while IFS= read -r hit; do
-      [[ -n "$hit" ]] || continue
-      lineno="${hit%%:*}"
-      rows+=("$file:$lineno:I8-$fam")
-    done < <(grep -niE "$ere" "$file" 2>/dev/null)
-  done
-
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    text="${hit#*:}"
-    printf '%s\n' "$text" | grep -qiE "$I27_BREVITY_ERE" || continue
-    rows+=("$file:$lineno:I27")
-  done < <(grep -niE "$I27_EFFORT_ERE" "$file" 2>/dev/null)
-
-  # I28-a is case-sensitive by design: the all-caps marker IS the signal.
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    rows+=("$file:$lineno:I28-a")
-  done < <(grep -nE "$I28_A_ERE" "$file" 2>/dev/null)
-
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    rows+=("$file:$lineno:I28-b")
-  done < <(grep -niE "$I28_B_ERE" "$file" 2>/dev/null)
-
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    rows+=("$file:$lineno:I25")
-  done < <(grep -niE "$I25_ERE" "$file" 2>/dev/null)
+  collect_rows "$file" I6 "$I6_ERE" -niE "" "$RATIONALE_ERE"
+  collect_rows "$file" I10 "$I10_ERE" -niE
+  collect_rows "$file" I23 "$I23_ERE" -niE
+  collect_rows "$file" I8-a "$I8_A_ERE" -niE
+  collect_rows "$file" I8-b "$I8_B_ERE" -niE
+  collect_rows "$file" I8-c "$I8_C_ERE" -niE
+  collect_rows "$file" I27 "$I27_EFFORT_ERE" -niE "$I27_BREVITY_ERE"
+  collect_rows "$file" I28-a "$I28_A_ERE" -nE
+  collect_rows "$file" I28-b "$I28_B_ERE" -niE
+  collect_rows "$file" I25 "$I25_ERE" -niE
 }
 
 for file in "$@"; do

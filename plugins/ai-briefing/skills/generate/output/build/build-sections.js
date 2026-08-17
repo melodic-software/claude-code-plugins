@@ -232,20 +232,20 @@ function renderGroup(group, logoWhiteData, providerLogoSvg) {
   const sectionKey = group.key;
   const cls = `section section-${sectionKey} type-${lead.type}`;
 
-  let inner = "";
-  if (lead.type === "title") inner = renderHero(lead, logoWhiteData);
-  else if (lead.type === "agenda") inner = renderAgenda(lead);
-  else if (lead.type === "section") inner = renderWelcome(lead);
-  else if (lead.type === "levels") inner = renderLevels(lead);
-  else if (lead.type === "open") inner = renderOpen(lead, logoWhiteData);
-  else if (lead.type === "prompt") inner = renderPrompt(lead);
-  else if (lead.type === "blank") inner = renderBlank(lead);
-  else if (lead.type === "qa") inner = renderQA(lead, logoWhiteData);
-  else if (lead.type === "patterns") inner = renderPatterns(lead);
-  else if (lead.type === "news" || lead.type === "condensed") {
-    inner = renderNewsSection(sectionKey, group.slides, providerLogoSvg);
-  } else {
-    inner = `<h2>Unknown: ${escape(lead.type)}</h2>`;
+  let inner;
+  switch (lead.type) {
+    case "title":    inner = renderHero(lead, logoWhiteData); break;
+    case "agenda":   inner = renderAgenda(lead); break;
+    case "section":  inner = renderWelcome(lead); break;
+    case "levels":   inner = renderLevels(lead); break;
+    case "open":     inner = renderOpen(lead, logoWhiteData); break;
+    case "prompt":   inner = renderPrompt(lead); break;
+    case "blank":    inner = renderBlank(lead); break;
+    case "qa":       inner = renderQA(lead, logoWhiteData); break;
+    case "patterns": inner = renderPatterns(lead); break;
+    case "news":
+    case "condensed": inner = renderNewsSection(sectionKey, group.slides, providerLogoSvg); break;
+    default: inner = `<h2>Unknown: ${escape(lead.type)}</h2>`;
   }
 
   const notesPieces = group.slides
@@ -269,8 +269,8 @@ function renderTopnav(groups, meta, logoWhiteData) {
     .filter((k) => k === "news" || groupKeys.has(k))
     .map((k) => {
       const label = k === "news" ? "News" : (SECTION_LABELS[k] || k);
-      const isNewsChip = k === "news" ? "chip-news-parent" : "";
-      return `<li><a href="#${escape(k)}" class="${isNewsChip}" data-key="${escape(k)}">${escape(label)}</a></li>`;
+      const chipClass = k === "news" ? "chip-news-parent" : "";
+      return `<li><a href="#${escape(k)}" class="${chipClass}" data-key="${escape(k)}">${escape(label)}</a></li>`;
     }).join("");
 
   const subChips = newsSubKeys.map((k) => {

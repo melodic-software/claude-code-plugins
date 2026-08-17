@@ -27,6 +27,8 @@ function step(label, script, args = []) {
   return r.status === 0;
 }
 
+const VALUE_FLAGS = new Set(["--meeting-n", "--briefing", "--date", "--out"]);
+
 function parseFlags(argv) {
   const flags = { skipEmit: false, skipValidate: false };
   const passthrough = [];
@@ -36,7 +38,7 @@ function parseFlags(argv) {
     else if (a === "--skip-validate") flags.skipValidate = true;
     else passthrough.push(a);
     // Some flags need their value argument too — handled by passing through
-    if (a === "--meeting-n" || a === "--briefing" || a === "--date" || a === "--out") {
+    if (VALUE_FLAGS.has(a)) {
       passthrough.push(argv[++i]);
     }
   }
@@ -52,17 +54,12 @@ tasks.push(["BUILD html",                                          "build-html.j
 tasks.push(["BUILD pdf",                                           "build-pdf.js",        []]);
 if (!flags.skipValidate) tasks.push(["VALIDATE deck (quality gates)","validate.js",       []]);
 
-let allOk = true;
 for (const [label, script, args] of tasks) {
-  const ok = step(label, script, args);
-  if (!ok) {
+  if (!step(label, script, args)) {
     console.error(`\n${label} FAILED. Aborting.`);
-    allOk = false;
-    break;
+    process.exit(1);
   }
 }
-
-if (!allOk) process.exit(1);
 
 console.log("\n" + "=".repeat(70));
 console.log("PIPELINE GREEN — deck ready.");

@@ -115,12 +115,26 @@ wit_item_numbers() {
   done | sort -n
 }
 
+# wit_state_matches <filter> <stored-state-json> — 0 when an item passes the
+# --state filter. One spelling of the filter for every verb that enumerates the
+# store (list-items, list-sub-items) so the two cannot drift. `all` — and any
+# other value, unreachable because --state is validated to open|closed|all at
+# parse time — matches everything, mirroring the fall-through the call sites had.
+wit_state_matches() {
+  case "$1" in
+    open) [[ "$2" == '"open"' ]] ;;
+    closed) [[ "$2" == '"closed"' ]] ;;
+    *) return 0 ;;
+  esac
+}
+
 # wit_next_number — max existing item file number + 1 (single-writer store).
 wit_next_number() {
   local max=0 f base n
   shopt -s nullglob
   for f in "$WIT_STORAGE_DIR"/*.md; do
-    base="$(basename "$f" .md)"
+    base="${f##*/}"
+    base="${base%.md}"
     [[ "$base" =~ ^[0-9]+$ ]] || continue
     n="$base"
     ((n > max)) && max="$n"
@@ -203,7 +217,7 @@ wit_active_lease_json() {
   while IFS= read -r line; do
     json="$(wit_lease_json "$line")"
     [[ -n "$json" ]] || continue
-    [[ "$(jq -r '.superseded_at // empty' <<<"$json")" == "" ]] || continue
+    [[ -z "$(jq -r '.superseded_at // empty' <<<"$json")" ]] || continue
     active="$json"
   done <<<"$lines"
   printf '%s\n' "$active"
@@ -232,7 +246,8 @@ wit_find_lease_file() {
   local target="$1" f base line json lid flines
   shopt -s nullglob
   for f in "$WIT_STORAGE_DIR"/*.md; do
-    base="$(basename "$f" .md)"
+    base="${f##*/}"
+    base="${base%.md}"
     [[ "$base" =~ ^[0-9]+$ ]] || continue
     flines="$(wit_lease_lines "$f")" # capture, not `< <()` — MSYS process-sub hangs
     while IFS= read -r line; do

@@ -3,6 +3,79 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.6]
+
+### Fixed
+
+- **Hook-failure audit classifies a record three ways, and says so when it cannot tell (#2849).**
+  0.32.5 (below, unreleased) split the message two ways and treated `exitCode` 126 or 127 as
+  launch-failure evidence on its own. Review found that predicate wrong: a registered shell hook
+  launches successfully and still exits 126 or 127 whenever a command *inside* it is missing or not
+  executable, so labelling that a launch failure hands the operator the restart-the-session remedy
+  for a defect restarting cannot touch — the exact misdiagnosis #2849 exists to fix, in a narrower
+  shape. Classification is now three-way:
+  - `launch failure` — the record's stderr carries an exec-failure signature (`execvpe`,
+    `execve(`, `exec format error`). **Signature evidence decides this regardless of exit code.**
+  - `completed non-zero exit` — no signature, and `exitCode` is not 126 or 127.
+  - `ambiguous: exit 126/127 with no exec-failure signature` — the message states plainly that both
+    readings are possible and gives **both** remedies (check that the registered command exists and
+    is executable, *and* read the hook's own logic for a command it could not run) rather than
+    picking one.
+
+  The measured corpus (175 records, 2026-08-16) is why neither signal alone is sufficient: 163
+  records carry an `execvpe` signature at `exitCode` **1**, and the single `exitCode` 127 record
+  carries **no** stderr signature at all — exit code and signature are close to independent in
+  practice. The signature set still deliberately excludes `command not found`, `cannot execute`,
+  and cmd.exe's `is not recognized as an internal or external command`: a successfully launched
+  hook prints all three about a command it ran itself.
+
+  **Disclosed deviation from the issue.** Acceptance criterion 2 of #2849 said `exitCode` 126/127
+  **or** an exec-failure stderr signature keeps the launch-failure wording. That `or` is too loose
+  for the reason above, so this change deliberately refines the criterion it closes: 126/127 with
+  no signature is reported as ambiguous instead of as a launch failure. Nothing else in the
+  criteria changed, and the launch-failure wording is still kept verbatim wherever signature
+  evidence supports it.
+
+## [0.32.5]
+
+### Fixed
+
+- **Hook-failure audit tells a launch failure apart from a completed non-zero exit (#2849).** The
+  `hook-failure-audit` Stop hook emitted one unconditional sentence — "A hook that fails to launch
+  enforces nothing" — plus a restart-the-session remedy, on every record, including a hook that ran
+  to completion and exited non-zero, the exact case #2593 was written for. Each record is now
+  classified, and the diagnosis and remedy follow the classification: the launch-failure wording
+  and the restart remedy are kept verbatim where they are correct and are simply not asserted about
+  a hook that ran. Classes are counted per record, so one registration that failed several ways in
+  the same unwarned batch is labelled with each class's own count and gets each class's sentence,
+  rather than being relabelled by whichever record happened to come last; the per-class message
+  flags are computed from those per-record counts, never from the collapsed group value. The class
+  names and the discriminator that assigns them were refined under 0.32.6 above before either
+  version shipped. `exitCode` alone cannot carry the split: all 175 records in the measured corpus
+  (2026-08-16) have a non-null `exitCode`, and 1 is the code the WSL relay reports for its own exec
+  failures. The completed-exit wording asserts only the absence of exec-failure evidence, never a
+  positive launch, so a record with no `exitCode` at all is not told it launched.
+- **The harness's synthesized "no stderr" sentence is no longer attributed to the hook (#2849).**
+  The empty-stderr placeholder shipped in 0.32.2 keyed on `.stderr == ""`, a shape Claude Code does
+  not emit — 0 of 175 measured records carry it, while 12 carry the literal
+  `Failed with non-blocking status code: No stderr output`, which passed through verbatim and read
+  as though the hook had emitted that sentence. Both shapes now render as
+  `last stderr: (none — hook produced no stderr)`. A real stderr is still passed through unchanged;
+  the match is exact, not a prefix.
+- **Maintainer-facing prose removed from the operator-facing message (#2849).** The sentence
+  "Includes exitCode and an empty-stderr placeholder so silent Stop failures remain attributable
+  (hookName + command)" explained the fix's implementation to an operator trying to act on an
+  incident, and is gone.
+
+## [0.32.4]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
 ## [0.32.3]
 
 ### Changed

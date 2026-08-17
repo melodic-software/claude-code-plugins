@@ -111,10 +111,8 @@ try {
             $summary = "Battery full-charge $fullPct% of design."
             if ($fullPct -lt 50) { $severity = 'CRIT' }
             elseif ($fullPct -lt 70) { $severity = 'WARN' }
-        } else {
-            $reportNote = if ($reportNote) {
-                $reportNote
-            } elseif ($ReportPath) {
+        } elseif (-not $reportNote) {
+            $reportNote = if ($ReportPath) {
                 'Battery HTML generated but capacity values not parseable.'
             } else {
                 'No ReportPath provided; capacity analysis skipped.'

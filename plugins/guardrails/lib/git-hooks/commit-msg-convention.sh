@@ -38,10 +38,11 @@ MSG_FILE="${1:?commit-msg hook invoked without a message file}"
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Chain a pre-existing hook first; its rejection is final.
-if [[ -x "$HOOK_DIR/commit-msg.pre-guardrails" ]]; then
-  "$HOOK_DIR/commit-msg.pre-guardrails" "$@" || exit $?
-elif [[ -f "$HOOK_DIR/commit-msg.pre-guardrails" ]]; then
-  bash "$HOOK_DIR/commit-msg.pre-guardrails" "$@" || exit $?
+PREV_HOOK="$HOOK_DIR/commit-msg.pre-guardrails"
+if [[ -x "$PREV_HOOK" ]]; then
+  "$PREV_HOOK" "$@" || exit $?
+elif [[ -f "$PREV_HOOK" ]]; then
+  bash "$PREV_HOOK" "$@" || exit $?
 fi
 
 # Repo root: commit-msg hooks run with cwd at the repo top level, but resolve

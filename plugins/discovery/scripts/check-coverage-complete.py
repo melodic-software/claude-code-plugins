@@ -98,8 +98,7 @@ def grade(ledger_path: Path) -> int:
     rows = 0
     unmarked = 0
 
-    for raw_line in text.splitlines():
-        line = raw_line
+    for line in text.splitlines():
         if not line.lstrip().startswith("|"):
             continue
         if is_separator(line):

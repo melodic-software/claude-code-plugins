@@ -126,7 +126,7 @@ wit_run_gh() {
     WIT_GH_OUT="$(gh "$@" 2>"$errfile")"
   fi
   rc=$?
-  err="$(cat "$errfile")"
+  err="$(<"$errfile")"
   rm -f "$errfile"
   if ((rc != 0)); then
     printf '%s\n' "$err" >&2

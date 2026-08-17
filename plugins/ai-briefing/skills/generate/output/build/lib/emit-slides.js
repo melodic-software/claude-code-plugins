@@ -40,6 +40,14 @@ function toBullet(item) {
   };
 }
 
+/** Map a parsed briefing item → the item shape the `patterns` slide type expects. */
+function toPatternItem(item) {
+  return {
+    title: item.headline || "Untitled",
+    body: item.body || "",
+  };
+}
+
 /** Match an H2 heading from briefing.md to a canonical bucket key. */
 function bucketKey(heading) {
   const h = heading.toLowerCase();
@@ -60,12 +68,19 @@ function bucketKey(heading) {
   return null;
 }
 
+// Title suffix per tier, e.g. "Anthropic — also worth noting".
+const TIER_TITLE_SUFFIX = {
+  high: "Highlights",
+  med: "also worth noting",
+  low: "color & notes",
+};
+
 /** Build news/condensed slides for a tier of items, splitting when >7. */
 function tierSlides({ items, tier, providerKey, label }) {
   if (!items || items.length === 0) return [];
   const slides = [];
   const slideType = tier === "high" ? "news" : "condensed";
-  const baseTitle = `${label} — ${tier === "high" ? "Highlights" : tier === "med" ? "also worth noting" : "color & notes"}`;
+  const baseTitle = `${label} — ${TIER_TITLE_SUFFIX[tier]}`;
 
   // HIGH split into chunks of ≤5 with topical title; MED/LOW single slide w/ 2-col when >7
   const MAX_HIGH = 5;
@@ -107,6 +122,11 @@ function tierSlides({ items, tier, providerKey, label }) {
   return slides;
 }
 
+// Buckets that carry synthesis/meta content rather than provider news — excluded
+// from the "how many buckets were active" heuristic below. Kept independent of
+// SPECIAL_BUCKETS: the two sets coincide today but answer different questions.
+const NON_PROVIDER_BUCKETS = new Set(["patterns", "breaking", "dev-tools", "pace", "trends"]);
+
 /** Synthesize patterns slide from cross-bucket signals. Heuristic — caller can override
  *  by authoring `## Patterns` in the briefing markdown (parsed into buckets.patterns._items). */
 function buildPatternsSlide(buckets) {
@@ -117,15 +137,14 @@ function buildPatternsSlide(buckets) {
       type: "patterns",
       title: "Notable patterns this window",
       subtitle: "Synthesis & themes",
-      items: authored.map((it) => ({
-        title: it.headline || "Untitled",
-        body: it.body || "",
-      })),
+      items: authored.map(toPatternItem),
     };
   }
 
   // Heuristic fallback when no authored Patterns section exists.
-  const bucketKeys = Object.keys(buckets).filter((k) => k !== "patterns" && k !== "breaking" && k !== "dev-tools" && k !== "pace" && k !== "trends" && Object.values(buckets[k] || {}).some((arr) => arr.length > 0));
+  const bucketKeys = Object.keys(buckets).filter(
+    (k) => !NON_PROVIDER_BUCKETS.has(k) && Object.values(buckets[k] || {}).some((arr) => arr.length > 0),
+  );
   if (bucketKeys.length < 3) return null;
 
   const items = [
@@ -167,10 +186,7 @@ function buildPaceSlide(buckets) {
       type: "patterns",
       title: "Pace this window",
       subtitle: "Vendor cadence at a glance",
-      items: authored.map((it) => ({
-        title: it.headline || "Untitled",
-        body: it.body || "",
-      })),
+      items: authored.map(toPatternItem),
     };
   }
   return null; // No auto-derivation in the first cut — author the section to enable.

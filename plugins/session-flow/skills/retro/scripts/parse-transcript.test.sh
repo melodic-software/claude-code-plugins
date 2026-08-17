@@ -9,11 +9,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
 PY=""
 for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1; then
-    if "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-      PY="$candidate"
-      break
-    fi
+  if command -v "$candidate" >/dev/null 2>&1 &&
+    "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+    PY="$candidate"
+    break
   fi
 done
 
