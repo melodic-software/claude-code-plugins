@@ -3,6 +3,30 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1]
+
+### Fixed
+
+- **PowerShell write guard: a BRACED call target is measured like its bare twin
+  ([#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)).**
+  `& ${env:writer} f.txt x` and `& ${env:writer} @p` exited 0 from
+  `block-hook-bypass` while the identical `& $env:writer …` exited 2 — a
+  fail-open on a working file write, introduced by 0.28.33. `${env:w}` and
+  `$env:w` are the same reference (`about_Variables`; `${env:t} -eq $env:t` is
+  True), and `ps::call_target_is_bare_computed` admits both because it only
+  looks for the `$`. But the two probes that MEASURE a call site keyed on the
+  bare spelling alone, so a braced target entered the computed-target gate and
+  then matched no call site at all: every arm stayed silent and the command fell
+  through allowed. Before 0.28.33 the blanket `ps::has_special_constructs` arm
+  had been covering the shape incidentally, via the braces themselves.
+
+  Both probes now accept `${…}` alongside the bare form. The gate ENTRY
+  predicate is deliberately left as it is — teaching the measuring probes closes
+  the hole, whereas narrowing entry to match would open a second one. Pinned by
+  seven tests, each braced row paired with its bare twin so the two spellings
+  cannot drift apart again, plus `& ${env:py} script.py` holding the allowed
+  side so a braced target does not itself become a write signal.
+
 ## [0.29.0]
 
 ### Added

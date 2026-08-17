@@ -709,6 +709,39 @@ run_pwsh "PS: splat on a nested computed call inside a script block (blocked —
 # shellcheck disable=SC2016
 run_pwsh "PS: splat inside a script block with no nested computed call (allowed — #2848 review)" \
   "& \$tool -ScriptBlock { Write-Output @args }" 0
+# BRACED CALL TARGETS. `${env:w}` and `$env:w` are the SAME reference
+# (about_Variables; `${env:t} -eq $env:t` is True), and the gate predicate
+# ps::call_target_is_bare_computed admits both because it only looks for the `$`.
+# When only the bare spelling was recognized by the measuring probes, a braced
+# target entered the computed-target gate and then matched no call site at all —
+# every arm stayed silent and the command fell through ALLOWED, while the
+# identical bare spelling blocked. Each row is paired with its bare twin so the
+# two spellings are pinned to the same verdict and cannot drift apart again.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target, positional Path+Value (blocked — #2848 verifier)" \
+  '& ${env:writer} f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: bare twin of the row above (blocked — same reference)" \
+  "& \$env:writer f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target, splat (blocked — #2848 verifier)" \
+  '& ${env:writer} @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced dot-source target, splat (blocked — #2848 verifier)" \
+  '. ${env:w} @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced script-scope call target (blocked — #2848 verifier)" \
+  '& ${script:w} f.txt x' 2
+# A braced name containing a SPACE — legal PowerShell, and the shape a bare-name
+# character class can never reach, so it isolates the braced alternative.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target whose name contains a space (blocked — #2848 verifier)" \
+  '& ${my writer} f.txt x' 2
+# The braced target must not become a write signal on its own: an ordinary
+# interpreter call spelled with braces stays allowed, exactly like its bare twin.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target, single positional (allowed — #2848 verifier)" \
+  '& ${env:py} script.py' 0
 # DECOY BRACES. Scoping a call's operands by truncating at the first `}` assumed
 # no `}` can appear inside the call's OWN operands before a token of interest —
 # false for `${scope:name}`, a `{…}` script block, and a `@{…}` hashtable literal.

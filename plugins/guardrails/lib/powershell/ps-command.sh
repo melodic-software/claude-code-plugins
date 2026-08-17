@@ -370,7 +370,17 @@ ps::blank_bracket_interiors() {
 
 ps::computed_call_has_positional_write_signal() {
   local lc="$1" rest="" tok count count_lit piped=0 scan depth opens closes
-  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
+  # is matched alongside the bare one. PowerShell's about_Variables makes them the
+  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
+  # admits both, since it only looks for the `$`. Recognizing just the bare form
+  # here let a braced target ENTER the computed-target gate and then match no call
+  # site at all, so every arm stayed silent and the command fell through allowed:
+  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
+  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
+  # measuring probes closes the hole, narrowing entry would open a second one.
+  # The braced alternative is listed FIRST so it wins on a `${…}` target.
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$\{[^}]*\}|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
   local re_pipe='^(.*)[.\&][[:space:]]*\$'
   lc="${lc//\`/}"
   lc="${lc,,}"
@@ -468,7 +478,17 @@ ps::computed_call_has_positional_write_signal() {
 # is not a splat, and it sits before the call site besides.
 ps::computed_call_has_splat_operand() {
   local lc="$1" rest scan
-  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
+  # is matched alongside the bare one. PowerShell's about_Variables makes them the
+  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
+  # admits both, since it only looks for the `$`. Recognizing just the bare form
+  # here let a braced target ENTER the computed-target gate and then match no call
+  # site at all, so every arm stayed silent and the command fell through allowed:
+  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
+  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
+  # measuring probes closes the hole, narrowing entry would open a second one.
+  # The braced alternative is listed FIRST so it wins on a `${…}` target.
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$\{[^}]*\}|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
   lc="${lc//\`/}"
   lc="${lc,,}"
   scan="$lc"
