@@ -443,7 +443,8 @@ cite it rather than redefining it.
   with a scope qualifier or an ISO date suffix — never a bare ordinal.
 - Timestamps in filenames: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (no colons).
 - Reserved first-level names under the memory root: `handoffs`,
-  `reviews`, `running-retros` (a topic slug that collides takes the `-x` suffix).
+  `reviews`, `running-retros`, `overengineering` (a topic slug that
+  collides takes the `-x` suffix).
 - The same slug names the topic in both tiers — that is the traceability
   bridge.
 
@@ -564,6 +565,7 @@ relationship to the contract is fully stated by their table row.
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
 | session-flow | handoffs; running-retro ledgers | memory (`handoffs/`, `running-retros/`) | delta doc |
 | review | review reports | memory (`reviews/`) | delta doc |
+| overengineering | `findings.md` — enforcement-surface audit findings, statuses updated in place by its realign skill | memory (`overengineering/<branch-slug>/`) | delta doc |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
