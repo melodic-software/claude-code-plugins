@@ -400,7 +400,7 @@ ps::computed_call_has_positional_write_signal() {
       # Every bracket character is BACKSLASH-ESCAPED inside these classes. An
       # unescaped `}` terminates the `${var//pattern/}` expansion itself, so
       # `${tok//[^)}]/}` silently parses as a different pattern and keeps the
-      # whole token — a mis-parse that reads as a correct class.
+      # whole token — parsed wrongly while still reading as a correct class.
       opens="${tok//[^\(\{]/}"
       closes="${tok//[^\)\}]/}"
       if ((depth > 0)); then
