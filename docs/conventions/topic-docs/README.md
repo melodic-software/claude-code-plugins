@@ -559,6 +559,7 @@ relationship to the contract is fully stated by their table row.
 | adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's five rules are its entire relationship |
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
 | architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
+| coupling | `coupling-ledger.md` (repo-scoped finding ledger, updated in place; constant-slug delta) | memory | delta doc |
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; five optional rendered HTML views (dense-round decision table, PRD pitch, brainstorm reaction page, plan view, design topology) | contract + memory + ephemeral | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
