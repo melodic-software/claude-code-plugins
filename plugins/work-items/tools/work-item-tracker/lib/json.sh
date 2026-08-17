@@ -38,10 +38,13 @@ wit_check_contract_version() {
       "$provider" "${declared:-none}" "$WIT_SCHEMA_VERSION" >&2
     return 1
   fi
-  core_major="${WIT_SCHEMA_VERSION%%.*}"
-  core_minor="${WIT_SCHEMA_VERSION#*.}"
-  a_major="${declared%%.*}"
-  a_minor="${declared#*.}"
+  # Base-10 forced: the regex admits leading zeros ("08.0"), which bare (( ))
+  # would read as octal and error on — and an errored condition is falsy, so the
+  # refusal branches would be skipped and the skewed adapter waved through.
+  core_major=$((10#${WIT_SCHEMA_VERSION%%.*}))
+  core_minor=$((10#${WIT_SCHEMA_VERSION#*.}))
+  a_major=$((10#${declared%%.*}))
+  a_minor=$((10#${declared#*.}))
   if ((a_major != core_major)); then
     if ((a_major > core_major)); then
       printf "work-item-tracker: adapter '%s' speaks contract v%s but this core speaks v%s — update the work-items plugin\n" \

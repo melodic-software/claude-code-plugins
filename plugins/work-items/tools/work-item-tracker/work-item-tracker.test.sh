@@ -127,6 +127,14 @@ ERR="$(run_skew oldermajor capabilities 2>&1 >/dev/null)"
 assert_eq "older-major manifest → exit 3" "3" "$?"
 assert_contains "older-major error says regenerate the adapter" "$ERR" "update or regenerate the adapter"
 
+# Leading-zero components must be read base-10, not octal: "08.0" is major 8,
+# which must refuse — a bare (( )) would error on octal 08 and, with the errored
+# condition read as false, wave the incompatible adapter through.
+make_skew_adapter "leadingzero" "\"schema_version\":\"08.0\","
+ERR="$(run_skew leadingzero capabilities 2>&1 >/dev/null)"
+assert_eq "leading-zero major manifest → exit 3" "3" "$?"
+assert_contains "leading-zero error says update the plugin" "$ERR" "update the work-items plugin"
+
 make_skew_adapter "newerminor" "\"schema_version\":\"1.99\","
 OUT="$(run_skew newerminor capabilities 2>/dev/null)"
 assert_eq "newer-minor manifest proceeds → exit 0" "0" "$?"
