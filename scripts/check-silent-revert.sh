@@ -136,8 +136,8 @@
 #      with squash_merge_commit_title: PR_TITLE makes the PR title the squash
 #      subject, and the required Conventional-Commits title gate admits
 #      `revert:` but has no entry a `Revert "…"` subject could match -- so the
-#      one deliberate revert in main's 1527-commit history (1d1fca6e8, #1839)
-#      was reported as a suspected silent revert by the shipped detector.
+#      one deliberate revert in main's history (1d1fca6e8, #1839) was reported
+#      as a suspected silent revert by the shipped detector.
 #
 #   4. NON-BLOCKING. It runs post-merge on main only, never as a PR gate, and
 #      is never wired into ci-status's needs. Detection, not prevention. A
@@ -243,12 +243,18 @@
 # Everything above answers one question about a recorded incident -- does this
 # commit still produce a finding -- and never the other one: is the content it
 # deleted on main TODAY. #2828 is the proof that the gap is real rather than
-# theoretical. The f603880da row printed `ok  f603880da fires as recorded` and
-# the replay exited 0 for 31h28m while the content #2635 had added to
-# plugins/disk-hygiene/README.md and
-# plugins/disk-hygiene/skills/clean/evals/evals.json was absent from main. Two
-# separate re-lands (#2714, #2803) each missed it, and a hand audit found it,
-# not this canary.
+# theoretical. The content #2635 had added to plugins/disk-hygiene/README.md and
+# plugins/disk-hygiene/skills/clean/evals/evals.json was absent from main for
+# 31h28m: f603880da removed it and 534eac138 (#2829) put it back.
+#
+# 31h28m is the CONTENT-ABSENCE window, and the replay was not present for most
+# of it. This canary merged part-way through, at 7b47d2253 (#2808), 6h13m before
+# the restore -- so the replay covered only the tail of the absence, and over
+# that tail the f603880da row reproduced the REMOVAL exactly as recorded and
+# --verify-known-incidents exited 0 while the content was still gone. The row
+# was never wrong about what it asserted; it simply asserted the other question.
+# Two separate re-lands (#2714, #2803) each missed it, and a hand audit found
+# it, not this canary.
 #
 # Say CONTENT rather than "files", precisely. Both files existed at every rev in
 # that window -- #2829 shows as `README.md | 14 ++---` and `evals.json | 15 ++-`,
@@ -282,10 +288,14 @@
 # Markers resolve PATH-SCOPED, which is load-bearing rather than tidy. Both
 # markers on the f603880da row also occur elsewhere in the same plugin on
 # current main -- the engine script, its test file, CHANGELOG.md -- so a
-# repo-wide `git grep` would have reported both files restored while both were
-# missing.
+# repo-wide `git grep` for either one matches today no matter what the two
+# BOUND files contain, and would report the incident restored on a tree where
+# it is not. Stated in the present tense on purpose: the sibling copies are a
+# property of main as it stands now, not of the tree during the #2828 window.
+# CHANGELOG.md got its copy from 534eac138, the restore itself, so during the
+# absence a repo-wide grep for the evals marker still matched nothing.
 #
-# Cost: one exact-path read per marker over a four-row corpus -- `git cat-file`
+# Cost: one exact-path read per marker row -- `git cat-file`
 # at a rev, a tracked-path read in the working tree -- with the match done by
 # `grep -qF` on the file's contents. Not `git grep`: its pathspec semantics are
 # the very thing marker_present() below refuses, because a pathspec can widen a
@@ -386,7 +396,10 @@ declares_removal() {
   # and .github/workflows/pr-title.yml gates every title through a required
   # Conventional-Commits check whose default type list is all-lowercase and
   # contains `revert` but nothing a `Revert "…"` subject could match. Measured
-  # over all 1527 first-parent commits of main: `Revert "` 0, `revert:` 1.
+  # over every first-parent commit of main: `Revert "` 0, `revert:` 1. The
+  # corpus is deliberately named as "every" rather than as a total, because a
+  # total is stale the next time anything merges while the 0-and-1 result is
+  # what the pin is actually about.
   #
   # Kept exactly as constrained as the three forms around it: anchored at the
   # start of the SUBJECT, the literal lowercase type token, its optional
@@ -939,6 +952,36 @@ verify_known_incidents() {
 # chosen as a line of content rather than as indentation-sensitive text: a
 # marker whose distinguishing feature is its leading spaces would be recorded
 # without them and match more loosely than the reader intended.
+#
+# For the same reason a marker must occur exactly ONCE in the file it binds to.
+# `grep -qF` answers "is this string anywhere in this file", so a bare
+# identifier that appears at its definition AND at a use site is satisfied by a
+# re-land that restored only the use -- a PARTIAL re-land reported as `ok`,
+# which is the exact failure this assertion exists to catch (#2828 was a
+# partial re-land nobody noticed). Two shipped markers bound that loosely --
+# bare `_FIND_SIDE_EFFECT_PRIMARIES` and bare `MERGED_PR_GRAPHQL_ALIAS_PAGE`
+# each occur at a definition AND at a use site in the file they bind to.
+#
+# Narrowing each to its DEFINITION line (`... = frozenset(`, `...=100`) fixes
+# only one direction. It removes the use-only false green, since a re-land that
+# restores the use site alone cannot contain the definition line -- but it
+# leaves the inverse standing: a re-land that restores the definition and never
+# reconnects the use satisfies the row while the content is still half absent.
+# So each of those two constants is recorded as TWO rows, its definition and its
+# use, and both must hold. A definition-only re-land passes the definition row
+# and fails the use row; a use-only re-land does the reverse. Neither row on its
+# own is the assertion; the pair is.
+#
+# Both bare forms did still discriminate the RECORDED incidents, because those
+# reverts removed the definition and the use together: measured, each of the
+# four literals is absent at its reverting commit and present at that commit's
+# parent. The weakness was never in what they assert about the past -- it was
+# that a FUTURE partial re-land, in either direction, could satisfy them. Fixed
+# before it was needed rather than after.
+#
+# Nothing enforces this: it is a corpus-review obligation, because a
+# check that counted occurrences would turn every row into an exact-shape
+# assertion and go red on edits that restored the content perfectly well.
 # The ONE reserved position is a LEADING `[`, which commits the row to
 # carrying a disposition, in the same positional slot-after-the-key the
 # attribution field uses on a `fires` row. An unterminated `[` is exit 2 rather
@@ -1096,9 +1139,11 @@ parse_incidents_file() {
 # also present in scripts/silent-revert-incidents.txt itself, because that is
 # where the marker is written down. So a widened path does not merely risk a
 # stray match -- it makes the assertion TAUTOLOGICALLY satisfiable by its own
-# corpus. Measured: with every shipped path replaced by `.`, all five markers
-# report restored on a tree with plugins/disk-hygiene and
-# plugins/repo-fleet-hygiene deleted outright.
+# corpus. Measured: with every shipped path replaced by `.`, EVERY marker
+# reports restored on a tree with plugins/disk-hygiene and
+# plugins/repo-fleet-hygiene deleted outright. Written as "every" rather than
+# as a count, because the property follows from where the markers are written
+# down and so holds for any number of them.
 #
 # `git cat-file <rev>:<path>` has no pathspec semantics at all -- it is an exact
 # object lookup -- so the widening class cannot be expressed. A path that names
