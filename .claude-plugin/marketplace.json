@@ -527,6 +527,22 @@
         "accessibility",
         "skill"
       ]
+    },
+    {
+      "name": "overengineering",
+      "source": "./plugins/overengineering",
+      "category": "quality",
+      "tags": [
+        "overengineering",
+        "enforcement-surface",
+        "audit",
+        "realign",
+        "retirement",
+        "yagni",
+        "carry-cost",
+        "automation-sprawl",
+        "skill"
+      ]
     }
   ],
   "renames": {
