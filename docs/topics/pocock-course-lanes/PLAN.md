@@ -86,6 +86,39 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
 - Q8 (arbiter: USER-RESERVED) — per-session management + durability mechanics (end-of-session
   ritual, branch policy for lane docs).
 
+## Upstream recheck — 2026-08-17 (pre-lane gate)
+
+`/discipline:recheck-against-upstream` run against mattpocock/skills HEAD `068b6e0`
+(2026-08-15) from the audited baseline v1.2.3 `@84fdeff`; shallow clone at
+`/workspace/mattpocock/skills` (session-local, disposable). Findings:
+
+- **Inventory intact**: 35 skills, zero additions/removals/renames — the v1.2 map's
+  his↔ours rows are structurally accurate; grilling→`planning:interview`,
+  handoff→`session-flow:handoff`, phase-boundaries→`session-flow:workflow continue`
+  mappings all confirmed.
+- **No new release**: latest tag is still v1.2.3, so the SSOT's release-based recheck
+  triggers have NOT fired; all drift below is unreleased main.
+- **Invocation-reach invariant hardened** (PRs #878/#880, `.agents/invocation.md`):
+  cross-skill dependencies standardized on "Call the Skill tool with \"name\"" (one skill
+  per call; his stated reason: higher hit rate than bare `/name` prose, harness-neutral);
+  user-invoked skills declared unreachable from any skill — preconditions on them must be
+  phrased "tell the user to run /x". This is the SSOT's *tracked* writing-for-agents
+  strand: substance has landed on main with changesets, release pending — the tracked
+  row's trigger will fire on the next release. Portable authoring question for OUR skills
+  (cross-skill invocation phrasing) → lane 6 candidate.
+- **`diagnosing-bugs` dropped its post-mortem step** (Phase 6 "Cleanup + post-mortem" →
+  "Cleanup"; the "what would have prevented this bug → improve-codebase-architecture"
+  handoff removed). Relevant to the SSOT's diagnosing-bugs TRACK row when its release
+  trigger fires.
+- **Rest of the diff**: em-dash/phrasing cosmetics (grilling #879, others) — no delta to
+  our derived skills.
+- **Skipped**: nothing — every changed file since baseline was inspected (15 skill files +
+  `.agents/invocation.md`).
+
+Verdict: our map and SSOT audit clean at their recorded baseline; no doc corrections
+required now. Annotating the two TRACK rows with the landed-but-unreleased evidence is
+lane-6 bookkeeping.
+
 ## Plan
 
 *(empty — `/planning:plan` fills this after the Brief locks)*
