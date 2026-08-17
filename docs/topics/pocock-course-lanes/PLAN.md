@@ -118,8 +118,28 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
 | 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | aihero-course.md, term adoption, SSOT TRACK annotations, coverage index |
 
 Background research dispatched pre-lane: harness-claims bundle →
-`.work/pocock-course-lanes/harness-claims/` (memory tier; re-dispatch `/discovery:research` if
-the slice is gone before lane 3/4 consume it).
+`.work/pocock-course-lanes/harness-claims/` (memory tier; full evidence + fetch logs live there;
+re-dispatch `/discovery:research` if the slice is gone and a lane needs the evidence detail).
+
+## Harness-claims verdicts (verified 2026-08-17 — durable summary)
+
+Research run gated clean (artifact + coverage gates exit 0); fresh-context verifier graded
+corroboration; parent cured C3 with a binary-schema probe and applied project fit. Verdicts safe
+for lanes 3–5 to cite, with corroboration labels:
+
+| # | Course claim | Verdict | Corroboration |
+|---|---|---|---|
+| C1–C2 | `autoCompactWindow` exists; controls when auto-compact fires | CONFIRMED | two-pool (docs + binary) |
+| C3 | range 100,000–1,000,000 tokens | CONFIRMED | two-pool (docs + binary schema `min(1e5).max(1e6)`) |
+| C4 | compaction "seeds a fresh session" | **REFUTED** — same session continues over a structured summary; only fork/`--fork-session` makes a new session ID | two-pool |
+| C5 | messages queue during compaction | UNDOCUMENTED — verify empirically before teaching | n/a |
+| C6 | `/compact [instructions]` accepts focus instructions | CONFIRMED | single-pool (docs only) |
+| C7 | Shift+Tab cycling / `--permission-mode plan` entry | CONFIRMED (no fixed press count) | two-pool |
+| C8 | ExitPlanMode approval flow (+ newer EnterPlanMode tool) | CONFIRMED (flow details docs-only) | two-pool |
+| C9 | `/plan` views the current plan | PARTIALLY TRUE — `/plan [description]` exists but ENTERS plan mode; no documented command views the plan | absence half two-pool; positive half docs-only |
+
+Cures for the single-pool rows when convenient: run `/compact <instructions>` and `/plan` in a
+live interactive session (Tier-0).
 
 ## Upstream recheck — 2026-08-17 (pre-lane gate)
 
