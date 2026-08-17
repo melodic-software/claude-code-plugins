@@ -12,7 +12,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted code files: !`git status --porcelain 2>/dev/null | awk '{print $NF}' | grep -Ei '\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$' | head -10 || echo "none"`
+Uncommitted code files (preview, first 10): !`git status --porcelain 2>/dev/null | awk '{print $NF}' | grep -Ei '\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$' | head -10 || echo "none"`
 
 ## Variables
 
@@ -49,7 +49,7 @@ over-extraction cautions: [reference/dissolving-moves.md](reference/dissolving-m
 
 | Argument | Action |
 |---|---|
-| *(empty)* | Triage the uncommitted diff's code files (the pre-computed list). No uncommitted code files → friendly no-op exit. |
+| *(empty)* | Triage the uncommitted diff's code files. The pre-computed list is a truncated PREVIEW — re-enumerate the full set at scope time (`git status --porcelain -z` parses safely for any filename, including whitespace). No uncommitted code files → friendly no-op exit. |
 | `<path>` | Triage a single file or directory (already-committed code is fine here). |
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment is emitted as a proposal, no code-structure change is applied. For codebases whose guardrails you do not know. |
 
@@ -82,7 +82,8 @@ ladder: [reference/safety.md](reference/safety.md).
 
 ## Workflow
 
-1. **Scope** — resolve targets from the action router; drop excluded paths and exempt surfaces.
+1. **Scope** — resolve targets from the action router, re-enumerating the full file set
+   (never the truncated pre-computed preview); drop excluded paths and exempt surfaces.
 2. **Triage** — classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
 3. **Apply** — class A deletions; class B per mode and gate ([reference/safety.md](reference/safety.md)):
    pick the named move, apply it, run the discovered tests, then delete the now-superfluous
