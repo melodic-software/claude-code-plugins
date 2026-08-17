@@ -138,7 +138,8 @@ gh issue comment <item#> --body "Resolved: <decision> — <one-line basis>"
 # 3. Close the item (closing removes it from the frontier — the claim is assignee + lease, no label to clear).
 gh issue close <item#> --reason completed
 
-# Wrongly scoped — one Out-of-scope line on the map (no Decisions-so-far pointer), then:
+# Wrongly scoped — Out-of-scope line on the map first (no Decisions-so-far
+# pointer), then close only after that map update succeeds:
 gh issue close <item#> --reason "not planned"
 ```
 

@@ -5,10 +5,11 @@
       "id": 1,
       "name": "multi-window-routes-to-work-items",
       "prompt": "/planning:draft-goal-condition keep several sessions going on this decomposed backlog — it's multi-ticket work that will not finish in one context window. Craft a /goal so Claude keeps grinding until every ticket is done.",
-      "expected_output": "Step 0 classifies this as multi-window / multi-ticket work, so the skill routes to /work-items:decompose then /work-items:work (or the work-loop) instead of drafting a /goal condition. The routing is an advisory default, not a prohibition — it does not claim /goal is forbidden.",
+      "expected_output": "Step 0 classifies this as multi-window / multi-ticket work on an already-decomposed backlog, so the skill routes to /work-items:work (or the work-loop) instead of drafting a /goal condition — not through /work-items:decompose. The routing is an advisory default, not a prohibition — it does not claim /goal is forbidden.",
       "files": [],
       "expectations": [
-        "Output routes to /work-items:decompose then /work-items:work (or the work-loop) rather than drafting a /goal condition",
+        "Output routes to /work-items:work (or the work-loop) rather than drafting a /goal condition",
+        "Output does NOT route through /work-items:decompose for this already-decomposed backlog",
         "Output does NOT emit a paste-ready /goal invocation for this multi-window / decomposed-backlog intent",
         "Output frames the recommendation as an advisory routing default, not a prohibition against /goal"
       ]

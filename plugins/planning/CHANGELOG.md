@@ -26,8 +26,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Changed
 
 - **`draft-goal-condition` Step 0** routes multi-window / multi-ticket work to
-  `/work-items:decompose` then `/work-items:work` (or the work-loop) instead of
-  `/goal`. Advisory default; single-session drafting is unchanged (#2938).
+  `/work-items` — already-decomposed backlogs to `/work-items:work` (or the
+  work-loop), undecomposed plans to `/work-items:decompose` then work — instead
+  of `/goal`. When `work-items` is not installed, advise installing it (or draft
+  only if the user insists on one-session completion). Advisory default;
+  single-session drafting is unchanged (#2938).
 
 ## [0.30.4]
 

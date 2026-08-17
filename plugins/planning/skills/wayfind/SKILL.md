@@ -146,8 +146,9 @@ an interactive session — do not fabricate a map.
 5. **Graduate on every resolution.** When the decision resolves **in scope**: post the resolution as a
    comment on the item, add its one-line pointer (title, number as suffix) to the map's
    *Decisions-so-far* index, then close the item (comment → index → close, as one atomic sequence).
-   If the item is **wrongly scoped** (on the tracker but not this effort): close it and add one
-   Out-of-scope line linking it — it does **not** get a Decisions-so-far pointer. Fog stays in
+   If the item is **wrongly scoped** (on the tracker but not this effort): add one
+   Out-of-scope line linking it, then close it — it does **not** get a Decisions-so-far
+   pointer. Fog stays in
    Not-yet-specified and never graduates into Out-of-scope. If the resolution sharpened
    previously-foggy uncertainty, chart the new sharp items now.
 6. **Map closure → destination handoff.** When the frontier is empty and every decision item
