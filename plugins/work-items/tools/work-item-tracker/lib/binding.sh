@@ -5,6 +5,9 @@
 [[ -n "${_WIT_BINDING_LOADED:-}" ]] && return 0
 readonly _WIT_BINDING_LOADED=1
 
+# shellcheck source=labels.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/labels.sh"
+
 # wit_find_binding — echo the binding file path.
 # Precedence: WORK_ITEM_TRACKER_BINDING env override, else climb from CWD toward the
 # filesystem root and take the first .work-item-tracker.json.
@@ -73,10 +76,11 @@ wit_read_binding() {
     storage="$(cd "$(dirname "$path")" && pwd)/$storage"
   fi
   # Canonical roles (label-taxonomy.md); config.role_labels lets a repo remap the
-  # literal label strings. Absent keys fall back to shipped defaults.
-  human_gated="$(wit_role_label "$path" "human-gated" "needs-human")"
-  autonomous_eligible="$(wit_role_label "$path" "autonomous-eligible" "agent-ready")"
-  recurring_maintenance="$(wit_role_label "$path" "recurring-maintenance" "recurring")"
+  # literal label strings. Absent keys fall back to the shipped defaults, defined
+  # once in lib/labels.sh.
+  human_gated="$(wit_role_label "$path" "human-gated" "$WIT_DEFAULT_HUMAN_GATED_LABEL")"
+  autonomous_eligible="$(wit_role_label "$path" "autonomous-eligible" "$WIT_DEFAULT_AUTONOMOUS_ELIGIBLE_LABEL")"
+  recurring_maintenance="$(wit_role_label "$path" "recurring-maintenance" "$WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL")"
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
   WIT_LEASE_TTL_MINUTES="$minutes"
