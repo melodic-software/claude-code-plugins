@@ -78,12 +78,25 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   cross-links that deferral rather than opening a second ledger entry. Trigger: a
   mattpocock/skills release whose changeset names `writing-for-agents`.
 - **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
-  `disable-model-invocation: true` — can be invoked by no other skill). Unverified against
-  current official docs at audit time, and zero live defect instances found (no skill here
-  instructs model invocation of a `disable-model-invocation: true` target). Trigger: a
-  mattpocock/skills release whose changeset names `writing-for-agents`, OR a repo review/audit
-  surfacing a skill that instructs model invocation of a `disable-model-invocation: true`
-  target.
+  `disable-model-invocation: true` — can be invoked by no other skill). **Fired-and-resolved
+  (#2940 / Lane X C22):** fleet audit enumerated **57** skills with
+  `disable-model-invocation: true` and searched `SKILL.md`, evals, and reference docs for
+  Skill-tool invocation of those names (`invoke \`/plugin:skill\` via the Skill tool`,
+  `Call the Skill tool` + target, `Skill tool` + `:setup`). **Zero** Skill-tool invocations of
+  user-invoked-only targets. Human-relay phrasing ("tell the user to run /X", "offering to run
+  `/…:setup`") and Skill-tool hits on model-invocable skills (`/toolchain:check`,
+  `/implementation:implement-dispatch`, `/tdd:principles`, `/session-flow:handoff`,
+  `/testing:run-e2e`) are non-violations. Standing `skill-quality:check` automation deferred
+  (cross-plugin target resolution is not cheap under the single skills-root model); doctrine
+  lines live in `playbooks:skill-authoring` and `skill-quality:check`. Canonical rewording if a
+  future hit appears: "tell the user to run /X". Re-trigger: a mattpocock/skills release whose
+  changeset names `writing-for-agents`, OR a repo review/audit surfacing a new Skill-tool
+  invocation of a `disable-model-invocation: true` target.
+- **C23 curate-language trigger phrasing (#2940):** compared
+  `domain-driven-design:curate-language` Use-when triggers against upstream
+  `domain-modeling` artifact-anchored rewording (CONTEXT.md / ADR / terminology). Ours already
+  name concrete artifacts (`glossary`, `domain term`, `vocabulary`). **ALREADY-PRESENT** — no
+  SKILL.md change.
 
 ## Harness findings learned from this upstream (recheck-worthy)
 

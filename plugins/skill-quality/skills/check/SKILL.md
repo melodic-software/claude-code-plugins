@@ -154,6 +154,13 @@ repository content cannot reveal, so the reported figure is an upper bound for a
 A missing explicit root and a nonnumeric override are both environment errors (exit 2), never a
 silent skip or a coerced-to-zero budget.
 
+## Cross-skill invocation (doctrine)
+
+The Skill tool takes one skill per call; a step needing two skills is two calls. Do not instruct
+Skill-tool invocation of a `disable-model-invocation: true` (user-invoked-only) target — tell the
+user to run `/plugin:skill` instead. This gate does not automate that reachability check; author
+and review against the invariant.
+
 ## Gotchas
 
 - A git repository is optional. Git-backed checks (trigger-keyword preservation, vendor

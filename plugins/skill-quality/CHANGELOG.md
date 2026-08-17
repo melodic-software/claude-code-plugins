@@ -3,6 +3,15 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.13]
+
+### Added
+
+- **`check`: cross-skill invocation doctrine (#2940).** Documents one-skill-per-call and the
+  invocation-reach invariant (do not Skill-tool-invoke `disable-model-invocation: true`
+  targets — tell the user to run `/plugin:skill`). Standing automated check deferred; eval
+  coverage extended.
+
 ## [0.15.12]
 
 ### Changed
