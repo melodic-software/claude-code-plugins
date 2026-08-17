@@ -407,6 +407,39 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   provider is used when a repo's binding names it, never as an automatic fallback
   from a network failure of another provider.
 
+### Branch, worktree, and lease confinement
+
+The store is working-tree files (`<storage_dir>/<number>.md`). Visibility is
+therefore confined to the tree that holds those files. Untracked or uncommitted
+item files are **not** branch-isolated in the same worktree: `git switch`
+normally carries them onto the new branch (and a nonconflicting uncommitted
+lease edit can likewise follow). Invisibility holds for sibling worktrees that
+do not share those store files, and for committed store files on other branches
+until those commits are merged. `wit_next_number` is the max existing file
+number + 1 with no file lock, so two diverged branches (or two writers against
+one store) can both mint the same next number.
+
+A relative `config.storage_dir` roots against the **binding file's directory**,
+not the caller's CWD (`lib/binding.sh`). Distinct worktrees that climb to the
+same binding therefore share one store when `storage_dir` is relative. Distinct
+worktrees that each carry their own copy of the binding and store — the
+`/work-items:work` skill's worker-worktree model — each have a divergent copy:
+an uncommitted lease is invisible to a sibling worktree; a committed lease is a
+lease-churn commit on that worktree's branch. A shared **absolute**
+`storage_dir` across worktrees is one store, so concurrent create/claim races
+on numbers and the lease marker.
+
+Claim identity is `git config user.name`, then `$USER`, then `local`. The same
+git user in two worktrees looks like the same holder. The lease handle is a
+store-global `lease_comment_id` in the marker JSON (not a GitHub comment id).
+The manifest declares `reclaim: false`; invoking `reclaim` exits `6`. On
+expiry, `list-items` reports empty `assignees` (effective post-expiry
+assignment) while `get-item` still shows the stored assignee.
+
+This confinement is why multi-session / multi-machine work needs a
+tracker-published spec on a coordination provider — a `work-map` container lane
+(see "Containers and state"). local-markdown is never that surface.
+
 ## jira adapter
 
 The `jira` adapter binds a Jira Cloud project set behind the seam. It is **read/resolve-only

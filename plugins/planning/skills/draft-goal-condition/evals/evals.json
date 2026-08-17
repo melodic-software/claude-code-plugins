@@ -1,0 +1,42 @@
+{
+  "skill_name": "draft-goal-condition",
+  "evals": [
+    {
+      "id": 1,
+      "name": "multi-window-routes-to-work-items",
+      "prompt": "/planning:draft-goal-condition keep several sessions going on this decomposed backlog — it's multi-ticket work that will not finish in one context window. Craft a /goal so Claude keeps grinding until every ticket is done.",
+      "expected_output": "Step 0 classifies this as multi-window / multi-ticket work on an already-decomposed backlog, so the skill routes to /work-items:work (or the work-loop) instead of drafting a /goal condition — not through /work-items:decompose. The routing is an advisory default, not a prohibition — it does not claim /goal is forbidden.",
+      "files": [],
+      "expectations": [
+        "Output routes to /work-items:work (or the work-loop) rather than drafting a /goal condition",
+        "Output does NOT route through /work-items:decompose for this already-decomposed backlog",
+        "Output does NOT emit a paste-ready /goal invocation for this multi-window / decomposed-backlog intent",
+        "Output frames the recommendation as an advisory routing default, not a prohibition against /goal"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "single-window-measurable-intent-drafts-goal",
+      "prompt": "/planning:draft-goal-condition keep working until all tests in test/auth pass",
+      "expected_output": "Step 0 treats this as genuine one-session completion — a single measurable check in one window — so the skill proceeds to draft a /goal condition rather than routing away. It reads the live /goal docs for the current condition shape and character limit, drafts a transcript-demonstrable condition, and emits a paste-ready /goal invocation after the length counter passes.",
+      "files": [],
+      "expectations": [
+        "Output proceeds to draft a /goal completion condition rather than routing to /work-items or /loop",
+        "Output does not treat this as multi-window / multi-ticket work",
+        "Output emits a paste-ready /goal invocation whose condition is about all tests in test/auth passing"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "interval-driven-routes-to-loop",
+      "prompt": "/planning:draft-goal-condition poll until the deploy finishes — check every 5 minutes",
+      "expected_output": "Step 0 classifies this as interval-driven (a time interval starts each turn), so the skill routes to /loop rather than drafting a /goal condition.",
+      "files": [],
+      "expectations": [
+        "Output routes to /loop rather than drafting a /goal condition",
+        "Output recognizes the intent as interval-driven (every 5 minutes / poll until), not as a completion-condition /goal",
+        "Output does NOT emit a paste-ready /goal invocation for this interval-driven intent"
+      ]
+    }
+  ]
+}

@@ -111,10 +111,25 @@ marker f603880dad4003477ec7cac27654fce92c75eec8 plugins/disk-hygiene/skills/clea
 # destructive_guard.py went 1643 -> 1424 lines and every #2639 marker string
 # went to zero occurrences. #2618 was left CLOSED as COMPLETED.
 fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce92c75eec8=451] #2641 dropped #2639 (451 blamed lines), 10 minutes later
-# #2640 restored this surface by hand. The marker is one of the guard tables
-# #2639 added and #2641's squash took back out; it is present in every tree from
-# the restore onward, which is the property this row asserts.
-marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py _FIND_SIDE_EFFECT_PRIMARIES
+# #2706 re-landed this surface by hand. An earlier version of this note credited
+# #2640, which is wrong for this file: #2640 (6f0a31109) changes no file under
+# plugins/disk-hygiene, both markers below are absent at the two intervening
+# commits that did touch destructive_guard.py (#2671, #2676), and both first
+# appear at de26c27b4 (#2706). From there they are present at every first-parent
+# commit that has touched the file since, which is the property these rows
+# assert.
+#
+# TWO rows for one guard table -- #2639 added it, #2641's squash took it back
+# out -- because either half can come back alone. The first row is the table's
+# DEFINITION, the second its only USE, in _is_readonly_find. With the definition
+# row alone, a re-land that restores the frozenset and never reconnects the
+# predicate reports `ok` while the guard sits disconnected; with the use row
+# alone, a re-land that restores the comprehension and not the table it reads
+# reports `ok` just as readily. Each literal occurs exactly once in the file and
+# each is absent at 9239f1541 and present at its parent, so a partial re-land in
+# either direction leaves one of the two red.
+marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py _FIND_SIDE_EFFECT_PRIMARIES = frozenset(
+marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES
 
 # The third merge from the same night, surfaced by this canary's own
 # calibration run rather than by the #2691 audit. #2633's squash dropped work
@@ -148,11 +163,21 @@ marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clea
 # #2632 never merged (closed unmerged, no merge commit, not an ancestor of
 # main) and its diff contains no rollup work at all.
 fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [bfb66beb8c1a6cdb52957a9a2614c6d2593739dd=853,eda5ae5ed5c2b54fdf2db5fd3b620a9272c46da5=298] #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (298); already recorded in #2656
-# One marker per culprit, because this row's two attributions were restored by
-# the same hand fix (#2640) and either half could have been missed on its own --
-# which is the shape of the #2828 failure, a partial re-land nothing noticed.
+# One marker per culprit at the least, because this row's two attributions were
+# restored by the same hand fix (#2640) and either half could have been missed
+# on its own -- which is the shape of the #2828 failure, a partial re-land
+# nothing noticed.
+#
+# The eda5ae5ed half then carries TWO rows, for the same reason the 9239f1541
+# row above does: the alias page-size constant's DEFINITION and its only USE, in
+# the paging loop. Restoring the constant without the loop that consumes it, or
+# the loop without the constant, satisfies exactly one of the two. All three
+# literals occur exactly once in audit-fleet.sh, each is absent at cc58cbc53 and
+# present at its parent, and all three are present at every first-parent commit
+# that has touched the file since #2640 (6f0a31109).
 marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh --apply-plan may be supplied only once
-marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh MERGED_PR_GRAPHQL_ALIAS_PAGE
+marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh MERGED_PR_GRAPHQL_ALIAS_PAGE=100
+marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh gql_page_end=$((gql_page_start + MERGED_PR_GRAPHQL_ALIAS_PAGE))
 
 # --- Verified-legitimate commits that must stay quiet -------------------------
 # Neither figure in this section is asserted by the replay. A `clean` row's

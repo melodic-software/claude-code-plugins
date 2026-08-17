@@ -456,6 +456,32 @@ run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
 run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
   '& "$tool" commit --no-verify' 2
 
+# --- PowerShell token separators bash does not honor (#2928) ----------------
+# PowerShell's tokenizer treats U+00A0 as token-separating whitespace; bash's
+# `[[:space:]]` does not. Every boundary in the PowerShell classifier is now fed
+# text where those code points have been normalized to an ASCII space at intake,
+# so a `--no-verify` hidden behind one is seen. Built from a BYTE ESCAPE, never
+# pasted literally — a formatter that normalized a raw U+00A0 to a plain space
+# would leave a case that passes while pinning nothing.
+PS_NBSP=$'\xc2\xa0' # U+00A0 NO-BREAK SPACE
+run_pwsh "PS: U+00A0 before the -m flag of a --no-verify commit (blocked — #2928)" \
+  "git commit --no-verify${PS_NBSP}-m x" 2
+run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \
+  "git${PS_NBSP}commit --no-verify -m x" 2
+# The normalization must not turn read-only git into a block: it changes where
+# token boundaries fall, not what counts as a bypass.
+run_pwsh "PS: U+00A0 inside a read-only git command (allowed — #2928)" \
+  "git log --oneline${PS_NBSP}-n 5" 0
+
+# --- Unspaced assignment before a computed launcher (#2928) -----------------
+# `ps::might_invoke_git`'s launcher class lacked `=`, so dropping the spaces
+# around an assignment hid a launcher whose program is assembled at run time and
+# could be git. The spaced form already failed closed; these bring the two level.
+run_pwsh "PS: unspaced assignment before a computed launcher (fail-closed block — #2928)" \
+  "\$p=Start-Process ('g'+'it') reset" 2
+run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block — pre-existing)" \
+  "\$p = Start-Process ('g'+'it') reset" 2
+
 # --- Sink remediation TEXT --------------------------------------------------
 # run_pwsh discards stderr, so nothing asserted what the trigger lines actually
 # SAY — and a remediation line that describes a shape it never sees is as much a

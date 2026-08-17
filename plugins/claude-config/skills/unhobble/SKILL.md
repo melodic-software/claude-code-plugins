@@ -182,10 +182,14 @@ scheduling surfaces vary per consumer and are the operator's choice.
 - **A plugin marketplace repo has two hats.** Running this skill in a plugin-publishing repo
   ablates that repo's *own* session surfaces only; the components it ships to consumers are its
   product, audited by their own acceptance gates, not stripped by this experiment.
-- **`CLAUDE_CODE_SIMPLE=1` is not part of this contract.** The undocumented env var that strips
-  Claude Code's own built-in prompts exists in the wild as an ablation experiment; it is
-  undocumented and may vanish, so this skill neither sets it nor depends on it. The experiment here
-  ablates *your* instructions, which is the part you own.
+- **`CLAUDE_CODE_SIMPLE=1` / `--bare` and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` are not part of this
+  contract.** Two distinct, documented switches (official env-vars reference; binary-verified
+  2026-08-17): simple mode (`CLAUDE_CODE_SIMPLE=1`, CLI flag `--bare`) disables fetches, keychain
+  reads, and `CLAUDE.md` auto-discovery, while `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` swaps in the
+  lean built-in system prompt. Both ablate *Claude Code's own* surfaces, so this skill neither sets
+  nor depends on either — the experiment here ablates *your* instructions, which is the part you
+  own. (Measuring what those product-side switches buy belongs to a context-budget audit, not to
+  this experiment.)
 - **Windows:** restore paths in `manifest.json` are stored with forward slashes; git handles both.
 
 ## What this skill does NOT do
