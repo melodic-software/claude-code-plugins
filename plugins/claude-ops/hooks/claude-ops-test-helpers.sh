@@ -7,6 +7,16 @@
 # Duplicated across plugins by design, not drift — see
 # docs/conventions/shell-test-helpers/README.md at the repo root.
 
+# Strip the inherited git environment so a fixture `git init` in these tests
+# resolves to the mktemp fixture, never the real repo (#2840). `-C` only changes
+# directory, while an exported ABSOLUTE GIT_DIR overrides repository DISCOVERY,
+# and `git config`'s default --local scope follows whatever gitdir that resolves
+# to. Any process may export it — the real incident came from an ad-hoc tool
+# invocation, not from a git hook — so the rule is to clear unconditionally.
+# GIT_CONFIG is a DISTINCT leak path: it replaces the file the `git config`
+# subcommand reads and writes, independently of -C and of GIT_DIR.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+
 : "${PASS:=0}"
 : "${FAIL:=0}"
 

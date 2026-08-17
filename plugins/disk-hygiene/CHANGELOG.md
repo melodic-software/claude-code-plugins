@@ -3,6 +3,33 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.16]
+
+### Changed
+
+- `destructive_guard.py` drops three docstrings that restated their
+  function names (comment-only; full hygiene suite green).
+
+## [0.20.15]
+
+### Fixed
+
+- **`test_hygiene.py` no longer lets a fixture's git identity land in the caller's
+  repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  The module clears `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+  `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and `GIT_CONFIG` from
+  `os.environ` at import. `git -C <fixture>` is a readability guard, not an
+  isolation guarantee: `-C` changes directory, while an exported **absolute**
+  `GIT_DIR` overrides repository discovery, so `git config`'s default `--local`
+  scope resolves to the caller's gitdir and the fixture identity is written
+  there instead — leaving the fixture with no `.git` and silently re-authoring
+  the caller's next commit. That is the incident behind #2827. `GIT_CONFIG` is
+  a **second** leak path rather than another spelling of the first: it replaces
+  the file the `git config` subcommand reads and writes, so an identity write
+  follows it past `-C`, past a cleared `GIT_DIR`, and past the working
+  directory. Test-only change; no shipped skill, hook or engine behavior is
+  affected.
+
 ## [0.20.14]
 
 ### Added

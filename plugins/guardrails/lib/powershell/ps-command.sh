@@ -169,6 +169,59 @@ ps::blank_quoted_spans() {
   printf '%s' "$text"
 }
 
+# Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
+# deletes backticks to recover an obfuscated name.
+#
+# A braced variable name may contain a `}` by escaping it: `${my`}writer}` names
+# the variable `my}writer` (about_Variables). Deleting the backtick first turns
+# that into `${my}writer}` — text that is genuinely INDISTINGUISHABLE from a
+# `${my}` reference followed by the literal `writer}`. No regex applied after the
+# deletion can tell them apart, so the braced-target scanner's `[^}]*` stopped at
+# the injected brace, failed the whitespace boundary, and located no call site at
+# all. Both measuring probes then returned false, every arm of the computed-target
+# gate stayed silent, and `& ${my`}writer} f.txt x` fell through ALLOWED — the
+# same computed-writer fail-open the braced-target fix exists to close (review of
+# #2848). The escape context therefore has to be consumed HERE, while it still
+# exists.
+#
+# The name's exact text is irrelevant to locating a call site, so the two-char
+# escape is replaced by one ordinary name character rather than preserved.
+#
+# An escaped BACKTICK (```` `` ````) is emitted UNCHANGED and consumed as a unit, so
+# it cannot lend its second backtick to a brace that follows, and so the callers'
+# obfuscation recovery (`& "Set``-Content"` -> `set-content`) is untouched. Only
+# the escaped closer is folded: an escaped OPENING brace needs no handling —
+# `${my`{writer}` deletes to `${my{writer}`, where `[^}]*` matches the name and
+# the real closer still terminates it — and removing a `{` other probes count
+# would be a change outside this finding.
+ps::fold_escaped_brace_closers() {
+  local s="$1" out="" i n ch
+  n=${#s}
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [[ "$ch" == '`' ]] && ((i + 1 < n)); then
+      case "${s:i+1:1}" in
+      '}')
+        out+='_'
+        i=$((i + 1))
+        continue
+        ;;
+      '`')
+        out+='``'
+        i=$((i + 1))
+        continue
+        ;;
+      *)
+        # Any other escape (`` `n ``, `` `- ``) is left for the caller's backtick
+        # deletion to resolve, exactly as before.
+        ;;
+      esac
+    fi
+    out+="$ch"
+  done
+  printf '%s' "$out"
+}
+
 # True (0) when the (quote-stripped) text carries a PowerShell construct the Bash
 # tokenizer cannot faithfully handle: backtick (escape / line continuation, which
 # the Bash tokenizer would read as command substitution and use to swallow
@@ -225,6 +278,56 @@ ps::call_target_is_bare_computed() {
   [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\(] ]]
 }
 
+# The SUBEXPRESSION half of the predicate above — `& ('g'+'it') …`, `. (Get-Path)`
+# — with the bare-VARIABLE half (`& $tool …`) deliberately excluded.
+#
+# BOTH SPELLINGS of the subexpression operator are matched: the grouping form
+# `(…)` and the dollar form `$(…)`. They are the same construct — each evaluates
+# an expression into the command name — and PowerShell's about_Operators lists
+# them side by side. Recognizing only `(` let `& $(…)` ENTER the computed-target
+# gate through `ps::call_target_is_bare_computed` (which matches `[.&][[:space:]]*[$(]`,
+# so the `$` admits it) and then match no call site in any measuring probe:
+# `ps::computed_call_has_positional_write_signal` and
+# `ps::computed_call_has_splat_operand` both require a `$name` or `${name}`
+# target, and `$(` is neither. Every arm stayed silent and the command fell
+# through ALLOWED — `& $($w) f.txt x` was waved past while the identical
+# `& ($w) f.txt x` blocked (#2924). Same "gate admits, probes cannot see"
+# mechanism as the braced spelling (#2922), one construct over.
+#
+# The `$` is OPTIONAL, not required, so the paren spelling keeps matching
+# exactly as before; the widened target token only decides where the shape
+# refusal fires, never what it refuses. Unlike the braced-name fix (#2908) there
+# is nothing to consume upstream: `$(` survives backtick deletion, quote
+# blanking, and lowercasing intact, so the evidence is still here and the fix
+# belongs in this predicate rather than in a pre-deletion pass.
+#
+# The split exists because the two halves are NOT equally decidable, and the
+# library already treats them differently everywhere else (#2848). A
+# subexpression ASSEMBLES a command name at run time out of fragments that need
+# never contain the name — `('g'+'it')` carries no `git` token for any literal
+# probe to see — so it can only ever be refused by shape. A bare variable is the
+# variable-COMMAND-WORD residual `ps::has_dynamic_invocation` documents and
+# deliberately does not route to the sink: the guards already allow `& $tool …`
+# whenever nothing else routes the command, and grouping elsewhere in the command
+# does not make `$tool` any more resolvable. Blocking the bare-variable form ONLY
+# when an unrelated grouping construct co-occurs was over-blocking ordinary
+# PowerShell (resolve an interpreter into a variable, then loop) while leaving the
+# identical construct-free command allowed.
+#
+# The pattern is spelled out literally here rather than derived from the sibling
+# above, for the fail-OPEN reason stated in the block comment above: a predicate
+# assembled from a variable in pattern position that silently stops matching
+# would wave a computed call target through.
+ps::call_target_is_bare_subexpression() {
+  local lc="${1//\`/}"
+  lc="${lc,,}"
+  # The `\$` is ESCAPED. An unescaped `$?` in this position is a parameter
+  # expansion of the last exit status, which would silently rewrite the pattern
+  # and stop it matching the paren spelling too — a fail-OPEN on
+  # `& ('Set-'+'Content') f.txt x`, the very shape this predicate exists for.
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\$?\( ]]
+}
+
 # True (0) when a bare computed *variable* call carries a positional write
 # shape that the named-parameter probes miss. Set-Content/Add-Content take
 # Path+Value positionally (`& $w f.txt x`); Out-File commonly takes pipeline
@@ -233,39 +336,268 @@ ps::call_target_is_bare_computed() {
 # positional) and `& $python -m unittest discover` (flag-first) stay allowed
 # while two leading positionals still fail closed. A pipeline into the call
 # needs only one leading positional — the content arrives via `|`.
-# Subexpression targets (`& ('Set-'+'Content') …`) already trip
-# `ps::has_special_constructs` via `()` and do not need this probe.
+# Subexpression targets (`& ('Set-'+'Content') …`) do not need this probe: they
+# are refused by shape, by `ps::call_target_is_bare_subexpression` at the gate.
+#
+# EVERY `& $var` / `. $var` site in the command is measured, not just the
+# leftmost (#2848). Until this branch's gate named its shapes, a blanket
+# `ps::has_special_constructs` stood in front of it and any command with a script
+# block was already refused, so measuring the first site only was invisible.
+# Without that blanket, `& $ic -ScriptBlock { & $w f.txt $x }` would be measured
+# at `& $ic` — whose leading token `-ScriptBlock` is a flag, so zero positionals
+# — and the nested `& $w f.txt $x` would never be reached.
+#
+# Operands are CLASSIFIED, not merely counted (#2848). A parenthesized
+# subexpression is one operand however many words it spans, and the
+# two-positional arm fires only when at least one counted operand is a VISIBLE
+# LITERAL — a token that is not a `$variable`, not a `(subexpression)`, not a
+# `@splat`, and not a `{scriptblock}`. The Path+Value shape this probe exists
+# for (`& $w f.txt x`) always shows at least one of its halves as literal text
+# on the command line; when EVERY operand is itself computed
+# (`& $py $script (Join-Path $dir …)`), the command is argument plumbing
+# between expressions — the ordinary interpreter-over-computed-paths loop this
+# issue de-blocks — and the write hypothesis rests on nothing visible. The
+# residual this concedes (writer name, path, AND value all staged into
+# variables inside one command string) is a deliberately evasive shape of the
+# same class as the `node -e` writes the hook's scope note already excludes; a
+# pipeline into the call still fails closed on ANY operand, computed or not,
+# because the content demonstrably arrives via `|`.
+
+# The OPERAND REGION of one call site: everything following the call target that
+# still belongs to this call. Emitted on stdout.
+#
+# Two things end the region, and telling them apart is the whole point:
+#   - a statement / pipeline separator (`;` `|` `&`) at bracket depth ZERO. Inside
+#     a hashtable literal or a script block those characters are ordinary interior
+#     punctuation (`& $w @{a=1;b=2}`), not the end of the call;
+#   - an UNMATCHED closer (`}` or `)`), which closes an ENCLOSING construct — the
+#     `}` ending the `foreach` block around `foreach (…) { & $w @p }`. A closer
+#     that matches an opener seen inside the region closes one of this call's OWN
+#     operands and is kept.
+#
+# Only `()` and `{}` drive depth. `[]` is left as ordinary text because ending the
+# region is the FAIL-OPEN direction — an unmatched `]` in an operand (a type
+# literal or an index written oddly) would cut the scan short and hide a real
+# write signal, whereas carrying `[`/`]` through at most keeps extra text in view.
+#
+# This replaced a pair of first-match string strips (`${rest%%[\;\|\&]*}` and
+# `${rest%%\}*}`). Cutting at the FIRST `}` anywhere assumed no `}` can occur
+# inside the call's own operands before a token of interest, which is false:
+# `${scope:name}`, a `{…}` script block, and a `@{…}` hashtable literal are all
+# ordinary operands containing `}`. The strip therefore dropped everything from
+# such an operand onward, and `& $w ${script:Path} @Body` — a working
+# Set-Content-by-splat — went unseen by both probes below (review of #2848).
+#
+# An unmatched OPENER (a genuinely unbalanced command) leaves the region running
+# to end of string; the callers stay conservative on what they can still see, and
+# such a command does not parse in PowerShell to begin with.
+ps::call_site_operand_region() {
+  local s="$1" out="" i ch depth=0
+  for ((i = 0; i < ${#s}; i++)); do
+    ch="${s:i:1}"
+    case "$ch" in
+    '{' | '(')
+      depth=$((depth + 1))
+      ;;
+    '}' | ')')
+      ((depth == 0)) && break
+      depth=$((depth - 1))
+      ;;
+    ';' | '|' | '&')
+      ((depth == 0)) && break
+      ;;
+    *)
+      # Ordinary operand text — copied through with no depth effect.
+      ;;
+    esac
+    out+="$ch"
+  done
+  printf '%s' "$out"
+}
+
+# Blank the INTERIOR of every balanced bracket group in a call's operand region,
+# keeping the delimiters. Used by the splat probe so a nested construct's contents
+# are not read as operands of the enclosing call: the splat inside
+# `& $ic -ScriptBlock { & $w @p }` belongs to the inner `& $w`, which the call-site
+# walk reaches on its own iteration, and the interior of `${script:Path}` holds no
+# operands at all.
+ps::blank_bracket_interiors() {
+  local s="$1" out="" i ch depth=0
+  for ((i = 0; i < ${#s}; i++)); do
+    ch="${s:i:1}"
+    case "$ch" in
+    '{' | '(')
+      out+="$ch"
+      depth=$((depth + 1))
+      continue
+      ;;
+    '}' | ')')
+      ((depth > 0)) && depth=$((depth - 1))
+      out+="$ch"
+      continue
+      ;;
+    *)
+      # Ordinary text — kept at depth 0, blanked inside a group.
+      ;;
+    esac
+    if ((depth > 0)); then out+=" "; else out+="$ch"; fi
+  done
+  printf '%s' "$out"
+}
+
 ps::computed_call_has_positional_write_signal() {
-  local lc="$1" rest="" tok count=0 piped=0
-  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  local lc="$1" rest="" tok count count_lit piped=0 scan depth opens closes
+  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
+  # is matched alongside the bare one. PowerShell's about_Variables makes them the
+  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
+  # admits both, since it only looks for the `$`. Recognizing just the bare form
+  # here let a braced target ENTER the computed-target gate and then match no call
+  # site at all, so every arm stayed silent and the command fell through allowed:
+  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
+  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
+  # measuring probes closes the hole, narrowing entry would open a second one.
+  # The braced alternative is listed FIRST so it wins on a `${…}` target, and it
+  # allows NON-SPACE text glued after the closing brace (`[^[:space:]]*`). A target
+  # token does not have to end at the brace: `& ${my``}writer} f.txt x` closes the
+  # reference at the escaped-backtick name `my``` and carries `writer}` on the same
+  # token, and `& ${py}script.py` concatenates. Requiring whitespace immediately
+  # after `}` made the whole call site disappear on those, which is a fail-OPEN —
+  # the operands are still measured normally once the site is found, so widening
+  # the TARGET token only decides where measuring starts, never the verdict.
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$\{[^}]*\}[^[:space:]]*|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
   local re_pipe='^(.*)[.\&][[:space:]]*\$'
   lc="${lc//\`/}"
   lc="${lc,,}"
-  [[ "$lc" =~ $re_var ]] || return 1
-  rest="${BASH_REMATCH[4]}"
   if [[ "$lc" =~ $re_pipe ]]; then
     [[ "${BASH_REMATCH[1]}" == *'|'* ]] && piped=1
   fi
-  # Truncate at statement / pipeline continuations so trailing clauses do not
-  # inflate the positional count.
-  rest="${rest%%[\;\|\&]*}"
-  # Drop redirect operands (`> f`, `2> err`) — those are covered by the
-  # redirect probe; they are not Path+Value positionals.
-  rest=$(printf '%s' "$rest" | sed -E 's/[0-9*]*>+[^[:space:]]*//g; s/[0-9*]*<+[^[:space:]]*//g')
-  # shellcheck disable=SC2086 # intentional word-split on PowerShell tokens
-  for tok in $rest; do
-    [[ -z "$tok" ]] && continue
-    if [[ "$tok" == -* ]]; then
-      break
+  scan="$lc"
+  while [[ "$scan" =~ $re_var ]]; do
+    rest="${BASH_REMATCH[4]}"
+    # Advance past this call site before measuring it, so the next iteration
+    # starts inside the remainder and a nested call cannot be skipped.
+    scan="$rest"
+    count=0
+    count_lit=0
+    depth=0
+    # Keep only this call's own operands: a trailing clause must not inflate the
+    # count, and the `}` ending an ENCLOSING script block is not an operand —
+    # while a `}` that closes one of this call's own operands must not truncate
+    # past the operands after it (review of #2848).
+    rest=$(ps::call_site_operand_region "$rest")
+    # Drop redirect operands (`> f`, `2> err`) — those are covered by the
+    # redirect probe; they are not Path+Value positionals.
+    rest=$(printf '%s' "$rest" | sed -E 's/[0-9*]*>+[^[:space:]]*//g; s/[0-9*]*<+[^[:space:]]*//g')
+    # shellcheck disable=SC2086 # intentional word-split on PowerShell tokens
+    for tok in $rest; do
+      [[ -z "$tok" ]] && continue
+      # Every bracket character is BACKSLASH-ESCAPED inside these classes. An
+      # unescaped `}` terminates the `${var//pattern/}` expansion itself, so
+      # `${tok//[^)}]/}` silently parses as a different pattern and keeps the
+      # whole token — parsed wrongly while still reading as a correct class.
+      opens="${tok//[^\(\{]/}"
+      closes="${tok//[^\)\}]/}"
+      if ((depth > 0)); then
+        # Inside a bracketed operand: track balance only. Its words are not
+        # operands of the call, and a `-word` here must not end the outer scan.
+        depth=$((depth + ${#opens} - ${#closes}))
+        ((depth < 0)) && depth=0
+        continue
+      fi
+      if [[ "$tok" == -* ]]; then
+        break
+      fi
+      count=$((count + 1))
+      # One bracketed operand, however many words it spans — a subexpression
+      # `(Join-Path …)` or a script block `{ … }`. Braces are tracked alongside
+      # parens because the operand region no longer truncates at the first `}`
+      # (review of #2848); without this a multi-word script-block operand would
+      # be counted one word at a time.
+      if [[ "$tok" == [\(\{]* ]]; then
+        depth=$((${#opens} - ${#closes}))
+        ((depth < 0)) && depth=0
+        continue
+      fi
+      # A token that merely CONTAINS brackets — `${scope:name}`, `logs[0].txt` —
+      # is a single operand. Only an unbalanced one opens a multi-word span.
+      depth=$((${#opens} - ${#closes}))
+      ((depth < 0)) && depth=0
+      ((depth > 0)) && continue
+      if [[ "$tok" != \$* && "$tok" != @* && "$tok" != \{* ]]; then
+        count_lit=$((count_lit + 1))
+      fi
+    done
+    if ((count >= 2 && count_lit >= 1)); then
+      return 0
     fi
-    count=$((count + 1))
+    if ((piped == 1 && count >= 1)); then
+      return 0
+    fi
   done
-  if (( count >= 2 )); then
-    return 0
-  fi
-  if (( piped == 1 && count >= 1 )); then
-    return 0
-  fi
+  return 1
+}
+
+# True (0) when a bare computed *variable* call is handed a SPLAT — `& $w @p`,
+# where `@p` expands a hashtable into -Path/-Value that no probe here can see.
+#
+# Scoped to the operands of each `& $var` / `. $var` site rather than matched
+# anywhere in the command (review of #2848). A whole-command `@name` scan made
+# an UNRELATED splat the write signal for a call it has nothing to do with:
+# `Write-Output @args; & $py script.py` blocked while the identical command
+# without `@args` was allowed, and neither statement writes a file — the same
+# class of signal-detected-anywhere over-block this issue exists to close, so
+# leaving it would have re-opened it one shape narrower. Every call site is
+# walked, and truncation at a statement/pipeline separator or a closing brace
+# keeps a later statement's splat out of an earlier call's operands, exactly as
+# ps::computed_call_has_positional_write_signal scopes its own count.
+#
+# Deliberately DIVERGES from that sibling in one respect: it does not stop at
+# the first dash-flag. A splat is a parameter supplier wherever it sits, so
+# `& $w -Encoding utf8 @p` is the same write hypothesis as `& $w @p`, whereas a
+# positional count is only meaningful before the first flag.
+#
+# `@{…}` (a hashtable literal) and `@(…)` (an array literal) are NOT splats and
+# do not match: the token class requires a word character after `@`. That is what
+# keeps `foreach ($x in @('a')) { & $w f.txt }` off this arm — the array literal
+# is not a splat, and it sits before the call site besides.
+ps::computed_call_has_splat_operand() {
+  local lc="$1" rest scan
+  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
+  # is matched alongside the bare one. PowerShell's about_Variables makes them the
+  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
+  # admits both, since it only looks for the `$`. Recognizing just the bare form
+  # here let a braced target ENTER the computed-target gate and then match no call
+  # site at all, so every arm stayed silent and the command fell through allowed:
+  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
+  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
+  # measuring probes closes the hole, narrowing entry would open a second one.
+  # The braced alternative is listed FIRST so it wins on a `${…}` target, and it
+  # allows NON-SPACE text glued after the closing brace (`[^[:space:]]*`). A target
+  # token does not have to end at the brace: `& ${my``}writer} f.txt x` closes the
+  # reference at the escaped-backtick name `my``` and carries `writer}` on the same
+  # token, and `& ${py}script.py` concatenates. Requiring whitespace immediately
+  # after `}` made the whole call site disappear on those, which is a fail-OPEN —
+  # the operands are still measured normally once the site is found, so widening
+  # the TARGET token only decides where measuring starts, never the verdict.
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$\{[^}]*\}[^[:space:]]*|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  lc="${lc//\`/}"
+  lc="${lc,,}"
+  scan="$lc"
+  while [[ "$scan" =~ $re_var ]]; do
+    rest="${BASH_REMATCH[4]}"
+    # Advance past this call site before measuring it, so a nested call
+    # (`& $ic -ScriptBlock { & $w @p }`) is reached on the next iteration.
+    scan="$rest"
+    # This call's own operands, with the interior of every balanced bracket group
+    # blanked: a `}` closing one of THIS call's operands must not truncate away a
+    # real splat after it (`& $w ${script:Path} @Body`), while a splat nested
+    # inside a script block belongs to the inner call the walk reaches next.
+    rest=$(ps::call_site_operand_region "$rest")
+    rest=$(ps::blank_bracket_interiors "$rest")
+    if [[ "$rest" =~ (^|[[:space:]])@[a-z0-9_:]+ ]]; then
+      return 0
+    fi
+  done
   return 1
 }
 
@@ -318,13 +650,25 @@ ps::might_invoke_git() {
   # (Claude #2592 review), while `.git` stays inert (`.` is not listed).
   [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
-  # Call / dot-source of a COMPUTED target — `& $x …`, `& (…)`, `& "$x" …`,
-  # `. $x …` — which could resolve to git. A CONSTANT target (`& 'git' …`,
-  # `& "C:\Git\cmd\git.exe" …`) is not matched here and does not need to be: the
-  # literal-git probe above runs quote-INTACT, so a quoted git command word is
-  # already caught by name. Matching constants here as well is what over-blocked
-  # `& "publish.ps1"` (#1968) — a target statically decidable as non-git.
-  ps::call_target_is_bare_computed "$recovered" && return 0
+  # Call / dot-source of a COMPUTED target — `& (…)`, `& "$x" …` — which could
+  # resolve to git. A CONSTANT target (`& 'git' …`, `& "C:\Git\cmd\git.exe" …`)
+  # is not matched here and does not need to be: the literal-git probe above runs
+  # quote-INTACT, so a quoted git command word is already caught by name. Matching
+  # constants here as well is what over-blocked `& "publish.ps1"` (#1968) — a
+  # target statically decidable as non-git.
+  #
+  # The BARE-VARIABLE half (`& $tool …`, `. $tool …`) is deliberately NOT matched
+  # (#2848). It is the variable-command-word residual has_dynamic_invocation
+  # documents and does not route: `& $tool reset --hard` with no sink trigger is
+  # already allowed by this guard, so matching it here only ever fired on the
+  # CONJUNCTION of that residual with an unrelated grouping construct — blocking
+  # `foreach ($x in @(…)) { & $py run.py $x }` while the same call without the
+  # loop was waved through. Grouping does not hide a git token from the literal
+  # probe above (that probe scans the whole text, quote-intact and backtick-
+  # recovered), so it adds nothing to the "could this reach git?" answer for a
+  # bare variable. A SUBEXPRESSION target still blocks, because `('g'+'it')`
+  # assembles a name the literal probe can never see.
+  ps::call_target_is_bare_subexpression "$recovered" && return 0
   ps::call_target_is_interpolating_string "$recovered" && return 0
   # A launcher whose program is a computed expression or variable —
   # `Start-Process ('g'+'it') …`, `saps $tool …`, optionally behind one named
@@ -1035,8 +1379,9 @@ ps::print_unparsable_git_block_message() {
 #   - iex / invoke-expression, whose run string is opaque here — fail closed,
 #     mirroring the git guards' sink;
 #   - a call/dot-source of a COMPUTED target (`& ('Set-'+'Content') …`,
-#     `& $w -Value …`, `& $w > f`) when a write indicator or special construct
-#     is also present — not the bare `& $tool …` / `. $PROFILE` residual (#2722).
+#     `& $w -Value …`, `& $w > f`, `& $w @p`) when a write indicator is also
+#     present — not the bare `& $tool …` / `. $PROFILE` residual (#2722), and not
+#     a bare-variable target merely accompanied by grouping (#2848).
 # Backticks are deleted before matching so an escape-obfuscated name (`Set``-Content`)
 # resolves to its real form.
 #
@@ -1053,7 +1398,13 @@ ps::write_bypass() {
   # writer/iex names (optionally module-qualified) are matched: a quoted path to
   # an arbitrary program (`& 'C:\Program Files\x.exe'`) stays allowed, the same
   # quoted-command-word residual the Bash guard carries.
-  lcq="${PS_BLANKED//\`/}"
+  # Consume the backtick escape of a closing brace BEFORE the deletion below
+  # destroys the evidence — the deletion is what made `${my`}w}` read as `${my}w}`
+  # and vanish from the braced-target scanner entirely (review of #2848). This is
+  # the load-bearing position: the probes cannot do it themselves, because by the
+  # time they are called the backticks are already gone.
+  lcq=$(ps::fold_escaped_brace_closers "$PS_BLANKED")
+  lcq="${lcq//\`/}"
   lcq="${lcq,,}"
   if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
     return 0
@@ -1075,7 +1426,40 @@ ps::write_bypass() {
     # Redirect / -va* probes run on quote-blanked text so a quoted `>` or
     # `-value` substring in message text is not a write signal (#2722 review).
     gate=$(printf '%s' "$blanked_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
-    if ps::has_special_constructs "$blanked_gate" ||
+    # The gate used to be a blanket ps::has_special_constructs, which treated ANY
+    # grouping anywhere in the command as a write signal — so an ordinary
+    # `foreach (…) { & $py run.py $x }` was reported as a "file-write cmdlet
+    # bypass" for a command that writes nothing (#2848). Grouping is not a write
+    # signal; the three shapes that gate actually needed to carry are named
+    # directly instead, each strictly more precise than the construct it replaces:
+    #   - the CALL TARGET itself is a subexpression (`& ('Set-'+'Content') …`) —
+    #     the writer name is assembled at run time and cannot be proven otherwise;
+    #   - `--%` (stop-parsing), which makes the remaining argv opaque to every
+    #     probe below, so the -Value / positional shapes cannot be ruled out;
+    #   - a SPLAT (`& $w @p`), which supplies -Path/-Value from a hashtable the
+    #     probes below cannot see. Previously this was caught only by accident,
+    #     and only when the hashtable literal happened to sit in the same command
+    #     (`$p = @{…}; & $w @p`); naming it closes the pre-built-`$p` form too.
+    #     The splat is measured PER CALL SITE, the same way the positional probe
+    #     measures its operands — a whole-command `@name` scan would make an
+    #     unrelated splat the write signal for a call it has nothing to do with
+    #     (`Write-Output @args; & $py script.py`), which is this issue's own
+    #     over-block class in miniature (see ps::computed_call_has_splat_operand).
+    # Accounting for the arms of has_special_constructs this replaces: its
+    # backtick arm was already DEAD here (`lcq` strips backticks above), its
+    # `--%` arm is carried verbatim, and its `(`/`)` arm is carried for the one
+    # position that matters — the call target. What is deliberately dropped is
+    # grouping ANYWHERE ELSE in the command, which is the over-block this closes.
+    # The `>` redirect and `-va*` probes below stay at WHOLE-COMMAND scope: they
+    # are pre-existing precedent, not shapes this issue reopened, and narrowing
+    # either one is a fail-OPEN change to a different signal.
+    # The one blocking shape that relied on the dropped arms —
+    # `& $ic -ScriptBlock { & $w f.txt $x }`, where the outer target's first
+    # token is a flag — is recovered by measuring every call site rather than the
+    # first (see ps::computed_call_has_positional_write_signal).
+    if ps::call_target_is_bare_subexpression "$blanked_gate" ||
+      [[ "$blanked_gate" == *'--%'* ]] ||
+      ps::computed_call_has_splat_operand "$blanked_gate" ||
       [[ "$gate" == *'>'* ]] ||
       [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
       ps::computed_call_has_positional_write_signal "$blanked_gate"; then
