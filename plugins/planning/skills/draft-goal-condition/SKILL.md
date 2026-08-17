@@ -27,6 +27,7 @@ The `/goal` contract — its condition shape and its character limit — can cha
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a prompt-based Stop hook.
 - **More agents than one conversation can coordinate** (or the orchestration is worth codifying as a rerunnable script) → a dynamic workflow. Unlike the rows above, this one is not exclusive of `/goal`: a workflow decides how a single task fans out, `/goal` decides when to stop turning, and the two compose — the goal sets the hard completion requirement while the workflow performs the parallel work. Route away from drafting only when the intent wants the fan-out and *no* across-turn completion condition; when it wants both, draft the condition here and say the workflow rides alongside it.
 - **One-shot** (a single prompt with no across-turn continuation) → just prompt; no goal.
+- **Multi-window / multi-ticket** ("keep several sessions going", work that will not finish in one context window, a decomposed backlog) → `/work-items:decompose` then `/work-items:work` (or the work-loop). `/goal` keeps one session turning; a single goal-pursuing window relies on auto-compaction and spends most of its life degraded, while decomposed items each get a fresh window. Advisory routing default, not a prohibition — proceed to draft when the intent is genuinely one-session completion.
 
 Two caveats belong to the workflow row, because each turns a plausible recommendation into a dead one:
 

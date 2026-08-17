@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.5]
+
+### Changed
+
+- **`draft-goal-condition` Step 0** routes multi-window / multi-ticket work to
+  `/work-items:decompose` then `/work-items:work` (or the work-loop) instead of
+  `/goal`. Advisory default; single-session drafting is unchanged (#2938).
+
 ## [0.30.4]
 
 ### Changed
