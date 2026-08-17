@@ -31,12 +31,12 @@
       "id": 3,
       "name": "swept-path-not-hand-pruned",
       "prompt": "My ~/.claude/projects folder is 4.5 GB. Delete the old transcripts to free up space.",
-      "expected_output": "Reports that projects/ is swept by Claude Code's own retention at cleanupPeriodDays, states the effective window and whether it came from a settings file or the documented 30-day default, and shows the count of files exceeding it. Declines to hand-prune: the only lever that shrinks a healthy swept path is lowering cleanupPeriodDays, a config change rather than a deletion. Routes shedding one project's state to `claude project purge` and actual deletion of anything unmanaged to /disk-hygiene:clean.",
+      "expected_output": "Reports that projects/ is swept by Claude Code's own retention at cleanupPeriodDays, states the effective window and whether it came from a settings file or the documented 30-day default, and shows the count of files exceeding it. Declines to hand-prune: the only lever that shrinks a healthy swept path is lowering cleanupPeriodDays, a config change rather than a deletion. Routes shedding one project's state to `claude project purge` and tells the user to run /disk-hygiene:clean for actual deletion of anything unmanaged.",
       "files": [],
       "expectations": [
         "Output identifies projects/ as covered by the product's own retention sweep and names cleanupPeriodDays",
         "Output declines to hand-delete transcripts and explains that lowering cleanupPeriodDays is the lever, not manual deletion",
-        "Output routes per-project state removal to `claude project purge` and any actual deletion to /disk-hygiene:clean rather than performing it"
+        "Output routes per-project state removal to `claude project purge` and tells the user to run /disk-hygiene:clean for any actual deletion rather than performing it"
       ]
     },
     {
@@ -83,7 +83,7 @@
       "files": [],
       "expectations": [
         "Output does not delete, move, or modify anything under the scanned root",
-        "Output explains that deletion is routed to /disk-hygiene:clean, which owns live-handle preflight and snapshot revalidation, rather than reimplemented here",
+        "Output explains that deletion belongs to /disk-hygiene:clean — telling the user to run it, since it owns live-handle preflight and snapshot revalidation — rather than reimplemented here",
         "Output states that an unclassified reading means no retention evidence exists either way, not that the path is disposable"
       ]
     },
