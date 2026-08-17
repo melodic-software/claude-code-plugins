@@ -9,7 +9,7 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 - [x] Step 1.5: Auto-detect — routed to Q&A (real design decisions with no codebase answer)
 - [x] Step 2: Drive the frontier-rounds loop (4 rounds + research + audit-answers validation)
 - [x] Step 3: Stop condition — register gate clean; user locked the contract ("I'll lock it")
-- [x] Step 4: Persist the contract (Brief → docs/topics/plugin-marketplace-code-clarity/PLAN.md; brief gate ok)
+- [x] Step 4: Persist the contract (Brief → docs/topics/plugin-marketplace-code-clarity/PLAN.md; brief gate ok. The slice was later PRUNED before merge per the contract-tier convention — decisions live in the shipped skill's reference/ docs and this ledger)
 - [x] Step 5: Hand off — name locked (dissolve-comments); recommended next: /planning:plan or direct implementation with playbooks:skill-authoring + /skill-quality:check
 
 - [x] Plugin home + name — home: code-tidying; name via naming pass (Q16, user picks)

@@ -18,8 +18,11 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   plugin's standard path-exclusion tier are never touched; removed narrative is staged
   as a proposed commit-message block before deletion is final. Doctrine grounded in a
   verified research pass (Fowler, Martin ⇄ Ousterhout debate, McConnell, Google
-  eng-practices, Anthropic prompting guidance) and locked in
-  `docs/topics/plugin-marketplace-code-clarity/PLAN.md`.
+  eng-practices, Anthropic prompting guidance) and locked through an interviewed,
+  two-validator-audited task-branch Brief (contract tier — pruned before merge per the
+  topic-docs convention); the surviving doctrine lives in the skill's `reference/`
+  docs, and the decision trail in the branch history of
+  `.work/plugin-marketplace-code-clarity/interview-checklist.md`.
 
 ### Fixed
 
