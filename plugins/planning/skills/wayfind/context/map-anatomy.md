@@ -67,8 +67,10 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
 1. **Every closed in-scope decision has a Decisions-so-far pointer line.** Resolved-in-comment
    but no index line → add the line. Closed-as-out-of-scope items are indexed under
    Out-of-scope instead, never under Decisions-so-far.
-2. **No item resolved-in-comment yet still open.** Resolution is atomic: comment → index →
-   close. A dangling "resolved" comment on an open item is a broken close-out — finish it.
+2. **No item resolved-in-comment yet still open.** In-scope resolution is atomic: comment →
+   Decisions-so-far → close. A wrongly scoped item closes with one Out-of-scope line and no
+   Decisions-so-far pointer (see Out-of-scope above). A dangling "resolved" comment on an
+   open item is a broken close-out — finish it.
 3. **The map holds decisions, not build work.** A buildable item means the decision already
    graduated — move it to the ordinary tracker (`/work-items`), off the map.
 4. **Coordination on the tracker, execution artifacts in the memory tier.**

@@ -123,14 +123,23 @@ Session-start `reclaim` is idempotent: clear your own assignee (and claim commen
 hold that have no in-progress signal (open PR / branch pushes / recent comments), noting the
 release in a comment.
 
-## Graduate + close a decision item (atomic: comment → index → close)
+## Graduate + close a decision item
+
+In-scope close-out is atomic: comment → Decisions-so-far → close. A wrongly scoped item
+(on the tracker but not this effort) closes with one Out-of-scope line and no
+Decisions-so-far pointer — see the Decisions-so-far / Out-of-scope sections in
+[`map-anatomy.md`](map-anatomy.md).
 
 ```shell
+# In-scope — comment → Decisions-so-far → close
 # 1. Resolution comment on the item (the decision's durable home).
 gh issue comment <item#> --body "Resolved: <decision> — <one-line basis>"
 # 2. Add the one-line pointer to the map's Decisions-so-far index (edit the map body).
 # 3. Close the item (closing removes it from the frontier — the claim is assignee + lease, no label to clear).
 gh issue close <item#> --reason completed
+
+# Wrongly scoped — one Out-of-scope line on the map (no Decisions-so-far pointer), then:
+gh issue close <item#> --reason "not planned"
 ```
 
 ## Close the map (frontier empty ∧ all items closed)
