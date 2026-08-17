@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.12]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` (comment-only; no behavior change).
+- `babysit_delta.py` drops a duplicated navigational comment and a
+  history-narration docstring clause (comment-only; suite green).
+
 ## [0.54.11]
 
 ### Fixed
