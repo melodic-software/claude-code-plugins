@@ -98,7 +98,7 @@ Residual F-items not absorbed above: F1 smart-default covers whole-repo/deictic 
 
 **Sanity Check (pre-specified, non-vacuous — reviewer #9):** F4 ordering scoped to the New Workspace section: `awk '/### New Workspace/,/### Resume/' plugins/education/skills/teach/SKILL.md` shows the mission-interview step numbered BEFORE the create-workspace step; F1: `grep -ci "whole repo\|entire repo\|this repo" plugins/education/skills/teach/SKILL.md` ≥ 1 inside the smart-default rules; F5: `grep -c "NOTES.md" plugins/education/skills/teach/SKILL.md` ≥ 1 within the New Workspace or Session Close steps (seeding step exists); remaining F-items get their per-item grep recorded in the phase commit message.
 
-### Phase 6: Provenance correction [TODO] (parallel-safe — file-disjoint)
+### Phase 6: Provenance correction [DONE] (parallel-safe — file-disjoint)
 
 docs/upstream/mattpocock-skills.md: move `teach` out of "Not adopted"; add a Derived attribution row (taken: workspace vocabulary, FORMAT-spec content near-verbatim, K-S-W/ZPD/community delegation, learning-record doctrine; rejected: cwd-as-workspace, Codex sidecar, HTML references; added: codebase mode, primer, assess, staleness, evals, collision guards — now also re-adopted: storage-strength pedagogy, HTML lessons, assets). Correct v1.2 map row 22 (CONVERGENT → Derived). Cite this topic as the audit.
 
