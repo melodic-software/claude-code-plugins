@@ -233,7 +233,7 @@ Required body sections (each is a grep-able heading):
 - **Sanity Check:** `grep -Ec "improvement.local.md|improvement.md" plugins/improvement/reference/config.md` ≥ 2 (all cascade layers documented)
 - **Sanity Check:** `grep -Ec "Routine|cron" plugins/improvement/README.md` ≥ 2 AND `grep -c "unavailable" plugins/improvement/README.md` ≥ 1
 
-### Phase 5: Trigger-boundary handshake with `architecture:improve` [TODO]
+### Phase 5: Trigger-boundary handshake with `architecture:improve` [DONE]
 
 `architecture:improve`'s description currently claims "what should we improve" and "find
 refactoring opportunities" — the new skill's core triggers. One-sided boundaries don't resolve
