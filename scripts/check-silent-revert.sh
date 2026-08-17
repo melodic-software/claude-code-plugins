@@ -958,11 +958,20 @@ verify_known_incidents() {
 # identifier that appears at its definition AND at a use site is satisfied by a
 # re-land that restored only the use -- a PARTIAL re-land reported as `ok`,
 # which is the exact failure this assertion exists to catch (#2828 was a
-# partial re-land nobody noticed). Two shipped markers bind that loosely
-# TODAY -- `_FIND_SIDE_EFFECT_PRIMARIES` and `MERGED_PR_GRAPHQL_ALIAS_PAGE`
-# each occur at a definition and at a use site in the file they bind to -- and
-# #2915 tracks re-pinning them to a line a use-site-only restore cannot
-# contain. Nothing enforces this: it is a corpus-review obligation, because a
+# partial re-land nobody noticed). Two shipped markers bound that loosely --
+# bare `_FIND_SIDE_EFFECT_PRIMARIES` and bare `MERGED_PR_GRAPHQL_ALIAS_PAGE`
+# each occur at a definition AND at a use site in the file they bind to -- and
+# each now records its DEFINITION line instead (`... = frozenset(`, `...=100`),
+# which occurs exactly once and which a use-site-only restore cannot contain.
+#
+# Both bare forms did still discriminate the RECORDED incidents, because those
+# reverts removed the definition and the use together: measured, each is absent
+# at the reverting commit and present at its parent. The weakness was never in
+# what they assert about the past -- it was that a FUTURE partial re-land, the
+# one shape this assertion exists to catch, could satisfy them. Fixed before it
+# was needed rather than after.
+#
+# Nothing enforces this: it is a corpus-review obligation, because a
 # check that counted occurrences would turn every row into an exact-shape
 # assertion and go red on edits that restored the content perfectly well.
 # The ONE reserved position is a LEADING `[`, which commits the row to

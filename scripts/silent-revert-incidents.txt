@@ -114,7 +114,7 @@ fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce9
 # #2640 restored this surface by hand. The marker is one of the guard tables
 # #2639 added and #2641's squash took back out; it is present in every tree from
 # the restore onward, which is the property this row asserts.
-marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py _FIND_SIDE_EFFECT_PRIMARIES
+marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py _FIND_SIDE_EFFECT_PRIMARIES = frozenset(
 
 # The third merge from the same night, surfaced by this canary's own
 # calibration run rather than by the #2691 audit. #2633's squash dropped work
@@ -152,7 +152,7 @@ fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [bfb66beb8c1a6cdb52957a9a2614c6d2
 # the same hand fix (#2640) and either half could have been missed on its own --
 # which is the shape of the #2828 failure, a partial re-land nothing noticed.
 marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh --apply-plan may be supplied only once
-marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh MERGED_PR_GRAPHQL_ALIAS_PAGE
+marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh MERGED_PR_GRAPHQL_ALIAS_PAGE=100
 
 # --- Verified-legitimate commits that must stay quiet -------------------------
 # The closest sub-threshold miss in 500 commits: 129 lines of a doc section that
