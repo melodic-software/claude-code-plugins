@@ -960,16 +960,24 @@ verify_known_incidents() {
 # which is the exact failure this assertion exists to catch (#2828 was a
 # partial re-land nobody noticed). Two shipped markers bound that loosely --
 # bare `_FIND_SIDE_EFFECT_PRIMARIES` and bare `MERGED_PR_GRAPHQL_ALIAS_PAGE`
-# each occur at a definition AND at a use site in the file they bind to -- and
-# each now records its DEFINITION line instead (`... = frozenset(`, `...=100`),
-# which occurs exactly once and which a use-site-only restore cannot contain.
+# each occur at a definition AND at a use site in the file they bind to.
+#
+# Narrowing each to its DEFINITION line (`... = frozenset(`, `...=100`) fixes
+# only one direction. It removes the use-only false green, since a re-land that
+# restores the use site alone cannot contain the definition line -- but it
+# leaves the inverse standing: a re-land that restores the definition and never
+# reconnects the use satisfies the row while the content is still half absent.
+# So each of those two constants is recorded as TWO rows, its definition and its
+# use, and both must hold. A definition-only re-land passes the definition row
+# and fails the use row; a use-only re-land does the reverse. Neither row on its
+# own is the assertion; the pair is.
 #
 # Both bare forms did still discriminate the RECORDED incidents, because those
-# reverts removed the definition and the use together: measured, each is absent
-# at the reverting commit and present at its parent. The weakness was never in
-# what they assert about the past -- it was that a FUTURE partial re-land, the
-# one shape this assertion exists to catch, could satisfy them. Fixed before it
-# was needed rather than after.
+# reverts removed the definition and the use together: measured, each of the
+# four literals is absent at its reverting commit and present at that commit's
+# parent. The weakness was never in what they assert about the past -- it was
+# that a FUTURE partial re-land, in either direction, could satisfy them. Fixed
+# before it was needed rather than after.
 #
 # Nothing enforces this: it is a corpus-review obligation, because a
 # check that counted occurrences would turn every row into an exact-shape
