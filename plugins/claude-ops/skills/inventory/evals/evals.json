@@ -66,7 +66,7 @@
       "id": 6,
       "name": "routes-install-directory-question-away",
       "prompt": "My ~/.claude directory is huge and I think there's stale junk in it. Can you inventory it and tell me what to clean up?",
-      "expected_output": "Recognises the object as the install directory on disk rather than the invocable surface, and routes to /claude-ops:audit-install-state for the staleness reading and /disk-hygiene:clean for any deletion. Offers what this skill can answer — which capabilities resolve and where each came from — without producing a staleness verdict or recommending deletions.",
+      "expected_output": "Recognises the object as the install directory on disk rather than the invocable surface, and routes to /claude-ops:audit-install-state for the staleness reading, telling the user to run /disk-hygiene:clean for any deletion. Offers what this skill can answer — which capabilities resolve and where each came from — without producing a staleness verdict or recommending deletions.",
       "files": [],
       "expectations": [
         "Output routes the install-directory staleness question to /claude-ops:audit-install-state rather than answering it",
