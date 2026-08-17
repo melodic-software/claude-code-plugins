@@ -68,3 +68,31 @@ build filed as [#2962](https://github.com/melodic-software/claude-code-plugins/i
 (skill + evals + philosophy cross-ref) and
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963) (audit-side
 criterion), SSOT annotated. Next: lane 8 (#2910).
+
+## Lane 8 decision rows (closed 2026-08-17)
+
+Interview-first per contract; register gate clean (8/8, brief=ok); user confirmed. Contract:
+`docs/topics/invocation-mode-doctrine/PLAN.md`. Rubric (the doctrine artifact):
+`docs/conventions/invocation-mode/README.md`. Rows for lane 6's `aihero-course.md` harvest:
+
+| Claim / concern (lesson) | Verdict | Detail |
+|---|---|---|
+| Invocation choice needs a decision rubric (L3, L4) | ADOPT (adapted — inverted default) | Rubric adopted with model-invoked default + three exception classes (side-effect/manual-timing, setup, maintainer-only) — the inverse of upstream's user-invoked default. Home: `docs/conventions/invocation-mode/README.md` + convention-registry row; cross-linked from PLUGIN-PHILOSOPHY (setup contract, Instruction economy); `playbooks:skill-authoring` pointer filed |
+| Upstream's user-invoked default (L4) | REJECT | Solo-operator posture; materially weakened by mattpocock/skills#693 (desktop/web drop user-invoked skills from the listing) and by this marketplace's multi-repo discoverability need |
+| Splitting by invocation (L4) | ADOPT (routed) | The rubric owns the split axis; `docs-hygiene:write-for-agents` (#2962) when-to-split doctrine points at it (lane 7 decision honored) |
+| Router-skill pattern (L4 / MECHANICS) | REJECT (with reason) | Under the model-invoked default the always-present listing IS the router; `disable-model-invocation: true` skills are deliberately model-invisible. Human-side answer: `docs/SKILL-CHEAT-SHEET.md` + `claude-ops:inventory`. Domain-scoped composition routers (`discipline:sweep-all` precedent) remain an admitted distinct pattern |
+| Explicit `disable-model-invocation` on every skill (L4) | ADOPT | 17 missing-key skills normalized to explicit `false` + new `skill-quality:check` criterion requiring the key — filed implementation follow-on |
+| Setup-skill convention (L3/L4) | PARITY — no work | Already documented: PLUGIN-PHILOSOPHY "Setup is explicit and repeatable" (landed `967db56c`, pre-dating #2910's "documented nowhere" premise) |
+| User vs project scope + cloud caveat (L5) | ADOPT | Remote/cloud sessions never load `~/.claude` user scope — project/marketplace skills are the only steering that reaches them; recorded as the rubric's surface-coverage/cloud-scope evidence axis |
+| Invocation-reach invariant (MECHANICS) | CONFIRMED | Docs-verified 2026-08-17 (`true` → model-invisible everywhere, human `/name` only); SSOT strand records CONFIRMED with the audit-side trigger kept, upstream-release trigger retired |
+
+Fleet re-grade (ADR 0005-bounded, executed in-lane): 10 non-setup `true` skills graded — 9 KEEP,
+1 FLIP (`planning:questionnaire` → model-invoked, filed). The 47 setup skills are class (ii) by
+contract; the 137 `false` skills conform to the default and were not swept.
+
+Lane 8 status: CLOSED 2026-08-17 — Brief locked
+(`docs/topics/invocation-mode-doctrine/PLAN.md`), rubric homed
+(`docs/conventions/invocation-mode/README.md` + registry row + philosophy cross-refs),
+enforcement filed (explicit-key normalization + check criterion + skill-authoring pointer), flip
+filed (`planning:questionnaire`), SSOT gap-3 rows dispositioned and strand CONFIRMED. Next:
+lane 9 (#2911).

@@ -85,7 +85,13 @@ design-locked as `docs-hygiene:write-for-agents`
 [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
 completion-criteria criterion). The GAP/PARTIAL verdict cells below flip to ADOPTED when #2962
-merges; gap 3 rows (invocation) remain lane 8's (#2910).
+merges.
+
+**Lane 8 closed 2026-08-17**: gap 3 (invocation) is decided — invocation-mode rubric homed at
+`docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes;
+contract: `docs/topics/invocation-mode-doctrine/PLAN.md`); enforcement filed as
+[#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), the one re-grade
+flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
 
 | Upstream section | Our surface | Verdict |
 |---|---|---|
@@ -93,16 +99,16 @@ merges; gap 3 rows (invocation) remain lane 8's (#2910).
 | The two loads (context load / cognitive load) | PLUGIN-PHILOSOPHY Instruction economy (context load only) | GAP — cognitive-load-as-budget doctrine absent (→ #2909) |
 | Information hierarchy (steps vs reference, ladder, co-location, sprawl) | three-tier load-cost model ≈ the ladder | PARTIAL — co-location and steps-vs-reference distinction absent (→ #2909) |
 | Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | none — the prior mapping was silent on this section (oversight, not a decision) | GAP (gap 2 → #2909) |
-| When to split (by sequence / by invocation) | tier-model split triggers are size/concern-based only | PARTIAL (→ #2909 / #2910) |
+| When to split (by sequence / by invocation) | tier-model split triggers are size/concern-based only; invocation axis now owned by the rubric | PARTIAL — sequence half rides #2962; invocation half ADOPTED (lane 8: `docs/conventions/invocation-mode/`) |
 | Leading words + negation | tracked strand (below) | TRACKED — disposition path #2909 |
 | Pruning: single source of truth | `docs-hygiene:extract-ssot` + the topic-docs single-home rule | PARITY+ |
 | Pruning: environment-as-truth ("cache") | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict + drift control) | PARITY+ (stronger — cache without drift control is not a cache) |
 | Pruning: relevance / sediment | `claude-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
 | Pruning: no-ops (model-relative, run-the-document test) | `claude-config:unhobble` (empirical — operationalizes his remove-and-observe test) + `audit-instructions` (judgment) | PARITY+ |
-| MECHANICS: invocation choice | undocumented setup-skill convention; `skill-quality:check listing-budget` instrument; no decision rubric | GAP (gap 3 → #2910) |
-| MECHANICS: splitting by invocation | none | GAP (→ #2910) |
-| MECHANICS: router skills | rejected only as the `ask-matt` port ("marketplace shape differs"); the pattern itself never evaluated | GAP (→ #2910) |
-| Invocation-reach invariant | tracked strand (below) | TRACKED — disposition path #2910 |
+| MECHANICS: invocation choice | rubric at `docs/conventions/invocation-mode/` (model-invoked default + exception classes; the setup convention was already documented in PLUGIN-PHILOSOPHY, contra this row's earlier "undocumented" reading); `skill-quality:check listing-budget` instrument | ADOPTED (adapted — inverted default; lane 8, 2026-08-17; enforcement → #2968) |
+| MECHANICS: splitting by invocation | rubric § Splitting by invocation; #2962's when-to-split doctrine points there | ADOPTED (routed; lane 8, 2026-08-17) |
+| MECHANICS: router skills | rubric § Router-skill verdict; human-side answer = `docs/SKILL-CHEAT-SHEET.md` + `claude-ops:inventory`; composition-router carve-out (`discipline:sweep-all`) | REJECTED with reason (lane 8, 2026-08-17 — the always-present listing is the router under a model-invoked default) |
+| Invocation-reach invariant | tracked strand (below) | CONFIRMED (docs-verified 2026-08-17; lane 8 disposition below) |
 
 ## Tracked (event-triggered re-evaluation)
 
@@ -124,10 +130,17 @@ triggers stand until the owning lane records the disposition:
 - **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
   `disable-model-invocation: true` — can be invoked by no other skill). Unverified against
   current official docs at audit time, and zero live defect instances found (no skill here
-  instructs model invocation of a `disable-model-invocation: true` target). Trigger: a
-  mattpocock/skills release whose changeset names `writing-for-agents`, OR a repo review/audit
-  surfacing a skill that instructs model invocation of a `disable-model-invocation: true`
-  target.
+  instructs model invocation of a `disable-model-invocation: true` target).
+  **Disposition (lane 8, 2026-08-17): CONFIRMED against current official docs**
+  (code.claude.com/docs/en/skills, fetched 2026-08-17): `disable-model-invocation: true` →
+  "Description not in context, full skill loads when you invoke"; "By default, Claude can invoke
+  any skill that doesn't have `disable-model-invocation: true` set"; the flag "removes the skill
+  from Claude's context entirely" — and it also blocks subagent preload and (v2.1.196+)
+  scheduled-task prompts. The upstream-release trigger is retired (the invariant no longer
+  depends on upstream's wording — it is docs-confirmed and owned by
+  `docs/conventions/invocation-mode/README.md` § The invocation-reach invariant). The audit-side
+  trigger stands: a repo review/audit surfacing a skill that instructs model invocation of a
+  `disable-model-invocation: true` target re-opens this strand.
 
 ## Harness findings learned from this upstream (recheck-worthy)
 
