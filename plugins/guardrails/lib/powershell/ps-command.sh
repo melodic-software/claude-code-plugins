@@ -1111,13 +1111,24 @@ ps::might_write_via_python3() {
 # VARIABLE (`& $tool …`) is the genuinely-deferred variable-command-word residual
 # and is deliberately NOT routed here. Operates on the quote-INTACT command
 # (backticks recovered) so the string-literal forms stay visible.
+#
+# `=` IS IN THE SEPARATOR CLASS, matching the call-target predicates above. This
+# is the SINK-TRIGGER half of the boundary defect #2966 fixed on the call-target
+# side: without `=`, `$a=& "$tool" commit --no-verify` never ENTERED the
+# fail-closed sink, while the identical spaced `$a = & …` blocked (#2984). That
+# is the mirror image of #2922/#2924 — there entry was BROADER than measurement
+# and every arm stayed silent; here entry was NARROWER, so the measuring
+# predicates that would have recognized the target never ran at all. Entry and
+# measurement have to agree on what a token boundary is in BOTH directions.
+# Spelled out literally rather than shared with the call-target class through a
+# variable, for the quote-removal reason the block comment above states.
 ps::has_dynamic_invocation() {
   # `q` carries the two quote characters so neither appears literally inside the
   # [[ =~ ]] test (which would derail shellcheck's parser).
   local recovered="${1//\`/}" lc q="\"'"
   lc="${recovered,,}"
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
-  [[ "$recovered" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$q] ]] && return 0
+  [[ "$recovered" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[$q] ]] && return 0
   return 1
 }
 
@@ -1137,7 +1148,14 @@ ps::has_launcher() {
   # The .exe-suffixed spellings (cmd.exe, powershell.exe, pwsh.exe) and the
   # `start` alias of Start-Process are the same launchers, not a new class —
   # a spelling gap here would skip the sink entirely (review round 4).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
+  #
+  # `=` is in the separator class for the same reason it is in the call-target
+  # class and in `ps::might_invoke_git`'s own launcher probe (line ~785, which
+  # already carried it): capturing a launcher's output with no space around the
+  # assignment operator is idiomatic PowerShell, and omitting it meant
+  # `$out=pwsh $script` never entered the sink while `$out = pwsh $script` did
+  # (#2984). Spelled out literally, never shared through a variable.
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(=])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
 }
 
 # Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND

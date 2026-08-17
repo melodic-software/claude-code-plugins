@@ -3,6 +3,43 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.5]
+
+### Fixed
+
+- **PowerShell guards: an unspaced assignment no longer hides a dynamic
+  invocation or a launcher from the fail-closed sink
+  ([#2984](https://github.com/melodic-software/claude-code-plugins/issues/2984)).**
+  `$a=& "$tool" commit --no-verify` exited 0 from `block-dangerous-git` and
+  `block-no-verify` while the identical spaced `$a = & "$tool" commit
+  --no-verify` exited 2. Same for `$out=pwsh $script` against `$out = pwsh
+  $script`. The only difference in each pair is whitespace around `=`.
+
+  `#2966` added `=` to the CALL-TARGET separator classes. The SINK-TRIGGER
+  classes one layer up — `ps::has_dynamic_invocation` and `ps::has_launcher` —
+  still lacked it, so the two lanes disagreed about what a token boundary is.
+  This is the MIRROR IMAGE of `#2922`/`#2924`: there the gate ENTRY predicate was
+  BROADER than every measuring predicate, so the gate was entered and no arm
+  fired; here entry was NARROWER than measurement, so the sink was never entered
+  and the measuring predicates — which would have recognized the call target
+  fine — never ran at all. Both directions fail OPEN.
+
+  `=` is now spelled out literally in both separator classes, matching the
+  call-target predicates and `ps::might_invoke_git`'s own launcher class, which
+  already carried it.
+
+  Widening a sink trigger is the OVER-BLOCK direction, so the allow side is what
+  was measured. It is NARROW, not a blanket hit on assignment idiom:
+  `$a=Get-Content f.txt`, `$env:PATH=$env:PATH`, `git -c core.pager=cmd log`,
+  `$x=.5` and the six `#2848` computed-writer acceptance cases all stay allowed.
+  Two rows `#2966` pinned as allowed — `$out=pwsh $script` and
+  `$p=Start-Process $app` — now block. That rc=0 was structural rather than a
+  decision: on the pre-fix base every SIBLING SPELLING of the identical class
+  already blocked (`pwsh $script`, `cmd $t`, `Start-Process $app`,
+  `$a=1;pwsh $script`, `$a|pwsh $script`, and the spaced `$out = pwsh $script`),
+  and only the unspaced `=` did not. The rows now pin the same rc as their six
+  siblings.
+
 ## [0.29.4]
 
 ### Fixed

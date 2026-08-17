@@ -972,12 +972,82 @@ run_pwsh "PS: unspaced assignment before a computed launcher (fail-closed block 
 # shellcheck disable=SC2016
 run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block — pre-existing)" \
   "\$p = Start-Process ('g'+'it') reset" 2
+
+# --- Unspaced assignment before a LAUNCHER: sink-trigger half (#2984) --------
+# `ps::has_launcher` is the SINK TRIGGER; `ps::might_invoke_git`'s own launcher
+# class (widened by #2928) is a MEASURING probe one layer down. #2928 widened the
+# measuring class only, so the two rows below were pinned rc=0 by that PR — but
+# that 0 was STRUCTURAL, not a decision: the sink was never entered, so no arm
+# ever ran. Entry NARROWER than measurement is the mirror image of #2922/#2924,
+# and it fails OPEN.
+#
+# That the 0 was an accident of entry, not a policy, is settled by measuring the
+# SIBLING SPELLINGS of the identical class on the pre-fix base `fdbc42137`. Every
+# one of them ALREADY blocked 0/2/2 there; only the unspaced `=` did not:
+#
+#   pwsh $script          2   (bare, start of string)
+#   cmd $t                2
+#   Start-Process $app    2
+#   $a=1;pwsh $script     2   (`;` separator)
+#   $a|pwsh $script       2   (`|` separator)
+#   $out = pwsh $script   2   (SPACED `=`)
+#   $out=pwsh $script     0   <- the lone hole
+#
+# So these rows now pin 2, matching all six siblings. This is the fail-CLOSED
+# direction and weakens nothing; the ordinary-assignment guards below prove the
+# widening is narrow rather than a blanket hit on assignment idiom.
 # shellcheck disable=SC2016
-run_pwsh "PS: unspaced assignment before a bare-variable launcher (allowed — #2928 guard)" \
-  "\$out=pwsh \$script" 0
+run_pwsh "PS: unspaced assignment before a bare-variable launcher (fail-closed block — #2984)" \
+  "\$out=pwsh \$script" 2
 # shellcheck disable=SC2016
-run_pwsh "PS: unspaced assignment before Start-Process of a variable (allowed — #2928 guard)" \
-  "\$p=Start-Process \$app" 0
+run_pwsh "PS: unspaced assignment before cmd of a variable (fail-closed block — #2984)" \
+  "\$x=cmd \$t" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before Start-Process of a variable (fail-closed block — #2984)" \
+  "\$p=Start-Process \$app" 2
+# The spaced contrasts, pinned so a future NARROWING of the class cannot silently
+# re-open the hole from the other side.
+# shellcheck disable=SC2016
+run_pwsh "PS: spaced assignment before a bare-variable launcher (fail-closed block — pre-existing)" \
+  "\$out = pwsh \$script" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: semicolon-separated bare-variable launcher (fail-closed block — pre-existing sibling)" \
+  "\$a=1;pwsh \$script" 2
+
+# --- Unspaced assignment before a DYNAMIC INVOCATION: sink-trigger half (#2984)
+# `ps::has_dynamic_invocation` matches a call `&` / dot-source `.` of a STRING
+# LITERAL. Its separator class lacked `=` too, so `$a=& "$tool" commit` never
+# entered the sink while the identical spaced form blocked.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a call of an interpolating string (fail-closed block — #2984)" \
+  "\$a=& \"\$tool\" reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a call of a single-quoted string (fail-closed block — #2984)" \
+  "\$a=& 'git reset --hard'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: spaced assignment before a call of an interpolating string (fail-closed block — pre-existing)" \
+  "\$a = & \"\$tool\" reset --hard" 2
+
+# --- The widening is NARROW: ordinary assignment idiom stays allowed (#2984) --
+# A `=` in the separator class admits an assignment whose RHS is a launcher or a
+# string-literal call — NOT assignment generally. These are the allow side of the
+# same edit and are pinned so a future widening cannot silently over-block them.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment of a plain cmdlet (allowed — #2984 guard)" \
+  "\$a=Get-Content f.txt" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment of an env var to itself (allowed — #2984 guard)" \
+  "\$env:PATH=\$env:PATH" 0
+# A `=`-glued launcher TOKEN that is not in command position: `core.pager=cmd`
+# is a git config value, not a launched shell. The class admits `=` as a
+# separator, so this is the shape most at risk of a false trigger.
+run_pwsh "PS: launcher token as a git -c config VALUE (allowed — #2984 guard)" \
+  "git -c core.pager=cmd log --oneline -n 1" 0
+# A dot-source separator is `.` followed by a QUOTE. A decimal literal and a
+# property access after `=` carry no quote, so neither trips the widened class.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment of a decimal literal (allowed — #2984 guard)" \
+  "\$x=.5" 0
 
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
