@@ -883,10 +883,15 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     } >"$repo/scripts/inc.txt"
     SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
     out="$OUT"
-    if [[ "$RC" -ne 0 ]]; then
+    # Assert the MESSAGE, not just a non-zero exit. The link's target does not
+    # exist, so with the `-L` guard deleted this row would still fail the `-f`
+    # test and die with rc=2 -- a bare `RC -ne 0` passes either way and pins
+    # nothing. Requiring the symlink wording is what makes this a regression
+    # test for the symlink guard rather than for dangling paths in general.
+    if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'is a symlink'; then
       ok "a tracked symlink cannot satisfy a marker in working-tree mode"
     else
-      fail "a symlinked marker path must not report present, rc=$RC: $out"
+      fail "a symlinked marker path must be refused as a symlink, rc=$RC: $out"
     fi
     rm -f "$repo/linked.txt"
     git_test_config "$repo" add -A >/dev/null 2>&1

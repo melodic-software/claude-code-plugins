@@ -203,9 +203,13 @@
 # repo-wide `git grep` would have reported both files restored while both were
 # missing.
 #
-# Cost: one path-scoped `git grep` per marker over a four-row corpus, which is
-# why it runs in the same `push: main` job as the replay instead of behind an
-# on-demand flag. "Nobody thought to check" is the failure that produced #2828,
+# Cost: one exact-path read per marker over a four-row corpus -- `git cat-file`
+# at a rev, a tracked-path read in the working tree -- with the match done by
+# `grep -qF` on the file's contents. Not `git grep`: its pathspec semantics are
+# the very thing marker_present() below refuses, because a pathspec can widen a
+# bound path back into the repo-wide search this design exists to avoid. That
+# cost is why the assertion runs in the same `push: main` job as the replay
+# instead of behind an on-demand flag. "Nobody thought to check" is the failure that produced #2828,
 # so an on-demand-only mode would reproduce it.
 #
 # The self-test (scripts/check-silent-revert.test.sh) runs BEFORE this script in
