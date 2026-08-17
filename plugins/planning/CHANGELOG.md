@@ -5,6 +5,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ## [0.30.5]
 
+### Added
+
+- **`draft-goal-condition` ships evals covering Step 0 routing** — multi-window /
+  multi-ticket work routes to `/work-items`, interval-driven work still routes to
+  `/loop`, and a single-window measurable intent still proceeds to draft (#2938).
+
 ### Changed
 
 - **`draft-goal-condition` Step 0** routes multi-window / multi-ticket work to
