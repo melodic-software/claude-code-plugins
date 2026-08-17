@@ -15,9 +15,11 @@ startup payload **measurable per item**, explains each contributor in operator t
 explicit override — applies the trims the operator approves.
 
 The novel capability is **per-tool attribution**. `/context` already itemises skills, agents and MCP
-tools; it does not and structurally cannot itemise built-in tool schemas, which are the largest
-single contributor (35.9k of a 35.3k-headline session here, across two lump-sum rows). A/B
-differencing against a fixed baseline is the only route to that number, and it is compositional.
+tools; it does not and structurally cannot itemise built-in tool schemas — the largest single
+contributor, held as two lump-sum rows (18.1k prefix + 17.8k deferred = 35.9k here, against a 35.3k
+headline that counts only the prefix row; the deferred pool is excluded from the context-usage
+headline yet still ships in every request). A/B differencing against a fixed baseline is the only
+route to per-tool numbers, and it is compositional.
 
 ### Why this is not covered by what exists
 

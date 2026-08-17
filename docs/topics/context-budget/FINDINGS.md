@@ -84,7 +84,7 @@ it rise with no tool changing state. Only compare it between runs whose skill li
 | `disableWorkflows` / `CLAUDE_CODE_DISABLE_WORKFLOWS` | **Removes weight** — wired to the schema-removal path, Tier 0 + request-body diff. |
 | `disableArtifact` family | **Removes weight**, and uniquely also clears the three artifact skills; deny-based levers remove the tool but leave those skills listed. |
 | `includeGitInstructions: false` | **Removes ~2.4k** — but lands in `System tools`, not `System prompt`, because the commit/PR instructions ride in the **Bash tool description**. |
-| `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` | **5.1k → 1.8k**, but a **measured no-op on claude-opus-5**, where the lean prompt is already default. Advice must branch on session model. |
+| `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` | **5.1k → 1.8k**, but a **measured no-op on claude-opus-5**, where the lean prompt is already default. Advice must branch on session model. Distinct from `CLAUDE_CODE_SIMPLE` — the binary registers them as two separate env vars (verified in the v2.1.232 env map). |
 | `skillOverrides` | **Works but saves nothing** while the listing is over cap. Only lever reaching claude.ai-synced skills. |
 | Plugin disable | **Saves on agents, not on skills.** Primary benefit is routing accuracy. |
 | Scoped deny rules | **Blocks without saving.** |
@@ -111,8 +111,12 @@ keep: the **framing** — this maximises the smart zone, and is not a cost-minim
    `claude --safe-mode` + `CLAUDE_CONFIG_DIR` as clean-room comparison. Neither is: safe mode leaves
    all bundled skills loaded, and a clean config dir does not unload them either.
 2. **`plugins/claude-config/skills/unhobble/SKILL.md`** states `CLAUDE_CODE_SIMPLE=1` "is
-   undocumented and may vanish". **It is documented** — its own row in the official env-vars
-   reference, plus a documented CLI equivalent `--bare`. The gotcha needs rewriting.
+   undocumented and may vanish" and describes it as stripping Claude Code's built-in prompts. Wrong
+   on both counts: **it is documented** — its own row in the official env-vars reference, plus the
+   CLI equivalent `--bare` — and the binary shows simple mode disables fetches, keychain reads and
+   `CLAUDE.md` auto-discovery, while the prompt-stripping lever is the **separate** sibling var
+   `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT` (both registered independently in the v2.1.232 env map). The
+   gotcha needs rewriting against both facts.
 3. **`docs/conventions/permission-rule-hygiene/README.md`** block-quotes a "Starting August 14, 2026"
    passage no longer at its cited URL (now a version floor, v2.1.228 / v2.1.233 native Windows), and
    reasons only about *loosening* permissions — nothing on tightening, which is what this skill does.
