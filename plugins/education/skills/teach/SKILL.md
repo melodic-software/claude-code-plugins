@@ -9,6 +9,8 @@ metadata:
   summary: Multi-session learning coach for general topics or repo-grounded concepts
 ---
 
+<!-- canary: TEACH-CANARY-h3rpag-p8 (temporary reload marker — removed after the after-dogfood run) -->
+
 ## Purpose
 
 Teach a user interactively across multiple sessions — not by lecturing, but by coaching through the Knowledge-Skills-Wisdom progression grounded in the user's real goals. Maintains persistent learning state so each session builds on prior understanding.
