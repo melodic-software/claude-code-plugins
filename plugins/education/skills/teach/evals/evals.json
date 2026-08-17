@@ -134,6 +134,32 @@
         "Derives a stable content name (repo basename + scope word) recorded as the raw subject name, instead of slugging the deixis into something like 'this-repo'",
         "Resolves two runs of the same deictic request to the same workspace"
       ]
+    },
+    {
+      "id": 12,
+      "name": "codebase-first-workspace-never-offers-documents-root",
+      "prompt": "/education:teach codebase auth-flow",
+      "expected_output": "A first-ever codebase-mode workspace with rungs 1-2 unset never triggers the ask-once rung and never offers an OS Documents root: it lands under the plugin-data fallback silently, because codebase lessons can embed private-repo snippets and Documents roots are commonly cloud-synced.",
+      "files": [],
+      "expectations": [
+        "Does NOT ask where learning state should live for a codebase-mode workspace (ask-once is topic-mode only)",
+        "Does NOT offer or resolve an OS Documents root for the codebase workspace",
+        "Creates the codebase workspace under the plugin-data root when rungs 1-2 are unset",
+        "States or honors the mode-split privacy rationale rather than treating the Documents default as universal"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "status-excludes-superseded-records-from-due-for-review",
+      "prompt": "/education:teach status",
+      "expected_output": "The status listing computes floor/frontier and the due-for-review flag from active learning records only: records whose Status line marks them superseded are excluded via a status-line grep (no full body loads), so an old superseded record neither anchors the frontier nor emits a false due-for-review flag.",
+      "files": [],
+      "expectations": [
+        "Excludes records marked 'superseded by' from the active floor before computing due-for-review",
+        "Uses a status-line grep for the exclusion rather than loading record bodies into context",
+        "Keeps the one-line-per-workspace budget for status output",
+        "Does not flag a workspace as due-for-review solely on the age of a superseded record"
+      ]
     }
   ]
 }
