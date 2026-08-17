@@ -31,8 +31,8 @@ refinements.**
 - **Scalar keys** (`churn_window`, `churn_exclude_defaults`) — a later layer replaces the value
   key by key; a key absent from a later layer keeps the earlier layer's value.
 - **`churn_exclude`** — entries **union** across layers, and with the bundled defaults unless
-  `churn_exclude_defaults: off`. A later layer adds patterns; it never silently drops an earlier
-  layer's.
+  `churn_exclude_defaults: false`. A later layer adds patterns; it never silently drops an
+  earlier layer's.
 - **`evidence_sources`** — merges **per source name**: a later layer's entry for source X
   replaces X only. A later layer declaring a source name with an empty body is an explicit
   opt-out that removes the inherited source (reported as removed, not broken).
@@ -52,7 +52,7 @@ churn_window: "90 days ago"
 churn_exclude:
   - '(^|/)generated/'
   - '\.designer\.cs$'
-churn_exclude_defaults: on
+churn_exclude_defaults: true
 evidence_sources:
   app-telemetry:
     mcp_server: my-observability-mcp
@@ -68,7 +68,7 @@ evidence_sources:
 |---|---|---|---|
 | `churn_window` | string accepted by `git log --since` | `"90 days ago"` | The hotspot recipe's change-frequency window — its main tuning knob. The recipe's history-depth gate still applies: a window the history does not cover shrinks or downgrades to an evidence gap regardless of this value. |
 | `churn_exclude` | list of ERE patterns | `[]` | Extra patterns matched against paths from `git log --name-only` and excluded from churn counting. Unioned across layers and with the bundled defaults. |
-| `churn_exclude_defaults` | `on` \| `off` | `on` | `off` drops the bundled default exclusions (lockfiles, generated/minified artifacts, vendored trees — the ERE in the hotspot recipe), leaving only declared patterns. |
+| `churn_exclude_defaults` | boolean (`true` \| `false` — bare `on`/`off` is the YAML 1.1 coercion footgun and is not accepted) | `true` | `false` drops the bundled default exclusions (lockfiles, generated/minified artifacts, vendored trees — the ERE in the hotspot recipe), leaving only declared patterns. |
 | `evidence_sources` | mapping of named source declarations | `{}` | Tier 2 application-telemetry declarations, one entry per source (sub-keys below). Empty or absent means Tier 2 is an evidence gap. |
 
 ### `evidence_sources.<name>` sub-keys

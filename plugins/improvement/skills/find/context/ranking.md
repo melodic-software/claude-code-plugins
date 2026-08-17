@@ -24,7 +24,11 @@ Rules that keep the scoring honest:
 - Scales are **relative within this run**, not absolute — score the candidate set against
   itself, and re-score every run (a recurring sweep re-ranks; scores are not sticky).
 - The size band (S/M/L) is also the row's published size; when a size-band narrowing
-  (`--small` / `--medium` / `--large`) is in effect, filter before ranking.
+  (`--small` / `--medium` / `--large`) is in effect, filter before ranking — with ONE
+  exemption: the instrument-first candidate (below) is never filtered out by the band. When the
+  target is unmeasured, that candidate is surfaced and top-ranked regardless of the requested
+  band, marked `outside requested band` when it is — the hard rule wins over the filter, never
+  silently the other way around.
 - The value-to-effort *rationale* in the row is the one-line justification of these components,
   not the arithmetic.
 - Ties break toward the stronger evidence rung.
