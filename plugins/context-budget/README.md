@@ -34,6 +34,12 @@ priced from its members.
   with identical skill listings (listed skill frontmatter is subtracted from that bucket); the
   engine fingerprints the listing per run and marks violating comparisons incomparable rather
   than reporting their numbers.
+- **Levers are catalogued data, not folklore.** Each row in
+  `skills/audit/reference/levers.json` carries its honesty category (does it remove weight, work
+  but save nothing here, block without saving, sit as vendor weight, or cost more than it buys),
+  the official citation behind it, how to detect and measure it, the exact config it would emit,
+  and a recheck trigger. A lever whose category cannot be determined for your configuration is
+  not offered.
 - **Honest degradation.** Exact mode uses the Agent SDK's structured context usage. Without the
   SDK, the engine parses headless `/context` output version-aware (display-rounded, and flagged
   as resting on an undocumented surface). When neither works, it emits a structured error with a

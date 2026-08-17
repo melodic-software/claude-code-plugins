@@ -125,10 +125,18 @@ state-key sync). Verified live against the pinned v2.1.232 binary: sdk mode retu
 integers, the per-tool deny deltas reproduce and pass the engine's additivity check, cli-parse
 degrades with recorded caveats, and unparsable input exits 3 with a structured remediation.
 
-### Phase 3 — lever catalogue
+### Phase 3 — lever catalogue ✔ SHIPPED 2026-08-17 (`context-budget` 0.2.0)
 
 One entry per lever: detection, honesty category, official citation, scope, and the exact config it
 would emit. Data, not prose — so a new lever is a row, not a rewrite.
+
+Landed as `skills/audit/reference/levers.json` (19 rows covering L1–L9/L11 plus the deferral
+dual-ledger row and the vendor-weight floor; L10/L12 are route-outs in the catalogue meta), with
+`levers.test.sh` making the honesty rules mechanical — vocabulary-confined categories, mandatory
+citations/postures/verified dates/recheck triggers, net-negative and unverified rows barred from
+the recommendable posture, and a no-shipped-token-figures scan (which caught and removed one
+violation during authoring). SKILL.md gained the lever-presentation step wiring conditions-resolved-
+by-measurement and the dual-ledger rule into the workflow.
 
 ### Phase 4 — the report
 

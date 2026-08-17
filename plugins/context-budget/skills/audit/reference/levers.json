@@ -1,0 +1,444 @@
+{
+  "schema": "context-budget.levers/1",
+  "meta": {
+    "purpose": "The lever catalogue: every known operator-controllable switch over the fixed startup payload, as data rows. A new lever is a row, not a rewrite. No row carries a token value — every saving is measured on the consumer's machine by the engine, per row's `measurement`.",
+    "honestyRule": "A lever whose category cannot be determined for the consumer's configuration is not offered. Rows whose category is condition-dependent say so in `conditions`; the audit resolves the condition by measurement before presenting the lever.",
+    "dualLedger": "Two ledgers, never conflated: the CONTEXT-WINDOW ledger (what occupies reasoning space — the /context headline) and the REQUEST ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
+    "staleness": "Every row carries `verified` (the date its claims were checked against the cited sources at the named CLI version) and `recheckTrigger`. A row whose trigger fired is re-derived from a fresh fetch of its citations before being offered — never trusted from this file alone.",
+    "verifiedAgainst": { "cliVersion": "2.1.232", "date": "2026-08-17" },
+    "categories": {
+      "removes-weight": "Genuinely removes tokens from the request payload (and the context window where applicable).",
+      "works-but-saves-nothing-here": "The mechanism functions as documented, but under the consumer's current configuration the measured saving is zero (for example, budget-capped surfaces that redistribute freed space).",
+      "blocks-without-saving": "A runtime guard: the call is refused but the schema or description still ships and is still paid for every turn.",
+      "vendor-weight": "Measurable but not reducible by any supported consumer lever; reported as unaddressable weight, never as an action.",
+      "net-negative": "Buys tokens by discarding something more valuable, or increases payload outright; disclosed, never recommended (operator decision 2026-08-17).",
+      "unverified-undocumented": "Detected or rumored but not backed by current official documentation; reported if detected, never recommended."
+    },
+    "routes": {
+      "unused components by usage history": "the bundled /doctor (operator-run; disableModelInvocation)",
+      "CLAUDE.md and memory-file content": "claude-memory / claude-config:audit-instructions, when installed",
+      "context-injecting hooks": "the hook classification rubric in the consuming marketplace's plugin philosophy, or claude-config:audit-instructions when installed",
+      "live in-session occupancy": "the context-guard plugin, when installed"
+    }
+  },
+  "levers": [
+    {
+      "id": "deny-bare-tool",
+      "title": "Bare tool name in permissions.deny (or --disallowedTools per invocation)",
+      "mechanism": "A deny rule that is a bare tool name removes that tool's definition from the request; the schema no longer ships.",
+      "category": "removes-weight",
+      "categoryBasis": "Documented in request terms and reproduced by this plugin's own differencing engine; deltas are additive, so a basket prices from its members.",
+      "conditions": null,
+      "posture": "recommendable-on-fit",
+      "scope": "permissions.deny in any settings scope (user, project, local, managed); --disallowedTools for one invocation.",
+      "detection": "Read permissions.deny entries across settings scopes for bare tool names; the live tool list comes from the baseline snapshot's `tools`.",
+      "measurement": "attribute --tools <name> (baseline + deny run); prefixDelta/deferredDelta per bucket.",
+      "emittedConfig": "{\"permissions\": {\"deny\": [\"<ToolName>\"]}}",
+      "caveats": [
+        "There is no `disallowedTools` settings key; emitting one writes a silently ignored key. Persistent config is permissions.deny only.",
+        "Denying a tool removes capability, not just weight — confirm the operator does not use it (route usage questions to /doctor)."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules",
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/cli-reference#cli-flags"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The permissions page stops describing whole-tool deny in request/schema-removal terms, or a measured bare-name deny stops moving the System tools buckets."
+    },
+    {
+      "id": "deny-scoped-rule",
+      "title": "Scoped deny rule (for example Bash(rm *))",
+      "mechanism": "A scoped rule is a runtime guard: the matching calls are refused, but the tool's schema still ships in every request.",
+      "category": "blocks-without-saving",
+      "categoryBasis": "Measured: a scoped deny left the System tools bucket byte-identical while a bare-name deny of the same tool moved it.",
+      "conditions": null,
+      "posture": "disclose-only",
+      "scope": "Same surfaces as any permission rule.",
+      "detection": "Scoped (parenthesized) entries in permissions.deny.",
+      "measurement": "snapshot --deny with the scoped rule vs baseline: expect zero delta; report the zero as the finding.",
+      "emittedConfig": null,
+      "caveats": [
+        "Scoped rules are often correct policy. This row exists so they are never presented as token savings, not to discourage them."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "Any documentation change claiming scoped rules affect what is sent, or a measured scoped deny moving a tool bucket."
+    },
+    {
+      "id": "disable-workflows",
+      "title": "disableWorkflows / CLAUDE_CODE_DISABLE_WORKFLOWS",
+      "mechanism": "Disables dynamic workflows; wired to the tool-removal path (the Workflow tool leaves the request), not the refusal path.",
+      "category": "removes-weight",
+      "categoryBasis": "Settings row documented; removal (not refusal) verified against the binary's enablement predicate and by measured differencing.",
+      "conditions": null,
+      "posture": "recommendable-on-fit",
+      "scope": "Settings key at any scope including managed; env var (truthiness, not literal 1); also a /config toggle.",
+      "detection": "disableWorkflows in settings scopes; CLAUDE_CODE_DISABLE_WORKFLOWS in the environment; Workflow's presence in the baseline tool list.",
+      "measurement": "attribute --tools Workflow prices the removal; snapshot before/after the setting confirms the wiring.",
+      "emittedConfig": "{\"disableWorkflows\": true}",
+      "caveats": [
+        "Workflows are plan-gated and org-disablable; the lever may already be moot for this consumer — detect before offering."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/workflows",
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/env-vars"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The workflows page changes its disable mechanisms, or denying/disabling Workflow stops moving the prefix bucket."
+    },
+    {
+      "id": "disable-artifact",
+      "title": "disableArtifact / CLAUDE_CODE_DISABLE_ARTIFACT (and the enableArtifact /config row)",
+      "mechanism": "Disables the Artifact tool; uniquely, the disableArtifact family also removes the companion artifact-* skills from the listing, which a permissions.deny of the tool leaves behind.",
+      "category": "removes-weight",
+      "categoryBasis": "Settings and env rows documented; tool-plus-skills removal versus deny-leaves-skills measured at the verified version.",
+      "conditions": null,
+      "posture": "recommendable-on-fit",
+      "scope": "disableArtifact at any scope including managed (takes precedence); enableArtifact is written by the Artifacts row in /config and is IGNORED in project and local settings; env var equivalent to disableArtifact.",
+      "detection": "disableArtifact/enableArtifact across scopes; CLAUDE_CODE_DISABLE_ARTIFACT in the environment; Artifact in the baseline tool list; artifact-* rows in the skill listing.",
+      "measurement": "attribute --tools Artifact prices the schema; snapshot before/after disableArtifact additionally shows the skill-listing rows leaving (subject to the listing cap — see cap dynamics).",
+      "emittedConfig": "{\"disableArtifact\": true}",
+      "caveats": [
+        "Prefer this over a bare-name deny for never-publishes-artifacts operators: the deny is the weaker trim, leaving the companion skill descriptions listed.",
+        "enableArtifact requires v2.1.196+ and is scope-restricted; do not emit it into project or local settings."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/env-vars"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The settings reference changes either artifact key's semantics or scope restrictions."
+    },
+    {
+      "id": "include-git-instructions",
+      "title": "includeGitInstructions: false",
+      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description.",
+      "category": "removes-weight",
+      "categoryBasis": "Settings row documented; measured at the verified version — with the saving landing in the System tools bucket, not System prompt, because the text lives in a tool description.",
+      "conditions": null,
+      "posture": "recommendable-on-fit",
+      "scope": "Settings key.",
+      "detection": "includeGitInstructions across settings scopes.",
+      "measurement": "snapshot before/after the setting; watch System tools, not System prompt (the docs describe it as a system-prompt lever; the measured landing bucket differs — report what measures).",
+      "emittedConfig": "{\"includeGitInstructions\": false}",
+      "caveats": [
+        "Trades away built-in commit/PR guidance; a repo relying on it should keep it or replace it with its own conventions."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The settings row's wording changes, or the measured delta stops landing in System tools."
+    },
+    {
+      "id": "simple-system-prompt",
+      "title": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1",
+      "mechanism": "Switches to the lean system prompt on models where the full prompt is default.",
+      "category": "removes-weight",
+      "categoryBasis": "Env row documented; measured large on some models and a measured no-op on models where the lean prompt is already default.",
+      "conditions": "Model-dependent: on models whose default is already lean it measures zero. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including a zero.",
+      "posture": "recommendable-on-fit",
+      "scope": "Environment variable only; no settings key.",
+      "detection": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT in the environment; the session model from the baseline snapshot.",
+      "measurement": "snapshot with and without the variable in the spawned environment; compare System prompt.",
+      "emittedConfig": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1 (environment; no settings.json form)",
+      "caveats": [
+        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling disables fetches, keychain reads, and CLAUDE.md auto-discovery — a behavior change, not a prompt trim. Never conflate them."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/env-vars"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "Either variable's env-vars row changes, or the lean prompt becomes default everywhere (the lever then measures zero universally)."
+    },
+    {
+      "id": "bare-simple-mode",
+      "title": "CLAUDE_CODE_SIMPLE / --bare (the confusion guard)",
+      "mechanism": "Simple mode: disables fetches, keychain reads, and CLAUDE.md auto-discovery. Not a prompt-stripping lever — that is the sibling variable above.",
+      "category": "removes-weight",
+      "categoryBasis": "Documented (env-vars row plus the --bare CLI equivalent). Its payload effect (memory files not auto-discovered) is a side effect of a behavior change, unmeasured here.",
+      "conditions": "Only the memory-file bucket is affected, and only where CLAUDE.md auto-discovery was contributing; the behavior cost usually dominates.",
+      "posture": "disclose-only",
+      "scope": "Environment variable; --bare CLI flag.",
+      "detection": "CLAUDE_CODE_SIMPLE in the environment.",
+      "measurement": "snapshot with and without; compare Memory files.",
+      "emittedConfig": null,
+      "caveats": [
+        "Listed chiefly so it is never mistaken for the prompt lever; recommending it for token savings would trade away core behavior."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/env-vars",
+        "https://code.claude.com/docs/en/cli-reference#cli-flags"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The env-vars reference changes what simple mode disables."
+    },
+    {
+      "id": "skill-overrides",
+      "title": "skillOverrides (per-skill off)",
+      "mechanism": "Per-skill visibility override in settings; reaches bundled and claude.ai-synced skills. Plugin skills are excluded — the resolver short-circuits them to on; they toggle via plugin enablement instead.",
+      "category": "works-but-saves-nothing-here",
+      "categoryBasis": "Documented (settings reference plus the skills page's visibility-override section); the zero saving under an over-budget listing is measured — freed budget redistributes to still-listed skills.",
+      "conditions": "While the skill listing is over its budget cap, disabling individual skills changes WHICH skills get full descriptions, not what is paid. Below the cap it removes weight. Resolve by measurement: if the baseline listing shows collapsed rows, the cap is binding.",
+      "posture": "recommendable-on-fit",
+      "scope": "Settings key; the only lever reaching claude.ai-synced skills.",
+      "detection": "skillOverrides across scopes; collapsed rows in the baseline skill listing indicate cap saturation.",
+      "measurement": "snapshot before/after an override; compare the Skills bucket AND note the System tools artifact (see comparability rules — the listing changed, so System tools deltas are not tool-attributable).",
+      "emittedConfig": "{\"skillOverrides\": {\"<skill-name>\": \"off\"}}",
+      "caveats": [
+        "The honest benefit while capped is routing accuracy (fewer candidates competing), not tokens — present it as that.",
+        "/doctor is exempt from bundled-skill kill switches and needs its own skillOverrides entry or DISABLE_DOCTOR_COMMAND to hide."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/skills"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The skills page's visibility-override section changes reach (plugin skills included, say), or the listing budget mechanism changes."
+    },
+    {
+      "id": "disable-bundled-skills",
+      "title": "disableBundledSkills / CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",
+      "mechanism": "Disables the bundled skill set wholesale (with /doctor as the documented kill-switch survivor).",
+      "category": "works-but-saves-nothing-here",
+      "categoryBasis": "Mechanism documented; the cap dynamics that zero out the saving while over budget are measured (bundled skills are also protected from truncation, so they occupy budget user/plugin skills cannot reclaim).",
+      "conditions": "Same cap condition as skill-overrides: a saving appears only if the surviving listing drops below the cap. Measure; expect the Skills bucket to hold and System tools to shift by the subtraction artifact.",
+      "posture": "disclose-only",
+      "scope": "Settings key; env var.",
+      "detection": "disableBundledSkills across scopes; the env var; Built-in rows in the skill listing.",
+      "measurement": "snapshot before/after; compare Skills and note the System tools subtraction artifact.",
+      "emittedConfig": "{\"disableBundledSkills\": true}",
+      "caveats": [
+        "Removes capability the operator may rely on (PDF/Office handling, /doctor companions); capability loss usually outweighs a capped-listing non-saving."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/skills",
+        "https://code.claude.com/docs/en/settings"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The skills or settings pages change the key, its survivors, or the listing budget mechanism."
+    },
+    {
+      "id": "skill-listing-budget",
+      "title": "skillListingBudgetFraction / skillListingMaxDescChars",
+      "mechanism": "The listing cap itself: the fraction of the context window the skill listing may occupy, and the per-skill description truncation length.",
+      "category": "removes-weight",
+      "categoryBasis": "Both keys documented in the settings reference. Lowering them shrinks the listing directly; unmeasured in this catalogue's verification run.",
+      "conditions": "Shrinking the listing trades away routing information for every skill; the cost is selection accuracy, not capability.",
+      "posture": "disclose-only",
+      "scope": "Settings keys.",
+      "detection": "Either key across scopes; the collapsed-row count in the baseline listing shows current pressure.",
+      "measurement": "snapshot before/after the key change; compare Skills (and the System tools artifact).",
+      "emittedConfig": "{\"skillListingBudgetFraction\": <fraction>}",
+      "caveats": [
+        "This is the knob that explains why per-skill disabling saves nothing while over budget — surface it as explanation before offering it as a lever."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/skills"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "Either settings row changes name, default, or semantics."
+    },
+    {
+      "id": "plugin-disable",
+      "title": "enabledPlugins (per-plugin, four scopes)",
+      "mechanism": "Enables/disables a plugin (\"name@marketplace\": boolean) at managed/user/project/local scope, with the plugin's defaultEnabled as fallback.",
+      "category": "removes-weight",
+      "categoryBasis": "Key and scopes documented. The split is measured: agent definitions are uncapped and shrink proportionally; the skill listing is budget-capped and measured zero change even with most plugins disabled.",
+      "conditions": "Removes weight on the Custom agents row (and any MCP servers the plugin ships). On the Skills row, zero while the listing is over cap — the honest benefit there is routing accuracy.",
+      "posture": "recommendable-on-fit",
+      "scope": "enabledPlugins at four scopes; precedence managed > CLI > local > project > user.",
+      "detection": "enabledPlugins maps across scopes; the baseline's agents and skill listing show what each plugin contributes.",
+      "measurement": "snapshot before/after disabling; compare Custom agents (real), Skills (expect capped), and MCP tools if the plugin ships servers.",
+      "emittedConfig": "{\"enabledPlugins\": {\"<plugin>@<marketplace>\": false}}",
+      "caveats": [
+        "A plugin shipping an MCP server can also cost the prompt cache on toggle — the one component type whose enable/disable forces a full prefix re-read when its tools load into the prefix."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/plugins"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The plugins/settings pages change the key or its precedence, or agent listings become budget-capped like skills."
+    },
+    {
+      "id": "agent-name-deny",
+      "title": "permissions.deny Agent(<name>)",
+      "mechanism": "Blocks invoking the named agent. Measured at the verified version: the agent's description stays in the startup payload unchanged.",
+      "category": "blocks-without-saving",
+      "categoryBasis": "Measured against a control deny that did move a bucket. The sub-agents docs present this rule as disabling an agent — the payload non-effect is the measured discrepancy this row discloses.",
+      "conditions": null,
+      "posture": "disclose-only",
+      "scope": "Any permission-rule surface.",
+      "detection": "Agent(...) entries in permissions.deny.",
+      "measurement": "snapshot --deny \"Agent(<name>)\" vs baseline: expect zero on Custom agents; report the zero.",
+      "emittedConfig": null,
+      "caveats": [
+        "The working payload lever for agents is disabling the plugin that ships them (or removing the agent file for project agents)."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/sub-agents"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The sub-agents page changes its description of agent deny rules, or the measured deny starts removing the description."
+    },
+    {
+      "id": "connectors-disable",
+      "title": "claude.ai connectors: disableClaudeAiConnectors and companions",
+      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers/allowedMcpServers (policy, by serverName or serverUrl pattern), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
+      "category": "removes-weight",
+      "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline — the dual-ledger note applies.",
+      "conditions": "LOCAL CLI ONLY. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
+      "posture": "recommendable-on-fit",
+      "scope": "Per mechanism, from managed policy down to one invocation.",
+      "detection": "The keys above across scopes plus disabledMcpServers in ~/.claude.json; the baseline's mcpTools shows what is live.",
+      "measurement": "snapshot before/after; compare MCP tools and both System tools buckets.",
+      "emittedConfig": "{\"disableClaudeAiConnectors\": true}",
+      "caveats": [
+        "disabledMcpServers/enabledMcpServers (connectors) are distinct keys from enabledMcpjsonServers/disabledMcpjsonServers/enableAllProjectMcpServers (.mcp.json approval); emitting the wrong family silently misses the target."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/mcp",
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/managed-mcp"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The MCP page changes connector delivery or any named key; or cloud/web delivery changes so the local-only carve-out no longer holds."
+    },
+    {
+      "id": "mcp-project-servers",
+      "title": "Project MCP servers (.mcp.json approval keys)",
+      "mechanism": "Governs which .mcp.json servers load: enabledMcpjsonServers, disabledMcpjsonServers, enableAllProjectMcpServers — a separate key family from the connector keys.",
+      "category": "removes-weight",
+      "categoryBasis": "Keys documented in the settings reference; removing a server removes its tool schemas from the request. Deferred-pool placement makes the headline effect small — dual-ledger note applies.",
+      "conditions": null,
+      "posture": "recommendable-on-fit",
+      "scope": "Settings keys; .mcp.json itself is the project surface.",
+      "detection": "The three keys across scopes; .mcp.json presence; the baseline's mcpTools.",
+      "measurement": "snapshot before/after; compare MCP tools and both System tools buckets.",
+      "emittedConfig": "{\"disabledMcpjsonServers\": [\"<server-name>\"]}",
+      "caveats": [
+        "Author-side MCP tool-definition weight (verbose descriptions) is the mcp-tools plugin's territory when installed; this lever only includes or excludes whole servers."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/mcp"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The settings reference changes the .mcp.json approval key family."
+    },
+    {
+      "id": "tool-search-deferral",
+      "title": "Tool search / deferred loading (ENABLE_TOOL_SEARCH, alwaysLoad)",
+      "mechanism": "Defers tool schemas out of the context window until fetched by tool search. The full schema still goes out in the request's tools array every turn so the cached prefix stays stable.",
+      "category": "works-but-saves-nothing-here",
+      "categoryBasis": "Deferral semantics documented: it controls what enters the context window, not what is sent. The category is with respect to the REQUEST ledger; on the context-window ledger deferral is a real reasoning-space gain.",
+      "conditions": "Present deferral as context-window headroom, never as request/billing savings. The honest request-side lever for a deferred tool is still removal (bare-name deny or the owning feature's disable switch).",
+      "posture": "disclose-only",
+      "scope": "ENABLE_TOOL_SEARCH env var (unset/true/auto/auto:N/false); per-server or per-tool alwaysLoad opt-outs. Neither has a settings.json key, so no persistent config can be emitted.",
+      "detection": "ENABLE_TOOL_SEARCH in the environment; the deferred bucket in the baseline; deferral status is measured per session, never assumed from documentation.",
+      "measurement": "The baseline snapshot's System tools (deferred) bucket is the deferral observation; differencing a specific tool shows which pool it leaves from.",
+      "emittedConfig": null,
+      "caveats": [
+        "Whether HTTP/Streamable-HTTP MCP tools actually defer at a given version is an open upstream question — measure, do not trust the default."
+      ],
+      "citations": [
+        "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading",
+        "https://code.claude.com/docs/en/agent-sdk/tool-search",
+        "https://code.claude.com/docs/en/env-vars"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "Deferral semantics change to affect the request body, or a settings key appears for either knob."
+    },
+    {
+      "id": "exclude-dynamic-sections",
+      "title": "--exclude-dynamic-system-prompt-sections",
+      "mechanism": "Moves the dynamic system-prompt sections out of the system prompt; measured at the verified version, the content relocates into the first user message.",
+      "category": "works-but-saves-nothing-here",
+      "categoryBasis": "Measured net zero: the tokens move rows, they do not leave.",
+      "conditions": null,
+      "posture": "disclose-only",
+      "scope": "CLI flag, per invocation.",
+      "detection": "Not persistent; nothing to detect in settings.",
+      "measurement": "snapshot spawned with and without the flag; compare System prompt AND Messages — judging only one row misreads relocation as saving.",
+      "emittedConfig": null,
+      "caveats": [
+        "Exists for prompt-caching stability, not for savings; evaluating it on one row is exactly the confident-wrong-number trap."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/cli-reference#cli-flags"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The flag's documented behavior changes."
+    },
+    {
+      "id": "custom-output-style",
+      "title": "Custom output style (keep-coding-instructions default false)",
+      "mechanism": "An output style modifies the system prompt; a custom style omits Claude Code's built-in software-engineering instructions unless keep-coding-instructions is true.",
+      "category": "net-negative",
+      "categoryBasis": "Documented on the output-styles page and measured: the saving comes from discarding the built-in engineering instructions — buying tokens with behavior.",
+      "conditions": "An operator who wants a custom style keeps the instructions (keep-coding-instructions: true) and accepts the style's own cost; the token 'saving' path is the one never recommended.",
+      "posture": "never-recommend",
+      "scope": "Output style files; /output-style.",
+      "detection": "Active output style in settings; keep-coding-instructions in the style's frontmatter.",
+      "measurement": "snapshot with and without the style; compare System prompt.",
+      "emittedConfig": null,
+      "caveats": [
+        "Disclosed because minimal-style savings advice circulates; the discarded engineering instructions are why it looks cheap."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/output-styles"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "keep-coding-instructions changes default or the page changes what a custom style omits."
+    },
+    {
+      "id": "disable-experimental-betas",
+      "title": "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS",
+      "mechanism": "Strips defer_loading: every MCP tool loads upfront into the prefix; ENABLE_TOOL_SEARCH cannot override it (managed settings can, v2.1.227+).",
+      "category": "net-negative",
+      "categoryBasis": "Documented in the env-vars reference and the tool-search pages: it increases the fixed payload.",
+      "conditions": null,
+      "posture": "never-recommend",
+      "scope": "Environment variable.",
+      "detection": "The variable in the environment — flag it if set, with the measured cost.",
+      "measurement": "snapshot with and without; compare both System tools buckets and MCP tools.",
+      "emittedConfig": null,
+      "caveats": [
+        "Listed as an anti-lever: an operator may have set it for stability reasons and never seen its payload price."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/env-vars",
+        "https://code.claude.com/docs/en/agent-sdk/tool-search"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "The env-vars row changes, or deferral stops being beta-gated."
+    },
+    {
+      "id": "vendor-weight",
+      "title": "Fixed system-prompt text and tool-description prose",
+      "mechanism": "The base system prompt and the descriptive prose inside vendor tool schemas (for example commit/PR guidance beyond the git-instructions switch) ship with the product.",
+      "category": "vendor-weight",
+      "categoryBasis": "Measurable by the engine (it is most of what remains after every consumer lever), reducible only by vendor releases or the specific documented switches carried as their own rows.",
+      "conditions": null,
+      "posture": "report-only",
+      "scope": "None — no consumer lever.",
+      "detection": "The residual: baseline System prompt plus the System tools weight not attributed to deniable tools.",
+      "measurement": "Reported as the unaddressable remainder in the attribution report, so the operator sees an honest floor instead of an implied promise.",
+      "emittedConfig": null,
+      "caveats": [
+        "Vendor releases have cut this substantially in the past; the floor is re-measured per version, never assumed stable."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings"
+      ],
+      "verified": "2026-08-17",
+      "recheckTrigger": "Any release note announcing system-prompt or tool-description reductions — re-measure the floor."
+    }
+  ]
+}

@@ -107,7 +107,31 @@ such, not as a number. Note which bucket moved — a deny that empties a *deferr
 reduces request weight without changing the context-usage headline, so present `prefixDelta` and
 `deferredDelta` separately, never merged into one figure.
 
-### 4. Ledger any before/after the operator produces
+### 4. Present levers from the catalogue
+
+Levers come from the catalogue at
+[`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/levers.json`](reference/levers.json) — data rows,
+each carrying its honesty category, category basis, posture, detection, measurement route,
+emitted config, official citations, verified date, and recheck trigger. Rules, from the
+catalogue's own meta:
+
+- **Every lever presented carries its category and at least one official citation.** A lever
+  whose category cannot be determined for this consumer's configuration is not offered.
+- **Resolve conditions by measurement, not assumption.** A row whose `conditions` names a
+  configuration dependency (cap saturation, model default, surface) is measured here before its
+  category is asserted — a condition-dependent lever presented without resolving the condition is
+  the exact failure this plugin exists to prevent.
+- **Respect postures.** `never-recommend` rows (net-negative) are disclosed with their price,
+  never offered as actions; `disclose-only` rows are explained, not pushed; `report-only` rows
+  (vendor weight) appear as the honest unaddressable floor.
+- **Honor recheck triggers.** A row whose trigger has plausibly fired (version jump past the
+  catalogue's `verifiedAgainst`, upstream page moved) is re-verified against a fresh fetch of its
+  citations before being offered — and a measured result always outranks the catalogue's stored
+  expectation.
+- **Keep the two ledgers apart** (the catalogue's `dualLedger` note): context-window occupancy
+  versus per-request weight. Deferral moves weight between them; only removal clears both.
+
+### 5. Ledger any before/after the operator produces
 
 When the operator toggles a lever (a `permissions.deny` entry, a settings change) and wants the
 real delta: re-run the snapshot, then
