@@ -1107,4 +1107,60 @@ assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
   "$(nul_stderr '' '')" "NUL byte"
 run "empty command, no NUL (allowed)" "" 0
 
+# --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
+# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# expressions, neither aware of which style opened first. The single-quote
+# expression matched from the apostrophe inside one double-quoted string to the
+# apostrophe inside the next and DELETED everything between them:
+#
+#   in:  Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"
+#   out: Write-Host
+#
+# With the `(` gone, has_special_constructs saw no construct and the fail-closed
+# sink was never ENTERED — so every downstream measuring probe was moot. Each
+# command below blocks on its own; adding two ordinary apostrophe-bearing strings
+# is what made it vanish. The controls are load-bearing: without them an
+# all-blocked column is equally consistent with a guard that refuses every
+# command containing an apostrophe.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed git push --force (control, blocked)" \
+  "& ('g'+'it') push --force" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: same call straddled by apostrophe-bearing strings (blocked — #2965)" \
+  "Write-Host \"a'b\"; & ('g'+'it') push --force; Write-Host \"c'd\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: natural-prose spelling, variable target (blocked — #2965)" \
+  "Write-Host \"Kyle's build\"; & (\$tool) push --force; Write-Host \"that's all\"" 2
+# The REVERSED pairing — a double quote inside SINGLE-quoted strings — is the same
+# defect with the roles swapped, and must stay closed by the same walk.
+# shellcheck disable=SC2016
+run_pwsh "PS: reversed straddle, quotes inside single-quoted strings (blocked — #2965)" \
+  "Write-Host 'a\"b'; & ('g'+'it') push --force; Write-Host 'c\"d'" 2
+# AMBIGUITY RESOLVES TOWARD NOT DELETING. An UNTERMINATED opener must not swallow
+# the rest of the line, a BACKTICK-escaped quote must not extend the span to the
+# next real one (honoring the escape here is what would reopen this bug in a new
+# spelling), and PowerShell's DOUBLED-quote escape is deliberately over-blocked.
+# shellcheck disable=SC2016
+run_pwsh "PS: unterminated opener does not swallow the command (blocked — #2965)" \
+  "Write-Host \"oops; & ('g'+'it') push --force" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: backtick-escaped quote does not extend the span (blocked — #2965)" \
+  "Write-Host \"a\`\"; & ('g'+'it') push --force; Write-Host \"b\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: doubled-quote escape over-blocks rather than deletes (blocked — #2965)" \
+  "Write-Host 'it''s'; & ('g'+'it') push --force" 2
+# Over-block rails. Message text must stay inert, and the #2848 must-allow shapes
+# must survive an apostrophe appearing beside them — more text is now VISIBLE to
+# every probe, so this is exactly where a new over-block would surface.
+run_pwsh "PS: apostrophe in a commit message stays inert (allowed — #2965)" \
+  "git commit -m \"it's a fix\"" 0
+run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; Write-Host \"that's all\"" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 apostrophe inside the grouped operand itself (allowed — #2965)" \
+  "& \$py \$script (Join-Path \$dir \"that's.jsonl\")" 0
+
 report

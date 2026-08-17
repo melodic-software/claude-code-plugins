@@ -240,15 +240,94 @@ ps::blank_herestrings() {
 
 # Crude, SCAN-ONLY strip of single- and double-quoted spans, so that structural
 # detection and commit/push shaping ignore characters inside message text. Never
-# fed to a parser. Backtick-escaped quotes are not honored — a backtick anywhere
-# already forces the fail-closed branch, so this crudeness cannot open a gap.
+# fed to a parser.
+#
+# LEFT TO RIGHT, FIRST OPENER OWNS ITS SPAN. This used to be a `sed` with two
+# independent expressions — `s/'[^']*'//g` then `s/"[^"]*"//g` — neither of which
+# had any notion of which quote style opened first. An apostrophe inside a
+# DOUBLE-quoted string is a literal character to PowerShell, but the single-quote
+# expression treated it as a delimiter, so the span it deleted ran from the
+# apostrophe in one double-quoted string to the apostrophe in the next — taking
+# everything between them with it:
+#
+#   in:  Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"
+#   out: Write-Host
+#
+# That is not a mis-measurement, it is the ERASURE of the command every
+# sink-trigger scan is about to look at. With the `(` gone, has_special_constructs
+# saw no construct, has_dynamic_invocation saw no call, has_launcher saw no
+# launcher — so classify_git_command never entered the fail-closed sink at all,
+# and the same deletion hid a computed writer call from write_bypass. Two
+# ordinary strings that happen to contain apostrophes ("Kyle's build") were a
+# general bypass of all three blocking hooks (#2965).
+#
+# A single walk fixes the pairing: whichever quote character opens first owns
+# everything up to its own next occurrence, so an apostrophe inside a
+# double-quoted span is ordinary text and a quote character inside a
+# single-quoted span is ordinary text.
+#
+# AMBIGUITY RESOLVES TOWARD NOT DELETING. This is an ENTRY scan: leaving text in
+# view can only cause an over-block, while deleting it is the fail-open above. So
+#   - an UNTERMINATED opener emits the rest of its line verbatim rather than
+#     swallowing it;
+#   - a span never crosses a NEWLINE (matching the old per-line `sed` semantics),
+#     because a multi-line double-quoted string would otherwise let
+#     `"a\n& ('g'+'it') push --force\n"` blank the middle line;
+#   - PowerShell's DOUBLED-quote escape (`'it''s'`) is deliberately NOT modeled.
+#     Naive pairing splits `'it''s the thing'` into two spans and blanks both, and
+#     splits `'a'' ; git push ; ''b'` into two spans that leave ` ; git push ; `
+#     VISIBLE where PowerShell would call the whole thing one string. Naive
+#     pairing therefore never deletes more than the real string does — it only
+#     ever over-blocks, which is the safe direction here.
+#   - SMART quotes (U+2018/U+2019/U+201C/U+201D), which PowerShell's tokenizer
+#     does accept as delimiters, are NOT treated as delimiters. Not deleting
+#     leaves their contents in view: over-block, not bypass.
+#
+# WHY NOT `ps::_skip_double_quote`. That helper honors the backtick escape
+# (`` `" `` does not close its span), which is right where it is used — the sink
+# BLANKING path, which is already past the entry decision. Honoring it HERE
+# extends a span past the escaped quote to the next real one, which reopens this
+# very bug in a new spelling:
+#
+#   Write-Host "a`"; & ('g'+'it') push --force; Write-Host "b"
+#
+# would become one span and blank the git command again. Refusing to honor the
+# escape ends the span at the backticked quote instead, leaving more text in
+# view. That also preserves the old `sed`'s behavior, and a backtick that
+# SURVIVES into the output still trips has_special_constructs' backtick arm —
+# which it cannot do if the span that contains it is deleted.
 ps::blank_quoted_spans() {
-  local text="$1"
-  # One `sed` for both spans: expressions apply in order per line, so the
-  # double-quote strip still sees the single-quote-stripped text — same result
-  # as the two chained passes, at half the process cost on a hot classifier path.
-  text=$(printf '%s' "$text" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
-  printf '%s' "$text"
+  local text="$1" out="" i=0 n j q found
+  n=${#text}
+  while ((i < n)); do
+    q="${text:i:1}"
+    if [[ "$q" == "'" || "$q" == '"' ]]; then
+      found=0
+      for ((j = i + 1; j < n; j++)); do
+        [[ "${text:j:1}" == $'\n' ]] && break
+        if [[ "${text:j:1}" == "$q" ]]; then
+          found=1
+          break
+        fi
+      done
+      if ((found)); then
+        i=$((j + 1))
+        continue
+      fi
+      # Unterminated on this line: extent is ambiguous, so delete nothing. `j`
+      # already sits on the newline (or at the end), so copy the rest verbatim
+      # in one slice — this also keeps the walk linear.
+      out+="${text:i:j-i}"
+      i=$j
+      continue
+    fi
+    out+="$q"
+    i=$((i + 1))
+  done
+  # The old `$(printf … | sed …)` form stripped trailing newlines; callers see
+  # that shape, so keep it rather than change it in passing.
+  while [[ "$out" == *$'\n' ]]; do out="${out%$'\n'}"; done
+  printf '%s' "$out"
 }
 
 # Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
