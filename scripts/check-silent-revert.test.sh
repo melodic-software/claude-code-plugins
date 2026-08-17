@@ -533,6 +533,27 @@ t_restoration_reports_present_and_absent_markers() {
     fail "an absent marker must fail the assertion, rc=$RC: $out"
   fi
 
+  # A PARTIAL re-land -- the literal #2855 completion criterion. One fires row,
+  # two markers, one of them restored: the incident looks half-healthy, and an
+  # implementation that treats any matched marker as satisfying its row would
+  # report the row green. That shape passed every earlier case in this function
+  # (each row carried exactly one marker), so it gets its own pin: the mix must
+  # still exit 1 and name exactly the marker that is missing.
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+    printf 'marker %s guarded.txt NEVER_PRESENT_ANYWHERE\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] &&
+    printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL' &&
+    printf '%s' "$out" | grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE'; then
+    ok "a partial re-land (one marker back, one still absent) fails the assertion"
+  else
+    fail "a partially re-landed incident must still fail, rc=$RC: $out"
+  fi
+
   # A dispositioned absent marker is a recorded decision, not a failure -- and
   # the reason has to be printed, or the disposition is a mute button.
   {
