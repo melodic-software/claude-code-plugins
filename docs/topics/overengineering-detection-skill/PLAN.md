@@ -330,7 +330,7 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 - `grep -n "realign" docs/PLUGIN-PHILOSOPHY.md` — a row inside the verb table.
 - `grep -n "overengineering" docs/CATALOG.md docs/SKILL-CHEAT-SHEET.md` — present in both generated blocks; generators exit 0.
 
-### Phase 6: Verification + gate pass [TODO]
+### Phase 6: Verification + gate pass [DONE]
 
 1. **Live audit run on this repo** (dispatch to a fresh-context subagent; this repo is the richest
    available fixture — ~120-item surface with known specimens):

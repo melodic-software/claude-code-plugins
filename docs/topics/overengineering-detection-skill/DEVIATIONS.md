@@ -90,3 +90,34 @@ Known transient: `scripts/check-plugin-manifest-presence.sh` is red between Phas
    left unchanged.
 2. **Verb row placed alphabetically** in the verb table (matching existing order) rather than
    appended.
+
+## Phase 6 (commits 37b247a9 + orchestrator marks)
+
+1. **All plan experiments PASS on fresh-context dry runs** (agent-hooks layer, unattended):
+   read-only proven twice (clean porcelain before/after both audit runs); all 35 finding ids
+   independently re-derived by run 2 and matched run 1 (incl. the two-site pr-linkage id);
+   carry-forward proven blind (hand-edited ACCEPTED survived a merge by an uninformed executor);
+   stable-spine diff showed identical id set/order with only genuine verdict movement; realign
+   walked to the per-item gate and stopped — artifact byte-identical (sha256 match), "no mutation
+   path before acceptance" confirmed.
+2. **The dry runs surfaced ~27 friction findings → 19 deduplicated fixes** applied in 37b247a9
+   (member-line format + container-is-the-finding rule, per-layer item-unit pinning, `settings:`
+   kind prefix, Rediscovery dispositions, merge-precedence rules, §9 minimum-observation guard,
+   realign unattended clause + rung-1-inapplicable + CONSOLIDATE handling + two named gates +
+   broadened judgment surfacing, doc-root disambiguation, delegated-write route). All gates re-run
+   green; both skills PASS skill-quality.
+3. **Accepted: realign SKILL.md at 228 lines carries one soft-target WARN** (200-line nudge;
+   PASS, 0 errors). Clearing it needs a progressive-disclosure spoke — declined as not worth a
+   new file for 28 lines; PR reviewer may overrule.
+4. **`/plugin-quality:audit` (handoff remaining-action 4) deferred with justification**: it audits
+   an INSTALLED plugin's claims-vs-reality, and this plugin is not installed in the build
+   environment; three fresh-context dry runs + five per-phase verifiers + skill-quality PASS
+   exceed its intent for this PR. Recommended as post-merge follow-up on an installed copy.
+5. **Housekeeping default applied** (plan's fallback gate): the discovery corpus
+   (`.work/overengineering-detection-skill/`) stays uncommitted; the plan carries the load-bearing
+   findings inline.
+6. **Deferred-lane probe**: issues #2897 and #2898 confirmed open via the forge API, correctly
+   scoped, blocked-on-V1 as recorded.
+7. The dry-run findings artifact (memory tier, gitignored) is a test fixture from this build; the
+   audit's real first-run disposition of the dead pr-linkage hook remains a user decision through
+   the audit output, per the plan.
