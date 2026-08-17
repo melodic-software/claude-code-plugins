@@ -109,6 +109,42 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   carry cost into one bounded ablation batch instead of an undifferentiated UNPROVEN wall; and an
   ambiguous bypass-flag guard taking the protected tie-break.
 
+- **`overengineering:realign` — the plugin's only mutating surface, behind a per-item human gate.**
+  It consumes the findings artifact and never scans or re-judges the surface itself: no artifact at
+  the resolved home is a **stop** naming `overengineering:audit` as the skill that produces one, and
+  a mismatched `branch:` or an unrecognized `schema:` is refused with a visible message rather than
+  guessed at. **Nothing mutates without an explicit acceptance of that finding, at the moment it is
+  presented** — one finding's yes authorizes that finding only, blanket approval is declined out
+  loud, silence leaves a finding `OPEN` rather than judged, and acceptance is scoped to the rung
+  about to execute, so a deletion asks again after the window. Per accepted finding it drives four
+  movements — interview → explore and research → plan → implement — each composing a sibling skill
+  when that plugin is installed and running a documented inline fallback when it is not, with the
+  presence answer recorded on the finding so a skipped route stays visible.
+- **Execution follows the rollback ladder, never deletion-first.** Config-disable at rung 1 with the
+  unset-means-enabled trap checked and the disable confirmed to have taken effect; observation at
+  rung 2 with the window's end date written on the finding and on a durable pointer that outlives
+  the ephemeral artifact; deletion only at rung 3, carrying the evidence and the observation result
+  in its recorded rationale. Withdrawal is named as a normal outcome: a window that shows the
+  mechanism load-bearing ends at rung 1 with it re-enabled and the finding closed as KEEP. UNPROVEN
+  findings route to one bounded, owner-routed ablation batch with a stated end date rather than to
+  dozens of concurrent windows; protected and intentionally-dormant items never enter one, and a
+  `FLAG-FOR-HUMAN` finding surfaces the capped verdict's evidence and waits for the human's own
+  call. Out-of-repo custody produces a delegation artifact and `DELEGATED-EXTERNAL` with its
+  pointer — never an in-repo edit, never a locally patched managed copy.
+- **Realign is the artifact's only writer of `Status`**, and it writes one only as the outcome it
+  names actually happens, leaving every field the audit computed untouched. A verdict that flipped
+  direction underneath a carried-forward judgment is surfaced before anything else and never acted
+  on. Accepted-keep judgments — `REJECTED` and `ABLATION-CONCLUDED-KEEP` — are **offered**
+  persistence as tracked suppression entries in `.claude/overengineering.md`, shown in full before
+  writing, written only on an explicit yes under the same per-item gate, with the `reason` in the
+  operator's own words and only to the team-tracked layer.
+- **Six behavioral evals**, written before the skill body: a missing findings artifact stopping with
+  `overengineering:audit` named and no improvised scan; a three-finding queue where accepting item 2
+  moves item 2 alone; a protected finding presented with its evidence and left for the operator
+  despite a blanket approval; a RETIRE executed as a config-disable rather than a deletion; a
+  thirty-item UNPROVEN pile answered with one bounded, time-boxed ablation batch; and an absent
+  composition plugin taking a visible inline fallback instead of a silent skip.
+
 ### Notes on deliberate omissions
 
 - **No `userConfig` block.** See above — the reasoning is a policy-visibility argument, not an
