@@ -409,6 +409,31 @@ run_pwsh "PS: call of a string-literal command (blocked)" "& 'git commit --no-ve
 # A call/dot-source of a bare VARIABLE is the deferred variable-command-word form
 # (same residual the Bash guards carry) — it takes the parser path, not the sink.
 run_pwsh "PS: call of a bare variable (deferred residual — not blocked here)" "& \$sb" 0
+# #2848: that residual and a grouping construct are each allowed alone, so their
+# CONJUNCTION must be too — `foreach (…) { & $py run.py $x }` is ordinary
+# PowerShell, and grouping hides nothing from the quote-intact literal git probe.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
+  '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
+  "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
+# The previously unpinned single-factor allowance: grouping with a LITERAL target.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
+  "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
+# Fail-OPEN guard rails: a SUBEXPRESSION target assembles a name no literal probe
+# can see, so it still fails closed with the same grouping present — as does a
+# literal git command word inside the grouping.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression call target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { & ('g'+'it') commit --no-verify }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression dot-source target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { . ('g'+'it') commit --no-verify }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal git command word (still blocked by name)" \
+  "foreach (\$x in @('a')) { git commit --no-verify }" 2
 # Launcher / nested-shell parity with the Bash guard's launcher + `-c` see-through.
 # Routed to the sink; blocked only when the launched argv / command names git.
 run_pwsh "PS: Start-Process git -ArgumentList (blocked)" "Start-Process git -ArgumentList 'commit','--no-verify'" 2

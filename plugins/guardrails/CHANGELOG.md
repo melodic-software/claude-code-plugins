@@ -3,6 +3,88 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.33]
+
+### Fixed
+
+- **PowerShell guards: a grouping construct plus a bare-computed call target is
+  no longer treated as a git signal or a write signal
+  ([#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)).**
+  `$py = "..."; if (-not (Test-Path $py)) { $py = (Get-Command python).Source };
+  & $py run.py --flag` exited 2 from all three blocking hooks. Either factor
+  alone was already allowed — grouping by the #2592 command-position fix, a bare
+  `& $tool` call target by the variable-command-word residual — so only their
+  conjunction blocked, and each hook reported a different explanation of a shape
+  that is not dangerous. Two independent paths produced it, both closed:
+  `ps::might_invoke_git` now matches only the SUBEXPRESSION half of a computed
+  call target (`& ('g'+'it') …`), which assembles a name no literal probe can
+  see, and not the bare-variable half; `ps::write_bypass`'s computed-target
+  branch no longer gates on a blanket `ps::has_special_constructs` but on the
+  three shapes that gate actually carried — a subexpression call target, `--%`
+  stop-parsing, and a SPLAT (`& $w @p`).
+
+  Still blocked, pinned by new tests on all three hooks: a subexpression call or
+  dot-source target with the same grouping present; a literal `git` command word
+  inside the grouping; a computed launcher; an interpolating-string target; and
+  all four #2722 write signals (`-Value`, `>`, positional Path+Value, pipeline
+  into a path) re-run inside a `foreach`. `GROUPING_ONLY` (grouping with a
+  literal call target) gains the pin it never had.
+
+  Two shapes the blanket grouping test had been carrying by accident are now
+  carried on purpose, so the branch does not lose reach. Splatting into a
+  computed writer (`& $w @p`) is caught even when the hashtable was built in an
+  earlier command — previously only the same-command `$p = @{…}; & $w @p` form
+  tripped, and only via its braces. And
+  `ps::computed_call_has_positional_write_signal` now measures EVERY `& $var`
+  call site rather than the leftmost, so a nested write
+  (`& $ic -ScriptBlock { & $w f.txt $x }`, whose outer target's first token is a
+  flag and therefore contributes no positionals) still fails closed. Both are
+  pinned.
+
+  The positional signal now CLASSIFIES operands rather than merely counting
+  them: a parenthesized subexpression is one operand however many words it
+  spans, and the two-positional arm fires only when at least one operand is a
+  visible literal. `& $py $script (Join-Path $dir "$id.jsonl")` — every operand
+  computed — exits 0 from `block-hook-bypass` too, with or without the
+  enclosing `foreach`, while `& $py $script out.jsonl` still blocks: a visible
+  literal beside another positional is exactly the Path+Value shape
+  (`& $w f.txt x`) the #2722 signal exists for. The concession this line makes
+  is pinned as deliberate: a writer name, path, AND value all staged into
+  variables inside one command string (`& $w $path $value`) is a deliberately
+  evasive shape of the same class as the `node -e` writes the hook's scope note
+  already excludes, and a pipeline into the call keeps failing closed on ANY
+  operand, computed or not, because the content demonstrably arrives via `|`.
+
+  The SPLAT arm is scoped to its own call's operands rather than matched
+  anywhere in the command. A whole-command `@name` scan made an unrelated splat
+  the write signal for a call it has nothing to do with:
+  `Write-Output @args; & $py script.py` exited 2 while the identical command
+  without `@args` was allowed, and neither statement writes a file — this
+  issue's own signal-detected-anywhere over-block, one shape narrower. Every
+  `& $var` / `. $var` site is walked and truncated at a statement separator or
+  closing brace, so a later statement's splat stays out of an earlier call's
+  operands. Unlike the positional probe it does not stop at the first
+  dash-flag — a splat supplies parameters wherever it sits — so
+  `& $w -Encoding utf8 @p` still blocks, as do `& $w @p` with the hashtable
+  built earlier and a splat on a nested call inside a script block. The `>`
+  redirect and `-va*` probes keep their whole-command scope: pre-existing
+  precedent, not a shape this issue reopened.
+
+  Both call-site probes now derive a call's operands from a shared
+  bracket-depth-aware scan (`ps::call_site_operand_region`) rather than
+  truncating at the first `}`. A first-`}` truncation assumed no `}` can occur
+  inside the call's own operands before a token of interest, which is false for
+  `${scope:name}`, a `{…}` script block, and a `@{…}` hashtable literal — so a
+  real write whose splat or Path+Value pair sat after such an operand
+  (`& $w ${script:Path} @Body`, `& $w ${script:Path} f.txt x`) had everything
+  from the `}` onward dropped before either probe ran, and was allowed. The
+  region now ends only at a separator at depth zero or at the closer of an
+  ENCLOSING construct, and a splat inside a script-block operand is left to the
+  nested call site that owns it. Only `()` and `{}` drive that depth: ending the
+  region early is the fail-OPEN direction, so `[]` is carried as ordinary text
+  rather than risking an unmatched `]` cutting a scan short. All four decoy
+  shapes are pinned.
+
 ## [0.28.32]
 
 ### Changed
