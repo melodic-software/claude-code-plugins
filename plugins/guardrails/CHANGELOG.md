@@ -3,6 +3,161 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2]
+
+### Fixed
+
+- **PowerShell guards: a `$( … )` call target is refused like its `( … )` twin
+  ([#2924](https://github.com/melodic-software/claude-code-plugins/issues/2924)).**
+  `& $($w) f.txt x` and `& $($w) @p` exited 0 from `block-hook-bypass` while the
+  identical `& ($w) f.txt x` exited 2 — a working `Set-Content <path> <value>`
+  through a computed call target, waved through. The git lane carried the same
+  hole: `& $($g) reset --hard` exited 0 from `block-dangerous-git` while
+  `& ($g) reset --hard` exited 2. Both were introduced by 0.28.33.
+
+  `$( … )` and `( … )` are the same construct — each evaluates an expression
+  into the command name — but only the paren spelling was recognized. So `& $(`
+  ENTERED the computed-target gate (`ps::call_target_is_bare_computed` matches
+  `[.&][[:space:]]*[$(]`, and the `$` admits it) and then matched no call site
+  in any measuring probe: `ps::call_target_is_bare_subexpression` wanted `(`
+  immediately after the operator, and both
+  `ps::computed_call_has_positional_write_signal` and
+  `ps::computed_call_has_splat_operand` want a `$name` or `${name}` target.
+  Gate entered, zero arms fired, command allowed. Before 0.28.33 the blanket
+  `ps::has_special_constructs` arm covered the shape incidentally, via the
+  parentheses inside `$(`.
+
+  `ps::call_target_is_bare_subexpression` now accepts an OPTIONAL `$` before the
+  opening paren, so both spellings reach one verdict on both lanes. Unlike the
+  braced-name fix in 0.29.1 there is nothing to consume upstream — `$(` survives
+  backtick deletion, quote blanking, and lowercasing intact — so the evidence is
+  still present where the predicate runs and the fix belongs there.
+
+  A subexpression target is refused BY SHAPE, regardless of its operands, so
+  `& $($py) script.py` now blocks exactly as `& ($py) script.py` always has.
+  That is not the grouping-as-write-signal over-block removed in 0.28.33: that
+  change dropped grouping ANYWHERE ELSE in the command as a signal and
+  deliberately kept the target-is-subexpression arm. Pinned by twenty tests
+  across the two lanes, each `$( … )` row paired with its `( … )` twin so the
+  two spellings cannot drift apart again, and
+  `& ('Set-'+'Content') f.txt x` kept as the tripwire for the escaped `\$` in
+  the widened pattern.
+
+  Not covered, unchanged, and pre-existing rather than introduced by 0.28.33
+  (all exit 0 on the pre-0.28.33 base as well): interpolating quoted targets
+  (`& "$env:writer" f.txt x`), index and member targets (`& $tools[0] …`,
+  `& $tools.writer …`), and quoted operands erasing the positional write signal
+  ([#2906](https://github.com/melodic-software/claude-code-plugins/issues/2906)).
+
+## [0.29.1]
+
+### Fixed
+
+- **PowerShell write guard: a BRACED call target is measured like its bare twin
+  ([#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)).**
+  `& ${env:writer} f.txt x` and `& ${env:writer} @p` exited 0 from
+  `block-hook-bypass` while the identical `& $env:writer …` exited 2 — a
+  fail-open on a working file write, introduced by 0.28.33. `${env:w}` and
+  `$env:w` are the same reference (`about_Variables`; `${env:t} -eq $env:t` is
+  True), and `ps::call_target_is_bare_computed` admits both because it only
+  looks for the `$`. But the two probes that MEASURE a call site keyed on the
+  bare spelling alone, so a braced target entered the computed-target gate and
+  then matched no call site at all: every arm stayed silent and the command fell
+  through allowed. Before 0.28.33 the blanket `ps::has_special_constructs` arm
+  had been covering the shape incidentally, via the braces themselves.
+
+  Both probes now accept `${…}` alongside the bare form. The gate ENTRY
+  predicate is deliberately left as it is — teaching the measuring probes closes
+  the hole, whereas narrowing entry to match would open a second one. Pinned by
+  seven tests, each braced row paired with its bare twin so the two spellings
+  cannot drift apart again, plus `& ${env:py} script.py` holding the allowed
+  side so a braced target does not itself become a write signal.
+
+  A braced name may also carry a backtick-ESCAPED closing brace — ``${my`}w}``
+  names the variable ``my}w`` — and the library deletes backticks to recover a
+  cmdlet name obfuscated with PowerShell's escape character. Deleting first
+  rendered that text `${my}w}`, which is indistinguishable from a `${my}`
+  reference followed by a literal `w}`: no rule applied afterwards can tell them
+  apart, so the call site disappeared entirely and the command fell through
+  allowed for the same reason. The escape is now consumed while it still exists,
+  by `ps::fold_escaped_brace_closers`, before any caller deletes backticks; an
+  escaped backtick is consumed as a unit so it cannot lend its second backtick to
+  a following brace, leaving the obfuscation recovery untouched. The target token
+  may additionally carry non-space text glued after its closing brace
+  (`& ${env:w}riter f.txt x`), which PowerShell concatenates and which previously
+  made the whole call site unmatchable. Operands are still measured exactly as
+  before once the site is found, so widening the target token decides only where
+  measuring starts, never the verdict. Eight further tests pin the escaped-closer
+  and glued-target shapes, including two escaped closers in one name and the
+  allowed one-positional twin.
+
+## [0.29.0]
+
+### Added
+
+- **`block-exported-msys-pathconv`: block an EXPORTED MSYS path-conversion
+  suppressor on Windows
+  ([#2870](https://github.com/melodic-software/claude-code-plugins/issues/2870)).**
+  New `PreToolUse` guard on `Bash|PowerShell`, default on, kill switch
+  `block_exported_msys_pathconv_enabled`. Blocks `export MSYS_NO_PATHCONV` /
+  `export MSYS2_ARG_CONV_EXCL` (including `export --`, and the `declare` /
+  `typeset` spellings with the export flag in any cluster — `-x`, `-rx`,
+  `-gx`, `-x -g`), which switch off MSYS argv rewriting for *every later
+  command in the same command string*. A later path argument then reaches a Windows-native program
+  unconverted, and git resolves the leading `/` against the current drive —
+  `git worktree add /d/worktrees/x` becomes `<current-drive>:\d\worktrees\x`.
+  That is how `D:\d` was recreated a third time, by a lane that exported the
+  variable seven segments earlier to work around an unrelated problem (MSYS
+  mangling a `<rev>:<path>` argument).
+
+  A second leaking form is matched too: a prefix whose command word is a
+  **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env MSYS_NO_PATHCONV=1 sh -c
+  '…'`). The prefix scopes to one *process*, and when that process is an
+  interpreter, one process is every command in the script — verified
+  behaviorally, where the same prefix on `git` directly leaves only the first
+  argument unconverted. An adversarial review found this as an undeclared false
+  negative; closing it cost **zero** additional false positives on the same
+  14,234-command corpus (its single match was already blocked by the export
+  rule). A prefix on a non-shell command word — the safe idiom, 193 corpus
+  uses — stays allowed.
+
+  The guard deliberately does **not** match a path shape. The incident command's
+  path argument was textually identical to one the same lane had already run
+  successfully, so a `/[a-z]/` matcher has a false negative on the real defect —
+  and measured a 45.7% firing rate across 14,234 real Bash commands (81% on
+  `git worktree add` alone), because in an ordinary shell MSYS converts those
+  correctly. The export form fires on **0.32%** of the same corpus (46 commands,
+  spanning four lanes and two repositories) and leaves the safe per-command
+  prefix idiom (193 uses) and bare assignments untouched. The distinction is
+  mechanical rather than heuristic: `bash -c 'export MSYS_NO_PATHCONV=1; git
+  rev-parse --sq-quote /d/probe'` yields `'/d/probe'` while the bare-assignment
+  and per-command-prefix forms both yield `'D:/probe'` for the following command.
+
+  Review rounds refined the matcher in both directions. Without a shell word
+  in the command string, the export keyword must sit at command position, so
+  commit messages, `echo` arguments, and grep patterns that merely quote the
+  forbidden spelling stay allowed; with a shell word present, quoted text can
+  execute and any occurrence still blocks. Launchers and shells are judged by
+  quote-stripped basename, so `/usr/bin/env bash -c`, `command bash -c`, a
+  quoted `'bash'`, and a quoted `"C:\...\bash.exe"` behind PowerShell's call
+  operator all block, as does a suppressor prefix opening a quoted child
+  command string.
+
+  Declared coverage gaps: a suppressor exported by a script the command invokes,
+  `set -a` plus a bare assignment, an expansion-built value, an export guarded
+  by a keyword rather than a separator (`if ...; then export ...`), and any
+  spawner outside the two tool surfaces (CI runners, `subprocess`). Declared
+  residual false positives, accepted fail-closed: an export spelling inside a
+  heredoc body, and prose quoting a forbidden spelling alongside a shell word
+  in the same command string.
+
+### Changed
+
+- **`block-windows-drive-tmp`: reciprocal sibling cross-reference.** Its header
+  now records why the new guard is a separate hook rather than an extension of
+  this one — disjoint scopes (path-shape/write-target vs environment variable),
+  neither firing on the other's cases.
+
 ## [0.28.33]
 
 ### Fixed

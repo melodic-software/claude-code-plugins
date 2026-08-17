@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
 resolves. This plugin owns no consumer-project configuration — every tunable is a native
-`userConfig` option (thirteen per-guard toggles plus the `cli_flag_verify_bins`,
+`userConfig` option (fourteen per-guard toggles plus the `cli_flag_verify_bins`,
 `cli_flag_verify_skip_bins`, and `block_dangerous_git_allow` scalars) — so `apply` is pure
 guidance and writes nothing.
 

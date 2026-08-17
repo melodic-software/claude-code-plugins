@@ -172,6 +172,8 @@ producers without coordinating with them or each other.
 | `guardrails` plugin | `block-noncanonical-commit` | `data/block-noncanonical-commit.schema.json` |
 | `guardrails` plugin | `flag-commit-pr-skill-bypass` | `data/flag-commit-pr-skill-bypass.schema.json` |
 | `guardrails` plugin | `workflow-resilience-check` | `data/workflow-resilience-check.schema.json` |
+| `guardrails` plugin | `block-windows-drive-tmp` | `data/block-windows-drive-tmp.schema.json` |
+| `guardrails` plugin | `block-exported-msys-pathconv` | `data/block-exported-msys-pathconv.schema.json` |
 | `claude-ops` plugin | `api-error-audit` | `data/api-error-audit.schema.json` |
 | `claude-ops` plugin | `config-change-audit` | `data/config-change-audit.schema.json` |
 | `claude-ops` plugin | `instructions-loaded-audit` | `data/instructions-loaded-audit.schema.json` |

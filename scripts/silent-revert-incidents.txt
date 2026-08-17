@@ -9,9 +9,9 @@
 #
 # The `clean` rows matter as much as the `fires` rows. A detector tuned until
 # it catches the incidents but which also fires on ordinary work would be
-# switched off within a week, so a verified-legitimate commit is pinned here
-# too -- deliberately the closest sub-threshold miss found in 500 commits of
-# real history, since that is the row that breaks first if someone lowers the
+# switched off within a week, so verified-legitimate commits are pinned here
+# too -- led by the closest sub-threshold miss found in 500 commits of real
+# history, since that is the row that breaks first if someone lowers the
 # threshold to chase recall.
 #
 # Format: <expectation> <full-sha> [<attribution>] <note>. `fires` = the canary
@@ -155,9 +155,30 @@ marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skill
 marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh MERGED_PR_GRAPHQL_ALIAS_PAGE=100
 
 # --- Verified-legitimate commits that must stay quiet -------------------------
-# The closest sub-threshold miss in 500 commits: 129 lines of a doc section that
-# #2679 had just added, rewritten by a follow-up that says so ("Builds on merged
-# #2715 -> #2692 -> #2690; rebased onto main"). Ordinary iteration on very
+# Neither figure in this section is asserted by the replay. A `clean` row's
+# assertion is the ABSENCE of findings, so it carries no bracketed attribution
+# field for a count to live in (#2879) -- the numbers below are hand-measured
+# prose, and the first row's previous occupant drifting from a recorded 129 to
+# a measured 136 without anything going red is exactly that gap. Re-measure
+# before trusting either number.
+#
+# The closest sub-threshold miss in 500 commits, re-measured at the pinned git
+# invocations (#2843): no fewer than 195 lines -- a floor rather than an exact
+# count, because attribute_file drops git blame's stderr (#2880), so any line
+# blame fails on is silently not counted -- of Pat Pattison research text that
+# #2183 had just restored, rewritten by #2189's follow-up chapter-audit pass
+# five lines short of the 200-line threshold. Ordinary iteration on very
 # recent work. If a threshold change ever makes this fire, the canary has
 # started taxing normal development.
-clean c8470efd09d78d924a962483ff8a0b7809180e11 docs(conventions) rewrote 129 lines of a doc #2679 had just added
+clean 9a2307c431ad22b2e8f758976109bf4e59010d6b feat(songwriting) rewrote 195 lines of research text #2183 had just restored
+
+# The previously pinned closest miss, kept as a second verified-quiet guard --
+# four other corpus commits score between it and the row above: no fewer than
+# 136 lines (the same #2880 floor), 109 of them the persist-findings context
+# doc that #2715 (squash commit 6370a44e7) had just added, rewritten 26
+# minutes later by #2737's crosswalk hardening. An earlier version of this row
+# credited the content to #2679, which is a closed issue in this repo, not a
+# pull request; the commit's own body names the work it builds on ("Builds on
+# merged #2715 → #2692 → #2690; rebased onto `main`") and the blamed lines
+# trace to the commit that landed #2715.
+clean c8470efd09d78d924a962483ff8a0b7809180e11 docs(conventions) rewrote 136 lines of a doc #2715 had just added
