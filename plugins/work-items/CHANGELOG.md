@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.25]
+
+### Changed
+
+- **Docs:** local-markdown branch, worktree, and lease confinement documented in
+  CONTRACT.md plus a new adapter operations README
+  (`adapters/local-markdown/README.md`); setup provider-comparison and the plugin
+  README now point at those (#2944). local-markdown remains never a coordination
+  surface.
+- **Docs:** local-markdown isolation and Resolve-item-ID docs corrected for
+  honesty — same-worktree `git switch` carries untracked/uncommitted item files;
+  lookups key by number without re-validating owner/repo (#2944).
+
 ## [0.35.24]
 
 ### Changed
