@@ -184,8 +184,12 @@ contains_shell_word() {
   # shellcheck disable=SC2206
   tokens=($s)
   for tok in "${tokens[@]}"; do
+    # Strip quoting on BOTH sides: a fully quoted word ('bash', "bash.exe")
+    # must normalize to its bare spelling, or the quote defeats the match.
     tok="${tok#\'}"
     tok="${tok#\"}"
+    tok="${tok%\'}"
+    tok="${tok%\"}"
     base="${tok##*/}"
     base="${base##*\\}"
     base="${base%.exe}"
@@ -256,12 +260,14 @@ leaks_into_child_shell() {
     if ((seen)); then
       # Still in the prefix: further NAME=value assignments keep it open.
       [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-      # Judge every candidate by its BASENAME, with any quoting stripped — a
-      # launcher or a shell is recognized by what it is, not how it is spelled
-      # (`/usr/bin/env bash` leaked through a bare-literal `env` check; PR
-      # #2878 review).
+      # Judge every candidate by its BASENAME, with any quoting stripped on
+      # both sides — a launcher or a shell is recognized by what it is, not
+      # how it is spelled (`/usr/bin/env bash` and a quoted `'bash'` both
+      # leaked through literal-spelling checks; PR #2878 review).
       tok="${tok#\'}"
       tok="${tok#\"}"
+      tok="${tok%\'}"
+      tok="${tok%\"}"
       base="${tok##*/}"
       base="${base##*\\}"
       base="${base%.exe}"

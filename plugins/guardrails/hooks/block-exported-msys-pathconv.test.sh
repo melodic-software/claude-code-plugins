@@ -187,6 +187,17 @@ run_win "quoted export handed to bash -c (blocked)" \
   "bash -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
 run_win "quoted export handed to eval (blocked)" \
   'eval "export MSYS_NO_PATHCONV=1"; git status' 2
+# The shell word itself may be QUOTED — mandatory when its path carries a
+# space, as the Windows Git Bash install path does. A fully quoted word must
+# normalize to its bare spelling, or the quote defeats the shell-word check
+# and the matcher wrongly falls back to command-position mode (fresh-context
+# verification finding on PR #2878).
+run_win "quoted bare shell word with an export (blocked)" \
+  "'bash' -c 'export MSYS_NO_PATHCONV=1; git status'" 2
+run_win "quoted absolute shell path with an export (blocked)" \
+  "'/c/Program Files/Git/bin/bash.exe' -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
+run_win_pwsh "PowerShell call operator on a quoted bash.exe path with an export (blocked)" \
+  '& "C:\Program Files\Git\bin\bash.exe" -c "export MSYS_NO_PATHCONV=1; git status"' 2
 # DECLARED RESIDUAL, pinned as deliberate: a heredoc body line is
 # indistinguishable from a plain second command line without real shell
 # parsing, so an export spelling there still blocks (fail-closed). Use the
