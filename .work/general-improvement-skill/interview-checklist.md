@@ -14,12 +14,20 @@ Mode: `me` (relentless, user-invoked). Domain: engineering (build artifact = new
 
 ## Open-question register
 
-- Q1 | open | round 1 | Core identity: orchestrating router over existing improvement lanes vs standalone finder? |
-- Q2 | open | round 1 | Default size/impact posture (small/medium/large)? |
-- Q3 | open | round 1 | Interaction model: interactive discussion vs unattended routine output — one skill, both modes? |
-- Q4 | open | round 1 | V1 improvement dimensions (code, docs, config, plugin/skill quality, metrics-driven self-improvement, plugin-candidate discovery)? |
-- Q5 | open | round 1 | Cross-repo scope in V1? |
-- Q6 | open | round 1 | Does it ever APPLY improvements, or discovery/deliberation only? |
+- Q1 | answered | round 1 | Core identity | Hybrid, FINDER-forward (not router-forward): its own judgment about code/product-level improvements; delegation to existing lanes only where it adds value. User skeptical of pure-router value.
+- Q2 | answered | round 1 | Default size/impact posture | All sizes, ranked by value-to-effort, lead with highest-impact; prompt/flag narrows.
+- Q3 | open | round 1 | Unattended routine mode in V1? | partially: interactive-default confirmed via "start with an interview... feeds into existing workflows"; unattended mode not yet locked — re-asked round 2 as Q3
+- Q4 | answered | round 1 | V1 dimensions | REVISED by user: code/product level, performance, config/automation OUTSIDE the codebase (GitHub labels, Actions sync), Claude Code operational setup (cloud env, MCP servers); docs/markdown explicitly OUT (existing lanes own it). Measurement-first: metrics/telemetry is not a fast-follow — "to self-improve you have to measure a baseline"; when data is missing, the improvement IS setting up data capture. App-level observability (e.g. Azure App Insights) as an evidence source.
+- Q5 | open | round 1 | Cross-repo scope in V1? | unanswered from round 1 — re-asked round 2
+- Q6 | open | round 1 | Apply vs discover-only | implied discover→interview→pipeline handoff; confirm in round 2
+- Q7 | open | round 2 | Evidence ladder as the core mechanic (no baseline → instrumentation IS the top recommendation)? |
+- Q8 | open | round 2 | V1 evidence sources (repo-native vs external telemetry)? |
+- Q9 | open | round 2 | Home + naming (new plugin? noun? skill verb)? |
+- Q10 | open | round 2 | Plugin-candidate discovery in V1 or separate? |
+
+## Probe result (round 1)
+
+- No hard requirements declared. New improvement target named: Claude Code cloud environment setup / MCP servers / running CC on web.
 
 ## Decision tree (`me` mode)
 
