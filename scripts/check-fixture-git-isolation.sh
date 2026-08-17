@@ -9,15 +9,21 @@
 # Exit: 0 clean, 1 a violation or a stale baseline entry, 2 usage.
 #
 # WHY (#2840). The repo's fixture idiom is `git -C "$fixture" ...`. It is a good
-# readability and copy-paste guard. It is NOT an isolation guarantee: `git
-# config`'s default --local scope and `git init`'s target both follow the
-# GIT_DIR environment variable in preference to `-C` and in preference to the
-# working directory. GIT_DIR is exactly what git exports into every hook it
-# invokes. So a suite run from inside a git hook — or from any process that
-# inherited that environment — writes its throwaway fixture identity into the
-# CALLER's .git/config, and leaves the fixture with no .git at all. Both the
+# readability and copy-paste guard. It is NOT an isolation guarantee: `-C` only
+# changes directory, while an exported ABSOLUTE GIT_DIR overrides repository
+# DISCOVERY outright, and `git config` writes its default --local scope to
+# whatever gitdir finally resolves to. So a suite that inherited such an
+# environment writes its throwaway fixture identity into the CALLER's
+# .git/config, and leaves the fixture with no .git at all. Both the
 # `cd`-scoped-subshell form and the `git -C` form leak this way; only clearing
 # the inherited environment isolates.
+#
+# What EXPORTED it is not part of the mechanism. The GIT_DIR behind the real
+# incident came from an ad-hoc tool invocation; this repository has no git hook
+# at any scope and core.hooksPath is unset everywhere, so "git hands GIT_DIR to
+# every hook" is not what fired here and a narrower harden-the-hooks fix would
+# not have caught it. The invariant this gate enforces is that a fixture never
+# inherits ambient git environment, however that environment got exported.
 #
 # The blast radius is why this is a gate and not a lint. Worktrees share the
 # main clone's .git/config, so one leak poisons every worktree of the repo at
@@ -29,7 +35,16 @@
 # WHAT COUNTS AS ISOLATED. A shell suite passes if it clears the inherited git
 # environment itself:
 #
-#     unset GIT_DIR GIT_WORK_TREE
+#     unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+#
+# GIT_CONFIG belongs in every clear list and the harnesses here all carry it: it
+# is a SECOND leak path, not another spelling of the first, because it replaces
+# the file the `git config` subcommand reads and writes rather than redirecting
+# discovery, so it survives `-C` and a cleared GIT_DIR alike. The CREDIT signal
+# below is deliberately narrower than the recommended list — GIT_DIR plus
+# GIT_WORK_TREE — because widening it would retroactively re-violate every suite
+# in the corpus that already clears correctly for the discovery path. Widening
+# it is tracked in #2889 rather than smuggled in here.
 #
 # or if it sources a harness that does — scripts/test-git-helpers.sh is the
 # repo's shared one. Sourced harnesses are resolved by BASENAME against the
@@ -113,6 +128,28 @@ esac
 #   Python suites carry their own clear (see the header).
 scan() {
   awk '
+    BEGIN {
+      # A single quote cannot be written literally inside this single-quoted
+      # awk program, so the quote CLASS is built once here and every pattern
+      # needing it is a DYNAMIC regex over this string.
+      SQ = sprintf("%c", 39)
+      Q  = "[\"" SQ "]"
+      QC = "[\"" SQ ",]"
+      OPEN  = "[[({]"
+      CLOSE = "[]})]"
+      # The variables a clear must name to earn credit, shared by both arms so
+      # the two languages cannot drift apart.
+      NREQ = 2; REQ[1] = "GIT_DIR"; REQ[2] = "GIT_WORK_TREE"
+      # A joined Python logical line is capped. An unbalanced bracket inside a
+      # string literal would otherwise accumulate to end of file, and a runaway
+      # join is unsafe for CLEARS specifically: it could sweep an unrelated
+      # `for … in (…)` header together with an unrelated pop and re-create the
+      # tie-less misclassification the tie below exists to prevent.
+      MAXJOIN = 40
+    }
+
+    function ncount(s, re,   t) { t = s; return gsub(re, "", t) }
+
     # An identity WRITE: `config [opts] user.email|user.name`. Option words are
     # tolerated so `git config --local user.email X` matches, but the READ
     # spellings are excluded — a `config --get-all user.name` cannot poison
@@ -130,54 +167,128 @@ scan() {
       gsub(/config[ \t]+(--[a-zA-Z-]+[ \t]+)*--(get|get-all|get-regexp|get-urlmatch|list)([ \t]+--[a-zA-Z-]+)*[ \t]+user\.(email|name)/, " ", t)
       return t ~ /config[ \t]+(--[a-zA-Z-]+[ \t]+)*user\.(email|name)([ \t]|$)/
     }
-    function flush_py() {
-      if (cur != "" && py_pop && py_gitdir && py_worktree) print "CLEARS\t" cur
+    # Fixture intent, in either language, over one already comment-stripped
+    # unit of code.
+    #
+    # Any run of option-and-argument pairs may sit between the command word and
+    # the subcommand, so `git -C <dir> init`, `git -c init.defaultBranch=main
+    # init` and a bare `git init` all match. Anchoring only on `-C` (the
+    # narrower earlier form) missed `git -c … init`, which is live in this
+    # corpus — an under-selection, the direction this gate calls unsafe.
+    # Likewise the identity intent tolerates option words between `config` and
+    # `user.`, so `git config --local user.email X` is matched, and the
+    # transient `-c user.email=X` spelling counts as fixture work even though it
+    # cannot itself poison anything.
+    #
+    # The second half covers the Python spellings. A git argv is a list of
+    # quoted words, so the shell patterns (which need bare words separated by
+    # whitespace) never match it. Quotes and commas are normalized to spaces
+    # first, which turns ["git", "-C", str(d), "config", "user.email", x] into a
+    # shell-looking word sequence and lets one set of intents cover both
+    # languages.
+    function is_fixture(s,   argv) {
+      if (s ~ /git[a-zA-Z_]*[ \t]+(-[^ \t]+[ \t]+[^ \t]+[ \t]+)*(init|clone)([ \t]|$)/ ||
+          s ~ /git_init[a-zA-Z_]*[ \t(]/ ||
+          ident_write(s) ||
+          s ~ /-c[ \t]+user\.(email|name)=/) return 1
+      argv = s
+      gsub(QC, " ", argv)
+      if (argv ~ /(^|[^a-zA-Z_])git[ \t]*\(?[ \t]+(-[^ \t]+[ \t]+[^ \t]+[ \t]+)*(init|clone)([ \t]|$)/ ||
+          ident_write(argv) ||
+          argv ~ /-c[ \t]+user\.(email|name)=/ ||
+          argv ~ /worktree[ \t]+add([ \t]|$)/) return 1
+      return 0
     }
-    FILENAME != cur { flush_py(); cur = FILENAME; py_pop = 0; py_gitdir = 0; py_worktree = 0 }
-    { line = $0; gsub(/\r/, "", line) }
-    line ~ /^[ \t]*unset[ \t]+[^#]*GIT_DIR[^#]*GIT_WORK_TREE/ { print "CLEARS\t" FILENAME }
+
+    # A clear credits a variable only when the CLEARING CALL ITSELF names it.
+    # Matching a pop anywhere and the name anywhere would let a file that pops
+    # some unrelated variable, while separately mentioning GIT_DIR, pass as
+    # isolated.
+    function pops_literal(s, name) {
+      return s ~ ("(environ[ \t]*\\.[ \t]*pop|delenv)[ \t]*\\([ \t]*" Q name Q) ||
+             s ~ ("del[ \t]+os[ \t]*\\.[ \t]*environ[ \t]*\\[[ \t]*" Q name Q)
+    }
+
+    # The other spelling this corpus uses is a loop: the iterable literal binds
+    # the names and the body performs the pop. The two halves are tied through
+    # the LOOP VARIABLE, so a pop and a mention that never met cannot credit
+    # each other.
+    function pops_var(s, v) {
+      return s ~ ("(environ[ \t]*\\.[ \t]*pop|delenv)[ \t]*\\([ \t]*" v "[ \t]*[,)]") ||
+             s ~ ("del[ \t]+os[ \t]*\\.[ \t]*environ[ \t]*\\[[ \t]*" v "[ \t]*\\]")
+    }
+
+    function py_logical(s,   i, v) {
+      if (is_fixture(s)) print "FIXTURE\t" FILENAME
+      if (match(s, /for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]*[[(]/)) {
+        v = substr(s, RSTART, RLENGTH)
+        sub(/^for[ \t]+/, "", v)
+        sub(/[ \t]+in[ \t]*[[(]$/, "", v)
+        LOOPVAR[v] = 1
+        for (i = 1; i <= NREQ; i++)
+          if (s ~ (Q REQ[i] Q)) BOUND[v, REQ[i]] = 1
+      }
+      for (i = 1; i <= NREQ; i++)
+        if (pops_literal(s, REQ[i])) CLEARED[REQ[i]] = 1
+      for (v in LOOPVAR)
+        if (pops_var(s, v))
+          for (i = 1; i <= NREQ; i++)
+            if (BOUND[v, REQ[i]]) CLEARED[REQ[i]] = 1
+    }
+
+    function py_drain() {
+      if (pending != "") { py_logical(pending); pending = ""; depth = 0; joined = 0 }
+    }
+
+    function flush_py(   i) {
+      if (cur == "") return
+      for (i = 1; i <= NREQ; i++) if (!CLEARED[REQ[i]]) return
+      print "CLEARS\t" cur
+    }
+
+    FILENAME != cur {
+      py_drain(); flush_py()
+      cur = FILENAME
+      split("", CLEARED); split("", BOUND); split("", LOOPVAR)
+      pending = ""; depth = 0; joined = 0
+      ispy = (FILENAME ~ /\.py$/)
+    }
+    { line = $0; gsub(/\r/, "", line); code = line; sub(/#.*/, "", code) }
     # Whole-file scope declaration. Anchored at the start of the comment CONTENT
     # so that prose mentioning the token, or a detector holding it as a string
     # literal, cannot exempt a file that never declared anything.
     line ~ /^[ \t]*#[ \t]*fixture-isolation-scope:[ \t]*[^ \t]/ { print "SCOPE\t" FILENAME }
-    # Python file-scoped clear: an environ pop/delete anywhere in the file, plus
-    # a mention of each load-bearing variable. Both halves are required — a file
-    # that pops some unrelated variable, or one that merely names GIT_DIR in a
-    # comment without popping anything, is not isolated.
-    {
-      if (line ~ /environ\.pop[ \t]*\(/ || line ~ /del[ \t]+os\.environ\[/ ||
-          line ~ /delenv[ \t]*\(/) py_pop = 1
-      if (line ~ /GIT_DIR/) py_gitdir = 1
-      if (line ~ /GIT_WORK_TREE/) py_worktree = 1
+
+    # PYTHON ARM. Matched over LOGICAL lines, not physical ones: a formatter
+    # wraps a call whose argument list exceeds the line length, so
+    # `subprocess.run(["git", "-C", str(d), "init"])` becomes several physical
+    # lines with `git` and `init` on none of them together. A per-line scan sees
+    # no fixture there at all and the suite escapes the gate entirely — not as a
+    # violation, but as a file the gate cannot see. Physical lines are joined
+    # while bracket depth is open, which is also what keeps the wrapped
+    # `for _v in ("GIT_DIR", …):` clear idiom recognizable.
+    ispy {
+      pending = (pending == "" ? code : pending " " code)
+      depth += ncount(code, OPEN) - ncount(code, CLOSE)
+      joined++
+      if (depth <= 0 || joined >= MAXJOIN) py_drain()
+      next
     }
+
+    # SHELL ARM.
     {
-      code = line; sub(/#.*/, "", code)
-      # Any run of option-and-argument pairs may sit between the command word
-      # and the subcommand, so `git -C <dir> init`, `git -c init.defaultBranch=
-      # main init` and a bare `git init` all match. Anchoring only on `-C` (the
-      # narrower earlier form) missed `git -c … init`, which is live in this
-      # corpus — an under-selection, the direction this gate calls unsafe.
-      # Likewise the identity intent tolerates option words between `config`
-      # and `user.`, so `git config --local user.email X` is matched, and the
-      # transient `-c user.email=X` spelling counts as fixture work even though
-      # it cannot itself poison anything.
-      if (code ~ /git[a-zA-Z_]*[ \t]+(-[^ \t]+[ \t]+[^ \t]+[ \t]+)*(init|clone)([ \t]|$)/ ||
-          code ~ /git_init[a-zA-Z_]*[ \t(]/ ||
-          ident_write(code) ||
-          code ~ /-c[ \t]+user\.(email|name)=/)
-        print "FIXTURE\t" FILENAME
-      # Python spellings. A git argv is a list of quoted words, so the shell
-      # patterns above (which need bare words separated by whitespace) never
-      # match it. Quotes and commas are normalized to spaces first, which turns
-      # ["git", "-C", str(d), "config", "user.email", x] into a shell-looking
-      # word sequence and lets one set of intents cover both languages.
-      argv = code
-      gsub(/["'"'"',]/, " ", argv)
-      if (argv ~ /(^|[^a-zA-Z_])git[ \t]*\(?[ \t]+(-[^ \t]+[ \t]+[^ \t]+[ \t]+)*(init|clone)([ \t]|$)/ ||
-          ident_write(argv) ||
-          argv ~ /-c[ \t]+user\.(email|name)=/ ||
-          argv ~ /worktree[ \t]+add([ \t]|$)/)
-        print "FIXTURE\t" FILENAME
+      if (is_fixture(code)) print "FIXTURE\t" FILENAME
+      # Comments are already stripped, and the names are matched inside the
+      # `unset` STATEMENT rather than anywhere on the line, so neither prose nor
+      # a later command on the same line can grant the credit.
+      if (code ~ /^[ \t]*unset[ \t]/) {
+        u = code
+        sub(/^[ \t]*unset[ \t]+/, "", u)
+        sub(/;.*/, "", u)
+        if (u ~ /(^|[^A-Za-z0-9_])GIT_DIR([^A-Za-z0-9_]|$)/ &&
+            u ~ /(^|[^A-Za-z0-9_])GIT_WORK_TREE([^A-Za-z0-9_]|$)/)
+          print "CLEARS\t" FILENAME
+      }
       if (code ~ /^[ \t]*(source|\.)[ \t]+/) {
         rest = code
         sub(/^[ \t]*(source|\.)[ \t]+/, "", rest)
@@ -192,7 +303,7 @@ scan() {
         }
       }
     }
-    END { flush_py() }
+    END { py_drain(); flush_py() }
   ' "$@"
 }
 
@@ -293,13 +404,15 @@ if ((${#violations[@]} > 0)); then
   echo >&2
   for v in "${violations[@]}"; do echo "  $v" >&2; done
   echo >&2
-  echo "Each builds a repository or writes a git identity, so under an exported GIT_DIR" >&2
-  echo "— what git hands every hook it invokes — it writes that identity into the CALLER's" >&2
-  echo ".git/config, shared by every worktree of the clone, instead of into its fixture." >&2
+  echo "Each builds a repository or writes a git identity, so under an inherited ABSOLUTE" >&2
+  echo "GIT_DIR — which overrides repository discovery and outranks -C — it writes that" >&2
+  echo "identity into the CALLER's .git/config, shared by every worktree of the clone," >&2
+  echo "instead of into its fixture. Any process can export it; a git hook is one way and" >&2
+  echo "an ad-hoc command is another, which is why this is cleared unconditionally." >&2
   echo >&2
   echo "Fix by clearing the environment once, at the top of the suite:" >&2
   echo >&2
-  echo "    unset GIT_DIR GIT_WORK_TREE" >&2
+  echo "    unset GIT_DIR GIT_WORK_TREE GIT_CONFIG" >&2
   echo >&2
   echo "or by sourcing a harness that already does (scripts/test-git-helpers.sh)." >&2
   echo "Do NOT add a new suite to $BASELINE — it records pre-existing debt only." >&2

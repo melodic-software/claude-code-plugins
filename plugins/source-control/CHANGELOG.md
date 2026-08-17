@@ -11,13 +11,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   land in the caller's repository
   ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
   `test_prune_babysit_worktrees.py` clears `GIT_DIR`, `GIT_WORK_TREE`,
-  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX` and `GIT_OBJECT_DIRECTORY`
-  from `os.environ` at import. An exported **absolute** `GIT_DIR` overrides
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` from `os.environ` at import. An exported **absolute** `GIT_DIR` overrides
   repository discovery, so `git config`'s default `--local` scope resolves to
   the caller's gitdir and the fixture identity is written there instead. This
   suite is doubly exposed because it also builds a **linked worktree**, whose
-  config writes land in the main clone's **shared** `.git/config`. Test-only
-  change; no shipped skill or script behavior is affected.
+  config writes land in the main clone's **shared** `.git/config`. `GIT_CONFIG`
+  is cleared as a **second** leak path rather than another spelling of the
+  first: it replaces the file the `git config` subcommand reads and writes, so
+  an identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped skill or script behavior is
+  affected.
 
 ## [0.54.10]
 

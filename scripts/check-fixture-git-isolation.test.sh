@@ -10,9 +10,11 @@ set -uo pipefail
 
 # This suite builds git fixtures itself, so it clears the inherited git
 # environment for the same reason the gate exists (#2840): under an exported
-# GIT_DIR, `git init` and `git config` follow GIT_DIR rather than `-C` or the
-# working directory, and the fixture identity lands in the caller's repository.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+# ABSOLUTE GIT_DIR, `git init` and `git config` follow repository discovery
+# rather than `-C` or the working directory, and the fixture identity lands in
+# the caller's repository. GIT_CONFIG is cleared as a distinct path — it
+# replaces the file `git config` itself reads and writes.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$ROOT/scripts/check-fixture-git-isolation.sh"
@@ -436,6 +438,173 @@ if [[ $rc -eq 1 && "$out" == *"test_prose.py"* ]]; then
   ok "python: naming the variables without popping is still a violation"
 else
   fail "python prose-only: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a formatter-wrapped argv is still SEEN --------------------------
+# A per-line scan never has `git` and `init` on one physical line here, so the
+# suite is not merely mis-verdicted, it is invisible to the gate: it never
+# enters the violation/baseline classification at all. That is the failure this
+# gate's own header calls disqualifying — a gate that cannot see the file that
+# fired is not a gate.
+new_repo
+r="$REPO"
+cat >"$r/test_wrapped.py" <<'PY'
+import subprocess
+def make(d):
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(d),
+            "init",
+        ],
+        check=True,
+    )
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_wrapped.py"* ]]; then
+  ok "python: a formatter-wrapped git argv is still detected as a fixture"
+else
+  fail "python wrapped argv: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a wrapped argv WITH a wrapped clear PASSES ----------------------
+# The other half of the same joining rule: the real suites in this repo spell
+# their clear as a tuple the formatter has already wrapped, so recall on the
+# fixture side must not cost recognition on the clear side.
+new_repo
+r="$REPO"
+cat >"$r/test_wrapped_clean.py" <<'PY'
+import os
+import subprocess
+
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+):
+    os.environ.pop(_leaked_git_var, None)
+
+def make(d):
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(d),
+            "config",
+            "user.email",
+            "test@example.com",
+        ],
+        check=True,
+    )
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "python: a wrapped clear still credits a wrapped fixture suite"
+else
+  fail "python wrapped clear: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a clear that exists only in a COMMENT does not credit -----------
+# Prose describing the idiom is not the idiom. This shape is the one that
+# tripped the gate on its own header text: a comment holding both variable
+# names and pop-like syntax must not satisfy the check.
+new_repo
+r="$REPO"
+cat >"$r/test_commented.py" <<'PY'
+import subprocess
+# The idiom every suite here should use is:
+#     for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE"):
+#         os.environ.pop(_leaked_git_var, None)
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_commented.py"* ]]; then
+  ok "python: a clear written only inside a comment does not credit the file"
+else
+  fail "python commented clear: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: an UNRELATED pop plus a separate mention does not credit --------
+# The pop and the names must be tied to each other. A pop of some other
+# variable, plus a comment that happens to name the git ones, is the shape that
+# passed while nothing was ever cleared.
+new_repo
+r="$REPO"
+cat >"$r/test_unrelated_pop.py" <<'PY'
+import os
+import subprocess
+
+os.environ.pop("SOME_UNRELATED_FLAG", None)
+
+# TODO: still need to handle GIT_DIR / GIT_WORK_TREE leaking into fixtures.
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_unrelated_pop.py"* ]]; then
+  ok "python: popping an unrelated variable does not credit the git ones"
+else
+  fail "python unrelated pop: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a loop over UNRELATED names does not credit the git ones --------
+# The loop-variable tie, exercised from the other side: the pop is real and the
+# loop is real, but the iterable never named a git variable.
+new_repo
+r="$REPO"
+cat >"$r/test_unrelated_loop.py" <<'PY'
+import os
+import subprocess
+
+for _v in ("HOME", "USERPROFILE"):
+    os.environ.pop(_v, None)
+
+# Someday: GIT_DIR and GIT_WORK_TREE belong in that tuple too.
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_unrelated_loop.py"* ]]; then
+  ok "python: a loop popping unrelated names does not credit the git ones"
+else
+  fail "python unrelated loop: rc=$rc out='$out'"
+fi
+
+# --- SHELL: a commented-out unset does not credit ----------------------------
+# The shell arm strips comments and matches the names inside the `unset`
+# STATEMENT, so neither a commented-out clear nor an unrelated later command on
+# the same line can grant it.
+new_repo
+r="$REPO"
+cat >"$r/commented.test.sh" <<'SH'
+#!/usr/bin/env bash
+# unset GIT_DIR GIT_WORK_TREE
+unset SOME_OTHER_VAR   # GIT_DIR GIT_WORK_TREE belong here too
+d="$(mktemp -d)"
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"commented.test.sh"* ]]; then
+  ok "shell: a commented-out unset does not credit the suite"
+else
+  fail "shell commented unset: rc=$rc out='$out'"
 fi
 
 # --- SCOPE: a declared counter-fixture is exempt -----------------------------

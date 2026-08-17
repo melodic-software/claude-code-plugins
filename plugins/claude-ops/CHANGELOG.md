@@ -10,13 +10,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Test harness no longer lets a fixture's git identity land in the caller's
   repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
   `claude-ops-test-helpers.sh` now clears `GIT_DIR`, `GIT_WORK_TREE`,
-  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX` and `GIT_OBJECT_DIRECTORY` at
-  source time. `git -C <fixture>` is a readability guard, not an isolation
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` at source time. `git -C <fixture>` is a readability guard, not an isolation
   guarantee: an exported **absolute** `GIT_DIR` overrides repository discovery,
   so `git config`'s default `--local` scope resolves to the caller's gitdir and
   the fixture identity is written there instead — leaving the fixture with no
-  `.git` and silently re-authoring the caller's next commit. Test-only change;
-  no shipped hook behavior is affected.
+  `.git` and silently re-authoring the caller's next commit. `GIT_CONFIG` is
+  cleared as a **second** leak path rather than another spelling of the first:
+  it replaces the file the `git config` subcommand reads and writes, so an
+  identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped hook behavior is affected.
 
 ## [0.32.6]
 

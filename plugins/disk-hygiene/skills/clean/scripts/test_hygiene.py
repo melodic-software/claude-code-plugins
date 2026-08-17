@@ -46,6 +46,10 @@ from unittest import mock
 # clear covers every present and future path. The variable list mirrors
 # scripts/test-git-helpers.sh, which does the same thing at source time for the
 # shell suites; scripts/check-fixture-git-isolation.sh keeps both true.
+# GIT_CONFIG is in the list and is a DISTINCT leak path rather than another
+# spelling of the discovery one: it replaces the file the `git config`
+# subcommand reads and writes, so an identity write follows it regardless of
+# `-C`, of GIT_DIR, and of the working directory.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -53,6 +57,7 @@ for _leaked_git_var in (
     "GIT_COMMON_DIR",
     "GIT_PREFIX",
     "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
 ):
     os.environ.pop(_leaked_git_var, None)
 del _leaked_git_var
