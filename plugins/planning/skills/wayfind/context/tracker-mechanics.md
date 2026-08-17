@@ -35,7 +35,8 @@ case "$t" in
   string) CONTAINER_LABEL=$(jq -r '.config.container_label' "$ROOT/.work-item-tracker.json" 2>/dev/null) ;;
   null)   CONTAINER_LABEL= ;;   # no binding, no key, or jq missing
   *)      echo "ERROR: config.container_label must be a string (got $t) — fix .work-item-tracker.json" >&2
-          # STOP here and report; do not proceed with a coerced label.
+          # Real stop — works sourced or standalone; never proceed with a coerced label.
+          return 1 2>/dev/null || exit 1
           ;;
 esac
 CONTAINER_LABEL=${CONTAINER_LABEL:-work-map}
