@@ -3,9 +3,11 @@
 #
 # Contract: a Write/Edit/MultiEdit/NotebookEdit whose target is a Claude Code
 # settings surface (settings.json / settings.local.json under any .claude
-# directory, or managed-settings.json) gets permissionDecision "ask"; every
-# other payload gets NO output and exit 0. Fail-open on garbage input. Kill
-# switch via the CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED mirror.
+# directory, or managed-settings.json — case-insensitively, since macOS and
+# Windows filesystems resolve case variants to the same file) gets
+# permissionDecision "ask"; every other payload gets NO output and exit 0.
+# Fail-open on garbage input. Kill switch via the
+# CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED mirror.
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
@@ -24,6 +26,22 @@ fail() {
 ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
+}
+# assert_asks <hook-output> <message> — the payload must have been asked
+assert_asks() {
+  if grep -q '"permissionDecision":"ask"' <<<"$1"; then
+    ok "$2"
+  else
+    fail "$2 — no ask in output: $1"
+  fi
+}
+# assert_silent <hook-output> <message> — the payload must pass untouched
+assert_silent() {
+  if [[ -z "$1" ]]; then
+    ok "$2"
+  else
+    fail "$2 — unexpected output: $1"
+  fi
 }
 
 WORK="$(mktemp -d)"
@@ -44,70 +62,54 @@ run() {
   fi
 }
 
-out=$(run Write "$WORK/repo/.claude/settings.json")
-grep -q '"permissionDecision":"ask"' <<<"$out" &&
-  ok "project settings.json write asks" ||
-  fail "project settings.json write did not ask: $out"
+assert_asks "$(run Write "$WORK/repo/.claude/settings.json")" \
+  "project settings.json write asks"
 
-out=$(run Edit "$WORK/repo/.claude/settings.local.json")
-grep -q '"permissionDecision":"ask"' <<<"$out" &&
-  ok "settings.local.json edit asks" ||
-  fail "settings.local.json edit did not ask"
+assert_asks "$(run Edit "$WORK/repo/.claude/settings.local.json")" \
+  "settings.local.json edit asks"
 
-out=$(run Write "$WORK/managed/managed-settings.json")
-grep -q '"permissionDecision":"ask"' <<<"$out" &&
-  ok "managed-settings.json write asks" ||
-  fail "managed-settings.json write did not ask"
+assert_asks "$(run Write "$WORK/managed/managed-settings.json")" \
+  "managed-settings.json write asks"
 
 out=$(run Write "$FAKEHOME/.claude/settings.json" "HOME=$FAKEHOME")
-grep -q 'never writes user-global' <<<"$out" &&
-  ok "user-global settings write carries the print-only note" ||
+if grep -q 'never writes user-global' <<<"$out"; then
+  ok "user-global settings write carries the print-only note"
+else
   fail "user-global note missing: $out"
+fi
 
-out=$(run Write "$WORK/repo/src/settings.json")
-[[ -z "$out" ]] &&
-  ok "a non-.claude settings.json passes silently (hook precision)" ||
-  fail "non-settings path produced output: $out"
+assert_silent "$(run Write "$WORK/repo/src/settings.json")" \
+  "a non-.claude settings.json passes silently (hook precision)"
 
-out=$(run Write "$WORK/repo/.claude/skills/x/SKILL.md")
-[[ -z "$out" ]] &&
-  ok "other .claude files pass silently" ||
-  fail "non-settings .claude file produced output"
+assert_silent "$(run Write "$WORK/repo/.claude/skills/x/SKILL.md")" \
+  "other .claude files pass silently"
 
-out=$(run Read "$WORK/repo/.claude/settings.json")
-[[ -z "$out" ]] &&
-  ok "non-mutating tools pass silently" ||
-  fail "non-mutating tool produced output"
+assert_silent "$(run Read "$WORK/repo/.claude/settings.json")" \
+  "non-mutating tools pass silently"
 
-out=$(run Write "$WORK/repo/.claude/settings.json" "CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED=false")
-[[ -z "$out" ]] &&
-  ok "kill switch disables the checkpoint" ||
-  fail "kill switch ignored"
+assert_silent "$(run Write "$WORK/repo/.claude/settings.json" "CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED=false")" \
+  "kill switch disables the checkpoint"
 
 out=$(printf 'not json at all' | node "$HOOK")
 rc=$?
-[[ $rc -eq 0 && -z "$out" ]] &&
-  ok "garbage input fails open (exit 0, no output)" ||
+if [[ $rc -eq 0 && -z "$out" ]]; then
+  ok "garbage input fails open (exit 0, no output)"
+else
   fail "garbage input: rc=$rc out=$out"
+fi
 
 # Case variants resolve to the same file on macOS/Windows filesystems and
 # must still ask — a case-sensitive match would be a silent bypass there.
-out=$(run Write "$WORK/repo/.claude/Settings.json")
-grep -q '"permissionDecision":"ask"' <<<"$out" &&
-  ok "case-variant settings path still asks (case-insensitive filesystems)" ||
-  fail "case-variant path bypassed the checkpoint: $out"
+assert_asks "$(run Write "$WORK/repo/.claude/Settings.json")" \
+  "case-variant settings path still asks (case-insensitive filesystems)"
 
-out=$(run Edit "$WORK/repo/.claude/settings.LOCAL.json")
-grep -q '"permissionDecision":"ask"' <<<"$out" &&
-  ok "case-variant settings.local path still asks" ||
-  fail "case-variant local path bypassed the checkpoint"
+assert_asks "$(run Edit "$WORK/repo/.claude/settings.LOCAL.json")" \
+  "case-variant settings.local path still asks"
 
 # Windows-style path separators must still match.
 # portability-ok: the doubled backslashes are literal JSON escapes for printf, not a GNU regex class
-out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")
-grep -q '"permissionDecision":"ask"' <<<"$out" &&
-  ok "backslash paths normalize and ask" ||
-  fail "backslash path missed: $out"
+assert_asks "$(printf '{"tool_name":"Write","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")" \
+  "backslash paths normalize and ask"
 
 echo
 echo "passed: $PASS, failed: $FAIL"

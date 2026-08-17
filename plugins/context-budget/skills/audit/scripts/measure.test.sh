@@ -32,6 +32,14 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
+# assert_eq <actual> <expected> <ok-message> <fail-message>
+assert_eq() {
+  if [[ "$1" == "$2" ]]; then
+    ok "$3"
+  else
+    fail "$4 (got: $1)"
+  fi
+}
 
 if ! command -v node >/dev/null 2>&1; then
   echo "FAIL: node is required to test the engine" >&2
@@ -57,28 +65,21 @@ write_snapshot() {
 # --- parse-context: current-format fixture --------------------------------
 
 out="$WORK/parsed.json"
-node "$ENGINE" parse-context --file "$FIXTURE" --out "$out" >/dev/null
-if [[ $? -ne 0 ]]; then
+if ! node "$ENGINE" parse-context --file "$FIXTURE" --out "$out" >/dev/null; then
   fail "parse-context exited nonzero on the current-format fixture"
 else
-  [[ "$(jsonget "$out" 'j.categories["System tools"]')" == "11400" ]] &&
-    ok "category cell 11.4k parses to 11400" ||
-    fail "category cell 11.4k misparsed: got $(jsonget "$out" 'j.categories["System tools"]')"
-  [[ "$(jsonget "$out" 'j.categories["Messages"]')" == "42" ]] &&
-    ok "plain integer cell parses exactly" ||
-    fail "plain integer cell misparsed"
-  [[ "$(jsonget "$out" 'j.precision')" == "display-rounded" ]] &&
-    ok "k-suffixed cells mark the record display-rounded" ||
-    fail "precision flag wrong for rounded cells"
-  [[ "$(jsonget "$out" 'j.skillListing.rows')" == "3" ]] &&
-    ok "skill rows collected (including ~ and < cells)" ||
-    fail "skill rows wrong: $(jsonget "$out" 'j.skillListing.rows')"
-  [[ "$(jsonget "$out" 'j.agents.length')" == "2" ]] &&
-    ok "agent rows collected" ||
-    fail "agent rows wrong"
-  [[ "$(jsonget "$out" 'j.model')" == "claude-test-model" ]] &&
-    ok "model line parsed" ||
-    fail "model line misparsed"
+  assert_eq "$(jsonget "$out" 'j.categories["System tools"]')" "11400" \
+    "category cell 11.4k parses to 11400" "category cell 11.4k misparsed"
+  assert_eq "$(jsonget "$out" 'j.categories["Messages"]')" "42" \
+    "plain integer cell parses exactly" "plain integer cell misparsed"
+  assert_eq "$(jsonget "$out" 'j.precision')" "display-rounded" \
+    "k-suffixed cells mark the record display-rounded" "precision flag wrong for rounded cells"
+  assert_eq "$(jsonget "$out" 'j.skillListing.rows')" "3" \
+    "skill rows collected (including ~ and < cells)" "skill rows wrong"
+  assert_eq "$(jsonget "$out" 'j.agents.length')" "2" \
+    "agent rows collected" "agent rows wrong"
+  assert_eq "$(jsonget "$out" 'j.model')" "claude-test-model" \
+    "model line parsed" "model line misparsed"
 fi
 
 # --- parse-context: the unredirected-stdin warning trap -------------------
@@ -136,48 +137,45 @@ write_snapshot "$WORK/c.json" sdk 9.9.9 sigBBBB 4000 2000
 
 row="$WORK/row-self.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/a.json" --lever noop --out "$row" >/dev/null
-[[ "$(jsonget "$row" 'j.comparability.ok')" == "true" ]] &&
-  ok "identical runs compare as comparable" ||
-  fail "identical runs flagged incomparable: $(jsonget "$row" 'JSON.stringify(j.comparability.reasons)')"
-[[ "$(jsonget "$row" 'j.delta["System tools"]')" == "0" ]] &&
-  ok "self-compare delta is zero" ||
-  fail "self-compare delta nonzero"
+assert_eq "$(jsonget "$row" 'j.comparability.ok')" "true" \
+  "identical runs compare as comparable" "identical runs flagged incomparable"
+assert_eq "$(jsonget "$row" 'j.delta["System tools"]')" "0" \
+  "self-compare delta is zero" "self-compare delta nonzero"
 
 # --- compare: a real delta, signed after-minus-before ---------------------
 
 row2="$WORK/row-delta.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/b.json" --lever "deny:Example" --out "$row2" >/dev/null
-[[ "$(jsonget "$row2" 'j.delta["System tools"]')" == "-1000" ]] &&
-  ok "delta is after-minus-before (a saving prints negative)" ||
-  fail "delta sign/magnitude wrong: $(jsonget "$row2" 'j.delta["System tools"]')"
-[[ "$(jsonget "$row2" 'j.comparability.systemToolsComparable')" == "true" ]] &&
-  ok "same-signature runs keep System tools comparable" ||
-  fail "same-signature runs lost comparability"
+assert_eq "$(jsonget "$row2" 'j.delta["System tools"]')" "-1000" \
+  "delta is after-minus-before (a saving prints negative)" "delta sign/magnitude wrong"
+assert_eq "$(jsonget "$row2" 'j.comparability.systemToolsComparable')" "true" \
+  "same-signature runs keep System tools comparable" "same-signature runs lost comparability"
 
 # --- compare: signature mismatch poisons the System tools delta -----------
 
 row3="$WORK/row-sig.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/c.json" --out "$row3" >/dev/null
-[[ "$(jsonget "$row3" 'j.comparability.systemToolsComparable')" == "false" ]] &&
-  ok "skill-listing signature mismatch marks System tools incomparable" ||
-  fail "signature mismatch not detected"
-grep -q 'skill listing differs' "$row3" &&
-  ok "signature mismatch carries its reason in the row" ||
+assert_eq "$(jsonget "$row3" 'j.comparability.systemToolsComparable')" "false" \
+  "skill-listing signature mismatch marks System tools incomparable" "signature mismatch not detected"
+if grep -q 'skill listing differs' "$row3"; then
+  ok "signature mismatch carries its reason in the row"
+else
   fail "signature-mismatch reason missing"
+fi
 
 # --- compare: every recorded mismatch poisons the predicate ---------------
 
 node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.binary.path='/opt/other/claude';fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/d.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/d.json" --out "$WORK/row-path.json" >/dev/null
-[[ "$(jsonget "$WORK/row-path.json" 'j.comparability.systemToolsComparable')" == "false" ]] &&
-  ok "same version but different binary path marks System tools incomparable" ||
-  fail "binary-path mismatch not reflected in the predicate"
+assert_eq "$(jsonget "$WORK/row-path.json" 'j.comparability.systemToolsComparable')" "false" \
+  "same version but different binary path marks System tools incomparable" \
+  "binary-path mismatch not reflected in the predicate"
 
 node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.skillListing.tokens=2500;fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/e.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/e.json" --out "$WORK/row-skills.json" >/dev/null
-[[ "$(jsonget "$WORK/row-skills.json" 'j.comparability.systemToolsComparable')" == "false" ]] &&
-  ok "matching listing but moved Skills bucket marks System tools incomparable" ||
-  fail "skills-bucket drift not reflected in the predicate"
+assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.systemToolsComparable')" "false" \
+  "matching listing but moved Skills bucket marks System tools incomparable" \
+  "skills-bucket drift not reflected in the predicate"
 
 # --- emit: --out creates missing parent directories -----------------------
 
@@ -192,51 +190,58 @@ fi
 
 printf '{"schema":"something-else/9"}\n' >"$WORK/notsnap.json"
 node "$ENGINE" compare --before "$WORK/notsnap.json" --after "$WORK/a.json" >/dev/null 2>&1
-[[ $? -eq 2 ]] &&
-  ok "compare rejects a non-snapshot input as a usage error" ||
-  fail "compare accepted a non-snapshot input"
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  ok "compare rejects a non-snapshot input as a usage error"
+else
+  fail "compare accepted a non-snapshot input (exit $rc)"
+fi
 
 # --- ledger: one file per run plus an appended line -----------------------
 
 LDIR="$WORK/data"
-node "$ENGINE" ledger --append "$row2" --dir "$LDIR" >/dev/null &&
-  ok "ledger append succeeds on a compare row" ||
+if node "$ENGINE" ledger --append "$row2" --dir "$LDIR" >/dev/null; then
+  ok "ledger append succeeds on a compare row"
+else
   fail "ledger append failed"
+fi
 runfiles=$(find "$LDIR/runs" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
-[[ "$runfiles" == "1" ]] &&
-  ok "ledger writes one file per run" ||
-  fail "expected 1 run file, found $runfiles"
+assert_eq "$runfiles" "1" "ledger writes one file per run" "wrong run-file count after first append"
 node "$ENGINE" ledger --append "$row" --dir "$LDIR" >/dev/null
 lines=$(wc -l <"$LDIR/ledger.jsonl" | tr -d ' ')
-[[ "$lines" == "2" ]] &&
-  ok "history line appended per run (a rerun never erases the earlier point)" ||
-  fail "expected 2 ledger lines, found $lines"
+assert_eq "$lines" "2" \
+  "history line appended per run (a rerun never erases the earlier point)" "wrong ledger line count"
 
 listed="$WORK/listed.json"
 node "$ENGINE" ledger --list --dir "$LDIR" >"$listed"
-[[ "$(jsonget "$listed" 'j.rows.length')" == "2" ]] &&
-  ok "ledger list returns both rows" ||
-  fail "ledger list wrong row count"
+assert_eq "$(jsonget "$listed" 'j.rows.length')" "2" \
+  "ledger list returns both rows" "ledger list wrong row count"
 
 # Same row appended again (same timestamp + lever): the run file must not be
 # overwritten — the runId collides into a numbered suffix.
 node "$ENGINE" ledger --append "$row" --dir "$LDIR" >/dev/null
 runfiles=$(find "$LDIR/runs" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
-[[ "$runfiles" == "3" ]] &&
-  ok "colliding runId gets a suffix instead of overwriting (3 run files)" ||
-  fail "runId collision overwrote: expected 3 run files, found $runfiles"
+assert_eq "$runfiles" "3" \
+  "colliding runId gets a suffix instead of overwriting (3 run files)" \
+  "runId collision overwrote a run file"
 
 # --- ledger: schema-checked append ----------------------------------------
 
 node "$ENGINE" ledger --append "$WORK/a.json" --dir "$LDIR" >/dev/null 2>&1
-[[ $? -eq 2 ]] &&
-  ok "ledger rejects a non-ledger row (snapshots are not ledger rows)" ||
-  fail "ledger accepted a snapshot as a row"
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  ok "ledger rejects a non-ledger row (snapshots are not ledger rows)"
+else
+  fail "ledger accepted a snapshot as a row (exit $rc)"
+fi
 
 node "$ENGINE" ledger --append "$row" --dir "relative/dir" >/dev/null 2>&1
-[[ $? -eq 2 ]] &&
-  ok "ledger rejects a relative --dir" ||
-  fail "ledger accepted a relative --dir"
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  ok "ledger rejects a relative --dir"
+else
+  fail "ledger accepted a relative --dir (exit $rc)"
+fi
 
 # --- snapshot: pinned-binary honesty --------------------------------------
 
