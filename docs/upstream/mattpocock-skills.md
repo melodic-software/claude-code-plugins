@@ -81,20 +81,20 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   `disable-model-invocation: true` — can be invoked by no other skill). **Fired-and-resolved
   (#2940 / Lane X C22):** fleet audit enumerated **57** skills with
   `disable-model-invocation: true` and searched `SKILL.md`, evals, and reference docs for
-  Skill-tool invocation of those names (`invoke \`/plugin:skill\` via the Skill tool`,
-  `Call the Skill tool` + target, `Skill tool` + `:setup`). **Zero** Skill-tool invocations of
-  user-invoked-only targets. Human-relay phrasing ("tell the user to run /X", "offering to run
-  `/…:setup`") and Skill-tool hits on model-invocable skills (`/toolchain:check`,
-  `/implementation:implement-dispatch`, `/tdd:principles`, `/session-flow:handoff`,
-  `/testing:run-e2e`) are non-violations. Standing `skill-quality:check` automation deferred
-  (cross-plugin target resolution is not cheap under the single skills-root model); doctrine
-  lines live in `playbooks:skill-authoring` and `skill-quality:check`. Canonical rewording if a
-  future hit appears: "tell the user to run /X". Same Lane X pass: C23 curate-language
-  trigger comparison vs upstream artifact-anchored `domain-modeling` rewording is
-  **ALREADY-PRESENT** (ours already name glossary / domain term / vocabulary) — one-shot, not
-  a re-evaluation trigger. Re-trigger: a mattpocock/skills release whose changeset names
-  `writing-for-agents`, OR a repo review/audit surfacing a new Skill-tool invocation of a
-  `disable-model-invocation: true` target.
+  Skill-tool invocation of those names (patterns such as "invoke `/plugin:skill` via the Skill
+  tool", "Call the Skill tool" + target, "Skill tool" + `:setup`). **Zero** Skill-tool
+  invocations of user-invoked-only targets. Human-relay phrasing ("tell the user to run /X",
+  "offering to run `/plugin:setup`") and Skill-tool hits on model-invocable skills
+  (`/toolchain:check`, `/implementation:implement-dispatch`, `/tdd:principles`,
+  `/session-flow:handoff`, `/testing:run-e2e`) are non-violations. Standing
+  `skill-quality:check` automation deferred (cross-plugin target resolution is not cheap under
+  the single skills-root model); doctrine lines live in `playbooks:skill-authoring` and
+  `skill-quality:check`. Canonical rewording if a future hit appears: "tell the user to run /X".
+  Same Lane X pass: C23 curate-language trigger comparison vs upstream artifact-anchored
+  `domain-modeling` rewording is **ALREADY-PRESENT** (ours already name glossary / domain term /
+  vocabulary) — one-shot, not a re-evaluation trigger. Re-trigger: a mattpocock/skills release
+  whose changeset names `writing-for-agents`, OR a repo review/audit surfacing a new Skill-tool
+  invocation of a `disable-model-invocation: true` target.
 
 ## Harness findings learned from this upstream (recheck-worthy)
 
