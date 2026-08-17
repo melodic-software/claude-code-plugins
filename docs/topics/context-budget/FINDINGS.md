@@ -8,9 +8,10 @@ date: 2026-08-17
 
 Nine dispatched research runs plus first-hand measurement on this machine. Every figure below is a
 **snapshot of Claude Code CLI v2.1.232 on 2026-08-17**, recorded as evidence for a design decision.
-Per [DESIGN-PRINCIPLES](../../../.work/startup-context-baseline/DESIGN-PRINCIPLES.md), none of these
+Per [DESIGN-PRINCIPLES](research/DESIGN-PRINCIPLES.md), none of these
 values may be shipped as skill content — the skill measures the consumer's own machine and cites the
-mechanism, never the number.
+mechanism, never the number. The full research corpus, including per-claim citation sidecars, lives
+in [research/](research/).
 
 ## Provenance and how to grade it
 

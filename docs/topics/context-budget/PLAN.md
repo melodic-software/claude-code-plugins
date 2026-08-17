@@ -140,6 +140,8 @@ deletion round provable.
 
 ## Related
 
-- Research artifacts: `.work/startup-context-baseline/` (nine run slices, `INDEX.md`,
-  `MEASUREMENTS.md`, `source-levers.md`, `DESIGN-PRINCIPLES.md`, interview ledger)
+- Research artifacts: [research/](research/) — the nine run slices plus `INDEX.md`,
+  `MEASUREMENTS.md`, `source-levers.md`, `DESIGN-PRINCIPLES.md`, and the interview ledger,
+  promoted from the session-scoped `.work/startup-context-baseline/` memory slice on 2026-08-17
+  because cloud containers are reclaimed and the citations feed Phase 3
 - [FINDINGS.md](FINDINGS.md) — evidence, provenance tiers, per-lever dispositions

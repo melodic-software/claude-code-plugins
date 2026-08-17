@@ -55,4 +55,7 @@ xdescribe = "xdescribe"
 # be spell-checked belong here. Minified bundles are the near-universal case.
 extend-exclude = [
   "*.min.*",
+  # Promoted research corpus: quotes minified binary internals verbatim as evidence
+  # (identifiers like nd(, dne, Fl); "correcting" them would falsify the citations.
+  "docs/topics/context-budget/research/",
 ]
