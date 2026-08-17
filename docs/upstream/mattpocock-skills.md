@@ -89,14 +89,12 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   `/testing:run-e2e`) are non-violations. Standing `skill-quality:check` automation deferred
   (cross-plugin target resolution is not cheap under the single skills-root model); doctrine
   lines live in `playbooks:skill-authoring` and `skill-quality:check`. Canonical rewording if a
-  future hit appears: "tell the user to run /X". Re-trigger: a mattpocock/skills release whose
-  changeset names `writing-for-agents`, OR a repo review/audit surfacing a new Skill-tool
-  invocation of a `disable-model-invocation: true` target.
-- **C23 curate-language trigger phrasing (#2940):** compared
-  `domain-driven-design:curate-language` Use-when triggers against upstream
-  `domain-modeling` artifact-anchored rewording (CONTEXT.md / ADR / terminology). Ours already
-  name concrete artifacts (`glossary`, `domain term`, `vocabulary`). **ALREADY-PRESENT** — no
-  SKILL.md change.
+  future hit appears: "tell the user to run /X". Same Lane X pass: C23 curate-language
+  trigger comparison vs upstream artifact-anchored `domain-modeling` rewording is
+  **ALREADY-PRESENT** (ours already name glossary / domain term / vocabulary) — one-shot, not
+  a re-evaluation trigger. Re-trigger: a mattpocock/skills release whose changeset names
+  `writing-for-agents`, OR a repo review/audit surfacing a new Skill-tool invocation of a
+  `disable-model-invocation: true` target.
 
 ## Harness findings learned from this upstream (recheck-worthy)
 
