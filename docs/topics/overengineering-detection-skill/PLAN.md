@@ -155,11 +155,23 @@ for implementers are in this plan, not the shipped file):
 5. Rediscovery — re-solve fresh, native/built-in-first (PLUGIN-PHILOSOPHY native-first gate);
    tech-drift check; invocation ≠ usage trap (hook components fire without invocation telemetry).
 6. Verdict ladder — KEEP / RETIRE / DOWNGRADE / CONSOLIDATE / UNPROVEN + FLAG-FOR-HUMAN cap;
-   refactor/removal/testing cost enters the verdict.
+   refactor/removal/testing cost enters the verdict. **Cap semantics stated explicitly**: the cap
+   applies to retirement-direction verdicts only (RETIRE/DOWNGRADE/CONSOLIDATE → FLAG-FOR-HUMAN);
+   a protected item with keep-supporting evidence stays KEEP with a protected marker — the cap
+   never hides KEEP evidence.
 7. Protected classes — security-class artifacts fully audited, verdict capped FLAG-FOR-HUMAN,
    consumer-configurable set (Chesterton's fence / absence-of-incident trap; RESEARCH F8; Knight
    Capital risk-side F9). Plus the **intentionally-dormant** class exempt from inactivity-based
-   retirement (kill switches, emergency guards — Piranha's own finding).
+   retirement (kill switches, emergency guards — Piranha's own finding). Ships a **default pattern
+   list** for the protected categories and an explicit tie-break: **when protection status is
+   uncertain, treat as protected** — a misclassified guard must fail toward the cap, never away
+   from it.
+7b. UNPROVEN triage — evidence availability varies wildly by consumer (this repo's telemetry/ADR
+   corpus is an outlier; the modal consumer has none). The report LEADS with an
+   evidence-availability assessment naming which tiers exist in this repo; when UNPROVEN
+   dominates, rank UNPROVEN items by carry cost (the F1 frame) and recommend a bounded ablation
+   batch (Piranha's batched, owner-routed precedent, F7) — never an undifferentiated UNPROVEN
+   wall with dozens of concurrent 30-day ablations.
 8. Analogical-thresholds table — alert accuracy <50% (Ewaschuk only), ~10% false-positive rate
    (Ewaschuk only), exercised less than ~quarterly (SRE book only), five-condition staleness gates
    (LaunchDarkly), inactivity windows (Piranha) — EVERY row labeled "analogical transfer from
@@ -176,8 +188,20 @@ for implementers are in this plan, not the shipped file):
 **`findings-artifact.md` must specify** (contract per `design/design-resolution.md` type sketch):
 frontmatter (`type: overengineering-findings`, `schema: 1`, `date`, `scope`, `branch`); stable
 content-hashed finding ids (finding-suppression id discipline); stable ordering (layer → path →
-id); per-finding fields (artifact, layer, verdict, evidence citations, intent, rediscovery, cost,
-status); status transitions owned by realign only; home resolved through the plugin's
+id); a **stable spine / free prose split** — the machine-stable fields (id, layer, artifact path,
+verdict, status) are line-formatted and diff-comparable across runs, while evidence/intent/
+rediscovery/cost prose is recomputed freely (this split is also the deferred delta lane's
+contract, #2898 — diffing full prose rows would report model noise); per-finding fields (artifact,
+layer, verdict, evidence citations, intent, rediscovery, cost, status); status vocabulary includes
+**DELEGATED-EXTERNAL** (accepted finding whose remediation lies outside this repo — org IaC,
+managed-file upstream — carrying a pointer to the delegation artifact: upstream PR, admin issue);
+status transitions owned by realign only; **durable judgment record** — an operator's accepted-keep
+or REJECTED judgment optionally persists as a suppression entry in the tracked
+`.claude/overengineering.md` per `docs/conventions/finding-suppression/` (content-hashed ids
+already match), written by realign behind the same per-item gate, so judgments survive branch
+switches, merges, and container reclaims — the memory-tier artifact alone is ephemeral by design;
+ABLATION-\* state likewise records a durable pointer (suppression entry or issue link); home
+resolved through the plugin's
 `reference/topic-docs.md` binding into the concern-scoped memory tier (never committed), with a
 **branch-keyed sub-path** (precedent: `.work/reviews/<branch-slug>/`) so concurrent
 branches/worktrees never clobber each other; **re-run merge semantics** — a re-audit carries
@@ -203,17 +227,27 @@ Consumer configuration goes through the **config-cascade convention**
 or empty the set" means the consuming repo (team-tracked), and the artifact protocol is explicit
 that `userConfig` "is not a coordination surface for repository artifacts" — a policy-class
 protected-set emptied silently in one operator's personal config would defeat the FLAG-FOR-HUMAN
-cap's purpose. A tracked `.claude/overengineering.md` concern file (with the cascade's `.local.md`
-personal overlay semantics) carries: protected-categories set (extend/narrow/empty), threshold
-overrides, observation-window. The README documents the shape; the skills read it through the
-cascade's documented resolution. No `userConfig` block ships in V1, so `plugin-options-docs-gate`
-is trivially green.
+cap's purpose. A tracked `.claude/overengineering.md` concern file carries: protected-categories
+set (extend/narrow/empty), threshold overrides, observation-window, and optional suppression
+entries (Phase 1's durable judgment record). **Merge form declared next to the keys** (a hard
+cascade rule): the protected-set and suppression keys are **policy-floor class** (ratified #649 —
+the team-tracked layer wins direct conflicts; personal `.local.md` layers may extend/tighten
+only, never empty or weaken; provenance reported when a personal layer contributes), because a
+gitignored overlay silently emptying the protected set would recreate the exact hole that
+disqualified `userConfig`; threshold/window keys use the ordinary refinement form. "Empty the
+set" (Brief-locked) stays possible — via the team-tracked layer, the reviewable place for it.
+Key ownership lives in the plugin's bundled `reference/consumer-config.md` (the cascade's
+boundary rule: the plugin's own bundled reference, not just a README section); the README
+summarizes and points. No `userConfig` block ships in V1, so `plugin-options-docs-gate` is
+trivially green.
 
 | File | Action | What |
 |------|--------|------|
 | `plugins/overengineering/.claude-plugin/plugin.json` | Create | name/description/version 0.1.0; no `userConfig` (config-cascade concern file instead, above) |
 | `plugins/overengineering/CHANGELOG.md` | Create | 0.1.0 entry, newest-first |
-| `plugins/overengineering/README.md` | Create | Plugin overview + consumer-config section documenting the `.claude/overengineering.md` concern-file shape |
+| `plugins/overengineering/README.md` | Create | Plugin overview + consumer-config summary pointing at `reference/consumer-config.md` |
+| `plugins/overengineering/reference/consumer-config.md` | Create | Owner doc for the `.claude/overengineering.md` keys: shape, merge forms (policy-floor vs refinement per key), suppression-entry format (finding-suppression contract) |
+| `docs/conventions/config-cascade/README.md` | Modify | Implementers-table row for the new surface: layers, merge form, policy-floor declaration |
 | `.claude-plugin/marketplace.json` | Modify | Catalog entry (`quality` or per `docs/CATALOG-TAXONOMY.md` fit) |
 | `plugins/overengineering/reference/topic-docs.md` | Create | Overengineering's OWN binding delta doc — structure modeled on `plugins/planning/reference/topic-docs.md`, content its own: names what THIS plugin writes (the findings artifact) with its tier/home row. The 8-plugin cluster DIFFERS by design; only artifact-protocol.md is byte-identical |
 | `plugins/overengineering/reference/artifact-protocol.md` | Create | Byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md` |
@@ -239,10 +273,10 @@ test-first analog for prose skills).
 
 | File | Action | What |
 |------|--------|------|
-| `plugins/overengineering/skills/audit/SKILL.md` | Create | Frontmatter (description with "Use when:" triggers, argument-hint, metadata.summary); body: invocation contract, surface walk order, verdict + report emission, neighbor routing |
-| `plugins/overengineering/skills/audit/context/surface-walk.md` | Create | Generic layer-by-layer walk: Claude hooks/settings/plugin components → repo + git hooks → CI workflows/gate scripts → branch protections (forge-API presence-gated, else OPEN-INTENT/unreadable rows) → forge apps/automations → standing instructions → declared external integrations. Per layer: discovery probes + evidence sources. CI granularity: lane-level verdicts, scripts + suppression files cited as lane evidence |
+| `plugins/overengineering/skills/audit/SKILL.md` | Create | Frontmatter (description with "Use when:" triggers, argument-hint, metadata.summary); body: invocation contract, surface walk order, verdict + report emission, neighbor routing. Invocation contract carries: a **scope/layer argument** (audit one layer or subset — the full ~100+-item walk of a mature repo exceeds one context; layer-scoped passes compose via the re-run merge semantics) and an **`unattended` argument** (selects OPEN-INTENT behavior; attended is the default — the harness gives a prose skill no reliable interactivity probe, so dispatched/scheduled callers own the flag) |
+| `plugins/overengineering/skills/audit/context/surface-walk.md` | Create | Generic layer-by-layer walk: Claude hooks/settings/plugin components → repo + git hooks → CI workflows/gate scripts → branch protections (forge-API presence-gated, else OPEN-INTENT/unreadable rows) → forge apps/automations → standing instructions → declared external integrations. Per layer: discovery probes + evidence sources. **Incremental artifact writes** — the artifact is written per layer as the walk proceeds (a partial artifact is a checkpoint; re-run merge semantics make resume natural; a context-exhausted run dies with its completed layers persisted). **Shallow-clone probe** up front (`git rev-parse --is-shallow-repository`) — on a shallow clone the history tier is reported *unavailable* (distinct from silent), so UNPROVEN verdicts cite the missing tier. CI granularity: lane-level verdicts by default, scripts + suppression files cited as lane evidence; a lane that aggregates multiple independent checks (its script's member list is mechanical evidence) gets per-member sub-verdicts inside the lane row — a single verdict cannot express "retire member A, keep member B" where clutter concentrates |
 | `plugins/overengineering/skills/audit/context/report-template.md` | Create | Layered output: findings artifact (SSOT, per Phase 1 contract) + inline terminal summary (always) + HTML view (presence-gated on the visualization plugin, documented fallback: skip) |
-| `plugins/overengineering/skills/audit/evals/evals.json` | Create | Scenarios: (1) bare invocation is read-only and says so; (2) docs-are-claims — header/comment claiming wiring is verified against actual settings, not believed; (3) protected-class item gets evidence + FLAG-FOR-HUMAN cap, never RETIRE; (4) silent artifact → UNPROVEN, not KEEP; (5) threshold cited with its analogical label; (6) unattended low-confidence intent → OPEN-INTENT row, no guess; (7) three liveness questions asked independently (wired-but-dead-at-runtime case) |
+| `plugins/overengineering/skills/audit/evals/evals.json` | Create | Scenarios: (1) bare invocation is read-only and says so; (2) docs-are-claims — header/comment claiming wiring is verified against actual settings, not believed; (3) protected-class item gets evidence + FLAG-FOR-HUMAN cap, never RETIRE; (4) silent artifact → UNPROVEN, not KEEP; (5) threshold cited with its analogical label; (6) unattended low-confidence intent → OPEN-INTENT row, no guess; (7) three liveness questions asked independently (wired-but-dead-at-runtime case); (8) no-telemetry repo → report leads with evidence-availability assessment and a carry-cost-ranked bounded ablation batch, not an undifferentiated UNPROVEN wall; (9) ambiguous guard (e.g. a hook blocking `--no-verify`) → protected tie-break applies the cap |
 | `scripts/skill-leaf-name-registry.txt` | Modify | Add `overengineering` to the existing `audit` owner set — in THIS phase's commit (the one creating the skill directory) so `--check` stays green on every pushed commit; `realign` is single-owner and deliberately unregistered |
 
 The audit resolves consumer configuration (protected set, thresholds, observation window) from the
@@ -269,7 +303,7 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 
 | File | Action | What |
 |------|--------|------|
-| `plugins/overengineering/skills/realign/SKILL.md` | Create | Consumes the findings artifact; missing artifact → stop with visible message naming `overengineering:audit` (protocol v2 missing-prerequisite rule). Per accepted finding: interview → explore/research → plan → implement via presence-gated skill composition (`/planning:interview`, `/discovery:explore`, `/discovery:research`, `/planning:plan`, `/implementation:implement`), each with a documented inline fallback. No mutation without explicit per-item user acceptance. Rollback ladder from `scrutiny-method.md` governs execution order (config-disable-first → observe → delete). UNPROVEN items route to the time-boxed ablation track; protected items surface FLAG-FOR-HUMAN evidence and require the human's own call; realign updates finding `status` fields (the artifact's only writer) |
+| `plugins/overengineering/skills/realign/SKILL.md` | Create | Consumes the findings artifact; missing artifact → stop with visible message naming `overengineering:audit` (protocol v2 missing-prerequisite rule). Per accepted finding: interview → explore/research → plan → implement via presence-gated skill composition (`/planning:interview`, `/discovery:explore`, `/discovery:research`, `/planning:plan`, `/implementation:implement`), each with a documented inline fallback. No mutation without explicit per-item user acceptance. Rollback ladder from `scrutiny-method.md` governs execution order (config-disable-first → observe → delete). UNPROVEN items route to the time-boxed ablation track; protected items surface FLAG-FOR-HUMAN evidence and require the human's own call; realign updates finding `status` fields (the artifact's only writer). Out-of-repo surfaces (org IaC, managed-file upstream — detected via the audit's custody reads): the flow produces a **delegation artifact** (upstream PR, admin issue, or written instructions) and sets `DELEGATED-EXTERNAL` with the pointer, never edits in-repo. Accepted-keep/REJECTED judgments are offered persistence as tracked suppression entries in `.claude/overengineering.md` (per-item gate; Phase 1 contract) so they survive branches and containers |
 | `plugins/overengineering/skills/realign/evals/evals.json` | Create | Scenarios: (1) no findings artifact → stop, names audit, no scan of its own; (2) per-item gate — user accepts item 2 of 3, only item 2 proceeds; (3) protected finding → presents evidence, asks, never auto-retires; (4) RETIRE execution proposes config-disable-first, not immediate deletion; (5) UNPROVEN → offers ablation track with observation window; (6) composition skill absent → visible manual fallback, not silent skip |
 
 **Sanity Check:**
@@ -305,10 +339,20 @@ incumbent-first: search for an existing owner before proposing remediation; cons
    - Findings artifact emitted; the dead `.claude/hooks/pr-linkage-mcp-gate.sh` and the wired
      source-control copy get INDEPENDENT liveness reads; report rows carry evidence citations or
      UNPROVEN.
-   - Run twice, with an explicit snapshot between: `cp` run 1's artifact to a scratch path BEFORE
-     run 2 (run 2 overwrites in place per the re-run merge semantics); then
-     `diff <(grep -v '^date:' run1-copy) <(grep -v '^date:' run2)` — empty (diffable, stable
-     ids/ordering; statuses carried forward).
+   - Layer-scoped passes are acceptable (the scope argument exists for exactly this); the full
+     surface need not fit one subagent context.
+   - Run the audited scope twice, with an explicit snapshot between: `cp` run 1's artifact to a
+     scratch path BEFORE run 2 (run 2 overwrites in place per the re-run merge semantics). The
+     diff asserts the **stable spine only** — extract and compare the line-formatted spine fields
+     (id, layer, artifact path, verdict, status), NOT full prose: two independent prose passes
+     will never be byte-identical, and live evidence sources (e.g. an appending telemetry log)
+     move between runs by design.
+   - **Carry-forward test**: between run 1 and run 2, hand-edit one finding's `status` to
+     ACCEPTED; assert it survives run 2 (this exercises the merge semantics the spine diff alone
+     cannot).
+   - **Human spot-check**: the run-1 artifact is read against the Brief's acceptance-criteria
+     list directly (evidence citations real? liveness questions independent? protected cap
+     applied?) — the greps prove token presence, not behavior.
 2. **Realign dry worked example**: feed the pr-linkage finding; walk to the per-item acceptance
    gate and STOP (no acceptance given) — `git status --porcelain` unchanged. The hook's actual
    disposition stays an audit outcome for the user, not a planning decision.
@@ -357,6 +401,8 @@ to code and are not in play here.
 | `realign` verb semantics contested in review | Low | Low | Verb-table row documents the contract precisely (consumes findings; per-item gate); mirrors the sanctioned `audit`-override grammar |
 | Contract-slice-prune gate on merge | Certain | Low | Close-out step: prune `docs/topics/overengineering-detection-skill/` before merge (PLAN.md pasted into PR body) |
 | Discovery corpus lost if container reclaimed before implementation | Med | Med | This plan carries the load-bearing findings inline; operator may `git add -f` the corpus (open housekeeping decision, §Handoff) |
+| Audit walk exhausts a session's context mid-run | Med | Med | Scope/layer argument + incremental per-layer artifact writes (a partial artifact is a checkpoint; resume via re-run merge) |
+| Operator judgments lost with the ephemeral memory-tier artifact | Med | High | Tracked suppression entries in `.claude/overengineering.md` (policy-floor class) behind the per-item gate |
 
 ## Blast radius
 
@@ -368,7 +414,31 @@ constrain future work), and the audit skill composes other skills. Formal stress
 
 ## Stress-test summary
 
-*(Step 4 pending — filled after `/planning:devils-advocate` dispatch)*
+Two fresh-context adversarial passes, both dispatched (never inline):
+
+**Pass 1 — plan reviewer (Step 3):** 1 CRITICAL + 3 IMPORTANT + 4 SUGGESTION, all verified against
+source and fixed — headline: the `reference/topic-docs.md` cluster DIFFERS by design (per-plugin
+binding delta docs), so the plan's original byte-identical copy would have documented another
+plugin's artifacts while leaving the findings home undefined; also leaf-name registry semantics,
+re-run merge semantics, config-cascade-not-userConfig, `lifecycleProtocolCopies`, portable greps.
+
+**Pass 2 — devils-advocate (Step 4):** 0 CRITICAL / 5 HIGH / 5 MEDIUM / 4 LOW; no finding attacked
+a Brief-locked decision; all folded in. The five HIGHs and their resolutions: (1) the run-twice
+byte-diff was unachievable against a correct implementation (prose recomputed fresh; live
+telemetry moves — verified: the firings log grew 328→1,882 lines between sessions) → stable-spine
+diff + explicit carry-forward test; (2) the ~120-item walk exceeds one subagent context → scope
+argument + incremental per-layer artifact writes + layer-scoped verification; (3) a `.local.md`
+overlay could silently empty the protected set under default cascade semantics → protected-set
+keys declared policy-floor class (ratified #649); (4) operator judgments lived only in an
+ephemeral branch-keyed memory file → tracked suppression entries per the finding-suppression
+contract, behind the per-item gate; (5) evidence-desert consumers would get an untriaged UNPROVEN
+wall → evidence-availability lead + carry-cost-ranked bounded ablation batches. MEDIUM/LOW fixes:
+aggregated-lane sub-verdicts, `unattended` flag, DELEGATED-EXTERNAL disposition, protected
+tie-break + default patterns, cascade Implementers registration, cap-vs-enum semantics,
+shallow-clone probe, human spot-check in Phase 6, stable-spine as the delta lane's contract.
+Elements that survived attack unchanged: the NOT-`review-findings` boundary, read-only proof
+mechanics, declined parallelism, verb/artifact-protocol fit, the research-discipline transfer.
+No research-iterate round needed — no contested external claims remained.
 
 ## Execution shape
 
@@ -404,6 +474,22 @@ None unresolved. The nine carried open questions are resolved by adopting their 
 7. Never-fired controls → UNPROVEN → time-boxed ablation; protected/intentionally-dormant exempt (RESEARCH-OQ2).
 8. Ownerless mechanisms → operator is owner of last resort (RESEARCH-OQ3).
 9. Rollback → config-disable-first ladder, ~30-day/one-release observation window, configurable (RESEARCH-OQ4).
+
+## Decisions made (gate-passed)
+
+Every decision below is /planning:plan's discretion within briefed scope, surfaced for override at
+approval; each traces to evidence read this session. Interviewed/briefed decisions do not appear.
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| Design gate satisfied by Tier B early-exit (`design/design-resolution.md`), no separate `/planning:design` run | Adds the design artifact; planning proceeded directly | The 14-decision interview locked every design thread (skill split Q14, ladder Q9, format Q12, protected classes Q13); the plugin is markdown-only with structure prescribed by marketplace conventions |
+| Findings artifact typed `overengineering-findings`, never `review-findings` | Phase 1 contract + an Alternatives row | `docs/conventions/detector-findings/README.md`: the fix relay selects purely on frontmatter type; routing consent-gated realignment through it launders the per-item gate |
+| Findings home: branch-keyed concern-scoped memory tier; tracked suppression entries carry operator judgments | Phase 1 contract; Phase 4 realign behavior; risk table | Topic-docs concern-home precedent (`.work/reviews/<branch-slug>/`); finding-suppression contract; devils-advocate #4 (ephemeral-home judgment loss) |
+| Consumer config via config-cascade concern file `.claude/overengineering.md`; protected-set keys policy-floor class; no `userConfig` | Phase 2 scope + cascade registration; Brief's "consumer-configurable" lands team-tracked | Artifact protocol bars `userConfig` as a repo coordination surface; cascade README policy-floor class (ratified #649); reviewer #4 + devils-advocate #3 |
+| All 9 carried open-question defaults adopted verbatim | §Open questions — no interview round needed | Defaults recorded in both open-questions files, produced under verification-PASSed discovery; prior session surfaced them to the user who pre-authorized proceeding |
+| Sequential single-lane execution; parallel SKILL.md authoring declined; sub-topic promotion declined; eval-first authoring inside Phases 3-4 | §Execution shape; Phases 3-4 ordering | The no-duplication acceptance criterion is a cross-file property between exactly the files parallel workers would author blind; one plugin/one PR; evals are this repo's test-first analog for prose skills (skill-quality evals-presence gate) |
+| Shipped files cite live literature; only PLAN cites the `.work/` corpus | Phase 1 authoring rule + sanity grep | Memory tier is machine-local and self-gitignored — a shipped `.work/` pointer dangles for every consumer (topic-docs pointer discipline) |
+| Formal stress-test run (blast radius MEDIUM) | Steps 3 + 4 both dispatched; §Stress-test summary | Stress-test trigger table: "new conventions or enforcement mechanisms" + "new skill composing other skills" both match |
 
 ## Handoff to implementation
 
