@@ -9,6 +9,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- README carries the generated options reference for `settings_write_ask_enabled` (owed since
+  the option shipped in 0.4.0; `scripts/sync-plugin-options-docs.py` gate).
+
 - Ledger run IDs are collision-safe: a same-second rerun of the same lever (or a re-appended
   row) now lands in a numbered-suffix run file instead of silently overwriting the earlier one —
   the one-file-per-run contract held only by luck before (PR review finding). Test added.
