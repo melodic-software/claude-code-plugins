@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # AI-slop findings for /ai-slop:audit. Read-only.
 #
-# Rules (plan phase 2 seed set; the full roster lands in phase 3):
-#   ai-slop/audit/rule-em-dash        zero-tolerance: any em dash in prose flags
-#   ai-slop/audit/rule-ai-vocabulary  AI-vocabulary density per 1000 words
+# Rules: the catalog entries with v1=script (reference/catalog.md is the
+# inventory; the severity crosswalk in the detector-findings convention holds
+# the argued tier per rule). Two rule classes:
+#   pattern  fires per prose line matching the rule's expression
+#   density  fires per file when matches per 1000 words reach the threshold
 #
 # Output: Finding rows (rule/file/line/fired/excerpt), then Summary rows with
 # per-rule finding and declined counts. All key=value, line-oriented.
@@ -14,16 +16,43 @@
 # lines and blocks are removed before any rule runs; exempted candidates are
 # counted as declined per rule, never silently dropped.
 #
-# Unicode: matching uses LC_ALL=C byte sequences (em dash = \xE2\x80\x94) and
-# POSIX ERE only, so behavior is identical across GNU and BSD grep and does
-# not depend on the host locale.
+# Unicode: matching uses LC_ALL=C byte sequences and POSIX ERE only, so
+# behavior is identical across GNU and BSD grep and independent of the host
+# locale. Em dash is \xE2\x80\x94; emoji classes are \xF0\x9F.. and
+# \xE2[\x98-\x9E\xAC\xAD]..; curly quotes and invisible-space residue are
+# \xE2\x80[\x98\x99\x9C\x9D\x8B] and \xC2\xA0.
 set -u
 
 EM_DASH=$'\xe2\x80\x94'
+EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
+CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
 DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring"
-DEFAULT_THRESHOLD_VOCAB="3.0"
+
+# --- Rule registry ---------------------------------------------------------------
+# Pattern rules: slug|fired label|case-insensitive(0/1)|ERE
+PATTERN_RULES=(
+  "rule-em-dash|zero-tolerance|0|${EM_DASH}"
+  "rule-emoji-formatting|formatting emoji|0|$(printf '\t')(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
+  "rule-curly-artifacts|unicode artifact|0|${CURLY_ERE}"
+  "rule-significance-inflation|phrase match|1|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
+  "rule-negative-parallelism|construction match|1|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
+  "rule-challenges-conclusion|formula match|1|(despite [^.]{0,80}(challenge|hurdle)|challenges (remain|ahead|persist)|faces (several|numerous|significant|ongoing) challenges)"
+  "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|(knowledge cutoff|as of my last (update|training)|i cannot browse|i do not have access to real|as an ai( language)? model)"
+  "rule-llm-citation-artifacts|citation residue|0|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
+  "rule-utm-params|tracking parameter|0|utm_[a-z]+="
+)
+# Density rules: slug|threshold key|default threshold|ERE (vocab ERE is built at runtime).
+# A density rule needs BOTH density >= threshold AND at least DENSITY_MIN_HITS
+# matches: short files otherwise fire on a single normal-prose occurrence
+# (measured on this repo: one triad in a 201-word doc hit 5.0/1000).
+DENSITY_MIN_HITS=3
+DENSITY_RULES=(
+  "rule-ai-vocabulary|ai_vocabulary|3.0|__VOCAB__"
+  "rule-copulative-avoidance|copulative_avoidance|4.0|(serves as|stands as|functions as|operates as|acts as a|represents a|marks a|boasts|features a|offers a|maintains a|refers to)"
+  "rule-rule-of-three|rule_of_three|3.0|[A-Za-z]+, [A-Za-z]+, and [A-Za-z]+"
+)
 
 PATHS_FILE=""
 TARGETS=()
@@ -107,9 +136,9 @@ HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 
 VOCAB="$DEFAULT_VOCAB"
-THRESHOLD_VOCAB="$DEFAULT_THRESHOLD_VOCAB"
 EXCLUDED_GLOBS=()
 EM_DASH_ALLOWED_GLOBS=()
+DISABLED_RULES=""
 
 # cfg_scalar <jq-path>: last layer that defines the key wins (per-key override).
 cfg_scalar() {
@@ -129,10 +158,17 @@ cfg_array() {
   printf '%s' "$out"
 }
 
+# threshold_for <threshold key> <default>: .thresholds.<key> from config, else default.
+threshold_for() {
+  local key="$1" default="$2" v
+  v="$(cfg_scalar ".thresholds.${key}")"
+  [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$default"
+}
+
 if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  v="$(cfg_scalar '.threshold_ai_vocabulary')" && [[ -n "$v" ]] && THRESHOLD_VOCAB="$v"
   read -r -a EXCLUDED_GLOBS <<<"$(cfg_array '.excluded_paths')"
   read -r -a EM_DASH_ALLOWED_GLOBS <<<"$(cfg_array '.em_dash_allowed_paths')"
+  DISABLED_RULES="$(cfg_array '.disabled_rules')"
   add="$(cfg_array '.vocab_add')"
   remove="$(cfg_array '.vocab_remove')"
   [[ -n "${add// /}" ]] && VOCAB="$VOCAB $add"
@@ -150,6 +186,15 @@ elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   echo "Note: jq not found; config layers present but unread, using defaults" >&2
 fi
 
+VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
+
+rule_disabled() {
+  case " $DISABLED_RULES " in
+  *" $1 "*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   echo "Config layers (later refines earlier):"
   if [[ "${#CFG_LAYERS[@]}" -eq 0 ]]; then
@@ -157,10 +202,14 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   else
     for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
   fi
-  echo "Effective: threshold_ai_vocabulary=$THRESHOLD_VOCAB"
+  for entry in "${DENSITY_RULES[@]}"; do
+    IFS='|' read -r slug key default _ <<<"$entry"
+    echo "Effective: threshold_${key}=$(threshold_for "$key" "$default") (rule $slug)"
+  done
   echo "Effective: vocab=$VOCAB"
   echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-}"
   echo "Effective: em_dash_allowed_paths=${EM_DASH_ALLOWED_GLOBS[*]:-}"
+  echo "Effective: disabled_rules=${DISABLED_RULES:-}"
   exit 0
 fi
 
@@ -182,7 +231,6 @@ if [[ "${#TARGETS[@]}" -eq 0 ]]; then
   done < <(git -C "$REPO_ROOT" ls-files '*.md' 2>/dev/null)
 fi
 
-# Sort unique, then apply --offset/--limit over the sorted list.
 mapfile -t TARGETS < <(printf '%s\n' ${TARGETS[@]+"${TARGETS[@]}"} | sort -u)
 if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
   end="${#TARGETS[@]}"
@@ -205,8 +253,7 @@ matches_glob() {
 
 # --- Prose extraction ------------------------------------------------------------
 # Emits "lineno<TAB>text" for prose lines; strips fenced code blocks, inline code
-# spans, and honors the ignore markers. Prints decline events to a side stream:
-#   DECLINE<TAB>line|block|file
+# spans, and honors the ignore markers. DECLINE rows record exempted candidates.
 extract_prose() {
   awk '
     BEGIN { fence = 0; ignored = 0 }
@@ -227,15 +274,32 @@ extract_prose() {
 
 # --- Scan ------------------------------------------------------------------------
 
-TOTAL_FINDINGS=0
+ALL_RULES=()
+for entry in "${PATTERN_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
+for entry in "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
+
+declare -A FINDINGS DECLINED
+for slug in "${ALL_RULES[@]}"; do
+  FINDINGS[$slug]=0
+  DECLINED[$slug]=0
+done
+
+decline_all_rules() {
+  local n="$1" slug
+  for slug in "${ALL_RULES[@]}"; do
+    DECLINED[$slug]=$((DECLINED[$slug] + n))
+  done
+}
+
 TOTAL_FILES=0
 DECLINED_FILES=0
-DECL_EM_DASH=0
-DECL_VOCAB=0
-FIND_EM_DASH=0
-FIND_VOCAB=0
 
-VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
+emit_finding() {
+  # emit_finding <slug> <rel> <lineno> <fired> <excerpt>
+  printf 'Finding: rule=ai-slop/audit/%s file=%s line=%s fired=%s excerpt=%s\n' \
+    "$1" "$2" "$3" "$4" "$5"
+  FINDINGS[$1]=$((FINDINGS[$1] + 1))
+}
 
 for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   [[ -f "$file" ]] || continue
@@ -243,8 +307,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
 
   if [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}"; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
-    DECL_EM_DASH=$((DECL_EM_DASH + 1))
-    DECL_VOCAB=$((DECL_VOCAB + 1))
+    decline_all_rules 1
     continue
   fi
 
@@ -254,8 +317,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   case "$prose" in
   DECLINE$'\t'file*)
     DECLINED_FILES=$((DECLINED_FILES + 1))
-    DECL_EM_DASH=$((DECL_EM_DASH + 1))
-    DECL_VOCAB=$((DECL_VOCAB + 1))
+    decline_all_rules 1
     continue
     ;;
   *) ;;
@@ -263,43 +325,54 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
 
   declines="$(printf '%s\n' "$prose" | LC_ALL=C grep -c '^DECLINE' || true)"
   prose="$(printf '%s\n' "$prose" | LC_ALL=C grep -v '^DECLINE' || true)"
+  [[ "$declines" -gt 0 ]] && decline_all_rules "$declines"
 
-  # rule-em-dash: zero tolerance unless the document is allow-listed.
-  if [[ "${#EM_DASH_ALLOWED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EM_DASH_ALLOWED_GLOBS[@]}"; then
-    DECL_EM_DASH=$((DECL_EM_DASH + 1))
-  else
+  # Pattern rules: one finding per matching prose line.
+  for entry in "${PATTERN_RULES[@]}"; do
+    IFS='|' read -r slug label ci ere <<<"$entry"
+    rule_disabled "$slug" && continue
+    if [[ "$slug" == "rule-em-dash" && "${#EM_DASH_ALLOWED_GLOBS[@]}" -gt 0 ]] &&
+      matches_glob "$file" "${EM_DASH_ALLOWED_GLOBS[@]}"; then
+      DECLINED[$slug]=$((DECLINED[$slug] + 1))
+      continue
+    fi
+    flags=(-E)
+    [[ "$ci" == "1" ]] && flags+=(-i)
     while IFS=$'\t' read -r lineno text; do
       [[ -z "$lineno" ]] && continue
       excerpt="$(printf '%s' "$text" | cut -c1-80 | tr '|' '/')"
-      printf 'Finding: rule=ai-slop/audit/rule-em-dash file=%s line=%s fired=zero-tolerance excerpt=%s\n' \
-        "$rel" "$lineno" "$excerpt"
-      FIND_EM_DASH=$((FIND_EM_DASH + 1))
-    done < <(printf '%s\n' "$prose" | LC_ALL=C grep -- "$EM_DASH" || true)
-  fi
+      emit_finding "$slug" "$rel" "$lineno" "$label" "$excerpt"
+    done < <(printf '%s\n' "$prose" | LC_ALL=C grep "${flags[@]}" -- "$ere" || true)
+  done
 
-  # rule-ai-vocabulary: density per 1000 words against the effective threshold.
+  # Density rules: one finding per file when density reaches the threshold.
   words="$(printf '%s\n' "$prose" | cut -f2- | wc -w | tr -d ' ')"
   if [[ "$words" -gt 0 ]]; then
-    hits="$(printf '%s\n' "$prose" | cut -f2- | LC_ALL=C grep -E -o -i -w "$VOCAB_ERE" | wc -l | tr -d ' ')"
-    density="$(awk -v h="$hits" -v w="$words" 'BEGIN { printf "%.1f", (h * 1000) / w }')"
-    over="$(awk -v d="$density" -v t="$THRESHOLD_VOCAB" 'BEGIN { print (d >= t) ? 1 : 0 }')"
-    if [[ "$hits" -gt 0 && "$over" -eq 1 ]]; then
-      first_line="$(printf '%s\n' "$prose" | LC_ALL=C grep -E -i -w -m1 "$VOCAB_ERE" | cut -f1)"
-      printf 'Finding: rule=ai-slop/audit/rule-ai-vocabulary file=%s line=%s fired=density %s/1000 words, threshold %s (%s hits in %s words) excerpt=vocabulary density\n' \
-        "$rel" "${first_line:-1}" "$density" "$THRESHOLD_VOCAB" "$hits" "$words"
-      FIND_VOCAB=$((FIND_VOCAB + 1))
-    fi
-  fi
-
-  if [[ "$declines" -gt 0 ]]; then
-    DECL_EM_DASH=$((DECL_EM_DASH + declines))
-    DECL_VOCAB=$((DECL_VOCAB + declines))
+    for entry in "${DENSITY_RULES[@]}"; do
+      IFS='|' read -r slug key default ere <<<"$entry"
+      rule_disabled "$slug" && continue
+      [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
+      threshold="$(threshold_for "$key" "$default")"
+      hits="$(printf '%s\n' "$prose" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
+      [[ "$hits" -lt "$DENSITY_MIN_HITS" ]] && continue
+      density="$(awk -v h="$hits" -v w="$words" 'BEGIN { printf "%.1f", (h * 1000) / w }')"
+      over="$(awk -v d="$density" -v t="$threshold" 'BEGIN { print (d >= t) ? 1 : 0 }')"
+      if [[ "$over" -eq 1 ]]; then
+        first_line="$(printf '%s\n' "$prose" | LC_ALL=C grep -E -i -m1 -- "$ere" | cut -f1)"
+        emit_finding "$slug" "$rel" "${first_line:-1}" \
+          "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
+          "density rule"
+      fi
+    done
   fi
 done
 
-TOTAL_FINDINGS=$((FIND_EM_DASH + FIND_VOCAB))
-
-echo "Summary rule=ai-slop/audit/rule-em-dash findings=$FIND_EM_DASH declined=$DECL_EM_DASH"
-echo "Summary rule=ai-slop/audit/rule-ai-vocabulary findings=$FIND_VOCAB declined=$DECL_VOCAB"
+TOTAL_FINDINGS=0
+for slug in "${ALL_RULES[@]}"; do
+  disabled=0
+  rule_disabled "$slug" && disabled=1
+  echo "Summary rule=ai-slop/audit/$slug findings=${FINDINGS[$slug]} declined=${DECLINED[$slug]} disabled=$disabled"
+  TOTAL_FINDINGS=$((TOTAL_FINDINGS + FINDINGS[$slug]))
+done
 echo "Summary total: $TOTAL_FINDINGS findings across $TOTAL_FILES files scanned ($DECLINED_FILES files declined)"
 exit 0

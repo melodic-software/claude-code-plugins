@@ -41,6 +41,24 @@ qualified id used in crosswalk rows and findings files is `ai-slop/audit/rule-<s
 - **v1**: `script` (implemented in detect.sh), `rubric` (skill judgment layer), or
   `recorded-only` (catalogued, not run; reason given).
 
+## Calibration record (V1)
+
+Calibrated 2026-08-17 against this marketplace's tracked markdown (1161 files) with neutral
+defaults. Outcomes:
+
+- All 12 `v1: script` rules ship; none demoted.
+- Density rules gained a minimum-hits floor (3) after short files fired on a single
+  normal-prose occurrence (one triad in a 201-word document hit 5.0/1000 words).
+- `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
+  knowledge cutoffs (documentation discussing models). Remedy is the in-file marker or config
+  exclusion, recorded here rather than weakening the rule.
+- `rule-em-dash` fired 32,323 times on the calibration corpus; that is the corpus's deliberate
+  house style, handled by that repo's own config when dogfooding, and confirms the shipped
+  default must stay neutral (zero-tolerance) rather than inherit any one repo's taste.
+- `rule-negative-parallelism` ships without the source's third pattern ("X rather than Y"):
+  too common in ordinary technical prose to fire on occurrence, recorded for post-V1
+  density treatment.
+
 ## Content
 
 ### rule-significance-inflation: Undue emphasis on significance, legacy, and broader trends

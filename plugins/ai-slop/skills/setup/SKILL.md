@@ -20,7 +20,8 @@ tuning in `.claude/ai-slop.json`, resolved per the config-cascade convention: us
 | `em_dash_allowed_paths` | glob list | Documents exempt from the zero-tolerance em-dash rule |
 | `vocab_add` | word list | Additions to the AI-vocabulary list |
 | `vocab_remove` | word list | Removals from the AI-vocabulary list |
-| `threshold_ai_vocabulary` | number | Matches per 1000 words that fire the vocabulary rule |
+| `disabled_rules` | rule slugs | Rules the audit skips entirely (reported as disabled) |
+| `thresholds` | map | Per-rule density thresholds: `ai_vocabulary`, `copulative_avoidance`, `rule_of_three` (matches per 1000 words; density rules also need at least 3 matches) |
 
 ## Flow
 

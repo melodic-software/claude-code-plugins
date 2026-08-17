@@ -38,6 +38,9 @@ assert_not_contains() {
 }
 
 EM=$'\xe2\x80\x94'
+CHECKMARK=$'\xe2\x9c\x85'
+LQUO=$'\xe2\x80\x9c'
+RQUO=$'\xe2\x80\x9d'
 
 # --- Fixtures (built inline) ----------------------------------------------------
 
@@ -54,8 +57,24 @@ CLEAN="$TEST_TMPDIR/clean.md"
 cat >"$CLEAN" <<'EOF'
 # Release notes
 
-The parser now accepts empty input. Tests cover the three failure paths.
-See the changelog for upgrade steps.
+The parser now accepts empty input. Tests cover the failure paths one by one.
+See the changelog for upgrade steps. Nothing else changed in this release.
+EOF
+
+ALLRULES="$TEST_TMPDIR/allrules.md"
+cat >"$ALLRULES" <<EOF
+# Every pattern rule
+
+- ${CHECKMARK} an emoji bullet line
+Some ${LQUO}curly quoted${RQUO} text here.
+It is not just fast, but also correct in every case.
+Despite its growth, the project faces significant challenges ahead.
+As of my knowledge cutoff, this was true.
+A leaked marker oaicite:12 sits here.
+See https://example.com/?utm_source=chatgpt for details.
+It serves as a hub. It stands as a marker. It functions as a portal.
+The tool is fast, simple, and reliable. Cheap, quick, and easy too. It reads
+clean, tight, and portable in every shell we tried this week.
 EOF
 
 MARKED="$TEST_TMPDIR/marked.md"
@@ -70,7 +89,7 @@ cat >"$FENCED" <<EOF
 # Code fences
 
 \`\`\`text
-An em dash inside a fence ${EM} stays exempt.
+An em dash inside a fence ${EM} stays exempt. So does ${CHECKMARK}.
 \`\`\`
 
 And one in inline code: \`a ${EM} b\` also stays exempt.
@@ -82,32 +101,59 @@ cat >"$FILEMARK" <<EOF
 Full of em dashes ${EM} and delve, tapestry, pivotal, crucial vocabulary.
 EOF
 
-# --- Cases ----------------------------------------------------------------------
+MIDEMOJI="$TEST_TMPDIR/midemoji.md"
+cat >"$MIDEMOJI" <<EOF
+# Emoji in content position
+
+The reaction was ${CHECKMARK} from the whole team.
+EOF
+
+# --- Seed-rule cases -------------------------------------------------------------
 
 out="$(bash "$DETECT" "$SLOP" 2>&1)"
 rc=$?
 assert_exit "slop fixture: exit 0" 0 "$rc"
-assert_contains "slop fixture: em-dash rule fires" "$out" "rule=ai-slop/audit/rule-em-dash"
-assert_contains "slop fixture: em-dash fired condition is zero-tolerance" "$out" "fired=zero-tolerance"
-assert_contains "slop fixture: vocabulary rule fires" "$out" "rule=ai-slop/audit/rule-ai-vocabulary"
-assert_contains "slop fixture: vocabulary fired condition carries threshold" "$out" "threshold 3.0"
+assert_contains "slop: em-dash fires" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+assert_contains "slop: em-dash condition is zero-tolerance" "$out" "fired=zero-tolerance"
+assert_contains "slop: vocabulary fires" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
+assert_contains "slop: vocabulary condition carries threshold" "$out" "threshold 3.0"
 
 out="$(bash "$DETECT" "$CLEAN" 2>&1)"
 rc=$?
 assert_exit "clean fixture: exit 0" 0 "$rc"
-assert_not_contains "clean fixture: no findings" "$out" "Finding:"
+assert_not_contains "clean fixture: no findings from any rule" "$out" "Finding:"
 assert_contains "clean fixture: summary reports zero" "$out" "Summary total: 0 findings"
+
+# --- Full-roster pattern rules ---------------------------------------------------
+
+out="$(bash "$DETECT" "$ALLRULES" 2>&1)"
+assert_contains "roster: emoji-formatting fires on bullet line" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
+assert_contains "roster: curly-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-curly-artifacts"
+assert_contains "roster: negative-parallelism fires" "$out" "Finding: rule=ai-slop/audit/rule-negative-parallelism"
+assert_contains "roster: challenges-conclusion fires" "$out" "Finding: rule=ai-slop/audit/rule-challenges-conclusion"
+assert_contains "roster: knowledge-cutoff fires" "$out" "Finding: rule=ai-slop/audit/rule-knowledge-cutoff-disclaimer"
+assert_contains "roster: citation-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-llm-citation-artifacts"
+assert_contains "roster: utm-params fires" "$out" "Finding: rule=ai-slop/audit/rule-utm-params"
+assert_contains "roster: copulative-avoidance density fires" "$out" "Finding: rule=ai-slop/audit/rule-copulative-avoidance"
+assert_contains "roster: rule-of-three density fires" "$out" "Finding: rule=ai-slop/audit/rule-rule-of-three"
+
+out="$(bash "$DETECT" "$MIDEMOJI" 2>&1)"
+assert_not_contains "emoji negative: content-position emoji does not fire the formatting rule" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
+
+# --- Exemptions ------------------------------------------------------------------
 
 out="$(bash "$DETECT" "$MARKED" 2>&1)"
 assert_not_contains "line marker: em dash on marked line not flagged" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 assert_contains "line marker: declined count nonzero" "$out" "declined=1"
 
 out="$(bash "$DETECT" "$FENCED" 2>&1)"
-assert_not_contains "fences: fenced and inline-code em dashes not flagged" "$out" "Finding:"
+assert_not_contains "fences: fenced and inline-code content not flagged" "$out" "Finding:"
 
 out="$(bash "$DETECT" "$FILEMARK" 2>&1)"
 assert_not_contains "file marker: whole file exempt" "$out" "Finding:"
 assert_contains "file marker: counted as declined file" "$out" "(1 files declined)"
+
+# --- CLI contract ----------------------------------------------------------------
 
 out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/nope" 2>&1)"
 rc=$?
@@ -122,23 +168,33 @@ printf '%s\n%s\n' "$SLOP" "$CLEAN" >"$pf"
 out="$(bash "$DETECT" --paths-file "$pf" --offset 0 --limit 1 2>&1)"
 assert_contains "chunking: limit 1 scans one file" "$out" "across 1 files scanned"
 
+# --- Config cascade --------------------------------------------------------------
+
 cfgdir="$TEST_TMPDIR/repo/.claude"
 mkdir -p "$cfgdir"
 cp "$SLOP" "$TEST_TMPDIR/repo/allowed.md"
 cat >"$cfgdir/ai-slop.json" <<'EOF'
-{ "em_dash_allowed_paths": ["allowed.md"], "threshold_ai_vocabulary": 999 }
+{
+  "em_dash_allowed_paths": ["allowed.md"],
+  "thresholds": { "ai_vocabulary": 999, "copulative_avoidance": 999, "rule_of_three": 999 },
+  "disabled_rules": ["rule-significance-inflation"]
+}
 EOF
 out="$(cd "$TEST_TMPDIR/repo" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/repo" bash "$DETECT" "$TEST_TMPDIR/repo/allowed.md" 2>&1)"
 assert_not_contains "config: em_dash_allowed_paths exempts the document" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 assert_not_contains "config: raised threshold silences vocabulary rule" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
+assert_not_contains "config: disabled rule emits no findings" "$out" "Finding: rule=ai-slop/audit/rule-significance-inflation"
+assert_contains "config: disabled rule reported in summary" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 disabled=1"
 
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "show-config: names the supplying layer" "$out" "$cfgdir/ai-slop.json"
 assert_contains "show-config: effective threshold shown" "$out" "threshold_ai_vocabulary=999"
+assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-significance-inflation"
 
-# Portability probe: identical output under LC_ALL=C and the default locale.
-a="$(bash "$DETECT" "$SLOP" 2>&1)"
-b="$(LC_ALL=C bash "$DETECT" "$SLOP" 2>&1)"
+# --- Portability -----------------------------------------------------------------
+
+a="$(bash "$DETECT" "$ALLRULES" 2>&1)"
+b="$(LC_ALL=C bash "$DETECT" "$ALLRULES" 2>&1)"
 if [[ "$a" == "$b" ]]; then
   pass "portability: output identical under LC_ALL=C"
 else

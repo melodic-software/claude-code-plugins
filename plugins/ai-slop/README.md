@@ -35,7 +35,8 @@ overlay; later layers refine earlier ones per key):
   "em_dash_allowed_paths": ["docs/style-guide.md"],
   "vocab_add": ["utilize"],
   "vocab_remove": ["landscape"],
-  "threshold_ai_vocabulary": 3.0
+  "disabled_rules": ["rule-rule-of-three"],
+  "thresholds": { "ai_vocabulary": 3.0, "copulative_avoidance": 4.0, "rule_of_three": 3.0 }
 }
 ```
 
