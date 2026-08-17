@@ -134,7 +134,7 @@ implementation.
 | Config cascade | `docs/conventions/config-cascade/README.md` three-layer shape: `.claude/improvement.md` (team, tracked) + `.claude/improvement.local.md` (gitignored overlay) + `~/.claude/improvement.md` (user-global); `codebase-health` as the in-fleet precedent | team |
 | Setup requirement | `docs/PLUGIN-PHILOSOPHY.md` § "Setup is explicit and repeatable" — required here via criterion (a): consumer-project configuration surface | team |
 
-### Phase 1: Plugin scaffold + registration [TODO]
+### Phase 1: Plugin scaffold + registration [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
