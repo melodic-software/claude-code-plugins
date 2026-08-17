@@ -99,7 +99,7 @@ Mechanical changes with codebase-wide blast radius (rename a persisted column, r
 
 Each step is its own ticket with blocking edges (contract blocked by every migrate batch; migrate batches blocked by expand). Caveat: shared integration points (a wire format, a persisted schema) may pin expand + contract to a coordinated window — say so in the ticket body.
 
-**Integration-branch fallback.** When migrate batches cannot land green on the default branch independently (shared runtime, coupled deploy, dual-write that cannot be isolated), keep the expand → migrate → contract sequence but share **one integration branch** that every batch targets, and add a final **integrate-and-verify** item blocked by all of them — green is promised only there. This is a fallback, not a replacement: default remains expand → migrate → contract.
+**Integration-branch fallback.** When migrate batches cannot land green on the default branch independently (shared runtime, coupled deploy, dual-write that cannot be isolated), keep the expand → migrate → contract sequence but share **one integration branch** that every batch targets, and add a final **integrate-and-verify** item blocked by all of them — green is promised only there. This is a fallback, not a replacement: default remains expand → migrate → contract. `/work-items:work` still provisions each item's worktree from the default branch and opens PRs against the default branch, so these fallback items are **not** executable on the standard work path — they require a separate integration-branch workflow (operator-driven shared branch and PR retarget) until a dedicated execution path exists. Do not rewrite `/work-items:work` to target the integration branch.
 
 ### 3. Present for approval
 

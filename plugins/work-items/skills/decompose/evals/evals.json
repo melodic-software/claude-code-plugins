@@ -34,12 +34,13 @@
       "id": 3,
       "name": "prefactor-window-frontier-and-integration-fallback",
       "prompt": "/work-items:decompose — the plan needs a rename of a persisted column across many call sites, plus a follow-on feature that is easier after a small extract-method prefactor. The migrate batches cannot each merge green on the default branch.",
-      "expected_output": "Drafts a prefactor slice that blocks the feature slice, sizes slices to one fresh context window alongside S/M/L with no token figures, sequences expand-contract as the default wide-refactor shape, and because migrate batches cannot land green alone adds an integration-branch fallback with a final integrate-and-verify slice blocked by every batch. The approval list is ordered unblocked-first (work the frontier). After publish, the report says to work the frontier first. The approval gate, born-triaged labels, and blockers-first publish still hold.",
+      "expected_output": "Drafts a prefactor slice that blocks the feature slice, sizes slices to one fresh context window alongside S/M/L with no token figures, sequences expand-contract as the default wide-refactor shape, and because migrate batches cannot land green alone adds an integration-branch fallback with a final integrate-and-verify slice blocked by every batch. Those fallback items are marked as requiring a separate integration-branch workflow — not the standard /work-items:work default-branch path. The approval list is ordered unblocked-first (work the frontier). After publish, the report says to work the frontier first. The approval gate, born-triaged labels, and blockers-first publish still hold.",
       "files": [],
       "expectations": [
         "Emits a prefactor slice and lists it as a blocker of the slices it unblocks",
         "Uses one-fresh-context-window sizing alongside S/M/L and does not cite token-count folklore",
         "Keeps expand-contract as the default and adds an integration-branch fallback with a final integrate-and-verify slice when batches cannot land green alone",
+        "Marks those fallback items as requiring a separate integration-branch workflow rather than the standard /work-items:work default-branch path",
         "Presents unblocked slices first (work the frontier) and reports that order after publish",
         "Holds the approval gate, publishes blockers-first, and leaves items born triaged"
       ]

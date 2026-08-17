@@ -40,7 +40,7 @@ PARTIAL / REJECTED / OPEN.
 | Lane | Course concept | Candidates | Our surface | Verdict | Item |
 |---|---|---|---|---|---|
 | A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | OPEN | #2934 |
-| B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED (C5–C8, C17) | #2935 |
+| B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED | #2935 |
 | C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
 | D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | OPEN | #2949 |
@@ -58,7 +58,7 @@ Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
 
 - **C5 ADOPTED**: prefactor look-ahead at decompose time ("make the change easy, then make the easy change"); prefactor slices are blockers of the slices they unblock. Qualitative — no token folklore.
 - **C6 ADOPTED**: "one fresh context window" granularity bar alongside S/M/L. Qualitative only; folklore token figures remain excluded-by-default.
-- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b).
+- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch.
 - **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
 - **C17 ADOPTED**: PR-variant brief in `plugins/work-items/reference/agent-brief.md` (current-behavior-of-the-diff, finish-what-exists). Does not replace the bug/feature template.
 
