@@ -75,6 +75,10 @@ Apply this template when:
 
 The brief can be the issue body itself or posted as a comment (prefixed with `## Agent Brief` heading so agents can locate it).
 
+### PR-variant briefs
+
+When the item is a pull request (or an issue whose work is "finish the attached diff"), keep the same heading and sections, and fill **Current behavior** from the diff as it stands today and **Desired behavior** as finish-what-exists: what remaining review/CI/acceptance still has to hold. Do not re-specify a greenfield feature the PR already started.
+
 ## Anti-patterns
 
 | Bad | Why | Fix |

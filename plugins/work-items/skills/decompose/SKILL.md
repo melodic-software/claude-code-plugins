@@ -63,6 +63,8 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 - A completed slice is demoable or verifiable on its own
 - Prefer many thin slices over few thick ones
 - Slices map to PLAN.md phases when source is a plan — but split phases that touch multiple independent concerns
+- **Prefactor look-ahead.** If making a slice easy requires a prior structural change, emit that prefactor as its own slice and list it in "Blocked by" for the slices it unblocks ("make the change easy, then make the easy change")
+- **Window sizing.** Calibrate granularity so each slice is one fresh context window of work, alongside the S/M/L bar in the approval list — qualitative, no token figures
 
 **Classify each slice:**
 
@@ -95,6 +97,8 @@ Mechanical changes with codebase-wide blast radius (rename a persisted column, r
 
 Each step is its own ticket with blocking edges (contract blocked by every migrate batch; migrate batches blocked by expand). Caveat: shared integration points (a wire format, a persisted schema) may pin expand + contract to a coordinated window — say so in the ticket body.
 
+**Integration-branch fallback.** When migrate batches cannot land green on the default branch alone, share one integration branch and add a final integrate-and-verify slice that every batch blocks. This is a fallback, not the default — expand-contract still applies when each batch can merge green independently.
+
 ### 3. Present for approval
 
 Present the proposed breakdown as a numbered list. For each slice:
@@ -103,11 +107,12 @@ Present the proposed breakdown as a numbered list. For each slice:
 - **Type**: HITL / AFK
 - **Blocked by**: which other slices (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
-- **Estimated scope**: S / M / L
+- **Estimated scope**: S / M / L, plus whether it fits one fresh context window
+- **Frontier**: whether the slice is unblocked now (work the frontier first)
 
 Ask the user:
 
-- Does the granularity feel right? (too coarse / too fine)
+- Does the granularity feel right? (too coarse / too fine; one-window bar)
 - Are dependency relationships correct?
 - Should any slices be merged or split?
 - Are HITL/AFK classifications correct?
@@ -175,4 +180,4 @@ Items published here are **born triaged**: they enter the tracker classified, ro
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, suggested execution order.
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, and the suggested execution order — **work the frontier** (unblocked slices first).

@@ -40,7 +40,7 @@ PARTIAL / REJECTED / OPEN.
 | Lane | Course concept | Candidates | Our surface | Verdict | Item |
 |---|---|---|---|---|---|
 | A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | OPEN | #2934 |
-| B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | OPEN | #2935 |
+| B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | PARTIAL (C5 prefactor, C6 one-window bar, C7 integration-branch fallback, C8 work-the-frontier, C17 PR-variant brief) | #2935 |
 | C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
 | D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | OPEN | #2949 |

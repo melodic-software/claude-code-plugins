@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.27]
+
+### Changed
+
+- **`decompose`:** prefactor slices as blockers, one-fresh-window sizing beside
+  S/M/L (no token folklore), integration-branch fallback when expand-contract
+  batches cannot land green alone, "work the frontier" in the report, and a
+  PR-variant agent brief (current-behavior-of-the-diff / finish-what-exists)
+  (#2935).
+
 ## [0.35.26]
 
 ### Changed
