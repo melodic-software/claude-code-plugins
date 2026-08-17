@@ -322,8 +322,9 @@ claim's `lease_comment_id`) rather than relying on push activity (`/work-items:w
 
 ## Containers and state
 
-Two axes, one item model: a **container** is an ordinary item carrying the `work-map`
-label (a navigable graph root — wayfind maps, decompose breakdowns); **state** is the
+Two axes, one item model: a **container** is an ordinary item carrying the container
+label (default `work-map`; a navigable graph root — wayfind maps, decompose breakdowns);
+**state** is the
 provider's native open/closed. Containers are never claimable by workers (no
 `agent-ready`), so **a container is never its own frontier item**: `list-frontier` excludes
 any item carrying the container label, unconditionally (global and `--parent`-scoped alike).

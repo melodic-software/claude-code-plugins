@@ -27,7 +27,7 @@
     "decompose_container_publish": {
       "type": "boolean",
       "title": "Pre-select spec-container publish at decompose approval",
-      "description": "When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns (the Brief published as a work-map container item, slices as native sub-items). The approval gate itself is unchanged and mandatory — this key changes the offered default answer, never bypasses approval. Leave unset (or false) for the default plain ask with a default answer of no; this key declares no default so an unset value stays distinguishable from a configured one."
+      "description": "When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns (the Brief published as a container item carrying the binding-resolved container label, default work-map, with slices as native sub-items). The approval gate itself is unchanged and mandatory — this key changes the offered default answer, never bypasses approval. Leave unset (or false) for the default plain ask with a default answer of no; this key declares no default so an unset value stays distinguishable from a configured one."
     },
     "work_dispatch_concurrency_cap": {
       "type": "number",

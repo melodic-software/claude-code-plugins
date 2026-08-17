@@ -222,6 +222,13 @@ coordination provider instead of publishing a spec that cannot travel.
 - **Slices**: publish per Step 4 with `--parent "<container-id>"`; blockers-first ordering,
   born-triaged, and the `## Parent` body section (`Refs #<container>`) are unchanged.
   `list-frontier --parent <container-id>` then scopes the workable frontier to this container.
+- **Record the pointer**: immediately after creating the container, write its reference back
+  into the source document — a `**Spec container:** <qualified-id>` line directly under the
+  `## Brief` heading of the topic's PLAN.md (or, for an item/conversation source, into the
+  Step 5 report and a comment on the source item). Close-out runs at PR time, often in a
+  fresh session — this recorded line is what its presence gate reads; in-session memory does
+  not survive to it. The fallback discovery path (no line found) is a tracker query for an
+  open item carrying the binding-resolved container label whose body cites the topic slug.
 
 **Ship ritual — close at ship, archival by closure.** The container closes when the work ships:
 every sub-item closed, the plan's PR-time close-out done (`/planning:plan close-out` routes its
