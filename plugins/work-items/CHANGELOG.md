@@ -3,6 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.26]
+
+### Changed
+
+- **Naming:** "work item" stays canonical; `track` and `work` Use-when triggers
+  now include ticket/issue synonyms (`add a ticket`, `list tickets`, `close a
+  ticket`, `work the next ticket`/`issue`, `grab the next ticket`). Documented
+  once in this plugin's README. Course SSOT cross-linked from the skills-repo
+  SSOT; v1.2 map rows for `to-tickets` / `triage` / `wayfinder` record
+  absorption under those names (#2947).
+
 ## [0.35.25]
 
 ### Changed
