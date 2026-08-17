@@ -19,7 +19,7 @@ verifies you absorbed a completed change.
 
 - **`/education:teach topic <subject>`** — learn a general subject from external
   high-trust sources (books, courses, docs, communities).
-- **`/education:teach codebase <concept>`** — learn a concept grounded in the
+- **`/education:teach codebase <topic>`** — learn a concept grounded in the
   repository you launch it from. It discovers the repo's own docs, conventions,
   and source at teach-time and teaches from what it finds — nothing about the
   project is assumed.
