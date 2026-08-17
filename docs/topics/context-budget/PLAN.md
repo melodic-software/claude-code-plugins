@@ -87,13 +87,24 @@ Uncontested territory: **measurement, baselining, per-item attribution, and the 
 
 ## Plan
 
-### Phase 0 — resolve two blockers before building
+### Phase 0 — resolve two blockers before building ✔ RESOLVED 2026-08-17
 
-- **Does the Agent SDK expose `get_context_usage`?** A structured object with exact integers and a
-  `free|buffer|deferred|used` enum exists in the binary behind the control protocol. If reachable it
-  removes markdown parsing entirely. **This decides the measurement engine's shape — resolve first.**
-- **Verify `skillOverrides`' documentation status.** Two runs disagree. It is the only lever reaching
-  claude.ai-synced skills, so its tier decides whether it can be recommended or only reported.
+- **The Agent SDK exposes `getContextUsage()`** (`@anthropic-ai/claude-agent-sdk` 0.3.233,
+  `SDKControlGetContextUsageResponse`, not marked experimental). Probed live against the v2.1.232
+  binary: exact integers matching the CLI's `/context` output byte-for-token (System tools 18,131;
+  deferred 17,835; Skills 9,937; agents 1,545), with `model`, per-MCP-tool, `memoryFiles`, and
+  per-skill `skillFrontmatter` attribution. **However `systemTools`, `deferredBuiltinTools` and
+  `systemPromptSections` are declared in the type but arrive unpopulated** — the same dead data path
+  as the renderer's `systemToolDetails`. **Engine shape: SDK-primary hybrid.** `getContextUsage()`
+  is the meter; A/B differencing (spawning via the SDK with varied `disallowedTools`) supplies
+  per-built-in-tool attribution; the markdown parser survives only as a no-SDK fallback.
+- **`skillOverrides` is documented** — a row in the official settings reference plus a full
+  "Override skill visibility from settings" section on the skills page (both fetched raw 2026-08-17).
+  The context-command run's "binary-only" claim was its own WebFetch-truncation trap. Recommendable,
+  with the documented carve-out that it does **not** apply to plugin skills (those toggle via
+  `enabledPlugins`). Same fetch surfaced two additional documented levers for the catalogue:
+  `skillListingBudgetFraction` (the listing cap itself) and `skillListingMaxDescChars`
+  (default 1536, the per-skill truncation the `< 20` rows reflect).
 
 ### Phase 1 — repo corrections (independent, shippable now)
 

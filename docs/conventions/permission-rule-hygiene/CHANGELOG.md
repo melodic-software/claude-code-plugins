@@ -4,6 +4,17 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by the `claude-config` plugin's `permission-hygiene` skill (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## 1.3 — 2026-08-17
+
+- **Refreshed the auto-mode-default citation to the page's current wording.** The block-quoted
+  "Starting August 14, 2026" passage is no longer present at the cited URL; the page now states a
+  version floor (v2.1.228 on macOS/Linux/WSL, v2.1.233 on native Windows) plus the surviving
+  one-time switch-prompt behavior, both quoted verbatim (fetched 2026-08-17). Substance of the
+  convention unchanged. Known gap, recorded for a future revision: the convention reasons only
+  about *loosening* (allow rules surviving auto mode) and says nothing about *tightening* —
+  deny-rule durability across modes — which the `context-budget` design
+  (`docs/topics/context-budget/`) now depends on.
+
 ## 1.2 — 2026-07-26
 
 - **Corrected the known gap: plugin `bin/` delivery is unreliable, not absent.** 1.1 read the gap as

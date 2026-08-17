@@ -3,6 +3,20 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.7]
+
+### Fixed
+
+- **unhobble: the `CLAUDE_CODE_SIMPLE` gotcha was wrong twice; rewritten against the binary.** It
+  called the variable "undocumented and may vanish" — it has its own row in the official env-vars
+  reference plus the CLI equivalent `--bare` — and it attributed prompt-stripping to it, which
+  belongs to the distinct sibling `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT` (both registered independently
+  in the v2.1.232 env map; simple mode disables fetches, keychain reads, and `CLAUDE.md`
+  auto-discovery). The out-of-contract boundary is unchanged and now rests on its real basis:
+  both switches ablate product-owned surfaces, not operator-owned instructions. Eval 8 updated to
+  grade the scope-boundary reasoning instead of the retired undocumented-status claim.
+  Evidence: `docs/topics/context-budget/FINDINGS.md`.
+
 ## [0.38.6]
 
 ### Changed
