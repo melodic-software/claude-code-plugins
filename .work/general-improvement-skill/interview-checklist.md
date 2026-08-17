@@ -10,7 +10,7 @@ Mode: `me` (relentless, user-invoked). Domain: engineering (build artifact = new
 - [x] Step 2: Drive the frontier-rounds loop — 3 rounds, Q1–Q12, all resolved or explicitly deferred
 - [x] Step 3: Stop condition + register gate + user confirmation ("let's go with your recommendations" + Q11 resolution; no objection to restated understanding)
 - [x] Step 4: Persist the contract (docs/topics/general-improvement-skill/PLAN.md Brief; incremental)
-- [ ] Step 5: Hand off — recommended /discovery:research → /planning:plan
+- [x] Step 5: Hand off — recommended /discovery:research → /planning:plan; session-config advice delivered (doc-sourced)
 
 ## Open-question register
 
