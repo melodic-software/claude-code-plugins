@@ -34,6 +34,16 @@ Mode: `me` (relentless, user-invoked). Domain: engineering (build artifact = new
 - [ ] Routine registration (autonomy catalog? loop? Routine/cron?) (blocked by: interaction model)
 - [ ] Prompt interface (vague→specific arg parsing) (blocked by: core identity)
 
+## Explore findings (landscape sweep, round 1 grounding)
+
+- No cross-dimension improvement router exists; `review:fanout` is diff-scoped and refuses whole-repo asks; `claude-config:audit-pass` is config-only; `architecture:improve` is single-lens (deepening) and interview-required.
+- No "highest-impact finder" for unfiled opportunities — only `work-items:work` ranks impact, and only over already-filed items.
+- `autonomy` routine catalog defines `tech-debt-sweep` (weekly, C1, files sized evidence-backed work items, never mutates, never self-disposes) with NO implementation in the fleet — the new skill could be its implementation.
+- Precedents for router shape: `claude-config:audit-pass` (delegate presence-gated, add no criteria), `discipline:sweep-all` (membership via each sibling's own metadata — add a sibling, router picks it up with no edit).
+- Overlap governance: reuse-or-replace posture, skill-leaf-name collision registry, mandatory "Skip when"/"NOT for" boundaries, routine catalog incumbent gate.
+- Naming constraints: plugin = noun; skill = imperative verb phrase; `improve` leaf owned by `architecture`; bare `audit` is collision bait; verb contract `scan`/`audit` = read-only.
+- No plugin scaffolder exists; publishing = plugin.json + marketplace.json entry (./-prefixed source, category from CATALOG-TAXONOMY) + `claude plugin validate --strict` + regenerate CATALOG/cheat-sheet.
+
 ## Session-shorthand glossary
 
 - "lanes" — the repo's existing specialized skill families (tidy lane, audit lanes, work-items lane, etc.)
