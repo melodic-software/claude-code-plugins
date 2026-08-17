@@ -1,5 +1,14 @@
 # Citation form
 
+## Contents
+
+- [Headline contract](#headline-contract)
+- [1-line inline summary template](#1-line-inline-summary-template)
+- [Line-wrap edge case](#line-wrap-edge-case)
+- [Rename discipline](#rename-discipline)
+- [Worked examples](#worked-examples)
+- [Cross-references](#cross-references)
+
 Exact contract for how callers cite an SSOT after extraction. Applies to markdown citations between rule files / skills / docs. (Code and config callers use the language's idiomatic form — `import`, `using`, YAML anchor, JSON `$ref` — not this contract.)
 
 SKILL.md cites the headline form; this file covers the full template, line-wrap edge case, and rename discipline.
