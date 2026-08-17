@@ -113,6 +113,13 @@ ladder: [reference/safety.md](reference/safety.md).
   [reference/dissolving-moves.md](reference/dissolving-moves.md).
 - Introduce Assertion covers only machine-checkable state claims; a comment stating an
   unverifiable assumption about an external system stays a comment (class C).
+- During scoping, check file headers for SSOT / do-not-edit declarations: a repo can ship
+  materialized copies of one source file (sync scripts, CI drift gates). Triage the source,
+  run its declared sync after editing, and never touch a copy — the path-exclusion tier
+  alone does not catch this shape.
+- A tests/ directory near the target is not a net until it demonstrably covers the touched
+  file — import/source it, or exercise it via CLI. This fired on the first file of the
+  skill's first live run.
 
 ## Sources
 
