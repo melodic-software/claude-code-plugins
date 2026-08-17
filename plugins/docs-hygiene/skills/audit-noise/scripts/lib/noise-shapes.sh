@@ -84,7 +84,7 @@ audit_noise_line_has_ghost_ref() {
     # punctuation, not a hidden child — only `.` followed by a path segment
     # character counts as concrete (`.gitignore`-style names still flag).
     if [[ "$root" != 'docs/topics' && "$root" != "$AUDIT_NOISE_CONTRACT_ROOT" ]] &&
-      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' ]] &&
+      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' ]] &&
       { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
       continue
@@ -222,9 +222,9 @@ audit_noise_strip_inline_code() {
 # True when the line is a well-formed HTML opt-out marker comment (not a
 # prose mention of the marker name).
 audit_noise_is_ignore_line_marker() {
-  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore-line[[:space:]]*--\>[[:space:]]*$ ]]  # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
+  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore-line[[:space:]]*--\>[[:space:]]*$ ]] # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
 }
 
 audit_noise_is_ignore_para_marker() {
-  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore[[:space:]]*--\>[[:space:]]*$ ]]  # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
+  [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore[[:space:]]*--\>[[:space:]]*$ ]] # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
 }
