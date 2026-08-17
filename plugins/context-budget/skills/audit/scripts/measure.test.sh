@@ -165,6 +165,29 @@ grep -q 'skill listing differs' "$row3" &&
   ok "signature mismatch carries its reason in the row" ||
   fail "signature-mismatch reason missing"
 
+# --- compare: every recorded mismatch poisons the predicate ---------------
+
+node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.binary.path='/opt/other/claude';fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/d.json"
+node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/d.json" --out "$WORK/row-path.json" >/dev/null
+[[ "$(jsonget "$WORK/row-path.json" 'j.comparability.systemToolsComparable')" == "false" ]] &&
+  ok "same version but different binary path marks System tools incomparable" ||
+  fail "binary-path mismatch not reflected in the predicate"
+
+node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.skillListing.tokens=2500;fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/e.json"
+node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/e.json" --out "$WORK/row-skills.json" >/dev/null
+[[ "$(jsonget "$WORK/row-skills.json" 'j.comparability.systemToolsComparable')" == "false" ]] &&
+  ok "matching listing but moved Skills bucket marks System tools incomparable" ||
+  fail "skills-bucket drift not reflected in the predicate"
+
+# --- emit: --out creates missing parent directories -----------------------
+
+deepout="$WORK/fresh/data/dir/parsed.json"
+if node "$ENGINE" parse-context --file "$FIXTURE" --out "$deepout" >/dev/null && [[ -f "$deepout" ]]; then
+  ok "--out creates its parent directories (fresh data dir does not ENOENT)"
+else
+  fail "--out into a nonexistent directory failed"
+fi
+
 # --- compare: schema validation -------------------------------------------
 
 printf '{"schema":"something-else/9"}\n' >"$WORK/notsnap.json"

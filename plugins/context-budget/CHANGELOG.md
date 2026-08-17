@@ -5,6 +5,18 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2]
+
+### Fixed
+
+- `--out` creates missing parent directories, so a fresh audit's first snapshot no longer
+  discards an expensive measurement with ENOENT on the not-yet-created data dir (PR review
+  finding).
+- The `systemToolsComparable` predicate now includes every mismatch it records as a reason:
+  binary path (same version, different install) and a moved Skills bucket under a matching
+  listing both mark the comparison incomparable instead of warning while publishing the delta
+  (PR review finding). Tests added for all three cases.
+
 ## [0.6.1]
 
 ### Fixed

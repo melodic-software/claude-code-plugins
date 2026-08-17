@@ -513,8 +513,13 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
     totalDelta,
     comparability: {
       ok: reasons.length === 0,
-      systemToolsComparable: sigMatch && before.mode === after.mode
-        && before.binary?.version === after.binary?.version,
+      // Every recorded mismatch poisons the predicate — a reason the caller
+      // could read but a `true` flag would let it ignore is how an
+      // acknowledged-incomparable run gets published as attribution.
+      systemToolsComparable: sigMatch && skillTokensMatch
+        && before.mode === after.mode
+        && before.binary?.version === after.binary?.version
+        && before.binary?.path === after.binary?.path,
       reasons,
     },
   };
@@ -645,7 +650,12 @@ function ledgerList(dir) {
 
 function emit(record, outFile) {
   const text = `${JSON.stringify(record, null, 2)}\n`;
-  if (outFile) writeFileSync(outFile, text);
+  if (outFile) {
+    // A fresh audit's derived data dir does not exist yet; failing ENOENT
+    // after an expensive measurement would discard the result.
+    mkdirSync(dirname(resolve(outFile)), { recursive: true });
+    writeFileSync(outFile, text);
+  }
   process.stdout.write(text);
 }
 
