@@ -92,7 +92,7 @@ SKILL.md resume/status: surface due-for-review concepts from learning-record age
 
 **Sanity Check:** `grep -ci "due.*review" plugins/education/skills/teach/SKILL.md` ≥ 1; `grep -c "quiz-me" plugins/education/skills/teach/SKILL.md` ≥ 1 and NOT within 3 lines of an "if installed" guard (same-plugin, reviewer #8); `grep -ci "xdg-open" plugins/education/skills/teach/context/lessons.md` ≥ 1 with `open`/`start` siblings present; `grep -ci "mermaid" plugins/education/skills/teach/SKILL.md` ≥ 1.
 
-### Phase 5: Baseline-findings remediation sweep [TODO]
+### Phase 5: Baseline-findings remediation sweep [DONE]
 
 Residual F-items not absorbed above: F1 smart-default covers whole-repo/deictic subjects (route to codebase; naming rule: derive a stable content name, e.g. repo basename + "overview", recorded as raw name); F2 deictic slug rule; F3 rename the codebase action argument to `<topic>` (or state the mapping explicitly); F4 reorder New Workspace: mission interview BEFORE workspace creation; F5 add GLOSSARY.md (deferred-until-demonstrated, stated) + NOTES.md (seeded from interview constraints) creating steps; F6 mission-title identity duty stated in context/mission.md; F8 relational topic-docs pointer (docs/conventions/topic-docs/) replacing the raw URL — keep a URL fallback for non-repo consumers; F9 empty/contradictory guidance-file handling in Codebase Mode; F10 prior-knowledge record via scan-and-increment + link assessment.md from Session Flow; F13 `_Avoid_` line marked optional in context/glossary.md.
 
