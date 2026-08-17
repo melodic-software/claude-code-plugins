@@ -148,7 +148,7 @@ implementation.
   `check-jsonschema` against the manifest schema exits 0)
 - **Sanity Check:** `grep -c '"./plugins/improvement"' .claude-plugin/marketplace.json` returns 1
 
-### Phase 2: Skill body — `/improvement:find` [TODO]
+### Phase 2: Skill body — `/improvement:find` [DONE]
 
 Review: code-design
 
