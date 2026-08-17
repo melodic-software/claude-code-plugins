@@ -1,5 +1,31 @@
 # Pattern Library — Syntactic Forms
 
+## Contents
+
+- [How to read this file](#how-to-read-this-file)
+- [Form 1: Slash-prefixed token (skill name)](#form-1-slash-prefixed-token-skill-name)
+- [Form 2: Bare token with word boundary](#form-2-bare-token-with-word-boundary)
+- [Form 3: Path references](#form-3-path-references)
+- [Form 4: Chain prose forward](#form-4-chain-prose-forward)
+- [Form 5: Chain prose backward](#form-5-chain-prose-backward)
+- [Form 6: Numbered table row](#form-6-numbered-table-row)
+- [Form 7: Frontmatter chain string](#form-7-frontmatter-chain-string)
+- [Form 8: Frontmatter glob set](#form-8-frontmatter-glob-set)
+- [Form 9: PascalCase comma-list (workflow verb sequence)](#form-9-pascalcase-comma-list-workflow-verb-sequence)
+- [Form 10: Cross-skill mode reference](#form-10-cross-skill-mode-reference)
+- [Form 11: Line-number-citation shapes](#form-11-line-number-citation-shapes)
+- [Form 12: Dot-form sub-identifier](#form-12-dot-form-sub-identifier)
+- [Container-position forms (13–15)](#container-position-forms-1315)
+- [Form 13: Command-argument position](#form-13-command-argument-position)
+- [Form 14: Document title / declared name](#form-14-document-title--declared-name)
+- [Form 15: Possessive and appositive container reference](#form-15-possessive-and-appositive-container-reference)
+- [Phase 0 — pre-sweep blocklist load](#phase-0--pre-sweep-blocklist-load)
+- [Phase 0b — container-rename mode](#phase-0b--container-rename-mode)
+- [Phase 6 — pattern library evolution](#phase-6--pattern-library-evolution)
+- [Cross-platform note](#cross-platform-note)
+
+Or jump by form: `grep -n '^## Form' context/patterns.md`.
+
 The load-bearing component of `/docs-hygiene:rename-references`. Each pattern catches references that pure-token grep misses. Empirically derived from a real skill-rename incident where 11 stale references survived 3 sweep passes; each pass found a new form.
 
 ## How to read this file

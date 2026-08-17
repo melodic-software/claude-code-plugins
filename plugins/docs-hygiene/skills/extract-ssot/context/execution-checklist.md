@@ -1,5 +1,15 @@
 # Execution checklist
 
+## Contents
+
+- [Pre-extraction (before writing or extending the SSOT)](#pre-extraction-before-writing-or-extending-the-ssot)
+- [Per-callsite (during migration of each consumer)](#per-callsite-during-migration-of-each-consumer)
+- [Sweep references (after all callsites migrated)](#sweep-references-after-all-callsites-migrated)
+- [Post-extraction (before declaring done)](#post-extraction-before-declaring-done)
+- [Sanity-check format for the working notes](#sanity-check-format-for-the-working-notes)
+- [Failure recovery](#failure-recovery)
+- [Cross-references](#cross-references)
+
 Per-phase checks for the `execute` action. SKILL.md ships the phase header (identify-cluster → architect-plan → execute-migration → sweep-references → verify); this file covers what to verify before, during, and after each call site is migrated.
 
 Composes with `decision-framework.md` (gate before extraction), `citation-form.md` (form at each call site), `/docs-hygiene:audit-encapsulation` (remediation paths for violations), `anti-patterns.md` (failure modes to guard against), and SKILL.md "Evidence discipline" (Tier 0 evidence).

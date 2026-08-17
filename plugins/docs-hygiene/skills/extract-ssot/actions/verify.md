@@ -1,5 +1,17 @@
 # `verify` action — pre-extraction gate
 
+## Contents
+
+- [When to invoke](#when-to-invoke)
+- [Inputs](#inputs)
+- [Output schema](#output-schema)
+- [The 6 gates (ordered checks)](#the-6-gates-ordered-checks)
+- [Workflow](#workflow)
+- [Side observations](#side-observations)
+- [Audit trail (optional)](#audit-trail-optional)
+- [Cross-references](#cross-references)
+- [Recheck triggers](#recheck-triggers)
+
 Cheap pre-extraction gate. Refuse-fast on candidates that wouldn't survive `plan`/`execute` anyway. Surfaces the refusal verdict from a single grep + citation check, without spawning a subagent.
 
 Private surface — external consumers invoke `/docs-hygiene:extract-ssot verify <cluster>`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).

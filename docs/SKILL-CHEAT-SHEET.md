@@ -175,6 +175,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/docs-hygiene:audit-derivability`](../plugins/docs-hygiene/skills/audit-derivability/SKILL.md) | `docs-hygiene` | Judge whether a doc earns its existence or should become a pointer |
 | [`/docs-hygiene:audit-encapsulation`](../plugins/docs-hygiene/skills/audit-encapsulation/SKILL.md) | `docs-hygiene` | Find external citations reaching into a skill's private surfaces |
 | [`/docs-hygiene:audit-noise`](../plugins/docs-hygiene/skills/audit-noise/SKILL.md) | `docs-hygiene` | Classify markdown for stale citations, ghost refs, and meta-commentary |
+| [`/docs-hygiene:audit-progressive-disclosure`](../plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md) | `docs-hygiene` | Grade instruction files for split opportunities and hub/spoke disclosure defects |
 | [`/docs-hygiene:compress`](../plugins/docs-hygiene/skills/compress/SKILL.md) | `docs-hygiene` | Tighten markdown by dropping flavor while preserving every directive |
 | [`/docs-hygiene:extract-ssot`](../plugins/docs-hygiene/skills/extract-ssot/SKILL.md) | `docs-hygiene` | Deduplicate repeated prose into one named source of truth |
 | [`/docs-hygiene:rename-references`](../plugins/docs-hygiene/skills/rename-references/SKILL.md) | `docs-hygiene` | Sweep stale references after renames, including forms grep misses |

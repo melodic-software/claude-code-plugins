@@ -192,7 +192,7 @@
       "name": "docs-hygiene",
       "source": "./plugins/docs-hygiene",
       "category": "maintenance",
-      "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
+      "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit", "progressive-disclosure", "context-engineering"]
     },
     {
       "name": "firecrawl",
