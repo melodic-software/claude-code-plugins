@@ -46,7 +46,7 @@ PARTIAL / REJECTED / OPEN.
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | OPEN | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | OPEN | #2939 |
-| X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | PARTIAL (C21 ADOPT, C22 fired-and-resolved with zero Skill-tool violations, C23 ALREADY-PRESENT) | #2940 |
+| X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED (C21 ADOPTED, C22 fired-and-resolved with zero Skill-tool violations, C23 ALREADY-PRESENT; standing check considered-and-deferred) | #2940 |
 | Y | Macro/micro lifecycle orchestrator (interview Q18) | — | undecided (session-flow / work-items / new) | OPEN | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
