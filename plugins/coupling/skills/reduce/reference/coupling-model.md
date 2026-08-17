@@ -3,6 +3,15 @@
 How to judge whether two things are coupled, how badly, and whether it matters. Read this before
 scanning; the scan's job is to emit findings typed against this model, not ad-hoc impressions.
 
+## Contents
+
+- What counts as coupling — the change-centric definition and the edge form
+- The strength ladder (structured design) — content through message coupling
+- Connascence — static and dynamic forms; the strength, degree, and locality axes
+- Volatility weighting — co-change evidence, blast radius, the ranking formula
+- Altitudes — the same model at code, module, application, repository, and document scale
+- What is NOT a finding — the carve-outs that keep the scan honest
+
 ## What counts as coupling
 
 Two artifacts are coupled when a change to one forces, or silently invalidates, the other. The
