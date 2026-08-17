@@ -1,5 +1,12 @@
 # Derivability route-to-sibling follow-ups (2026-08-15 sweep)
 
+## Contents
+
+- [Batch record](#batch-record)
+- [Route: audit-noise (38)](#route-audit-noise-38)
+- [Route: extract-ssot (136)](#route-extract-ssot-136)
+- [False-keep sampling backlog](#false-keep-sampling-backlog)
+
 Durable tracking for the 174 route-to-sibling annotations from the repo-wide
 `/docs-hygiene:audit-derivability` sweep (issue #2735 / session ledger
 `derivability-ledger.json`, ephemeral). This file is the in-tree status board —
