@@ -5,6 +5,16 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3]
+
+### Fixed
+
+- **Security:** the settings-write ask checkpoint matches paths case-insensitively. macOS and
+  Windows filesystems resolve `.claude/Settings.json` to the same file as the lowercase name, so
+  the previous case-sensitive match let a differently-cased write bypass the checkpoint silently
+  on exactly the platforms it supports (PR security-review finding). Case-variant regression
+  cases added to the hook contract test.
+
 ## [0.6.2]
 
 ### Fixed

@@ -38,12 +38,17 @@ process.stdin.on('end', () => {
     ).replace(/\\/g, '/');
     if (!target) process.exit(0);
 
-    const isSettings = /(^|\/)\.claude\/settings(\.local)?\.json$/.test(target)
-      || /(^|\/)managed-settings\.json$/.test(target);
+    // Case-insensitive: macOS (APFS/HFS+) and Windows (NTFS) resolve
+    // `.claude/Settings.json` to the same file on disk, so a case-sensitive
+    // match would let a differently-cased path bypass the checkpoint on
+    // exactly the platforms it supports (security-review finding).
+    const isSettings = /(^|\/)\.claude\/settings(\.local)?\.json$/i.test(target)
+      || /(^|\/)managed-settings\.json$/i.test(target);
     if (!isSettings) process.exit(0);
 
     const home = String(process.env.HOME || process.env.USERPROFILE || '').replace(/\\/g, '/');
-    const userGlobal = home !== '' && target === `${home}/.claude/settings.json`;
+    const userGlobal = home !== ''
+      && target.toLowerCase() === `${home}/.claude/settings.json`.toLowerCase();
 
     const reason = `${target} is a Claude Code settings surface. This prompt is the context-budget `
       + 'plugin\'s checkpoint: settings edits change every future session, so confirm the exact diff '

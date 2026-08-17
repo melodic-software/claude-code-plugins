@@ -61,6 +61,7 @@ for (const l of cat.levers ?? []) {
   // adjacent to the word token in either order.
   const text = JSON.stringify({ ...l, citations: [], emittedConfig: "" });
   const kFigure = text.match(/\b\d+(\.\d+)?k\b/i);
+  // portability-ok: \s lives in an embedded node -e JavaScript regex, not a shell tool pattern
   const plainFigure = text.match(/\b\d{2,}\s*tokens?\b/i) || text.match(/tokens?\s*[:=]?\s*\d{2,}\b/i);
   if (kFigure || plainFigure) {
     problems.push(where + ": looks like a shipped token figure: " + (kFigure || plainFigure)[0].slice(0, 60));

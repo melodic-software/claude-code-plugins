@@ -90,6 +90,18 @@ rc=$?
   ok "garbage input fails open (exit 0, no output)" ||
   fail "garbage input: rc=$rc out=$out"
 
+# Case variants resolve to the same file on macOS/Windows filesystems and
+# must still ask — a case-sensitive match would be a silent bypass there.
+out=$(run Write "$WORK/repo/.claude/Settings.json")
+grep -q '"permissionDecision":"ask"' <<<"$out" &&
+  ok "case-variant settings path still asks (case-insensitive filesystems)" ||
+  fail "case-variant path bypassed the checkpoint: $out"
+
+out=$(run Edit "$WORK/repo/.claude/settings.LOCAL.json")
+grep -q '"permissionDecision":"ask"' <<<"$out" &&
+  ok "case-variant settings.local path still asks" ||
+  fail "case-variant local path bypassed the checkpoint"
+
 # Windows-style path separators must still match.
 # portability-ok: the doubled backslashes are literal JSON escapes for printf, not a GNU regex class
 out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")
