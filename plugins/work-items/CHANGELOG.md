@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.29]
+
+### Changed
+
+- **Lease hardening (#2943):** the `/work-items:work` worker is the durable
+  mid-flight `renew-lease` actor during implement-dispatch; the orchestrator
+  renews only after the worker returns. Branch-push activity stays deferred.
+  CONTRACT documents clock skew, TOCTOU (revalidation is intent, not CAS),
+  ttl-0 born-expired, and comment-id monotonicity as an adapter requirement.
+  Workers renew before the TTL deadline with a safety margin, not only at phase
+  boundaries. local-markdown `renew-lease` refuses expired (including ttl-0)
+  leases the same way the GitHub adapter does.
+
 ## [0.35.28]
 
 ### Changed
