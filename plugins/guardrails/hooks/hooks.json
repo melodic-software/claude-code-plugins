@@ -62,6 +62,12 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-windows-drive-tmp.sh",
             "timeout": 60,
             "statusMessage": "Checking for Windows drive-root /tmp writes..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-exported-msys-pathconv.sh",
+            "timeout": 60,
+            "statusMessage": "Checking for an exported MSYS path-conversion suppressor..."
           }
         ]
       },

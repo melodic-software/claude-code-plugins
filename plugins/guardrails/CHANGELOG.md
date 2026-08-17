@@ -3,6 +3,73 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0]
+
+### Added
+
+- **`block-exported-msys-pathconv`: block an EXPORTED MSYS path-conversion
+  suppressor on Windows
+  ([#2870](https://github.com/melodic-software/claude-code-plugins/issues/2870)).**
+  New `PreToolUse` guard on `Bash|PowerShell`, default on, kill switch
+  `block_exported_msys_pathconv_enabled`. Blocks `export MSYS_NO_PATHCONV` /
+  `export MSYS2_ARG_CONV_EXCL` (including `export --`, and the `declare` /
+  `typeset` spellings with the export flag in any cluster — `-x`, `-rx`,
+  `-gx`, `-x -g`), which switch off MSYS argv rewriting for *every later
+  command in the same command string*. A later path argument then reaches a Windows-native program
+  unconverted, and git resolves the leading `/` against the current drive —
+  `git worktree add /d/worktrees/x` becomes `<current-drive>:\d\worktrees\x`.
+  That is how `D:\d` was recreated a third time, by a lane that exported the
+  variable seven segments earlier to work around an unrelated problem (MSYS
+  mangling a `<rev>:<path>` argument).
+
+  A second leaking form is matched too: a prefix whose command word is a
+  **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env MSYS_NO_PATHCONV=1 sh -c
+  '…'`). The prefix scopes to one *process*, and when that process is an
+  interpreter, one process is every command in the script — verified
+  behaviorally, where the same prefix on `git` directly leaves only the first
+  argument unconverted. An adversarial review found this as an undeclared false
+  negative; closing it cost **zero** additional false positives on the same
+  14,234-command corpus (its single match was already blocked by the export
+  rule). A prefix on a non-shell command word — the safe idiom, 193 corpus
+  uses — stays allowed.
+
+  The guard deliberately does **not** match a path shape. The incident command's
+  path argument was textually identical to one the same lane had already run
+  successfully, so a `/[a-z]/` matcher has a false negative on the real defect —
+  and measured a 45.7% firing rate across 14,234 real Bash commands (81% on
+  `git worktree add` alone), because in an ordinary shell MSYS converts those
+  correctly. The export form fires on **0.32%** of the same corpus (46 commands,
+  spanning four lanes and two repositories) and leaves the safe per-command
+  prefix idiom (193 uses) and bare assignments untouched. The distinction is
+  mechanical rather than heuristic: `bash -c 'export MSYS_NO_PATHCONV=1; git
+  rev-parse --sq-quote /d/probe'` yields `'/d/probe'` while the bare-assignment
+  and per-command-prefix forms both yield `'D:/probe'` for the following command.
+
+  Review rounds refined the matcher in both directions. Without a shell word
+  in the command string, the export keyword must sit at command position, so
+  commit messages, `echo` arguments, and grep patterns that merely quote the
+  forbidden spelling stay allowed; with a shell word present, quoted text can
+  execute and any occurrence still blocks. Launchers and shells are judged by
+  quote-stripped basename, so `/usr/bin/env bash -c`, `command bash -c`, a
+  quoted `'bash'`, and a quoted `"C:\...\bash.exe"` behind PowerShell's call
+  operator all block, as does a suppressor prefix opening a quoted child
+  command string.
+
+  Declared coverage gaps: a suppressor exported by a script the command invokes,
+  `set -a` plus a bare assignment, an expansion-built value, an export guarded
+  by a keyword rather than a separator (`if ...; then export ...`), and any
+  spawner outside the two tool surfaces (CI runners, `subprocess`). Declared
+  residual false positives, accepted fail-closed: an export spelling inside a
+  heredoc body, and prose quoting a forbidden spelling alongside a shell word
+  in the same command string.
+
+### Changed
+
+- **`block-windows-drive-tmp`: reciprocal sibling cross-reference.** Its header
+  now records why the new guard is a separate hook rather than an extension of
+  this one — disjoint scopes (path-shape/write-target vs environment variable),
+  neither firing on the other's cases.
+
 ## [0.28.33]
 
 ### Fixed
