@@ -138,10 +138,11 @@ marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clea
 # #2640 restored both surfaces by hand.
 #
 # This event was NOT unfiled. Issue #2656 recorded it, pinned to the same
-# commits, roughly 23 hours before this canary merged -- from the test-coverage
-# angle (the hand restore left `bare-repo-with-working-tree` uncovered) rather
-# than as a silent revert. What the canary adds is detection speed and
-# automation, not discovery.
+# commits, roughly 23 hours before this canary merged -- and recorded it AS a
+# silent revert ("#2633 was a stale-base squash that silently reverted two
+# merged features"), though what it ASKED for was the test coverage the hand
+# restore left behind. What the canary adds is detection speed and automation,
+# not discovery.
 #
 # An earlier version of this row named #2632 as the victim. That was wrong:
 # #2632 never merged (closed unmerged, no merge commit, not an ancestor of

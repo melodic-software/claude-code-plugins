@@ -39,6 +39,11 @@
 # caller happened to have. Do not "correct" 298 back to 301 after re-measuring
 # on a machine that sets histogram -- pin the flags and re-measure instead.
 #
+# #2642's is not the only figure that moved. 6f0a31109 reads 447 where the
+# pre-pin calibration recorded 390, and 91e77fc16 reads 323 where it recorded
+# 340, for the same reason. The pin table in attribute_file records all three
+# side by side.
+#
 # Every check stayed green through all three, and that is the point: each
 # reverting squash removed the code AND the tests covering it in the same
 # commit, so no suite could fail for a behavior whose tests no longer existed.
@@ -87,12 +92,18 @@
 #   open, so it fires on almost everything.
 #
 # What is left is content: blame the lines a merge deleted and see who had just
-# added them. Measured over the last 500 first-parent commits of main, the
-# three known incidents score 853 / 451 / 346 lines against a single recent
-# commit -- plus a fourth attribution of 298 lines on the SAME #2633 squash,
-# whose deletions trace to two different culprits and are reported separately.
-# The highest verified-legitimate commit scores well below the threshold below.
-# The separation is what makes the canary livable.
+# added them. Measured over the 500 first-parent commits of main ending at
+# 738791c45, the three known incidents score 853 / 451 / 346 lines against a
+# single recent commit -- plus a fourth attribution of 298 lines on the SAME
+# #2633 squash, whose deletions trace to two different culprits and are
+# reported separately. Unlike the two designs rejected above, this one fires on
+# all three rather than exonerating them.
+#
+# What it does NOT buy is a clean split between incidents and ordinary work.
+# Measured below, the two populations OVERLAP on volume -- the smallest true
+# finding scores under both verified-legitimate fires. So what makes the
+# canary livable is the disposition path and the non-blocking posture, not a
+# number that separates the shapes. No number does.
 #
 # FALSE-POSITIVE STRATEGY (the whole design rests on this)
 # -------------------------------------------------------
@@ -134,30 +145,83 @@
 #
 # THE RESIDUAL FALSE POSITIVE, MEASURED RATHER THAN ASSUMED
 # ---------------------------------------------------------
-# At these settings, over the last 500 first-parent commits of main, the canary
-# fires on 5 commits -- 1%. (Six findings, not five: #2633's squash deleted
-# content from two different culprits and each attribution is reported on its
-# own.) Three of the five commits are the confirmed incidents. The other two
-# are both real, and neither is a bug in the detector:
+# At these settings, over the 500 first-parent commits of main ending at
+# 738791c45, the attribution crosses the threshold on 5 commits -- 1% --
+# producing six findings, because #2633's squash deleted content from two
+# different culprits and each attribution is reported on its own. Three of the
+# five are the confirmed incidents; the other two are cleared by the
+# acknowledgment file and never print, so what reaches a reader in CI is 3
+# commits carrying 4 findings between them, cc58cbc53 contributing two.
+# The endpoint is named rather than written as "the last 500" so the figure
+# still describes a fixed corpus after main moves, which it does several times
+# a day.
 #
-#   6f0a31109 (#2640, 390 lines) is the manual RESTORE of #2633's revert. To
+# Those totals are FLOORS rather than exact counts, and the reason is
+# structural. attribute_file discards git's stderr on both commands that
+# produce a count, so a file whose diff or blame FAILED is indistinguishable
+# from one that had nothing to attribute, and the failure can only ever
+# subtract lines, never invent them (#2880). A second subtraction carries the
+# same one-way sign: paths the repository's own .gitattributes marks `-diff` or
+# `binary` produce no hunks at all, so their deletions attribute to zero on
+# every machine including CI (#2883). That one is a RECALL gap rather than a
+# calibration gap -- no path of that class appears in any commit whose figure
+# is quoted here, and the largest such deletion anywhere in the sweep was 72
+# lines from a package-lock.json, well under the threshold.
+#
+# Detection and disposition are separate steps, and only the first calibrates
+# the threshold. 6f0a31109 and 91e77fc16 are both recorded in
+# scripts/silent-revert-acknowledged.txt, and scan_commit consults it before it
+# attributes anything, so each reports `acknowledged` and exits 0 without a
+# line being blamed (t_acknowledged_commit_is_cleared pins the clearing). Every
+# count below is a DETECTION count, measured with the acknowledgment file out
+# of the way, because a threshold calibrated on what survives review would be
+# calibrated on its own output.
+#
+# Both cleared commits are real, and neither is a bug in the detector:
+#
+#   6f0a31109 (#2640, 447 lines) is the manual RESTORE of #2633's revert. To
 #   put back what #2633 dropped it had to delete what #2633 had added, so a
 #   large deliberate removal of very recent content is exactly what it is.
 #
-#   91e77fc16 (#2135, 340 lines) is a deliberate merge reconciliation: main
+#   91e77fc16 (#2135, 323 lines) is a deliberate merge reconciliation: main
 #   moved under the PR, the author merged origin/main in and consciously chose
 #   which side won, and the PR body argues the choice at length.
 #
-# State the uncomfortable part plainly: 340 is the largest false positive and
-# 346 is the smallest true one. NO THRESHOLD SEPARATES THEM. Picking a number
-# in that 2% gap would be overfitting to this corpus, so the threshold is set
-# at 200 instead -- which costs nothing (200 and 300 fire on the identical five
-# commits here) and leaves headroom for a smaller future revert.
+# The incident attributions -- 853, 451, 346 and 298 -- are re-measured on
+# every CI run, because scripts/silent-revert-incidents.txt records each one
+# and the replay asserts it exactly. The shipped replay cannot assert 447 or
+# 323: an acknowledged commit short-circuits before it is attributed, which is
+# the same step that keeps it off a reader's screen.
 #
-# So the canary is calibrated to fire roughly once a month, on something a
-# human should genuinely glance at, and precision is deliberately traded for
-# recall because the miss is expensive and the fire is cheap. Cheap requires a
-# disposition path for BOTH directions in time, which is why there are two:
+# State the uncomfortable part plainly: the cleared fires and the real
+# incidents OVERLAP. The smallest true finding is 298 -- #2642's share of
+# #2633's squash -- while both cleared fires score higher, at 323 (#2135) and
+# 447 (#2640). NO THRESHOLD SEPARATES THEM, and not because the gap is narrow:
+# there is no gap at all, only an inversion. Any number that silenced 323 would
+# silence a real incident first.
+#
+# So the threshold is set at 200, below every measured finding, and it is the
+# disposition path below -- not the number -- that keeps the canary livable.
+# Raising it to 300 looks free and is not. The same five commits still cross
+# it, so the COMMIT set does not move; but cc58cbc53's 298-line attribution
+# falls under the line while its 853-line sibling survives, so the FINDING set
+# does. That is the substitution the replay's attribution expectations were
+# added to catch: on exit status alone the row would still pass on the
+# surviving 853-line finding and announce a reproduction it never performed,
+# which is the pre-#2833 gap exactly. With the expectation recorded, running
+# --verify-known-incidents at 300 reports cc58cbc53 as `fires, but NOT as
+# recorded` and exits 1 -- t_replay_asserts_the_recorded_attribution pins that
+# same two-culprit shape. So 200 stays, with headroom for a smaller future
+# revert.
+#
+# So the canary is calibrated to fire on something a human should genuinely
+# glance at, and precision is deliberately traded for recall because the miss
+# is expensive and the fire is cheap. No firing RATE is quoted here, and that
+# is deliberate: the corpus spans 7.9 days, and four of its five crossings land
+# within 76 minutes of each other on the one incident night. It measures a
+# burst, so dividing five by the window would invent a frequency the evidence
+# does not support, in either direction. Cheap requires a disposition path for
+# BOTH directions in time, which is why there are two:
 #
 #   PROSPECTIVE -- `Intentional-removal:` in the PR body, which GitHub carries
 #   into the squash message. Costs one line and the canary never fires.
@@ -460,8 +524,10 @@ attribute_file() {
   # This is not defensive decoration. The algorithm choice changes which lines a
   # hunk calls deleted, and therefore the per-culprit counts this canary
   # thresholds on. Measured on the real corpus, pre-pin, once under each
-  # algorithm -- every calibration figure in the header above was taken on a
-  # machine carrying `diff.algorithm = histogram`, and git's default disagrees:
+  # algorithm. The header above quotes the pinned column; the left column here
+  # records what those same attributions read on a machine carrying
+  # `diff.algorithm = histogram`, which is what the calibration measured before
+  # the flags were pinned:
   #
   #        commit                          histogram   myers (git default)
   #        6f0a31109 (#2640)                     390                   447
