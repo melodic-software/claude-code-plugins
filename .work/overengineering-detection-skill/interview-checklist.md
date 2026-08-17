@@ -27,14 +27,14 @@ Mode: `me` (relentless, user-invoked "/interview me first"). Domain: engineering
 - Q4 | answered | round 1 | Fleet scope | Single-repo core; strictly consumer-agnostic per plugin philosophy (no org/repo hardcoding); any upstream-routing (synced/managed files) must be generically detected/declared, presence-gated; fleet coverage via composition
 - Q5 | answered | round 1 | V1 cadence | On-demand human-in-the-loop V1; scheduled/daily lane deferred but designed-for (diffable persisted findings enabling delta runs)
 - Q6 | answered | round 1 | Research depth | /discovery:research-deep (consensus, authorities) + /discovery:explore over the enforcement surface for real examples, after Brief locks
-- Q7 | answered | round 2 | Placement + naming | New plugin `overengineering`; skill-split sub-decision carried to Q7b (user: depends on skill size + best practices; single-purpose skills, composition over inheritance)
-- Q7b | open | round 3 | Skill split — two single-purpose skills (`audit` + `realign`) composing via the findings artifact (PLUGIN-ARTIFACT-PROTOCOL seam)? |
+- Q7 | answered | round 2 | Placement + naming | New plugin `overengineering`; skill-split sub-decision carried to Q14 (user: depends on skill size + best practices; single-purpose skills, composition over inheritance)
 - Q8 | answered | round 2 | Neighbor boundaries | Route presence-gated to siblings with documented fallbacks; this plugin owns the cross-surface retirement verdict, never re-implements a sibling's layer
 - Q9 | answered | round 2 | Evidence sources + bar | Tiered evidence menu accepted; every verdict cites ≥1 empirical source; doc/comment-only support marked unverified; UNPROVEN verdict for silent artifacts; report must carry everything that drives the reasoning. Output FORMAT split out as Q12
 - Q10 | answered | round 2 | Uncertain-intent handling | Include intent-reconstruction checkpoint: ask user when attended + low-confidence; unattended records OPEN-INTENT, never guesses; "I don't know" routes to empirical/ablation track
 - Q11 | answered | round 2 | Deferred-lanes mechanics | Follow-up GitHub issues (product-code lane, scheduled/delta lane) via work-items conventions at Brief lock; named in Out-of-scope with links
-- Q12 | open | round 3 | Report output format — persisted diffable markdown as source of truth + inline summary + optional presence-gated HTML rendering? |
-- Q13 | open | round 3 | Protected categories (unanswered probe from round 2) — security-class artifacts capped at FLAG-FOR-HUMAN, never RETIRE? |
+- Q12 | answered | round 3 | Report output format | Layered: persisted diffable markdown findings report is source of truth; inline terminal summary always; HTML rendering an optional presence-gated view. Report carries everything that drives the reasoning
+- Q13 | answered | round 3 | Protected categories | Minimal default only — security-class artifacts (secret/credential guards, destructive-op guards, security CI) get verdict capped at FLAG-FOR-HUMAN; still fully audited with evidence reported. Not white gloves: a one-line verdict cap countering the absence-of-incident trap, consumer-configurable (extend, narrow, or empty the set) per user's "don't limit things"
+- Q14 | answered | round 3 | Skill split | Two single-purpose skills (`audit` + `realign`). Duplication handled by marketplace conventions: shared method doc at plugin level (`plugins/overengineering/context/`, the discipline-plugin precedent), both SKILL.mds point to it (point-don't-copy / SSOT); runtime composition via the findings artifact seam. Intra-plugin sharing is explicitly allowed — only cross-plugin imports are barred
 
 ## Decision tree (`me` mode)
 
@@ -45,10 +45,10 @@ Mode: `me` (relentless, user-invoked "/interview me first"). Domain: engineering
 - [x] Cadence/autonomy (Q5) — on-demand V1; scheduled deferred, designed-for
 - [x] Research depth + pipeline (Q6) — research-deep + explore after Brief
 - [x] Placement: new plugin `overengineering` (Q7)
-- [ ] Skill split: audit + realign as two single-purpose composing skills (Q7b)
+- [x] Skill split: audit + realign, plugin-level shared context doc, artifact-seam composition (Q14)
 - [x] Neighbor boundaries: presence-gated routing, own the cross-surface verdict (Q8)
 - [x] Evidence sources + bar: tiered menu, ≥1 empirical source per verdict, UNPROVEN class (Q9)
 - [x] Uncertain-intent / user-checkpoint shape (Q10)
 - [x] Deferred-lane mechanics: follow-up issues at Brief lock (Q11)
-- [ ] Report output format (Q12)
-- [ ] Protected categories / seatbelt list (Q13)
+- [x] Report output format: markdown SSOT + inline summary + optional HTML view (Q12)
+- [x] Protected categories: minimal security-class verdict cap, consumer-configurable (Q13)
