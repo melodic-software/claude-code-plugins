@@ -135,13 +135,26 @@ LC_ALL=C awk -v branch="$BRANCH" -v tier="$TIER" -v date_utc="$DATE_UTC" '
   function esc(s) { gsub(/\|/, "\\|", s); return s }
 
   /^Finding: / {
+    # Split the excerpt off FIRST, on the first " excerpt=" occurrence, then
+    # parse the remaining header left-to-right with index() (first match).
+    # Greedy .* extraction would anchor on the LAST "file="/"line=" in the
+    # line, so an excerpt containing those tokens (docs describing this very
+    # format) would silently corrupt the Location cell.
     line = $0
     sub(/^Finding: rule=ai-slop\/audit\//, "", line)
-    slug = line; sub(/ .*/, "", slug)
-    file = line; sub(/.* file=/, "", file); sub(/ line=.*/, "", file)
-    lno = line; sub(/.* line=/, "", lno); sub(/ fired=.*/, "", lno)
-    fired = line; sub(/.* fired=/, "", fired); sub(/ excerpt=.*/, "", fired)
-    excerpt = line; sub(/.* excerpt=/, "", excerpt)
+    ix = index(line, " excerpt=")
+    if (ix == 0) next
+    excerpt = substr(line, ix + 9)
+    head = substr(line, 1, ix - 1)
+    ix = index(head, " fired=")
+    fired = substr(head, ix + 7)
+    head = substr(head, 1, ix - 1)
+    ix = index(head, " line=")
+    lno = substr(head, ix + 6)
+    head = substr(head, 1, ix - 1)
+    ix = index(head, " file=")
+    file = substr(head, ix + 6)
+    slug = substr(head, 1, ix - 1)
     t = rule_tier(slug)
     row = "| " t " | high | " file ":" lno " | ai-slop:audit | " \
       esc("ai-slop/audit/" slug " " fired " -- " excerpt) " | " esc(rule_action(slug)) " |"

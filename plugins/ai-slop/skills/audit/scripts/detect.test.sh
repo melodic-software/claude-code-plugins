@@ -229,6 +229,40 @@ else
   fail "portability: output identical under LC_ALL=C" "identical" "differs"
 fi
 
+# --- Fences (CommonMark indentation + opener-char tracking) -----------------------
+
+FENCY="$TEST_TMPDIR/fency.md"
+cat >"$FENCY" <<EOF
+# Fences
+
+   \`\`\`text
+   An em dash ${EM} inside an indented fence stays exempt.
+   ~~~
+   Still inside the backtick fence: delve, tapestry ${EM} exempt too.
+   \`\`\`
+
+An em dash ${EM} in prose after the fence closes must flag.
+EOF
+
+out="$(bash "$DETECT" "$FENCY" 2>&1)"
+assert_contains "fences: prose after close still flags" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
+assert_not_contains "fences: indented fence content exempt, tilde does not close backtick fence" "$out" "delve"
+
+# --- Directory target expansion ---------------------------------------------------
+
+DIRT="$TEST_TMPDIR/dirt"
+mkdir -p "$DIRT/sub"
+cat >"$DIRT/a.md" <<EOF
+An em dash ${EM} here.
+EOF
+cat >"$DIRT/sub/b.md" <<EOF
+Another em dash ${EM} here.
+EOF
+
+out="$(bash "$DETECT" "$DIRT" 2>&1)"
+assert_contains "dir target: expands recursively to markdown" "$out" "2 files scanned"
+assert_contains "dir target: findings from nested file" "$out" "sub/b.md"
+
 # --- emit-findings.sh ------------------------------------------------------------
 
 EMIT="$SCRIPT_DIR/emit-findings.sh"
@@ -269,6 +303,18 @@ Summary rule=ai-slop/audit/rule-em-dash findings=1 declined=0 disabled=0
 EOF
 bash "$EMIT" --from "$SYNTH" --out "$TEST_TMPDIR/findings/synth.md" --branch test-branch >/dev/null 2>&1
 assert_contains "emit: pipe escaped in cell" "$(cat "$TEST_TMPDIR/findings/synth.md")" 'zero\|tolerance'
+
+# An excerpt that itself contains file=/line= tokens (a doc describing this
+# format) must not spoof the Location cell — first-occurrence parsing.
+SPOOF="$TEST_TMPDIR/spoof.md"
+cat >"$SPOOF" <<EOF
+The docs file=README.md line=12 ${EM} see reference.
+EOF
+SPOOFOUT="$TEST_TMPDIR/spoof-out.txt"
+bash "$DETECT" "$SPOOF" >"$SPOOFOUT" 2>&1 || true
+bash "$EMIT" --from "$SPOOFOUT" --out "$TEST_TMPDIR/findings/spoof.md" --branch test-branch >/dev/null 2>&1
+assert_contains "emit: excerpt field tokens cannot spoof Location" \
+  "$(cat "$TEST_TMPDIR/findings/spoof.md")" "spoof.md:1 |"
 first_row="$(LC_ALL=C grep -m1 '^| 1 |' "$FOUT")"
 assert_contains "emit: IMPORTANT ranks first" "$first_row" "IMPORTANT"
 assert_contains "emit: surfaces zero-result rules listed" "$fcontent" "rule-utm-params"

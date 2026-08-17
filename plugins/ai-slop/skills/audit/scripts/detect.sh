@@ -23,6 +23,13 @@
 # \xE2\x80[\x98\x99\x9C\x9D\x8B] and \xC2\xA0.
 set -u
 
+# All text processing runs in the C locale: the byte-sequence rules require it,
+# and word counts diverge between UTF-8 and C locales (caught by the CI
+# portability probe — a UTF-8 default runner counted 12 words where C counted
+# 15 on the same line). Forcing it here makes output identical on every
+# machine regardless of the caller's locale.
+export LC_ALL=C
+
 EM_DASH=$'\xe2\x80\x94'
 EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
@@ -231,6 +238,26 @@ if [[ "${#TARGETS[@]}" -eq 0 ]]; then
   done < <(git -C "$REPO_ROOT" ls-files '*.md' 2>/dev/null)
 fi
 
+# Directory targets expand to the markdown beneath them (tracked files when the
+# directory is inside a git checkout, a filesystem walk otherwise). Without
+# this a directory fails the scan loop's -f test and is skipped silently.
+EXPANDED=()
+for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
+  if [[ -d "$t" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && EXPANDED+=("$line")
+    done < <(
+      git -C "$t" ls-files --full-name '*.md' 2>/dev/null |
+        sed "s|^|$(git -C "$t" rev-parse --show-toplevel 2>/dev/null)/|" |
+        grep -F "$(cd "$t" && pwd)/" ||
+        find "$t" -name '*.md' -type f 2>/dev/null
+    )
+  else
+    EXPANDED+=("$t")
+  fi
+done
+TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
+
 mapfile -t TARGETS < <(printf '%s\n' ${TARGETS[@]+"${TARGETS[@]}"} | sort -u)
 if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
   end="${#TARGETS[@]}"
@@ -261,11 +288,21 @@ matches_glob() {
 # document that DOCUMENTS the markers exempts itself — found by dogfooding when
 # the plugin's own README declined and was silently half-scanned.
 extract_prose() {
+  # Fences per CommonMark: openers may be indented up to three spaces (matched
+  # with [ ]? repetition — mawk has no {n,m} intervals), and a fence closes
+  # only on its OWN character, so ~~~ inside a backtick fence stays content.
   awk '
-    BEGIN { fence = 0; ignored = 0 }
+    BEGIN { fence = ""; ignored = 0 }
     /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/ { print "DECLINE\tfile"; exit }
-    /^(```|~~~)/ { fence = !fence; next }
-    fence { next }
+    /^[ ]?[ ]?[ ]?```/ {
+      if (fence == "") { fence = "`"; next }
+      if (fence == "`") { fence = ""; next }
+    }
+    /^[ ]?[ ]?[ ]?~~~/ {
+      if (fence == "") { fence = "~"; next }
+      if (fence == "~") { fence = ""; next }
+    }
+    fence != "" { next }
     /^[[:space:]]*<!-- ai-slop-ignore-start -->[[:space:]]*$/ { ignored = 1; next }
     /^[[:space:]]*<!-- ai-slop-ignore-end -->[[:space:]]*$/ { ignored = 0; next }
     ignored { print "DECLINE\tblock"; next }
