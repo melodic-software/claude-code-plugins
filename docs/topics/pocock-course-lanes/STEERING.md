@@ -114,6 +114,38 @@ No separate topic Brief — lane 9 designs nothing; these rows plus filed items 
 | Design-smell caveat: a pointer mirroring changes across distant folders can mask low cohesion (user-raised) | ADOPT | Homed in the criteria patch's remediation guidance (restructure-before-pointer consideration at the audit's fix moment); coordination comment on [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) points the authoring skill at it — no duplicated doctrine |
 | /init-then-prune eval fixture (L8, user-suggested) | ADOPT | Filed against `claude-memory:audit`'s existing eval suite: static bloated-CLAUDE.md fixture (the shape `/init` produces) in the eval's `files`, graded against expected findings (C1/C2/C5); regression gate on audit judgment quality. Static fixture chosen over live `/init` generation (determinism) |
 
-Lane 9 status: IN PROGRESS — remaining (research-gated): auto-memory parity rows (L9),
-harness-claims verdict table (7 fresh claims + lane-8 reuse), lessons 1–2 leftover rows, term
-candidates to lane 6, work items filed, close-out.
+Round-2 rows (research-gated; user-confirmed 2026-08-17, all recommendations accepted):
+
+| Claim / concern (lesson) | Verdict | Detail |
+|---|---|---|
+| Auto-memory territory (L9) | PARITY — no work | `claude-memory:audit` M1–M4 plus the `stateless` skill cover the lesson; `official-guidance.md` carries doc-sourced quotes (updated 2026-08-15). The course's one inaccuracy (cwd- vs repo-keying) is carried by verdict row 1 below — parity rows point at it, no duplicate |
+| `~/.agents/skills` as an equivalent personal-skills path (L1–2/L5 leftover) | REJECT — do-not-repeat | REFUTED (verdict row 5, two-pool): the path is OpenCode's agent-compatible convention; docs, shipped binary, and changelog are all silent for Claude Code. Must never enter our docs as a Claude Code path |
+| Remaining L1–2 leftover claims (steering surfaces: `/memory`, MEMORY.md index, `/context` accounting, agentskills.io standard) | ADOPT (verdict-backed, no work) | Covered by verdict rows 2–3, 6–7; existing guidance already aligns — rows only, no work items (user-decided, Q8) |
+| Term candidates increment (L6) | ROUTE | Only "highway / stale highway" handed to lane 6 ([#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904)) — lane 7's hand-off already carries the rest; lane 6 decides adoption |
+
+### Lane 9 harness-claims verdicts
+
+Contract claim-ladder tier (i); verified 2026-08-17 against Claude Code **v2.1.233** (docs +
+shipped binary + changelog as evidence pools; fresh-context verifier pass with parent cure
+attempts — labels below carry the verifier's scoping corrections). Research artifacts:
+memory-tier (`.work/steering-lane-9/harness-claims/`), disposable; this table is the durable
+record. The `disable-model-invocation` listing claim was verified in lane 8 (SSOT strand) and is
+reused, not re-verified.
+
+| # | Course claim | Verdict | Corroboration |
+|---|--------------|---------|---------------|
+| 1 | Auto-memory lives in a per-project state directory outside the repo, keyed by cwd | PARTIALLY TRUE | two-pool for location (`~/.claude/projects/<project>/memory/`: docs + binary); keying is git-repo-derived since v2.1.63 — worktrees/subdirectories share one store; project root only outside git repos (docs + changelog) |
+| 2 | `/memory` opens memory files | CONFIRMED (as documented) | two-pool for the command (docs + binary); enumerated behaviors (scope listing, auto-memory toggle, open-folder, GUI non-blocking since v2.1.216) docs-only |
+| 3 | MEMORY.md is a concise index; first 200 lines / 25KB load at session start; topic files on demand | CONFIRMED | two-pool for the 200-line half (docs + binary `FZ=200`); 25KB half docs + changelog v2.1.83; over-limit writes succeed with rewrite error (v2.1.210) |
+| 4 | Subdirectory CLAUDE.md loads on demand when files in that subtree are read; ancestors in full at launch; nested not re-injected after `/compact` | CONFIRMED | single-pool (docs-only — changelog v2.1.69/v2.1.89 presuppose rather than state the semantics; binary probe unresolved; remote live-probe cure failed on confounds). Cure when convenient: live probe with a tracked nested CLAUDE.md in a local interactive session |
+| 5 | `~/.agents/skills` is an equivalent personal-skills path to `~/.claude/skills` | REFUTED | two-pool refutation (docs enumerate only `~/.claude/skills`; binary has no `.agents` filesystem path; OpenCode's upstream doc owns the convention) |
+| 6 | Agent Skills is an open standard documented at agentskills.io | CONFIRMED | two-pool (official docs link it; spec repo `agentskills/agentskills` README — "Anthropic-originated" is the spec repo's self-report; agentskills.io itself egress-blocked from this container, verified via the spec repo) |
+| 7 | `/context` reports "Memory files" as its own accounting category | CONFIRMED | two-pool (docs instruction + binary category push). Open sub-detail, non-blocking: whether the auto-memory MEMORY.md slice counts inside that row is undocumented |
+
+Lane 9 status: CLOSED 2026-08-17 — rounds 1–2 user-confirmed, criteria patch filed
+([#2987](https://github.com/melodic-software/claude-code-plugins/issues/2987): C5 carve-out,
+C7 stale-highway note, C3 nested-CLAUDE.md + @-mention rows, design-smell remediation), eval
+fixture filed
+([#2989](https://github.com/melodic-software/claude-code-plugins/issues/2989)), harness-claims
+verdicts recorded above with corroboration labels, term increment handed to lane 6. Steering
+lanes 7–9 all closed; next: chain close (PR + merge).
