@@ -12,8 +12,9 @@ P1/P2/P3), whose detector and criteria version independently of this document.
   one-time switch-prompt behavior, both quoted verbatim (fetched 2026-08-17). Substance of the
   convention unchanged. Known gap, recorded for a future revision: the convention reasons only
   about *loosening* (allow rules surviving auto mode) and says nothing about *tightening* —
-  deny-rule durability across modes — which the `context-budget` design
-  (`docs/topics/context-budget/`) now depends on.
+  deny-rule durability across modes — which the `context-budget` design now depends on
+  (shipped as `plugins/context-budget/`; its topic slice pruned per topic-docs, evidence
+  retrievable via PR #2932's pre-prune SHA).
 
 ## 1.2 — 2026-07-26
 

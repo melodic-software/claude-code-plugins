@@ -15,7 +15,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   auto-discovery). The out-of-contract boundary is unchanged and now rests on its real basis:
   both switches ablate product-owned surfaces, not operator-owned instructions. Eval 8 updated to
   grade the scope-boundary reasoning instead of the retired undocumented-status claim.
-  Evidence: `docs/topics/context-budget/FINDINGS.md`.
+  Evidence: the `context-budget` evidence record (topic slice pruned per topic-docs;
+  retrievable via PR #2932's pre-prune SHA).
 
 ## [0.38.6]
 
