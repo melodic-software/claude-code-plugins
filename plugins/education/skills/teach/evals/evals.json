@@ -72,6 +72,68 @@
         "Never silently invents or fabricates a workspace — it resolves against the live existing workspace state before writing",
         "Takes the branch that matches the current state: use the one existing workspace, ask which when several exist, or ask whether to start one when none exists"
       ]
+    },
+    {
+      "id": 7,
+      "name": "research-grounding-tier-selection",
+      "prompt": "/education:teach codebase hooks-system — teach me how this repo's hook scripts work.",
+      "expected_output": "Codebase-mode lesson claims ground in repo files Read this turn (tier 0 of the research-grounding ladder) with no research dispatch spawned for them; a tier-1 research dispatch is reserved for contested, broad, or fast-domain external claims and stays within roughly one dispatch per session. No lesson-driving claim comes from parametric recall at any tier.",
+      "files": [],
+      "expectations": [
+        "Grounds codebase-mode lesson claims in repo files Read this turn (tier 0), without dispatching a research subagent for them",
+        "Escalates to a tier-1 research dispatch only for contested, broad, or fast-domain external claims — batching open questions to stay within roughly one dispatch per session",
+        "Never asserts a lesson-driving claim from parametric recall at any tier — the ladder decides which fetch, never whether"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "workspace-root-ladder-resolution",
+      "prompt": "/education:teach topic music-theory",
+      "expected_output": "Before creating the workspace it resolves the root ladder in order — project declaration, workspace_root userConfig, one-time ask (interactive only), the OS Documents 'Claude Learning' home when Documents exists and differs from $HOME (topic mode only), then plugin data. A surviving ${user_config.workspace_root} literal is treated as unset and never pasted into a shell command, and the platform Documents directory is never created by the skill.",
+      "files": [],
+      "expectations": [
+        "Resolves the workspace root by the documented ladder order (project declaration → workspace_root userConfig → ask-once → OS Documents home → plugin-data fallback) rather than hardcoding one location",
+        "Treats a surviving ${user_config.workspace_root} literal as unset and never pastes it into a shell command",
+        "Applies the mode split: the Documents default is topic-mode only; codebase workspaces stay under plugin data absent explicit project-declaration or userConfig rooting",
+        "Never creates the platform Documents directory itself, and keeps existing plugin-data workspaces readable (the fallback root is always scanned)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "lesson-format-platform-aware",
+      "prompt": "/education:teach explain css-grid — I'm at my desktop with a browser available.",
+      "expected_output": "With a render-capable host the lesson defaults to interactive, self-contained lesson.html — shared assets spliced in from the workspace assets/ library rather than re-authored, quiz block with shuffled answers ending in a copy-out result block the learner pastes back for grading — while a headless/SSH/cloud host would get lesson.md. The durable trio (reference.md, learning records, GLOSSARY.md) stays markdown either way, and after writing it offers (permission-gated, never auto-runs) the platform-appropriate open command.",
+      "files": [],
+      "expectations": [
+        "Defaults to interactive self-contained lesson.html when the host can render it and to lesson.md on headless/remote hosts — one lesson file per concept either way",
+        "Splices the shared stylesheet and quiz component from the workspace assets/ library instead of re-emitting them inline per lesson",
+        "Keeps the durable trio (reference.md, learning records, GLOSSARY.md) markdown regardless of lesson format",
+        "Offers to open the written lesson via the platform-appropriate command, permission-gated, and skips the offer on remote/web/cloud hosts"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "resume-surfaces-due-for-review",
+      "prompt": "/education:teach resume rust-ownership",
+      "expected_output": "Resume reads MISSION/GLOSSARY/NOTES, scans learning records for the frontier, and surfaces due-for-review floor concepts (record age weighed against domain velocity) BEFORE advancing — opening with a quick retrieval question on a due concept when any exist, rather than re-lecturing it.",
+      "files": [],
+      "expectations": [
+        "Surfaces due-for-review concepts computed from learning-record age × domain velocity before advancing the frontier",
+        "Opens with a retrieval question on a due floor concept when one exists, rather than re-lecturing the content",
+        "Loads per-concept due-for-review detail only on resume of that workspace — status stays one line per workspace from filename/mtime heuristics"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "deictic-subject-routes-codebase-stable-name",
+      "prompt": "/education:teach onboard me to this repo",
+      "expected_output": "A deictic whole-repo subject routes to codebase mode via the smart default, and the workspace gets a stable content name derived from the repo basename plus a scope word (raw name like '<repo-basename> overview'), recorded as the raw subject name — never a slug of the deictic phrase itself.",
+      "files": [],
+      "expectations": [
+        "Routes the whole-repo/deictic subject ('this repo') to codebase mode via the smart default",
+        "Derives a stable content name (repo basename + scope word) recorded as the raw subject name, instead of slugging the deixis into something like 'this-repo'",
+        "Resolves two runs of the same deictic request to the same workspace"
+      ]
     }
   ]
 }

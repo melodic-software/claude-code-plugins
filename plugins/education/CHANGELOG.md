@@ -3,7 +3,10 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.7.0]
+
+Two consumer-visible default changes (lesson format, topic-workspace location) — the
+`teach-skill-comparison` topic audit (docs/topics/teach-skill-comparison/) is the design record.
 
 ### Changed
 
@@ -19,14 +22,44 @@ All notable changes to the `education` plugin are documented here. Format follow
   (OneDrive/iCloud), so repo-derived state must not silently leave the machine for a private
   repo — privacy beats visibility there. Existing plugin-data workspaces stay readable forever
   (the ladder always scans that root); migration is a one-time offer, never forced.
+- **Lessons default to interactive, self-contained HTML where the learner's host can render
+  it** (headless/SSH/remote/cloud hosts keep markdown; so do lessons where interactivity pays
+  nothing). The durable trio — `reference.md`, learning records, `GLOSSARY.md` — stays
+  markdown. Lesson HTML embeds shared assets by a scripted splice from the workspace `assets/`
+  library (stylesheet + answer-shuffling quiz component), never re-emitted per lesson; in-page
+  quizzes end in a copy-out result block graded in conversation, recorded as learning-record
+  evidence — the page never self-certifies.
+- **Mission interview runs BEFORE workspace creation** (it crystallizes the raw subject name
+  the slug and collision guard need) and harvests fields the opening message already answers;
+  whole-repo/deictic subjects route to codebase mode under a stable derived content name.
+- **codebase action argument renamed `<concept>` → `<topic>`** with the concepts-are-smaller-
+  units mapping stated.
 
 ### Added
 
+- **Storage-strength pedagogy** (from the upstream teach skill, re-adopted): fluency-vs-storage
+  distinction, desirable-difficulty triad (retrieval practice, spacing, interleaving — skills
+  practice only), the knowledge/skills difficulty asymmetry, and the equal-length quiz-answer
+  rule.
+- **Graduated research-grounding ladder** for lesson claims: tier 0 no-dispatch (repo files
+  Read this turn, verified RESOURCES.md citations) → tier 1 `/discovery:research` with
+  inline-fetch fallbacks → tier 2 seeding via `/discovery:research-deep` → tier 3
+  `/knowledge:map-corpus` + digests — every cross-plugin name presence-gated; roughly one
+  research dispatch per session; parametric recall banned at every tier.
+- **Spaced review**: `resume` surfaces due-for-review floor concepts (record age × domain
+  velocity) before advancing the frontier; `status` adds a due-for-review flag from
+  filename/mtime heuristics only.
+- **Open-lesson affordance** (permission-gated `open`/`xdg-open`/`start`; skipped on
+  remote/web hosts) and a presence-gated publish-as-artifact flavor.
 - **`workspace_root` userConfig** for teach, mirroring the `knowledge.library_dir` value
   grammar; surfaced by `/education:setup`.
 - **`list-workspaces.sh` multi-root scan + `--default-root`** (OS Documents resolution with the
   exists-and-not-`$HOME` guard), linked-worktree slug hoisting via `git rev-parse
-  --git-common-dir` with legacy per-worktree slugs still scanned and labeled.
+  --git-common-dir` with legacy per-worktree slugs still scanned and labeled; regression suite
+  extended to 29 checks.
+- **Five new teach evals** (research-tier selection, root-ladder resolution, platform-aware
+  lesson format, due-for-review surfacing, deictic routing); eval 1 amended to the root-ladder
+  expectation.
 
 ## [0.6.4]
 

@@ -104,7 +104,7 @@ docs/upstream/mattpocock-skills.md: move `teach` out of "Not adopted"; add a Der
 
 **Sanity Check:** `grep -c "education:teach" docs/upstream/mattpocock-skills.md` ≥ 1 in the attribution table; `grep -c "teach.*(education plugin covers)" docs/upstream/mattpocock-skills.md` = 0.
 
-### Phase 7: Evals, QA gates, hygiene [TODO]
+### Phase 7: Evals, QA gates, hygiene [DONE]
 
 `evals/evals.json`: AMEND existing evals invalidated by the root-ladder (eval 1's plugin-data expectation — verified amended in Phase 3's sweep) and EXTEND: research-ladder tier selection, workspace-root resolution, HTML-lesson default, spaced-review surfacing, deictic-subject routing. Equal-length quiz-answer rule verified in BOTH `context/exercises.md` and `context/assessment.md` (reviewer #16c). Run `/skill-quality:check`; docs-hygiene two-budgets pass on SKILL.md (body growth offset by F12 dedupe + disclosure pushes; hard ceiling: lint-clean + listing budget checks). **Version bump: education 0.7.0** (minor — two consumer-visible default changes; reviewer #16b) + CHANGELOG entry (parity gate `scripts/check-changelog-parity.sh` runs in CI).
 
