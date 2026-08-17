@@ -39,7 +39,7 @@ PARTIAL / REJECTED / OPEN.
 
 | Lane | Course concept | Candidates | Our surface | Verdict | Item |
 |---|---|---|---|---|---|
-| A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | OPEN | #2934 |
+| A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | PARTIAL (C4 adopted gate-added; C3 partial; C1 already-present; C2 routed to #2936) | #2934 |
 | B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED | #2935 |
 | C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
 | D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
@@ -53,6 +53,35 @@ Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): bindi
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
 multi-provider topology (#2945), Linear adapter (#2946), adapter-onboarding skill (#2950),
 Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
+
+## Lane A (#2934)
+
+Interview rounds 1–4 locked the shape (2026-08-17): extend `work-items:decompose` +
+`planning:plan close-out` — NOT a new to-spec skill; mandatory approval gate; opt-in and
+consumer-configurable throughout.
+
+- **C1 ALREADY-PRESENT**: no-interview pure-synthesis spec mode. `planning:interview`
+  synthesizes directly when intent is clear (anti-re-interrogation is its documented smart
+  default), and `planning:plan`'s empty-argument smart default finalizes an existing
+  conversation plan without re-interviewing. No new entry path added.
+- **C2 PARTIAL**: seam-sketch-before-spec accepted as doctrine direction but ROUTED to lane C
+  (#2936), where it lands alongside C9 (the pre-agreed-seam gate — same doctrine family, one
+  landing surface across planning:design / tdd:principles / testing:plan). The "ideal number
+  of seams is one" numeric absolutism is REJECTED (folklore-figure posture).
+- **C3 PARTIAL**: container body = the Brief **verbatim** (our spec template), plus an optional
+  `## Testing decisions` section with prior-art test pointers — that section is the adopted
+  delta. The "LONG, numbered, extremely extensive" directive stays excluded (worse-than-us
+  list).
+- **C4 ADOPTED (gate-added variant only)**: the spec publishes to the tracker as a `work-map`
+  container with slices as native sub-items (`work-items:decompose` "Container lifecycle") —
+  opt-in at approval, `decompose_container_publish` userConfig pre-select, container label
+  remappable via binding `config.container_label`. Upstream's gate-free publish remains
+  excluded.
+- **Archive-your-specs** (course "Should You Keep Your Specs?"): ADOPTED as archival by
+  closure — the container closes at ship after a close-out review against its body; a closed
+  container stays findable but no spec sits in repo or open tracker for agents to trust over
+  code. Pass-by-reference ADOPTED: `/work-items:work` reads the parent container body as
+  quoted briefing data before executing a sub-item.
 
 ## Lane B (#2935)
 

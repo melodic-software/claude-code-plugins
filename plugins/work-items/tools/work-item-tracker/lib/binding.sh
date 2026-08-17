@@ -46,11 +46,12 @@ wit_role_label() {
 
 # wit_read_binding <path> — validate shape and export WIT_PROVIDER,
 # WIT_LEASE_TTL_HOURS, WIT_STORAGE_DIR, WIT_HUMAN_GATED_LABEL,
-# WIT_AUTONOMOUS_ELIGIBLE_LABEL, WIT_RECURRING_MAINTENANCE_LABEL. lease_ttl_hours is
+# WIT_AUTONOMOUS_ELIGIBLE_LABEL, WIT_RECURRING_MAINTENANCE_LABEL,
+# WIT_CONTAINER_LABEL. lease_ttl_hours is
 # REQUIRED (all defaults live in the binding, never in code). storage_dir is
 # required only for provider local-markdown.
 wit_read_binding() {
-  local path="$1" version provider ttl storage human_gated autonomous_eligible recurring_maintenance minutes
+  local path="$1" version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
   jq -e . "$path" >/dev/null 2>&1 || return 1
   version="$(jq -r '.schema_version // empty' "$path")"
   [[ "$version" == 1.* ]] || return 1
@@ -81,6 +82,18 @@ wit_read_binding() {
   human_gated="$(wit_role_label "$path" "human-gated" "$WIT_DEFAULT_HUMAN_GATED_LABEL")"
   autonomous_eligible="$(wit_role_label "$path" "autonomous-eligible" "$WIT_DEFAULT_AUTONOMOUS_ELIGIBLE_LABEL")"
   recurring_maintenance="$(wit_role_label "$path" "recurring-maintenance" "$WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL")"
+  # Container marker: config.container_label (a sibling of config.role_labels,
+  # not inside it — the container label marks a graph root, not a worker role).
+  # Same configured-over-default resolution: absent or empty falls to the
+  # shipped default (lib/labels.sh). A present non-string value is a
+  # configuration error, not a fallback: jq -r would stringify a number/bool/
+  # object into a label no item carries, silently letting containers onto the
+  # frontier (label-taxonomy.md: malformed entries stop, never default).
+  local container_type
+  container_type="$(jq -r '.config.container_label | type' "$path")"
+  [[ "$container_type" == "null" || "$container_type" == "string" ]] || return 1
+  container="$(jq -r '.config.container_label // empty' "$path")"
+  [[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
   WIT_LEASE_TTL_MINUTES="$minutes"
@@ -88,6 +101,7 @@ wit_read_binding() {
   WIT_HUMAN_GATED_LABEL="$human_gated"
   WIT_AUTONOMOUS_ELIGIBLE_LABEL="$autonomous_eligible"
   WIT_RECURRING_MAINTENANCE_LABEL="$recurring_maintenance"
+  WIT_CONTAINER_LABEL="$container"
   export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_LEASE_TTL_MINUTES WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL \
-    WIT_AUTONOMOUS_ELIGIBLE_LABEL WIT_RECURRING_MAINTENANCE_LABEL
+    WIT_AUTONOMOUS_ELIGIBLE_LABEL WIT_RECURRING_MAINTENANCE_LABEL WIT_CONTAINER_LABEL
 }

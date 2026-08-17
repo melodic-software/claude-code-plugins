@@ -16,21 +16,21 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/labels.sh"
 # The container marker (CONTRACT.md "Containers and state"): an ordinary item
 # carrying this label is a navigable graph root (wayfind maps, decompose
 # breakdowns), never a claimable worker item — so it is never its own frontier
-# item. A named constant, not a baked literal: it matches the documented CONTRACT
-# term. Making the string configurable (a consumer wanting a non-`work-map`
-# marker) is deferred to the label-taxonomy config.role_labels convention, keyed
-# off that same first request — not a parallel binding key.
-readonly WIT_CONTAINER_LABEL="work-map"
+# item. The string resolves from the binding — config.container_label, a sibling
+# of config.role_labels — falling back to the shipped default in lib/labels.sh;
+# callers resolving a binding pass WIT_CONTAINER_LABEL (lib/binding.sh) so a
+# repo's configured remap is honored.
 
 # wit_filter_frontier <autonomous:true|false> [<human-gated-label>] [<container-label>]
 # — stdin: list-items (or list-sub-items) envelope; stdout: frontier envelope
 # (same schema_version passthrough). human-gated defaults to the shipped default
 # (lib/labels.sh — the one definition source); callers resolving a binding should
 # pass WIT_HUMAN_GATED_LABEL (lib/binding.sh) so a repo's configured remap is
-# honored. container defaults to WIT_CONTAINER_LABEL; a container item is dropped
-# from every frontier unconditionally — a container must never surface itself.
+# honored. container defaults the same way (WIT_DEFAULT_CONTAINER_LABEL /
+# WIT_CONTAINER_LABEL); a container item is dropped from every frontier
+# unconditionally — a container must never surface itself.
 wit_filter_frontier() {
-  local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_CONTAINER_LABEL}"
+  local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_DEFAULT_CONTAINER_LABEL}"
   jq -c --arg auto "$autonomous" --arg human_gated "$human_gated" --arg container "$container" '{
     schema_version: .schema_version,
     items: [

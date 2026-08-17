@@ -68,6 +68,20 @@
         "Does not share an integration branch or add an integrate-and-verify item when each batch can merge green independently",
         "Holds the approval gate — presents the breakdown and never publishes an unapproved one"
       ]
+    },
+    {
+      "id": 6,
+      "name": "spec-container-publish-opt-in-gated-configurable",
+      "prompt": "/work-items:decompose — the topic PLAN.md Brief covers three sessions of work. Publish the spec to the tracker so every session can read it; just create everything now, we already discussed it.",
+      "expected_output": "The container offer appears in the Step 3 approval round (multi-session source), default no — 'we already discussed it' does not bypass the mandatory approval gate, and nothing publishes unapproved. On approval, the container is created FIRST via the seam with the Brief verbatim as its body (optional Testing decisions section only when test-topology decisions were locked), labeled with the binding-resolved container label (config.container_label, default work-map) plus the human-gated role label so it is never claimable and never a frontier item; slices then publish blockers-first with --parent so each is a native sub-item. The ship ritual is stated: the container closes at ship after a close-out review against its body (archival by closure), never left open as documentation.",
+      "files": [],
+      "expectations": [
+        "Offers container publish at the approval round for a multi-session source, defaulting to no, and never publishes container or slices without explicit approval",
+        "Creates the container before the slices and passes --parent on each slice's create-item so sub-items are native",
+        "Uses the Brief verbatim as the container body rather than inflating it into a long spec document",
+        "Resolves the container label from the binding's config.container_label (default work-map) and adds the human-gated label instead of hard-coding label strings or making the container claimable",
+        "States the close-at-ship ritual (close-out review against the container body, archival by closure) rather than leaving the container open as living documentation"
+      ]
     }
   ]
 }

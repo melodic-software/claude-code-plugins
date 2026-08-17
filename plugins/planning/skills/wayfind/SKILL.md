@@ -17,7 +17,7 @@ metadata:
 ## Pre-computed context
 
 Current user: !`gh api user --jq '.login' 2>/dev/null || echo "unknown"`
-Open maps: !`gh issue list --label work-map --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"`
+Open maps: !`gh issue list --label "$(l=$(jq -r '.config.container_label | if type=="string" then . else "" end' .work-item-tracker.json 2>/dev/null); echo "${l:-work-map}")" --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"`
 
 ## Variables
 
@@ -88,11 +88,13 @@ an interactive session — do not fabricate a map.
    instead of fabricating one: a single contract to lock → `/planning:interview`; a set of
    sharp tickets → `/work-items`; small enough to just do → say so. (The trigger is too-big
    AND foggy — both, never either alone.)
-2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
-   taxonomy (`work-map`, `wayfind: *`, `needs-human`) is present — an unknown `--label` fails the
+2. **Create or extend the map issue.** On first use in a repo, resolve the container label
+   (the seam's `config.container_label` key, default `work-map` — snippet in
+   `context/tracker-mechanics.md`), then **verify** the wayfind label
+   taxonomy (the container label, `wayfind: *`, `needs-human`) is present — an unknown `--label` fails the
    create. Honor the consuming repository's declared label ownership. If it names a label-as-code
    source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
-   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled bare `work-map`
+   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled with the bare container label
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
    fog clears) / **Notes** (durable pointers only — PRs, committed docs, prior items, external links;
    memory-tier `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline

@@ -201,9 +201,10 @@ main() {
     if ((rc != 0)); then
       exit "$rc"
     fi
-    # WIT_HUMAN_GATED_LABEL is guaranteed by wit_read_binding (which already
-    # gated dispatch above) — no inline default here; the shipped default is
-    # defined once in lib/labels.sh and resolved by the binding layer.
+    # WIT_HUMAN_GATED_LABEL and WIT_CONTAINER_LABEL are guaranteed by
+    # wit_read_binding (which already gated dispatch above) — no inline defaults
+    # here; the shipped defaults are defined once in lib/labels.sh and resolved
+    # by the binding layer (config.role_labels / config.container_label).
     printf '%s\n' "$out" | wit_strip_cr |
       wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0

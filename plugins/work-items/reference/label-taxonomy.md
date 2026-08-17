@@ -66,11 +66,22 @@ fall back silently. Two constraints on remapping:
 
 `/work-items:setup` offers the remap interview and writes the binding key.
 
+### Container label
+
+The seam's container marker (CONTRACT.md "Containers and state") — the label that makes an
+ordinary item a navigable graph root (wayfind maps, decompose breakdowns/spec containers)
+and keeps it off every frontier — resolves from the binding key `config.container_label`,
+a **sibling** of `config.role_labels` (it marks a graph root, not a worker role), default
+`work-map` when absent or empty. The same remap constraints as canonical roles apply: the
+remapped label must exist (or route through the repo's label-as-code owner), and a repo
+that already holds containers must relabel them when remapping — the frontier exclusion is
+an exact match against the resolved string.
+
 ### Recorded postures: fixed strings without a remap seam
 
 Two strings adjacent to the `recurring-maintenance` role are **fixed by design today** — no
 binding key remaps them (recorded posture per the consumer-configurability doctrine; #2942
-F3.7, same deferral pattern as the seam's container label):
+F3.7):
 
 - **`[Maintenance]` title prefix** — the exact-match key `due`/`work` use to reconcile a
   schedule row with its open tracker item. Making it configurable is deferred until a consumer
