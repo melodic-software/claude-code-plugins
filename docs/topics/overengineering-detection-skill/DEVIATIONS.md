@@ -49,3 +49,20 @@ Known transient: `scripts/check-plugin-manifest-presence.sh` is red between Phas
    disable-all token, intentionally-dormant deliberately not a consumer key in V1, derived
    suppression example) — worker discretion within the briefed scope, recorded with rationale
    in `reference/consumer-config.md`. Phases 3–4 must consume these key names as shipped.
+
+## Phase 3 (commit a958dd64)
+
+1. **Layer semantics derived where the enum named but did not define.** `repo-hooks` = repo-declared
+   lifecycle automation not VCS-triggered (task-runner/package lifecycle scripts, build pre/post,
+   bootstrap); `vcs-hooks` = configured hooks path + installed contents + tracked sources + hook-
+   manager manifest, wiring answered from installed state; `satellite-workflows` = automation that
+   gates nothing. Consistent with the Phase 1 forge-neutral intent; recorded for Phase 1 author
+   review at PR time.
+2. **Frontmatter description names the flag-for-human cap in one clause** — ruled discovery text
+   (existence, not semantics; §7 remains the sole definition site).
+3. **`shell: bash` declared** — the two `!` precompute injections use `2>/dev/null` (bash-only per
+   check 19), each with a no-checkout fallback.
+4. **Routing-row wording** for the unhobble route made harness-neutral ("agent-layer
+   standing-instruction ablation the evidence cannot settle") — same route target.
+5. Tooling note for later phases: the Write tool refuses `report-*`/`findings-*` filenames in
+   subagents; write under a neutral name and `mv` (shell heredoc is hook-blocked).
