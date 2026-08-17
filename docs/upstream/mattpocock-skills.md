@@ -130,9 +130,7 @@ triggers stand until the owning lane records the disposition:
   (#2962) — this row retires when that implementation merges; the release trigger stands until
   then.**
 - **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
-  `disable-model-invocation: true` — can be invoked by no other skill). Unverified against
-  current official docs at audit time, and zero live defect instances found (no skill here
-  instructs model invocation of a `disable-model-invocation: true` target).
+  `disable-model-invocation: true` — can be invoked by no other skill).
   **Disposition (lane 8, 2026-08-17): CONFIRMED against current official docs**
   (code.claude.com/docs/en/skills, fetched 2026-08-17): `disable-model-invocation: true` →
   "Description not in context, full skill loads when you invoke"; "By default, Claude can invoke
@@ -140,8 +138,28 @@ triggers stand until the owning lane records the disposition:
   from Claude's context entirely" — and it also blocks subagent preload and (v2.1.196+)
   scheduled-task prompts. The upstream-release trigger is retired (the invariant no longer
   depends on upstream's wording — it is docs-confirmed and owned by
-  `docs/conventions/invocation-mode/README.md` § The invocation-reach invariant). The audit-side
-  trigger stands: a repo review/audit surfacing a skill that instructs model invocation of a
+  `docs/conventions/invocation-mode/README.md` § The invocation-reach invariant).
+  **Fired-and-resolved
+  (#2940 / Lane X C22):** fleet audit enumerated **57** skills with
+  `disable-model-invocation: true` and searched `SKILL.md`, evals, and reference docs for
+  Skill-tool invocation of those names (patterns such as "invoke `/plugin:skill` via the Skill
+  tool", "Call the Skill tool" + target, "Skill tool" + `:setup`). The explicit "via the Skill
+  tool" form is still **zero**. A follow-up pass also reworded operative slash-command
+  instructions against user-invoked-only targets in `repo-fleet-hygiene:audit` and
+  `claude-ops` `inventory` / `audit-performance` / `audit-install-state` (agent-operative
+  "execute/route/hand to /X" → "tell the user to run /X"; ownership and Question|Owner
+  boundary tables left intact). Human-relay phrasing ("tell the user to run /X",
+  "offering to run `/plugin:setup`") and Skill-tool hits on model-invocable skills
+  (`/toolchain:check`, `/implementation:implement-dispatch`, `/tdd:principles`,
+  `/session-flow:handoff`, `/testing:run-e2e`) are non-violations. Standing
+  `skill-quality:check` automation deferred (cross-plugin target resolution is not cheap under
+  the single skills-root model); doctrine lines live in `playbooks:skill-authoring` and
+  `skill-quality:check`. Canonical rewording if a future hit appears: "tell the user to run /X".
+  Same Lane X pass: C23 curate-language trigger comparison vs upstream artifact-anchored
+  `domain-modeling` rewording is **ALREADY-PRESENT** (ours already name glossary / domain term /
+  vocabulary) — one-shot, not a re-evaluation trigger. Re-trigger (audit-side only; the
+  upstream-release trigger is retired per the lane 8 disposition above): a repo review/audit
+  surfacing a new Skill-tool or operative slash-command invocation of a
   `disable-model-invocation: true` target re-opens this strand.
 
 ## Harness findings learned from this upstream (recheck-worthy)
