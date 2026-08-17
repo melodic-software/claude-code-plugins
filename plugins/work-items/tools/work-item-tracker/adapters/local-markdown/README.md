@@ -13,8 +13,9 @@ take a fully-qualified ID (`local-markdown:<owner>/<repo>#<N>` — CONTRACT.md
 "ID grammar"); a bare `#N` is rejected. The default namespace is
 `local/markdown`, so a typical id is `local-markdown:local/markdown#N`.
 `create-item --repo <owner>/<repo>` overrides that namespace at create time.
-`cross_repo_edges` is `false`: one store is one logical namespace. A blocker in
-another namespace is a text pointer only — never a resolvable edge.
+Lookups key by number only; the owner/repo in the id is not re-validated
+against the store. `cross_repo_edges` is `false` means there is no second store
+to consult — not that a foreign-looking qualified id fails lookup.
 
 The **seam** verbs (`list-frontier`, `get-item`, `create-item`) already emit the
 qualified `id` — pass it straight through.
