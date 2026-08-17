@@ -1,5 +1,13 @@
 # Load-tier cost model, thresholds, and pointer-quality criteria
 
+## Contents
+
+- [The three tiers](#the-three-tiers)
+- [Size guidance (all advisory — targets and tips, not validation errors)](#size-guidance-all-advisory--targets-and-tips-not-validation-errors)
+- [Split triggers (when a file earns a split)](#split-triggers-when-a-file-earns-a-split)
+- [Pointer-quality criteria (what makes a spoke reachable)](#pointer-quality-criteria-what-makes-a-spoke-reachable)
+- [Boundaries this audit honors](#boundaries-this-audit-honors)
+
 The reference layer behind `/docs-hygiene:audit-progressive-disclosure`. The hub's shapes table
 cites these facts; read this file when adjudicating a finding that needs the exact number, the
 routing rule, or the pointer criteria.
