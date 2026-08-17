@@ -260,9 +260,22 @@ leave the frontier treating the item as unassigned), supersede the lease, append
 explanatory comment, `reclaimed: true`. Ownership is **revalidated immediately before the
 mutation** — the activity round-trips open a window in which a concurrent claimer can renew
 or supersede the lease; if the active lease is no longer this one, or is now live, reclaim
-is a no-op (`reclaimed: false`), never a mutation. A live lease is never reclaimed.
+is a no-op (`reclaimed: false`), never a mutation of a foreign or now-live lease. That
+revalidation **narrows** the TOCTOU window; it cannot close it — GitHub's issue-comment
+PATCH documents no If-Match / CAS, so a concurrent writer can still win the race. A live
+lease is never reclaimed.
 Branch-push activity signals are not implemented (deferred; comments + PR cross-references
-carry the check).
+carry the check). Long-running workers therefore **renew mid-flight** (`renew-lease` on the
+claim's `lease_comment_id`) rather than relying on push activity (`/work-items:work` Step 5).
+
+- **Clock skew.** Liveness compares provider timestamps (`renewed_at` in the marker) to the
+  local clock (`date -u`). Assume the two are close enough for the configured TTL;
+  sub-hour `ttl_minutes` make skew more visible.
+- **ttl-0.** A claim with `ttl_hours: 0` and `ttl_minutes: 0` is born expired. Conformance
+  relies on that; do not treat it as a live lease.
+- **Comment-id monotonicity.** Same-login race arbitration treats an earlier numeric lease
+  handle as the winner. GitHub lists issue comments by ascending ID by default; adapters
+  MUST emit ordered unique numeric `lease_comment_id` handles.
 
 ## Containers and state
 

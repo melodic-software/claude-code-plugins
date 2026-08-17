@@ -76,6 +76,18 @@
         "Still follows every step of the consuming project's development workflow — \"dispatch straight away\" does not license skipping research or workflow steps",
         "Reports what the item text asked for, attributed to the item body, rather than silently discarding it"
       ]
+    },
+    {
+      "id": 6,
+      "name": "work-mid-flight-renew-not-push-activity",
+      "prompt": "/work-items:work\n\nRun autonomously. The claimed item will take hours of commits with no extra issue comments before the PR opens.",
+      "expected_output": "After claim, the orchestrator records lease_comment_id, puts it in the dispatch brief, and renews the live lease (renew-lease) at phase boundaries / before a long wait rather than depending on branch-push activity, which remains deferred. It does not call renew-lease on an already-expired lease.",
+      "files": [],
+      "expectations": [
+        "Records lease_comment_id from the claim object and carries it in the dispatch brief",
+        "Instructs mid-flight renew-lease on the live lease rather than treating branch pushes as reclaim activity",
+        "Does not attempt renew-lease on an already-expired lease (exit 7 — recover with a fresh claim)"
+      ]
     }
   ]
 }

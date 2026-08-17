@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.28]
+
+### Changed
+
+- **Lease hardening (#2943):** long-running `/work-items:work` workers renew
+  mid-flight (`renew-lease`) instead of relying on deferred branch-push
+  activity. CONTRACT documents clock skew, TOCTOU (revalidation is not CAS),
+  ttl-0 born-expired, and comment-id monotonicity as an adapter requirement.
+
 ## [0.35.27]
 
 ### Changed
