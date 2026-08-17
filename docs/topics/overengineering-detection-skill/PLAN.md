@@ -269,7 +269,7 @@ directory), keeping every pushed commit `--check`-clean.
 - `node scripts/validate-plugin-contracts.mjs` — exit 0 with the fifth copy listed.
 - `grep -rn "userConfig" plugins/overengineering/.claude-plugin/plugin.json` — empty (config rides the cascade concern file).
 
-### Phase 3: `overengineering:audit` skill [TODO]
+### Phase 3: `overengineering:audit` skill [DONE]
 
 Eval-first: write `evals/evals.json` scenarios before/alongside the SKILL body (this marketplace's
 test-first analog for prose skills).
