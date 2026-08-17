@@ -73,6 +73,14 @@ contract uses; audit fix 2026-08-17):
 - **Cloud durability**: decisions are promoted into committed-and-pushed artifacts (this file,
   the provenance doc, tracker items) the moment they lock; `.work/` is a per-session cache and
   is never load-bearing.
+- **PUBLIC-REPO content boundary (added 2026-08-17):** this repository is PUBLIC (verified via
+  the repo listing; note the v1.2 map's "Claude-only private marketplace" line is stale — a
+  lane-6 bookkeeping correction). Course lesson text is paid content and must NEVER be
+  committed: lesson sources live only in the memory tier
+  (`.work/pocock-course-lanes/lessons/01`–`05`, numbered by lane run order; lane 6 harvests and
+  has no single lesson). If the slice is gone when a lane opens, ask the user to re-paste that
+  lane's lesson — never fetch-and-commit it. Provenance rows in `aihero-course.md` PARAPHRASE
+  and cite lesson claims; they never reproduce lesson content wholesale.
 
 ### Acceptance criteria
 
