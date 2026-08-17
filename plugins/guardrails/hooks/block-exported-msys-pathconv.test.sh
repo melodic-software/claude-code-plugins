@@ -75,8 +75,8 @@ run_win "export at the very start of the command (blocked)" 'export MSYS_NO_PATH
 
 # --- 2b. Valid export spellings one flag away from the obvious one -----------
 # All of these genuinely export the suppressor (bash `help export` / `help
-# declare`), so each is the same defect in a different spelling. Reviewed as
-# false negatives on PR #2878.
+# declare`), so each is the same defect in a different spelling, and each was
+# once a reviewed false negative of this matcher.
 run_win "export -- end-of-options form (blocked)" \
   'export -- MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x' 2
 run_win "declare -rx combined flags (blocked)" \
@@ -172,8 +172,8 @@ run_win "echo of the name (allowed)" 'echo "MSYS_NO_PATHCONV"' 0
 # --- 4b. Quoted prose vs executed code ---------------------------------------
 # An export spelling inside quoted text is inert UNLESS the command also names
 # a shell that could execute it. Without a shell word in the command string,
-# the keyword must sit at command position to match. Reviewed as false
-# positives on PR #2878: this repo documents this very guard, so its own
+# the keyword must sit at command position to match. These were reviewed
+# false positives: this repo documents this very guard, so its own
 # commit messages and docs quote the forbidden spelling constantly.
 run_win "the full assignment quoted in a commit message (allowed)" \
   'git commit -m "fix: block export MSYS_NO_PATHCONV=1"' 0
@@ -190,18 +190,21 @@ run_win "quoted export handed to eval (blocked)" \
 # The shell word itself may be QUOTED — mandatory when its path carries a
 # space, as the Windows Git Bash install path does. A fully quoted word must
 # normalize to its bare spelling, or the quote defeats the shell-word check
-# and the matcher wrongly falls back to command-position mode (fresh-context
-# verification finding on PR #2878).
+# and the matcher wrongly falls back to command-position mode, a gap a
+# fresh-context verification pass caught.
 run_win "quoted bare shell word with an export (blocked)" \
   "'bash' -c 'export MSYS_NO_PATHCONV=1; git status'" 2
 run_win "quoted absolute shell path with an export (blocked)" \
   "'/c/Program Files/Git/bin/bash.exe' -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
+# portability-ok: the backslashes below are Windows path separators inside a
+# literal PowerShell test fixture, not regex word-boundary escapes; the string
+# never reaches grep or sed.
 run_win_pwsh "PowerShell call operator on a quoted bash.exe path with an export (blocked)" \
   '& "C:\Program Files\Git\bin\bash.exe" -c "export MSYS_NO_PATHCONV=1; git status"' 2
 # The assignment side of the walk gets the same quote normalization as the
 # command-word side: the first word of a quoted child command string arrives
 # as `"MSYS_NO_PATHCONV=1`, and the inner prefix leaks within the inner shell
-# just the same (fresh-context verification finding on PR #2878).
+# just the same, a gap a fresh-context verification pass caught.
 run_win "prefix at the start of a quoted child command string (blocked)" \
   "bash -c \"MSYS_NO_PATHCONV=1 bash -c 'git worktree add /d/worktrees/x'\"" 2
 # DECLARED RESIDUAL, pinned as deliberate: a heredoc body line is

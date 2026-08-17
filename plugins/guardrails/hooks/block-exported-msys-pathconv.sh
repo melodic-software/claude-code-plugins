@@ -209,8 +209,8 @@ contains_shell_word() {
 # MSYS_NO_PATHCONV=1`), so leading `NAME=value` pairs are skipped. `declare`/
 # `typeset` export when ANY of their flag tokens carries `x` — `-x`, `-rx`,
 # `-gx`, `-x -g` — so the flag cluster is matched as a region and checked for
-# `x` afterward rather than spelled into the regex (a literal `-x` alone was a
-# reviewed false-negative on PR #2878). A BARE assignment is deliberately not
+# `x` afterward rather than spelled into the regex (a literal `-x` alone is a
+# false negative one flag-spelling away). A BARE assignment is deliberately not
 # matched: it does not enter the environment and therefore does not suppress.
 is_exported_suppressor() {
   local s="$1" lead nl=$'\n'
@@ -264,8 +264,7 @@ leaks_into_child_shell() {
     # suppressor assignment, a launcher, or a shell is recognized by what it
     # is, not how it is spelled. `/usr/bin/env bash`, a quoted `'bash'`, and
     # a quote-leading `"MSYS_NO_PATHCONV=1` (the first word of a quoted child
-    # command string) all leaked through literal-spelling checks (PR #2878
-    # review and verification).
+    # command string) all leaked through earlier literal-spelling checks.
     tok="${tok#\'}"
     tok="${tok#\"}"
     tok="${tok%\'}"
