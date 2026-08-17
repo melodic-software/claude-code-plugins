@@ -77,14 +77,10 @@ when this pass must stop instead of guessing.
      issue (`gh auth status --help`), so an unrelated stale credential would condemn a good
      checkout. Run it to explain a failure, never to gate the choice.
    - **`local-markdown`** — the offline reference provider (one markdown file per item); never a
-     coordination surface. The store is working-tree files, so items, leases, and ids are branch- and
-     worktree-confined — multi-session / multi-machine work needs a tracker-published spec on a
-     coordination provider, not this adapter. Requires `config.storage_dir` (no baked default) — a
-     tracked directory the items live in (e.g. `.work-items`). Confinement and operational mechanics:
-     the seam contract's "local-markdown adapter" section
-     ([`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md))
-     and
-     [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/local-markdown/README.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/local-markdown/README.md).
+     coordination surface. The store is working-tree files, so items/leases/ids are branch- and
+     worktree-confined — multi-session work needs a tracker-published spec on a coordination
+     provider. Requires `config.storage_dir` (no baked default; e.g. `.work-items`). See CONTRACT.md
+     "local-markdown adapter" and `adapters/local-markdown/README.md`.
    - **`jira`** — read/resolve-only against a Jira Cloud project set (consume-only: no ticket
      creation/claim/mutation; write verbs exit `6`). Requires `config.jira` (`site`, non-empty
      `project_keys[]`, `auth_email`, `auth_env`) and `curl`; the API token is referenced by env-var
