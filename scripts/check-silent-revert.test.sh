@@ -456,14 +456,29 @@ t_ext_diff_pin_is_load_bearing() {
 # `diff.<name>.command`, not textconv -- so measuring the two separately is the
 # only way to know the pin set is complete.
 #
-# The nastiest arm is the MIXED one, which is why it is asserted here rather
-# than left to inference. attribute_file computes -L ranges from the DIFF's
-# view of the file and hands them to BLAME. Pin only the diff and the two views
-# disagree, so the ranges land on the wrong lines: measured on an 80-line
-# single-culprit finding, a textconv prepending ten lines silently re-cut it
-# into 60 against the real culprit plus 20 against the base commit. That is not
-# a visible error, it is a quiet reattribution -- and at the shipped threshold
-# it is exactly how a true finding slips under the line.
+# The nastiest arm is the MIXED one, which is why both halves are asserted here
+# rather than left to inference. attribute_file computes -L ranges from the
+# DIFF's view of the file and hands them to BLAME, so pinning only one of the
+# two makes the views disagree and the ranges land on the wrong lines. Neither
+# half errors; both just return a wrong number.
+#
+# THE TRANSFORMER HAS TO CHANGE THE LINE COUNT, and that is the whole reason
+# this fixture duplicates lines rather than prepending them. A transformer that
+# only PREPENDS shifts the hunk's starting offset while leaving its length
+# alone, so all four arms report the identical count and the case passes
+# vacuously -- it did exactly that, agreeing at 300 on every arm, until the
+# transformer was changed to one that doubles. Measured here with `sed p`:
+#
+#        shipped (both pinned)                300   <- the truth
+#        neither pinned                       600   <- diff and blame agree, wrongly
+#        diff pinned, blame not          SILENT     <- the views disagree
+#        blame pinned, diff not          SILENT     <- and so do these
+#
+# The mixed arms are the dangerous ones. The ranges and the file no longer line
+# up, so part of the block falls outside them; with this fixture's 150 lines of
+# earlier content the surviving count drops under the 200 threshold and the
+# commit reports `ok` with an empty findings sink. Not an error, not a wrong
+# number a reader might notice -- a true finding suppressed outright.
 #
 # `git blame` applying textconv by default is UNDOCUMENTED: `git blame -h`
 # lists no --textconv/--no-textconv and git-blame's manual page contains no
@@ -473,36 +488,68 @@ t_ext_diff_pin_is_load_bearing() {
 # mirror image and deliberately NOT on the blame call: it is accepted there,
 # but blame never runs an external diff driver, so it would be decoration.
 t_textconv_pin_is_load_bearing() {
-  local repo cfg clean_sink intact_sink both_sink blame_sink clean_rc intact_rc
+  local repo cfg clean_sink intact_sink both_sink blame_sink diff_sink
+  local clean_rc intact_rc live_before live_after
   repo="$(mk_repo)"
   printf '*.md diff=markdown\n' >"$repo/.gitattributes"
-  # A transformer that CHANGES the line count, which is what makes a
-  # diff/blame disagreement observable rather than merely cosmetic.
-  {
-    printf '#!/bin/sh\n'
-    printf 'printf "textconv filler line %%s\\n" 1 2 3 4 5 6 7 8 9 10\n'
-    # $1 is the GENERATED script's argument, not this one's -- it must reach the
-    # file literally, so the single quotes are the point.
-    # shellcheck disable=SC2016
-    printf 'cat "$1"\n'
-  } >"$repo/shift-textconv.sh"
-  chmod +x "$repo/shift-textconv.sh"
+  # feature.md needs content from an EARLIER commit ahead of the block the
+  # culprit adds. Misaligned -L ranges only become visible as a changed
+  # attribution when they slide off one commit's lines and onto another's; with
+  # the culprit's block alone in the file, a shifted range still lands entirely
+  # inside that same culprit and all four arms report 300 -- which is how this
+  # case passed vacuously once already.
+  #
+  # 150 lines rather than a token few. The margin the mixed arms produce is
+  # bounded by how far the ranges can slide, so it scales with this number:
+  # measured 300 vs 295 at 5 base lines, 300 vs 240 at 60, and at 150 the
+  # misattributed count falls below the 200 threshold entirely and the arm goes
+  # SILENT (rc 0, empty sink). That last one is the real-world harm this pin
+  # prevents -- a true finding suppressed, not merely miscounted -- so the
+  # fixture is sized to reproduce it rather than the marginal case.
+  printf 'base line %s\n' $(seq 1 150) >"$repo/feature.md"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: name a diff driver for markdown"
 
   add_block "$repo" feature.md 300 alpha
   drop_block "$repo" feature.md alpha "feat: unrelated feature (#99)"
 
+  # `sed p` doubles every line, so a deleted block reports twice the deletions.
+  # It is written as a bare PATH-resolved command with no script file and no
+  # absolute path anywhere, which is not a stylistic choice: git spawns a
+  # textconv through the platform's native process API, and on Windows that
+  # cannot resolve the MSYS-style /tmp/... path mktemp -d hands back. A helper
+  # script in the fixture directory therefore fails with `cannot spawn ... No
+  # such file or directory`, every arm reports zero, and the case reads as "the
+  # pin is inert" when nothing ever ran.
   cfg="$repo/textconv-gitconfig"
-  printf '[diff "markdown"]\n\ttextconv = %s\n' "$repo/shift-textconv.sh" >"$cfg"
+  printf '[diff "markdown"]\n\ttextconv = sed p\n' >"$cfg"
+
+  # Prove the DRIVER ITSELF is live before asking what the detector does with
+  # it. A textconv that never activates -- absent interpreter, unreadable
+  # attributes, a config scope git does not consult on this platform -- would
+  # make every arm below agree, and agreement would then read as "the pin does
+  # nothing" when the truth is "the experiment never ran". Assert on raw git,
+  # independently of the canary, so the two failures cannot be confused.
+  #
+  # The blame is deliberately UNBOUNDED: a -L range bounds the output, so
+  # `-L1,1` returns exactly one line whether or not the file was doubled and
+  # could never observe the transformation.
+  live_before="$(git_test_config "$repo" blame --line-porcelain HEAD~1 -- feature.md 2>/dev/null | grep -c '^	')"
+  live_after="$(GIT_CONFIG_GLOBAL="$cfg" git_test_config "$repo" blame --line-porcelain HEAD~1 -- feature.md 2>/dev/null | grep -c '^	')"
+  if [[ "$live_before" -lt 1 ]] || [[ "$live_after" -ne $((live_before * 2)) ]]; then
+    fail "the textconv driver is not active in this fixture (blame returned $live_before lines unfiltered and $live_after filtered, want the filtered count to be double), so this case cannot say anything about the pin -- fix the fixture, do not read this as the pin being inert"
+    return 0
+  fi
 
   strip_pin "$repo" no-textconv-pin 's/ --no-textconv//g' || return 0
   strip_pin "$repo" blame-textconv-unpinned '/git blame/ s/ --no-textconv//' || return 0
+  strip_pin "$repo" diff-textconv-unpinned '/git diff --no-ext-diff/,+1 s/ --no-textconv//' || return 0
 
   clean_sink="$(mktemp)"
   intact_sink="$(mktemp)"
   both_sink="$(mktemp)"
   blame_sink="$(mktemp)"
+  diff_sink="$(mktemp)"
 
   FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
   clean_rc="$RC"
@@ -513,20 +560,28 @@ t_textconv_pin_is_load_bearing() {
     CANARY_SCRIPT=scripts/no-textconv-pin.sh run_canary "$repo" --commit HEAD
   GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$blame_sink" SILENT_REVERT_THRESHOLD=200 \
     CANARY_SCRIPT=scripts/blame-textconv-unpinned.sh run_canary "$repo" --commit HEAD
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$diff_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/diff-textconv-unpinned.sh run_canary "$repo" --commit HEAD
 
   local sk
-  for sk in "$clean_sink" "$intact_sink" "$both_sink" "$blame_sink"; do
+  for sk in "$clean_sink" "$intact_sink" "$both_sink" "$blame_sink" "$diff_sink"; do
     sort -o "$sk" "$sk"
   done
 
+  # The two mixed arms must go SILENT, not merely differ -- that is the harm.
+  # Asserting emptiness rather than inequality also keeps this case honest if
+  # the fixture is ever resized: shrink the base block and the arms start
+  # reporting a wrong-but-present count, and this assertion fails rather than
+  # quietly weakening to the marginal signal it started as.
   if [[ "$clean_rc" -eq 1 ]] && [[ -s "$clean_sink" ]] &&
     [[ "$intact_rc" -eq "$clean_rc" ]] && cmp -s "$clean_sink" "$intact_sink" &&
-    ! cmp -s "$clean_sink" "$both_sink" && ! cmp -s "$clean_sink" "$blame_sink"; then
-    ok "the --no-textconv pin is load-bearing on the diff AND the blame: unpinned either way a textconv driver moves the attribution, pinned both it is unchanged"
+    ! cmp -s "$clean_sink" "$both_sink" &&
+    [[ ! -s "$blame_sink" ]] && [[ ! -s "$diff_sink" ]]; then
+    ok "the --no-textconv pin is load-bearing on the diff AND the blame: stripping both inflates the count, stripping either one alone SILENCES a real finding; pinned both it is unchanged"
   else
-    fail "the --no-textconv pin did not discriminate (clean rc=$clean_rc, pinned rc=$intact_rc): clean=[$(tr '\n' ';' <"$clean_sink")] pinned=[$(tr '\n' ';' <"$intact_sink")] both-stripped=[$(tr '\n' ';' <"$both_sink")] blame-only-stripped=[$(tr '\n' ';' <"$blame_sink")]"
+    fail "the --no-textconv pin did not discriminate (clean rc=$clean_rc, pinned rc=$intact_rc): clean=[$(tr '\n' ';' <"$clean_sink")] pinned=[$(tr '\n' ';' <"$intact_sink")] both-stripped=[$(tr '\n' ';' <"$both_sink")] blame-only-stripped=[$(tr '\n' ';' <"$blame_sink")] diff-only-stripped=[$(tr '\n' ';' <"$diff_sink")]"
   fi
-  rm -f "$clean_sink" "$intact_sink" "$both_sink" "$blame_sink"
+  rm -f "$clean_sink" "$intact_sink" "$both_sink" "$blame_sink" "$diff_sink"
 }
 
 # --no-show-signature. This repository REQUIRES signed commits, so every commit
