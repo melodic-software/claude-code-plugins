@@ -42,6 +42,19 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 - Q10 | answered | round 3 | Doc-comment fence? | Public-API doc comments (docstrings, C# XML docs, JSDoc on exported surfaces) are EXEMPT — never touched. Private/internal doc comments get the same three-way triage as regular comments.
 - Q11 | answered | round 3 | Ecosystem exclusions? | Code files only, language-agnostic; markdown excluded (docs-hygiene territory, same fence as audit-comment-residue). No per-language exclusions — the Q7 safety gradient (class-B proposed-not-applied without a test net) covers fragile ecosystems.
 
+- Q12 | open | round 4 (audit-answers) | A3 repairs: soften length cap to default, sanctioned-exception classes (legal headers, machine directives, TODO(#issue)), "always routes out" → "defaults", stage routed narrative before deletion? |
+- Q13 | open | round 4 (audit-answers) | A5 repair: tests (not lint) gate class-B apply; named detection procedure, else propose-only? |
+- Q14 | open | round 4 (audit-answers) | A8 internal half (explicit values call): private/internal doc comments — triage under repaired class C, keep-by-default, or propose-only? |
+- Q15 | open | round 4 (audit-answers) | A9 repair: adopt the plugin's standard path-exclusion tier (tidy exclusions.md: .claude/settings*, hooks, CI workflows, lint config)? |
+
+## Answer-validation merge (2026-08-17, two fresh validators)
+
+CONFIRMED by both: A1, A2 (+authoring note: description needs explicit Skip-when fences),
+A4, A6 (+note: auto-committed diffs covered by explicit-path mode), A7 (+note: user naming
+criteria enter name-it-better as a reweight). Challenged/reclassified → Q12-Q15 above.
+Dependency notes: A1 holds only with A8's public fence intact; A3's routing defect is a
+consequence of the edits-but-never-commits run shape; A9's fix is path-tier, not language.
+
 ## Resolved (round 3, 2026-08-17)
 
 Q4, Q10, Q11 locked per user ("go with the recommendations"; Q4 confirmed with the
