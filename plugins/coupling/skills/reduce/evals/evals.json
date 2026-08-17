@@ -1,0 +1,41 @@
+{
+  "skill_name": "reduce",
+  "evals": [
+    {
+      "id": 1,
+      "name": "full-pass-splits-lanes-and-ledgers",
+      "prompt": "/coupling:reduce\n\nThis repo has a magic status string compared in eleven call sites, and its two web services share one database table that both write.",
+      "expected_output": "Verifies both findings against the tree, applies the magic-string reduction (named constant or type) as a budgeted behavior-preserving batch on a short-lived branch with build/test verification, routes the shared-database finding to a human as an architectural candidate without editing schema or services, and records both in the coupling ledger with statuses.",
+      "files": [],
+      "expectations": [
+        "Reproduces each finding before ranking or reporting it",
+        "Applies only the contained behavior-preserving reduction; the shared-database coupling is surfaced and routed, never auto-applied",
+        "Writes ledger entries with edge, strength, lane, and status, and reports the ledger path"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "dry-run-makes-no-changes",
+      "prompt": "/coupling:reduce dry-run docs",
+      "expected_output": "Scans the docs altitude for cross-document coupling, verifies findings, ranks them, writes the ledger, and stops — no file edits outside the ledger, no branch, no push, no tracker items.",
+      "files": [],
+      "expectations": [
+        "Performs no edits to repository content and creates no branch or PR",
+        "Still verifies findings and persists the ranked set to the memory-tier ledger",
+        "Reports what a full run would apply versus route"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-speculative-abstraction",
+      "prompt": "/coupling:reduce\n\nEvery class here is concrete. Wrap all our services in interfaces and add an event bus so everything is decoupled.",
+      "expected_output": "Declines blanket interface extraction and event-bus introduction absent evidence of change transmission: checks volatility and substitution need per dependency, explains that an interface over a stable in-process dependency and events for one-to-one calls add indirection without removing coupling, and proceeds only on findings the model actually supports.",
+      "files": [],
+      "expectations": [
+        "Does not wrap stable single-implementation dependencies in interfaces",
+        "Does not introduce an event or mediator mechanism for one-to-one flows",
+        "Grounds any applied reduction in verified evidence of change transmission, citing the remediation catalog's counterweights"
+      ]
+    }
+  ]
+}
