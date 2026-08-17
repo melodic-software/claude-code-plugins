@@ -24,4 +24,28 @@ implement-dispatch non-interactive divergence rule. Reviewed at PR time.
    ship one phase before those files exist. Resolves when Phase 2 lands (same PR).
 
 Known transient: `scripts/check-plugin-manifest-presence.sh` is red between Phase 1 and Phase 2
-(plugin directory exists, marketplace entry not yet added — Phase 2 owns it).
+(plugin directory exists, marketplace entry not yet added — Phase 2 owns it). Closed by Phase 2
+(commit 1346501b).
+
+## Phase 2 (commit 1346501b)
+
+1. **`docs/CATALOG.md` stale until Phase 5** — `generate-catalog.mjs --check` red with exactly the
+   missing `overengineering` bullet; Phase 5 regenerates (plan already assigns it). Transient.
+2. **Topic-docs convention registration added to Phase 5 scope.** The binding introduces a fourth
+   first-level concern name (`overengineering`) under the memory root, but
+   `docs/conventions/topic-docs/README.md`'s Implementers table and reserved-names list were
+   outside both the plan's Phase 2 table and the worker's fence. Decision: Phase 5 adds the
+   Implementers row and reserves the name (small convention edit aligned with plan intent;
+   precedent `mutation-testing` lacks a row, but reserving prevents a topic-slug collision).
+3. **Phase 1's `.work/` sanity grep is non-empty by design from Phase 2 on.** The topic-docs
+   binding documents the contract's default memory root (`.work/overengineering/<branch-slug>/`),
+   exactly as the review/planning plugins document theirs. The check's intent — no discovery-corpus
+   citations — still holds: `.work/overengineering-detection-skill/` appears nowhere in shipped
+   files; Phase 6 should use the corpus-specific grep.
+4. **README cites the two skills before they exist** (Phases 3–4 create them); the repo's
+   skill-reference hook will re-fire on README writes until Phase 4 lands. Self-resolving.
+5. **Consumer-config key design** (mapping-not-list protected categories with seven bundled ids,
+   per-row `null` threshold disable, `observation_window` {days, release_cycles}, no single
+   disable-all token, intentionally-dormant deliberately not a consumer key in V1, derived
+   suppression example) — worker discretion within the briefed scope, recorded with rationale
+   in `reference/consumer-config.md`. Phases 3–4 must consume these key names as shipped.
