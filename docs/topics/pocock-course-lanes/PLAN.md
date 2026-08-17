@@ -161,14 +161,20 @@ stand" overclaim to match context-guard's own "declared judgment defaults" langu
 
 ## Lane index (filed 2026-08-17, in locked run order)
 
-| Lane | Issue | Scope |
-|------|-------|-------|
-| 1 handoff | [#2899](https://github.com/melodic-software/claude-code-plugins/issues/2899) | use-case boundaries, purpose argument, expiry, ephemerality |
-| 2 phase boundaries | [#2900](https://github.com/melodic-software/claude-code-plugins/issues/2900) | tree re-audit + context-driven continuation router (build deliverable) |
-| 3 compaction doctrine | [#2901](https://github.com/melodic-software/claude-code-plugins/issues/2901) | fork-beats-compaction, auto-compact stance, evidence-degraded marker, harness claims |
-| 4 plan-mode | [#2902](https://github.com/melodic-software/claude-code-plugins/issues/2902) | asset-rush critique vs interview-first sequencing, lock-mode audit |
-| 5 grilling parity | [#2903](https://github.com/melodic-software/claude-code-plugins/issues/2903) | course-lesson deltas vs planning:interview |
-| 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | aihero-course.md, term adoption, SSOT TRACK annotations, coverage index |
+| Lane | Issue | Status (as-of 2026-08-17) | Scope |
+|------|-------|--------|-------|
+| 1 handoff | [#2899](https://github.com/melodic-software/claude-code-plugins/issues/2899) | **CLOSED** (`ffb01459`; filed #2955–#2957) | use-case boundaries, purpose argument, expiry, ephemerality |
+| 2 phase boundaries | [#2900](https://github.com/melodic-software/claude-code-plugins/issues/2900) | **CLOSED** (`64fe359e`; filed #2971–#2973) | tree re-audit + context-driven continuation router (build deliverable) |
+| 3 compaction doctrine | [#2901](https://github.com/melodic-software/claude-code-plugins/issues/2901) | **NEXT** (handoff written, unconsumed) | fork-beats-compaction, auto-compact stance, evidence-degraded marker, harness claims |
+| 4 plan-mode | [#2902](https://github.com/melodic-software/claude-code-plugins/issues/2902) | open | asset-rush critique vs interview-first sequencing, lock-mode audit |
+| 5 grilling parity | [#2903](https://github.com/melodic-software/claude-code-plugins/issues/2903) | open | course-lesson deltas vs planning:interview |
+| 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | open | aihero-course.md consolidation (created by lane 1 per A2), term adoption, SSOT TRACK annotations + row-35 and "private marketplace" corrections, coverage index |
+
+This table is the persistent roadmap: each closing lane session updates its row (status +
+closing commit + filed items) in the same commit that closes the lane, so any fresh session
+reads current progress from this file alone. Lesson sources: `lessons/01`–`05` beside this
+file. The handoff chain (`.work/handoffs/*-handoff-pocock-lane-N.md`, `previous_handoff`
+links) carries per-session state; this file carries the journey.
 
 Background research dispatched pre-lane: harness-claims bundle →
 `.work/pocock-course-lanes/harness-claims/` (memory tier; full evidence + fetch logs live there;
