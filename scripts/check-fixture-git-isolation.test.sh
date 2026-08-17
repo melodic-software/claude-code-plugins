@@ -442,7 +442,7 @@ fi
 
 # --- PYTHON: a formatter-wrapped argv is still SEEN --------------------------
 # A per-line scan never has `git` and `init` on one physical line here, so the
-# suite is not merely mis-verdicted, it is invisible to the gate: it never
+# suite does not merely get the wrong verdict, it is invisible to the gate: it never
 # enters the violation/baseline classification at all. That is the failure this
 # gate's own header calls disqualifying — a gate that cannot see the file that
 # fired is not a gate.
@@ -544,7 +544,7 @@ import subprocess
 
 os.environ.pop("SOME_UNRELATED_FLAG", None)
 
-# TODO: still need to handle GIT_DIR / GIT_WORK_TREE leaking into fixtures.
+# Someday: handle GIT_DIR / GIT_WORK_TREE leaking into fixtures.
 def make(d):
     subprocess.run(["git", "init", "-q", d], check=True)
     subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
