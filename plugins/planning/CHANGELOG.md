@@ -23,9 +23,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   hardcoded literal would strand wayfind maps on the old string after a remap — no longer
   matching the seam's frontier exclusion, so `/work-items:work-loop` would surface a map
   as a claimable item. `tracker-mechanics.md` gains a resolve-once snippet (same key,
-  shipped default `work-map` when no binding/key/jq); the create/bootstrap snippets use
-  `"$CONTAINER_LABEL"`; the `SKILL.md` pre-compute resolves the label inline with the
-  same fallback.
+  shipped default `work-map` when no binding/key/jq) that also repeats the seam's type rule
+  on wayfind's own read path — a present non-string value is a configuration error that
+  stops the create, never a silent fallback (wayfind never routes through the seam's
+  loader, so it cannot assume that validation ran); the create/bootstrap snippets use
+  `"$CONTAINER_LABEL"`; the `SKILL.md` pre-compute resolves the label inline with a
+  string-typed read (non-string or empty → default; display-only, fail-soft).
 
 ## [0.30.6]
 

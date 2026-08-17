@@ -17,7 +17,7 @@ metadata:
 ## Pre-computed context
 
 Current user: !`gh api user --jq '.login' 2>/dev/null || echo "unknown"`
-Open maps: !`gh issue list --label "$(jq -r '.config.container_label // "work-map"' .work-item-tracker.json 2>/dev/null || echo work-map)" --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"`
+Open maps: !`gh issue list --label "$(l=$(jq -r '.config.container_label | if type=="string" then . else "" end' .work-item-tracker.json 2>/dev/null); echo "${l:-work-map}")" --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"`
 
 ## Variables
 

@@ -27,14 +27,24 @@ strand wayfind maps on the old string, where the seam's frontier exclusion no lo
 matches them and `/work-items:work-loop` would surface a map as a claimable item.
 
 ```shell
-# Same key the seam reads; degrade to the shipped default when no binding, key, or jq.
-CONTAINER_LABEL=$(jq -r '.config.container_label // empty' \
-  "$(git rev-parse --show-toplevel)/.work-item-tracker.json" 2>/dev/null)
+# Same key + same type rule as the seam's lib/binding.sh: absent/empty → shipped default;
+# a PRESENT non-string value is a configuration error, never a silent fallback.
+ROOT=$(git rev-parse --show-toplevel)
+t=$(jq -r '.config.container_label | type' "$ROOT/.work-item-tracker.json" 2>/dev/null || echo null)
+case "$t" in
+  string) CONTAINER_LABEL=$(jq -r '.config.container_label' "$ROOT/.work-item-tracker.json" 2>/dev/null) ;;
+  null)   CONTAINER_LABEL= ;;   # no binding, no key, or jq missing
+  *)      echo "ERROR: config.container_label must be a string (got $t) — fix .work-item-tracker.json" >&2
+          # STOP here and report; do not proceed with a coerced label.
+          ;;
+esac
 CONTAINER_LABEL=${CONTAINER_LABEL:-work-map}
 ```
 
 The snippets below use `"$CONTAINER_LABEL"`; prose that says `work-map` means the shipped
-default. (The seam validates the key's type and existence; this read only consumes it.)
+default. Wayfind reads the binding file directly (it never routes through the seam's
+loader), so the type check above repeats the seam's rule on this path rather than assuming
+the seam already ran — on the ERROR branch, stop and report instead of creating anything.
 
 ## Bootstrap labels (first use in a repo)
 
