@@ -249,7 +249,7 @@ an auto-invocation race; this phase implements the "both ways" mitigation.
 - **Sanity Check:** trigger-continuity check passes: `CHECK_SKILL_BASE_REF=origin/main CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills bash plugins/skill-quality/scripts/check-skill.sh improve` exits 0
 - **Sanity Check:** `bash scripts/check-changelog-parity.sh` exits 0 (architecture version/CHANGELOG in step)
 
-### Phase 6: Fleet gates, catalog regeneration, smokes [TODO]
+### Phase 6: Fleet gates, catalog regeneration, smokes [DONE]
 
 Steps (scriptable gate run — commands already exist in-repo):
 
