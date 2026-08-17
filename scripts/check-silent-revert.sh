@@ -594,6 +594,14 @@ verify_known_incidents() {
 # requires of `Intentional-removal:`. `[not-restored:]` is rejected, not read as
 # a mute -- a marker nobody has to justify is a mute button, and this corpus is
 # an audit trail.
+#
+# The disposition ends at the FIRST `]`, so a REASON may not contain `]`. That
+# is the only qualification on "any character", it applies to the reason alone,
+# and the marker text after the disposition is still unrestricted. It cannot be
+# enforced after the fact: a truncated reason and a legitimate row whose marker
+# happens to contain `]` are byte-indistinguishable, so any check that rejects
+# the first rejects the second too. A reason truncated at a stray `]` shows up
+# in the `noted` line, which prints it verbatim to the human reading the trail.
 
 # parse_incidents_file <fires-shas-out> <markers-out>
 #
@@ -686,21 +694,24 @@ parse_incidents_file() {
             die "disposition '[$disposition]' on the marker row for $sha in $INCIDENTS_FILE must be [not-restored: <non-empty reason>]"
           reason="${disposition#not-restored:}"
           reason="${reason#"${reason%%[![:space:]]*}"}"
+          # The disposition ends at the FIRST `]`. That is the grammar, stated
+          # up front, and it is why a reason may not itself contain `]`.
+          #
+          # It cannot be an after-the-fact check, and trying was a mistake worth
+          # recording. `[not-restored: see note (ref] for detail)] TEXT` (a
+          # truncated reason) and `[not-restored: reason] some ] text` (a
+          # perfectly good row whose MARKER happens to contain a bracket) are
+          # byte-indistinguishable in shape. Any rule that rejects the first
+          # also rejects the second, and the second is legitimate -- the header
+          # above promises marker text may contain any character.
+          #
+          # So the grammar is documented rather than policed, and the safety net
+          # is the report: a `noted` line prints the recorded reason verbatim,
+          # so a reason truncated at a stray `]` is visible to the human reading
+          # the audit trail. Dispositioned rows are the rare, hand-reviewed
+          # case; that is the right place for a documented restriction.
           marker="${rest#*\]}"
           marker="${marker#"${marker%%[![:space:]]*}"}"
-          # The split above takes the FIRST `]`, so a reason that itself
-          # contains one would silently truncate the reason AND corrupt the
-          # marker text with a stray leading `]`. That combination is quietly
-          # WRONG rather than merely odd: the corrupted marker stops matching,
-          # while the still-non-empty reason makes the row report
-          # "deliberately not restored" -- announcing a recorded decision about
-          # content that may be sitting right there. Undecidable from the row
-          # alone, so it is refused. Only a DISPOSITIONED row pays this cost;
-          # an ordinary marker's text may contain `]` freely.
-          case "$marker" in
-            *\]*) die "ambiguous disposition on the marker row for $sha in $INCIDENTS_FILE: a '[not-restored: ...]' reason may not contain ']'" ;;
-            *) ;;
-          esac
         fi
         [[ -n "$marker" ]] ||
           die "marker row for $sha in $INCIDENTS_FILE records no marker text"
@@ -747,11 +758,37 @@ parse_incidents_file() {
 # SIGPIPEs the upstream and the pipeline status becomes 141, which would take
 # that very cannot-run branch on a marker that is present.
 marker_present() {
-  local rev="$1" path="$2" marker="$3" status kind content
+  local rev="$1" path="$2" marker="$3" status kind mode content
   if [[ -n "$rev" ]]; then
     kind="$(git cat-file -t "${rev}:${path}" 2>/dev/null)" || return 1
     [[ "$kind" = "blob" ]] ||
       die "marker path '$path' resolves to a $kind at $rev, not a file -- bind a marker to exactly one file"
+    # A symlink is a blob too, holding its TARGET PATH as content -- so the
+    # `blob` check above passes it, and `git cat-file blob` would answer this
+    # marker with a filename instead of file content. Refused, for the same
+    # reason the working-tree branch refuses one: a marker binds to the file
+    # that HOLDS the content.
+    #
+    # Two deliberate choices here, both about not building a guard that fails
+    # OPEN. The mode is read from `ls-tree`'s DEFAULT output rather than
+    # `--format=%(objectmode)`, which needs git >= 2.36 -- on an older git the
+    # format string is an error, the capture is empty, and a "not 120000" test
+    # would wave the symlink straight through. And the accepted set is the
+    # REGULAR-FILE modes rather than "anything but a symlink", so an empty or
+    # unparsed reading lands on `die` instead of falling through to the read.
+    # A guard that goes quiet when it cannot tell is the false green this file
+    # exists to remove.
+    mode="$(git ls-tree "$rev" -- "$path" 2>/dev/null)"
+    mode="${mode%% *}"
+    case "$mode" in
+      100644 | 100755) ;;
+      120000)
+        die "marker path '$path' is a symlink at $rev -- bind a marker to the file that holds the content"
+        ;;
+      *)
+        die "marker path '$path' is not a regular file at $rev (mode '${mode:-unreadable}') -- bind a marker to exactly one file"
+        ;;
+    esac
     content="$(git cat-file blob "${rev}:${path}" 2>/dev/null)" ||
       die "could not read '$path' at $rev"
   else

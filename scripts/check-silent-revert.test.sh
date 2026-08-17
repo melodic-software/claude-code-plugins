@@ -685,24 +685,33 @@ BAD_ROWS
     fail "an unreachable incident commit must exit 2, rc=$RC: $out"
   fi
 
-  # A disposition reason containing `]` splits at the WRONG bracket, truncating
-  # the reason and corrupting the marker text -- and because the reason stays
-  # non-empty, the row would report "deliberately not restored" about content
-  # that may be present. Undecidable from the row, so it is refused.
+  # The disposition ends at the FIRST `]`, and a marker's text is unrestricted
+  # on BOTH sides of that rule. A dispositioned row whose marker text contains
+  # `]` is well-formed -- the split is unambiguous, the reason has no bracket,
+  # and only the marker does.
+  #
+  # This is the case a content-shaped ambiguity check gets wrong. A truncated
+  # reason and this legitimate row are byte-indistinguishable in shape, so a
+  # rule that rejects one rejects the other; the grammar is documented instead,
+  # and the recorded reason is printed verbatim so a truncation is visible to
+  # the human reading the trail.
+  printf 'expectations: ["x"] and ] alone\n' >>"$repo/guarded.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: bracketed content"
   {
     printf 'fires %s a real drop\n' "$sha"
-    printf 'marker %s guarded.txt [not-restored: see note (ref] for detail)] RESTORED_MARKER_SENTINEL\n' "$sha"
+    printf 'marker %s guarded.txt [not-restored: reason with no bracket] expectations: ["x"] and ] alone\n' "$sha"
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'ambiguous disposition'; then
-    ok "a disposition reason containing ']' is refused instead of splitting wrongly"
+  if [[ "$RC" -eq 0 ]] &&
+    printf '%s' "$out" | grep -q 'present: expectations: \["x"\] and \] alone'; then
+    ok "a dispositioned row whose MARKER text contains ']' is well-formed"
   else
-    fail "an ambiguous disposition must exit 2, rc=$RC: $out"
+    fail "a bracketed marker on a dispositioned row must resolve, rc=$RC: $out"
   fi
 
-  # But an ORDINARY marker's text may contain `]` freely -- only a
-  # dispositioned row pays for the ambiguity.
+  # And an ORDINARY marker's text may contain `]` freely too.
   printf 'expectations: ["a", "b"]\n' >>"$repo/guarded.txt"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: content with a bracket"
@@ -883,6 +892,39 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     git_test_config "$repo" add -A >/dev/null 2>&1
     git_test_config "$repo" commit -qm "chore: drop the symlink" >/dev/null 2>&1
   fi
+
+  # The same refusal in EXPLICIT-REV mode, which resolves a marker a different
+  # way and so needs its own proof. `git cat-file -t` answers `blob` for a
+  # symlink, so the kind check lets it through, and `git cat-file blob` then
+  # hands back the link's TARGET PATH as though it were file content.
+  #
+  # Two things about this fixture are deliberate. It is built straight into the
+  # index with `update-index --cacheinfo` rather than with `ln -s`, so it runs
+  # on every platform -- the working-tree case above silently SKIPS wherever
+  # creating a symlink needs privileges, and a guard proven on no platform is
+  # not proven. And the path is NESTED, because a top-level fixture would still
+  # pass if the mode lookup could not descend into a subdirectory, while every
+  # marker path in the shipped corpus is nested.
+  local link_blob link_rev
+  link_blob="$(printf '../../guarded.txt' | git_test_config "$repo" hash-object -w --stdin)"
+  git_test_config "$repo" update-index --add \
+    --cacheinfo "120000,$link_blob,nested/dir/linked.txt"
+  git_test_config "$repo" commit -qm "chore: a nested symlink" >/dev/null
+  link_rev="$(git_test_config "$repo" rev-parse HEAD)"
+  {
+    printf 'fires %s a real drop\n' "$sha"
+    printf 'marker %s nested/dir/linked.txt RESTORED_MARKER_SENTINEL\n' "$sha"
+  } >"$repo/scripts/inc.txt"
+  SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-restoration "$link_rev"
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'is a symlink at'; then
+    ok "a tracked symlink cannot satisfy a marker in explicit-rev mode"
+  else
+    fail "a symlinked marker path at a rev must exit 2, rc=$RC: $out"
+  fi
+  git_test_config "$repo" rm -q --cached nested/dir/linked.txt >/dev/null
+  git_test_config "$repo" commit -qm "chore: drop the nested symlink" >/dev/null
 
   # A path that leaves the repository is refused outright, in both modes,
   # because a marker resolved outside the tree asserts nothing about main.
