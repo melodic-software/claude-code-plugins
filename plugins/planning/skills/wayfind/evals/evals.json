@@ -74,6 +74,30 @@
         "Output recognizes the three items are already sharp and answerable rather than foggy",
         "Output recommends /planning:interview or /work-items as the better-fit skill instead of charting"
       ]
+    },
+    {
+      "id": 7,
+      "name": "human-facing-reports-refer-to-items-by-title",
+      "prompt": "/planning:wayfind work — the open map is #200 'Map: billing overhaul'. The frontier has three unblocked unassigned items: #42 'Choose the billing aggregate', #43 'Pick the payment-provider adapter', #44 'Decide invoice numbering'. Report the frontier and pick one.",
+      "expected_output": "Work mode reports the frontier by item title, with the number as a link or suffix (for example 'Choose the billing aggregate' (#42)), never a wall of bare #42, #43, #44. It then picks one item, claims it, and routes by type rather than resolving all three inline.",
+      "files": [],
+      "expectations": [
+        "Output names each frontier item by its title, with the number as a link or suffix, rather than a wall of bare #42, #43, #44",
+        "Output does not report the frontier as only issue numbers with no titles",
+        "Output still picks one frontier item and claims it before routing, rather than resolving all three inline"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "wrongly-scoped-item-closes-to-out-of-scope-not-decisions-so-far",
+      "prompt": "/planning:wayfind work #200 — the claimed frontier item is #51 'Should we also rewrite the mobile app?', labeled wayfind: interview. Working it, we realize the rewrite is explicitly out of this effort's scope (web billing only). Close it out.",
+      "expected_output": "The item is wrongly scoped: add one Out-of-scope line on the map that links the item first, then close it, and do not add a Decisions-so-far pointer. Fog stays in Not-yet-specified and is not moved into Out-of-scope.",
+      "files": [],
+      "expectations": [
+        "Output closes the wrongly scoped item and records one Out-of-scope line linking it, rather than treating the close as an in-scope resolution",
+        "Output does NOT add a Decisions-so-far pointer for the wrongly scoped item",
+        "Output does not move Not-yet-specified fog into Out-of-scope as a stand-in for sharpness"
+      ]
     }
   ]
 }

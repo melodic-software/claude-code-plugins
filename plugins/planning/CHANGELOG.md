@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.6]
+
+### Changed
+
+- **`wayfind`: refer-by-name narration and out-of-scope ledger semantics.** Human-facing
+  reports name items by title (number as a link or suffix). Out-of-scope is for scope, not
+  sharpness; a wrongly scoped item closes with an Out-of-scope line and does not enter
+  Decisions-so-far. C20 map-as-index was already present (#2939).
+- **`wayfind`: graduate recipe qualifies wrongly scoped closes.** Tracker mechanics and
+  map-anatomy invariant 2: in-scope stays comment → Decisions-so-far → close; wrongly
+  scoped uses one Out-of-scope line and `gh issue close --reason "not planned"` (#2939).
+
 ## [0.30.5]
 
 ### Added

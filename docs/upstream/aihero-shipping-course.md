@@ -45,7 +45,7 @@ PARTIAL / REJECTED / OPEN.
 | D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | OPEN | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
-| W | Wayfinder deltas | C18–C20 | planning:wayfind | OPEN | #2939 |
+| W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
 | X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | OPEN | #2940 |
 | Y | Macro/micro lifecycle orchestrator (interview Q18) | — | undecided (session-flow / work-items / new) | OPEN | #2948 |
 
@@ -53,6 +53,15 @@ Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): bindi
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
 multi-provider topology (#2945), Linear adapter (#2946), adapter-onboarding skill (#2950),
 Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
+
+## Lane W (#2939)
+
+- **C18 ADOPTED** in `planning:wayfind` only (not generalized to work-items): human-facing
+  narration refers to items by title, with the number as a link or suffix.
+- **C19 ADOPTED**: Out-of-scope is for scope, not sharpness; fog never graduates there; a
+  wrongly scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
+- **C20 ALREADY-PRESENT**: map body is a stable index not a mirror; Decisions-so-far is a
+  pointer INDEX; Notes are links not recaps — recorded here, not restated in the skill docs.
 
 ## Decided at interview (2026-08-17, not per-lane)
 
