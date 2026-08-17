@@ -51,9 +51,13 @@ planning → implementation → verification pipeline.
   (declared by the caller, e.g. a routine): no questions; persist the ranked report; file top
   candidates via `work-items:track` when installed; never mutates, never self-disposes —
   the `tech-debt-sweep` C1 contract, prioritization human-gated.
-- **Unattended noise controls** *(pending Q11 confirmation)*: default cap of 5 filed items
-  per run (configurable), dedupe against open work items before filing, and a persisted
-  memory of dismissed candidates so rejected findings are not refiled.
+- **Unattended noise controls are soft, adaptive, and prompt-tunable — not hard limits.**
+  Dedupe against open work items before filing is baseline behavior (filing duplicates is a
+  bug, not a tuning knob). Filing volume uses an adaptive cap with a sensible default
+  (following `work-items:work-loop`'s adaptive-item-cap precedent), and a
+  dismissed-candidate memory is a soft default. Every control is overridable by the
+  invocation prompt — the routine prompt wrapping the skill is the tuning surface, and the
+  operator iterates on it after observing real runs.
 - **Scope: one repo per invocation**, repo as a parameter; routines target repos
   individually; fleet-wide sweeps are a later composition with `repo-fleet-hygiene`.
 - **Sizes:** find across small/medium/large; rank by value-to-effort; lead with the
@@ -77,7 +81,8 @@ planning → implementation → verification pipeline.
 - Interactive mode: picking a candidate enters an interview and ends with a handoff the
   planning pipeline can consume.
 - Unattended mode (caller-declared): produces the persisted report, files work items
-  presence-gated within the noise-control contract, asks no questions.
+  presence-gated — deduped against open items, volume governed by the adaptive default
+  unless the invocation prompt overrides it — and asks no questions.
 - Execution requests route through the pipeline skills; the skill itself performs no code
   edits in any mode.
 - Ships past the full publish gate (validate --strict, skill-quality:check, catalog and

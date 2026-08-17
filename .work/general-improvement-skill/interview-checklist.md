@@ -7,24 +7,24 @@ Mode: `me` (relentless, user-invoked). Domain: engineering (build artifact = new
 
 - [x] Step 1: Survey before you ask — repo scanned; improvement-adjacent lanes identified (architecture:improve, code-tidying:tidy, codebase-health:audit, claude-config:audit-pass, work-items, session-flow:retro, autonomy routines catalog incl. tech-debt-sweep); background Explore agent dispatched for the full landscape map
 - [ ] Step 1.5: Auto-detect — SKIPPED (`me` forces Q&A)
-- [ ] Step 2: Drive the frontier-rounds loop
-- [ ] Step 3: Stop condition + register gate + user confirmation
-- [ ] Step 4: Persist the contract (PLAN.md Brief, incremental)
-- [ ] Step 5: Hand off
+- [x] Step 2: Drive the frontier-rounds loop — 3 rounds, Q1–Q12, all resolved or explicitly deferred
+- [x] Step 3: Stop condition + register gate + user confirmation ("let's go with your recommendations" + Q11 resolution; no objection to restated understanding)
+- [x] Step 4: Persist the contract (docs/topics/general-improvement-skill/PLAN.md Brief; incremental)
+- [ ] Step 5: Hand off — recommended /discovery:research → /planning:plan
 
 ## Open-question register
 
 - Q1 | answered | round 1 | Core identity | Hybrid, FINDER-forward (not router-forward): its own judgment about code/product-level improvements; delegation to existing lanes only where it adds value. User skeptical of pure-router value.
 - Q2 | answered | round 1 | Default size/impact posture | All sizes, ranked by value-to-effort, lead with highest-impact; prompt/flag narrows.
-- Q3 | open | round 1 | Unattended routine mode in V1? | partially: interactive-default confirmed via "start with an interview... feeds into existing workflows"; unattended mode not yet locked — re-asked round 2 as Q3
+- Q3 | answered | round 2 | Unattended routine mode in V1? | YES — lean unattended mode (tech-debt-sweep C1 contract: report + filed work items, human-gated)
 - Q4 | answered | round 1 | V1 dimensions | REVISED by user: code/product level, performance, config/automation OUTSIDE the codebase (GitHub labels, Actions sync), Claude Code operational setup (cloud env, MCP servers); docs/markdown explicitly OUT (existing lanes own it). Measurement-first: metrics/telemetry is not a fast-follow — "to self-improve you have to measure a baseline"; when data is missing, the improvement IS setting up data capture. App-level observability (e.g. Azure App Insights) as an evidence source.
-- Q5 | open | round 1 | Cross-repo scope in V1? | unanswered from round 1 — re-asked round 2
-- Q6 | open | round 1 | Apply vs discover-only | implied discover→interview→pipeline handoff; confirm in round 2
+- Q5 | answered | round 2 | Cross-repo scope in V1? | Single repo per invocation, repo as parameter; fleet later via composition
+- Q6 | answered | round 2 | Apply vs discover-only | Discover/deliberate default; explicit "go implement this" chains the normal pipeline (interview → explore/research → plan → implement → verify) via existing skills — never inline edits
 - Q7 | answered | round 2 | Evidence ladder as the core mechanic | YES — accepted recommendation; skill identity
 - Q8 | answered | round 2 | V1 evidence sources | Tiered + presence-gated; Tier 0 repo-native in V1; Tier 1 claude-ops:observability; Tier 2 app telemetry via configured MCP; App Insights adapter timing deferred (Q12)
 - Q9 | answered | round 2 | Home + naming | New plugin `improvement`, skill `find` → /improvement:find
 - Q10 | deferred | round 2 | Plugin-candidate discovery | post-V1 — distinct discovery intent; later sibling under `improvement` or `plugin-quality`; also in Brief's Deferred questions
-- Q11 | open | round 3 | Unattended noise controls (cap / dedupe / rejection memory) as V1 requirements? |
+- Q11 | answered | round 3 | Unattended noise controls | Soft, adaptive, prompt-tunable — NOT hard skill requirements. Dedupe against open work items is baseline behavior (correctness); filing volume uses an adaptive cap (work-loop precedent) with a sensible default; rejection-memory is a soft default. All overridable via the routine prompt that wraps the skill; user iterates by adjusting that prompt after real runs ("just run it, then I adjust").
 - Q12 | deferred | round 2 | Tier 2 App Insights adapter timing (post-V1 unless MCP already configured) | also in Brief's Deferred questions
 
 ## Round 2 resolutions (user: "go with your recommendations", plus one refinement)
