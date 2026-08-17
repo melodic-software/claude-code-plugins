@@ -77,7 +77,9 @@ base_fixture() {
 # git_fixture <fixture> → init repo + commit everything as the base ref; prints base sha
 git_fixture() {
   local fixture="$1"
-  git_init_test_repo "$fixture"
+  # On refusal (e.g. TMPDIR inside the checkout) stop before add/commit can
+  # resolve to the enclosing real repository.
+  git_init_test_repo "$fixture" || return 1
   git -C "$fixture" add -A
   git -C "$fixture" commit -qm base
   git -C "$fixture" rev-parse HEAD
