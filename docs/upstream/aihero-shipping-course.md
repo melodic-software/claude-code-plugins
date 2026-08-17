@@ -6,11 +6,20 @@ Single source of truth for everything in this marketplace derived from the **Shi
 [`mattpocock-skills.md`](mattpocock-skills.md). Course content overlaps the skills repo but is
 not release-tagged; verdict rows below are the durable record.
 
+**Source basis (re-fetchable):** the course is Matt Pocock's AI Hero crash course, hosted at
+<https://www.aihero.dev> (Shipping section, 11 lessons: How to Tackle Massive Tasks; Set Up Your
+Issue Tracker; Write Great Specs With This Skill; Split Features Across Context Windows With
+Tickets; Executing Your Tickets; Should You Keep Your Specs?; Rerouting; The Goal Command;
+Enforcing Your Coding Standards; Ask Matt; Where You Go From Here). Capture method: lesson pages
+pasted verbatim by the maintainer into the interview session on 2026-08-17 — course pages are
+account-gated and not release-tagged, so the durable cross-check basis is the companion skills
+repo pinned at `mattpocock/skills@068b6e0` (the same mechanisms, versioned).
+
 **Audit state:** course section content captured 2026-08-17 (topic `pocock-shipping-breakdown`);
-skills repo cross-audited at `main@068b6e0` (post-v1.2.3 unreleased). Working evidence for the
-audit lives in the topic's memory slice (`.work/pocock-shipping-breakdown/`):
-`upstream-bringover-audit.md` (candidates C1–C23), `seam-scrutiny-findings.md` (findings F1.x /
-F3.x).
+skills repo cross-audited at `main@068b6e0` (post-v1.2.3 unreleased). The two audit reports
+(`upstream-bringover-audit.md`, candidates C1–C23; `seam-scrutiny-findings.md`, findings F1.x /
+F3.x) are graduated to durable storage as comments on container #2933 — the memory-tier copies
+under `.work/` are session-local and uncommitted per the topic-docs contract.
 
 **Recheck trigger:** a mattpocock/skills release whose changeset names `to-spec`, `to-tickets`,
 `implement`, `tdd`, `code-review`, `triage`, or `wayfinder` — the course's flow skills. Course

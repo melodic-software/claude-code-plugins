@@ -24,3 +24,6 @@ CLAUDE.local.md
 
 # Test-result artifacts (Pester runner output)
 artifacts/
+
+# Topic memory tier — never committed (docs/conventions/topic-docs/README.md "Memory")
+.work/
