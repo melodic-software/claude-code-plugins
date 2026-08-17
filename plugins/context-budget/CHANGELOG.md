@@ -5,6 +5,15 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1]
+
+### Changed
+
+- Tightened the catalogue test's token-figure scan: any k-suffixed figure in a lever row now
+  fails outright, and plain integers adjacent to the word token are caught in either order —
+  closing the gap the fresh-context acceptance verifier flagged (a plain-integer figure could
+  previously slip past the mechanical check). Verified against a seeded violation.
+
 ## [0.5.0]
 
 ### Added

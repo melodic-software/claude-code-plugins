@@ -56,10 +56,14 @@ for (const l of cat.levers ?? []) {
   if (l.category === "net-negative" && l.posture === "recommendable-on-fit") problems.push(where + ": net-negative lever marked recommendable");
   if (l.category === "unverified-undocumented" && l.posture === "recommendable-on-fit") problems.push(where + ": unverified lever marked recommendable");
   // Token figures do not belong in catalogue rows: the engine measures them.
+  // Two shapes are scanned: k-suffixed figures (no legitimate Nk string exists
+  // in a row — versions are dotted, counts are words) and plain integers
+  // adjacent to the word token in either order.
   const text = JSON.stringify({ ...l, citations: [], emittedConfig: "" });
-  if (/\b\d+(\.\d+)?k\s*(tokens?)?\b/i.test(text) && /token/i.test(text)) {
-    const m = text.match(/[^"]*\d+(\.\d+)?k[^"]*/i);
-    problems.push(where + ": looks like a shipped token figure: " + (m ? m[0].slice(0, 60) : ""));
+  const kFigure = text.match(/\b\d+(\.\d+)?k\b/i);
+  const plainFigure = text.match(/\b\d{2,}\s*tokens?\b/i) || text.match(/tokens?\s*[:=]?\s*\d{2,}\b/i);
+  if (kFigure || plainFigure) {
+    problems.push(where + ": looks like a shipped token figure: " + (kFigure || plainFigure)[0].slice(0, 60));
   }
 }
 if ((cat.levers ?? []).length < 10) problems.push("suspiciously few levers: " + (cat.levers ?? []).length);
