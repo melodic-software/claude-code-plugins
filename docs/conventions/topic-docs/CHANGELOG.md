@@ -1,5 +1,15 @@
 # Changelog — topic-docs convention
 
+## 2.5.1 — 2026-08-17
+
+Docs-only: `overengineering` joins the reserved first-level names under the
+memory root — the `overengineering` plugin's concern-scoped findings home
+(`.work/overengineering/<branch-slug>/findings.md`, bound by that plugin's
+`reference/topic-docs.md` delta doc). The Memory, concern-scoped tier row, the
+Implementers table, and the schema `memory_dir` description all carry the
+fourth name, matching how `running-retros` was added. (`docs-hygiene`
+`/audit-noise` bare-root ghost-ref exemption tracks this roster.)
+
 ## 2.5.0 — 2026-08-15
 
 **The self-ignore guard gains a second invalid case: a root no checkout is

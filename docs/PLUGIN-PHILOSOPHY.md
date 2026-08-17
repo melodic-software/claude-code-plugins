@@ -59,6 +59,7 @@ Verb meanings are fixed:
 | `audit`, `scan` | Read-only findings report. Mutation only behind an explicit user override such as an autofix argument, never on bare invocation; safety qualifiers may narrow what an override touches. |
 | `check` | Deterministic pass/fail gate. |
 | `clean`, `tidy`, `fix` | Mutates the target. |
+| `realign` | Consumes a findings artifact a sibling `audit` produced and drives the human-gated realignment it recommends; never re-judges the surface itself. Mutation only behind explicit per-item user acceptance, never on bare invocation and never under a blanket approval. |
 | `setup` | Configures the plugin for a consumer, per the setup section below. |
 | `update` | Refreshes vendored upstream material. |
 

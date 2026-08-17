@@ -1,0 +1,64 @@
+# Grandfathered fixture-building test suites that do NOT clear the inherited git
+# environment — the debt that predates scripts/check-fixture-git-isolation.sh.
+# Each line is one exact suite path, matched by full-string EQUALITY (not
+# prefix): a line exempts only that file. A NEW suite matches no line and is
+# red-lined rather than grandfathered, which is the whole point of shipping the
+# gate with a baseline instead of shipping it red.
+#
+# An entry here is a record of debt, not a place to hide new work: the gate
+# FAILS on a STALE entry (one that no longer shadows a violation), so a line
+# cannot outlive the debt it records. Delete the line in the same change that
+# adds the isolation. Do NOT add a line to make a new suite pass.
+#
+# To clear an entry, add this once near the top of the suite:
+#
+#     unset GIT_DIR GIT_WORK_TREE
+#
+# or source a harness that already does it (scripts/test-git-helpers.sh, or the
+# plugin-local *-test-helpers.sh siblings). Sourcing is preferred where the
+# suite already sources one — it keeps the isolation in a single place per
+# plugin rather than per suite.
+#
+# WHY these leak: `git config`'s default --local scope and `git init`'s target
+# both follow GIT_DIR ahead of `-C` and ahead of the working directory, and
+# GIT_DIR is what git exports into every hook it invokes. A suite that inherits
+# it writes its fixture identity into the CALLER's .git/config — shared by every
+# worktree of the clone — and leaves the fixture with no .git at all. See #2840.
+#
+# NOTE: scripts/check-stale-base-overlap.test.sh is listed here rather than
+# fixed because it is owned by other in-flight work at the time of writing; it
+# is also structurally fragile in a second way (a top-level `cd` into the
+# fixture rather than a subshell-local one) and wants its own change.
+.claude/hooks/pr-linkage-mcp-gate.test.sh
+lib/resolve-convention-pattern.test.sh
+plugins/actionlint/hooks/actionlint-check.test.sh
+plugins/bash-format/hooks/bash-format.test.sh
+plugins/biome-format/hooks/biome-format.test.sh
+plugins/claude-config/lib/state-key.test.sh
+plugins/claude-config/skills/audit-pass/scripts/run-state.test.sh
+plugins/claude-ops/skills/lanes/scripts/restart-consumer.test.sh
+plugins/claude-ops/skills/observability/claude-observability.test.sh
+plugins/claude-ops/skills/plugins/scripts/fleet-state.test.sh
+plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh
+plugins/desktop-notification/hooks/desktop-notification.test.sh
+plugins/docs-hygiene/skills/audit-encapsulation/scripts/detect.test.sh
+plugins/docs-hygiene/skills/extract-ssot/scripts/emit-verify-facts.test.sh
+plugins/eol-normalizer/hooks/eol-normalizer.test.sh
+plugins/go-format/hooks/go-format.test.sh
+plugins/guardrails/lib/git-hooks/commit-msg-convention.test.sh
+plugins/guardrails/lib/git-hooks/pre-commit-content-invariants.test.sh
+plugins/markdown-format/hooks/markdown-format.test.sh
+plugins/mcp-tools/skills/audit/scripts/discover.test.sh
+plugins/powershell-format/hooks/powershell-format.test.sh
+plugins/repo-fleet-hygiene/skills/apply/scripts/apply-plan.test.sh
+plugins/review/skills/fanout/scripts/diff-vs-base.test.sh
+plugins/ruff-format/hooks/ruff-format.test.sh
+plugins/source-control/hooks/pr-body-linkage-gate.test.sh
+plugins/source-control/hooks/pr-linkage-mcp-gate.test.sh
+plugins/source-control/skills/pull-request/scripts/push-branch.test.sh
+plugins/source-control/skills/pull-request/scripts/resolve-remote.test.sh
+plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh
+plugins/typos-format/hooks/typos-format.test.sh
+plugins/work-items/skills/work/scripts/preflight.test.sh
+scripts/check-contract-slice-prune.test.sh
+scripts/check-stale-base-overlap.test.sh

@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.12]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` (comment-only; no behavior change).
+- `babysit_delta.py` drops a duplicated navigational comment and a
+  history-narration docstring clause (comment-only; suite green).
+
+## [0.54.11]
+
+### Fixed
+
+- **`babysit-prs` worktree-pruner tests no longer let their fixture identity
+  land in the caller's repository
+  ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  `test_prune_babysit_worktrees.py` clears `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` from `os.environ` at import. An exported **absolute** `GIT_DIR` overrides
+  repository discovery, so `git config`'s default `--local` scope resolves to
+  the caller's gitdir and the fixture identity is written there instead. This
+  suite is doubly exposed because it also builds a **linked worktree**, whose
+  config writes land in the main clone's **shared** `.git/config`. `GIT_CONFIG`
+  is cleared as a **second** leak path rather than another spelling of the
+  first: it replaces the file the `git config` subcommand reads and writes, so
+  an identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped skill or script behavior is
+  affected.
+
 ## [0.54.10]
 
 ### Changed

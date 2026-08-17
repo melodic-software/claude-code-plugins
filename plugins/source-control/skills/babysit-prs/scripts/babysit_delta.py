@@ -155,7 +155,10 @@ def advisory_non_convergence_tripwire(rounds: Any) -> dict[str, Any]:
     latest = str(result["latest"]["composition"])
     previous = str(result["previous"]["composition"])
     if latest != "all-c":
-        return {**result, "basis": f"the latest advisory round is {latest}, not all-(c)"}
+        return {
+            **result,
+            "basis": f"the latest advisory round is {latest}, not all-(c)",
+        }
     if previous == "all-c":
         basis = "two consecutive all-(c) advisory rounds"
     elif previous == "unknown":
@@ -173,10 +176,8 @@ def advisory_non_convergence_tripwire(rounds: Any) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class ClassifyConfig:
-    """Everything the classifier needs that used to be ambient.
-
-    All identity sets ship empty and every scalar carries its safe default, so
-    an unconfigured classifier is dormant on every optional integration and
+    """All identity sets ship empty and every scalar carries its safe default,
+    so an unconfigured classifier is dormant on every optional integration and
     fail-closed on every trust boundary.
     """
 
@@ -1120,8 +1121,6 @@ def classify_pr(
         # originally created it has since been absorbed into `prev`.
         or dispatch_pending_unconfirmed
     )
-    # `last_worker_checkin` is computed earlier, alongside
-    # `dispatch_pending_unconfirmed`, which also needs it.
     observed = parse_timestamp(observed_at)
     # Also gated on `pr_clean_ready_for_direct_gate`: a clean, non-draft,
     # zero-blocker PR routed straight to the merge gate never gets a worker
@@ -1470,9 +1469,7 @@ def annotate_queue_head_refs(
             if not checked:
                 raise RuntimeError("association query did not return every watched PR")
         except Exception as exc:
-            message = (
-                f"{representative['key']} {HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
-            )
+            message = f"{representative['key']} {HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
             if errors is not None:
                 errors.append(message)
             for pr in group_prs:

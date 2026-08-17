@@ -8,6 +8,7 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/sync-standards-contract.sh"
+. "$SELF_DIR/test-git-helpers.sh"
 
 PASS=0
 FAIL=0
@@ -76,10 +77,9 @@ base_fixture() {
 # git_fixture <fixture> → init repo + commit everything as the base ref; prints base sha
 git_fixture() {
   local fixture="$1"
-  git -C "$fixture" init -q
-  git -C "$fixture" config core.autocrlf false
-  git -C "$fixture" config user.email test@example.com
-  git -C "$fixture" config user.name test
+  # On refusal (e.g. TMPDIR inside the checkout) stop before add/commit can
+  # resolve to the enclosing real repository.
+  git_init_test_repo "$fixture" || return 1
   git -C "$fixture" add -A
   git -C "$fixture" commit -qm base
   git -C "$fixture" rev-parse HEAD

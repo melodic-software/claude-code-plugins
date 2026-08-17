@@ -1,5 +1,38 @@
 # Changelog — docs-hygiene plugin
 
+## [0.16.1]
+
+### Changed
+
+- `audit-noise` ghost-ref bare-root exemption tracks the topic-docs concern-scoped
+  roster's fourth reserved name, `overengineering/` (topic-docs convention 2.5.1):
+  a bare `.work/overengineering/` citation on a durable surface is not a ghost ref;
+  a concrete child under it still flags.
+
+## [0.16.0]
+
+### Added
+
+- **New skill `audit-progressive-disclosure`:** read-only classifier grading
+  agent-facing instruction markdown against a three-tier load-cost model
+  (always-loaded / invocation-loaded / on-demand). Seven finding shapes in two
+  lanes — split opportunities (`oversize`, `mixed-concerns`, `tier-mismatch`)
+  and hub/spoke structure defects (`blind-pointer`, `orphan-spoke`,
+  `deep-nesting`, `missing-toc`) — with audit-noise-style Tier 1/2/3 semantics
+  and per-shape treatment guidance. Ships a deterministic `detect.sh` fact
+  emitter (sizes, heading census, load-tier classification, pointer inventory,
+  orphan/chain detection) with a 28-case contract test, a
+  `context/tier-model.md` reference (official numbers, split triggers,
+  pointer-quality criteria, citation posture), evals with three fixture sets,
+  and participation in the shared clean-tree fallback. Design contract locked
+  via interview + verified multi-source research over Anthropic's prescribed
+  progressive-disclosure model (#2888; the contract slice was pruned before
+  merge per the topic-docs convention). Notable postures: thresholds advisory
+  (ceilings, not targets),
+  two-band TOC treatment reflecting the official 100-vs-300-line
+  inconsistency, never flagging small single-file skills for lacking spokes,
+  and flagging pointer chains deeper than one level.
+
 ## [0.15.2]
 
 ### Changed

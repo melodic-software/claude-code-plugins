@@ -1,5 +1,15 @@
 # Decision framework: extract vs inline vs skill vs rule
 
+## Contents
+
+- [EXTRACT into shared SSOT only when ALL six tests pass](#extract-into-shared-ssot-only-when-all-six-tests-pass)
+- [KEEP INLINE when ANY of these is true](#keep-inline-when-any-of-these-is-true)
+- [Pre-extraction Tier 0 checklist (lessons-derived discipline)](#pre-extraction-tier-0-checklist-lessons-derived-discipline)
+- [REFACTOR when extraction is wrong (Metz unwind)](#refactor-when-extraction-is-wrong-metz-unwind)
+- [Output type: rule file vs skill](#output-type-rule-file-vs-skill)
+- [Worked examples](#worked-examples)
+- [Cross-references](#cross-references)
+
 Full 6-test extraction gate + 5-test keep-inline gate, plus output-type criteria. SKILL.md cites the headline gate (Rule of Three) and links here for the full matrix.
 
 Applies to any repeated text content — markdown (rules, skills, docs), code (constants, helpers, types), config (CI workflows, settings, MCP entries), or mixed clusters that span all three. The principle is the coding Rule of Three / DRY: extract when 3+ instances exist; otherwise inline.

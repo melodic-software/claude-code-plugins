@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4]
+
+### Changed
+
+- `check-open-questions.sh` drops a comment that restated the adjacent
+  field-count check and its error message (comment-only; no behavior change).
+
 ## [0.30.3]
 
 ### Changed

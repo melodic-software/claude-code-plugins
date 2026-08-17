@@ -1,5 +1,13 @@
 # Audit Sub-Modes — Blast / Half-Rename / Orphans
 
+## Contents
+
+- [Audit Blast](#audit-blast)
+- [Audit Half-Rename](#audit-half-rename)
+- [Audit Orphans](#audit-orphans)
+- [Override flags](#override-flags)
+- [Hand-off](#hand-off)
+
 `/docs-hygiene:rename-references audit` supports three sub-modes sharing the survey + triage pipeline from [audit.md](audit.md) but differing in input requirements, algorithm, and output format. Bare `/docs-hygiene:rename-references audit` (no sub-mode) defaults to **Blast** for backward compatibility.
 
 | Sub-mode | Charter | Pair required? | Output |
