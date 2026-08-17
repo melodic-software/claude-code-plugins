@@ -916,6 +916,22 @@ run_pwsh "PS: grouping + subexpression call target (fail-closed block — #2848)
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + subexpression dot-source target (fail-closed block — #2848)" \
   "foreach (\$x in @('a')) { . ('g'+'it') reset --hard }" 2
+# The DOLLAR spelling of that same subexpression target. `$( … )` and `( … )` are
+# one construct, so the git lane must refuse both by shape; recognizing only the
+# paren spelling left `& $($g) reset --hard` ALLOWED while `& ($g) reset --hard`
+# blocked (#2924). Paired with its twin so the two cannot drift apart.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() subexpression call target (fail-closed block — #2924)" \
+  "& \$(\$g) reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the row above (fail-closed block, unchanged)" \
+  "& (\$g) reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() subexpression dot-source target (fail-closed block — #2924)" \
+  ". \$('g'+'it') reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + \$() subexpression call target (fail-closed block — #2924)" \
+  "foreach (\$x in @('a')) { & \$('g'+'it') reset --hard }" 2
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + literal git command word (still blocked by name)" \
   "foreach (\$x in @('a')) { git reset --hard }" 2

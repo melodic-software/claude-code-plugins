@@ -3,6 +3,52 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2]
+
+### Fixed
+
+- **PowerShell guards: a `$( … )` call target is refused like its `( … )` twin
+  ([#2924](https://github.com/melodic-software/claude-code-plugins/issues/2924)).**
+  `& $($w) f.txt x` and `& $($w) @p` exited 0 from `block-hook-bypass` while the
+  identical `& ($w) f.txt x` exited 2 — a working `Set-Content <path> <value>`
+  through a computed call target, waved through. The git lane carried the same
+  hole: `& $($g) reset --hard` exited 0 from `block-dangerous-git` while
+  `& ($g) reset --hard` exited 2. Both were introduced by 0.28.33.
+
+  `$( … )` and `( … )` are the same construct — each evaluates an expression
+  into the command name — but only the paren spelling was recognized. So `& $(`
+  ENTERED the computed-target gate (`ps::call_target_is_bare_computed` matches
+  `[.&][[:space:]]*[$(]`, and the `$` admits it) and then matched no call site
+  in any measuring probe: `ps::call_target_is_bare_subexpression` wanted `(`
+  immediately after the operator, and both
+  `ps::computed_call_has_positional_write_signal` and
+  `ps::computed_call_has_splat_operand` want a `$name` or `${name}` target.
+  Gate entered, zero arms fired, command allowed. Before 0.28.33 the blanket
+  `ps::has_special_constructs` arm covered the shape incidentally, via the
+  parentheses inside `$(`.
+
+  `ps::call_target_is_bare_subexpression` now accepts an OPTIONAL `$` before the
+  opening paren, so both spellings reach one verdict on both lanes. Unlike the
+  braced-name fix in 0.29.1 there is nothing to consume upstream — `$(` survives
+  backtick deletion, quote blanking, and lowercasing intact — so the evidence is
+  still present where the predicate runs and the fix belongs there.
+
+  A subexpression target is refused BY SHAPE, regardless of its operands, so
+  `& $($py) script.py` now blocks exactly as `& ($py) script.py` always has.
+  That is not the grouping-as-write-signal over-block removed in 0.28.33: that
+  change dropped grouping ANYWHERE ELSE in the command as a signal and
+  deliberately kept the target-is-subexpression arm. Pinned by twenty tests
+  across the two lanes, each `$( … )` row paired with its `( … )` twin so the
+  two spellings cannot drift apart again, and
+  `& ('Set-'+'Content') f.txt x` kept as the tripwire for the escaped `\$` in
+  the widened pattern.
+
+  Not covered, unchanged, and pre-existing rather than introduced by 0.28.33
+  (all exit 0 on the pre-0.28.33 base as well): interpolating quoted targets
+  (`& "$env:writer" f.txt x`), index and member targets (`& $tools[0] …`,
+  `& $tools.writer …`), and quoted operands erasing the positional write signal
+  ([#2906](https://github.com/melodic-software/claude-code-plugins/issues/2906)).
+
 ## [0.29.1]
 
 ### Fixed
