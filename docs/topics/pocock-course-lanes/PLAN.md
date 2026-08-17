@@ -95,9 +95,16 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
   official docs); `/discovery:explore` and `/planning:brainstorm` fire per lane at open;
   nothing else speculative. (The pre-lane inventory recheck already ran — see below.)
 - Q8 — durability: git + GitHub are the only durable spine; `.work/` never load-bearing;
-  every session ends with clean-stop semantics (commit + push + issue updates), never a
-  machine-local handoff file; one GitHub issue per lane; contract branch PRs when locked,
-  then one branch + PR per lane.
+  every session ends with clean-stop semantics (commit + push + issue updates); one GitHub
+  issue per lane.
+  **Amended 2026-08-17 (user, post-lock):** execution model is a single session CHAIN on THIS
+  branch, not per-lane branches/PRs. Each lane transition is `/session-flow:handoff` →
+  `/clear` → paste the resume prompt (dedicated context per lane, chain continuity via
+  `previous_handoff` + session ids — the same generic process this contract was built with:
+  interview-first, skills, explore/research, decisions committed as they land). All six lanes
+  commit to `claude/plan-mode-discussion-55kszx`; ONE PR at the very end when all lanes are
+  closed. The handoff files are a convenience layer inside the container; the committed
+  contract remains the durable record (clean-stop discipline unchanged).
 - Q9 — decision-matrix skill: evolve `session-flow:workflow`'s `continue` router (no new
   skill) to consume session history, the overarching plan, work-item state, and the
   context-guard zone; **suggest-by-default, autonomous only as an explicit opt-in**, designed
