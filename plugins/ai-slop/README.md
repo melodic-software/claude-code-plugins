@@ -24,6 +24,13 @@ The rule inventory is distilled from Wikipedia's
 [`skills/audit/reference/catalog.md`](skills/audit/reference/catalog.md), revision-pinned and
 tracked under the upstream-drift convention.
 
+Detector output names every exempted file (`Declined:` rows with a cause: excluded glob or
+file marker) alongside per-rule declined counts, so an exemption is always visible, never
+silent. Script findings persist to the review findings relay via
+`skills/audit/scripts/emit-findings.sh`, which composes the findings file deterministically
+from detector output; the skill resolves the destination and the producer-contract gate first
+(see [`skills/audit/context/persist-findings.md`](skills/audit/context/persist-findings.md)).
+
 ## Configuration
 
 `.claude/ai-slop.json`, resolved per the config-cascade convention (user-global, team, local

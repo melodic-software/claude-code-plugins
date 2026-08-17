@@ -314,6 +314,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}"; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
     decline_all_rules 1
+    echo "Declined: file=$rel cause=excluded-glob"
     continue
   fi
 
@@ -326,6 +327,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if printf '%s\n' "$prose" | LC_ALL=C grep -q $'^DECLINE\tfile'; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
     decline_all_rules 1
+    echo "Declined: file=$rel cause=file-marker"
     continue
   fi
 

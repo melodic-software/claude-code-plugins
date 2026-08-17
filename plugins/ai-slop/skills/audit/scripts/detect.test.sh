@@ -229,6 +229,73 @@ else
   fail "portability: output identical under LC_ALL=C" "identical" "differs"
 fi
 
+# --- emit-findings.sh ------------------------------------------------------------
+
+EMIT="$SCRIPT_DIR/emit-findings.sh"
+EMITSRC="$TEST_TMPDIR/emitsrc.md"
+cat >"$EMITSRC" <<EOF
+# Mixed-tier sample
+
+A pipe | and an em dash ${EM} on one line.
+
+As of my knowledge cutoff, this was true.
+EOF
+
+DETOUT="$TEST_TMPDIR/detect-out.txt"
+bash "$DETECT" "$EMITSRC" >"$DETOUT" 2>&1 || true
+FOUT="$TEST_TMPDIR/findings/ai-slop.md"
+
+out="$(bash "$EMIT" --from "$DETOUT" --out "$FOUT" --branch test-branch 2>&1)"
+assert_contains "emit: reports destination" "$out" "wrote $FOUT"
+fcontent="$(cat "$FOUT")"
+assert_contains "emit: frontmatter type" "$fcontent" "type: review-findings"
+assert_contains "emit: frontmatter branch" "$fcontent" "branch: test-branch"
+if LC_ALL=C grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z$' "$FOUT"; then
+  pass "emit: colon-free UTC date"
+else
+  fail "emit: colon-free UTC date" "colon-free timestamp" "$(grep '^date:' "$FOUT")"
+fi
+assert_contains "emit: finding cell leads with qualified rule id" "$fcontent" "ai-slop/audit/rule-em-dash"
+# detect.sh sanitizes prose pipes to / at excerpt production; the cell must
+# never carry a raw table-breaking pipe from prose.
+assert_contains "emit: prose pipe arrives sanitized" "$fcontent" "pipe / and"
+
+# The emitter's own escaping still guards pipes reaching it through other
+# fields: feed a synthetic detect-output row carrying one.
+SYNTH="$TEST_TMPDIR/synth-out.txt"
+cat >"$SYNTH" <<'EOF'
+Finding: rule=ai-slop/audit/rule-em-dash file=doc.md line=1 fired=zero|tolerance excerpt=text
+Summary rule=ai-slop/audit/rule-em-dash findings=1 declined=0 disabled=0
+EOF
+bash "$EMIT" --from "$SYNTH" --out "$TEST_TMPDIR/findings/synth.md" --branch test-branch >/dev/null 2>&1
+assert_contains "emit: pipe escaped in cell" "$(cat "$TEST_TMPDIR/findings/synth.md")" 'zero\|tolerance'
+first_row="$(LC_ALL=C grep -m1 '^| 1 |' "$FOUT")"
+assert_contains "emit: IMPORTANT ranks first" "$first_row" "IMPORTANT"
+assert_contains "emit: surfaces zero-result rules listed" "$fcontent" "rule-utm-params"
+
+out="$(bash "$EMIT" --from "$DETOUT" --out "$FOUT" --branch test-branch 2>&1)"
+assert_contains "emit: non-overwrite suffix on existing file" "$out" "ai-slop-2.md"
+
+CLEANOUT="$TEST_TMPDIR/clean-out.txt"
+bash "$DETECT" "$CLEAN" >"$CLEANOUT" 2>&1 || true
+bash "$EMIT" --from "$CLEANOUT" --out "$TEST_TMPDIR/findings/none.md" --branch test-branch >/dev/null 2>&1
+if [[ -f "$TEST_TMPDIR/findings/none.md" ]] && LC_ALL=C grep -q '^## Findings' "$TEST_TMPDIR/findings/none.md"; then
+  pass "emit: zero findings still writes (coverage is the payload)"
+else
+  fail "emit: zero findings still writes (coverage is the payload)" "file with empty Findings" "missing"
+fi
+
+if bash "$EMIT" --from "$EMITSRC" --out "$TEST_TMPDIR/findings/garbage.md" --branch test-branch >/dev/null 2>&1; then
+  fail "emit: refuses non-detector input" "exit 3" "exit 0"
+else
+  rc=$?
+  if [[ "$rc" -eq 3 && ! -e "$TEST_TMPDIR/findings/garbage.md" ]]; then
+    pass "emit: refuses non-detector input"
+  else
+    fail "emit: refuses non-detector input" "exit 3, no file" "exit $rc"
+  fi
+fi
+
 # --- Result ---------------------------------------------------------------------
 
 echo

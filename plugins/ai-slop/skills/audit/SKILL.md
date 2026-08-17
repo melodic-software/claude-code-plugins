@@ -3,7 +3,7 @@ description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-
 argument-hint: "[audit|fix] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 ---
 
@@ -65,7 +65,10 @@ Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
    periods, or restructured sentences; deflate stock phrases; collapse parallelisms; strip
    `utm_*` params; delete or source residue artifacts) and the rubric rewrites for tells the
    audit reported. Preserve meaning over style: when a rewrite would change what a sentence
-   asserts, skip it and record why.
+   asserts, skip it and record why. **Triads collapse toward one**: for a `rule-of-three`
+   finding, prefer the single strongest item and cut the rest — keep all three only when each
+   is load-bearing (a complete set the reader needs, not rhetorical rhythm; enumerating three
+   actual things is not a tell). Fewer parallel items is also less to maintain.
 2. **Verify** with a fresh-context semantic-diff subagent (the compress model): hand it the
    before/after pair, blind to the rewrite rationale; it flags SEMANTIC LOSS (a qualifier,
    threshold, or claim dropped) and AMBIGUITY (a reading the original excluded). Revert every

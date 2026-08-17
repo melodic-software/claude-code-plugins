@@ -22,6 +22,20 @@ cannot be proven is reported and not written to).
 File name: `${TS}-ai-slop.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free, Windows-safe).
 Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
 
+## Compose by script, not by hand
+
+Once the destination is resolved and the contract fetch succeeded, run
+`${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <detect output file> --out <resolved path>`.
+A repo-scale run produces thousands of rows; composing them in prose is exactly the hand-transform
+the fleet's scripting discipline forbids, and the script owns the mechanical half: cell assembly,
+escaping, tier lookup (a mirror of the crosswalk — the crosswalk row is authoritative), rank
+ordering, the non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is
+everything before the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore
+guard) and everything after it (reading the written file's head to confirm shape, severity-
+vocabulary mapping when the consuming project defines its own — edit the written file's `Tier`
+cells per the contract's consumer-precedence rule). Hand-compose only when the script cannot run
+(no bash), on a small run, following "What each cell says" below.
+
 ## What each cell says
 
 - **`branch:`** is `git branch --show-current` verbatim.
