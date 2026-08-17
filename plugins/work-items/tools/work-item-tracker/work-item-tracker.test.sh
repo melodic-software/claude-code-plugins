@@ -83,6 +83,65 @@ printf '%s\n' '{"schema_version":"1.0","provider":"ghost","config":{"lease_ttl_h
 (WORK_ITEM_TRACKER_BINDING="$NOPROV" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" capabilities >/dev/null 2>&1)
 assert_eq "missing adapter dir → exit 3" "3" "$?"
 
+# --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
+# Adapters resolve consumer-local first, so a shadowing/generated adapter can skew
+# from the engine: major skew refuses (exit 3, direction-appropriate fix named);
+# newer-minor proceeds with a stderr notice (tolerant reader).
+
+# make_skew_adapter <provider> <schema_version-json> — fake adapter + binding for
+# handshake cases; capabilities.sh present so a passing handshake can dispatch.
+make_skew_adapter() {
+  local provider="$1" version_json="$2"
+  local dir="$TEST_TMPDIR/adapters/$provider"
+  mkdir -p "$dir"
+  printf '%s\n' "{$version_json\"provider\":\"$provider\",\"verbs\":{\"capabilities\":true}}" \
+    >"$dir/capabilities.json"
+  cat >"$dir/capabilities.sh" <<EOF
+#!/usr/bin/env bash
+jq -c . "$dir/capabilities.json"
+EOF
+  printf '%s\n' "{\"schema_version\":\"1.0\",\"provider\":\"$provider\",\"config\":{\"lease_ttl_hours\":24}}" \
+    >"$TEST_TMPDIR/$provider-binding.json"
+}
+
+# run_skew <provider> <args…> — dispatcher against the skew provider's binding.
+run_skew() {
+  local provider="$1"
+  shift
+  WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/$provider-binding.json" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" \
+    bash "$DISPATCHER" "$@"
+}
+
+make_skew_adapter "noversion" ""
+ERR="$(run_skew noversion capabilities 2>&1 >/dev/null)"
+assert_eq "manifest without schema_version → exit 3" "3" "$?"
+assert_contains "unversioned-manifest error names schema_version" "$ERR" "schema_version"
+
+make_skew_adapter "newermajor" "\"schema_version\":\"2.0\","
+ERR="$(run_skew newermajor capabilities 2>&1 >/dev/null)"
+assert_eq "newer-major manifest → exit 3" "3" "$?"
+assert_contains "newer-major error says update the plugin" "$ERR" "update the work-items plugin"
+
+make_skew_adapter "oldermajor" "\"schema_version\":\"0.9\","
+ERR="$(run_skew oldermajor capabilities 2>&1 >/dev/null)"
+assert_eq "older-major manifest → exit 3" "3" "$?"
+assert_contains "older-major error says regenerate the adapter" "$ERR" "update or regenerate the adapter"
+
+# Leading-zero components must be read base-10, not octal: "08.0" is major 8,
+# which must refuse — a bare (( )) would error on octal 08 and, with the errored
+# condition read as false, wave the incompatible adapter through.
+make_skew_adapter "leadingzero" "\"schema_version\":\"08.0\","
+ERR="$(run_skew leadingzero capabilities 2>&1 >/dev/null)"
+assert_eq "leading-zero major manifest → exit 3" "3" "$?"
+assert_contains "leading-zero error says update the plugin" "$ERR" "update the work-items plugin"
+
+make_skew_adapter "newerminor" "\"schema_version\":\"1.99\","
+OUT="$(run_skew newerminor capabilities 2>/dev/null)"
+assert_eq "newer-minor manifest proceeds → exit 0" "0" "$?"
+assert_eq "newer-minor capabilities passthrough intact" "newerminor" "$(jq -r '.provider' <<<"$OUT")"
+ERR="$(run_skew newerminor capabilities 2>&1 >/dev/null)"
+assert_contains "newer-minor proceeds with a stderr notice" "$ERR" "newer than core"
+
 # --- capability gate: declared-false verb → exit 6, clear stderr ---
 
 ERR="$(run_dispatcher create-item --title x 2>&1 >/dev/null)"
