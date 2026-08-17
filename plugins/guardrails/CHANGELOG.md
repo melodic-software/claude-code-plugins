@@ -3,6 +3,48 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1]
+
+### Fixed
+
+- **PowerShell write guard: a BRACED call target is measured like its bare twin
+  ([#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)).**
+  `& ${env:writer} f.txt x` and `& ${env:writer} @p` exited 0 from
+  `block-hook-bypass` while the identical `& $env:writer …` exited 2 — a
+  fail-open on a working file write, introduced by 0.28.33. `${env:w}` and
+  `$env:w` are the same reference (`about_Variables`; `${env:t} -eq $env:t` is
+  True), and `ps::call_target_is_bare_computed` admits both because it only
+  looks for the `$`. But the two probes that MEASURE a call site keyed on the
+  bare spelling alone, so a braced target entered the computed-target gate and
+  then matched no call site at all: every arm stayed silent and the command fell
+  through allowed. Before 0.28.33 the blanket `ps::has_special_constructs` arm
+  had been covering the shape incidentally, via the braces themselves.
+
+  Both probes now accept `${…}` alongside the bare form. The gate ENTRY
+  predicate is deliberately left as it is — teaching the measuring probes closes
+  the hole, whereas narrowing entry to match would open a second one. Pinned by
+  seven tests, each braced row paired with its bare twin so the two spellings
+  cannot drift apart again, plus `& ${env:py} script.py` holding the allowed
+  side so a braced target does not itself become a write signal.
+
+  A braced name may also carry a backtick-ESCAPED closing brace — ``${my`}w}``
+  names the variable ``my}w`` — and the library deletes backticks to recover a
+  cmdlet name obfuscated with PowerShell's escape character. Deleting first
+  rendered that text `${my}w}`, which is indistinguishable from a `${my}`
+  reference followed by a literal `w}`: no rule applied afterwards can tell them
+  apart, so the call site disappeared entirely and the command fell through
+  allowed for the same reason. The escape is now consumed while it still exists,
+  by `ps::fold_escaped_brace_closers`, before any caller deletes backticks; an
+  escaped backtick is consumed as a unit so it cannot lend its second backtick to
+  a following brace, leaving the obfuscation recovery untouched. The target token
+  may additionally carry non-space text glued after its closing brace
+  (`& ${env:w}riter f.txt x`), which PowerShell concatenates and which previously
+  made the whole call site unmatchable. Operands are still measured exactly as
+  before once the site is found, so widening the target token decides only where
+  measuring starts, never the verdict. Eight further tests pin the escaped-closer
+  and glued-target shapes, including two escaped closers in one name and the
+  allowed one-positional twin.
+
 ## [0.29.0]
 
 ### Added

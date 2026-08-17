@@ -169,6 +169,59 @@ ps::blank_quoted_spans() {
   printf '%s' "$text"
 }
 
+# Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
+# deletes backticks to recover an obfuscated name.
+#
+# A braced variable name may contain a `}` by escaping it: `${my`}writer}` names
+# the variable `my}writer` (about_Variables). Deleting the backtick first turns
+# that into `${my}writer}` — text that is genuinely INDISTINGUISHABLE from a
+# `${my}` reference followed by the literal `writer}`. No regex applied after the
+# deletion can tell them apart, so the braced-target scanner's `[^}]*` stopped at
+# the injected brace, failed the whitespace boundary, and located no call site at
+# all. Both measuring probes then returned false, every arm of the computed-target
+# gate stayed silent, and `& ${my`}writer} f.txt x` fell through ALLOWED — the
+# same computed-writer fail-open the braced-target fix exists to close (review of
+# #2848). The escape context therefore has to be consumed HERE, while it still
+# exists.
+#
+# The name's exact text is irrelevant to locating a call site, so the two-char
+# escape is replaced by one ordinary name character rather than preserved.
+#
+# An escaped BACKTICK (```` `` ````) is emitted UNCHANGED and consumed as a unit, so
+# it cannot lend its second backtick to a brace that follows, and so the callers'
+# obfuscation recovery (`& "Set``-Content"` -> `set-content`) is untouched. Only
+# the escaped closer is folded: an escaped OPENING brace needs no handling —
+# `${my`{writer}` deletes to `${my{writer}`, where `[^}]*` matches the name and
+# the real closer still terminates it — and removing a `{` other probes count
+# would be a change outside this finding.
+ps::fold_escaped_brace_closers() {
+  local s="$1" out="" i n ch
+  n=${#s}
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [[ "$ch" == '`' ]] && ((i + 1 < n)); then
+      case "${s:i+1:1}" in
+      '}')
+        out+='_'
+        i=$((i + 1))
+        continue
+        ;;
+      '`')
+        out+='``'
+        i=$((i + 1))
+        continue
+        ;;
+      *)
+        # Any other escape (`` `n ``, `` `- ``) is left for the caller's backtick
+        # deletion to resolve, exactly as before.
+        ;;
+      esac
+    fi
+    out+="$ch"
+  done
+  printf '%s' "$out"
+}
+
 # True (0) when the (quote-stripped) text carries a PowerShell construct the Bash
 # tokenizer cannot faithfully handle: backtick (escape / line continuation, which
 # the Bash tokenizer would read as command substitution and use to swallow
@@ -370,7 +423,24 @@ ps::blank_bracket_interiors() {
 
 ps::computed_call_has_positional_write_signal() {
   local lc="$1" rest="" tok count count_lit piped=0 scan depth opens closes
-  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
+  # is matched alongside the bare one. PowerShell's about_Variables makes them the
+  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
+  # admits both, since it only looks for the `$`. Recognizing just the bare form
+  # here let a braced target ENTER the computed-target gate and then match no call
+  # site at all, so every arm stayed silent and the command fell through allowed:
+  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
+  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
+  # measuring probes closes the hole, narrowing entry would open a second one.
+  # The braced alternative is listed FIRST so it wins on a `${…}` target, and it
+  # allows NON-SPACE text glued after the closing brace (`[^[:space:]]*`). A target
+  # token does not have to end at the brace: `& ${my``}writer} f.txt x` closes the
+  # reference at the escaped-backtick name `my``` and carries `writer}` on the same
+  # token, and `& ${py}script.py` concatenates. Requiring whitespace immediately
+  # after `}` made the whole call site disappear on those, which is a fail-OPEN —
+  # the operands are still measured normally once the site is found, so widening
+  # the TARGET token only decides where measuring starts, never the verdict.
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$\{[^}]*\}[^[:space:]]*|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
   local re_pipe='^(.*)[.\&][[:space:]]*\$'
   lc="${lc//\`/}"
   lc="${lc,,}"
@@ -468,7 +538,24 @@ ps::computed_call_has_positional_write_signal() {
 # is not a splat, and it sits before the call site besides.
 ps::computed_call_has_splat_operand() {
   local lc="$1" rest scan
-  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
+  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
+  # is matched alongside the bare one. PowerShell's about_Variables makes them the
+  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
+  # admits both, since it only looks for the `$`. Recognizing just the bare form
+  # here let a braced target ENTER the computed-target gate and then match no call
+  # site at all, so every arm stayed silent and the command fell through allowed:
+  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
+  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
+  # measuring probes closes the hole, narrowing entry would open a second one.
+  # The braced alternative is listed FIRST so it wins on a `${…}` target, and it
+  # allows NON-SPACE text glued after the closing brace (`[^[:space:]]*`). A target
+  # token does not have to end at the brace: `& ${my``}writer} f.txt x` closes the
+  # reference at the escaped-backtick name `my``` and carries `writer}` on the same
+  # token, and `& ${py}script.py` concatenates. Requiring whitespace immediately
+  # after `}` made the whole call site disappear on those, which is a fail-OPEN —
+  # the operands are still measured normally once the site is found, so widening
+  # the TARGET token only decides where measuring starts, never the verdict.
+  local re_var='(^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*(\$\{[^}]*\}[^[:space:]]*|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
   lc="${lc//\`/}"
   lc="${lc,,}"
   scan="$lc"
@@ -1287,7 +1374,13 @@ ps::write_bypass() {
   # writer/iex names (optionally module-qualified) are matched: a quoted path to
   # an arbitrary program (`& 'C:\Program Files\x.exe'`) stays allowed, the same
   # quoted-command-word residual the Bash guard carries.
-  lcq="${PS_BLANKED//\`/}"
+  # Consume the backtick escape of a closing brace BEFORE the deletion below
+  # destroys the evidence — the deletion is what made `${my`}w}` read as `${my}w}`
+  # and vanish from the braced-target scanner entirely (review of #2848). This is
+  # the load-bearing position: the probes cannot do it themselves, because by the
+  # time they are called the backticks are already gone.
+  lcq=$(ps::fold_escaped_brace_closers "$PS_BLANKED")
+  lcq="${lcq//\`/}"
   lcq="${lcq,,}"
   if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
     return 0
