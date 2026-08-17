@@ -25,16 +25,16 @@ usage_error() {
 binding_name=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --binding)
-      if [[ $# -lt 2 ]]; then
-        usage_error
-      fi
-      binding_name="$2"
-      shift 2
-      ;;
-    *)
+  --binding)
+    if [[ $# -lt 2 ]]; then
       usage_error
-      ;;
+    fi
+    binding_name="$2"
+    shift 2
+    ;;
+  *)
+    usage_error
+    ;;
   esac
 done
 if [[ -z "$binding_name" ]]; then
@@ -69,8 +69,8 @@ wit_case() {
   WIT_RC=$?
   assert_eq "$label (exit code)" "$expected_rc" "$WIT_RC"
   case "$WIT_OUT" in
-    *$'\r'*) fail "$label (stdout CR-free)" "no CR" "CR present" ;;
-    *) pass "$label (stdout CR-free)" ;;
+  *$'\r'*) fail "$label (stdout CR-free)" "no CR" "CR present" ;;
+  *) pass "$label (stdout CR-free)" ;;
   esac
 }
 
@@ -94,6 +94,34 @@ wit_case "no verb → usage" 2
 wit_case "unknown verb → usage" 2 definitely-not-a-verb
 WIT_OUT="$(WORK_ITEM_TRACKER_BINDING="/nonexistent-$$.json" bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
+
+# --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
+# Every dispatched case in this suite already passes through the handshake against
+# the real adapter's manifest (a bad declared version would fail every case), and
+# the capabilities assertions above pinned its schema_version. Skew behavior is
+# asserted here against a synthetic shadow of the SAME provider name via
+# WIT_ADAPTERS_DIR: major skew refuses (exit 3, both versions named); newer-minor
+# proceeds with a stderr notice (tolerant reader).
+
+SKEW_ROOT="$(mktemp -d)"
+mkdir -p "$SKEW_ROOT/$PROVIDER"
+printf '%s\n' "{\"schema_version\":\"99.0\",\"provider\":\"$PROVIDER\",\"verbs\":{\"capabilities\":true}}" \
+  >"$SKEW_ROOT/$PROVIDER/capabilities.json"
+SKEW_ERR="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>&1 >/dev/null)"
+assert_eq "major-skew manifest refused (exit code)" "3" "$?"
+assert_contains "major-skew stderr names both versions" "$SKEW_ERR" "99.0"
+
+cat >"$SKEW_ROOT/$PROVIDER/capabilities.sh" <<EOF
+#!/usr/bin/env bash
+jq -c . "$SKEW_ROOT/$PROVIDER/capabilities.json"
+EOF
+printf '%s\n' "{\"schema_version\":\"1.99\",\"provider\":\"$PROVIDER\",\"verbs\":{\"capabilities\":true}}" \
+  >"$SKEW_ROOT/$PROVIDER/capabilities.json"
+WIT_OUT="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>/dev/null)"
+assert_eq "newer-minor manifest proceeds (exit code)" "0" "$?"
+SKEW_ERR="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>&1 >/dev/null)"
+assert_contains "newer-minor proceeds with a stderr notice" "$SKEW_ERR" "newer than core"
+rm -rf "$SKEW_ROOT"
 
 verb_supported() {
   [[ "$(jq -r --arg v "$1" '.verbs[$v] // false' <<<"$CAPS")" == "true" ]]

@@ -43,10 +43,17 @@
 # ---------------------------
 # A `fires` row on its own proves only that the commit still produces a
 # finding. It says nothing about whether the content that commit deleted is on
-# main today, and that gap has already cost this repo 31h28m: the content
-# #2828 is about was missing from main while the f603880da row below printed
-# `ok ... fires as recorded` and the replay exited 0. Two re-lands (#2714,
-# #2803) each missed it, and a hand audit caught it, not this file.
+# main today. The content #2828 is about was absent from main for 31h28m:
+# f603880da removed it and 534eac138 (#2829) put it back.
+#
+# 31h28m is the CONTENT-ABSENCE window, not a window this replay ran through in
+# silence -- the canary did not exist for most of it. It merged part-way in, at
+# 7b47d2253 (#2808), 6h13m before the restore, so the replay covered only the
+# tail of the absence. Over that tail the f603880da row below printed
+# `ok ... fires as recorded` and the replay exited 0 while the content was still
+# gone: the row was never wrong about what it asserted, it asserted the other
+# question. Two re-lands (#2714, #2803) each missed it, and a hand audit caught
+# it, not this file.
 #
 # CONTENT, not files. Both files existed the whole time -- #2829 modifies them
 # rather than adding them. That is why nothing noticed: a file-level or
@@ -76,10 +83,13 @@
 # shape `Intentional-removal:` requires in a commit message. `[not-restored:]`
 # with nothing after it is rejected, not read as a mute.
 #
-# PATH-SCOPED is load-bearing, not tidiness. Both markers on the f603880da row
-# also occur elsewhere in the same plugin on current main (the engine script,
-# its test file, CHANGELOG.md), so a repo-wide grep would have reported both
-# files restored on a tree where the content was missing.
+# PATH-SCOPED is load-bearing, not tidiness. Each marker on the f603880da row
+# also occurs on current main in a file of the same plugin that is NOT the file
+# it binds to -- the README marker in the engine script and in that script's
+# test file, the evals marker in CHANGELOG.md. The sites differ per marker; what
+# both share is a sibling copy, so a repo-wide grep for either one matches today
+# whatever the two BOUND files contain, and would report the incident restored
+# on a tree where it is not.
 #
 # Choose a marker a reviewer can recognize as the content itself. An identifier
 # will go red on a rename, and that loudness is intended: the answer is a
