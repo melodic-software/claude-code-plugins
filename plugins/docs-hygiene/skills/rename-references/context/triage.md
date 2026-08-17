@@ -1,5 +1,15 @@
 # Triage — 3-Bucket Classifier
 
+## Contents
+
+- [Bucket 1: Certain (auto-apply candidate)](#bucket-1-certain-auto-apply-candidate)
+- [Bucket 2: Chain-context (review-recommended)](#bucket-2-chain-context-review-recommended)
+- [Bucket 3: Ambiguous (mandatory per-match confirmation)](#bucket-3-ambiguous-mandatory-per-match-confirmation)
+- [Special case: Rename-documenting plan docs](#special-case-rename-documenting-plan-docs)
+- [Special case: Frozen historical records](#special-case-frozen-historical-records)
+- [Special case: Memory entries](#special-case-memory-entries)
+- [Reporting bucket counts](#reporting-bucket-counts)
+
 After running the pattern library from `patterns.md`, every match goes into one of three buckets. Triage logic is the difference between mass-mangling prose and a clean rename.
 
 ## Bucket 1: Certain (auto-apply candidate)

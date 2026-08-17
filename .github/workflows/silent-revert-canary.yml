@@ -145,3 +145,45 @@ jobs:
           else
             scripts/check-silent-revert.sh "$SCAN_TARGET"
           fi
+
+      # The other half of the proof (#2855). The replay above asserts every
+      # recorded incident is still DETECTED; this asserts the content those
+      # incidents deleted is on the tree TODAY. Both are needed, and the gap
+      # between them has already cost 31h28m: the content #2828 is about was
+      # missing from main while the replay printed `ok` and exited 0, two
+      # re-lands each missed it, and a hand audit found it, not this lane.
+      #
+      # ORDER IS LOAD-BEARING, and this step is deliberately LAST.
+      #
+      # A step with no status function carries an implicit `success() &&`, so a
+      # step that fails SKIPS every later step in the job. Placed before the
+      # scan, a red restoration assertion would therefore skip the scan itself
+      # -- and those commits are never re-examined, because the next push's
+      # range starts at this push's head. That trade is unacceptable in this
+      # direction: restoration is bound to LIVE content in living files and the
+      # corpus header says a marker going red on a rename is intended
+      # loudness, while the scan is the primary detector. A churn-sensitive
+      # tripwire must never be able to silence it. Running last, this step can
+      # fail as loudly as it likes and the scan has already spoken.
+      #
+      # `success() || failure()` rather than the default, so the reverse
+      # suppression cannot happen either: a scan that fires (exit 1) must not
+      # skip the restoration answer. It excludes cancellation, so a cancelled
+      # run still reports nothing rather than a result it did not earn.
+      #
+      # UNGATED on the event, exactly like the self-test and the replay. The
+      # failure that produced #2828 is "nobody thought to check", so an
+      # on-demand mode would reproduce it. Running on pull_request events too is
+      # not a merge gate: this workflow is not in ci.yml and not in that
+      # workflow's `ci-status` aggregate, which is the single required check the
+      # org ci-gate ruleset keys on -- and it is `paths`-scoped to the canary's
+      # own files, so it is inert on every other PR. What it buys is that a PR
+      # editing this corpus proves its markers resolve before the merge.
+      #
+      # No rev argument: it resolves against the checked-out tree, which is the
+      # question worth asking here -- is the content on main RIGHT NOW. The
+      # explicit-rev form exists so a reviewer can replay the assertion against
+      # the historical tree an incident was measured on.
+      - name: Assert the recorded incidents' content is restored
+        if: success() || failure()
+        run: scripts/check-silent-revert.sh --verify-restoration

@@ -1,5 +1,22 @@
 # Anti-patterns guarded
 
+## Contents
+
+- [1. Citation rot](#1-citation-rot)
+- [2. Over-indirection](#2-over-indirection)
+- [3. Leaky abstraction](#3-leaky-abstraction)
+- [4. Loss of locality](#4-loss-of-locality)
+- [5. Reference resolution failure](#5-reference-resolution-failure)
+- [6. Wrong abstraction (Sandi Metz failure mode)](#6-wrong-abstraction-sandi-metz-failure-mode)
+- [7. Premature extraction](#7-premature-extraction)
+- [8. Self-generated SSOT](#8-self-generated-ssot)
+- [9. Always-loaded SSOT propagation lag](#9-always-loaded-ssot-propagation-lag)
+- [10. Encapsulation violation](#10-encapsulation-violation)
+- [11. Source-of-truth bifurcation (REFUSE trigger)](#11-source-of-truth-bifurcation-refuse-trigger)
+- [12. Primary-source citation gate (REFUSE trigger)](#12-primary-source-citation-gate-refuse-trigger)
+- [13. Shape C — dedup-by-deletion (POSITIVE pattern)](#13-shape-c--dedup-by-deletion-positive-pattern)
+- [Cross-references](#cross-references)
+
 13-pattern taxonomy. Each entry: pattern + symptom + mitigation procedure. SKILL.md cites this file for the full taxonomy; the body lists pattern names only.
 
 Patterns are framed for markdown extraction (the dominant case) but apply to code and config extractions too — citation rot has a code analog (function rename = stale `import`), over-indirection has a code analog (re-export chains), wrong abstraction is the same Sandi Metz failure regardless of language. File-class adaptations are called out per pattern below.
