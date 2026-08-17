@@ -89,9 +89,12 @@ user.
 4. **Write the team file** in the file format defined by
    `${CLAUDE_PLUGIN_ROOT}/reference/config.md` — a fenced YAML block holding only the keys the
    user confirmed. Never write a vendor-specific default the user did not declare.
-5. **Verify after writing.** Re-run the `check` probes on the written file, including
-   `git check-ignore -v .claude/improvement.md` to confirm it is tracked (surface the matching
-   pattern and offer a `.gitignore` fix before reporting success). Then offer the overlay
+5. **Verify after writing.** Re-run the `check` probes on the written file — BOTH
+   `git check-ignore -v .claude/improvement.md` (surface a matching pattern and offer a
+   `.gitignore` fix) AND `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit
+   means the file is un-ignored but still untracked — the guaranteed state right after this
+   step writes it — so report "written but untracked: commit it to share with the team", never
+   success). Then offer the overlay
    convention: personal overrides go in `.claude/improvement.local.md`; recommend the consumer
    add the recursive `.claude/**/*.local.*` line to `.gitignore` if not already covered — but
    never edit their `.gitignore` yourself.

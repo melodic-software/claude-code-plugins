@@ -32,11 +32,11 @@
       "id": 3,
       "name": "verifies-tracked-and-offers-overlay-convention",
       "prompt": "/improvement:setup apply\n\nJust write a sensible config for this repo — churn defaults are fine, no telemetry sources yet.",
-      "expected_output": "Writes the team .claude/improvement.md with only the confirmed churn keys, states that Tier 2 stays a declared evidence gap, re-runs the check probes including git check-ignore to confirm the file is tracked (not ignored), and offers the recursive .claude/**/*.local.* gitignore line for the personal overlay without editing the consumer's .gitignore itself.",
+      "expected_output": "Writes the team .claude/improvement.md with only the confirmed churn keys, states that Tier 2 stays a declared evidence gap, re-runs BOTH check probes (git check-ignore for not-ignored AND git ls-files --error-unmatch for tracked — flagging the written-but-untracked state as 'commit it', never success), and offers the recursive .claude/**/*.local.* gitignore line for the personal overlay without editing the consumer's .gitignore itself.",
       "files": [],
       "expectations": [
         "Accepts 'no telemetry sources' as a valid outcome — writes churn keys only and says Tier 2 remains an evidence gap",
-        "Verifies the written team file is tracked, not gitignored, via git check-ignore",
+        "Verifies the written team file with both probes: not gitignored (git check-ignore) AND actually tracked (git ls-files --error-unmatch), flagging untracked as commit-needed rather than success",
         "Recommends the recursive .claude/**/*.local.* gitignore line for the overlay",
         "Does not edit the consumer's .gitignore or write into the plugin/plugin-data directories"
       ]
