@@ -110,6 +110,12 @@ main() {
   [[ -f "$manifest" ]] ||
     fail_config "adapter '$WIT_PROVIDER' has no capabilities.json manifest"
 
+  # Contract-version handshake (CONTRACT.md "Contract-version handshake"):
+  # adapters resolve consumer-local first, so a shadowing/generated adapter can
+  # skew from this engine — refuse major skew, tolerate minor skew loudly.
+  wit_check_contract_version "$WIT_PROVIDER" "$manifest" ||
+    exit "$EX_CONFIG"
+
   [[ "$WIT_PROVIDER" == "github" ]] && check_gh_version
 
   local adapter_verb="$verb"
@@ -195,8 +201,11 @@ main() {
     if ((rc != 0)); then
       exit "$rc"
     fi
+    # WIT_HUMAN_GATED_LABEL is guaranteed by wit_read_binding (which already
+    # gated dispatch above) — no inline default here; the shipped default is
+    # defined once in lib/labels.sh and resolved by the binding layer.
     printf '%s\n' "$out" | wit_strip_cr |
-      wit_filter_frontier "$autonomous" "${WIT_HUMAN_GATED_LABEL:-needs-human}" "$WIT_CONTAINER_LABEL"
+      wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
   fi
 

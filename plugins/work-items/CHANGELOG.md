@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.28]
+## [0.35.29]
 
 ### Changed
 
@@ -16,17 +16,22 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   boundaries. local-markdown `renew-lease` refuses expired (including ttl-0)
   leases the same way the GitHub adapter does.
 
-## [0.35.27]
+## [0.35.28]
 
 ### Changed
 
-- **`decompose`:** prefactor slices as blockers, one-fresh-window sizing beside
-  S/M/L (no token folklore), integration-branch fallback when expand-contract
-  batches cannot land green alone, "work the frontier" in the report, and a
-  PR-variant agent brief (current-behavior-of-the-diff / finish-what-exists)
-  (#2935).
+- **`decompose`:** prefactor look-ahead at draft time (prefactor slices block
+  the work they unblock); "one fresh context window" granularity bar alongside
+  S/M/L (qualitative; no token folklore); expand-contract stays default, with
+  an integration-branch fallback when migrate batches cannot land green alone
+  (those items require a separate integration-branch workflow; `/work-items:work`
+  still targets the default branch);
+  present/report "work the frontier" (unblocked slices first). PR-variant
+  agent brief for items with attached code (`agent-brief.md`) does not replace
+  the bug/feature template. Approval gate, born-triaged, and blockers-first
+  publish are unchanged (#2935).
 
-## [0.35.26]
+## [0.35.27]
 
 ### Changed
 
@@ -37,6 +42,48 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   SSOT; v1.2 map rows for `to-tickets` / `triage` / `wayfinder` record
   absorption under those names (#2947).
 
+## [0.35.26]
+
+### Added
+
+- **Contract-version handshake at the adapter seam (#2942, F3.6).** The dispatcher now
+  compares the adapter manifest's declared `schema_version` to the core contract version
+  before every dispatch (`wit_check_contract_version`, `lib/json.sh`) — a directional
+  tolerant-reader: major skew (either direction) refuses with exit `3` naming both versions
+  and the direction-appropriate fix; a newer-minor manifest proceeds with a stderr notice;
+  an older-minor manifest proceeds silently; an unversioned manifest cannot handshake and
+  refuses. Previously only `.verbs` was read, so a consumer-local, shadowing, or generated
+  adapter skewed silently. Skew behavior is documented both directions in CONTRACT.md
+  ("Contract-version handshake") and covered by dispatcher unit tests plus conformance
+  cases (synthetic skewed shadow of the bound provider). Prerequisite for the
+  adapter-onboarding generator (#2950).
+
+### Fixed
+
+- **The seam's direction-locking ADR citation resolves in-tree (#2942, F3.5).** CONTRACT.md
+  and the GitHub conformance binding cited "ADR 0022", a number `docs/adr/` never reached.
+  The rationale is now recorded as ADR 0014 (engine plugin-canonical / adapters
+  consumer-first, plus the no-standing-sandbox conformance note) and both citations point
+  at it.
+- **Role-label defaults are single-sourced (#2942, F3.7).** The shipped defaults
+  (`needs-human`, `agent-ready`, `recurring`) were defined three times — `lib/binding.sh`
+  literals, a `lib/frontier.sh` parameter default, and a dispatcher inline fallback. They
+  now live once in `lib/labels.sh`; binding resolution, the frontier filter default, and
+  the dispatcher all read the constants.
+
+### Changed
+
+- **`gh`-absent degradation documented honestly (#2942).** CONTRACT.md "Degradation without
+  `gh`" records that MCP-only sessions cannot run the `github` adapter at all, defers a
+  REST fallback (recorded rationale), rejects MCP-as-adapter, and documents the supported
+  backfill ritual: body-text `Blocked by:` edges + a provenance comment, replayed through
+  `link-blocks`/`add-sub-item` from the next `gh ≥ 2.94` session — leases explicitly
+  excluded from the ritual.
+- **Fixed-string postures recorded (#2942, F3.7).** `label-taxonomy.md` "Recorded postures"
+  now defers the `[Maintenance]` title prefix and the `.github/recurring-schedule.json`
+  path as fixed strings until a consumer requests a remap (binding `config` keys when that
+  lands, arriving with a reconciliation step).
+
 ## [0.35.25]
 
 ### Changed
@@ -46,6 +93,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   (`adapters/local-markdown/README.md`); setup provider-comparison and the plugin
   README now point at those (#2944). local-markdown remains never a coordination
   surface.
+- **Docs:** local-markdown isolation and Resolve-item-ID docs corrected for
+  honesty — same-worktree `git switch` carries untracked/uncommitted item files;
+  lookups key by number without re-validating owner/repo (#2944).
 
 ## [0.35.24]
 

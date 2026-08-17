@@ -40,12 +40,12 @@ PARTIAL / REJECTED / OPEN.
 | Lane | Course concept | Candidates | Our surface | Verdict | Item |
 |---|---|---|---|---|---|
 | A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | OPEN | #2934 |
-| B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | PARTIAL (C5 prefactor, C6 one-window bar, C7 integration-branch fallback, C8 work-the-frontier, C17 PR-variant brief) | #2935 |
+| B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED | #2935 |
 | C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
 | D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | OPEN | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
-| W | Wayfinder deltas | C18–C20 | planning:wayfind | OPEN | #2939 |
+| W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
 | X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | OPEN | #2940 |
 | Y | Macro/micro lifecycle orchestrator (interview Q18) | — | undecided (session-flow / work-items / new) | OPEN | #2948 |
 
@@ -53,6 +53,23 @@ Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): bindi
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
 multi-provider topology (#2945), Linear adapter (#2946), adapter-onboarding skill (#2950),
 Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
+
+## Lane B (#2935)
+
+- **C5 ADOPTED**: prefactor look-ahead at decompose time ("make the change easy, then make the easy change"); prefactor slices are blockers of the slices they unblock. Qualitative — no token folklore.
+- **C6 ADOPTED**: "one fresh context window" granularity bar alongside S/M/L. Qualitative only; folklore token figures remain excluded-by-default.
+- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch.
+- **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
+- **C17 ADOPTED**: PR-variant brief in `plugins/work-items/reference/agent-brief.md` (current-behavior-of-the-diff, finish-what-exists). Does not replace the bug/feature template.
+
+## Lane W (#2939)
+
+- **C18 ADOPTED** in `planning:wayfind` only (not generalized to work-items): human-facing
+  narration refers to items by title, with the number as a link or suffix.
+- **C19 ADOPTED**: Out-of-scope is for scope, not sharpness; fog never graduates there; a
+  wrongly scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
+- **C20 ALREADY-PRESENT**: map body is a stable index not a mirror; Decisions-so-far is a
+  pointer INDEX; Notes are links not recaps — recorded here, not restated in the skill docs.
 
 ## Decided at interview (2026-08-17, not per-lane)
 

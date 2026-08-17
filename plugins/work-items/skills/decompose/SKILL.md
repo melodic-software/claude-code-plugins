@@ -63,8 +63,10 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 - A completed slice is demoable or verifiable on its own
 - Prefer many thin slices over few thick ones
 - Slices map to PLAN.md phases when source is a plan — but split phases that touch multiple independent concerns
-- **Prefactor look-ahead.** If making a slice easy requires a prior structural change, emit that prefactor as its own slice and list it in "Blocked by" for the slices it unblocks ("make the change easy, then make the easy change")
-- **Window sizing.** Calibrate granularity so each slice is one fresh context window of work, alongside the S/M/L bar in the approval list — qualitative, no token figures
+
+**Prefactor look-ahead.** Before slicing the feature work, look for changes that would make later slices easy — "make the change easy, then make the easy change." Emit each as its own slice; a prefactor slice is a **blocker** of the slices it unblocks. Stay qualitative: a prefactor is a structural unblocker (extract a seam, introduce a compatibility shim, split a god-module), not a size heuristic.
+
+**Window bar.** Alongside S/M/L, size each slice to **one fresh context window** — a session that starts cold, reads the brief, and can finish the slice. A slice that cannot complete in one fresh window is too coarse: split it. Qualitative only; do not invent token budgets or numeric window sizes.
 
 **Classify each slice:**
 
@@ -97,22 +99,22 @@ Mechanical changes with codebase-wide blast radius (rename a persisted column, r
 
 Each step is its own ticket with blocking edges (contract blocked by every migrate batch; migrate batches blocked by expand). Caveat: shared integration points (a wire format, a persisted schema) may pin expand + contract to a coordinated window — say so in the ticket body.
 
-**Integration-branch fallback.** When migrate batches cannot land green on the default branch alone, share one integration branch and add a final integrate-and-verify slice that every batch blocks. This is a fallback, not the default — expand-contract still applies when each batch can merge green independently.
+**Integration-branch fallback.** When migrate batches cannot land green on the default branch independently (shared runtime, coupled deploy, dual-write that cannot be isolated), keep the expand → migrate → contract sequence but share **one integration branch** that every batch targets, and add a final **integrate-and-verify** item blocked by all of them — green is promised only there. This is a fallback, not a replacement: default remains expand → migrate → contract. `/work-items:work` still provisions each item's worktree from the default branch and opens PRs against the default branch, so these fallback items are **not** executable on the standard work path — they require a separate integration-branch workflow (operator-driven shared branch and PR retarget) until a dedicated execution path exists. Do not rewrite `/work-items:work` to target the integration branch.
 
 ### 3. Present for approval
 
-Present the proposed breakdown as a numbered list. For each slice:
+Present the proposed breakdown as a numbered list — **work the frontier** (unblocked slices first). For each slice:
 
 - **Title**: short descriptive name following [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
 - **Type**: HITL / AFK
 - **Blocked by**: which other slices (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
-- **Estimated scope**: S / M / L, plus whether it fits one fresh context window
-- **Frontier**: whether the slice is unblocked now (work the frontier first)
+- **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
+- **Frontier**: whether the slice is unblocked now
 
 Ask the user:
 
-- Does the granularity feel right? (too coarse / too fine; one-window bar)
+- Does the granularity feel right? (too coarse / too fine — each slice should fit one fresh context window)
 - Are dependency relationships correct?
 - Should any slices be merged or split?
 - Are HITL/AFK classifications correct?
@@ -143,7 +145,7 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 rm -f "$BODY_FILE"
 ```
 
-Use agent-brief body format (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) for AFK slices. Body structure:
+Use agent-brief body format (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) for AFK slices. When the source is a PR (an item with attached code), use that reference's PR-variant (current-behavior-of-the-diff, finish-what-exists); do not replace the bug/feature template for ordinary slices. Body structure:
 
 ```markdown
 ## Parent

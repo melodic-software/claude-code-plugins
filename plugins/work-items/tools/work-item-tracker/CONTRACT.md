@@ -3,7 +3,8 @@
 Provider-neutral CLI contract for work-item tracker operations. Skills and scripts call the
 core dispatcher (`work-item-tracker.sh`) only; the bound provider adapter executes the
 operation. The seam ships bundled with the `work-items` plugin and resolves plugin-dir
-canonical with a project-root fallback (see "Adapter resolution"). Direction locked by ADR 0022.
+canonical with a project-root fallback (see "Adapter resolution"). Direction locked by
+[ADR 0014](../../../../docs/adr/0014-resolve-seam-engine-plugin-canonical-and-adapters-consumer-first.md).
 
 ## Prerequisites
 
@@ -14,6 +15,47 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 - `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
   adapter gates on it at call time (exit `3`), not the dispatcher — minimal shared-code
   blast radius.
+
+### Degradation without `gh` (cloud / MCP-only sessions)
+
+Some execution environments have GitHub access but no `gh` binary — notably cloud sessions
+whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+seam **cannot run the `github` adapter at all**, reads and writes alike: the dispatcher's
+prerequisite gate exits `3` (the same first-run signal as a missing binding), and there is
+deliberately no silent fallback to another provider (the binding names the coordination
+surface; "Offline role activates only by manual binding switch" applies to degradation
+too). Honest limitation, recorded 2026-08-17 (#2942): this repository's own spec board
+(#2933) had to be published through MCP tools with blocking edges as body text, because
+the publishing session had no `gh`.
+
+Evaluated fallbacks, decided as follows:
+
+- **REST fallback inside the `github` adapter (`curl`) — explicitly deferred.** It would
+  duplicate `gh`'s auth, pagination, and endpoint surface inside the adapter, and would
+  silently fork identity routing ("Identity routing (GitHub adapter)" — the bot-wrapper
+  seam wraps `gh`, not raw HTTP). The native sub-issue/dependency surface is exactly what
+  gates `gh ≥ 2.94`; re-deriving it over raw REST is a second implementation to keep
+  conformant. Revisit if gh-less environments become a primary execution surface rather
+  than an occasional one.
+- **MCP tools as an adapter — rejected.** Adapters are shell verb-scripts; MCP tools are
+  callable only by the model, so a shell seam cannot invoke them. A session with MCP-only
+  GitHub access already has item CRUD through those tools directly — what it loses is the
+  seam's value-add (leases, frontier derivation, normalization, conformance).
+
+**Supported path — the backfill ritual.** A `gh`-less session that must publish anyway
+(the #2933 case) publishes through whatever GitHub surface it has, and:
+
+1. records every blocking edge as a structured body line — `Blocked by: <qualified id>`
+   ("ID grammar"; bare `#123` is never persisted) — and parent linkage via the provider
+   surface where it exists (MCP has native sub-issue support);
+2. leaves one provenance comment on the container naming the edges awaiting native
+   backfill;
+3. the next session with `gh ≥ 2.94` replays the recorded edges through the seam
+   (`link-blocks` / `add-sub-item`) and strikes the note.
+
+Leases are NOT part of the ritual: a `gh`-less session must not simulate claims by
+body-editing — claim/renew/reclaim stay seam-only, so an item worked this way is picked up
+as unclaimed coordination (acceptable for a publish, wrong for contended work).
 
 ## Setup (binding file)
 
@@ -308,6 +350,29 @@ label-agnostic and simply never surfaces items that are assigned or blocked.
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
 
+### Contract-version handshake
+
+Adapters resolve consumer-local first ("Adapter resolution"), so a consumer-owned,
+shadowing, or generated adapter can legitimately be built against a different contract
+revision than the engine dispatching to it. The dispatcher therefore performs a
+**directional tolerant-reader handshake** before every dispatch: it compares the manifest's
+declared `schema_version` to the core's contract version (`WIT_SCHEMA_VERSION`,
+`lib/json.sh`). Skew behavior, both directions:
+
+| Manifest vs core | Behavior |
+|---|---|
+| no valid `schema_version` (MAJOR.MINOR) | refuse: exit `3`, stderr says the manifest cannot handshake — consumer/generated adapters MUST declare one |
+| newer MAJOR | refuse: exit `3`, stderr names both versions — "update the `work-items` plugin" |
+| older MAJOR | refuse: exit `3`, stderr names both versions — "update or regenerate the adapter" |
+| same MAJOR, newer MINOR | proceed with a stderr notice: minors are additive, so the core (a tolerant reader) ignores fields it does not know; updating the plugin consumes them |
+| same MAJOR, MINOR ≤ core | proceed silently: additive fields introduced after the adapter's revision are optional by definition, so an older adapter simply omits them |
+
+Major skew is a **configuration error, not a degradation**: exit `3` is the same
+first-run/setup signal as a missing binding, pointing at the mismatched pair rather than
+failing later inside a verb with a shape error. The conformance suite asserts both refusal
+directions and the newer-minor notice against a synthetic skewed manifest, and every real
+conformance case exercises the passing handshake.
+
 ## Identity routing (GitHub adapter)
 
 Tracker WRITES (item create, lease comments, reclaim notes) route through an optional bot wrapper
@@ -359,11 +424,14 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
 ### Branch, worktree, and lease confinement
 
 The store is working-tree files (`<storage_dir>/<number>.md`). Visibility is
-therefore confined to the tree that holds those files: an item created on a
-feature branch is invisible on every other branch until the store directory is
-merged. `wit_next_number` is the max existing file number + 1 with no file
-lock, so two diverged branches (or two writers against one store) can both mint
-the same next number.
+therefore confined to the tree that holds those files. Untracked or uncommitted
+item files are **not** branch-isolated in the same worktree: `git switch`
+normally carries them onto the new branch (and a nonconflicting uncommitted
+lease edit can likewise follow). Invisibility holds for sibling worktrees that
+do not share those store files, and for committed store files on other branches
+until those commits are merged. `wit_next_number` is the max existing file
+number + 1 with no file lock, so two diverged branches (or two writers against
+one store) can both mint the same next number.
 
 A relative `config.storage_dir` roots against the **binding file's directory**,
 not the caller's CWD (`lib/binding.sh`). Distinct worktrees that climb to the

@@ -66,6 +66,26 @@ fall back silently. Two constraints on remapping:
 
 `/work-items:setup` offers the remap interview and writes the binding key.
 
+### Recorded postures: fixed strings without a remap seam
+
+Two strings adjacent to the `recurring-maintenance` role are **fixed by design today** — no
+binding key remaps them (recorded posture per the consumer-configurability doctrine; #2942
+F3.7, same deferral pattern as the seam's container label):
+
+- **`[Maintenance]` title prefix** — the exact-match key `due`/`work` use to reconcile a
+  schedule row with its open tracker item. Making it configurable is deferred until a consumer
+  asks for a different prefix; when that request lands it joins the binding as a sibling of
+  `config.role_labels` (a `config` key, not a parallel mechanism), and every reader named in
+  [`../skills/track/actions/due.md`](../skills/track/actions/due.md) and the setup
+  reconciliation steps resolves it the same way role labels resolve.
+- **`.github/recurring-schedule.json` path** — the schedule seam's location. Deferred on the
+  same first-request trigger; a future remap is a binding `config` key resolved once per
+  invocation, never a second discovery climb.
+
+Both strings participate in exact-match lookups against provider data, so a repo changing
+either today would orphan existing `[Maintenance]` items and schedules — which is why the
+remap, when it comes, arrives with a reconciliation step, not as a bare string swap.
+
 ## Project-specific axes
 
 The consuming repo defines the members of these axes to match its own architecture surface, domain categorization, and language/toolchain mix. Discover the live set from the bound adapter's label listing (for the GitHub adapter, `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` — e.g. `gh label list`).

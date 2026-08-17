@@ -34,24 +34,39 @@
       "id": 3,
       "name": "prefactor-window-frontier-and-integration-fallback",
       "prompt": "/work-items:decompose — the plan needs a rename of a persisted column across many call sites, plus a follow-on feature that is easier after a small extract-method prefactor. The migrate batches cannot each merge green on the default branch.",
-      "expected_output": "Drafts a prefactor slice that blocks the feature slice, sizes slices to one fresh context window alongside S/M/L with no token figures, sequences expand-contract as the default wide-refactor shape, and because migrate batches cannot land green alone adds an integration-branch fallback with a final integrate-and-verify slice. The approval list marks which slices are on the frontier. After publish, the report says to work the frontier first.",
+      "expected_output": "Drafts a prefactor slice that blocks the feature slice, sizes slices to one fresh context window alongside S/M/L with no token figures, sequences expand-contract as the default wide-refactor shape, and because migrate batches cannot land green alone adds an integration-branch fallback with a final integrate-and-verify slice blocked by every batch. Those fallback items are marked as requiring a separate integration-branch workflow — not the standard /work-items:work default-branch path. The approval list is ordered unblocked-first (work the frontier). After publish, the report says to work the frontier first. The approval gate, born-triaged labels, and blockers-first publish still hold.",
       "files": [],
       "expectations": [
         "Emits a prefactor slice and lists it as a blocker of the slices it unblocks",
         "Uses one-fresh-context-window sizing alongside S/M/L and does not cite token-count folklore",
         "Keeps expand-contract as the default and adds an integration-branch fallback with a final integrate-and-verify slice when batches cannot land green alone",
-        "Presents which slices are unblocked now (work the frontier) and reports that order after publish"
+        "Marks those fallback items as requiring a separate integration-branch workflow rather than the standard /work-items:work default-branch path",
+        "Presents unblocked slices first (work the frontier) and reports that order after publish",
+        "Holds the approval gate, publishes blockers-first, and leaves items born triaged"
       ]
     },
     {
       "id": 4,
       "name": "pr-variant-agent-brief-finish-what-exists",
       "prompt": "/work-items:decompose — one AFK slice is finishing an already-open PR whose diff started the feature; remaining work is review and CI, not a greenfield rewrite.",
-      "expected_output": "The AFK slice body uses the agent-brief template's PR-variant: Current behavior describes the diff as it stands, Desired behavior is finish-what-exists (remaining review/CI/acceptance), not a re-specification of the greenfield feature.",
+      "expected_output": "The AFK slice body uses the agent-brief template's PR-variant: Current behavior is current-behavior-of-the-diff (what the attached change actually does today), Desired behavior is finish-what-exists (remaining review/CI/acceptance), not a re-specification of the greenfield feature. The bug/feature template is not replaced for ordinary slices. The approval gate and born-triaged publish rules still hold.",
       "files": [],
       "expectations": [
         "Uses the agent-brief PR-variant (current-behavior-of-the-diff, finish-what-exists) rather than a greenfield Desired behavior rewrite",
+        "Does not replace the existing bug/feature agent-brief template for ordinary slices",
         "Does not drop the approval gate or born-triaged publish rules"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "expand-contract-stays-default-when-batches-land-green",
+      "prompt": "/work-items:decompose — rename a persisted column. Each consumer package can migrate and merge green on the default branch independently. Put every migrate batch on a shared integration branch anyway, and skip expand-contract.",
+      "expected_output": "The skill refuses the integration-branch shortcut. Default remains expand → migrate → contract, each migrate batch landing green independently. Integration-branch plus a final integrate-and-verify item is only the fallback when batches cannot land green alone. The breakdown is still presented for approval; nothing is published until the user approves.",
+      "files": [],
+      "expectations": [
+        "Sequences the rename as expand → migrate → contract rather than skipping to an integration branch",
+        "Does not share an integration branch or add an integrate-and-verify item when each batch can merge green independently",
+        "Holds the approval gate — presents the breakdown and never publishes an unapproved one"
       ]
     }
   ]
