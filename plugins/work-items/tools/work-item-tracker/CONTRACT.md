@@ -260,10 +260,11 @@ leave the frontier treating the item as unassigned), supersede the lease, append
 explanatory comment, `reclaimed: true`. Ownership is **revalidated immediately before the
 mutation** — the activity round-trips open a window in which a concurrent claimer can renew
 or supersede the lease; if the active lease is no longer this one, or is now live, reclaim
-is a no-op (`reclaimed: false`), never a mutation of a foreign or now-live lease. That
-revalidation **narrows** the TOCTOU window; it cannot close it — GitHub's issue-comment
-PATCH documents no If-Match / CAS, so a concurrent writer can still win the race. A live
-lease is never reclaimed.
+intends a no-op (`reclaimed: false`). That revalidation is **intent, not a guarantee**: it
+narrows the TOCTOU window but cannot close it — GitHub's issue-comment PATCH documents no
+If-Match / CAS, so a concurrent writer can still win the race and a reclaim can still mutate
+after a stale revalidation. Do not treat the check as CAS. A live lease is never the
+*intended* reclaim target.
 Branch-push activity signals are not implemented (deferred; comments + PR cross-references
 carry the check). Long-running workers therefore **renew mid-flight** (`renew-lease` on the
 claim's `lease_comment_id`) rather than relying on push activity (`/work-items:work` Step 5).

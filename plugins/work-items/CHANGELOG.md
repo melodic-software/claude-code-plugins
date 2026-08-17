@@ -7,9 +7,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
-- **Lease hardening (#2943):** long-running `/work-items:work` workers renew
-  mid-flight (`renew-lease`) instead of relying on deferred branch-push
-  activity. CONTRACT documents clock skew, TOCTOU (revalidation is not CAS),
+- **Lease hardening (#2943):** the `/work-items:work` worker is the durable
+  mid-flight `renew-lease` actor during implement-dispatch; the orchestrator
+  renews only after the worker returns. Branch-push activity stays deferred.
+  CONTRACT documents clock skew, TOCTOU (revalidation is intent, not CAS),
   ttl-0 born-expired, and comment-id monotonicity as an adapter requirement.
 
 ## [0.35.27]
