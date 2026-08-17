@@ -6,7 +6,7 @@ All notable changes to the `education` plugin are documented here. Format follow
 ## [0.7.0]
 
 Two consumer-visible default changes (lesson format, topic-workspace location) — the
-`teach-skill-comparison` topic audit (docs/topics/teach-skill-comparison/) is the design record.
+`teach-skill-comparison` topic audit (PR #2958 carries the full Brief and plan) is the design record.
 
 ### Changed
 
