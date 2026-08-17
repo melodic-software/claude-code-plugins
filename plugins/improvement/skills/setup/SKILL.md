@@ -3,9 +3,6 @@ description: "Verify and configure the improvement plugin for this repository. c
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-metadata:
-  workflow-stage: setup
-  summary: Verify or write the .claude/improvement.md evidence-source cascade; check inspects, apply writes
 ---
 
 ## Purpose
