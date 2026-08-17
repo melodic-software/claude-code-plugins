@@ -178,6 +178,23 @@ non-cosmetic-adjacent finding (the catalogue test's token-figure scan could miss
 figures) was fixed in 0.5.1 and verified against a seeded violation; the 227-line SKILL.md soft
 warning is accepted as load-bearing fix-path posture.
 
+### Post-acceptance closeout — 2026-08-17 (`context-budget` 0.6.0)
+
+The optional follow-ons all executed or honestly closed (evidence:
+[FINDINGS.md](FINDINGS.md) § Post-acceptance probes):
+
+- First end-to-end shakedown of the shipped skill against this container: deltas reproduced,
+  additivity exact, ledger and report produced per contract; surfaced the measured `ToolSearch`
+  anti-lever, now a catalogue caveat.
+- `bypassPermissions` vs PreToolUse `ask`: RESOLVED for headless (fires and blocks); interactive
+  unmeasured, and documented as such.
+- HTTP MCP deferral: RESOLVED for v2.1.232 headless (deferred, own `MCP tools (deferred)`
+  category); engine headline semantics widened to all deferred pools.
+- Deferred-tool `count_tokens` billing: BLOCKED in this container (no API credential); two-call
+  design recorded in FINDINGS for a keyed machine.
+- Interactive-session deferral eligibility: still open — no TTY in this environment; posture
+  unchanged (measure per session, stamp `sessionKind`).
+
 ## Related
 
 - Research artifacts: [research/](research/) — the nine run slices plus `INDEX.md`,

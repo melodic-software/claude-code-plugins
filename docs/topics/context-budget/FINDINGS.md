@@ -128,16 +128,54 @@ keep: the **framing** — this maximises the smart zone, and is not a cost-minim
    preload sentinel proves only that the agent read the file, **not that preload worked**. Any gate
    treating a matching token as proof of preload is unsound. Worth its own issue.
 
+## Post-acceptance probes — 2026-08-17, v2.1.232, headless, this container
+
+Run after the plugin shipped (0.5.1), each by a fresh-context prober; raw artifacts under the
+session scratchpad (`bypass-probe/`, `httpmcp-probe/`), transcripts in the session record.
+
+- **A PreToolUse `ask` fires and blocks under `bypassPermissions` (headless).** Four-condition
+  probe: with the hook, default mode and `bypassPermissions` behave identically — the hook runs
+  and the Write is blocked, the model seeing a tool error carrying the
+  `permissionDecisionReason`; without the hook, default mode denies the Write and bypass mode
+  allows it (positive control). Headless `ask` degrades to block-with-reason since nothing can
+  prompt. Interactive bypass behavior remains unmeasured. (Environment note: entering bypass as
+  root required `IS_SANDBOX=1`.)
+- **HTTP MCP tools measure DEFERRED at v2.1.232** — anthropics/claude-code#40314's upfront
+  loading does not reproduce. A local Streamable HTTP probe server's three fat-description tools
+  landed in a dedicated **`MCP tools (deferred)` category** (not merged into
+  `System tools (deferred)`, not prefix), per-tool token weights with `isLoaded: false`, and the
+  context-usage headline moved only by unrelated Messages jitter — confirming deferred-pool
+  exclusion semantics. The two deferred buckets are distinct categories; the transition version
+  is unknown.
+- **Denying `ToolSearch` is a measured anti-lever:** the deferred row vanished and
+  `System tools` rose 21,211 — denying the deferral mechanism forces the whole deferred pool
+  upfront. Recorded as a deny-bare-tool caveat in the plugin's lever catalogue.
+- **Shakedown of the shipped skill end-to-end** (state key → baseline → 5-tool attribution →
+  report → ledger): deltas reproduced (`Workflow` −7,900, `Artifact` −4,470, `SendUserFile`
+  −1,066, `ReportFindings` −821), four-lever additivity exact (14,257 = 14,257), ledger row
+  comparable, report persisted per contract.
+- **Deferred-tool billing (count_tokens) — BLOCKED here:** the container's gateway does not
+  serve credentialed raw API calls (`x-api-key header is required`). Design for a machine with a
+  key: two `count_tokens` calls, identical but for one deferred (`defer_loading`) tool
+  definition, under the tool-search beta; a count delta equal to the tool's schema weight means
+  deferred-but-never-loaded definitions are billed.
+
 ## Unresolved
 
 - **Whether the Agent SDK exposes `get_context_usage`.** A structured object with exact integers and
   a `free|buffer|deferred|used` enum exists in the binary behind the control protocol. If reachable,
   it eliminates the markdown-parsing brittleness entirely. **Resolve before committing to a parser.**
+  → RESOLVED 2026-08-17 (PLAN Phase 0): `getContextUsage()` probed live, exact integers; the shipped
+  engine is SDK-primary.
 - **Whether HTTP/Streamable-HTTP MCP tools are actually deferred at 2.1.232.**
   `anthropics/claude-code#40314` reported 120K tokens upfront at v2.1.86, closed as not planned; no
   one could confirm a fix. Argues for measuring deferral per session rather than trusting the default.
+  → RESOLVED 2026-08-17 for v2.1.232 headless (Post-acceptance probes): measured deferred, in a
+  dedicated `MCP tools (deferred)` category. The measure-per-session posture stays.
 - **Whether a `PreToolUse` `ask` decision survives `bypassPermissions`.** Documented silence — the
   docs enumerate what still prompts there and hook decisions are absent from that list.
+  → RESOLVED for headless at v2.1.232 (Post-acceptance probes): the ask fires and blocks;
+  interactive bypass remains unmeasured.
 - **Cloud/web surface behaviour.** `disableClaudeAiConnectors` is inert there and `deniedMcpServers`
   URL patterns do not match because the proxy rewrites URLs.
 - **`skillOverrides` documentation status** — two runs disagree on whether it appears in official

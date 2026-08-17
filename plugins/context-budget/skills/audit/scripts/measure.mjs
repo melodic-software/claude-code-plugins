@@ -359,11 +359,12 @@ function cliSnapshot({ bin, deny, label }) {
       + `${(r.stderr || String(r.error || '')).trim().slice(0, 300)}`);
   }
   const parsed = parseContextMarkdown(r.stdout);
-  // Match the SDK/renderer headline semantics: the deferred pool is excluded
-  // from the context-usage total (it ships in the request but sits outside
-  // the context window), as are the free-space and buffer rows.
+  // Match the SDK/renderer headline semantics: deferred pools (any
+  // "... (deferred)" category — built-in and MCP alike) are excluded from the
+  // context-usage total (they ship in the request but sit outside the context
+  // window), as are the free-space and buffer rows.
   const payloadTotal = Object.entries(parsed.categories)
-    .filter(([name]) => !['Free space', 'Autocompact buffer', 'System tools (deferred)'].includes(name))
+    .filter(([name]) => !name.endsWith('(deferred)') && !['Free space', 'Autocompact buffer'].includes(name))
     .reduce((sum, [, v]) => sum + v, 0);
   return {
     schema: SNAPSHOT_SCHEMA,

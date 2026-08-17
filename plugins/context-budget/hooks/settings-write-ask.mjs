@@ -4,10 +4,15 @@
 // auto mode (the classifier may still deny; it cannot silently approve).
 //
 // This is a CHECKPOINT, NOT A GUARANTEE — documented as such in the audit
-// skill: a PermissionRequest hook can still allow the call, disableAllHooks
-// removes non-managed hooks, and whether an "ask" survives bypassPermissions
-// is undocumented. The checkpoint's value is that the ordinary auto-mode path
-// cannot rewrite settings silently while this plugin is enabled.
+// skill: a PermissionRequest hook can still allow the call, and
+// disableAllHooks removes non-managed hooks. Empirically (v2.1.232, headless
+// -p mode, Linux): the ask fires and blocks the call even under
+// bypassPermissions, surfacing to the model as a tool error carrying the
+// permissionDecisionReason — headless "ask" degrades to block-with-reason
+// since nothing can prompt. Interactive bypassPermissions behavior remains
+// unmeasured; do not extrapolate. The checkpoint's value is that the
+// ordinary auto-mode path cannot rewrite settings silently while this
+// plugin is enabled.
 //
 // Fail-open: on any internal error or unrecognized payload, exit 0 with no
 // output — a broken checkpoint must not block unrelated writes. Kill switch:

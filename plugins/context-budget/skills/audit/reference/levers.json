@@ -36,7 +36,8 @@
       "emittedConfig": "{\"permissions\": {\"deny\": [\"<ToolName>\"]}}",
       "caveats": [
         "There is no `disallowedTools` settings key; emitting one writes a silently ignored key. Persistent config is permissions.deny only.",
-        "Denying a tool removes capability, not just weight — confirm the operator does not use it (route usage questions to /doctor)."
+        "Denying a tool removes capability, not just weight — confirm the operator does not use it (route usage questions to /doctor).",
+        "Never deny the deferral mechanism itself for savings: denying the tool-search tool forces the entire deferred pool upfront into the prefix (measured at the verified version as a large negative saving). Measure any infrastructure tool before recommending its deny."
       ],
       "citations": [
         "https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules",
@@ -345,7 +346,7 @@
       "measurement": "The baseline snapshot's System tools (deferred) bucket is the deferral observation; differencing a specific tool shows which pool it leaves from.",
       "emittedConfig": null,
       "caveats": [
-        "Whether HTTP/Streamable-HTTP MCP tools actually defer at a given version is an open upstream question — measure, do not trust the default."
+        "Whether HTTP/Streamable-HTTP MCP tools defer at a given version is measured, never trusted from documentation: an upstream report of upfront loading (anthropics/claude-code#40314, closed not-planned) did NOT reproduce at the verified version — a probe server's tools measured deferred, in a dedicated 'MCP tools (deferred)' category separate from 'System tools (deferred)', with per-tool weights and isLoaded flags. Treat the two deferred buckets as distinct; the transition version and interactive behavior remain unknown."
       ],
       "citations": [
         "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading",

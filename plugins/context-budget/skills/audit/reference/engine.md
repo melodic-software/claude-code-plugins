@@ -47,9 +47,11 @@ never silently assumed durable.
    `savedTokens` with the sign flipped for ranking. `prefixDelta` and `deferredDelta` stay
    separate: a deferred-bucket saving reduces request weight without moving the context-usage
    headline, and merging them would misstate both.
-4. **Headline semantics.** `totalTokens` excludes the deferred pool, free space, and the
-   autocompact buffer in both modes, matching the renderer's own headline. The deferred pool is
-   excluded from the *headline*, not from the *request* — see the deferral citation above.
+4. **Headline semantics.** `totalTokens` excludes the deferred pools, free space, and the
+   autocompact buffer in both modes, matching the renderer's own headline. Deferred pools are
+   plural: built-in and MCP deferred tools are accounted in separate `... (deferred)` categories
+   (measured at the verified version), and both are excluded from the *headline*, not from the
+   *request* — see the deferral citation above.
 
 ## Record schemas
 

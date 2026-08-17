@@ -5,6 +5,24 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0]
+
+### Changed
+
+- Empirical hardening from the first end-to-end shakedown and two fresh-context probes
+  (v2.1.232, headless):
+  - cli-parse `totalTokens` now excludes every `... (deferred)` category, not only the built-in
+    one — HTTP MCP tools measured deferred in their own `MCP tools (deferred)` category
+    (anthropics/claude-code#40314's upfront loading did not reproduce), and the headline must
+    exclude both pools in both modes; engine.md's headline rule updated to match.
+  - The ask-checkpoint's undocumented-`bypassPermissions` caveat upgraded to a measurement: at
+    v2.1.232 headless the `ask` fires and blocks even under `bypassPermissions` (surfacing as a
+    tool error carrying the reason); interactive behavior stays explicitly unmeasured. Hook
+    header and SKILL.md fix-path wording updated.
+  - New deny-bare-tool caveat: denying the tool-search tool is a measured anti-lever (it forces
+    the entire deferred pool upfront); measure any infrastructure tool before recommending its
+    deny. The tool-search-deferral row now records the dedicated MCP deferred bucket.
+
 ## [0.5.1]
 
 ### Changed

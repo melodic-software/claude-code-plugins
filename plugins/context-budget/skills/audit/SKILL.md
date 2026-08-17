@@ -209,9 +209,10 @@ Write posture splits by scope, and the split is not negotiable:
   lever at a time, after the operator approves the exact diff shown in advance. The plugin's
   PreToolUse checkpoint returns `permissionDecision: "ask"` for any settings-surface write, so
   even in auto mode the write prompts rather than sliding through — **a checkpoint, not a
-  guarantee**: a `PermissionRequest` hook can still allow it, `disableAllHooks` removes
-  non-managed hooks, and whether an `ask` survives `bypassPermissions` is undocumented. Say so
-  when describing the protection.
+  guarantee**: a `PermissionRequest` hook can still allow it and `disableAllHooks` removes
+  non-managed hooks. Measured at v2.1.232 in headless mode, the `ask` fires and blocks even
+  under `bypassPermissions` (surfacing as a tool error carrying the reason); interactive
+  `bypassPermissions` behavior is unmeasured. Say so when describing the protection.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
   human-confirmation guarantee — in auto mode a write there routes to the classifier, which can
