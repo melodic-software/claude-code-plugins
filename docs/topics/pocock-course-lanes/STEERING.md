@@ -96,3 +96,24 @@ Lane 8 status: CLOSED 2026-08-17 — Brief locked
 enforcement filed (explicit-key normalization + check criterion + skill-authoring pointer), flip
 filed (`planning:questionnaire`), SSOT gap-3 rows dispositioned and strand CONFIRMED. Next:
 lane 9 (#2911).
+
+## Lane 9 decision rows (opened 2026-08-17)
+
+Interview-first per contract; round-1 decisions user-confirmed ("go with all recommendations").
+No separate topic Brief — lane 9 designs nothing; these rows plus filed items are the record
+(user-decided, Q1). Deviation note: rows land here per chain convention, not in
+[#2911](https://github.com/melodic-software/claude-code-plugins/issues/2911)'s stated
+`docs/upstream/aihero-course.md` target (lane 6's deliverable). Rows for lane 6's harvest:
+
+| Claim / concern (lesson) | Verdict | Detail |
+|---|---|---|
+| Navigation sections in CLAUDE.md ("highways") vs audit C5 flagging codebase descriptions (L6) | ADOPT (adapted) | Filed criteria patch: C5 carve-out distinguishing curated navigation pointers to non-obvious, load-bearing docs (KEEP branch) from file-by-file inventories Claude can rebuild (still FLAG). Marked as repo extension if official docs state no navigation posture (provenance rule: `update` must not overwrite) |
+| Stale-pointer risk — "a stale highway is worse than no highway" (L6) | PARITY — no new check | `claude-memory:audit` C7 already FAILs on referenced paths that do not exist; the filed patch adds a one-line C7 note naming stale pointers as the standing cost of navigation sections |
+| Nested/subdirectory CLAUDE.md as a placement destination (our extension; course omits it) | ADOPT | C3 placement-table row ("subdirectory-specific conventions → nested CLAUDE.md") in the same filed patch; loading-semantics wording gated on harness-claim verification |
+| @-mention as the one-turn-scoped pointer equivalent (L2/L6) | ADOPT | One-line distinction on C3's import row: conversational @-mention is one-turn steering, cheaper than a permanent pointer for one-off needs; `@path` imports in CLAUDE.md load at launch (already priced). Same filed patch |
+| Design-smell caveat: a pointer mirroring changes across distant folders can mask low cohesion (user-raised) | ADOPT | Homed in the criteria patch's remediation guidance (restructure-before-pointer consideration at the audit's fix moment); coordination comment on [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) points the authoring skill at it — no duplicated doctrine |
+| /init-then-prune eval fixture (L8, user-suggested) | ADOPT | Filed against `claude-memory:audit`'s existing eval suite: static bloated-CLAUDE.md fixture (the shape `/init` produces) in the eval's `files`, graded against expected findings (C1/C2/C5); regression gate on audit judgment quality. Static fixture chosen over live `/init` generation (determinism) |
+
+Lane 9 status: IN PROGRESS — remaining (research-gated): auto-memory parity rows (L9),
+harness-claims verdict table (7 fresh claims + lane-8 reuse), lessons 1–2 leftover rows, term
+candidates to lane 6, work items filed, close-out.
