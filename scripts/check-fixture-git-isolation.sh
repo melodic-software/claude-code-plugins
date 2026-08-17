@@ -225,6 +225,11 @@ scan() {
         sub(/^for[ \t]+/, "", v)
         sub(/[ \t]+in[ \t]*[[(]$/, "", v)
         LOOPVAR[v] = 1
+        # A REBOUND loop variable starts from nothing. Without this, a second
+        # `for _v in ("SOMETHING_ELSE",): os.environ.pop(_v, None)` would
+        # harvest the binding an earlier, unrelated loop left behind — the same
+        # untied credit the tie exists to prevent, reached by a different route.
+        for (i = 1; i <= NREQ; i++) delete BOUND[v, REQ[i]]
         for (i = 1; i <= NREQ; i++)
           if (s ~ (Q REQ[i] Q)) BOUND[v, REQ[i]] = 1
       }

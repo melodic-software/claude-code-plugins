@@ -584,6 +584,35 @@ else
   fail "python unrelated loop: rc=$rc out='$out'"
 fi
 
+# --- PYTHON: a REBOUND loop variable does not carry a stale binding ----------
+# The tie is per-binding, not per-file. An earlier loop that names the git
+# variables but never pops them must not lend its binding to a later loop over
+# the same variable name that pops something else entirely.
+new_repo
+r="$REPO"
+cat >"$r/test_stale_binding.py" <<'PY'
+import os
+import subprocess
+
+for _v in ("GIT_DIR", "GIT_WORK_TREE"):
+    print(_v)
+
+for _v in ("SOME_UNRELATED_VAR",):
+    os.environ.pop(_v, None)
+
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_stale_binding.py"* ]]; then
+  ok "python: a rebound loop variable does not inherit an earlier binding"
+else
+  fail "python stale binding: rc=$rc out='$out'"
+fi
+
 # --- SHELL: a commented-out unset does not credit ----------------------------
 # The shell arm strips comments and matches the names inside the `unset`
 # STATEMENT, so neither a commented-out clear nor an unrelated later command on
