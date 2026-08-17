@@ -9,8 +9,8 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 - [x] Step 1.5: Auto-detect — routed to Q&A (real design decisions with no codebase answer)
 - [x] Step 2: Drive the frontier-rounds loop (4 rounds + research + audit-answers validation)
 - [x] Step 3: Stop condition — register gate clean; user locked the contract ("I'll lock it")
-- [ ] Step 4: Persist the contract (Brief → docs/topics/plugin-marketplace-code-clarity/PLAN.md)
-- [ ] Step 5: Hand off (naming pass, then /planning:plan or direct implementation)
+- [x] Step 4: Persist the contract (Brief → docs/topics/plugin-marketplace-code-clarity/PLAN.md; brief gate ok)
+- [x] Step 5: Hand off — name locked (dissolve-comments); recommended next: /planning:plan or direct implementation with playbooks:skill-authoring + /skill-quality:check
 
 - [x] Plugin home + name — home: code-tidying; name via naming pass (Q16, user picks)
 
@@ -48,7 +48,8 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 - Q13 | answered | round 4 (audit-answers) | A5 repair | ACCEPTED: tests gate class-B application (lint supplementary); the skill must discover a runnable test command covering the touched code, else class B is proposed, never applied.
 - Q14 | answered | round 4 (audit-answers) | A8 internal half | Explicit choice: private/internal doc comments are triaged under the repaired class C (Martin pole, chosen deliberately, not as a side effect).
 - Q15 | answered | round 4 (audit-answers) | A9 repair | ACCEPTED: adopt the plugin's standard path-exclusion tier mirroring tidy's exclusions.md (.claude/settings*, hooks, .github/workflows/**, lint/enforcement config).
-- Q16 | deferred | naming pass | Final skill name | USER-RESERVED — being resolved via /naming:name-it-better; human picks from the shortlist; criteria: semantically correct, explicit over implicit.
+- Q16 | answered | naming pass | Final skill name | USER PICKED: dissolve-comments (/code-tidying:dissolve-comments). Tri-lens blind convergence; runner-ups recorded in session transcript.
+- Q17 | answered | round 5 | Breakage-risk layering for code-changing refactors | User decision: add a `safe` operating mode (class-A removals only, no code-structure changes applied; class B proposal-only) for consuming codebases without known guardrails; DEFAULT stays the full contract (tests-gated class B) — do not hamstring the primary mode. Recorded as Brief decision 12.
 
 ## Answer-validation merge (2026-08-17, two fresh validators)
 

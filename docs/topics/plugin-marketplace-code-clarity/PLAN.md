@@ -57,8 +57,23 @@ keep — the enforcement counterpart to the read-only `audit-comment-residue` cl
    `tidy`'s `exclusions.md`: `.claude/settings*`, hooks, `.github/workflows/**`,
    lint/enforcement config are never edited autonomously.
 10. **Never flags missing comments** — the add-side belongs to `tidy` #14.
-11. **Name:** chosen via `/naming:name-it-better`; criteria: semantically correct,
-    explicit over implicit — the invocation alone should say what it does.
+11. **Name:** `dissolve-comments` (`/code-tidying:dissolve-comments`) — picked by the
+    user from a blind three-lens `/naming:name-it-better` shortlist (all three lenses
+    independently derived it). Criteria honored: semantically correct, explicit over
+    implicit — a dissolved comment's information passes into the code before the husk
+    is removed.
+12. **Safety tiers (operating modes):** the risk that behavior-preserving refactors
+    still break something is managed as layers, not a single gate, without hamstringing
+    the default:
+    - **`safe` mode (explicit argument):** comment removals only — class-A deletions
+      apply; nothing that changes code structure is applied (class-B treatments are
+      emitted as proposals). For consuming codebases whose guardrails are unknown.
+    - **Default mode:** the full contract as decided — class A applies; class B applies
+      behind the tests gate (decision 5), else proposed. This remains the primary,
+      expected mode: consumers with tests, audits, and quality checks in place get the
+      whole enforcement pass.
+    - **Never, in any mode:** applying a class-B refactor with no discovered test net,
+      or touching exempt/excluded surfaces (decisions 7-9).
 
 ### Constraints
 
@@ -102,8 +117,8 @@ keep — the enforcement counterpart to the read-only `audit-comment-residue` cl
 
 ### Deferred questions
 
-- Q16 — Final skill name (arbiter: USER-RESERVED). Being resolved via
-  `/naming:name-it-better`; the human picks from the scored shortlist.
+None. (Q16, the final name, was USER-RESERVED and resolved 2026-08-17: the user picked
+`dissolve-comments` from the naming shortlist — recorded in decision 11.)
 
 ## Plan
 
