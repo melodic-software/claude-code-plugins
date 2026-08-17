@@ -254,16 +254,22 @@ matches_glob() {
 # --- Prose extraction ------------------------------------------------------------
 # Emits "lineno<TAB>text" for prose lines; strips fenced code blocks, inline code
 # spans, and honors the ignore markers. DECLINE rows record exempted candidates.
+#
+# Markers must be WELL-FORMED comment markers, not prose mentions (the
+# audit-noise precedent): the file/start/end forms must stand alone on their
+# line, and the trailing line form must not be backtick-quoted. Without this, a
+# document that DOCUMENTS the markers exempts itself — found by dogfooding when
+# the plugin's own README declined and was silently half-scanned.
 extract_prose() {
   awk '
     BEGIN { fence = 0; ignored = 0 }
-    /ai-slop-ignore-file/ { print "DECLINE\tfile"; exit }
+    /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/ { print "DECLINE\tfile"; exit }
     /^(```|~~~)/ { fence = !fence; next }
     fence { next }
-    /ai-slop-ignore-start/ { ignored = 1; next }
-    /ai-slop-ignore-end/ { ignored = 0; next }
+    /^[[:space:]]*<!-- ai-slop-ignore-start -->[[:space:]]*$/ { ignored = 1; next }
+    /^[[:space:]]*<!-- ai-slop-ignore-end -->[[:space:]]*$/ { ignored = 0; next }
     ignored { print "DECLINE\tblock"; next }
-    /ai-slop-ignore/ { print "DECLINE\tline"; next }
+    /<!-- ai-slop-ignore -->/ && $0 !~ /`<!-- ai-slop-ignore -->/ { print "DECLINE\tline"; next }
     {
       line = $0
       gsub(/`[^`]*`/, "", line)   # inline code spans
@@ -314,14 +320,14 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   TOTAL_FILES=$((TOTAL_FILES + 1))
   prose="$(extract_prose "$file")"
 
-  case "$prose" in
-  DECLINE$'\t'file*)
+  # A file-level marker declines the WHOLE file wherever it sits — extraction
+  # stops at the marker, so match the DECLINE row anywhere, not only as a
+  # prefix (a mid-file marker would otherwise truncate the scan silently).
+  if printf '%s\n' "$prose" | LC_ALL=C grep -q $'^DECLINE\tfile'; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
     decline_all_rules 1
     continue
-    ;;
-  *) ;;
-  esac
+  fi
 
   declines="$(printf '%s\n' "$prose" | LC_ALL=C grep -c '^DECLINE' || true)"
   prose="$(printf '%s\n' "$prose" | LC_ALL=C grep -v '^DECLINE' || true)"

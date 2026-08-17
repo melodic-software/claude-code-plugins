@@ -101,6 +101,26 @@ cat >"$FILEMARK" <<EOF
 Full of em dashes ${EM} and delve, tapestry, pivotal, crucial vocabulary.
 EOF
 
+DOCMARKS="$TEST_TMPDIR/docmarks.md"
+cat >"$DOCMARKS" <<EOF
+# Documents the markers without using them
+
+Opt-outs: \`<!-- ai-slop-ignore -->\` per line, \`<!-- ai-slop-ignore-start -->\`
+and \`<!-- ai-slop-ignore-end -->\` for blocks, \`<!-- ai-slop-ignore-file -->\`
+for whole files. After the mentions, an em dash ${EM} must still be flagged.
+EOF
+
+MIDFILEMARK="$TEST_TMPDIR/midfilemark.md"
+cat >"$MIDFILEMARK" <<EOF
+# Content first
+
+An em dash ${EM} before the marker.
+
+<!-- ai-slop-ignore-file: declared late -->
+
+Vocabulary after: delve, tapestry, pivotal.
+EOF
+
 MIDEMOJI="$TEST_TMPDIR/midemoji.md"
 cat >"$MIDEMOJI" <<EOF
 # Emoji in content position
@@ -152,6 +172,14 @@ assert_not_contains "fences: fenced and inline-code content not flagged" "$out" 
 out="$(bash "$DETECT" "$FILEMARK" 2>&1)"
 assert_not_contains "file marker: whole file exempt" "$out" "Finding:"
 assert_contains "file marker: counted as declined file" "$out" "(1 files declined)"
+
+out="$(bash "$DETECT" "$DOCMARKS" 2>&1)"
+assert_contains "marker mentions: backticked docs do not exempt the file" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+assert_contains "marker mentions: no decline from prose mentions" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 declined=0"
+
+out="$(bash "$DETECT" "$MIDFILEMARK" 2>&1)"
+assert_not_contains "mid-file file marker: whole file exempt, nothing scanned" "$out" "Finding:"
+assert_contains "mid-file file marker: counted as declined file" "$out" "(1 files declined)"
 
 # --- CLI contract ----------------------------------------------------------------
 
