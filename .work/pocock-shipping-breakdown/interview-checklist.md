@@ -7,10 +7,10 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 
 - [x] Step 1: Survey — read docs/upstream/mattpocock-skills.md (SSOT), docs/upstream/mattpocock-skills-v12-map.md, work-items:decompose SKILL.md, tracker-seam CONTRACT.md (github/jira/local-markdown adapters; claim/lease verbs), docs/conventions/standards/README.md; Explore agent sweeping planning/review/implementation surfaces
 - [ ] Step 1.5: Auto-detect — SKIPPED (user asked for /interview; many contested decisions → Q&A)
-- [ ] Step 2: Frontier-rounds loop
-- [ ] Step 3: Stop condition + register gate + user confirmation
-- [ ] Step 4: Persist PLAN.md Brief (engineering session) — docs/topics/pocock-shipping-breakdown/PLAN.md
-- [ ] Step 5: Hand off (likely: /work-items:decompose to publish issues per lane)
+- [x] Step 2: Frontier-rounds loop — 3 rounds, Q1–Q18, two background fact agents
+- [x] Step 3: Stop condition — register gate clean (18 registered, 0 open, 1 deferred), user confirmed round 3
+- [x] Step 4: PLAN.md Brief written (docs/topics/pocock-shipping-breakdown/PLAN.md); brief cross-check clean
+- [ ] Step 5: Hand off — /work-items:decompose publishes container + lane items (awaiting breakdown approval)
 
 ## Session-shorthand glossary
 
@@ -40,19 +40,22 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 - Q6 | answered | round 1 | Rerouting home | absorb into decompose as re-decompose flow
 - Q7 | answered | round 1 | /goal route-away | YES, one Step 0 router row
 - Q8 | answered | round 1 | Provenance home | new docs/upstream/aihero-shipping-course.md + fix existing map where stale/inaccurate
-- Q9 | open | round 2 | Canonical naming: work item vs ticket |
-- Q10 | open | round 2 | Binding-config scrutiny: own lane item? |
+- Q9 | answered | round 2 | Canonical naming | work item stays canonical; ticket/issue documented first-class synonyms with trigger coverage
+- Q10 | answered | round 2 | Binding-config scrutiny | YES own needs-human lane item, seeded with F1.x/F3.8 findings; format/location decided there
 - Q11 | answered | round 2 | Skill granularity | keep supersets; ADD principle: his implement's value = zero-assembly working default chain — scrutiny lane checks ours composes out-of-the-box AND every link configurable, never hard-coded; good defaults + consumer override
 - Q12 | answered | round 2 | Provider adapters | order accepted with AMENDMENT: Linear = FULL verb parity with github adapter (read+write+claim/lease+sub-items+edges+frontier), measured by conformance suite; GitHub is reference impl only, not priority
-- Q13 | open | round 2 | Dogfood mechanics: hand-publish spec container this session |
-- Probe R2 | open | round 2 | Day-job constraint: does org block external SaaS (flips Linear → self-hosted Gitea/Forgejo)? |
+- Q13 | answered | round 2 | Dogfood mechanics | YES — hand-publish Brief as container issue, lane items as native sub-issues
+- Probe R2 | answered | round 2 | Day-job SaaS | NOT blocked; Linear fine for personal/agent use (not team-shared); MCP-auth uncertainty noted; not top priority — Linear priority order stands
 
 Facts landed (2026-08-17): Agent A report → upstream-bringover-audit.md (23 candidates C1-C23, upstream delta PRs #878/#880/#848/#879, worse-than-us list); Agent B report → seam-scrutiny-findings.md (binding options a-d, adapter-model trade-offs, adversarial findings F1.1-F1.7 + F3.1-F3.9).
 
-- Q14 | open | round 3 | Adapter shipping model: bundled / generated / hybrid |
-- Q15 | open | round 3 | Bring-over candidate disposition strategy (C1-C23) |
-- Q16 | open | round 3 | File seam-scrutiny findings as their own issues? |
-- Q17 | open | round 3 | Add lanes W (wayfind deltas) + X (authoring doctrine / invocation audit)? |
+- Q14 | answered | round 3 | Adapter shipping model | HYBRID accepted with caution: deterministic parts scripted per /discipline:script-the-deterministic-work, reasoning stays outside scripts; gated on version handshake (F3.6) + normalization-fidelity check
+- Q15 | answered | round 3 | Candidate disposition | per-lane adjudication during lane implementation; worse-than-us list excluded by default; SSOT updated per verdict
+- Q16 | answered | round 3 | Seam findings as issues | YES — 4 grouped issues (binding config; contract hygiene; lease hardening; local-markdown honesty); topology findings fold into topology investigation item
+- Q17 | answered | round 3 | Lanes W + X | YES both; X likely most agent-ready
+- Q18 | deferred | round 3 | Macro/micro lifecycle orchestrator: name, skill, organization, grouping (macro = discovery→pre-planning→planning→implementation→testing→review across a spec; micro = same phases within each ticket; quality-gate + e2e verification before the single PR at the end; his flow repeats review inside tickets, PR at end) | → own needs-human lane item; arbiter: USER-RESERVED (naming + grouping change consumer-facing surface)
+
+Round-3 close: user confirmed shared understanding ("We're completely in line... plan is solid, and we're building") — confirmation gate PASSED. Frontier empty except Q18 (explicitly deferred to lane item).
 
 ## Decision tree (`me` mode)
 
