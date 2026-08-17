@@ -113,3 +113,7 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
 
 Full verified 35-skill upstream↔ours map (relations, v1.2 deltas, drift findings):
 [`docs/upstream/mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md).
+
+Shipping-course SSOT (distinct source from this skills-repo record; course pages
+are account-gated; recheck trigger lives there):
+[`aihero-shipping-course.md`](aihero-shipping-course.md).
