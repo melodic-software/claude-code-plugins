@@ -527,6 +527,12 @@
         "accessibility",
         "skill"
       ]
+    },
+    {
+      "name": "improvement",
+      "source": "./plugins/improvement",
+      "category": "quality",
+      "tags": ["improvement", "evidence", "tech-debt", "hotspots", "value-to-effort", "ranking", "audit", "skill"]
     }
   ],
   "renames": {
