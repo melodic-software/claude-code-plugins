@@ -120,4 +120,19 @@ wit_read_binding "$BINDING"
 assert_eq "autonomous-eligible label honors configured remap" "ready-bot" "$WIT_AUTONOMOUS_ELIGIBLE_LABEL"
 assert_eq "recurring-maintenance label honors configured remap" "maint" "$WIT_RECURRING_MAINTENANCE_LABEL"
 
+# --- container_label: config.container_label remap and default fallback (a
+# sibling of config.role_labels — the container marker is not a worker role) ---
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
+wit_read_binding "$BINDING"
+assert_eq "container label defaults to work-map when unset" "work-map" "$WIT_CONTAINER_LABEL"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":"decision-map"}}'
+wit_read_binding "$BINDING"
+assert_eq "container label honors configured remap" "decision-map" "$WIT_CONTAINER_LABEL"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":""}}'
+wit_read_binding "$BINDING"
+assert_eq "configured-empty container label falls back to the default" "work-map" "$WIT_CONTAINER_LABEL"
+
 [[ $FAILED -eq 0 ]] || exit 1

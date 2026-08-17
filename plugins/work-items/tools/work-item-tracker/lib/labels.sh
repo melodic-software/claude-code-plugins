@@ -16,3 +16,8 @@ readonly WIT_DEFAULT_HUMAN_GATED_LABEL="needs-human"
 readonly WIT_DEFAULT_AUTONOMOUS_ELIGIBLE_LABEL="agent-ready"
 # shellcheck disable=SC2034
 readonly WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL="recurring"
+# Container marker (CONTRACT.md "Containers and state") — not a canonical role
+# (it marks a graph root, not worker eligibility) but remapped the same way:
+# binding config.container_label, resolved configured-over-default.
+# shellcheck disable=SC2034
+readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"

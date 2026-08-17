@@ -327,10 +327,14 @@ label (a navigable graph root — wayfind maps, decompose breakdowns); **state**
 provider's native open/closed. Containers are never claimable by workers (no
 `agent-ready`), so **a container is never its own frontier item**: `list-frontier` excludes
 any item carrying the container label, unconditionally (global and `--parent`-scoped alike).
-The container label is a named constant (`WIT_CONTAINER_LABEL`, default `work-map`) matching
-this contract term; making it a per-repo remap (a consumer wanting a different marker) is
-deferred to the `config.role_labels` convention (label-taxonomy.md "Canonical roles"), keyed
-off that same first request — not a parallel binding key. Read one container's children with
+The container label resolves from the binding — `config.container_label`, a sibling of
+`config.role_labels` (the marker names a graph root, not a worker role, so it is not a
+role entry) — with the shipped default `work-map` when the key is absent or empty
+(resolution in `lib/binding.sh`, exported as `WIT_CONTAINER_LABEL`; default defined once
+in `lib/labels.sh`). The remapped label must exist in the consuming repo, and remapping a
+repo that already holds containers requires relabeling them — the frontier exclusion is an
+exact match against the resolved string, so items still carrying the old marker would
+surface as frontier items. Read one container's children with
 `list-sub-items <container>`; read the workable frontier within one container with
 `list-frontier --parent <container>`. Aside from that exclusion the frontier is
 label-agnostic and simply never surfaces items that are assigned or blocked.

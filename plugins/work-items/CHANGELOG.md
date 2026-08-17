@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.30]
+
+### Added
+
+- **Spec-on-tracker container lifecycle (#2934):** `decompose` gains an opt-in
+  "Container lifecycle" — at approval (multi-session sources only, default no,
+  `decompose_container_publish` userConfig pre-select) it can publish the Brief
+  verbatim as a container item (binding-resolved container label + human-gated
+  label, never claimable) with slices as native `--parent` sub-items, and owns
+  the close-at-ship ritual (close-out review against the container body, then
+  archival by closure). `work` reads the parent container body first
+  (pass-by-reference, quoted data under item-content-trust). The seam's
+  container label is now remappable: binding `config.container_label` (sibling
+  of `config.role_labels`, default `work-map`), resolved
+  configured-over-default by `lib/binding.sh` and exported as
+  `WIT_CONTAINER_LABEL`; the F3.7 recorded deferral is converted to a live
+  remap seam (CONTRACT.md, label-taxonomy.md). Upstream's gate-free publish
+  stays excluded — the approval gate is mandatory.
+
 ## [0.35.29]
 
 ### Changed

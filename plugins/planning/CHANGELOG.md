@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.7]
+
+### Added
+
+- **`plan` close-out: spec-container ship ritual (#2934).** Close-out gains a
+  presence-gated step 4: when the `work-items` plugin is installed and the
+  topic's decomposition published a spec container, route the container's
+  close-at-ship ritual through `/work-items:decompose` "Container lifecycle"
+  (that path owns the mechanics; close-out only sequences it). Partial ships
+  leave the container open; no container or no plugin skips silently.
+
 ## [0.30.6]
 
 ### Changed
