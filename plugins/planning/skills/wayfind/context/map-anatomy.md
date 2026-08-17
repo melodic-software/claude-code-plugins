@@ -24,10 +24,12 @@ graduate into. One paragraph. This is the map's success condition.>
 
 ## Decisions-so-far
 
-<A pointer INDEX, one line per resolved decision — NOT the decisions themselves. Each line
-points at the item whose resolution comment is the decision's durable home.>
+<A pointer INDEX, one line per resolved-in-scope decision — NOT the decisions themselves.
+Each line names the item by **title**, with the number as a suffix/link, and points at the
+item whose resolution comment is the decision's durable home. Closed-as-out-of-scope items
+do not get a line here.>
 
-- #<item> — <one-line what-was-decided> (resolved <date>)
+- <title> (#<item>) — <one-line what-was-decided> (resolved <date>)
 
 ## Not-yet-specified (fog)
 
@@ -37,8 +39,11 @@ section on a young map usually means you haven't looked hard enough.>
 
 ## Out-of-scope
 
-<Explicitly excluded — decided NOT to pursue, distinct from fog (not-yet-phrased). Recording
-an exclusion here is itself a decision; note why.>
+<Explicitly excluded — decided NOT to pursue. This ledger is for **scope**, not sharpness.
+Fog (cannot yet phrase the question) stays in Not-yet-specified and never graduates here.
+Recording an exclusion is itself a decision; note why. A mis-scoped existing decision item
+is closed with one line here linking it; it does not get a Decisions-so-far pointer — that
+index is for resolved-in-scope decisions.>
 ```
 
 ## Typed decision items
@@ -59,8 +64,9 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
 
 ## Invariants (checked at every `work` session start)
 
-1. **Every closed decision has a Decisions-so-far pointer line.** Resolved-in-comment but no
-   index line → add the line.
+1. **Every closed in-scope decision has a Decisions-so-far pointer line.** Resolved-in-comment
+   but no index line → add the line. Closed-as-out-of-scope items are indexed under
+   Out-of-scope instead, never under Decisions-so-far.
 2. **No item resolved-in-comment yet still open.** Resolution is atomic: comment → index →
    close. A dangling "resolved" comment on an open item is a broken close-out — finish it.
 3. **The map holds decisions, not build work.** A buildable item means the decision already
