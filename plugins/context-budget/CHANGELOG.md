@@ -5,6 +5,18 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0]
+
+### Added
+
+- The report contract (`skills/audit/reference/report.md`): stamped header, smart-zone headline
+  (reclaimed reasoning space, never cost — with optional context-guard zone framing when that
+  plugin is installed), measured category totals, ranked per-tool attribution with incomparable
+  rows carrying reasons instead of numbers and unmeasured tools listed rather than omitted,
+  lever findings grouped by honesty category with citations and emitted config, route-outs,
+  degradations. Reports persist one-file-per-run under the keyed data directory.
+- SKILL.md report step wiring the contract into the audit workflow as the default deliverable.
+
 ## [0.2.0]
 
 ### Added

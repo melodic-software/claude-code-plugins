@@ -138,10 +138,16 @@ the recommendable posture, and a no-shipped-token-figures scan (which caught and
 violation during authoring). SKILL.md gained the lever-presentation step wiring conditions-resolved-
 by-measurement and the dual-ledger rule into the workflow.
 
-### Phase 4 — the report
+### Phase 4 — the report ✔ SHIPPED 2026-08-17 (`context-budget` 0.3.0)
 
 Ranked attribution, category totals, and the honesty categories. Read-only. This is the default
 action and the durable asset.
+
+Landed as `skills/audit/reference/report.md` (the report contract: stamp, smart-zone headline
+with the dual-ledger sentence, measured category totals, ranked attribution with
+incomparable-rows-carry-reasons and unmeasured-tools-listed rules, lever findings grouped by
+honesty category, route-outs, degradations; persisted one-file-per-run) plus the SKILL.md report
+step. Zone framing composes with `context-guard` presence-gated.
 
 ### Phase 5 — the guided fix path
 

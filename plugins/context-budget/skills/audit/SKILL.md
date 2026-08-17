@@ -147,6 +147,17 @@ The ledger keeps one file per run plus an appended history line, so a same-day r
 an earlier point. `--ledger` in the arguments means: list the history (`ledger --list`) and report
 it.
 
+### 6. Produce and persist the report
+
+The audit's deliverable follows the report contract at
+[`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/report.md`](reference/report.md): stamp first,
+smart-zone headline (reclaimed reasoning space, never cost), measured category totals, the ranked
+per-tool table with incomparable rows carrying reasons instead of numbers, lever findings grouped
+by honesty category with citations and emitted config, route-outs, then degradations and caveats.
+Persist it to `<data-dir>/reports/<UTC-timestamp>-audit.md` — one file per run — and present it
+to the operator. When `context-guard` is installed its zone vocabulary may frame the headline;
+otherwise use the payload's share of the measured window.
+
 ## Reading the numbers honestly
 
 - **A scoped deny saves nothing.** Only a bare tool name removes a schema from the request; a
