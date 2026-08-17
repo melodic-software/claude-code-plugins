@@ -7,10 +7,12 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 
 - [x] Step 1: Survey before you ask
 - [x] Step 1.5: Auto-detect — routed to Q&A (real design decisions with no codebase answer)
-- [ ] Step 2: Drive the frontier-rounds loop
-- [ ] Step 3: Recognize the stop condition
-- [ ] Step 4: Persist the contract
-- [ ] Step 5: Hand off
+- [x] Step 2: Drive the frontier-rounds loop (4 rounds + research + audit-answers validation)
+- [x] Step 3: Stop condition — register gate clean; user locked the contract ("I'll lock it")
+- [ ] Step 4: Persist the contract (Brief → docs/topics/plugin-marketplace-code-clarity/PLAN.md)
+- [ ] Step 5: Hand off (naming pass, then /planning:plan or direct implementation)
+
+- [x] Plugin home + name — home: code-tidying; name via naming pass (Q16, user picks)
 
 ## Survey notes (what exists today)
 
@@ -42,10 +44,11 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 - Q10 | answered | round 3 | Doc-comment fence? | Public-API doc comments (docstrings, C# XML docs, JSDoc on exported surfaces) are EXEMPT — never touched. Private/internal doc comments get the same three-way triage as regular comments.
 - Q11 | answered | round 3 | Ecosystem exclusions? | Code files only, language-agnostic; markdown excluded (docs-hygiene territory, same fence as audit-comment-residue). No per-language exclusions — the Q7 safety gradient (class-B proposed-not-applied without a test net) covers fragile ecosystems.
 
-- Q12 | open | round 4 (audit-answers) | A3 repairs: soften length cap to default, sanctioned-exception classes (legal headers, machine directives, TODO(#issue)), "always routes out" → "defaults", stage routed narrative before deletion? |
-- Q13 | open | round 4 (audit-answers) | A5 repair: tests (not lint) gate class-B apply; named detection procedure, else propose-only? |
-- Q14 | open | round 4 (audit-answers) | A8 internal half (explicit values call): private/internal doc comments — triage under repaired class C, keep-by-default, or propose-only? |
-- Q15 | open | round 4 (audit-answers) | A9 repair: adopt the plugin's standard path-exclusion tier (tidy exclusions.md: .claude/settings*, hooks, CI workflows, lint config)? |
+- Q12 | answered | round 4 (audit-answers) | A3 repairs | ACCEPTED, all four: (a) terse is a default posture, not a hard line cap; (b) sanctioned exceptions never touched: legal/license headers, machine-read directives (pragmas, lint directives, region markers), TODO(#issue), opt-out marker; (c) justification DEFAULTS to routing out of code — a terse in-code why is legitimate; (d) stripped narrative is staged as a proposed commit-message block (or /source-control:commit handoff) before deletion is final.
+- Q13 | answered | round 4 (audit-answers) | A5 repair | ACCEPTED: tests gate class-B application (lint supplementary); the skill must discover a runnable test command covering the touched code, else class B is proposed, never applied.
+- Q14 | answered | round 4 (audit-answers) | A8 internal half | Explicit choice: private/internal doc comments are triaged under the repaired class C (Martin pole, chosen deliberately, not as a side effect).
+- Q15 | answered | round 4 (audit-answers) | A9 repair | ACCEPTED: adopt the plugin's standard path-exclusion tier mirroring tidy's exclusions.md (.claude/settings*, hooks, .github/workflows/**, lint/enforcement config).
+- Q16 | deferred | naming pass | Final skill name | USER-RESERVED — being resolved via /naming:name-it-better; human picks from the shortlist; criteria: semantically correct, explicit over implicit.
 
 ## Answer-validation merge (2026-08-17, two fresh validators)
 
