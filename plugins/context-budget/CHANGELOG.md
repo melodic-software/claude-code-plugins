@@ -5,6 +5,24 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0]
+
+### Added
+
+- The guided fix path, behind the explicit `fix` argument only (the verb contract's mutation
+  override): per-lever walkthrough over measurement-resolved `recommendable-on-fit` catalogue
+  rows, scope-split write posture (project settings editable after per-diff approval;
+  user-global `~/.claude/settings.json` print-only, never written; managed policy never
+  targeted; env levers printed), and a mandatory one-lever-at-a-time
+  apply → re-measure → compare → ledger loop.
+- PreToolUse checkpoint hook (`hooks/settings-write-ask.mjs`, exec-form `node` invocation):
+  returns `permissionDecision: "ask"` for any Write/Edit targeting a Claude Code settings
+  surface, so auto mode prompts instead of silently approving — documented as a checkpoint, not
+  a guarantee (PermissionRequest hooks, `disableAllHooks`, and the undocumented
+  `bypassPermissions` interaction are named). Fail-open on internal error; kill switch shipped
+  as `settings_write_ask_enabled` userConfig (default true) read via the hook-process mirror;
+  hermetic contract test covers ask/silent/kill-switch/garbage/backslash paths.
+
 ## [0.3.0]
 
 ### Added

@@ -20,8 +20,19 @@ priced from its members.
 ## Skill
 
 - `/context-budget:audit` — take a stamped baseline snapshot, attribute the built-in tool pools
-  over the live tool list, and ledger any before/after the operator produces. Read-only: it
-  prints exact config (for persistent denies, a `permissions.deny` entry) and applies nothing.
+  over the live tool list, present catalogue levers with their honesty categories, and ledger
+  any before/after the operator produces. Read-only on bare invocation: it prints exact config
+  (for persistent denies, a `permissions.deny` entry) and applies nothing. With the explicit
+  `fix` argument, a guided per-lever walkthrough may edit **project** settings after per-diff
+  approval — user-global `~/.claude/settings.json` is only ever printed, and every applied lever
+  is re-measured and ledgered before the next.
+
+## Hook
+
+A PreToolUse checkpoint returns `permissionDecision: "ask"` for any Write/Edit targeting a
+Claude Code settings surface, so settings edits prompt even in auto mode. It is a checkpoint,
+not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks` removes
+non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 
 ## What makes the numbers trustworthy
 

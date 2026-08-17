@@ -149,10 +149,18 @@ incomparable-rows-carry-reasons and unmeasured-tools-listed rules, lever finding
 honesty category, route-outs, degradations; persisted one-file-per-run) plus the SKILL.md report
 step. Zone framing composes with `context-guard` presence-gated.
 
-### Phase 5 — the guided fix path
+### Phase 5 — the guided fix path ✔ SHIPPED 2026-08-17 (`context-budget` 0.4.0)
 
 Interactive walkthrough behind an explicit override, the `ask` hook, scope-differentiated write
 posture, and the before/after ledger entry.
+
+Landed as the SKILL.md fix-path section (explicit `fix` argument only; recommendable-on-fit rows
+with measurement-resolved conditions; one-lever-at-a-time apply → re-measure → compare → ledger)
+plus `hooks/settings-write-ask.mjs` (PreToolUse `permissionDecision: "ask"` on settings-surface
+writes, exec-form `node`, fail-open, `settings_write_ask_enabled` userConfig kill switch, tested).
+The checkpoint-not-guarantee caveats (PermissionRequest, `disableAllHooks`, undocumented
+`bypassPermissions` interaction) are stated in the hook, the skill, and the README. Wizard-UX
+detail (Q15) resolved as: ranked-report order, per-lever approval, no free-form branching.
 
 ### Phase 6 — evals and the acceptance gate
 

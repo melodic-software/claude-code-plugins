@@ -1,6 +1,6 @@
 ---
 description: "Measure a Claude Code session's fixed startup context payload per item, on this machine at a pinned binary — including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B deny differencing, with a per-project before/after ledger for every lever toggled. Reports only measured numbers; ships none. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only — measures and reports; changes no configuration."
-argument-hint: "[--full-sweep] every live tool | [--tools T1,T2] chosen tools | [--ledger] history"
+argument-hint: "[--full-sweep] every live tool | [--tools T1,T2] chosen tools | [--ledger] history | [fix] guided trim (explicit override)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -189,10 +189,39 @@ Observed failures, each of which produced a confidently wrong number before the 
   from any document — including this plugin's own development history — as if it were the
   consumer's; the drift is the whole reason the engine exists.
 
-## Report-only
+## Report-only by default; the fix path is an explicit override
 
-This skill changes no configuration. When a measured result suggests a trim, print the exact
-config the operator would apply (for persistent denies: a `permissions.deny` entry — there is no
-`disallowedTools` settings key) and let them apply it; offer the ledger loop above to verify the
-result. A guided fix path is planned as a separate, explicitly-invoked override and does not exist
-in this version.
+Bare invocation is the audit — it changes no configuration. When a measured result suggests a
+trim, print the exact config the operator would apply (for persistent denies: a
+`permissions.deny` entry — there is no `disallowedTools` settings key) and let them apply it,
+with the ledger loop verifying the result.
+
+### Fix path (`fix` in the arguments only)
+
+The guided walkthrough runs only when the operator explicitly asked for `fix` — the verb
+contract's mutation override. Per lever, in the report's ranked order, offer only
+`recommendable-on-fit` catalogue rows whose conditions this audit resolved by measurement;
+everything else stays report material even here.
+
+Write posture splits by scope, and the split is not negotiable:
+
+- **Project scope** (`.claude/settings.json`, `.claude/settings.local.json`): may be edited, one
+  lever at a time, after the operator approves the exact diff shown in advance. The plugin's
+  PreToolUse checkpoint returns `permissionDecision: "ask"` for any settings-surface write, so
+  even in auto mode the write prompts rather than sliding through — **a checkpoint, not a
+  guarantee**: a `PermissionRequest` hook can still allow it, `disableAllHooks` removes
+  non-managed hooks, and whether an `ask` survives `bypassPermissions` is undocumented. Say so
+  when describing the protection.
+- **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
+  edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
+  human-confirmation guarantee — in auto mode a write there routes to the classifier, which can
+  approve with no human involved. Print-only is the posture precisely because the prompt cannot
+  be relied on.
+- **Managed policy**: read-only by construction; never targeted, never suggested as a write.
+- **Env-var levers**: no persistent settings surface exists; print the export line and where the
+  operator might put it.
+
+The loop per applied lever: approve → apply (project scope) or print (everywhere else) →
+re-measure → `compare --lever "<lever>" --emitted-config "<exact text>"` → `ledger --append` →
+report the measured delta, zero included. Never apply a second lever before the first one's
+delta is measured — un-attributed multi-lever jumps are how false folklore starts.

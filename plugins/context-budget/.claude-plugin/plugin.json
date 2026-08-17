@@ -1,13 +1,21 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "context-budget",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Measure a Claude Code session's fixed startup context payload per item, on the consumer's machine at a pinned, version-stamped binary — including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B bare-name-deny differencing with enforced comparability rules (skill-listing signature, one mode, one binary), an SDK-primary exact meter degrading to a version-aware headless /context parser and then to an honest structured error (never a wrong number), and a per-project measure-toggle-remeasure ledger under the plugin data directory recording every lever's real before/after delta. Report-only: prints exact config, applies nothing.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
+  "userConfig": {
+    "settings_write_ask_enabled": {
+      "type": "boolean",
+      "title": "Settings-write ask checkpoint",
+      "description": "Kill switch for the PreToolUse hook that forces a permission prompt (permissionDecision ask) on any Write/Edit targeting a Claude Code settings surface",
+      "default": true
+    }
+  },
   "keywords": [
     "context-window",
     "startup-payload",
