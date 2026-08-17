@@ -68,6 +68,46 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 - **`reference/artifact-protocol.md`** — the marketplace's shared lifecycle artifact protocol,
   byte-identical to the canonical copy, covering the missing-prerequisite stop `realign` performs
   when no findings artifact exists.
+- **`overengineering:audit` — the read-only surface walk.** Bare invocation walks the enforcement
+  surface, applies the scrutiny method, and emits the findings artifact; it disables, edits, and
+  deletes nothing, and says so in its opening line. The single write is the artifact at its
+  memory-tier home, which is the deliverable rather than a change to the repository. Two arguments
+  shape a run: a **layer scope** (one or more values from the artifact's layer vocabulary), because a
+  mature surface runs past a hundred items and does not fit one context window — layer-scoped passes
+  compose through the artifact's re-run merge semantics; and **`unattended`**, which selects the
+  `OPEN-INTENT` disposition for low-confidence intent. Attended is the default, and the mode is never
+  inferred: the harness gives a prose skill no reliable probe for whether a human is watching, so a
+  dispatched or scheduled caller owns the flag.
+- **`skills/audit/context/surface-walk.md` — the lane's inventory, probes, and evidence sources.**
+  A layer-by-layer walk in the artifact's enum order, each layer carrying its discovery probes and the
+  evidence tiers actually available in it. A **shallow-clone probe** runs before layer one, because a
+  shallow checkout makes version-control history *unavailable* rather than silent and every UNPROVEN
+  verdict resting on history has to cite the missing tier by name. The artifact is **written per
+  layer** as the walk proceeds, so a context-exhausted run leaves a checkpoint with its completed
+  layers persisted rather than nothing. CI verdicts are lane-level by default; a lane that aggregates
+  several independent checks, and whose own definition carries the member list, gets per-member
+  sub-verdicts inside the lane row — mechanical composition evidence, never a member list synthesized
+  from reading behavior. Branch protections and forge apps read through a forge API when one is
+  configured, through policy-as-code where the consumer manages protections declaratively, and
+  otherwise emit identified rows marked unreadable rather than inferring a rule that was never read.
+- **`skills/audit/context/report-template.md` — three output layers, one source of truth.** The
+  findings artifact is authoritative; the inline terminal summary is always printed and is a view of
+  it rather than a second record; the rendered HTML view is presence-gated on the visualization
+  plugin with a documented fallback of skipping it, because a hand-built substitute would be a third
+  record to keep in sync.
+- **Neighbor routing, every route presence-gated with an inline fallback.** Instruction-text findings,
+  contested agent-layer ablation, prospective additions, and plugin claims-versus-reality each route
+  to the neighbor that owns them when that plugin is installed, and each carries a documented inline
+  fallback for when it is not. The presence answer is recorded on the finding, so a skipped route is
+  visible rather than silent.
+- **Nine behavioral evals**, written before the skill body per this marketplace's test-first analog
+  for prose skills: read-only bare invocation; a wiring claim in a header verified against the live
+  registration surface; a protected item capped rather than retired; silence classed UNPROVEN rather
+  than either KEEP or RETIRE; a threshold cited with its analogical label and its removal-candidate
+  qualifier; unattended low-confidence intent recorded as `OPEN-INTENT`; the three liveness questions
+  answered independently on a wired-but-dead-at-runtime guard; an evidence-desert repo triaged by
+  carry cost into one bounded ablation batch instead of an undifferentiated UNPROVEN wall; and an
+  ambiguous bypass-flag guard taking the protected tie-break.
 
 ### Notes on deliberate omissions
 
