@@ -1,9 +1,11 @@
 # pocock-course-lanes
 
 Brief locked via `/planning:interview me` (rounds 1–3, all nine questions decided; register
-gated clean). The working ledger lives in the topic's memory slice
-(`.work/pocock-course-lanes/`, disposable per session — this committed file is the durable
-record).
+gated clean; **user confirmed the shared understanding 2026-08-17 — interview closed**). The
+working ledger lives in the topic's memory slice (`.work/pocock-course-lanes/`, disposable per
+session — this committed file is the durable record). Next action: open lane 1
+([#2899](https://github.com/melodic-software/claude-code-plugins/issues/2899)) in a fresh
+session via `/work-items:work 2899`.
 
 ## Brief
 
