@@ -4,7 +4,7 @@ Durable adaptation of the lane-7 research run (2026-08-17, docs current at Claud
 full evidence table, fetch log, and coverage ledger lived in the topic's memory slice, disposable
 per session). Feeds the scope statement and reference table of `docs-hygiene:write-for-agents`
 ([#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909); Brief:
-[`../PLAN.md`](../PLAN.md)). Claude-side rows are harness-behavior claims verified against
+[`write-for-agents-brief.md`](write-for-agents-brief.md)). Claude-side rows are harness-behavior claims verified against
 official docs fetched during the run; re-verify against current docs when adapting into the
 skill's reference file.
 

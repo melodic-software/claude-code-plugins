@@ -34,13 +34,16 @@ Evidence behind the default (verified 2026-08-17 against current official docs u
 - **Cloud scope:** remote sessions never load `~/.claude` user scope; project/marketplace skills
   are the only steering that reaches cloud sessions, so marketplace skills carry the full
   discoverability burden there.
-- **Multi-repo product:** consumers do not memorize 211 skill names; model-side discoverability
+- **Multi-repo product:** consumers do not memorize 200+ skill names; model-side discoverability
   is part of what this marketplace sells. This inverts upstream's solo-operator premise.
 - **Listing budget is manageable, not a forcing function:** every skill name is always listed;
   only descriptions are dropped (least-invoked first) under the ~1%-of-context budget
-  (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`, 1,536 chars)
-  and per-skill `skillOverrides: "name-only"`. `skill-quality:check listing-budget` is the
-  standing measurement instrument.
+  (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`, 1,536 chars).
+  The per-skill `skillOverrides: "name-only"` lever reaches project/user skills only — plugin
+  skills are explicitly exempt ("Plugin skills are not affected by `skillOverrides`. Manage
+  those through `/plugin` instead"), so for this marketplace's fleet the applicable levers are
+  trimming descriptions at the source and plugin enablement via `/plugin`.
+  `skill-quality:check listing-budget` is the standing measurement instrument.
 
 ## Exception classes (the only reasons to write `true`)
 
@@ -88,8 +91,9 @@ rather than recovering discoverability for hidden ones.
 ## Fleet grade — 2026-08-17 (ADR 0005-bounded)
 
 Bounding question: *do the 10 non-setup `disable-model-invocation: true` skills fall into an
-exception class?* (Fleet measurement: 211 top-level skills = 137 `false` / 17 missing key /
-57 `true` = 47 `*:setup` + these 10. The 47 setup skills are class (ii) by contract; the 137
+exception class?* (Fleet measurement, re-counted 2026-08-17 at the chain-close merge: 215
+top-level skills = 141 `false` / 17 missing key / 57 `true` = 47 `*:setup` + these 10. The 47
+setup skills are class (ii) by contract; the 141
 `false` skills conform to the default and are not swept, per
 [ADR 0005](../../adr/0005-bound-instruction-surface-work-by-question-not-population.md).)
 
@@ -119,4 +123,4 @@ in-lane.
   (enforcement, filed as #2968).
 - `playbooks:skill-authoring`: authoring-time pointer here (filed as #2968).
 - Steering-lane provenance and lesson decision rows:
-  `docs/topics/pocock-course-lanes/STEERING.md` (lane 8).
+  `docs/upstream/aihero-steering-lanes.md` (lane 8).

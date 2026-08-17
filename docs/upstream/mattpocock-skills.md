@@ -83,7 +83,7 @@ authoring-moment home (`playbooks:skill-authoring`).
 
 **Lane 7 closed 2026-08-17**: gaps 1–2 and the two-loads/leading-words strands are
 design-locked as `docs-hygiene:write-for-agents`
-(contract: `docs/topics/authoring-steering-skill/PLAN.md`; build:
+(contract: `docs/specs/write-for-agents-brief.md`; build:
 [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
 completion-criteria criterion). The GAP/PARTIAL verdict cells below flip to ADOPTED when #2962
@@ -91,7 +91,7 @@ merges.
 
 **Lane 8 closed 2026-08-17**: gap 3 (invocation) is decided — invocation-mode rubric homed at
 `docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes;
-contract: `docs/topics/invocation-mode-doctrine/PLAN.md`); enforcement filed as
+contract: `docs/specs/invocation-mode-doctrine-brief.md`); enforcement filed as
 [#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), the one re-grade
 flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
 

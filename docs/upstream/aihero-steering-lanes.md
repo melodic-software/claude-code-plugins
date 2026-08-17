@@ -1,4 +1,10 @@
-# pocock-course-lanes — steering-section addendum
+# AI Hero course — steering-lane decision record (lanes 7–9)
+
+Interim decision record for the course's Steering section, graduated from the chain branch's
+contract slice (`docs/topics/pocock-course-lanes/STEERING.md`) to this durable path at chain
+close per the topic-docs convention. Lane 6
+([#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904)) harvests these
+rows into `docs/upstream/aihero-course.md` (its deliverable) and dissolves this file then.
 
 Extends the six-lane contract in `PLAN.md` (branch `claude/plan-mode-discussion-55kszx`,
 unmerged when this was written) with the course's **Steering** section: nine lessons pasted and
@@ -47,7 +53,7 @@ should close before lane 6 does).
 ## Lane 7 decision rows (closed 2026-08-17)
 
 Interview-first per contract; register gate clean (12/12); user confirmed. Design contract:
-`docs/topics/authoring-steering-skill/PLAN.md`. Rows for lane 6's `aihero-course.md` harvest:
+`docs/specs/write-for-agents-brief.md`. Rows for lane 6's `aihero-course.md` harvest:
 
 | Claim / concern (lesson) | Verdict | Detail |
 |---|---|---|
@@ -62,8 +68,8 @@ Interview-first per contract; register gate clean (12/12); user confirmed. Desig
 | Pruning doctrine (L7) | PARITY — no work | Three pruning tests confirmed covered at parity or stronger (SSOT decomposition table: extract-ssot, audit-derivability, audit-instructions/unhobble) |
 | Cross-skill invocation phrasing (upstream `.agents/invocation.md`) | ROUTE | Stays lane 6's candidate (#2904); lane 8 owns invocation doctrine; the new skill's body stays silent on it |
 
-Lane 7 status: CLOSED 2026-08-17 — Brief locked (`docs/topics/authoring-steering-skill/PLAN.md`),
-surface enumeration verified and committed (`docs/topics/authoring-steering-skill/design/agent-doc-surfaces.md`),
+Lane 7 status: CLOSED 2026-08-17 — Brief locked (`docs/specs/write-for-agents-brief.md`),
+surface enumeration verified and committed (`docs/specs/agent-doc-surfaces.md`),
 build filed as [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962)
 (skill + evals + philosophy cross-ref) and
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963) (audit-side
@@ -72,7 +78,7 @@ criterion), SSOT annotated. Next: lane 8 (#2910).
 ## Lane 8 decision rows (closed 2026-08-17)
 
 Interview-first per contract; register gate clean (8/8, brief=ok); user confirmed. Contract:
-`docs/topics/invocation-mode-doctrine/PLAN.md`. Rubric (the doctrine artifact):
+`docs/specs/invocation-mode-doctrine-brief.md`. Rubric (the doctrine artifact):
 `docs/conventions/invocation-mode/README.md`. Rows for lane 6's `aihero-course.md` harvest:
 
 | Claim / concern (lesson) | Verdict | Detail |
@@ -91,7 +97,7 @@ Fleet re-grade (ADR 0005-bounded, executed in-lane): 10 non-setup `true` skills 
 contract; the 137 `false` skills conform to the default and were not swept.
 
 Lane 8 status: CLOSED 2026-08-17 — Brief locked
-(`docs/topics/invocation-mode-doctrine/PLAN.md`), rubric homed
+(`docs/specs/invocation-mode-doctrine-brief.md`), rubric homed
 (`docs/conventions/invocation-mode/README.md` + registry row + philosophy cross-refs),
 enforcement filed (explicit-key normalization + check criterion + skill-authoring pointer), flip
 filed (`planning:questionnaire`), SSOT gap-3 rows dispositioned and strand CONFIRMED. Next:
