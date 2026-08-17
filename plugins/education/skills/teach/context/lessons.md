@@ -89,7 +89,7 @@ awk -v A="<workspace>/assets" '
 ' lesson.html > lesson.html.tmp && mv lesson.html.tmp lesson.html
 ```
 
-Omit a marker (with its tag pair) when the lesson doesn't need that asset; the splice replaces only the markers present.
+Omit a marker (with its tag pair) when the lesson doesn't need that asset; the splice replaces only the markers present. The `<workspace>` path substituted into `-v A=` is a ladder-resolved root already validated per SKILL.md "The ladder" (resolved roots are inert data) — never substitute an unvalidated repo-declared string here.
 
 ## Quiz component contract
 
