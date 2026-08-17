@@ -124,7 +124,7 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 `resume` and `status` operate over the workspaces under `<workspace-root>/<project-slug>/<mode>/<topic>/` for EVERY root the ladder resolves (both modes; one body re-invocation of `list-workspaces.sh` with all roots — see "Pre-computed Context"):
 
 - **`resume [<topic>]`** — with a topic argument, resolve that workspace directly (disambiguating by `<mode>` if the same topic exists in both) and follow "Resume (subsequent sessions)". With no argument, list the workspaces sorted by most-recently-modified (git or filesystem mtime of the workspace files) and ask the user which to resume — never silently pick one when more than one exists.
-- **`status`** — for each workspace, show its mode, topic, the count of `learning-records/`, the current frontier concept (from the latest records), and the last-touched date (mtime). One line per workspace; no file bodies loaded.
+- **`status`** — for each workspace, show its mode, topic, the count of `learning-records/`, the current frontier concept, the last-touched date, and a **due-for-review flag** — all from filename + mtime heuristics ONLY (record slugs and ages need no file bodies; flag a workspace when its records are old relative to the domain's velocity). One line per workspace; no file bodies loaded — the per-concept due-for-review detail loads only on `resume` of that workspace.
 - **`explain <concept>` / `exercise` need an active workspace.** They write into `concepts/<concept>/` under a topic workspace. If exactly one workspace exists, use it; if several exist, ask which; if none exists, ask whether to start one (`topic` / `codebase`) before writing — never invent a workspace silently.
 
 ## Pedagogy — Three Layers
@@ -175,6 +175,8 @@ Adjacent intake and sources, each only if installed: `/discovery:blindspot` when
 
 The unit of teaching is a **lesson** — one tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral in the **pedagogical** sense only — rarely revisited and regenerable — never in the topic-docs sense: a lesson is a member of its concept slice and stays in machine state. Alongside, distill the durable **reference** — the compressed cheat-sheet the user returns to. Authoring format, the platform-aware HTML-first default, the assets splice, reuse-first scaffolds, inline citations: [context/lessons.md](context/lessons.md).
 
+Concept diagrams: `/visualization:visualize` when installed; otherwise native mermaid blocks (markdown fences, or `<pre class="mermaid">` where a host renders HTML) cover most structural diagrams. In-lesson charts follow the `dataviz` skill's constraints when that skill is present.
+
 ## Zone of Proximal Development
 
 Teach just beyond current understanding — challenging but achievable. Scaffold and fade:
@@ -218,15 +220,16 @@ Coach through a depth-first, one-question-at-a-time dialog:
 2. Read `GLOSSARY.md` — know what terms are established
 3. Read `NOTES.md` — recall teaching preferences
 4. Scan `learning-records/` for the latest entries — know the current frontier
-5. Pick the next concept from the zone of proximal development; open its `concepts/<concept>/` slice
-6. Before re-teaching an existing concept, run the Staleness check (see "Staleness")
+5. **Surface due-for-review concepts** — weigh each floor concept's latest record age against the domain's velocity (see "Staleness"); list what is due for spaced retrieval practice BEFORE advancing the frontier, and open with a quick retrieval question on one due concept when any exist (spacing is how storage strength gets built — see "Fluency vs storage strength")
+6. Pick the next concept from the zone of proximal development; open its `concepts/<concept>/` slice
+7. Before re-teaching an existing concept, run the Staleness check (see "Staleness")
 
 ### Session Close
 
 - Summarize what was learned
 - Prompt reflection: "What's the key takeaway? What was hardest?"
 - Update `GLOSSARY.md` if new terms demonstrated
-- Write a learning record for demonstrated understanding
+- Write a learning record for demonstrated understanding — `/education:quiz-me` quiz results (same-plugin sibling) count as record evidence
 - Suggest the next session's focus
 
 ## Codebase Mode

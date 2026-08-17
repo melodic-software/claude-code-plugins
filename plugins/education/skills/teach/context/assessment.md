@@ -54,4 +54,4 @@ Use learning records to determine what to teach next:
 2. **Current frontier** — concepts one step beyond the floor (user is ready for these)
 3. **Out of reach** — concepts requiring multiple prerequisites the user lacks (defer)
 
-Pick teaching targets from the frontier. Occasionally revisit the floor for spaced practice.
+Pick teaching targets from the frontier. Floor revisits are **scheduled by age × domain velocity**, not occasional whim: a concept whose latest record is old relative to how fast its domain moves is due for spaced retrieval practice, surfaced at `resume`/`status` (SKILL.md "Resume, Status" + "Staleness"). Effortful recall of a due floor concept builds storage strength — a quick retrieval question, not a re-lecture.

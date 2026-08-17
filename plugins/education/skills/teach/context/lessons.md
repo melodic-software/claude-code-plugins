@@ -98,6 +98,17 @@ Omit a marker (with its tag pair) when the lesson doesn't need that asset; the s
 - **Answer shuffling.** Options are shuffled per question at render time, so the correct answer is never positionally detectable (no "always option C" tells). The equal-length answer rule ([context/exercises.md](exercises.md)) still applies — shuffling defeats *positional* detection only, and view-source can reveal the grading logic: a known limitation, not an integrity guarantee.
 - **Result-return, never self-certification.** The quiz ends in a copy-out result block (concept, per-question selection, score) that the learner copies and pastes back into chat. The coach grades in conversation — probing wrong answers, confirming understanding — and records evidence in learning records. The page itself never certifies learning.
 
+## Open-lesson affordance
+
+After writing a lesson file (either format), offer to open it — one permission-gated command, reusing the host check from "Lesson format" above:
+
+- **Remote/web/cloud/SSH hosts:** skip the offer entirely — opening is meaningless there; hand back the path instead.
+- **macOS:** `open "<path>"`.
+- **Linux with a display:** `xdg-open "<path>"` — when `xdg-open` is absent, degrade visibly: say so and hand back the path.
+- **Windows (Git Bash):** `start "" "<path>"`, or `explorer.exe "<path>"`.
+
+Offer, don't auto-open — the command runs only with the user's go-ahead.
+
 ## Artifact share (flavor)
 
 When the session can publish Claude artifacts (the capability exists in the harness), offer to publish the lesson as a private artifact page for viewing on other devices. The workspace file stays the source of truth; the artifact is a rendering, re-published on change.
