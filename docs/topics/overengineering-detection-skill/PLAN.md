@@ -302,7 +302,7 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 - `bash scripts/check-skill-leaf-names.sh --check` — exit 0 (audit owner set updated in the same commit as the skill directory).
 - `/skill-quality:check` green on the skill.
 
-### Phase 4: `overengineering:realign` skill [TODO]
+### Phase 4: `overengineering:realign` skill [DONE]
 
 | File | Action | What |
 |------|--------|------|
