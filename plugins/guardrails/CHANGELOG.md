@@ -27,6 +27,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   cannot drift apart again, plus `& ${env:py} script.py` holding the allowed
   side so a braced target does not itself become a write signal.
 
+  A braced name may also carry a backtick-ESCAPED closing brace — ``${my`}w}``
+  names the variable ``my}w`` — and the library deletes backticks to recover a
+  cmdlet name obfuscated with PowerShell's escape character. Deleting first
+  rendered that text `${my}w}`, which is indistinguishable from a `${my}`
+  reference followed by a literal `w}`: no rule applied afterwards can tell them
+  apart, so the call site disappeared entirely and the command fell through
+  allowed for the same reason. The escape is now consumed while it still exists,
+  by `ps::fold_escaped_brace_closers`, before any caller deletes backticks; an
+  escaped backtick is consumed as a unit so it cannot lend its second backtick to
+  a following brace, leaving the obfuscation recovery untouched. The target token
+  may additionally carry non-space text glued after its closing brace
+  (`& ${env:w}riter f.txt x`), which PowerShell concatenates and which previously
+  made the whole call site unmatchable. Operands are still measured exactly as
+  before once the site is found, so widening the target token decides only where
+  measuring starts, never the verdict. Eight further tests pin the escaped-closer
+  and glued-target shapes, including two escaped closers in one name and the
+  allowed one-positional twin.
+
 ## [0.29.0]
 
 ### Added
