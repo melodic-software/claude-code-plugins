@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "ai-slop",
+  "version": "0.1.0",
+  "description": "Detects and removes AI-writing tells (slop) in checked-in markdown prose: em dashes, emoji formatting, AI vocabulary, negative parallelisms, citation artifacts, and the rest of Wikipedia's Signs-of-AI-writing catalog. Read-only audit by default with a deterministic detector plus a judgment rubric; an explicit fix action rewrites findings behind a semantic-diff guard. Findings conform to the detector-findings convention so the review fanout fix relay can consume them.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "ai-slop",
+    "ai-writing",
+    "slop",
+    "em-dash",
+    "emoji",
+    "detector",
+    "prose",
+    "audit",
+    "skill"
+  ]
+}

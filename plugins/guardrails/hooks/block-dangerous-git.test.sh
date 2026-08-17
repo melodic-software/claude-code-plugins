@@ -886,6 +886,46 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
 
+# --- #2848: grouping + a bare-computed call target is not a git signal ----------
+# Either factor alone was already allowed — a grouping construct by the #2592
+# command-position fix above, a bare `& $tool` call target by the
+# variable-command-word residual has_dynamic_invocation documents. Their
+# CONJUNCTION still blocked, so ordinary PowerShell (resolve an interpreter into a
+# variable behind a Test-Path fallback, then loop) was refused while the identical
+# construct-free call was waved through. The bare-variable half no longer routes.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
+  '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
+  "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
+# The one single-factor allowance that was previously unpinned: a grouping
+# construct with a LITERAL call target. Pinned here so a future narrowing pass
+# cannot regress it unnoticed.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
+  "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
+# Fail-OPEN guard rails on that narrowing. A SUBEXPRESSION target still fails
+# closed with the same grouping present, on `&` and on `.`, because `('g'+'it')`
+# assembles a name the quote-intact literal probe can never see. Every other sink
+# arm — literal git command word, computed launcher, interpolating-string target —
+# is untouched and must still block alongside the same grouping.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression call target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { & ('g'+'it') reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression dot-source target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { . ('g'+'it') reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal git command word (still blocked by name)" \
+  "foreach (\$x in @('a')) { git reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + computed launcher (still blocked)" \
+  "foreach (\$x in @('a')) { Start-Process \$tool -ArgumentList 'reset' }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + interpolating-string call target (still blocked)" \
+  "foreach (\$x in @('a')) { & \"\$tool\" reset --hard }" 2
+
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
 # no git token). Assert the softened headline on both the no-git-token path and a
