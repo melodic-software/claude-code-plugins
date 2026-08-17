@@ -82,8 +82,12 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   (#2940 / Lane X C22):** fleet audit enumerated **57** skills with
   `disable-model-invocation: true` and searched `SKILL.md`, evals, and reference docs for
   Skill-tool invocation of those names (patterns such as "invoke `/plugin:skill` via the Skill
-  tool", "Call the Skill tool" + target, "Skill tool" + `:setup`). **Zero** Skill-tool
-  invocations of user-invoked-only targets. Human-relay phrasing ("tell the user to run /X",
+  tool", "Call the Skill tool" + target, "Skill tool" + `:setup`). The explicit "via the Skill
+  tool" form is still **zero**. A follow-up pass also reworded operative slash-command
+  instructions against user-invoked-only targets in `repo-fleet-hygiene:audit` and
+  `claude-ops` `inventory` / `audit-performance` / `audit-install-state` (agent-operative
+  "execute/route/hand to /X" → "tell the user to run /X"; ownership and Question|Owner
+  boundary tables left intact). Human-relay phrasing ("tell the user to run /X",
   "offering to run `/plugin:setup`") and Skill-tool hits on model-invocable skills
   (`/toolchain:check`, `/implementation:implement-dispatch`, `/tdd:principles`,
   `/session-flow:handoff`, `/testing:run-e2e`) are non-violations. Standing
@@ -94,7 +98,7 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
   `domain-modeling` rewording is **ALREADY-PRESENT** (ours already name glossary / domain term /
   vocabulary) — one-shot, not a re-evaluation trigger. Re-trigger: a mattpocock/skills release
   whose changeset names `writing-for-agents`, OR a repo review/audit surfacing a new Skill-tool
-  invocation of a `disable-model-invocation: true` target.
+  or operative slash-command invocation of a `disable-model-invocation: true` target.
 
 ## Harness findings learned from this upstream (recheck-worthy)
 
