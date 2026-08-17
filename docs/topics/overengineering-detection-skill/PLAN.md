@@ -317,7 +317,7 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 - `grep -l "scrutiny-method.md" plugins/overengineering/skills/*/SKILL.md | wc -l` = 2 AND neither SKILL.md restates the verdict-ladder definitions (Read assertion) — shared-method SSOT held.
 - `/skill-quality:check` green on the skill.
 
-### Phase 5: Marketplace docs integration [TODO]
+### Phase 5: Marketplace docs integration [DONE]
 
 | File | Action | What |
 |------|--------|------|
