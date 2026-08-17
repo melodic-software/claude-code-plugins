@@ -381,30 +381,82 @@ rm -rf "$repo"
 # every child process the traced commands start, so a maintenance (or legacy
 # auto-gc) fork is caught deterministically here rather than probabilistically
 # in a cleanup race.
+#
+# The assertion is a NEGATIVE, so it needs a positive control or it passes for
+# exactly the reason it should report nothing (#2982): an absent trace, or a
+# fixture command that failed inside git_q's output suppression, leaves the
+# grep nothing to match and the case reports `ok` while observing nothing. The
+# control is the traced sequence's exit status, a non-empty trace, and both
+# halves of the pattern the negative depends on:
+#
+#   * a `child_start` event that the fixture is KNOWN to produce — `git merge`
+#     runs `git stash create` as a subprocess (builtin/merge.c save_state(),
+#     reached once a REAL merge is needed and before the "no changes"
+#     early-out, so it does not depend on the worktree being dirty; observed on
+#     git 2.55 and unchanged in the 2.54 source, which is what CI runs).
+#     Asserting that specific event, rather than any child_start, keeps an
+#     ambient child from some unrelated config (fsmonitor, a credential helper,
+#     a hook) from standing in for it, and re-proves the divergent-histories
+#     premise below: a merge that degraded to a fast-forward or to
+#     already-up-to-date never reaches save_state. The cost of pinning it is a
+#     new failure mode — a git that stops shelling out to `git stash create`
+#     red-lines this case, blaming the fixture. That is loud and diagnosable,
+#     which is the trade this case is built on.
+#   * the maintenance half of the pattern, checked against a verbatim capture
+#     of the event git logs when the fork happens. Both greps read one pattern
+#     variable, so a pattern that no longer matches a real maintenance child
+#     fails here instead of silently never matching anything again.
+#
+# What no control here can prove is that git still SPELLS the fork this way;
+# proving that would mean spawning a real detached maintenance child, i.e.
+# re-creating the very race (#2918) this suite exists to keep out.
 repo="$(mk_repo)"
 trace="$(mktemp)"
 printf 'edit\n' >>"$repo/README.md"
 (
   cd "$repo" || exit 1
   export GIT_TRACE2_EVENT="$trace"
-  git_q add -A
-  git_q commit -m traced-commit
-  git_q checkout -b side
+  # git_q swallows stdout, stderr and — left unchecked — failure itself, so
+  # every fixture command the assertion depends on is routed through a form
+  # that aborts the sequence. The diagnosis stays a bare echo: fail() called in
+  # here would increment the subshell's own copy of FAIL and the suite would
+  # still exit 0. The outer branch below is what red-lines the run.
+  git_must() { git_q "$@" || { echo "traced fixture command failed: git $*" >&2; exit 1; }; }
+  git_must add -A
+  git_must commit -m traced-commit
+  git_must checkout -b side
   printf 'side\n' >>README.md
-  git_q add -A
-  git_q commit -m side
-  git_q checkout work
+  git_must add -A
+  git_must commit -m side
+  git_must checkout work
   printf 'diverge\n' >other.md
-  git_q add -A
-  git_q commit -m diverge
+  git_must add -A
+  git_must commit -m diverge
   # Divergent histories force a REAL merge commit; a fast-forward could skip
   # the post-merge hook point this guard exists to observe.
-  git_q merge side
+  git_must merge side
 )
-if grep -Eq '"child_start".*"(maintenance|gc)"' "$trace"; then
+traced_rc=$?
+maint_child='"child_start".*"(maintenance|gc)"'
+# Verbatim capture from a fixture run with maintenance.auto left ON — every
+# field git emits, in git's order. A reduced sample would let a pattern whose
+# adjacency assumptions only hold in the reduction pass this control while
+# never matching a real event again.
+maint_sample='{"event":"child_start","sid":"20260817T200830.792683Z-H2a3dd3cb-P0000acb8","thread":"main","time":"2026-08-17T20:08:30.824996Z","file":"run-command.c","line":741,"child_id":0,"child_class":"?","use_shell":false,"argv":["git","maintenance","run","--auto","--no-quiet","--detach"]}'
+# `|| true` so the count survives a future `set -e`: grep -c exits 1 on zero.
+child_starts="$(grep -c '"child_start"' "$trace" 2>/dev/null || true)"
+if ((traced_rc != 0)); then
+  fail "the traced fixture sequence failed (exit $traced_rc) — the maintenance assertion would observe nothing"
+elif [[ ! -s "$trace" ]]; then
+  fail "GIT_TRACE2_EVENT produced no trace — the maintenance assertion would observe nothing"
+elif ! grep -Eq '"child_start".*"argv":\["git","stash","create"' "$trace"; then
+  fail "the trace records no stash-create child from the fixture merge — child_start events are not reaching the trace, or the merge degraded to a fast-forward, so the maintenance assertion cannot fire"
+elif ! grep -Eq "$maint_child" <<<"$maint_sample"; then
+  fail "the maintenance pattern no longer matches the event git logs on the fork — the assertion below can never fire"
+elif grep -Eq "$maint_child" "$trace"; then
   fail "a fixture commit/merge spawned a background maintenance/gc child (cleanup race #2918)"
 else
-  ok "fixture git commands spawn no background maintenance"
+  ok "fixture git commands spawn no background maintenance ($child_starts child_start event(s) traced)"
 fi
 rm -f "$trace"
 rm -rf "$repo"
