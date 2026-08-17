@@ -131,7 +131,8 @@ implementation.
 | Publish gate | `docs/MIGRATION-PLAYBOOK.md` § per-plugin migration gate (marketplace entry → `claude plugin validate --strict` → regenerate catalog/cheat-sheet) | team |
 | Catalog taxonomy | `docs/CATALOG-TAXONOMY.md` (category vocabulary for the marketplace entry) | team |
 | Skill schema | `skill-quality:check` gate (frontmatter, listing budget, evals schema, leaf names) + repo check scripts (`check-skill-leaf-names.sh`, `check-skill-portability.sh`, `check-changelog-parity.sh`, `check-plugin-manifest-presence.sh`) | team |
-| Config cascade | `codebase-health` three-layer cascade shape (`.claude/<name>.md` team + `~/.claude/<name>.md` user-global) | team |
+| Config cascade | `docs/conventions/config-cascade/README.md` three-layer shape: `.claude/improvement.md` (team, tracked) + `.claude/improvement.local.md` (gitignored overlay) + `~/.claude/improvement.md` (user-global); `codebase-health` as the in-fleet precedent | team |
+| Setup requirement | `docs/PLUGIN-PHILOSOPHY.md` § "Setup is explicit and repeatable" — required here via criterion (a): consumer-project configuration surface | team |
 
 ### Phase 1: Plugin scaffold + registration [TODO]
 
@@ -177,16 +178,25 @@ Required body sections (each is a grep-able heading):
    never self-disposes).
 7. **Execution requests** — "go implement this" routes through interview → discovery →
    plan → implement → verify via existing skills; the skill never edits code in any mode.
-8. **What this skill does NOT do / Skip when** — boundaries vs `architecture:improve`
-   (single-lens architecture depth), `code-tidying:tidy` (applies small safe edits),
-   `codebase-health:audit` (drift/claim verification), `review:fanout` (diff-scoped),
-   `work-items:scan-todos` (marker sweep); reuse-or-replace posture: delegate, never re-inline.
+8. **Scan dimensions** — the explicit inventory the scan walks so it cannot silently collapse
+   to code-only: code/architecture, performance, product-level behavior, config/automation
+   outside the codebase (GitHub labels/Actions/synchronizations), Claude Code operational
+   setup (cloud envs, MCP servers); docs/markdown explicitly OUT (owned lanes).
+9. **Lane delegation as scan input** — presence-gated consultation of installed specialized
+   finders (e.g. `architecture:improve`'s deepening lens, `claude-config:audit-automation-gaps`
+   for the ops dimension) as inputs to the candidate list — delegate, never re-inline.
+10. **What this skill does NOT do / Skip when** — boundaries vs `architecture:improve`
+    (single-lens architecture depth), `code-tidying:tidy` (applies small safe edits),
+    `codebase-health:audit` (drift/claim verification), `review:fanout` (diff-scoped),
+    `work-items:scan-todos` (marker sweep); reuse-or-replace posture. Includes the verb-contract
+    note: `find` reads as read-only, and it is — the caller's unattended declaration IS the
+    explicit mutation override that authorizes work-item filing (mirroring the `audit`-verb
+    override shape); no other mutation exists in any mode.
 
-- **Sanity Check:** `bash plugins/skill-quality/scripts/check.sh` (or `/skill-quality:check`
-  invocation path) passes for `plugins/improvement/skills/find/SKILL.md`
+- **Sanity Check:** `CHECK_SKILL_SKILLS_ROOT=plugins/improvement/skills bash plugins/skill-quality/scripts/check-skill.sh find` exits 0
 - **Sanity Check:** frontmatter description contains `Skip when` AND names at least
-  `architecture:improve` and `code-tidying:tidy`; `grep -c "Sanity"` n/a —
-  `grep -Ec "Evidence ladder|Unattended|Skip when" plugins/improvement/skills/find/SKILL.md` ≥ 3
+  `architecture:improve` and `code-tidying:tidy`;
+  `grep -Ec "Evidence ladder|Scan dimensions|Unattended|Skip when" plugins/improvement/skills/find/SKILL.md` ≥ 4
 - **Sanity Check:** no `name:` key in frontmatter (defaults to directory name):
   `grep -c '^name:' plugins/improvement/skills/find/SKILL.md` returns 0
 
@@ -194,58 +204,88 @@ Required body sections (each is a grep-able heading):
 
 | File | Action | What changes |
 |------|--------|-------------|
-| `plugins/improvement/skills/find/context/hotspots.md` | Create | Plain-git churn×complexity recipe: `git log --since` windowed change-frequency, indentation-count complexity proxy (LOC recorded alongside), churn×complexity quadrant ranking, bundled default exclusion globs (lockfiles/generated/vendored) overridable via the config cascade |
-| `plugins/improvement/skills/find/context/ci-health.md` | Create | `GET /repos/{o}/{r}/actions/runs` with `created` date-window iteration (never deep pagination), `conclusion` failure ratios, `updated_at − run_started_at` duration trend, `run_attempt` retry detection; explicit "never `/timing` (deprecating)"; MCP `actions_*` / `gh` / none probe ladder |
+| `plugins/improvement/skills/find/context/hotspots.md` | Create | Plain-git churn×complexity recipe: `git log --since` windowed change-frequency, indentation-count complexity proxy (LOC recorded alongside), churn×complexity quadrant ranking, bundled default exclusion globs (lockfiles/generated/vendored) overridable via the config cascade. **History-depth gate first**: `git rev-parse --is-shallow-repository` + window-coverage check (oldest commit vs requested `--since` window); shallow/truncated history downgrades churn to a recorded evidence gap (or instrument-first candidate) — never confidently-wrong rankings from partial history |
+| `plugins/improvement/skills/find/context/ci-health.md` | Create | `GET /repos/{o}/{r}/actions/runs` with `created` date-window iteration (never deep pagination), `conclusion` failure ratios, `updated_at − run_started_at` duration trend, `run_attempt` retry detection; explicit "never `/timing` (deprecating)"; MCP `actions_*` / `gh` / none probe ladder; **zero-runs / no-Actions branch** resolves to an evidence gap or instrument-first candidate, never an error; portability-scope declaration (GitHub-forge-specific recipe under a neutral dimension — non-GitHub forges = recorded gap) |
 | `plugins/improvement/skills/find/context/ranking.md` | Create | WSJF-style value-to-effort scoring; evidence-strength → confidence mapping; instrument-first rule (SRE error-budget precedent); dedupe + dismissed-memory consultation order |
-| `plugins/improvement/skills/find/context/unattended.md` | Create | Caller-declaration contract, report shape, filing flow (search-before-create per tracker convention), adaptive cap default, routine-prompt override points |
+| `plugins/improvement/skills/find/context/unattended.md` | Create | Caller-declaration contract, report shape, filing flow (search-before-create per tracker convention), adaptive cap default, routine-prompt override points; **report home** = `${CLAUDE_PLUGIN_DATA}` per the plugin-data-report-keying convention (consumer-repo-agnostic; never assumes this repo's topic-docs layout), with the dismissed-candidate memory keyed alongside |
 
 - **Sanity Check:** `grep -l "run_attempt" plugins/improvement/skills/find/context/ci-health.md`
   AND `grep -l "indentation" plugins/improvement/skills/find/context/hotspots.md`
   AND `grep -l "instrument" plugins/improvement/skills/find/context/ranking.md` all non-empty
 - **Sanity Check:** `grep -c "timing" plugins/improvement/skills/find/context/ci-health.md` ≥ 1
   (the deprecation warning is present)
-- **Sanity Check:** `markdownlint-cli2 "plugins/improvement/**/*.md"` exits 0
+- **Sanity Check:** `grep -Ec "shallow|is-shallow-repository" plugins/improvement/skills/find/context/hotspots.md` ≥ 1
+- **Sanity Check:** `npx markdownlint-cli2 "plugins/improvement/**/*.md"` exits 0
 
-### Phase 4: Evals, README routine guidance, changelog [TODO]
+### Phase 4: Setup skill, config contract, evals, README routine guidance [TODO]
 
 | File | Action | What changes |
 |------|--------|-------------|
+| `plugins/improvement/skills/setup/SKILL.md` | Create | Fleet-standard setup skill: `disable-model-invocation: true`, actions `check` (default) / `apply` only; verifies/creates the `.claude/improvement.md` cascade files and reports the effective evidence-source configuration. Required by PLUGIN-PHILOSOPHY criterion (a) — consumer-project configuration surface |
+| `plugins/improvement/reference/config.md` | Create | The config-key contract (single home): evidence-source declarations (Tier 2 MCP sources), churn exclusion globs, cascade resolution order across all three layers |
+| `plugins/improvement/skills/setup/evals/evals.json` | Create | Minimal setup evals per fleet pattern |
 | `plugins/improvement/skills/find/evals/evals.json` (+ `fixtures/`) | Create | Minimal eval set per skill-quality schema: trigger-recognition cases (vague prompt, targeted prompt, unattended declaration) |
-| `plugins/improvement/README.md` | Modify | Routine-wrapper section: recommended Routine prompt template (weekly cadence; prompt = tuning surface for cap/scope/dismissals), GitHub Actions cron alternative (`claude-code-action@v1` + `plugins:` input), `/loop` noted as session-scoped only |
+| `plugins/improvement/README.md` | Modify | Routine-wrapper section: recommended Routine prompt template (weekly cadence; prompt = tuning surface for cap/scope/dismissals) **including the fired-environment prerequisite** (the plugin must be installed in the fired session's environment per `docs/CLOUD-SESSIONS.md`; template prompt opens with "if `/improvement:find` is unavailable, stop and report") — plus GitHub Actions cron alternative (`claude-code-action@v1` + `plugins:` input), `/loop` noted as session-scoped only |
 | `plugins/improvement/CHANGELOG.md` | Modify | Finalize 0.1.0 notes |
 
-- **Sanity Check:** evals JSON passes the skill-quality evals schema check (part of the
-  Phase 5 gate run); `check-jsonschema` locally exits 0 if run standalone
-- **Sanity Check:** `grep -Ec "Routine|cron" plugins/improvement/README.md` ≥ 2
+- **Sanity Check:** `CHECK_SKILL_SKILLS_ROOT=plugins/improvement/skills bash plugins/skill-quality/scripts/check-skill.sh setup` exits 0
+- **Sanity Check:** `grep -c "disable-model-invocation: true" plugins/improvement/skills/setup/SKILL.md` returns 1
+- **Sanity Check:** `grep -Ec "improvement.local.md|improvement.md" plugins/improvement/reference/config.md` ≥ 2 (all cascade layers documented)
+- **Sanity Check:** `grep -Ec "Routine|cron" plugins/improvement/README.md` ≥ 2 AND `grep -c "unavailable" plugins/improvement/README.md` ≥ 1
 
-### Phase 5: Fleet gates, catalog regeneration, dogfood smoke [TODO]
+### Phase 5: Trigger-boundary handshake with `architecture:improve` [TODO]
+
+`architecture:improve`'s description currently claims "what should we improve" and "find
+refactoring opportunities" — the new skill's core triggers. One-sided boundaries don't resolve
+an auto-invocation race; this phase implements the "both ways" mitigation.
+
+| File | Action | What changes |
+|------|--------|-------------|
+| `plugins/architecture/skills/improve/SKILL.md` | Modify | Description only: add a negative-routing clause handing cross-dimension / evidence-driven / "highest-impact improvement" asks to `/improvement:find`; keep architecture-lens triggers |
+| `plugins/architecture/.claude-plugin/plugin.json` | Modify | Version bump (patch) |
+| `plugins/architecture/CHANGELOG.md` | Modify | Entry for the boundary clause |
+
+- **Sanity Check:** `grep -c "improvement:find" plugins/architecture/skills/improve/SKILL.md` ≥ 1
+- **Sanity Check:** trigger-continuity check passes: `CHECK_SKILL_BASE_REF=origin/main CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills bash plugins/skill-quality/scripts/check-skill.sh improve` exits 0
+- **Sanity Check:** `bash scripts/check-changelog-parity.sh` exits 0 (architecture version/CHANGELOG in step)
+
+### Phase 6: Fleet gates, catalog regeneration, smokes [TODO]
 
 Steps (scriptable gate run — commands already exist in-repo):
 
 1. `bash scripts/check-skill-leaf-names.sh --check` (no unregistered collision — `find` leaf
    is currently unclaimed fleet-wide)
-2. `bash scripts/check-skill-portability.sh`
+2. `bash scripts/check-skill-portability.sh` AND `bash scripts/check-shell-portability.sh`
+   (the Phase 3 recipes carry live git/awk blocks — GNU-only constructs are the trap)
 3. `bash scripts/check-changelog-parity.sh`
-4. `claude plugin validate --strict` (or documented fallback per Phase 1)
+4. `claude plugin validate --strict "$(git rev-parse --show-toplevel)"` — repo root, so the
+   catalog manifest itself is validated (fallback where the CLI is unavailable per Phase 1)
 5. `node scripts/generate-catalog.mjs` and `node scripts/generate-cheatsheet.mjs` — commit the
    regenerated `docs/CATALOG.md` / `docs/SKILL-CHEAT-SHEET.md`
 6. Dogfood smoke: dispatch a fresh subagent invoking `/improvement:find` against this repo;
    save its output to the topic memory slice
+7. Clean-repo smoke (playbook gate step 9 — proves repo-agnosticism): load the plugin with
+   `claude --plugin-dir ./plugins/improvement` in a repo that is NOT this one (a scratch clone
+   without the fleet, CI history, or topic-docs layout); verify the skill produces a ranked
+   report with honestly-recorded evidence gaps instead of erroring or fabricating
 
 - **Sanity Check:** every gate command above exits 0
 - **Sanity Check:** `git diff --name-only` after regeneration includes `docs/CATALOG.md`
-- **Sanity Check:** the saved smoke output contains ≥1 candidate with a non-empty evidence
-  citation and an S/M/L size marker (grep the saved file for `S|M|L` size field and an
+- **Sanity Check:** the saved dogfood output contains ≥1 candidate with a non-empty evidence
+  citation and an S/M/L size marker (grep the saved file for the size field and an
   `evidence` field)
+- **Sanity Check:** the saved clean-repo output contains ≥1 recorded evidence-gap line
+  (grep for `gap`) and zero fabricated CI/telemetry claims
 
 ### Test Strategy
 
 No executable code ships — the deliverable is prose contracts + JSON manifests. TDD
 (Red-Green-Refactor) is genuinely impractical here; verification is: (a) the deterministic
-fleet gates (schema validation, leaf-name/portability/changelog checks, markdownlint, typos —
-all repo-standard), (b) eval fixtures for trigger recognition, (c) the Phase 5 dogfood smoke
-run as the end-to-end runtime probe. Regression surface for existing components is nil
-(purely additive; only `marketplace.json` and generated catalogs are modified).
+fleet gates (schema validation, leaf-name/portability/shell-portability/changelog checks,
+markdownlint, typos — all repo-standard), (b) eval fixtures for trigger recognition, (c) the
+Phase 6 dogfood + clean-repo smokes as end-to-end runtime probes. Regression surface for
+existing components: one description-only edit to `architecture:improve` (Phase 5), guarded
+by the trigger-continuity check; everything else is additive.
 
 ### Alternatives Considered
 
@@ -260,7 +300,8 @@ run as the end-to-end runtime probe. Regression surface for existing components 
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Skill description overlaps trigger-wise with `architecture:improve` ("what should we improve") | Med | Med | Explicit Skip-when boundaries both ways; Phase 5 leaf-name check; description reviewed against its triggers in the dogfood smoke |
+| Skill description overlaps trigger-wise with `architecture:improve` ("what should we improve") | Med | Med | Boundaries implemented BOTH ways: Phase 2 §10 Skip-when clause + Phase 5 edits `architecture:improve`'s description with a negative-routing handover (trigger-continuity-checked); Phase 6 leaf-name check |
+| Shallow/truncated clone yields confidently wrong churn rankings | Med | Med | Phase 3 history-depth gate: shallow or window-uncovered history downgrades churn to a recorded evidence gap |
 | `claude plugin validate` CLI unavailable in some environments | Med | Low | Documented fallback gate (manifest-presence + jsonschema checks) in Phase 1 |
 | Unattended run without GitHub access path silently degrades | Low | Med | Probe ladder records an explicit evidence-gap line in the report — absence is reported, never faked |
 | Routines surface is research-preview (caps may drift) | Med | Low | README routine guidance cites the docs page rather than pinning caps; re-verify at implementation per research note |
@@ -268,33 +309,41 @@ run as the end-to-end runtime probe. Regression surface for existing components 
 
 ## Blast radius
 
-**LOW.** Purely additive: one new plugin directory; the only existing files modified are
-`.claude-plugin/marketplace.json` (one appended entry) and the two regenerated catalog docs.
-No existing skill, hook, or contract changes. Fully reversible by deleting the directory and
-entry. No stress-test triggers matched (no shared-state mutation, no destructive operations,
-no cross-cutting refactor, no security surface).
+**LOW.** One new plugin directory (additive); existing files modified: `.claude-plugin/marketplace.json`
+(one appended entry), the two regenerated catalog docs, and a description-only edit to
+`plugins/architecture/skills/improve/SKILL.md` (+ its version/CHANGELOG) for the trigger
+handover — guarded by the trigger-continuity check and reversible in one commit. No behavior,
+hook, or contract changes to any existing component. No stress-test triggers matched
+(no shared-state mutation, no destructive operations, no cross-cutting refactor, no security
+surface).
 
 ## Stress-test summary
 
-Step 3 fresh-context plan review: dispatched; findings verified and folded in (see git history
-of this file). Formal `/planning:devils-advocate` (Step 4): **Skipped — blast radius LOW, no
-triggers matched.**
+Step 3 fresh-context plan review: 11 findings (1 CRITICAL, 5 IMPORTANT, 5 SUGGESTION), all
+verified against the repo and folded in — the CRITICAL (missing `setup` skill for the config
+surface, required by PLUGIN-PHILOSOPHY criterion (a)) became Phase 4's setup deliverables; the
+IMPORTANT findings became the Phase 5 boundary handshake, the clean-repo smoke + repo-root validate,
+the Scan-dimensions/Lane-delegation sections, the corrected `check-skill.sh` invocations, and
+the shallow-history gate. Formal `/planning:devils-advocate` (Step 4): **Skipped — blast
+radius LOW, no triggers matched.**
 
 ## Execution shape
 
-Phases 1 → 2 → (3 ∥ 4) → 5. Phases 3 and 4 are file-disjoint (context/ leaves vs
-evals+README+CHANGELOG) and both depend only on Phase 2; parallelizing them saves little
-(each ~150–250 prose LOC) — **recommended shape: fully sequential in one implementer
-session**; the 3∥4 option exists if the implementer wants it, with the standard scope-fence
-(each phase touches only its listed files; PLAN.md stays orchestrator-owned).
+Phases 1 → 2 → (3 ∥ 4 ∥ 5) → 6. Phases 3, 4, and 5 are pairwise file-disjoint (context/
+leaves vs setup+evals+README vs the architecture plugin) and depend only on Phase 2;
+parallelizing saves modest prose LOC — **recommended shape: fully sequential in one
+implementer session** (simplest; total scope ~8–12 files of prose); the parallel option
+exists with the standard scope-fence (each phase touches only its listed files; PLAN.md stays
+orchestrator-owned).
 
 | Phase | Surface | Basis |
 |---|---|---|
 | 1 | sub-agent implementer (or main) | mechanical scaffold from template |
 | 2 | sub-agent implementer | judgment-heavy authoring, but fully specified by Brief + this plan |
 | 3 | sub-agent implementer | recipe transcription from verified research |
-| 4 | sub-agent implementer | mechanical |
-| 5 | main session | gate run + commit + smoke verdict needs orchestrator judgment |
+| 4 | sub-agent implementer | mechanical (setup skill follows fleet template) |
+| 5 | sub-agent implementer | one description edit + version/CHANGELOG, tightly specified |
+| 6 | main session | gate run + commit + smoke verdicts need orchestrator judgment |
 
 ## Open questions
 
@@ -320,6 +369,9 @@ covers a user-configured source in the meantime).
 | `[EXEC-SHAPE]` V1 operator docs recommend Routines (primary) + GH Actions cron (alternative) | Phase 4 README section | Research: Routines' fresh-session + prompt-as-tuning-surface matches the Brief's Q11 noise-control decision and the tech-debt-sweep temporal contract |
 | `[EXEC-SHAPE]` Recipes as `context/` leaves, not SKILL.md body | Phase 2/3 file layout | Fleet progressive-disclosure convention (`architecture:improve` shape); listing budget |
 | `[EXEC-SHAPE]` Single skill, dual mode (no `sweep` sibling) | Whole plan | Fleet rule: skills split on discovery intent, not mode; Brief Q3 |
+| `[EXEC-SHAPE]` Ship a `setup` skill + `reference/config.md` config contract | Phase 4 | PLUGIN-PHILOSOPHY § setup criterion (a) verified this session; `codebase-health` precedent; plan-review CRITICAL finding |
+| `[EXEC-SHAPE]` Edit `architecture:improve`'s description for a two-way trigger handover | Phase 5 | Its description verifiably claims "what should we improve" / "find refactoring opportunities"; one-sided boundaries can't resolve an auto-invocation race; guarded by trigger-continuity check |
+| `[EXEC-SHAPE]` Unattended report + dismissed-memory home = `${CLAUDE_PLUGIN_DATA}` | Phase 3 unattended recipe | Consumer-repo-agnostic per the plugin-data convention; a consumer repo has no topic-docs layout to assume |
 
 ### Execution shape ([EXEC-SHAPE] tagged)
 
