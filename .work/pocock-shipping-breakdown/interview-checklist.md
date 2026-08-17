@@ -19,10 +19,36 @@ plugin components to add or update. Mode: `me`-leaning relentless rounds.
 - **spec** (Pocock sense) — destination handoff artifact for multi-session work, published to the tracker
 - **Brief** — our PLAN.md `## Brief` contract section (nearest in-house analog to his spec)
 
+## Survey facts (settled, not asked)
+
+- Tracker seam: github (full verbs incl. claim/lease/reclaim), local-markdown (offline, no reclaim), jira (READ-ONLY — write verbs exit 6). Binding: tracked `.work-item-tracker.json`, one provider per repo; consumer-local adapter override supported.
+- `decompose` = /to-tickets superset (vertical slices, native --blocked-by edges, HITL/AFK, investigation tickets, expand-contract, born-triaged). Uses --blocked-by but NOT --parent containers.
+- No spec-on-tracker concept anywhere: plan/PRD live in topic-docs contract slice, pruned at PR close-out (PLAN pasted into PR body); decomposed items carry only a "Source: PLAN Phase N" provenance line.
+- Standards convention 1.0.0: relocatable index, SRP files, 3 additive layers, shared plan-time/review-time — already answers his flat CODING_STANDARDS.md.
+- Review: quality-gate self mode HAS spec-conformance vs PLAN.md; CI code-review lane has NO originating-issue axis; no whole-container close-out review exists.
+- implementation:implement(-dispatch): input = approved PLAN.md; fresh-context phase-verifier for acceptance criteria; work-items:work chains INTO it; PR per item via orchestrator.
+- draft-goal-condition: router-first, routes away from /goal; no decompose route-away row; "splitting a goal into sequential per-phase goals" explicitly out of scope.
+- Upstream SSOT (docs/upstream/mattpocock-skills.md): setup-matt-pocock-skills + ask-matt already REJECTED with reasons; v1.2.3 audited.
+
 ## Open-question register
 
-(rows written at ask-time)
+- Q1 | open | round 1 | Deliverable shape of this effort |
+- Q2 | open | round 1 | Lane inventory + priority confirmation |
+- Q3 | open | round 1 | Spec-on-tracker: adopt container-item capability? |
+- Q4 | open | round 1 | Cross-tracker flow (Jira source → GitHub agentic surface) |
+- Q5 | open | round 1 | Review deltas: originating-item axis + container close-out review |
+- Q6 | open | round 1 | Rerouting recipe home |
+- Q7 | open | round 1 | /goal route-away delta in draft-goal-condition |
+- Q8 | open | round 1 | Where course-derived provenance records live |
 
 ## Decision tree (`me` mode)
 
-(branches filled after survey completes)
+- [ ] Deliverable shape (Q1)
+- [ ] Lane inventory locked (Q2)
+- [ ] Lane A: spec lifecycle — spec-on-tracker container (Q3); archival doctrine; rerouting (Q6)
+- [ ] Lane B: tickets — granularity/estimate calibration; --parent usage (blocked by: Q3)
+- [ ] Lane C: execution — TDD wiring delta (round 2)
+- [ ] Lane D: review — originating-item axis, close-out review (Q5); standards-capture habit (round 2)
+- [ ] Lane F: /goal posture (Q7)
+- [ ] Cross-tracker support (Q4)
+- [ ] Provenance/bookkeeping home (Q8)
