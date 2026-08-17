@@ -150,7 +150,8 @@
 # producing six findings, because #2633's squash deleted content from two
 # different culprits and each attribution is reported on its own. Three of the
 # five are the confirmed incidents; the other two are cleared by the
-# acknowledgment file and never print, so the number a reader sees in CI is 3.
+# acknowledgment file and never print, so what reaches a reader in CI is 3
+# commits carrying 4 findings between them, cc58cbc53 contributing two.
 # The endpoint is named rather than written as "the last 500" so the figure
 # still describes a fixed corpus after main moves, which it does several times
 # a day.
@@ -213,10 +214,14 @@
 # same two-culprit shape. So 200 stays, with headroom for a smaller future
 # revert.
 #
-# So the canary is calibrated to fire roughly once a month, on something a
-# human should genuinely glance at, and precision is deliberately traded for
-# recall because the miss is expensive and the fire is cheap. Cheap requires a
-# disposition path for BOTH directions in time, which is why there are two:
+# So the canary is calibrated to fire on something a human should genuinely
+# glance at, and precision is deliberately traded for recall because the miss
+# is expensive and the fire is cheap. No firing RATE is quoted here, and that
+# is deliberate: the corpus spans 7.9 days, and four of its five crossings land
+# within 76 minutes of each other on the one incident night. It measures a
+# burst, so dividing five by the window would invent a frequency the evidence
+# does not support, in either direction. Cheap requires a disposition path for
+# BOTH directions in time, which is why there are two:
 #
 #   PROSPECTIVE -- `Intentional-removal:` in the PR body, which GitHub carries
 #   into the squash message. Costs one line and the canary never fires.
