@@ -33,12 +33,20 @@ in favor of self-describing, expressive code, in this plugin marketplace.
 - Q1 | answered | round 1 | What prompted this — agent-written diffs, legacy sweeps, or standing posture? | Agent-written code is the prime driver; on invocation the skill ENFORCES: remove comments, make code more expressive. Every surviving comment must earn its keep.
 - Q2 | answered | round 1 | Deliverable shape — new code-tidying skill vs tidy extension vs rule/posture? | New skill inside code-tidying. Caveat: research must settle whether comment-removal and refactor-to-expressive are one concern or two (different criteria/rubric ⇒ maybe two components).
 - Q3 | open | round 1 | Doctrine — where on the Ousterhout ⇄ Clean Code spectrum; which comments survive? | Research returned: spectrum only governs class-C width; re-asked concretely as Q4.
-- Q4 | open | round 2 | Class-C width: minimum-keep (why/constraints/contracts survive; nothing demanded) vs interface-obligatory (Ousterhout/Google-styleguide: interface comments expected)? |
-- Q5 | open | round 2 | Should the skill flag MISSING comments (Ousterhout direction) or only treat existing ones? |
-- Q6 | open | round 2 | One skill hosting the three-way triage (delete / refactor-then-delete / keep) vs two separate components? |
-- Q7 | open | round 2 | Mode: applies edits (enforce) vs read-only findings; and how are class-B refactors safety-gated? |
-- Q8 | open | round 2 | Default run scope: uncommitted/diff (agent output) with optional explicit target? |
-- Q9 | open | round 2 | Naming: run /naming:name-it-better after scope locks, with user's criteria as declared conventions? |
+- Q4 | open | round 2 | Class-C width: which comments survive? | User pushback on "why-comments" as a survival category: rationale should live in context/git history/understanding, not lengthy justification comments. Terse-constraint refinement proposed in round 3 — awaiting confirm.
+- Q5 | answered | round 2 | Should the skill flag MISSING comments? | No. Treats existing comments/expressiveness only.
+- Q6 | answered | round 2 | One skill vs two components? | One skill hosting the explicit three-way triage (delete / refactor-then-delete / keep).
+- Q7 | answered | round 2 | Mode: applies edits vs read-only? | Applies edits, safety gradient: class-A deletes near-mechanical; class-B refactors only with a test/lint safety net, else proposed not applied.
+- Q8 | answered | round 2 | Default run scope? | Uncommitted/diff-scoped default; explicit file/dir target optional.
+- Q9 | answered | round 2 | Naming approach? | Run /naming:name-it-better once scope locks; user criteria (semantically correct, explicit over implicit) as declared conventions.
+- Q10 | open | round 3 | Doc-comment fence: are public-API docstrings/XML-docs exempt; are private docstrings triaged like comments? |
+- Q11 | open | round 3 | Ecosystem exclusions: any language/file-type the skill must not touch (markdown excluded by default)? |
+
+## Resolved (round 2, 2026-08-17)
+
+Q5–Q9 locked per user ("go with your recommendations"; Q5 explicit No). Q4 held open on
+user nuance: comments must not carry lengthy justification; rationale belongs to
+context/git history; terse constraint comments acceptable. Round 3 asks Q4-revised + Q10 + Q11.
 
 ## Decision tree (`me` mode)
 
