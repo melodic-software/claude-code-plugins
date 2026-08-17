@@ -4,6 +4,16 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.2.0 — 2026-08-17
+
+Third adopter tabled (`ai-slop:audit`), with its twelve rules admitted to the crosswalk. Minor
+under this contract's own rule: a new adopter row and additive crosswalk rows, no obligation
+changed. One additive clarification rides along: the flat-map paragraph now says explicitly that
+a tier spread sourced from the RULES (each row arguing which claim its rule makes) is admitted —
+what stays forbidden is a spread sourced from a finding's prose. `ai-slop:audit` is the first
+producer to use it (ten SUGGESTION style rules, two IMPORTANT generation-residue rules) and the
+first whose persist is default-on for repo-examining runs rather than opt-in.
+
 ## 2.1.0 — 2026-08-15
 
 Second adopter tabled, with its rules admitted to the crosswalk (#2684). Minor under this

@@ -4,6 +4,13 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.5.0 — 2026-08-17
+
+New adopter row: the `ai-slop` tell catalog's revision-pinned record over Wikipedia's
+"Signs of AI writing" page, with a recurring recheck trigger (each `ai-slop` release and each
+fleet audit) and a recorded fetch-gap note the trigger covers. Additive; minor under this
+contract's own rule.
+
 ## 1.4.0 — 2026-08-12
 
 Closes the **adoption** gap rather than a design one: the contract already owned verification
