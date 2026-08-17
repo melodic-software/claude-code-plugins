@@ -95,10 +95,44 @@ context-guard reader-contract drift are filed as their own items. Filed:
 [#2972](https://github.com/melodic-software/claude-code-plugins/issues/2972),
 [#2973](https://github.com/melodic-software/claude-code-plugins/issues/2973).
 
-## Lanes 3 through 5
+## Lane 3: compaction doctrine (issue #2901, decided 2026-08-17)
 
-Rows land here as each lane closes: compaction doctrine (#2901), plan mode (#2902), and
-interview parity (#2903).
+Basis: the merged Compaction and Auto-Compaction lessons (source:
+`docs/topics/pocock-course-lanes/lessons/03-compaction-and-auto-compaction.md`), graded against
+the verified harness verdicts C1-C6 in the contract's table, the context-guard evidence-degraded
+marker and reader contract, and the handoff skill's fork-beats-compaction doctrine. Register
+Q24-Q29; answers locked under the user's standing acceptance of this session's recommendations
+(register provenance in the topic ledger).
+
+| Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
+|---|---|---|---|
+| Past the smart zone, continuing degrades results slowly; cached tokens are cheaper but the environment is less capable | context-guard zones (smart/acceptable/dumb) + the router's judgment tests | **COVERED** | The operational rule (leave a degraded window) is the zone doctrine; his degradation narrative is bucket-ii material graded against instrumented zone readings plus declared judgment-default bands (A1 baseline), never adopted as numbers. As-of 2026-08-17 |
+| Clearing loses the "why"; re-exploration after a bare clear is lossy | Router Q3 reserves `/clear` for disposable context; the handoff save-point exists to carry the why | **COVERED** (stronger) | His lesson compares only continue/clear/compact; the handoff-file fork he introduces one lesson later beats his own trichotomy for the retain-the-why case, which is exactly our fork-beats-compaction ordering. As-of 2026-08-17 |
+| Compaction "takes the context, squeezes it down, and seeds a fresh session" | No such claim in the family; compact edge documented as same-session | **REJECT** (harness claim) | Verdict C4 REFUTED (two-pool): compaction continues the SAME session over a structured summary; only fork or `--fork-session` makes a new session id. The lesson and its quiz answer ("seeds a fresh session in memory") both carry the refuted mechanics. As-of 2026-08-17 |
+| `/compact [instructions]` steering matters; one sentence is often enough | Router compact edge requires a steering hint naming what the summary must keep | **COVERED** | Verdict C6 CONFIRMED (docs-only, single-pool label carried); parity on the steering discipline, ours phrased as a requirement rather than a tip. As-of 2026-08-17 |
+| You can queue messages during compaction; they run when it finishes | Not taught anywhere in the family | **UNKNOWN** (recorded, not taught) | Verdict C5 UNDOCUMENTED in official docs; adjacent evidence suggests a queue exists but its compaction interaction is unspecified. Q28 decision: record now, do not block the lane on a probe neither cloud session can run; probe sketch retained in the contract. As-of 2026-08-17 |
+| The compaction summary preserves a structured set (intent, spec, concepts, file refs, errors, user messages, pending tasks) | Handoff structure doc is the deliberate-selection counterpart | **COVERED** (observation) | Recorded as an observation of harness output, not doctrine; our position stands: a summarizer keeps what it happens to keep, a handoff carries what was chosen deliberately. As-of 2026-08-17 |
+| Compact-before-QA on finished work is a "cast-iron great" use | PostCompact evidence-degraded marker: a compacted session's effective zone is dumb regardless of numbers | **REJECT** (track-on-event) | Q25: evidence degradation is trigger-independent, the marker's rationale (evidence already gone from the model-visible context) holds for manual and auto alike; his own phase-boundaries lesson routes AFK QA to a subagent, undercutting the case. The marker already records `trigger: manual\|auto\|unknown` (post-compact-mark.sh), so consumer differentiation is buildable; revisit ONLY on real evidence that steered boundary-timed compactions perform well (the recorded trigger field is the observable). As-of 2026-08-17 |
+| Primary source (the session) vs secondary source (the summary); after compaction nothing is retrievable in full | Constraint re-scan reads the lossless on-disk transcript across compaction (handoff structure doc) | **ADOPT terms / REJECT the irrecoverability half** | Q27: the vocabulary (primary/secondary source) goes to lane-6 adoption; the irrecoverability claim is wrong for Claude Code, where the JSONL transcript persists losslessly on disk and only the model-visible context turns secondary. His quiz answer "compaction writes no file" conflates the two. As-of 2026-08-17 |
+| Past the window limit requests error; the harness protects via auto-compact; `/config` shows Auto-compact; `autoCompactWindow` accepts 100,000 to 1,000,000 | Nothing in the family documents this today | **CONFIRMED** (informational) | Verdicts C1-C3 (two-pool incl. the shipped binary schema `min(1e5).max(1e6)`); his 250k example is inside the verified range. UI-surface details recorded as observations. Documentation gap filed: [#2995](https://github.com/melodic-software/claude-code-plugins/issues/2995). As-of 2026-08-17 |
+| Auto-compaction exists in every single agent harness | Out of our governance scope | **NOT RELEVANT** (overbroad) | We govern Claude Code only; recorded without a verdict on other harnesses. As-of 2026-08-17 |
+| Mid-phase compaction loses the thread (style drift, forgotten features); the boundary is the least-damage point | Router restricts `/compact` to phase boundaries only, ordered last, with steering | **COVERED** | Boundary-only compaction is already house doctrine; his mid-phase anecdotes are bucket-ii anchors with named provenance. As-of 2026-08-17 |
+| Auto-compact gives no steering hook; if auto-compact fires something went wrong; the human owns the boundary decision | context-guard instruments the window, renders the continuation menu to the operator only (check I23), optional blocking mode | **ADOPT** (convergent) | Q26: same conclusion, one layer further, instrument the environment and route menus to the human rather than only training the human. Zones-below-trigger guidance and config-surface documentation filed: [#2995](https://github.com/melodic-software/claude-code-plugins/issues/2995). As-of 2026-08-17 |
+
+House decisions recorded alongside the rows (Q24-Q29, 2026-08-17): compact-as-default framing is
+rejected and compact stays the router's last-resort fallthrough with mandatory steering
+(fork-beats-compaction unchanged); no marker carve-out for steered compactions, with the recorded
+trigger field as the track-on-event observable; the auto-compact stance is adopted as convergent
+with one filed docs item ([#2995](https://github.com/melodic-software/claude-code-plugins/issues/2995));
+primary/secondary-source vocabulary routes to lane 6 carrying the transcript-lossless refinement;
+C5 stays recorded-unknown and C6 keeps its single-pool label until an interactive probe runs; the
+vendored Boris doctrine (sections 63-64: compact lossy vs clear-plus-brief, rot reported at
+300k-400k with the 400000 env-var practice) is cited as vendored nuance, aligned with house
+stance, its figures held as named anchors never adopted numbers.
+
+## Lanes 4 through 5
+
+Rows land here as each lane closes: plan mode (#2902) and interview parity (#2903).
 
 ## Coverage index and consolidation
 

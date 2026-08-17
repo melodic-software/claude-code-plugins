@@ -165,8 +165,8 @@ stand" overclaim to match context-guard's own "declared judgment defaults" langu
 |------|-------|--------|-------|
 | 1 handoff | [#2899](https://github.com/melodic-software/claude-code-plugins/issues/2899) | **CLOSED** (`ffb01459`; filed #2955–#2957) | use-case boundaries, purpose argument, expiry, ephemerality |
 | 2 phase boundaries | [#2900](https://github.com/melodic-software/claude-code-plugins/issues/2900) | **CLOSED** (`64fe359e`; filed #2971–#2973) | tree re-audit + context-driven continuation router (build deliverable) |
-| 3 compaction doctrine | [#2901](https://github.com/melodic-software/claude-code-plugins/issues/2901) | **NEXT** (handoff written, unconsumed) | fork-beats-compaction, auto-compact stance, evidence-degraded marker, harness claims |
-| 4 plan-mode | [#2902](https://github.com/melodic-software/claude-code-plugins/issues/2902) | open | asset-rush critique vs interview-first sequencing, lock-mode audit |
+| 3 compaction doctrine | [#2901](https://github.com/melodic-software/claude-code-plugins/issues/2901) | **CLOSED** (filed #2995; Q24–Q30) | fork-beats-compaction, auto-compact stance, evidence-degraded marker, harness claims |
+| 4 plan-mode | [#2902](https://github.com/melodic-software/claude-code-plugins/issues/2902) | **NEXT** | asset-rush critique vs interview-first sequencing, lock-mode audit |
 | 5 grilling parity | [#2903](https://github.com/melodic-software/claude-code-plugins/issues/2903) | open | course-lesson deltas vs planning:interview |
 | 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | open | aihero-course.md consolidation (created by lane 1 per A2), term adoption, SSOT TRACK annotations + row-35 and "private marketplace" corrections, coverage index |
 
