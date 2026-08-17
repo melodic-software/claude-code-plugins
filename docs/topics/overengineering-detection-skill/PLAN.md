@@ -109,7 +109,10 @@ solution, and (behind an explicit gate, with the user) realign to it.
 
 ## Plan
 
-> Status: DRAFT (pending Step 3 stress-test + Step 5 user approval)
+> Status: APPROVED (stress-tested Steps 3+4; user standing authorization 2026-08-17 —
+> "I approve. We can probably do a /handoff and clear, and then run the implementation or
+> implementation dispatch" — plan stays inside the locked Brief, all 9 open-question defaults
+> adopted verbatim)
 > Scale: Medium-Large (new plugin, ~20 new files, 4 shared-surface modifications) — full template.
 > Implementing sessions: the verified discovery corpus lives in
 > `.work/overengineering-detection-skill/` (EXPLORE*.md, RESEARCH*.md) — memory tier, this
