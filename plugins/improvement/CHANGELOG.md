@@ -7,6 +7,33 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 
 ### Added
 
-- **Initial release.** Plugin scaffold and marketplace registration for the `improvement`
-  concern: an evidence-first, cross-dimension improvement finder. The `/improvement:find`
-  skill body, evidence recipes, setup skill, and routine guidance complete this release.
+- **Initial release** of the `improvement` concern: an evidence-first, cross-dimension
+  improvement finder answering "what should we improve here, and how do we know?".
+- **`/improvement:find` skill.** Ranked, evidence-cited candidate list across code/architecture,
+  performance, product behavior, external config/automation, and Claude Code operational setup;
+  evidence ladder with instrument-first rule and recorded evidence gaps; tiered, presence-gated
+  evidence sources (Tier 0 repo-native, Tier 1 `claude-ops:observability`, Tier 2 configured MCP
+  telemetry); interactive pick-interview-handoff flow feeding the planning pipeline;
+  caller-declared unattended mode (persisted report, presence-gated deduped work-item filing
+  under an adaptive prompt-overridable cap); explicit boundaries against `architecture:improve`,
+  `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, and `work-items:scan-todos`.
+- **Evidence recipes** as `context/` leaves: `hotspots.md` (plain-git churn×complexity with
+  history-depth gate and cascade-overridable exclusions), `ci-health.md` (Actions run-window
+  failure/duration/retry analysis with access-path probe ladder), `ranking.md` (WSJF-style
+  scoring, evidence-rung confidence mapping, instrument-first), `unattended.md` (declaration
+  contract, `${CLAUDE_PLUGIN_DATA}` report keying, filing flow, dismissed-candidate memory).
+- **`/improvement:setup` skill.** Fleet-standard `check` (default, read-only) / `apply` actions
+  over the `.claude/improvement.md` config cascade — verifies layer presence and
+  tracked/ignored state, reports the effective evidence-source configuration with per-layer
+  provenance, and interviews before writing the team file.
+- **Config contract at `reference/config.md`** — the single home for the config keys: Tier 2
+  `evidence_sources` MCP declarations, churn window and exclusion patterns, and the three-layer
+  cascade resolution order (`~/.claude/improvement.md` → `.claude/improvement.md` →
+  `.claude/improvement.local.md`) with declared merge semantics.
+- **Evals** for both skills: trigger recognition for a vague prompt, a targeted prompt, and an
+  unattended declaration (`find`); read-only check, interview-before-write, and
+  tracked-config verification (`setup`).
+- **README routine guidance.** Weekly Routine prompt template (the prompt as tuning surface)
+  opening with the fired-environment guard, the cloud-session plugin-availability prerequisite,
+  a GitHub Actions cron alternative via `claude-code-action@v1` with the `plugins:` input, and
+  the note that `/loop` is session-scoped only.

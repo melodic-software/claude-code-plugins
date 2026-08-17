@@ -1,0 +1,45 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-effective-config-read-only",
+      "prompt": "/improvement:setup",
+      "expected_output": "Defaults to the check action: reads every accessible layer of the .claude/improvement.md cascade (user-global, team, local overlay), reports which layers exist and the effective merged configuration (churn window, exclusion patterns, Tier 2 evidence_sources entries) with per-layer provenance, and modifies nothing. All layers absent is reported as INFO (bundled defaults; Tier 2 is an evidence gap), never as a failure. It does not run an improvement scan.",
+      "files": [],
+      "expectations": [
+        "No argument routes to the read-only check action — does NOT error or start writing config",
+        "Reads all three cascade layers it can access and reports which layer supplies each effective value",
+        "Treats a repo with no config in any layer as INFO (valid zero-config state), not FAIL",
+        "Modifies no files and does not run /improvement:find's scan"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-interviews-and-writes-team-file-only",
+      "prompt": "/improvement:setup apply",
+      "expected_output": "Runs the check first, presents the effective merged baseline across layers, drafts defaults from the repo (churn exclusions from generated/build trees, evidence-source candidates from configured MCP servers), then interviews the user one decision at a time before writing. Writes only the team .claude/improvement.md in the reference/config.md file format, never a vendor-specific source the user did not declare, and never the user-global layer or the .local.md overlay.",
+      "files": [],
+      "expectations": [
+        "Reads the effective config across all layers and presents it before proposing changes",
+        "Drafts churn-exclusion and evidence-source candidates from the repo and configured MCP servers before asking",
+        "Interviews with recommendations rather than writing blind; nothing dropped without confirmation",
+        "Writes only the team .claude/improvement.md — never the user-global file or the .local.md overlay",
+        "Does not invent or hardcode a vendor-specific telemetry source the user did not declare"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "verifies-tracked-and-offers-overlay-convention",
+      "prompt": "/improvement:setup apply\n\nJust write a sensible config for this repo — churn defaults are fine, no telemetry sources yet.",
+      "expected_output": "Writes the team .claude/improvement.md with only the confirmed churn keys, states that Tier 2 stays a declared evidence gap, re-runs the check probes including git check-ignore to confirm the file is tracked (not ignored), and offers the recursive .claude/**/*.local.* gitignore line for the personal overlay without editing the consumer's .gitignore itself.",
+      "files": [],
+      "expectations": [
+        "Accepts 'no telemetry sources' as a valid outcome — writes churn keys only and says Tier 2 remains an evidence gap",
+        "Verifies the written team file is tracked, not gitignored, via git check-ignore",
+        "Recommends the recursive .claude/**/*.local.* gitignore line for the overlay",
+        "Does not edit the consumer's .gitignore or write into the plugin/plugin-data directories"
+      ]
+    }
+  ]
+}
