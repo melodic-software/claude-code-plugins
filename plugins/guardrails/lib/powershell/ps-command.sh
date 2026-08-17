@@ -281,6 +281,26 @@ ps::call_target_is_bare_computed() {
 # The SUBEXPRESSION half of the predicate above — `& ('g'+'it') …`, `. (Get-Path)`
 # — with the bare-VARIABLE half (`& $tool …`) deliberately excluded.
 #
+# BOTH SPELLINGS of the subexpression operator are matched: the grouping form
+# `(…)` and the dollar form `$(…)`. They are the same construct — each evaluates
+# an expression into the command name — and PowerShell's about_Operators lists
+# them side by side. Recognizing only `(` let `& $(…)` ENTER the computed-target
+# gate through `ps::call_target_is_bare_computed` (which matches `[.&][[:space:]]*[$(]`,
+# so the `$` admits it) and then match no call site in any measuring probe:
+# `ps::computed_call_has_positional_write_signal` and
+# `ps::computed_call_has_splat_operand` both require a `$name` or `${name}`
+# target, and `$(` is neither. Every arm stayed silent and the command fell
+# through ALLOWED — `& $($w) f.txt x` was waved past while the identical
+# `& ($w) f.txt x` blocked (#2924). Same "gate admits, probes cannot see"
+# mechanism as the braced spelling (#2922), one construct over.
+#
+# The `$` is OPTIONAL, not required, so the paren spelling keeps matching
+# exactly as before; the widened target token only decides where the shape
+# refusal fires, never what it refuses. Unlike the braced-name fix (#2908) there
+# is nothing to consume upstream: `$(` survives backtick deletion, quote
+# blanking, and lowercasing intact, so the evidence is still here and the fix
+# belongs in this predicate rather than in a pre-deletion pass.
+#
 # The split exists because the two halves are NOT equally decidable, and the
 # library already treats them differently everywhere else (#2848). A
 # subexpression ASSEMBLES a command name at run time out of fragments that need
@@ -301,7 +321,11 @@ ps::call_target_is_bare_computed() {
 ps::call_target_is_bare_subexpression() {
   local lc="${1//\`/}"
   lc="${lc,,}"
-  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\( ]]
+  # The `\$` is ESCAPED. An unescaped `$?` in this position is a parameter
+  # expansion of the last exit status, which would silently rewrite the pattern
+  # and stop it matching the paren spelling too — a fail-OPEN on
+  # `& ('Set-'+'Content') f.txt x`, the very shape this predicate exists for.
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\$?\( ]]
 }
 
 # True (0) when a bare computed *variable* call carries a positional write

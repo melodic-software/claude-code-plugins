@@ -786,6 +786,87 @@ run_pwsh "PS: escaped opening brace in a braced call target (blocked — #2908 r
 # shellcheck disable=SC2016
 run_pwsh "PS: escaped closer in a braced call target, single positional (allowed — #2908 review)" \
   '& ${my`}py} script.py' 0
+# DOLLAR-SPELLED SUBEXPRESSION CALL TARGETS. `$( … )` and `( … )` are the same
+# construct — each evaluates an expression into the command name — so they must
+# reach the same verdict. Recognizing only the paren spelling let `& $( … )`
+# ENTER the computed-target gate (ps::call_target_is_bare_computed matches
+# `[.&][[:space:]]*[$(]`, so the `$` admits it) and then match no call site in
+# any measuring probe: both the positional and the splat probe require a `$name`
+# or `${name}` target, and `$(` is neither. Every arm stayed silent and the
+# command fell through ALLOWED, so `& $($w) f.txt x` — a working
+# Set-Content Path+Value — was waved past while `& ($w) f.txt x` blocked
+# (#2924). Same "gate admits, probes cannot see" mechanism as the braced
+# spelling above. Each row is PAIRED with its paren twin so the two spellings
+# are pinned to one verdict and cannot drift apart again.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target, positional Path+Value (blocked — #2924)" \
+  "& \$(\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the row above (blocked — same construct)" \
+  "& (\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target, splat (blocked — #2924)" \
+  "& \$(\$w) @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the splat row above (blocked — same construct)" \
+  "& (\$w) @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() dot-source target (blocked — #2924)" \
+  ". \$(\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the dot-source row above (blocked — same construct)" \
+  ". (\$w) f.txt x" 2
+# No space between the call operator and the subexpression, and extra space —
+# the operator prefix already allows both, so these pin that widening the target
+# token did not disturb it.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target glued to the call operator (blocked — #2924)" \
+  "&\$(\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target after extra whitespace (blocked — #2924)" \
+  "&   \$(\$w) f.txt x" 2
+# Nested and member-access spellings of the same computed target.
+# shellcheck disable=SC2016
+run_pwsh "PS: nested \$(\$()) call target (blocked — #2924)" \
+  "& \$(\$(\$w)) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target wrapping a call operator (blocked — #2924)" \
+  "& \$(& \$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$().Member call target (blocked — #2924)" \
+  "& \$(Get-Command x).Source f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the member row above (blocked — same construct)" \
+  "& (Get-Command x).Source f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target holding a braced reference (blocked — #2924)" \
+  "& \$(\${env:w}) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target with a scoped variable (blocked — #2924)" \
+  "& \$(\$script:w) f.txt x" 2
+# A SUBEXPRESSION target is refused BY SHAPE — regardless of its operands — so a
+# single-positional interpreter call spelled this way blocks too. That is not the
+# grouping-as-write-signal over-block #2848 removed: #2848 dropped grouping
+# ANYWHERE ELSE in the command as a signal and deliberately KEPT the
+# target-is-subexpression arm, which is why the paren twin below has always
+# blocked and still does. The two spellings agreeing is the invariant; allowing
+# the dollar one would be a new instance of the same defect one construct over.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target, single positional (blocked by shape — #2924)" \
+  "& \$(\$py) script.py" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the row above (blocked by shape, unchanged)" \
+  "& (\$py) script.py" 2
+# The literal-assembly shape the subexpression arm exists for, in both spellings.
+# It is also the tripwire for the escaped `\$` in the predicate: an unescaped
+# `\$?` would expand to the last exit status and silently stop matching the paren
+# spelling, a fail-OPEN on exactly this row.
+# shellcheck disable=SC2016
+run_pwsh "PS: assembled writer name in parens (blocked — pre-existing)" \
+  "& ('Set-'+'Content') f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assembled writer name in a \$() subexpression (blocked — #2924)" \
+  "& \$('Set-'+'Content') f.txt x" 2
 # DECOY BRACES. Scoping a call's operands by truncating at the first `}` assumed
 # no `}` can appear inside the call's OWN operands before a token of interest —
 # false for `${scope:name}`, a `{…}` script block, and a `@{…}` hashtable literal.
