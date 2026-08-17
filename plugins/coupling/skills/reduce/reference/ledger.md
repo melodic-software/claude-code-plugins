@@ -1,9 +1,11 @@
 # The coupling ledger
 
 The durable artifact that makes runs iterative. Location resolves through this plugin's
-topic-docs binding (`../../../reference/topic-docs.md`): memory tier, default
-`.work/<topic-slug>/coupling-ledger.md`, never committed. One file per topic slice, updated
-in place — statuses inside it, not filenames, carry run-to-run history.
+topic-docs binding (`../../../reference/topic-docs.md`): memory tier, constant slug, default
+`.work/coupling/coupling-ledger.md`, never committed. One ledger per repository — scoped
+runs, unscoped runs, and `status` all resolve this same file, with each run's scope recorded
+in the header and each entry carrying its own paths — updated in place: statuses inside it,
+not filenames or per-scope slices, carry run-to-run history.
 
 ## File shape
 

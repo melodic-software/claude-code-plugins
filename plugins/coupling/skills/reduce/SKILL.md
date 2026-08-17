@@ -71,8 +71,9 @@ Phases run in order; each gate is hard. `dry-run` stops after D (ledger write in
 
 **A. Orient.** Resolve scope from the argument, else infer from the conversation, else pick
 the hottest area by commit frequency. Resolve the ledger path per this plugin's topic-docs
-[binding](../../reference/topic-docs.md) — memory tier, default
-`.work/<topic-slug>/coupling-ledger.md` — and create or resume it. Discover the consuming repo's
+[binding](../../reference/topic-docs.md) — memory tier, constant slug, default
+`.work/coupling/coupling-ledger.md`, one ledger per repo regardless of scope — and create or
+resume it. Discover the consuming repo's
 own review/engineering conventions (a review-criteria file such as `REVIEW.md`, a
 `docs/conventions/` or standards directory, CLAUDE.md rules) and align finding vocabulary and
 severity with them; the bundled model is the fallback, never an override of the consumer's
@@ -97,13 +98,19 @@ cross-file in remediation or architectural in judgment is route lane — when in
 Rank by `strength × degree × distance × volatility`; a weak-but-everywhere coupling on a hot
 path outranks a strong-but-local one in cold code. Write the full ranked set to the ledger.
 
-**E. Apply (apply lane only, scope-budgeted).** Work on a short-lived branch named per the
-repo's own branch convention — never directly on the default branch. Budget per run: target
-≤200 changed lines across ≤8 files, hard cap 400/15; overflow stays `proposed` in the ledger
-for the next run. Use the Edit tool; one atomic commit per logical reduction; stage listed
-paths only. Never touch CI workflow files, hook or settings surfaces, lint configs, database
-migrations, or any published contract surface (API shapes, message schemas, tool schemas) —
-those are route lane by definition.
+**E. Apply (apply lane only, scope-budgeted).** Work on a short-lived branch created from
+the repository's default branch — resolve that branch (remote HEAD or the repo's own
+convention), never assume its name, and never base the batch on whatever feature branch the
+session happens to be on: inherited unrelated commits would break the structure-only
+invariant. Never commit directly on the default branch. Before editing any target, require
+it clean in `git status --porcelain`; a target carrying pre-existing local modifications
+defers its finding with the reason recorded — foreign edits are never mixed into the batch.
+Budget per run: target ≤200 changed lines across ≤8 files, hard cap 400/15; overflow stays
+`proposed` in the ledger for the next run. Use the Edit tool; one atomic commit per logical
+reduction; stage listed paths only and inspect the staged diff before each commit. Never
+touch CI workflow files, hook or settings surfaces, lint configs, database migrations, or
+any published contract surface (API shapes, message schemas, tool schemas) — those are route
+lane by definition.
 
 **F. Verify the batch.** Invoke `/toolchain:check` via the Skill tool for the affected
 ecosystems when the `toolchain` plugin is installed; otherwise run the consuming project's

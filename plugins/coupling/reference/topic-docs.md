@@ -22,11 +22,13 @@ file per run: statuses inside it, not filenames, carry run-to-run history.
 
 ## Slug derivation
 
-Delta from the contract's precedence: an explicit scope argument (slugified per the
-contract's form rules) → the constant `coupling`. The branch-name rung is deliberately not
-used — coupling reduction is repo-scoped and spans many short-lived branches, and a
-branch-derived slug would fragment the one ledger successive runs must resume. Form and
-collision rules are the contract's.
+Delta from the contract's precedence: the slug is the constant `coupling`, always — scoped
+and unscoped runs, and the `status` action, all resolve the same slice. Neither the
+explicit-argument rung nor the branch-name rung is used: coupling reduction is repo-scoped
+and spans many scopes and short-lived branches, and a scope- or branch-derived slug would
+fragment the one ledger successive runs must resume (a `status` call could then never find a
+scoped run's backlog). A run's scope is recorded inside the ledger — in the file header and
+per entry — not in the path. Form and collision rules are the contract's.
 
 ## Guards
 
