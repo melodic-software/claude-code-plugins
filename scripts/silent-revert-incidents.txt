@@ -172,12 +172,13 @@ marker cc58cbc53fbbb2cca68e071507b82d3e3ff896ff plugins/repo-fleet-hygiene/skill
 # started taxing normal development.
 clean 9a2307c431ad22b2e8f758976109bf4e59010d6b feat(songwriting) rewrote 195 lines of research text #2183 had just restored
 
-# The previously pinned closest miss, kept as a second guard one step further
-# from the edge: no fewer than 136 lines (the same #2880 floor), 109 of them
-# the persist-findings context doc that #2715 (merge commit 6370a44e7) had
-# just added, rewritten 26 minutes later by #2737's crosswalk hardening. An
-# earlier version of this row credited the content to #2679, which is a closed
-# issue in this repo, not a pull request; the commit's own body names the work
-# it builds on ("Builds on merged #2715 → #2692 → #2690; rebased onto `main`")
-# and the blamed lines trace to #2715's merge commit.
+# The previously pinned closest miss, kept as a second verified-quiet guard --
+# four other corpus commits score between it and the row above: no fewer than
+# 136 lines (the same #2880 floor), 109 of them the persist-findings context
+# doc that #2715 (squash commit 6370a44e7) had just added, rewritten 26
+# minutes later by #2737's crosswalk hardening. An earlier version of this row
+# credited the content to #2679, which is a closed issue in this repo, not a
+# pull request; the commit's own body names the work it builds on ("Builds on
+# merged #2715 → #2692 → #2690; rebased onto `main`") and the blamed lines
+# trace to the commit that landed #2715.
 clean c8470efd09d78d924a962483ff8a0b7809180e11 docs(conventions) rewrote 136 lines of a doc #2715 had just added
