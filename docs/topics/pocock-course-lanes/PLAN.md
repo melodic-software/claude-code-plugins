@@ -73,14 +73,16 @@ contract uses; audit fix 2026-08-17):
 - **Cloud durability**: decisions are promoted into committed-and-pushed artifacts (this file,
   the provenance doc, tracker items) the moment they lock; `.work/` is a per-session cache and
   is never load-bearing.
-- **PUBLIC-REPO content boundary (added 2026-08-17):** this repository is PUBLIC (verified via
-  the repo listing; note the v1.2 map's "Claude-only private marketplace" line is stale — a
-  lane-6 bookkeeping correction). Course lesson text is paid content and must NEVER be
-  committed: lesson sources live only in the memory tier
-  (`.work/pocock-course-lanes/lessons/01`–`05`, numbered by lane run order; lane 6 harvests and
-  has no single lesson). If the slice is gone when a lane opens, ask the user to re-paste that
-  lane's lesson — never fetch-and-commit it. Provenance rows in `aihero-course.md` PARAPHRASE
-  and cite lesson claims; they never reproduce lesson content wholesale.
+- **Lesson-source handling (amended 2026-08-17, user decision):** this repository is PUBLIC
+  (the v1.2 map's "Claude-only private marketplace" line is stale — a lane-6 bookkeeping
+  correction). The user reviewed the flag and authorized committing the lesson texts — they are
+  framing around his MIT-licensed public skills — so the sources live TRACKED at
+  `docs/topics/pocock-course-lanes/lessons/01`–`05` (numbered by lane run order; lane 6
+  harvests and has no single lesson), attributed to aihero.dev in each header, durable across
+  containers for the life of the effort, and PRUNED with the topic slice in the final PR (the
+  contract-slice-prune-gate enforces this), so they never merge to the default branch.
+  Provenance rows in `aihero-course.md` still paraphrase and cite rather than reproduce —
+  that doc is durable-tier and permanent.
 
 ### Acceptance criteria
 
