@@ -1038,11 +1038,33 @@ run_pwsh "PS: unspaced assignment of a plain cmdlet (allowed — #2984 guard)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: unspaced assignment of an env var to itself (allowed — #2984 guard)" \
   "\$env:PATH=\$env:PATH" 0
-# A `=`-glued launcher TOKEN that is not in command position: `core.pager=cmd`
-# is a git config value, not a launched shell. The class admits `=` as a
-# separator, so this is the shape most at risk of a false trigger.
-run_pwsh "PS: launcher token as a git -c config VALUE (allowed — #2984 guard)" \
-  "git -c core.pager=cmd log --oneline -n 1" 0
+# A `=`-glued launcher TOKEN that is not in command position — `core.pager=cmd`
+# is a git config value, not a launched shell — is the shape most at risk of a
+# false trigger, and it DOES now fail closed. That is parity, not new friction:
+# the identical collision already blocked on the pre-fix base under every OTHER
+# separator, and only the `=`-glued spelling did not:
+#
+#   git -c core.pager= cmd log --oneline -n 1   2   (space separator)
+#   git log --grep=" cmd "                      2   (space separator)
+#   git log --grep="|cmd "                      2   (pipe separator)
+#   git -c core.pager=cmd log --oneline -n 1    0   <- the lone hole
+#
+# It is also the safe direction on its merits: this file's own
+# ps::git_command_is_readonly note names `-c core.pager=./x` as a spelling that
+# turns a read-only `git log` into arbitrary local execution, so refusing to
+# treat it as read-only is what the sink is for.
+run_pwsh "PS: launcher token as a git -c config VALUE (fail-closed block — #2984 parity)" \
+  "git -c core.pager=cmd log --oneline -n 1" 2
+# The benign neighbours in that same shape carry no launcher token and stay
+# allowed, so the trigger is the launcher word and not the `=` itself.
+run_pwsh "PS: non-launcher git -c config value (allowed — #2984 guard)" \
+  "git -c core.pager=cat log --oneline -n 1" 0
+run_pwsh "PS: plain read-only git is untouched (allowed — #2984 guard)" \
+  "git log --oneline -n 5" 0
+# A `=`-glued launcher token with NO git anywhere: the sink is entered but
+# ps::might_invoke_git proves it git-free, so it is allowed rather than blocked.
+run_pwsh "PS: =-glued launcher token with no git token (allowed — #2984 guard)" \
+  "Write-Output x=cmd y" 0
 # A dot-source separator is `.` followed by a QUOTE. A decimal literal and a
 # property access after `=` carry no quote, so neither trips the widened class.
 # shellcheck disable=SC2016
