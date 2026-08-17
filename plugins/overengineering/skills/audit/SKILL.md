@@ -16,9 +16,14 @@ metadata:
 
 ## Purpose
 
-Walk this repository's enforcement surface and report which mechanisms still earn their carry cost.
-The posture is the inverse of a gap audit: every incumbent is a retirement candidate until evidence
-earns its keep, and silence is not evidence in either direction.
+Walk the enforcement surface that governs work in this repository and report which mechanisms still
+earn their carry cost. The posture is the inverse of a gap audit: every incumbent is a retirement
+candidate until evidence earns its keep, and silence is not evidence in either direction.
+
+**The surface is everything that governs work here, wherever it is registered** — settings scopes the
+harness merges from outside the tree (user, machine, organization level) and forge controls living in
+a control plane included. Such an item is audited like any other; what changes is only the
+remediation, which is out-of-repo custody's delegation (§12). Out-of-repo is never a reason to skip.
 
 The method is **not restated here.** Read `${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` before
 judging anything and cite its sections in the findings — the verdict ladder (§6), the evidence tiers
@@ -27,6 +32,11 @@ classes and their cap (§7), UNPROVEN triage (§8), the analogical thresholds (�
 (§10), the rollback ladder (§11), and ownership (§12). A paraphrase of any of those in a finding is a
 drift seed; a pointer is not. Every bare `§N` in this skill and its context files is a section of
 that one document.
+
+**Two doc roots, different directories.** Shared docs sit at the plugin root
+(`${CLAUDE_PLUGIN_ROOT}/context/…`, `${CLAUDE_PLUGIN_ROOT}/reference/…`); this skill's lane docs sit
+under `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/…` and are linked relatively below, with their
+plugin-relative path as the link text — resolving one against the plugin root lands on nothing.
 
 ## Read-only contract
 
@@ -37,8 +47,17 @@ fix in a file it happened to read.
 The one write it performs is the **findings artifact**, at the memory-tier home resolved through
 `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. That write *is* the deliverable, and the memory tier
 is a machine-local, self-ignored scratch root outside the repository's tracked content — writing
-there is not a mutation of the repo. State this in the run's opening line rather than leaving it to
-be inferred: *"Read-only pass; the only file written is the findings artifact at `<resolved path>`."*
+there is not a mutation of the repo. State this rather than leaving it to be inferred:
+*"Read-only pass; the only file written is the findings artifact at `<resolved path>`."* That path
+exists only once the home is resolved, so the line is emitted **immediately after that resolution** —
+step 1 of "Before the walk" — and before any layer is walked.
+
+**Writing the artifact from a delegated run.** Some harnesses refuse a report-shaped filename from a
+delegated or dispatched executor — the `unattended` caller below is exactly that. The sanctioned
+route is the file-write tool: write the full content to a neutral filename in the artifact's own
+directory, then rename it to the contract's filename. **A shell content-write is never acceptable** —
+it routes the deliverable around the write path the harness governs, and quoting, expansion, and
+encoding silently transform what it carries. Where neither route is available, say so and stop.
 
 Executing what a finding recommends belongs to `overengineering:realign`, behind an explicit per-item
 human gate. Name it as the next step; never start it unasked.
@@ -64,15 +83,16 @@ Parse `$ARGUMENTS`:
 
 ## Before the walk
 
-1. **Resolve consumer configuration** — protected categories, threshold overrides, the observation
+1. **Resolve the artifact home** by running the whole rung order in
+   `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md` — resolve it, never assume the documented
+   default's shape. A hardcoded path writes where `realign` never looks. **Then emit the read-only
+   opening line**, naming the path just resolved.
+2. **Resolve consumer configuration** — protected categories, threshold overrides, the observation
    window, and suppression entries — from the consuming repo's `.claude/overengineering.md` through
    the config-cascade layering. Keys, defaults, per-key merge forms, and which layer may weaken what
    are owned by `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`. All layers absent is a valid
    state: the bundled defaults apply and the run says so. When a personal layer materially shapes
    output, name the contributing layer in the report.
-2. **Resolve the artifact home** by running the whole rung order in
-   `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md` — resolve it, never assume the documented
-   default's shape. A hardcoded path writes where `realign` never looks.
 3. **Load the prior artifact** if one is there, and hold its statuses for carry-forward. This skill
    writes `Status: OPEN` on a finding it has not seen and carries every other status forward
    verbatim; it never advances, downgrades, or clears one.
@@ -84,10 +104,10 @@ Parse `$ARGUMENTS`:
 
 ## The walk
 
-[context/surface-walk.md](context/surface-walk.md) carries the layer-by-layer walk in the artifact's
-enum order, with each layer's discovery probes and evidence sources, the custody and shallow-clone
-reads, the CI-lane granularity rule, and the per-layer incremental write. Read it at the start of the
-walk, not per layer.
+[skills/audit/context/surface-walk.md](context/surface-walk.md) carries the layer-by-layer walk in
+the artifact's enum order, with each layer's discovery probes and evidence sources, the custody and
+shallow-clone reads, the aggregating-container granularity rule, and the per-layer incremental write.
+Read it at the start of the walk, not per layer.
 
 Two properties of the walk matter enough to state here:
 
@@ -159,10 +179,10 @@ the consumer maintains, a documented upstream. Where custody is upstream, remedi
 
 ## The report
 
-[context/report-template.md](context/report-template.md) owns the output shape: the findings artifact
-as the single source of truth, an inline terminal summary always, and a rendered HTML view only as a
-presence-gated extra. Field-level contents, ids, ordering, the spine/prose split, and merge semantics
-belong to `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`.
+[skills/audit/context/report-template.md](context/report-template.md) owns the output shape: the
+findings artifact as the single source of truth, an inline terminal summary always, and a rendered
+HTML view only as a presence-gated extra. Field-level contents, ids, ordering, the spine/prose split,
+and merge semantics belong to `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`.
 
 ## Gotchas
 

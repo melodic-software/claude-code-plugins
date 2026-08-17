@@ -138,8 +138,8 @@ Constituents, and nothing else:
 | Constituent | Value for this producer |
 |---|---|
 | `check` | `overengineering/audit/rule-<layer>` — lowercase `[a-z0-9-]` per segment, the layer taken from the enum above. |
-| `claim` | `enforcement-item` for an ordinary finding; `enforcement-item(member=<name>)` where an aggregating lane carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
-| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, `[<container>, <member>]` for a sub-member. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site, not one plus a footnote. |
+| `claim` | `enforcement-item` for an ordinary finding; `enforcement-item(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
+| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, `[<container>, <member>]` for a sub-member. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
 
 The id is `sha256` over the `US`-joined `[check, claim, *flattened canonically-sorted sites]`,
 truncated to 16 hex — the convention owns that computation and this document does not re-derive it.
@@ -147,6 +147,19 @@ truncated to 16 hex — the convention owns that computation and this document d
 **Deliberately excluded from the constituents: the verdict, the evidence, the status, and every
 prose field.** They are recomputed every run. An id that moved when a verdict moved would break
 carry-forward by construction, which is the one property the whole contract exists to provide.
+
+**Cross-artifact findings: the id binds every site; the body names every site.** The spine's
+`Artifact` field is single-line by contract and carries the finding's **primary subject** — the one
+path or identifier it is filed under and sorts by. It is not the site list and cannot be, because
+identity lives in the `sites` constituents above. A finding about more than one artifact therefore
+names **every** site in its body, saying what each one contributes, rather than one site plus a
+footnote.
+
+**Kind prefixes for items with no path in this repo.** `protection:<rule-name>`, `app:<name>`,
+`integration:<name>`, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
+the repo tree, such as a user- or machine-scope settings file that registers a mechanism governing
+work here. The prefix set is closed here and is the same set a `sites` `surface` draws from; a new
+one is added to this list, never coined per run, or two runs derive two different ids for one item.
 
 **Renames are honest, not smoothed.** Renaming an artifact changes its site and therefore its id:
 the old finding closes and a new one opens. Record the rename in `## Closed since last run`, naming
@@ -187,19 +200,54 @@ The split is a contract, not a formatting preference, and it exists for two cons
 Two rules keep the spine extractable: a spine value never contains a newline, and a spine value is
 never a sentence. Anything that wants to be a sentence is prose and belongs below the spine.
 
+## Aggregating containers — the container is the finding
+
+Where an item aggregates independent members — a hooks manifest registering several entries, a lane
+whose own definition carries its member list — **the container is the finding**: one spine row, one
+container verdict, one id. Members are deliberately **not** spine rows. Promoting them would make
+the container's own judgment unlocatable, and it would put two grains of thing in one sort order.
+
+*When* per-member reporting is warranted is a question about the lane's item inventory and belongs
+to the lane's own walk document. This section owns only the shape it takes in the artifact.
+
+Member verdicts must stay extractable, so they are **line-formatted inside the container's body**,
+under a `**Members (<n>):**` label, one entry per member:
+
+```markdown
+**Members (2):**
+
+- `<member-id>` `<member-name>` — **<VERDICT>** — <prose, wrapping freely below>
+- `<member-id>` `<member-name>` — **<VERDICT>** — <prose, wrapping freely below>
+```
+
+The three fixed constituents — id, name, verdict — lead the entry in that order and stay on its
+first physical line; everything after the second em dash is prose. A member id derives from the same
+rule as every other id, with `claim` = `enforcement-item(member=<name>)` and its site anchored at
+`[<container>, <member>]`, so a suppression or a realignment can key on a member without keying on
+the container.
+
+**A member's verdict is its own.** The container's spine verdict judges the aggregating surface as a
+whole; it neither overrides a member's verdict nor is computed from them.
+
+**What the cross-run diff covers.** The documented spine diff compares **container spines** — that
+is what the spine's line format guarantees, and it is unaffected by how many members a container
+carries. Member lines are comparable **within a finding**: same container id, members matched by
+member id, read for a changed verdict token. A run reporting member verdicts states how many, so a
+reader can never mistake a member count for a finding count.
+
 ## Per-finding fields
 
 | Field | Spine | Required | Content |
 |---|---|---|---|
 | `Layer` | yes | always | One enum value. |
-| `Artifact` | yes | always | Repo-relative path; or, for an item with no path, a kind-prefixed stable identifier (`protection:<rule-name>`, `app:<name>`, `integration:<name>`) so it cannot collide with a path. |
+| `Artifact` | yes | always | Repo-relative path; or, for an item with no path in this repo, a kind-prefixed stable identifier from the closed set under "Finding ids" so it cannot collide with a path. On a multi-site finding this is the primary subject only, and the body names every site. |
 | `Verdict` | yes | always | One of the six tokens. Argued per `context/scrutiny-method.md` §6. |
 | `Status` | yes | always | One vocabulary value (below). Written `OPEN` by the audit on a new finding; otherwise carried forward. |
 | `Protected` | no | when a protected class matched | Which class and which pattern matched; whether the cap was applied; and, when it was, the retirement-direction verdict it would otherwise have been. |
 | `Evidence` | no | always | At least one empirical citation with its tier (`scrutiny-method` §2), or `UNPROVEN` naming the tier consulted and whether it was **silent** or **unavailable**. Doc-only support is marked `unverified`. |
 | `Liveness` | no | always | Three independently-answered lines — source posture, wiring, runtime enforcement — each naming what was actually read. An unread question is recorded as unread, never inferred. |
 | `Intent` | no | always | The reconstruction and its confidence; `OPEN-INTENT` where the run was unattended and confidence was low. |
-| `Rediscovery` | no | always | The simplest adequate re-solution, native-first, with the tech-drift check and its date. |
+| `Rediscovery` | no | always | The simplest adequate re-solution, native-first, with the tech-drift check and its date — or one of the two sanctioned dispositions below. |
 | `Cost` | no | always | Removal, refactor, and testing cost as it entered the verdict. |
 | `Owner` | no | always | The resolved owner, or `operator (last resort)`, with the authorship evidence that resolved it. |
 | `Threshold` | no | when one was applied | Which threshold row fired, its source, and its analogical label carried verbatim. A threshold cited without its label is a contract violation, not a style slip. |
@@ -207,6 +255,34 @@ never a sentence. Anything that wants to be a sentence is prose and belongs belo
 | `Delegation` | no | `DELEGATED-EXTERNAL` only | The pointer to the delegation artifact. |
 | `Ablation` | no | `ABLATION-*` only | Rung reached, window length, window end date, and the durable pointer. |
 | `Judgment` | no | when one was persisted | The suppression entry id and the layer it was written to. |
+
+**The audit perturbs the telemetry it reads.** Writing this artifact fires the very recorders whose
+rows the run is reading, so a tier-1 window read late in a run contains the run itself. Two
+obligations follow: **bound the tier-1 read window at walk start** and state the bound, so no
+verdict's evidence grows underneath it; and where rows are attributable to the audit run itself,
+**exclude them and say so** — how many, and on what attribution. Self-generated rows admitted as
+evidence would let an audit prove a mechanism live by auditing it.
+
+**`OPEN-INTENT` is an `Intent` value and never a `Status`.** The status vocabulary below is closed
+and does not contain it, so a finding is never "status OPEN-INTENT". A report's *count of
+OPEN-INTENT rows* counts **findings** whose `Intent` is `OPEN-INTENT`; a run that also counts
+members says so explicitly and reports the two numbers separately.
+
+**Rediscovery without a live drift check.** `scrutiny-method` §5 requires the tech-drift check to be
+dated rather than remembered; it does not require one *per item*, and per-item checks across a large
+surface are both unaffordable and, for some items, meaningless. Two dispositions are sanctioned, and
+each is written into the field in these words:
+
+- `Deferred — no tech-drift check claimed` — a re-solution is stated, but no current-documentation
+  check was made this run. Nothing else in the finding may then read as though one was.
+- `Not applicable — <reason>` — no re-solution is this run's to make: custody is upstream (§12), or
+  liveness is unread, so there is no reconstructed problem to re-solve yet.
+
+**Batch the drift check per lane or per class rather than per item.** One dated check against the
+platform's current documentation covers every item that would be re-solved against the same native
+mechanism, and each of those findings cites that one check with its date. Twenty items sharing one
+native answer do not need twenty fetches, and pretending they do is what makes the field get skipped
+in silence instead of dispositioned in the open.
 
 ## Status vocabulary
 
@@ -266,6 +342,15 @@ each finding:
    An `ACCEPTED` finding whose verdict recomputed to `KEEP`, or a `REJECTED` one that recomputed to
    `RETIRE`, is flagged for the operator: the evidence moved under a decision they already made, and
    that is precisely what they need to see.
+6. **The spine is authoritative over the prior artifact's own prose.** Only the fields in rule 1 are
+   carried; a prior run's summary, counts, and narrative are **recomputed from the spine actually
+   written this run** and never inherited. A prior summary that contradicts its own spine is a
+   miscount, not a second source — recompute it and say nothing more about it.
+7. **Prior-artifact prose claims about status are not authoritative; the `Status` spine lines are.**
+   A sentence elsewhere in the file asserting that something was accepted, rejected, or already
+   realigned carries no weight against the spine line for that id. Where the two disagree, the spine
+   wins and the disagreement is reported, because one of them was written by a judgment and the
+   other by a narrator.
 
 The carry-forward rule is why operator judgments are never wiped and re-reported. Re-reporting a
 judged finding forever is the noisy-repeat failure the finding-suppression convention exists to

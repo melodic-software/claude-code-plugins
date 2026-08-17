@@ -21,7 +21,7 @@ proceeds, rather than needing a re-sort at the end.
 | Repository presence | `git rev-parse --show-toplevel` | No checkout means nothing to audit; stop before any write |
 | **Shallow clone** | `git rev-parse --is-shallow-repository` | `true` makes evidence **tier 2 unavailable**, not silent |
 | History depth | `git log --oneline \| wc -l`, and the date of the first commit | Whether history is deep enough to answer "what did this catch" at all |
-| Telemetry sink | Any run-record, log, or metrics location the consumer's own configuration or docs declare | Whether tier 1 exists in this consumer at all |
+| Telemetry sink | Any run-record, log, or metrics location the consumer's own configuration or docs declare | Whether tier 1 exists in this consumer at all — **bound the tier-1 read window here**, at walk start, per the artifact contract's self-perturbation rule |
 | Incident corpus | Whatever the consumer declares as its incident, post-incident, or decision record | Whether tier 3 exists |
 | Custody | Sync manifests, vendor directories, code-owners entries, "generated / managed — do not edit" headers the consumer maintains, references to shared or centrally-owned workflow definitions | Which items are upstream-owned, so remediation is a delegation (§12) rather than an in-repo edit |
 
@@ -39,7 +39,9 @@ like a fully-judged one.
 For each layer in enum order, for each item found:
 
 1. **Identify.** A repo-relative path where one exists; otherwise a kind-prefixed stable identifier
-   (`protection:<rule-name>`, `app:<name>`, `integration:<name>`) so it cannot collide with a path.
+   from the closed prefix set the artifact contract fixes (`protection:`, `app:`, `integration:`,
+   and `settings:` for a registration surface outside the repo tree) so it cannot collide with a
+   path.
 2. **Classify.** Protected category (§7, plus the consumer's configured set)? Intentionally dormant
    (§7)? And its **surface type** — does exercising this item leave a record at all (§5)? Classify
    before reading counts, so a zero is interpreted rather than measured.
@@ -55,6 +57,34 @@ For each layer in enum order, for each item found:
    recorded — the cap never removes evidence from the finding.
 8. **Owner** (§12).
 9. **Write the finding** into the artifact.
+
+## Granularity — aggregating containers, in every layer
+
+An **aggregating container** is an item whose own definition carries a list of independent members: a
+hooks manifest registering several entries, a settings scope registering several mechanisms, a lane
+whose script or definition names the checks it runs. The rule is cross-layer — stated once here, and
+pointed at from the layers where it fires.
+
+- **Container-level by default.** The container is the item, the finding, and the spine row, with its
+  members' scripts and any suppression or baseline files cited as its evidence.
+- **Per-member sub-verdicts where the member list is mechanical evidence** — that is, where the
+  container's *own* definition carries the list. Mechanical, never judgmental. Without them a single
+  verdict cannot express "retire member A, keep member B", and clutter concentrates in exactly the
+  containers whose members were added one at a time.
+- **Never synthesize a member list from reading behavior.** Where the composition is not mechanically
+  readable, the container keeps one verdict and the finding says why.
+- Either way the container stays **one spine row with one verdict**; members are line-formatted
+  entries inside its body, in the shape `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` fixes
+  under "Aggregating containers", with the member claim and anchor it owns.
+
+**The item unit is pinned per layer, not chosen per run.** The unit is part of identity: a different
+container derives different ids, and every judgment an operator recorded against the old unit is
+orphaned without a word.
+
+| Layer | Container — the item, the finding, the spine row | Members |
+|---|---|---|
+| `agent-hooks` | the hooks manifest **per plugin or extension**, and each settings scope that registers hooks | the entries it registers |
+| `ci-lanes` | the lane | the independent checks the lane's own definition lists |
 
 ## Incremental artifact writes
 
@@ -85,6 +115,12 @@ switches hooks off wholesale. Enumerate the *registered* set from the live confi
 **Evidence sources.** Any run record the harness or the hook itself emits (tier 1); the change that
 introduced the hook, its linked issue, and its re-tuning churn (tier 2); the hook's own header and
 comments (tier 5, claims only).
+
+**Granularity.** Per the cross-layer rule above, the item is the **hooks manifest per plugin or
+extension** — and each settings scope that registers hooks, identified `settings:<path>` where it
+lies outside the repo tree — with the entries it registers as its members. Registration files carry
+their member lists mechanically, so this layer normally reports per-member sub-verdicts inside the
+container's row.
 
 **Layer notes.** A hook script present in the tree but absent from every registration surface is
 present-but-unwired — report it as that, not as a hook. A hook registered with a timeout has a third
@@ -152,19 +188,10 @@ CI system exposes it.
 available in this layer); tier 2 for what a lane was added in response to; the lane's own name and
 comments (tier 5).
 
-**Granularity — the rule for this layer.** Verdicts are **lane-level by default**, with the lane's
-scripts and any suppression or baseline files cited as lane evidence.
-
-**Exception, and it is mechanical rather than judgmental:** where a lane *aggregates several
-independent checks*, and the lane's own script or definition carries the member list, that list is
-mechanical evidence of composition — so the lane row carries **per-member sub-verdicts** inside it.
-The claim shape for a sub-verdict is the artifact's `enforcement-item(member=<name>)`, with the site
-anchored at `[<container>, <member>]`. Without this, a single verdict cannot express "retire member A,
-keep member B" — and clutter concentrates in exactly the aggregating lanes where members were added
-one at a time.
-
-Do not synthesize a member list from reading behavior. If the composition is not mechanically
-readable, the lane keeps one verdict and the finding says why.
+**Granularity.** Per the cross-layer rule above, the container for this layer is the **lane** and its
+members are the independent checks the lane's own script or definition lists. Lane-level by default;
+per-member sub-verdicts inside the lane's own finding where that list is mechanically readable, and
+one lane verdict with a stated reason where it is not.
 
 **A lane nothing keys on.** A lane that runs and reports but whose result is not required by any
 aggregate, branch rule, or downstream step changes no outcome. That is a §3 false green, not a

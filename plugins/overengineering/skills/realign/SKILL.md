@@ -41,10 +41,21 @@ it is presented.** Say so in the run's opening line, then hold it literally:
   walk the queue instead. A gate that a sentence can switch off was never a gate.
 - **Silence is not acceptance.** An unanswered finding stays `OPEN`; it does not become `REJECTED`,
   and it is not carried on a later item's yes.
-- **Acceptance is scoped to the rung about to execute.** A yes at rung 1 of §11 authorizes the
-  config-disable, not the deletion three rungs later; rung 3 asks again, after the window.
-- **Show the exact change before making it.** The file and the line, the config key and its new
-  value, or the entry to be written — then execute what was shown, nothing adjacent.
+- **Item acceptance is scoped to the rung or act about to execute.** A yes at rung 1 of §11
+  authorizes the config-disable, not the deletion three rungs later; rung 3 asks again, after the
+  window.
+- **Change approval shows the exact change before making it.** The file and the line, the config key
+  and its new value, or the entry to be written — shown after the plan, approved before any write,
+  then executed as shown, nothing adjacent.
+- **No operator present means present and stop.** In a dispatched, scheduled, or background run
+  nobody can accept anything, so realign presents the queue and stops: no status transitions,
+  nothing written anywhere. An absent operator is silence for every item at once. There is no
+  unattended mode to pass — the audit takes that flag for its own intent disposition; realign has
+  nothing it may do without the gate.
+
+**Both gates are required and neither substitutes for the other.** *Item acceptance* authorizes
+working this finding and the act named at that moment; *change approval* authorizes one exact edit.
+An acceptance given earlier is not an approval of the edit that later falls out of it.
 
 ## Before anything: load the artifact
 
@@ -64,10 +75,13 @@ it is presented.** Say so in the run's opening line, then hold it literally:
    second record that can disagree with the first.
 5. **A `Status` value outside the artifact's closed vocabulary** is reported and that finding is
    skipped — soft degradation, never a guess about what an unknown state meant.
-6. **Surface a verdict that flipped direction under a carried-forward judgment before anything else,
-   and never act on it.** An `ACCEPTED` finding now recomputed to `KEEP`, or a `REJECTED` one now
-   recomputed to a retirement-direction verdict, means the evidence moved under a decision the
-   operator already made. That is a question for them, not an instruction to this skill.
+6. **Surface a verdict that moved under a carried-forward judgment before anything else, and never
+   act on it.** An `ACCEPTED` finding now recomputed to `KEEP`, or a `REJECTED` one now recomputed
+   to a retirement-direction verdict, means the evidence moved under a decision the operator already
+   made. **Direction is not the only trigger:** surface it too where the recomputed verdict
+   materially changes *what the acceptance authorized* without flipping direction — an `ACCEPTED`
+   `DOWNGRADE` now recomputed to `CONSOLIDATE` authorizes a different act on a different artifact.
+   Re-confirm the act before anything proceeds; the earlier yes was given to the old one.
 
 ## Arguments
 
@@ -128,6 +142,20 @@ judgment recorded; skipping it wordlessly is not.
 **Withdrawal is a normal outcome, not a failure.** A window showing the mechanism load-bearing ends
 at rung 1 with it re-enabled and the finding closed as KEEP, carrying the evidence the window
 produced. Say so when proposing the ladder — it is what makes rung 1 cheap to accept.
+
+**When rung 1 is inapplicable** — nothing registered or wired to disable: a copy nothing reads, a
+claim in a document, a lane nothing requires — the presentation records *"rung 1 inapplicable —
+`<reason>`"* rather than inventing a disable, and says why rung 2 is uninformative too (disabling
+what never fires produces no signal). A **reversible non-rung remediation** — correcting a false
+claim, registering the copy that should have been wired — is then a valid proposal, recorded as one
+under its own item acceptance. And where the only remaining act is **deletion**, the acceptance must
+name the deletion explicitly: the ladder's cheap first rung is not there to soften it (see the gotcha
+below — an accepted finding is not an accepted deletion).
+
+**CONSOLIDATE** ends in removing the **redundant copy** once the survivor is named. Where that copy
+is live the ladder applies unchanged: disable, observe under the survivor, delete. Where it is inert,
+rung 1 has nothing to disable and rung 2 nothing to observe — route it by the rule above, deletion
+named in the acceptance.
 
 ## UNPROVEN findings — the ablation track
 

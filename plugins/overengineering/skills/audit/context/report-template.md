@@ -57,7 +57,8 @@ enough to read without scrolling past it.
 5. **The proposed ablation batch**, when one was produced: its items, an owner and a re-check date
    each, and the observation window's end date.
 6. **Open checkpoints** — the intent questions awaiting an answer (attended), or the count of
-   `OPEN-INTENT` rows (unattended).
+   findings whose `Intent` is `OPEN-INTENT` (unattended). Where members were also judged, their
+   `OPEN-INTENT` count is reported as a separate number, labelled as members.
 7. **Configuration provenance**, one line: which config layers contributed, or that none were present
    and the bundled defaults applied. Name a personal layer explicitly whenever one shaped output.
 8. **The next step**, named but not taken: `overengineering:realign` consumes this artifact and

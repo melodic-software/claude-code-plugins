@@ -362,6 +362,14 @@ mirror at <https://gist.github.com/msgodf/86a3fc7fcd3ce663ff37>),
   all of it — not the measurement.
 - Piranha's window is explicitly team-configurable in its own deployment.
 
+**Minimum observation — never read a threshold from a window shorter than the threshold.** A row is
+denominated in a period of its own: quarters, days, weeks. Where the evidence actually observed spans
+less than that period, the row **is not cited at all** — a quarterly exercise-frequency figure cannot
+be read from a few hours of telemetry, and an eight-week inactivity window cannot be read from a
+two-week history. Record the refusal in the finding, naming the row and the window that was in fact
+available, and let §8 rank the item on carry cost instead. A short window says nothing about a long
+threshold in either direction, and citing one anyway converts an unavailable tier into a number.
+
 **The qualitative bar transfers more safely than any number**, and is the preferred instrument. From
 both Ewaschuk and the SRE book: a rule should be urgent, actionable, require human intelligence, and
 be novel — and one whose only possible response is acknowledgment should not exist. Ewaschuk's

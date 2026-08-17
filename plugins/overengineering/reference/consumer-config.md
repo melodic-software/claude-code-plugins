@@ -107,10 +107,10 @@ hand-written example would therefore be an example nobody can copy.
 
 ### `protected_categories`
 
-Keyed by category id. The seven bundled ids come from the method's default pattern list (§7):
-`secrets-and-credentials`, `destructive-operations`, `bypass-guards`, `access-control`,
-`supply-chain-integrity`, `security-scanning`, `audit-trail-retention`. Each is `on` unless a layer
-says otherwise, and each value is one of:
+Keyed by category id. The seven bundled ids map **one-to-one onto §7's seven default-pattern
+bullets**, in that order: `secrets-and-credentials`, `destructive-operations`, `bypass-guards`,
+`access-control`, `supply-chain-integrity`, `security-scanning`, `audit-trail-retention`. Each is
+`on` unless a layer says otherwise, and each value is one of:
 
 | Value | Effect |
 |---|---|
@@ -130,9 +130,10 @@ disable-everything token: emptying is seven explicit `off` values in the tracked
 diff names each protection being dropped rather than hiding all seven behind one word. That is what
 makes "consumers can empty the set" a reviewable decision instead of a silent one.
 
-The method's **intentionally-dormant** class (§7) is not a consumer key in this version. It is a rule
-about what inactivity evidence can mean, not a policy about what may be recommended, so it has no
-weakening a personal layer could perform.
+The method's **intentionally-dormant** class and its **absence-of-incident** rule (§7) are not
+consumer keys in this version, and are not among the seven ids above. Both are rules about what
+inactivity and incident evidence can *mean*, not policies about what may be recommended, so neither
+carries a weakening a personal layer could perform.
 
 ### `thresholds`
 

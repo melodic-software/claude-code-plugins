@@ -84,10 +84,10 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   shallow checkout makes version-control history *unavailable* rather than silent and every UNPROVEN
   verdict resting on history has to cite the missing tier by name. The artifact is **written per
   layer** as the walk proceeds, so a context-exhausted run leaves a checkpoint with its completed
-  layers persisted rather than nothing. CI verdicts are lane-level by default; a lane that aggregates
-  several independent checks, and whose own definition carries the member list, gets per-member
-  sub-verdicts inside the lane row — mechanical composition evidence, never a member list synthesized
-  from reading behavior. Branch protections and forge apps read through a forge API when one is
+  layers persisted rather than nothing. Verdicts are container-level by default; a container that
+  aggregates several independent checks, and whose own definition carries the member list, gets
+  per-member sub-verdicts inside the finding's body — mechanical composition evidence, never a member
+  list synthesized from reading behavior. Branch protections and forge apps read through a forge API when one is
   configured, through policy-as-code where the consumer manages protections declaratively, and
   otherwise emit identified rows marked unreadable rather than inferring a rule that was never read.
 - **`skills/audit/context/report-template.md` — three output layers, one source of truth.** The
@@ -144,6 +144,45 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   despite a blanket approval; a RETIRE executed as a config-disable rather than a deletion; a
   thirty-item UNPROVEN pile answered with one bounded, time-boxed ablation batch; and an absent
   composition plugin taking a visible inline fallback instead of a silent skip.
+
+- **Dry-run-driven clarifications to the aggregation and identity rules.** Three fresh-context runs
+  executed the shipped skills verbatim against a real repository and surfaced ambiguities the prose
+  had left to the reader; each is fixed in the document that owns it. **Aggregation:** an aggregating
+  container — a hooks manifest, a settings scope registering hooks, a lane whose definition lists its
+  checks — **is** the finding: one spine row, one container verdict, one id, with members as
+  line-formatted entries inside the finding's body in a fixed id/name/verdict shape, so member
+  verdicts stay extractable while the documented cross-run diff keeps comparing container spines and
+  member lines compare within a finding. The granularity rule is stated once as a cross-layer rule
+  and the **item unit is pinned per layer** — for `agent-hooks`, the hooks manifest per plugin, with
+  its registered entries as members — because a unit re-chosen per run derives different ids and
+  orphans every judgment keyed to the old one. **Identity:** every site of a cross-artifact finding
+  binds through the id's `sites` constituents, the spine's single-line `Artifact` carries the primary
+  subject, and the body names every site; `settings:<path>` joins the closed kind-prefix set for a
+  registration surface outside the repo tree.
+- **Sanctioned field dispositions, merge precedence, and self-perturbation.** `Rediscovery` gains two
+  dispositions — `Deferred — no tech-drift check claimed` and `Not applicable — <reason>` — with the
+  dated drift check batched per lane or class rather than paid per item; `OPEN-INTENT` is stated to
+  be an `Intent` value and never a `Status`, and its counts count findings, with members counted
+  separately only where a run says so. Re-run merges add that the **spine is authoritative over the
+  prior artifact's own prose** — a summary contradicting its own spine is recomputed, never
+  inherited — and that prose claims about statuses never outrank the `Status` spine lines. Because
+  the audit appends to the telemetry it reads, the tier-1 read window is bounded at walk start and
+  rows attributable to the run itself are excluded and named. The method's §9 gains a
+  **minimum-observation guard**: a threshold row is never cited from an evidence window shorter than
+  the threshold's own denomination, and the refusal is recorded and routed through §8.
+- **Skill-body clarifications from the same runs.** `audit` distinguishes its two doc roots
+  (plugin-root shared docs against skill-local lane docs) so every reference resolves, emits the
+  read-only opening line immediately after the artifact home resolves — the first moment the path
+  exists — states that the surface is everything governing work in this repository *wherever it is
+  registered*, with out-of-repo registration surfaces audited under §12 custody rather than skipped,
+  and documents the sanctioned write route for a delegated executor whose harness refuses a
+  report-shaped filename: the file-write tool to a neutral filename in the artifact's directory, then
+  a rename, never a shell content-write. `realign` names its two gates — **item acceptance** and
+  **change approval** — **presents and stops** when no operator is present, records
+  *"rung 1 inapplicable"* with its reason where nothing is wired to disable (a reversible non-rung
+  remediation is a valid proposal; where only deletion remains, the acceptance must name the deletion,
+  and an inert CONSOLIDATE copy routes the same way), and surfaces a carried judgment whenever the
+  recomputed verdict changes *what the acceptance authorized*, not only when its direction flips.
 
 ### Notes on deliberate omissions
 
