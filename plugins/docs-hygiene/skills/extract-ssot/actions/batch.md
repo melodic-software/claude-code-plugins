@@ -1,5 +1,24 @@
 # `batch` action — multi-candidate orchestration
 
+## Contents
+
+- [When to invoke](#when-to-invoke)
+- [Inputs](#inputs)
+- [Steps](#steps)
+- [Step 1 — Pre-flight](#step-1--pre-flight)
+- [Step 2 — Verify filter (HARD GATE for batches ≥5)](#step-2--verify-filter-hard-gate-for-batches-5)
+- [Step 3 — Filter](#step-3--filter)
+- [Step 4 — File-overlap matrix](#step-4--file-overlap-matrix)
+- [Step 5 — Wave grouping (graph coloring)](#step-5--wave-grouping-graph-coloring)
+- [Step 6 — Dispatch policy](#step-6--dispatch-policy)
+- [Step 7 — Lesson injection](#step-7--lesson-injection)
+- [Step 8 — Per-dispatch capture](#step-8--per-dispatch-capture)
+- [Step 9 — Lesson append](#step-9--lesson-append)
+- [Step 10 — Batch audit log](#step-10--batch-audit-log)
+- [Side observations](#side-observations)
+- [Recheck triggers](#recheck-triggers)
+- [Cross-references](#cross-references)
+
 Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
 
 Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface — invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
