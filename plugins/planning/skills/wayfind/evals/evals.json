@@ -91,7 +91,7 @@
       "id": 8,
       "name": "wrongly-scoped-item-closes-to-out-of-scope-not-decisions-so-far",
       "prompt": "/planning:wayfind work #200 — the claimed frontier item is #51 'Should we also rewrite the mobile app?', labeled wayfind: interview. Working it, we realize the rewrite is explicitly out of this effort's scope (web billing only). Close it out.",
-      "expected_output": "The item is wrongly scoped: close it and add one Out-of-scope line on the map that links the item, and do not add a Decisions-so-far pointer. Fog stays in Not-yet-specified and is not moved into Out-of-scope.",
+      "expected_output": "The item is wrongly scoped: add one Out-of-scope line on the map that links the item first, then close it, and do not add a Decisions-so-far pointer. Fog stays in Not-yet-specified and is not moved into Out-of-scope.",
       "files": [],
       "expectations": [
         "Output closes the wrongly scoped item and records one Out-of-scope line linking it, rather than treating the close as an in-scope resolution",
