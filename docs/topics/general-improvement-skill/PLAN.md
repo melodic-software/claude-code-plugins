@@ -217,7 +217,7 @@ Required body sections (each is a grep-able heading):
 - **Sanity Check:** `grep -Ec "shallow|is-shallow-repository" plugins/improvement/skills/find/context/hotspots.md` ≥ 1
 - **Sanity Check:** `npx markdownlint-cli2 "plugins/improvement/**/*.md"` exits 0
 
-### Phase 4: Setup skill, config contract, evals, README routine guidance [TODO]
+### Phase 4: Setup skill, config contract, evals, README routine guidance [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
