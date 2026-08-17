@@ -178,36 +178,59 @@ frontmatter (`type: overengineering-findings`, `schema: 1`, `date`, `scope`, `br
 content-hashed finding ids (finding-suppression id discipline); stable ordering (layer → path →
 id); per-finding fields (artifact, layer, verdict, evidence citations, intent, rediscovery, cost,
 status); status transitions owned by realign only; home resolved through the plugin's
-`reference/topic-docs.md` binding into the concern-scoped memory tier (never committed); the
+`reference/topic-docs.md` binding into the concern-scoped memory tier (never committed), with a
+**branch-keyed sub-path** (precedent: `.work/reviews/<branch-slug>/`) so concurrent
+branches/worktrees never clobber each other; **re-run merge semantics** — a re-audit carries
+forward the prior artifact's `status` fields by stable finding id (ACCEPTED / REJECTED /
+ABLATION-\* survive; evidence and verdicts are recomputed fresh; findings whose artifact vanished
+are dropped with a note), so operator judgments are never wiped and re-reported — the
+noisy-repeat failure `docs/conventions/finding-suppression/` exists to prevent; the
 explicit NOT-`review-findings` boundary with its rationale.
 
 **Sanity Check:**
 
 - `test -f plugins/overengineering/context/scrutiny-method.md && test -f plugins/overengineering/context/findings-artifact.md` — exit 0.
-- `grep -c "KEEP\|RETIRE\|DOWNGRADE\|CONSOLIDATE\|UNPROVEN\|FLAG-FOR-HUMAN" plugins/overengineering/context/scrutiny-method.md` ≥ 6 (full ladder present).
+- `for t in KEEP RETIRE DOWNGRADE CONSOLIDATE UNPROVEN FLAG-FOR-HUMAN; do grep -q "$t" plugins/overengineering/context/scrutiny-method.md || echo "MISSING $t"; done` — no output (each verdict token present).
+- `grep -Eq "carries forward|carry.forward" plugins/overengineering/context/findings-artifact.md && grep -q "branch" plugins/overengineering/context/findings-artifact.md` — exit 0 (re-run merge semantics + branch-keyed home specified).
 - `grep -ci "analogical" plugins/overengineering/context/scrutiny-method.md` ≥ 1 AND every threshold row in the thresholds table carries the label (Read assertion on the table).
 - `grep -rn "\.work/" plugins/overengineering/` returns empty (no memory-tier citations in shipped files).
 - `grep -in "intentionally.dormant" plugins/overengineering/context/scrutiny-method.md` non-empty.
 
 ### Phase 2: Plugin scaffold + registrations [TODO]
 
+Consumer configuration goes through the **config-cascade convention**
+(`docs/conventions/config-cascade/`), NOT `userConfig`: the Brief's "consumers can extend, narrow,
+or empty the set" means the consuming repo (team-tracked), and the artifact protocol is explicit
+that `userConfig` "is not a coordination surface for repository artifacts" — a policy-class
+protected-set emptied silently in one operator's personal config would defeat the FLAG-FOR-HUMAN
+cap's purpose. A tracked `.claude/overengineering.md` concern file (with the cascade's `.local.md`
+personal overlay semantics) carries: protected-categories set (extend/narrow/empty), threshold
+overrides, observation-window. The README documents the shape; the skills read it through the
+cascade's documented resolution. No `userConfig` block ships in V1, so `plugin-options-docs-gate`
+is trivially green.
+
 | File | Action | What |
 |------|--------|------|
-| `plugins/overengineering/.claude-plugin/plugin.json` | Create | name/description/version 0.1.0; `userConfig`: protected-categories override (extend/narrow/empty), observation-window days, threshold overrides — shapes per the manifest schema, modeled on an existing userConfig plugin |
+| `plugins/overengineering/.claude-plugin/plugin.json` | Create | name/description/version 0.1.0; no `userConfig` (config-cascade concern file instead, above) |
 | `plugins/overengineering/CHANGELOG.md` | Create | 0.1.0 entry, newest-first |
-| `plugins/overengineering/README.md` | Create | Plugin overview + generated options block (`scripts/sync-plugin-options-docs.py`) |
+| `plugins/overengineering/README.md` | Create | Plugin overview + consumer-config section documenting the `.claude/overengineering.md` concern-file shape |
 | `.claude-plugin/marketplace.json` | Modify | Catalog entry (`quality` or per `docs/CATALOG-TAXONOMY.md` fit) |
-| `plugins/overengineering/reference/topic-docs.md` | Create | Byte-identical cluster copy (source: any current carrier, e.g. `plugins/planning/reference/topic-docs.md`) |
+| `plugins/overengineering/reference/topic-docs.md` | Create | Overengineering's OWN binding delta doc — structure modeled on `plugins/planning/reference/topic-docs.md`, content its own: names what THIS plugin writes (the findings artifact) with its tier/home row. The 8-plugin cluster DIFFERS by design; only artifact-protocol.md is byte-identical |
 | `plugins/overengineering/reference/artifact-protocol.md` | Create | Byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md` |
-| `scripts/skill-leaf-name-registry.txt` | Modify | Register `audit` + `realign` leaves per that file's own format |
+| `scripts/validate-plugin-contracts.mjs` | Modify | Add `"overengineering"` to the hardcoded `lifecycleProtocolCopies` list (:125) so the dedicated byte-identity check covers the fifth copy |
+
+Leaf-name registry: `realign` is single-owner — the registry lists COLLISIONS only, and `--check`
+fails on a registered entry carried by fewer than 2 plugins, so `realign` is deliberately NOT
+registered. The `audit` owner-set update rides with Phase 3 (the commit that creates the skill
+directory), keeping every pushed commit `--check`-clean.
 
 **Sanity Check:**
 
 - `python3 -c "import json; json.load(open('plugins/overengineering/.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json'))"` — exit 0.
-- `cmp plugins/overengineering/reference/artifact-protocol.md docs/PLUGIN-ARTIFACT-PROTOCOL.md` — exit 0; same for `topic-docs.md` vs the cluster source.
+- `cmp plugins/overengineering/reference/artifact-protocol.md docs/PLUGIN-ARTIFACT-PROTOCOL.md` — exit 0 (topic-docs.md is a delta doc — no `cmp`; instead: `grep -q "overengineering-findings" plugins/overengineering/reference/topic-docs.md`).
 - `bash scripts/check-cross-plugin-source-drift.sh --check` — exit 0.
-- `bash scripts/check-skill-leaf-names.sh` — exit 0 (registry accepts the new leaves).
-- `python3 scripts/sync-plugin-options-docs.py --check` (or the script's documented verify mode) — exit 0.
+- `node scripts/validate-plugin-contracts.mjs` — exit 0 with the fifth copy listed.
+- `grep -rn "userConfig" plugins/overengineering/.claude-plugin/plugin.json` — empty (config rides the cascade concern file).
 
 ### Phase 3: `overengineering:audit` skill [TODO]
 
@@ -220,6 +243,10 @@ test-first analog for prose skills).
 | `plugins/overengineering/skills/audit/context/surface-walk.md` | Create | Generic layer-by-layer walk: Claude hooks/settings/plugin components → repo + git hooks → CI workflows/gate scripts → branch protections (forge-API presence-gated, else OPEN-INTENT/unreadable rows) → forge apps/automations → standing instructions → declared external integrations. Per layer: discovery probes + evidence sources. CI granularity: lane-level verdicts, scripts + suppression files cited as lane evidence |
 | `plugins/overengineering/skills/audit/context/report-template.md` | Create | Layered output: findings artifact (SSOT, per Phase 1 contract) + inline terminal summary (always) + HTML view (presence-gated on the visualization plugin, documented fallback: skip) |
 | `plugins/overengineering/skills/audit/evals/evals.json` | Create | Scenarios: (1) bare invocation is read-only and says so; (2) docs-are-claims — header/comment claiming wiring is verified against actual settings, not believed; (3) protected-class item gets evidence + FLAG-FOR-HUMAN cap, never RETIRE; (4) silent artifact → UNPROVEN, not KEEP; (5) threshold cited with its analogical label; (6) unattended low-confidence intent → OPEN-INTENT row, no guess; (7) three liveness questions asked independently (wired-but-dead-at-runtime case) |
+| `scripts/skill-leaf-name-registry.txt` | Modify | Add `overengineering` to the existing `audit` owner set — in THIS phase's commit (the one creating the skill directory) so `--check` stays green on every pushed commit; `realign` is single-owner and deliberately unregistered |
+
+The audit resolves consumer configuration (protected set, thresholds, observation window) from the
+`.claude/overengineering.md` concern file per the config-cascade convention (Phase 2).
 
 Body requirements: bare invocation NEVER mutates (verb contract); every verdict cites ≥1 empirical
 source or is UNPROVEN; attended low-confidence intent → checkpoint questions (reuse
@@ -233,8 +260,9 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 **Sanity Check:**
 
 - `python3 -c "import json; json.load(open('plugins/overengineering/skills/audit/evals/evals.json'))"` — exit 0; validates against `plugins/skill-quality/reference/evals.schema.json`.
-- `grep -in "read-only\|never mutates\|reports only" plugins/overengineering/skills/audit/SKILL.md` non-empty.
-- Every cross-plugin slash reference in the skill sits in a sentence carrying presence-gating ("if installed" / "when present" / "presence-gated") — `grep -n ":audit-instructions\|:unhobble\|:audit-automation-gaps\|plugin-quality:audit\|planning:interview\|visualization:" plugins/overengineering/skills/audit/ -r` each hit line manually confirmed gated; zero unguarded references.
+- `grep -E -in "read-only|never mutates|reports only" plugins/overengineering/skills/audit/SKILL.md` non-empty (`grep -E`, portable alternation).
+- Every cross-plugin slash reference in the skill sits in a sentence carrying presence-gating ("if installed" / "when present" / "presence-gated") — `grep -rEn ":audit-instructions|:unhobble|:audit-automation-gaps|plugin-quality:audit|planning:interview|visualization:" plugins/overengineering/skills/audit/` each hit line manually confirmed gated; zero unguarded references.
+- `bash scripts/check-skill-leaf-names.sh --check` — exit 0 (audit owner set updated in the same commit as the skill directory).
 - `/skill-quality:check` green on the skill.
 
 ### Phase 4: `overengineering:realign` skill [TODO]
@@ -247,9 +275,9 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 **Sanity Check:**
 
 - `python3 -c "import json; json.load(open('plugins/overengineering/skills/realign/evals/evals.json'))"` — exit 0; schema-valid.
-- `grep -in "per-item\|per accepted finding\|explicit.*acceptance" plugins/overengineering/skills/realign/SKILL.md` non-empty.
+- `grep -E -in "per-item|per accepted finding|explicit.*acceptance" plugins/overengineering/skills/realign/SKILL.md` non-empty.
 - `grep -in "stop" plugins/overengineering/skills/realign/SKILL.md` shows the missing-artifact stop naming the audit skill.
-- `grep -c "scrutiny-method.md" plugins/overengineering/skills/*/SKILL.md` ≥ 2 AND neither SKILL.md restates the verdict-ladder definitions (Read assertion) — shared-method SSOT held.
+- `grep -l "scrutiny-method.md" plugins/overengineering/skills/*/SKILL.md | wc -l` = 2 AND neither SKILL.md restates the verdict-ladder definitions (Read assertion) — shared-method SSOT held.
 - `/skill-quality:check` green on the skill.
 
 ### Phase 5: Marketplace docs integration [TODO]
@@ -269,12 +297,18 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 
 1. **Live audit run on this repo** (dispatch to a fresh-context subagent; this repo is the richest
    available fixture — ~120-item surface with known specimens):
+   - Invocation mechanism: the plugin is not installed in the session — the subagent executes the
+     skill by reading `plugins/overengineering/skills/audit/SKILL.md` by path and following it
+     verbatim (its brief says so explicitly); where a local CLI is available, a `--plugin-dir`
+     smoke run is the preferred upgrade.
    - Capture `git status --porcelain` before/after — identical (read-only proven).
    - Findings artifact emitted; the dead `.claude/hooks/pr-linkage-mcp-gate.sh` and the wired
      source-control copy get INDEPENDENT liveness reads; report rows carry evidence citations or
      UNPROVEN.
-   - Run twice; `diff <(grep -v '^date:' run1) <(grep -v '^date:' run2)` — empty (diffable, stable
-     ids/ordering).
+   - Run twice, with an explicit snapshot between: `cp` run 1's artifact to a scratch path BEFORE
+     run 2 (run 2 overwrites in place per the re-run merge semantics); then
+     `diff <(grep -v '^date:' run1-copy) <(grep -v '^date:' run2)` — empty (diffable, stable
+     ids/ordering; statuses carried forward).
 2. **Realign dry worked example**: feed the pr-linkage finding; walk to the per-item acceptance
    gate and STOP (no acceptance given) — `git status --porcelain` unchanged. The hook's actual
    disposition stays an audit outcome for the user, not a planning decision.
@@ -288,6 +322,7 @@ incumbent-first: search for an existing owner before proposing remediation; cons
 
 - Step 1-2 probes above, each exit/diff-empty as stated.
 - `bash scripts/check-skill-portability.sh` and `bash scripts/check-shell-portability.sh` — exit 0 for changed files.
+- Issues #2897 and #2898 exist and reference the deferred lanes (forge API / GitHub MCP `issue_read`) — closes the Brief's last acceptance criterion with a probe instead of an assertion.
 - All local gate scripts exit 0; branch pushed (`git log origin/claude/overengineering-detection-skill-cf354r --oneline -1` matches local HEAD).
 
 ## Alternatives considered
@@ -390,8 +425,12 @@ None unresolved. The nine carried open questions are resolved by adopting their 
 - [EXEC-SHAPE] Sub-topic promotion considered (Phases 3/4 each >300 lines of authored markdown)
   and DECLINED: one plugin, one PR, one shared contract — splitting forks the contract mid-flight.
 - [EXEC-SHAPE] Findings artifact home: concern-scoped memory tier resolved through the plugin's
-  `reference/topic-docs.md` binding (precedent: `.work/reviews/<branch-slug>/`); exact sub-path
-  fixed in Phase 1's contract doc.
+  `reference/topic-docs.md` binding (precedent: `.work/reviews/<branch-slug>/`), branch-keyed;
+  re-run carries statuses forward by stable id; exact sub-path fixed in Phase 1's contract doc.
+- [EXEC-SHAPE] Consumer config routed through the config-cascade concern file
+  (`.claude/overengineering.md`), not `userConfig` — policy-class settings (the protected set)
+  must be team-visible and tracked; `userConfig` is personal/enable-time and the artifact protocol
+  bars it as a repo coordination surface.
 
 ### Mechanical work
 
