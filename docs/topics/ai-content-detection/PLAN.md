@@ -84,7 +84,7 @@ Extend `detect.sh` to the candidate roster: `rule-em-dash`, `rule-emoji-formatti
 
 **Sanity Check:** `detect.test.sh` exit 0 with ≥1 positive and ≥1 negative fixture assertion per shipped rule; `shellcheck` and `shfmt -d` clean; calibration outcome recorded per rule in catalog.md (`v1` column final); a config-file fixture test proves a threshold override and a path exclusion take effect.
 
-### Phase 4: Severity-crosswalk rows [TODO]
+### Phase 4: Severity-crosswalk rows [DONE]
 
 First work item: baseline `bash scripts/check-detector-findings-crosswalk.sh --check` run (must be exit 0 BEFORE our rows land — a dirty baseline is not ours to inherit silently). Then append one argued row per shipped rule to the crosswalk table in `docs/conventions/detector-findings/README.md`: **tier argued per row from `severity.md` tests, first match winning — flat across rows unless a row's own test argues otherwise** (the artifact-class rules — `rule-llm-citation-artifacts`, `rule-knowledge-cutoff-disclaimer` — may legitimately argue IMPORTANT's degradation limb; the argument is the row, not this plan). Auto-applicable No except where a row argues contained meaning-preserving remediation (`rule-utm-params` is the candidate). Selection is mechanical (no withholding verdicts), fail-safe by construction; each row states its decline evidence (code-fence/marker/config exemptions, counted per rule in `## Surfaces`).
 
