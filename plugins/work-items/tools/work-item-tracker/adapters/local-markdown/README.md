@@ -30,12 +30,9 @@ existing file number + 1 with no file lock.
 
 ## Claim / lease
 
-Claim identity is `git config user.name`, then `$USER`, then `local`. The same
-git user in two worktrees looks like the same holder. The lease handle is a
-store-global `lease_comment_id` in the marker JSON (not a GitHub comment id);
-`renew-lease` addresses that handle. The manifest declares `reclaim: false`;
-invoking `reclaim` exits `6`. On expiry, `list-items` reports empty `assignees`
-while `get-item` still shows the stored assignee.
+Claim identity, the store-global `lease_comment_id` handle, `reclaim` exit `6`,
+and the expiry-view split live in CONTRACT.md "Branch, worktree, and lease
+confinement". `renew-lease` addresses that handle.
 
 ## Branch, worktree, and lease confinement
 
@@ -54,8 +51,11 @@ open|closed|all`; `--repo` is accepted for interface parity and does not
 re-target the single-namespace store) and the core-derived
 `work-item-tracker.sh list-frontier`. Filter, search, and aggregation stay on
 those verbs; do not invent a query language against the markdown files.
+`--label`, `--assignee`, `--search`, and `stats` projections that need item
+bodies or timestamps are **unsupported** on this adapter — `list-items`
+implements `--state` only.
 
 ## Auth
 
 None. The adapter touches no network and has no credential. Claim identity is
-the git user name as under "Claim / lease" above.
+the git user name (CONTRACT.md "Branch, worktree, and lease confinement").

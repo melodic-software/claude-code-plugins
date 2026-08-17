@@ -66,7 +66,7 @@ Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
 ## Decided at interview (2026-08-17, not per-lane)
 
 - **Naming:** "work item" stays canonical; "ticket"/"issue" are documented first-class synonyms
-  (trigger coverage lands via #2947). Rename of plugin/seam REJECTED.
+  (trigger coverage landed via #2947). Rename of plugin/seam REJECTED.
 - **Setup-by-interview** (course "Set Up Your Issue Tracker" / `setup-matt-pocock-skills`):
   remains REJECTED per the skills-repo SSOT — this marketplace configures via the tracker-seam
   binding + setup skills.
@@ -83,4 +83,4 @@ Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
 - Skills-repo SSOT: [`mattpocock-skills.md`](mattpocock-skills.md) (attribution table; tracked
   strands). The invocation-reach tracked strand's audit lands via lane X (#2940).
 - Full v1.2 map: [`mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md). Staleness
-  fixes and absorbed-under-different-name traceability land via #2947.
+  fixes and absorbed-under-different-name traceability landed via #2947.
