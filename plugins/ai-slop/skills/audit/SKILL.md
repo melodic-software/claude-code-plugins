@@ -5,6 +5,9 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Detect and remove AI-writing tells from markdown prose
 ---
 
 ## Pre-computed context

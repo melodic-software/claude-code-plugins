@@ -1,8 +1,8 @@
 ---
 description: "Configure the ai-slop plugin for a consumer repository: exemption paths for documents that legitimately need em dashes, excluded paths, AI-vocabulary word-list tuning, and per-rule thresholds, written to the team layer .claude/ai-slop.json with the user's confirmation. Use when: 'set up ai-slop', 'configure slop detection', 'exempt this doc from the em-dash rule', 'tune the slop thresholds'."
-argument-hint: ""
+argument-hint: "check | apply"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose
@@ -23,13 +23,24 @@ tuning in `.claude/ai-slop.json`, resolved per the config-cascade convention: us
 | `disabled_rules` | rule slugs | Rules the audit skips entirely (reported as disabled) |
 | `thresholds` | map | Per-rule density thresholds: `ai_vocabulary`, `copulative_avoidance`, `rule_of_three` (matches per 1000 words; density rules also need at least 3 matches) |
 
-## Flow
+## check (default — read-only)
 
-1. Show the current effective config: run the detector's `--show-config` output (which names the
-   layer supplying each value) or read the layers directly; report which layer wins each key.
-2. Interview the user for what they want changed. For em-dash exemptions, ask for the documents
+Report the current state and change nothing:
+
+1. Run the detector's `--show-config` (it names the layer supplying each value) or read the
+   layers directly; report which layer wins each key and which layers are absent.
+2. Flag drift: unknown keys, an em-dash threshold key (the rule is zero-tolerance by design —
+   per-document exemption via `em_dash_allowed_paths` is the supported mechanism), globs that
+   match nothing, or a `disabled_rules` slug that names no shipped rule.
+3. End with what `apply` would change, if anything was flagged.
+
+## apply
+
+Everything `check` does, then the confirmed write:
+
+1. Interview the user for what they want changed. For em-dash exemptions, ask for the documents
    that genuinely require em dashes; the default posture is that most work does not.
-3. Write ONLY the team layer (`.claude/ai-slop.json`), showing the diff and getting explicit
+2. Write ONLY the team layer (`.claude/ai-slop.json`), showing the diff and getting explicit
    confirmation before writing. Never write the user-global or overlay layers on the user's
    behalf; name them as options the user edits themselves.
-4. Re-run `--show-config` and report the new effective state.
+3. Re-run `--show-config` and report the new effective state.

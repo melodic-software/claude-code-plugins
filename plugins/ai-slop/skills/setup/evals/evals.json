@@ -3,20 +3,20 @@
   "evals": [
     {
       "id": 1,
-      "name": "shows-effective-config-before-asking",
-      "prompt": "/ai-slop:setup",
-      "expected_output": "The current effective configuration is shown first — each key with the layer supplying it (user-global, team, local overlay) — then the user is interviewed about what to change. Nothing is written yet.",
+      "name": "check-is-read-only",
+      "prompt": "/ai-slop:setup check",
+      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (user-global, team, local overlay), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
       "files": [],
       "expectations": [
-        "Reports the effective config per key with the winning layer named before proposing any change",
-        "Interviews the user for desired changes rather than assuming them",
-        "Writes nothing before the interview completes"
+        "Reports the effective config per key with the winning layer named",
+        "Flags drift such as unknown keys or an unsupported em-dash threshold key",
+        "Writes nothing — check is read-only"
       ]
     },
     {
       "id": 2,
-      "name": "writes-team-layer-only-with-confirmation",
-      "prompt": "/ai-slop:setup — user asks to exempt docs/style-guide.md from the em-dash rule",
+      "name": "apply-writes-team-layer-only-with-confirmation",
+      "prompt": "/ai-slop:setup apply — user asks to exempt docs/style-guide.md from the em-dash rule",
       "expected_output": "A diff of .claude/ai-slop.json adding docs/style-guide.md to em_dash_allowed_paths is shown and explicitly confirmed before writing. The user-global and .local.json layers are named as self-service options, never written by the skill.",
       "files": [],
       "expectations": [
@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "em-dash-default-posture-holds",
-      "prompt": "/ai-slop:setup — user asks to raise the em-dash threshold repo-wide",
+      "prompt": "/ai-slop:setup apply — user asks to raise the em-dash threshold repo-wide",
       "expected_output": "The skill explains the em-dash rule is zero-tolerance by design with per-document exemption as the supported mechanism, offers em_dash_allowed_paths for the documents that genuinely need em dashes, and does not invent a threshold key for the rule.",
       "files": [],
       "expectations": [

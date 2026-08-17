@@ -315,6 +315,33 @@ extract_prose() {
   ' "$1"
 }
 
+# Truncate an excerpt to at most 80 BYTES without splitting a multi-byte UTF-8
+# sequence: under the script's forced LC_ALL=C, `cut -c` counts bytes, so an em
+# dash / curly quote / emoji straddling the boundary — exactly this tool's own
+# targets — would be cut mid-character and emit invalid UTF-8 into the finding.
+# Scans back over at most three trailing continuation bytes; if their lead byte
+# declares more bytes than survived the cut, the whole partial sequence drops.
+truncate_excerpt() {
+  awk '
+    BEGIN { for (j = 0; j < 256; j++) ORD[sprintf("%c", j)] = j }
+    {
+      s = substr($0, 1, 80)
+      n = length(s)
+      for (i = 0; i < 4 && n - i >= 1; i++) {
+        b = ORD[substr(s, n - i, 1)]
+        if (b < 128) break
+        if (b >= 192) {
+          need = (b >= 240) ? 4 : (b >= 224) ? 3 : 2
+          if (i + 1 < need) s = substr(s, 1, n - i - 1)
+          break
+        }
+      }
+      print s
+      exit
+    }
+  '
+}
+
 # --- Scan ------------------------------------------------------------------------
 
 ALL_RULES=()
@@ -385,7 +412,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
     [[ "$ci" == "1" ]] && flags+=(-i)
     while IFS=$'\t' read -r lineno text; do
       [[ -z "$lineno" ]] && continue
-      excerpt="$(printf '%s' "$text" | cut -c1-80 | tr '|' '/')"
+      excerpt="$(printf '%s' "$text" | truncate_excerpt | tr '|' '/')"
       emit_finding "$slug" "$rel" "$lineno" "$label" "$excerpt"
     done < <(printf '%s\n' "$prose" | LC_ALL=C grep "${flags[@]}" -- "$ere" || true)
   done

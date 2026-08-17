@@ -263,6 +263,39 @@ out="$(bash "$DETECT" "$DIRT" 2>&1)"
 assert_contains "dir target: expands recursively to markdown" "$out" "2 files scanned"
 assert_contains "dir target: findings from nested file" "$out" "sub/b.md"
 
+# The PRIMARY branch — a directory inside a git checkout expands via git
+# ls-files (tracked files only) — needs its own coverage: the fixture above is
+# outside any repo, so it exercises only the find fallback.
+GITDIR="$TEST_TMPDIR/gitrepo"
+mkdir -p "$GITDIR/docs"
+git -C "$GITDIR" init -q
+cat >"$GITDIR/docs/tracked.md" <<EOF
+A tracked em dash ${EM} here.
+EOF
+cat >"$GITDIR/docs/untracked.md" <<EOF
+An untracked em dash ${EM} here.
+EOF
+git -C "$GITDIR" add docs/tracked.md
+out="$(bash "$DETECT" "$GITDIR/docs" 2>&1)"
+assert_contains "dir target in git repo: tracked file scanned via ls-files" "$out" "tracked.md"
+assert_contains "dir target in git repo: only the tracked file counts" "$out" "1 files scanned"
+
+# --- Excerpt truncation at the byte boundary --------------------------------------
+
+# 79 ASCII bytes then an em dash: a byte cut at 80 would keep only the first
+# byte of the three-byte sequence, emitting invalid UTF-8 into the finding.
+LONGLINE="$(printf 'x%.0s' $(seq 1 75)) em${EM}dash tail"
+BOUNDARY="$TEST_TMPDIR/boundary.md"
+printf '%s\n' "$LONGLINE" >"$BOUNDARY"
+out="$(bash "$DETECT" "$BOUNDARY" 2>&1)"
+if printf '%s' "$out" | LC_ALL=C grep -q $'\xe2\x80\x94'; then
+  pass "excerpt truncation: em dash at boundary survives whole"
+elif printf '%s' "$out" | LC_ALL=C grep -q $'\xe2'; then
+  fail "excerpt truncation: no partial multi-byte sequence" "whole em dash or none" "lone lead byte present"
+else
+  pass "excerpt truncation: partial sequence dropped cleanly"
+fi
+
 # --- emit-findings.sh ------------------------------------------------------------
 
 EMIT="$SCRIPT_DIR/emit-findings.sh"
