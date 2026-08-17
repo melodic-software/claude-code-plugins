@@ -20,33 +20,38 @@ distinct source from the already-audited mattpocock/skills repo (SSOT current at
 
 ### Goal
 
-Every opinionated claim in the five pasted lessons is *represented*: mapped to a decision row, a
-filed work item, or an explicit not-relevant note — nothing silently dropped. The lanes:
+Every opinionated claim in the six pasted lessons is *represented*: mapped to a decision row, a
+filed work item, or an explicit not-relevant note — nothing silently dropped. The lanes,
+**numbered in locked run order** (matching the lane index — this is the ONLY lane numbering this
+contract uses; audit fix 2026-08-17):
 
-1. **plan-mode/asset-rush** — his plan-mode critique vs our interview→plan sequencing; audit
-   whether `lock` / auto-synthesize is a licensed exception or a quiet re-introduction of the
-   asset rush.
-2. **grilling↔interview parity** — course-lesson deltas against `planning:interview` (expected
-   mostly confirmation; small tree).
-3. **compaction doctrine** (merges the Compaction + Auto-Compaction lessons) —
-   fork-beats-compaction vs his compact-as-default; the `context-guard` evidence-degraded marker
-   vs his steered-compact-for-QA case; auto-compact stance; `autoCompactWindow` and
-   compaction-mechanics claims verified against official docs.
-4. **handoff** — his 15-line skill vs our save-point engine; the purpose-argument adoption
+1. **handoff** — his 15-line skill vs our save-point engine; the purpose-argument adoption
    candidate; handoff-file expiry/accumulation; ephemerality philosophy (OS temp vs memory
    tier). **Use-case boundary evaluation** (user, round 3): our dominant real use is a hard
    session-chain handoff — dumb-zone escape → session-ID chain → whole-picture reconstruction
    for retrospectives; functionally a compact-replacement that regathers — while his taxonomy
    centers on crossing boundaries (other agent, other repo, colleague, forked side task).
    Decide which use cases our handoff officially owns, which route elsewhere, and whether the
-   session-chain/retrospective use deserves first-class support.
-5. **phase-boundaries decision tree** — element-by-element re-audit of the
+   session-chain/retrospective use deserves first-class support. **Also creates the
+   `docs/upstream/aihero-course.md` skeleton** (audit amendment A2 — see below).
+2. **phase-boundaries decision tree** — element-by-element re-audit of the
    `session-flow:workflow` continuation router against the *course* version of his tree (the
    SSOT audited repo `PHASE-BOUNDARIES.md`, not this lesson); includes subagent-not-a-terminal
-   and the AFK criterion.
+   and the AFK criterion. Carries the effort's build deliverable (the context-driven router —
+   Q9).
+3. **compaction doctrine** (merges the Compaction + Auto-Compaction lessons) —
+   fork-beats-compaction vs his compact-as-default; the `context-guard` evidence-degraded marker
+   vs his steered-compact-for-QA case; auto-compact stance; `autoCompactWindow` and
+   compaction-mechanics claims verified against official docs.
+4. **plan-mode/asset-rush** — his plan-mode critique vs our interview→plan sequencing; audit
+   whether `lock` / auto-synthesize is a licensed exception or a quiet re-introduction of the
+   asset rush.
+5. **grilling↔interview parity** — course-lesson deltas against `planning:interview` (expected
+   mostly confirmation; small tree).
 6. **shared vocabulary + provenance** — which dictionary terms (smart zone, primary/secondary
-   source, AFK, design concept, phase boundary) we adopt as ubiquitous language; establishes
-   `docs/upstream/aihero-course.md`. Runs last; harvests from all other lanes.
+   source, AFK, design concept, phase boundary) we adopt as ubiquitous language; owns the
+   coverage index, term adoption, and final consolidation of `docs/upstream/aihero-course.md`
+   (skeleton created by lane 1 per A2). Runs last; harvests from all other lanes.
 
 ### Constraints
 
@@ -55,9 +60,14 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
   `planning:brainstorm`, discipline skills as fits).
 - **Claim ladder** (vetting standard): (i) harness-behavior claims → verified live against
   current official docs before being repeated or acted on; (ii) empirical quality claims →
-  classified folklore-vs-measured, `context-guard`'s measured bands as baseline, his figures
-  recorded as anchors never adopted as numbers; (iii) design opinions → decided
-  adopt/reject/track against our plugin philosophy, never "verified" by research.
+  classified against **instrumented zone readings plus `context-guard`'s declared
+  judgment-default bands (named provenance)** — his figures recorded as anchors never adopted
+  as numbers *(amended 2026-08-17 per audit A1: the prior "measured bands as baseline" wording
+  was refuted by both validators — context-guard's own reader contract states the shipped band
+  thresholds are "declared judgment defaults", not measurements; only the zone readings are
+  measured. The honest distinction vs his figures is provenance-and-tunability, not
+  measurement)*; (iii) design opinions → decided adopt/reject/track against our plugin
+  philosophy, never "verified" by research.
 - **Lanes discuss and decide; they do not implement.** Plugin changes leave the lane as filed
   work items and execute via the normal implementation pipeline.
 - **Cloud durability**: decisions are promoted into committed-and-pushed artifacts (this file,
@@ -71,9 +81,13 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
   and a lane summary in the lane's topic slice.
 - A coverage index in this topic maps every lesson claim to its disposition (decision row /
   filed item / not-relevant note).
-- `docs/upstream/aihero-course.md` exists with its own recheck-trigger discipline
-  (lesson-updated, not release-named) and is cross-linked from
-  `docs/upstream/mattpocock-skills.md`.
+- `docs/upstream/aihero-course.md` exists with its own recheck-trigger discipline — triggers
+  phrased as **divergence-at-re-fetch** (a read-time re-fetch finds a lesson no longer matching
+  the record; the form `docs/conventions/upstream-drift/README.md` sanctions), never bare
+  "when the lesson updates" — and is cross-linked from `docs/upstream/mattpocock-skills.md`.
+  Skeleton (row schema + trigger form, inherited from the upstream-drift four-part record and
+  the SSOT attribution-table shape) is created by lane 1; lane 6 owns the coverage index, term
+  adoption, and final consolidation (audit amendment A2).
 
 ### Captured assumptions
 
@@ -105,15 +119,35 @@ filed work item, or an explicit not-relevant note — nothing silently dropped. 
   commit to `claude/plan-mode-discussion-55kszx`; ONE PR at the very end when all lanes are
   closed. The handoff files are a convenience layer inside the container; the committed
   contract remains the durable record (clean-stop discipline unchanged).
+  **Audit-discovered obligations (2026-08-17, both validators):** (a) the CI
+  `contract-slice-prune-gate` red-lines any PR whose net diff adds or edits under
+  `docs/topics/**` — the ONE final PR must therefore carry a prune commit removing the parent
+  topic dir and every opened lane slice, their substance preserved via PR-body paste +
+  pointers per the topic-docs contract-slice lifecycle (durable outcomes live on in
+  `aihero-course.md`, the issues, and the PR body — the git+GitHub spine claim still holds);
+  (b) the paste-resume directive references a `.work/` handoff file a recycled container
+  loses — expected degradation: resume from this committed contract + the lane issue instead.
 - Q9 — decision-matrix skill: evolve `session-flow:workflow`'s `continue` router (no new
   skill) to consume session history, the overarching plan, work-item state, and the
   context-guard zone; **suggest-by-default, autonomous only as an explicit opt-in**, designed
   around instruction-audit check I23 (no exit menus injected into model context). This is
-  lane 5's build deliverable.
+  lane 2's build deliverable (phase-boundaries — run-order numbering per the lane index).
 
 ### Deferred questions
 
 *(none — all nine questions decided)*
+
+### Audit record (2026-08-17, `/planning:audit-answers` — user approved)
+
+Two fresh-context validators independently re-examined all nine decisions with the
+recommendation rationale withheld. Merged outcome: Q1, Q2, Q4, Q5, Q7, Q8, Q9 CONFIRMED with
+evidence; Q3 CHALLENGED by **both** validators (the "measured bands" premise — amended per A1,
+in Constraints); Q6 CHALLENGED by one (the `aihero-course.md` creation contradiction — amended
+per A2: lane 1 creates the skeleton with fixed row schema, lane 6 consolidates). Editorial
+fixes applied in the same pass: six-lesson count, run-order-only lane numbering, Q9's lane
+label, divergence-at-re-fetch trigger phrasing, and the Q8 prune-gate + resume-degradation
+obligations. Lane-6 bookkeeping gained one item: correct the SSOT row-35 "our measured bands
+stand" overclaim to match context-guard's own "declared judgment defaults" language.
 
 ## Lane index (filed 2026-08-17, in locked run order)
 
