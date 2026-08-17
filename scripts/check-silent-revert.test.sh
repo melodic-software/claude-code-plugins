@@ -355,18 +355,33 @@ t_counts_are_immune_to_ambient_git_config() {
 # identical to the shipped one, and every assertion below would then pass
 # while comparing a script against itself. That is the same fail-open shape as
 # a fixture that never got built, so it is caught the same way.
+#
+# The comparison ignores comment lines, and that is load-bearing rather than
+# tidy: the flag names these expressions match also appear in the prose ABOVE
+# the calls they target. A whole-file `cmp` is therefore satisfied by comment
+# collateral alone -- reflow the call at line 467 and the sed still rewrites
+# the comment at line 456, the copy still "differs", and the arm silently
+# compares the shipped detector against a comment-only edit. That is precisely
+# the fail-open this guard exists to close, so it must compare CODE.
 strip_pin() {
   local repo="$1" name="$2" expr="$3"
   local src="$repo/scripts/check-silent-revert.sh" dst="$repo/scripts/$name.sh"
+  local src_code dst_code
   [[ -f "$src" ]] || {
     fail "strip_pin($name): no detector at $src -- the fixture was never built"
     return 1
   }
   sed "$expr" "$src" >"$dst" 2>/dev/null
-  if cmp -s "$src" "$dst"; then
-    fail "strip_pin($name): the edit matched nothing, so the 'stripped' copy is identical to the shipped detector and this case would pass either way"
+  src_code="$(mktemp)"
+  dst_code="$(mktemp)"
+  grep -v '^[[:space:]]*#' "$src" >"$src_code"
+  grep -v '^[[:space:]]*#' "$dst" >"$dst_code"
+  if cmp -s "$src_code" "$dst_code"; then
+    rm -f "$src_code" "$dst_code"
+    fail "strip_pin($name): the edit changed no CODE line, so the 'stripped' copy runs identically to the shipped detector and this case would pass either way (a comment-only match counts as no match)"
     return 1
   fi
+  rm -f "$src_code" "$dst_code"
   return 0
 }
 
@@ -489,7 +504,7 @@ t_ext_diff_pin_is_load_bearing() {
 # but blame never runs an external diff driver, so it would be decoration.
 t_textconv_pin_is_load_bearing() {
   local repo cfg clean_sink intact_sink both_sink blame_sink diff_sink
-  local clean_rc intact_rc live_before live_after
+  local clean_rc intact_rc live_before live_after clean_n both_n
   repo="$(mk_repo)"
   printf '*.md diff=markdown\n' >"$repo/.gitattributes"
   # feature.md needs content from an EARLIER commit ahead of the block the
@@ -573,9 +588,20 @@ t_textconv_pin_is_load_bearing() {
   # the fixture is ever resized: shrink the base block and the arms start
   # reporting a wrong-but-present count, and this assertion fails rather than
   # quietly weakening to the marginal signal it started as.
+  #
+  # The both-stripped arm is asserted as an exact DOUBLING rather than as mere
+  # inequality, for the same reason. `sed p` duplicates every line, so an
+  # unpinned diff and an unpinned blame agree on a count exactly twice the
+  # truth -- a specific number this case can name, and the one the table above
+  # states. Inequality would also be satisfied by a count that is merely
+  # different, which is how a case that measured something drifts into a case
+  # that only observed a change.
+  clean_n="$(awk 'NR == 1 { print $2 }' "$clean_sink")"
+  both_n="$(awk 'NR == 1 { print $2 }' "$both_sink")"
   if [[ "$clean_rc" -eq 1 ]] && [[ -s "$clean_sink" ]] &&
     [[ "$intact_rc" -eq "$clean_rc" ]] && cmp -s "$clean_sink" "$intact_sink" &&
-    ! cmp -s "$clean_sink" "$both_sink" &&
+    [[ "$clean_n" =~ ^[0-9]+$ ]] && [[ "$both_n" =~ ^[0-9]+$ ]] &&
+    [[ "$both_n" -eq $((clean_n * 2)) ]] &&
     [[ ! -s "$blame_sink" ]] && [[ ! -s "$diff_sink" ]]; then
     ok "the --no-textconv pin is load-bearing on the diff AND the blame: stripping both inflates the count, stripping either one alone SILENCES a real finding; pinned both it is unchanged"
   else

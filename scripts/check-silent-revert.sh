@@ -458,10 +458,14 @@ attribute_file() {
   # DEFAULT and both spellings are accepted. Pinning only the diff is worse
   # than pinning neither: attribute_file computes -L ranges from the DIFF's view
   # of the file and hands them to blame, so two disagreeing views point the
-  # ranges at the wrong lines. Measured with a textconv prepending ten lines, an
-  # 80-line single-culprit finding silently re-cut into 60 against the real
-  # culprit and 20 against the base commit -- no error, just a wrong answer, and
-  # at the shipped threshold that is how a true finding slips under the line.
+  # ranges at the wrong lines. Measured in check-silent-revert.test.sh's
+  # t_textconv_pin_is_load_bearing, on a 300-line finding sitting behind 150
+  # lines of earlier content and a textconv that doubles every line: stripping
+  # BOTH pins reports 600, twice the truth but still a finding, while stripping
+  # either one alone drops the surviving count under the threshold and the
+  # commit reports ok with an empty sink. The mixed arms are the dangerous
+  # ones -- not a wrong number a reader might notice, a true finding suppressed
+  # outright. That case owns the figures; do not restate them here.
   # --no-ext-diff is deliberately NOT here: blame accepts it but never runs an
   # external diff driver, so it would be decoration.
   git blame --no-ignore-revs-file --no-textconv --line-porcelain \
