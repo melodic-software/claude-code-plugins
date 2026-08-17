@@ -166,9 +166,10 @@ same lines, or every diff is noise.
 ## The stable spine / free prose split
 
 **The spine** is the machine-stable part: `id`, `layer`, `artifact`, `verdict`, `status`. It is
-**line-formatted** — each field on its own line, in the fixed order shown in "Document shape", with
-the literal bold label and a single-line value drawn from a closed vocabulary or a path. Nothing
-else may appear on a spine line.
+**line-formatted** — the `id` as the finding's own heading line (`### <finding-id>`), and each
+remaining field on its own line, in the fixed order shown in "Document shape", with the literal
+bold label and a single-line value drawn from a closed vocabulary or a path. Nothing else may
+appear on a spine line.
 
 **Everything else is free prose**, recomputed fresh each run: evidence, liveness, intent,
 rediscovery, cost, owner, and the conditional fields below.

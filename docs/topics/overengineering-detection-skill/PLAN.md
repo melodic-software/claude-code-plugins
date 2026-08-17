@@ -131,7 +131,7 @@ ladder rung 4 (inferred, offer-to-persist declined as out of scope for this task
 | Finding suppression | `docs/conventions/finding-suppression/` — stable content-hashed id shape reused for finding ids | team (tracked) |
 | CI gate inventory | `.work/overengineering-detection-skill/EXPLORE-constraints.md` (verified vs `ci.yml`) — the full gate list Phase 6 must clear | team (verified sidecar) |
 
-### Phase 1: Method core + findings-artifact contract [TODO]
+### Phase 1: Method core + findings-artifact contract [DONE]
 
 The semantic heart; gates Phases 3-4. All files new.
 
