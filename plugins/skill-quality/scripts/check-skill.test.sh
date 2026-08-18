@@ -2623,6 +2623,33 @@ else
   fail "signal-carrying procedure should not warn (rc=$rc): $out"
 fi
 
+# 23d. A signal-free numbered list inside a TILDE-fenced code block is ignored
+#      (both CommonMark fence forms are illustrative content).
+make_skill cc-signal-tilde '---
+name: cc-signal-tilde
+description: "Show a tilde sample plan. Use when: '"'"'showing a tilde sample plan'"'"'."
+---
+
+## Example output
+
+~~~text
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+~~~
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-tilde 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "tilde-fenced numbered list is ignored by the completion-criteria heuristic"
+else
+  fail "tilde-fenced list should not fire the completion-criteria warn (rc=$rc): $out"
+fi
+
 # 23c. A signal-free numbered list inside a fenced code block is ignored
 #      (illustrative content never fires the heuristic).
 make_skill cc-signal-fenced '---
