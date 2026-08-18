@@ -24,6 +24,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
+. "$SELF_DIR/test-git-helpers.sh"
 
 PASS=0
 FAIL=0
@@ -1543,9 +1544,7 @@ mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo/context"
 cp "$SCRIPT" "$fx/scripts/"
 out="$(
   cd "$fx" &&
-    git -C "$fx" init -q &&
-    git -C "$fx" config user.email test@example.com &&
-    git -C "$fx" config user.name test &&
+    git_init_test_repo "$fx" &&
     git -C "$fx" commit -q --allow-empty -m base &&
     base="$(git -C "$fx" rev-parse HEAD)" &&
     printf '%s\n' 'stat -c %Y "$f"' >'plugins/alpha/skills/demo/context/mtime.md' &&
@@ -1639,9 +1638,7 @@ cp "$SCRIPT" "$fx/scripts/"
 quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
-    git -C "$fx" init -q &&
-    git -C "$fx" config user.email test@example.com &&
-    git -C "$fx" config user.name test &&
+    git_init_test_repo "$fx" &&
     git -C "$fx" commit -q --allow-empty -m base &&
     base="$(git -C "$fx" rev-parse HEAD)" &&
     printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >'plain.sh' &&

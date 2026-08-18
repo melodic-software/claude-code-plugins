@@ -15,6 +15,14 @@
 # temp usage: `%TEMP%` / `$TEMP` / `$TMP` / `$env:TEMP` / `$TMPDIR` expansions,
 # or `/var/tmp`.
 #
+# SIBLING GUARD, DISJOINT SCOPE. block-exported-msys-pathconv.sh guards the same
+# family (drive-root residue on Windows) through a different door: it matches an
+# EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, with no path component at all,
+# because #2870's incident command carried a path argument textually identical to
+# one that had already worked — the discriminator was the environment, not the
+# string. This guard would not fire on that; that guard would not fire on any
+# case here. Two hooks rather than one overloaded matcher is deliberate.
+#
 # Detection is a static matcher over the literal command string — it does not
 # evaluate shell / PowerShell expansions. Scope residual: an expansion-built
 # path (`$x` where x=/tmp) is invisible here; that is friction against accidental

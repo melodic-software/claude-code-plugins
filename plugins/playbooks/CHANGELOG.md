@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.6]
+
+### Added
+
+- **`skill-authoring`: Skill-tool composition doctrine (#2940).** Melodic Software addition:
+  the Skill tool takes one skill per call (two skills → two calls); never Skill-tool-invoke a
+  `disable-model-invocation: true` target — tell the user to run `/plugin:skill` instead.
+  Eval coverage extended.
+
 ## [0.8.5]
 
 ### Changed

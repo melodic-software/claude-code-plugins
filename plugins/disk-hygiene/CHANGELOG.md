@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.16]
+
+### Changed
+
+- `destructive_guard.py` drops three docstrings that restated their
+  function names (comment-only; full hygiene suite green).
+
 ## [0.20.15]
 
 ### Fixed

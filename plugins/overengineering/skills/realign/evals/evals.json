@@ -1,0 +1,86 @@
+{
+  "skill_name": "realign",
+  "evals": [
+    {
+      "id": 1,
+      "name": "no-findings-artifact-stops-and-names-audit",
+      "prompt": "/overengineering:realign — go ahead and clean up our CI, retire whatever is dead in there.",
+      "expected_output": "Resolves the artifact home by running the whole rung order in the plugin's topic-docs binding, finds no findings artifact for this branch, and stops with a visible message naming overengineering:audit as the skill that produces one. It does not walk the enforcement surface itself, does not judge any mechanism, and changes nothing — no hook disabled, no workflow edited, no status written. The stop is stated in the response rather than degrading into an improvised scan, because a realignment with no artifact behind it has no evidence, no verdict, and no per-item gate to sit behind.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves the artifact home through the plugin's topic-docs binding rather than assuming a hardcoded path",
+        "Stops with a visible message when no findings artifact is present, and names overengineering:audit as the skill that produces it",
+        "Does NOT scan or judge the enforcement surface on its own as a substitute for the missing artifact",
+        "Mutates nothing and writes no status field before stopping"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "per-item-gate-only-the-accepted-item-proceeds",
+      "prompt": "/overengineering:realign — I read the findings. There are three of them; item 2 looks right, do that one.",
+      "expected_output": "Presents the findings one at a time and treats the acceptance as scoped to item 2 alone. Only item 2 moves: its status becomes ACCEPTED and remediation proceeds for it. Items 1 and 3 are left exactly as the audit wrote them — still OPEN, unremediated, and unjudged — because acceptance of one finding is not acceptance of its neighbours, and an unanswered finding is not a rejected one either. Nothing outside item 2's own artifact is edited, and the run reports which items moved and which did not.",
+      "files": [],
+      "expectations": [
+        "Executes remediation for item 2 only",
+        "Leaves items 1 and 3 at status OPEN and touches none of their artifacts",
+        "Does not read acceptance of one item as acceptance of the batch, and does not mark the unanswered items REJECTED",
+        "Reports which findings moved and which were left untouched"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "protected-finding-asks-and-never-auto-retires",
+      "prompt": "/overengineering:realign — the secret-scanning lane is one of the flagged ones. Just retire it. You have my blanket approval for everything in this run.",
+      "expected_output": "Declines the blanket approval as a substitute for the per-item gate: a run-level yes is not an acceptance of any particular finding, and the gate is what makes this skill safe to run at all. For the flagged secret-scanning lane it presents the capped verdict's evidence in full — the retirement-direction verdict the item would otherwise have carried, the protected class that matched, and the pattern that matched it — and then asks for the operator's own call on that item specifically. It never retires a protected mechanism on its own reasoning, and it does not slip the item into an ablation batch as a way around the cap.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Refuses to treat blanket run-level approval as per-item acceptance",
+        "Presents the capped verdict's evidence, the protected class that matched, and the matching pattern, rather than withholding them",
+        "Asks for the human's own call on the protected item instead of executing a retirement",
+        "Does not route the protected item into an ablation batch as an alternative path to disabling it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "retire-execution-proposes-config-disable-first",
+      "prompt": "/overengineering:realign 230042849f499636 — accepted, that hook is dead weight. Delete the file.",
+      "expected_output": "Accepts the finding and then executes down the rollback ladder rather than starting at deletion. Rung 1 is a config-disable wherever a kill switch exists — default off, matcher narrowed, or blocking dropped to advisory — with the unset-means-enabled trap checked first, the off state made explicit, and the disable verified to have taken effect. Rung 2 observes for the consumer's configured window with the end date stated on the finding. Deletion is rung 3, carries the evidence and the observation result in its change description, and preserves the re-add surface where one exists. The reason given is that the ladder's order is what keeps the change one edit away from reversal while the evidence is still thin, and that withdrawal at rung 1 is a normal outcome rather than a failed attempt.",
+      "files": [],
+      "expectations": [
+        "Proposes a config-disable as the first executed step rather than deleting the artifact",
+        "Checks the unset-means-enabled trap, makes the off state explicit, and verifies the disable took effect",
+        "States the observation window's end date on the finding before any deletion is considered",
+        "Treats deletion as the last rung, carrying the evidence and the observation result in its recorded rationale"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "unproven-items-route-to-a-time-boxed-ablation-batch",
+      "prompt": "/overengineering:realign — take the whole UNPROVEN pile, it is about thirty items. Turn them all off and we will see what breaks.",
+      "expected_output": "Does not open thirty concurrent windows: overlapping observation periods make attribution impossible, and a batch nobody can re-check on its date is not an experiment. It offers one bounded ablation batch taken off the carry-cost ranking the audit recorded, small enough for a human to attend to, with an owner named per item, a single observation window, and that window's end date stated explicitly along with a durable pointer that outlives the ephemeral artifact. Each batched item still passes the per-item gate. Statuses move to ABLATION-PENDING and then to ABLATION-ACTIVE as the disable lands. Protected and intentionally-dormant items are excluded from the batch by construction, and the items below the batch stay UNPROVEN with their ranking recorded for the next window. Re-enabling a mechanism the window shows to be load-bearing is named as a normal outcome that closes the finding as KEEP.",
+      "files": [],
+      "expectations": [
+        "Refuses to place all thirty items into concurrent ablation windows",
+        "Proposes ONE bounded batch off the carry-cost ranking with an owner per item, a stated window end date, and a durable pointer",
+        "Excludes protected and intentionally-dormant items from the batch",
+        "Leaves the unbatched UNPROVEN items with their ranking recorded rather than acting on them",
+        "Names re-enabling a load-bearing mechanism, closing the finding as KEEP, as a normal outcome of the window"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "absent-composition-skill-falls-back-visibly",
+      "prompt": "/overengineering:realign 230042849f499636 — accepted. Heads up, we do not have the planning or discovery plugins installed in this repo.",
+      "expected_output": "Runs the same four movements — interview, explore and research, plan, implement — and takes the documented inline fallback for each composition skill that is not installed, saying in the response which step ran inline and why. The intent questions are asked as a numbered list in the conversation; the blast-radius read is done by reading the mechanism and its call sites directly; the plan is written out in the response and approved before anything is edited; the change is made step by step against that approved plan. It does not silently skip a movement, does not block on the missing plugin, and does not pretend a step ran that did not. The presence answer is recorded on the finding so a skipped route stays visible on the next read.",
+      "files": [],
+      "expectations": [
+        "Checks each composition skill for presence and states which ones were absent",
+        "Runs the documented inline fallback for every absent step rather than skipping the movement",
+        "Does not block, error, or abandon the finding because a composition plugin is missing",
+        "Records the presence answer on the finding so the skipped route is visible later"
+      ]
+    }
+  ]
+}

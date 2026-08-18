@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.9]
+
+### Fixed
+
+- **Human-relay user-invoked-only skill handoffs (#2940).** `inventory`,
+  `audit-performance`, and `audit-install-state` no longer instruct the agent to
+  route/hand off to `/claude-ops:plugins audit` or `/disk-hygiene:clean`
+  (`disable-model-invocation: true`); they tell the user to run those skills.
+  Question|Owner tables and "Deletion belongs to …" ownership prose unchanged.
+
+## [0.32.8]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
 ## [0.32.7]
 
 ### Fixed
