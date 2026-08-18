@@ -140,29 +140,37 @@ wit_require_jira_id() {
 # Exports WIT_JIRA_SITE, WIT_JIRA_PROJECT_KEYS (JSON array), WIT_JIRA_AUTH_EMAIL,
 # WIT_JIRA_AUTH_ENV, WIT_JIRA_BLOCKED_BY_LINK_TYPE, WIT_JIRA_DONE_KEYS (JSON array).
 wit_need_jira_config() {
-  local name binding
+  local name binding ejson
   name="$(basename "${BASH_SOURCE[1]}")"
   binding="$(wit_find_binding)" ||
     {
       printf '%s: no binding found (.work-item-tracker.json) — see CONTRACT.md Setup\n' "$name" >&2
       exit "$EX_CONFIG"
     }
-  WIT_JIRA_SITE="$(jq -r '.config.jira.site // empty' "$binding")"
-  WIT_JIRA_AUTH_EMAIL="$(jq -r '.config.jira.auth_email // empty' "$binding")"
-  WIT_JIRA_AUTH_ENV="$(jq -r '.config.jira.auth_env // empty' "$binding")"
-  WIT_JIRA_PROJECT_KEYS="$(jq -c '.config.jira.project_keys // []' "$binding")"
-  WIT_JIRA_BLOCKED_BY_LINK_TYPE="$(jq -r --arg d "$WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE" '.config.jira.blocked_by_link_type // $d' "$binding")"
+  # The effective (team + allowlisted overlay) view: auth_email/auth_env are the
+  # jira keys a per-user overlay may carry — auth identity is per-account —
+  # while site/project_keys and the JQL-shaping keys stay team-only.
+  ejson="$(wit_effective_binding_json "$binding")" ||
+    {
+      printf '%s: invalid binding at %s — see CONTRACT.md Setup\n' "$name" "$binding" >&2
+      exit "$EX_CONFIG"
+    }
+  WIT_JIRA_SITE="$(jq -r '.config.jira.site // empty' <<<"$ejson")"
+  WIT_JIRA_AUTH_EMAIL="$(jq -r '.config.jira.auth_email // empty' <<<"$ejson")"
+  WIT_JIRA_AUTH_ENV="$(jq -r '.config.jira.auth_env // empty' <<<"$ejson")"
+  WIT_JIRA_PROJECT_KEYS="$(jq -c '.config.jira.project_keys // []' <<<"$ejson")"
+  WIT_JIRA_BLOCKED_BY_LINK_TYPE="$(jq -r --arg d "$WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE" '.config.jira.blocked_by_link_type // $d' <<<"$ejson")"
   # Read done_category_keys by PRESENCE, not `// default`: jq's `//` collapses an
   # explicit `false`/`null` into the default, which would silently apply the default
   # classification for a typo'd override instead of the required config error. Absent →
   # default; present → taken verbatim so the type/non-empty/element checks below judge it.
-  if [[ "$(jq -r '.config.jira | has("done_category_keys")' "$binding")" == "true" ]]; then
-    WIT_JIRA_DONE_KEYS="$(jq -c '.config.jira.done_category_keys' "$binding")"
+  if [[ "$(jq -r '.config.jira | has("done_category_keys")' <<<"$ejson")" == "true" ]]; then
+    WIT_JIRA_DONE_KEYS="$(jq -c '.config.jira.done_category_keys' <<<"$ejson")"
   else
     WIT_JIRA_DONE_KEYS="$WIT_JIRA_DEFAULT_DONE_KEYS"
   fi
   local allow_custom_domain
-  allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' "$binding")"
+  allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' <<<"$ejson")"
   local missing=""
   [[ -n "$WIT_JIRA_SITE" ]] || missing+=" config.jira.site"
   [[ -n "$WIT_JIRA_AUTH_EMAIL" ]] || missing+=" config.jira.auth_email"
@@ -204,7 +212,7 @@ wit_need_jira_config() {
   # every issue and list-frontier would surface actually-blocked tickets. Absent →
   # the documented default (validated as a jq raw type, since the // $d read above
   # already collapsed null into the default string).
-  [[ "$(jq -r '(.config.jira.blocked_by_link_type) as $b | if $b == null then "default" elif (($b|type)=="string" and ($b|length)>0) then "ok" else "bad" end' "$binding")" != "bad" ]] ||
+  [[ "$(jq -r '(.config.jira.blocked_by_link_type) as $b | if $b == null then "default" elif (($b|type)=="string" and ($b|length)>0) then "ok" else "bad" end' <<<"$ejson")" != "bad" ]] ||
     bad+=" blocked_by_link_type(must be a non-empty string)"
   # Every element (each project key, each done key) is checked IN jq so an empty or
   # non-string element cannot slip through — a bash line-loop loses trailing empty

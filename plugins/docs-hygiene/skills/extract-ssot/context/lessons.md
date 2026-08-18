@@ -7,6 +7,9 @@ schema-version: 1
 
 # Empirical lessons — `/docs-hygiene:extract-ssot`
 
+Jump by number: `grep -n '^## Lesson' context/lessons.md` — an enumerated table of contents is
+deliberately omitted (append-only file; a list would drift on every append).
+
 Append-only record of patterns observed during real `/docs-hygiene:extract-ssot` runs. Distinct from `decision-framework.md` (a-priori 6+5 gate) and `anti-patterns.md` (failure-mode taxonomy with mitigations) — this file captures **empirical observations** from running the skill on real candidates and learning what the survey heuristic over-counts, what categorical-shape signals indicate distinct concerns, and what extraction shapes succeed vs refuse.
 
 Lessons 1-11 were seeded from batch runs in the repository where this skill was developed (sources below are genericized). Consuming repositories append their own lessons as batches run.

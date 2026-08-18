@@ -28,6 +28,40 @@ from pathlib import Path
 from typing import cast
 from unittest import mock
 
+# FIXTURE ISOLATION (#2840). `git -C <dir>` is a readability guard, not an
+# isolation guarantee. `-C` does chdir, but an exported ABSOLUTE GIT_DIR
+# overrides repository DISCOVERY, and `git config` writes its default --local
+# scope to whatever --git-dir finally resolves to. So under an inherited
+# GIT_DIR, this module's `git -C <checkout> config user.email test@example.com`
+# writes that identity into the CALLER's .git/config and leaves the fixture
+# with no .git at all — after which the caller's next commit is authored as
+# `Test <test@example.com>`, fails this repo's required_signatures rule with
+# `no_user`, and cannot be force-pushed over. That is the #2827 -> #2830
+# incident.
+#
+# Cleared once at import, not per call site: fixtures are built from two
+# TestCase classes here (HygieneTests, HandoffVerifyTests) with no shared
+# setUp, none of the git subprocess calls pass an explicit `env=`, and the
+# subprocesses this module spawns inherit os.environ — so one module-level
+# clear covers every present and future path. The variable list mirrors
+# scripts/test-git-helpers.sh, which does the same thing at source time for the
+# shell suites; scripts/check-fixture-git-isolation.sh keeps both true.
+# GIT_CONFIG is in the list and is a DISTINCT leak path rather than another
+# spelling of the discovery one: it replaces the file the `git config`
+# subcommand reads and writes, so an identity write follows it regardless of
+# `-C`, of GIT_DIR, and of the working directory.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 

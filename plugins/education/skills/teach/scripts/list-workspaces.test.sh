@@ -2,6 +2,10 @@
 # Regression tests for list-workspaces.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
+# Fixture isolation: an inherited absolute GIT_DIR outranks -C and would route
+# fixture writes into the caller's real .git/config.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE GIT_COMMON_DIR
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/list-workspaces.sh"
 
@@ -107,6 +111,92 @@ if ln -s "$PROJ" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
   assert_contains "symlinked project lists the same workspaces" "$OUT" "$DATA/$SLUG/topic/rust-ownership/"
 else
   printf 'SKIP: symlink cases (this OS/filesystem does not support real symlinks)\n'
+fi
+
+# --- Case 7: multi-root scan — workspaces under every supplied root are listed ---
+# The root may carry spaces (a Documents path usually does); the array glob must survive it.
+
+DOCS_ROOT="$TEST_TMPDIR/Documents dir/Claude Learning"
+mkdir -p "$DOCS_ROOT/$SLUG/topic/music-theory"
+rc=0
+OUT=$(bash "$SCRIPT" "$PROJ" "$DOCS_ROOT" "$DATA") || rc=$?
+assert_exit "multi-root exits 0" 0 "$rc"
+assert_contains "multi-root lists the space-bearing documents root" "$OUT" "$DOCS_ROOT/$SLUG/topic/music-theory/"
+assert_contains "multi-root still lists the plugin-data root" "$OUT" "$DATA/$SLUG/topic/rust-ownership/"
+
+# --- Case 8: a surviving user_config placeholder root is skipped as unset ---
+# The skill body passes body-resolved roots; a literal `${user_config...}` means unset and
+# must be filtered, not globbed as a path.
+
+rc=0
+OUT=$(bash "$SCRIPT" "$PROJ" '${user_config.workspace_root}' "$DATA") || rc=$?
+assert_exit "placeholder root exits 0" 0 "$rc"
+assert_contains "placeholder root still scans the real roots" "$OUT" "$DATA/$SLUG/topic/rust-ownership/"
+
+# --- Case 9: ALL roots unset/placeholder is a usage error (exit 2), not a quiet none ---
+# Exit 2 tells the skill the probe is broken (glob manually); `none` means genuinely empty.
+
+rc=0
+OUT=$(bash "$SCRIPT" "$PROJ" '${user_config.workspace_root}' '' 2>/dev/null) || rc=$?
+assert_exit "all-placeholder roots exit 2" 2 "$rc"
+
+# --- Case 10: --default-root honors xdg-user-dir and the ≠ $HOME guard (Linux path) ---
+# Stubbed xdg-user-dir + fake HOME; skipped on non-Linux platforms where the script takes
+# the Darwin/Windows branch instead of consulting xdg-user-dir.
+
+if [[ "$(uname -s)" == "Linux" ]]; then
+  FAKE_HOME="$TEST_TMPDIR/home"
+  FAKE_DOCS="$FAKE_HOME/My Documents"
+  STUB_BIN="$TEST_TMPDIR/stub-bin"
+  mkdir -p "$FAKE_HOME" "$FAKE_DOCS" "$STUB_BIN"
+  cat >"$STUB_BIN/xdg-user-dir" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$XDG_STUB_ANSWER"
+STUB
+  chmod +x "$STUB_BIN/xdg-user-dir"
+
+  rc=0
+  OUT=$(HOME="$FAKE_HOME" XDG_STUB_ANSWER="$FAKE_DOCS" PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --default-root) || rc=$?
+  assert_exit "default-root with configured Documents exits 0" 0 "$rc"
+  assert_eq "default-root appends Claude Learning" "$FAKE_DOCS/Claude Learning" "$OUT"
+
+  # Unconfigured xdg-user-dir echoes $HOME itself — the guard must refuse it.
+  rc=0
+  OUT=$(HOME="$FAKE_HOME" XDG_STUB_ANSWER="$FAKE_HOME" PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --default-root) || rc=$?
+  assert_exit "default-root == HOME is refused (exit 1)" 1 "$rc"
+  assert_eq "default-root == HOME prints nothing" "" "$OUT"
+
+  # A Documents answer that does not exist on disk is refused — never silently created.
+  rc=0
+  OUT=$(HOME="$FAKE_HOME" XDG_STUB_ANSWER="$FAKE_HOME/absent-docs" PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --default-root) || rc=$?
+  assert_exit "absent Documents dir is refused (exit 1)" 1 "$rc"
+else
+  printf 'SKIP: --default-root xdg cases (non-Linux platform)\n'
+fi
+
+# --- Case 11: a linked git worktree hoists to the main repo's slug; the old per-worktree
+# slug is still scanned and labeled legacy. Skipped when git is unavailable. ---
+
+if command -v git >/dev/null 2>&1; then
+  MAIN_REPO="$TEST_TMPDIR/wt/main-repo"
+  WORKTREE="$TEST_TMPDIR/wt/feature-copy"
+  mkdir -p "$MAIN_REPO"
+  git -C "$MAIN_REPO" init -q -b main 2>/dev/null || git -C "$MAIN_REPO" init -q
+  git -C "$MAIN_REPO" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+  if git -C "$MAIN_REPO" worktree add -q "$WORKTREE" 2>/dev/null; then
+    MAIN_SLUG="$(expected_slug "$MAIN_REPO")"
+    LEGACY_SLUG="$(expected_slug "$WORKTREE")"
+    mkdir -p "$DATA/$MAIN_SLUG/codebase/auth-flow" "$DATA/$LEGACY_SLUG/topic/old-notes"
+    rc=0
+    OUT=$(bash "$SCRIPT" "$WORKTREE" "$DATA") || rc=$?
+    assert_exit "worktree invocation exits 0" 0 "$rc"
+    assert_contains "worktree lists the MAIN repo's workspace" "$OUT" "$DATA/$MAIN_SLUG/codebase/auth-flow/"
+    assert_contains "old per-worktree workspace is labeled legacy" "$OUT" "$DATA/$LEGACY_SLUG/topic/old-notes/ (legacy worktree slug)"
+  else
+    printf 'SKIP: worktree case (git worktree add failed here)\n'
+  fi
+else
+  printf 'SKIP: worktree case (git unavailable)\n'
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

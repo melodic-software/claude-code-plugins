@@ -192,7 +192,7 @@
       "name": "docs-hygiene",
       "source": "./plugins/docs-hygiene",
       "category": "maintenance",
-      "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
+      "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit", "progressive-disclosure", "context-engineering"]
     },
     {
       "name": "firecrawl",
@@ -260,7 +260,13 @@
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
       "category": "maintenance",
-      "tags": ["tidy", "refactoring", "simplify", "boy-scout", "maintenance", "skill"]
+      "tags": ["tidy", "refactoring", "simplify", "boy-scout", "comments", "maintenance", "skill"]
+    },
+    {
+      "name": "coupling",
+      "source": "./plugins/coupling",
+      "category": "maintenance",
+      "tags": ["coupling", "cohesion", "decouple", "connascence", "dependency-injection", "refactoring", "skill"]
     },
     {
       "name": "session-flow",
@@ -304,6 +310,12 @@
       "source": "./plugins/context-guard",
       "category": "claude-code",
       "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
+    },
+    {
+      "name": "context-budget",
+      "source": "./plugins/context-budget",
+      "category": "claude-code",
+      "tags": ["context-window", "startup-payload", "token-budget", "tool-schemas", "measurement", "attribution", "ledger", "skill"]
     },
     {
       "name": "plugin-quality",
@@ -449,6 +461,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "ai-slop",
+      "displayName": "AI Slop",
+      "source": "./plugins/ai-slop",
+      "category": "quality",
+      "tags": ["ai-slop", "ai-writing", "slop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
+    },
+    {
       "name": "miro",
       "source": "./plugins/miro",
       "category": "design",
@@ -525,6 +544,37 @@
         "gui",
         "screenshot",
         "accessibility",
+        "skill"
+      ]
+    },
+    {
+      "name": "overengineering",
+      "source": "./plugins/overengineering",
+      "category": "quality",
+      "tags": [
+        "overengineering",
+        "enforcement-surface",
+        "audit",
+        "realign",
+        "retirement",
+        "yagni",
+        "carry-cost",
+        "automation-sprawl",
+        "skill"
+      ]
+    },
+    {
+      "name": "improvement",
+      "source": "./plugins/improvement",
+      "category": "quality",
+      "tags": [
+        "improvement",
+        "evidence",
+        "tech-debt",
+        "hotspots",
+        "value-to-effort",
+        "ranking",
+        "audit",
         "skill"
       ]
     }

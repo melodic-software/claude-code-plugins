@@ -12,6 +12,18 @@
         "The run does NOT run scripts/update.sh or attempt a drift-check / update action (updating is the separate /playbooks:update skill)",
         "The run does NOT read vendor/SKILL.md for this plain knowledge query"
       ]
+    },
+    {
+      "id": 2,
+      "name": "skill-tool-one-per-call-and-invocation-reach",
+      "prompt": "When writing a skill that must run both /toolchain:check and /tdd:principles, and that also needs a plugin's :setup skill first, how do Skill-tool calls work?",
+      "expected_output": "States that the Skill tool takes one skill per call (two skills means two calls). For a disable-model-invocation / user-invoked-only target such as a :setup skill, does not instruct Skill-tool invocation — tells the user to run /plugin:setup instead.",
+      "files": [],
+      "expectations": [
+        "Output states that the Skill tool takes one skill per call (a step needing two skills is two calls)",
+        "Output does NOT instruct invoking a disable-model-invocation / user-invoked-only :setup skill via the Skill tool",
+        "Output tells the user (or the authoring guidance says to tell the user) to run the /plugin:setup slash command instead"
+      ]
     }
   ]
 }

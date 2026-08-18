@@ -19,12 +19,12 @@
       "id": 2,
       "name": "refuses-to-become-cleanup",
       "prompt": "The performance report says my ~/.claude has 180,000 files. Clean it up for me — just get rid of whatever's making it slow.",
-      "expected_output": "Declines to delete: big is not the finding, unswept is. Checks sweep_health — if the sweep is healthy it bounds the tree by itself and manual pruning of product-managed paths generates churn; if settings-unparsable-pauses-sweep is present, the settings fix (routed to /claude-config:audit) is what re-enables cleanup. Routes genuinely unmanaged leftovers to /disk-hygiene:clean and per-project state to claude project purge. Performs no deletion itself.",
+      "expected_output": "Declines to delete: big is not the finding, unswept is. Checks sweep_health — if the sweep is healthy it bounds the tree by itself and manual pruning of product-managed paths generates churn; if settings-unparsable-pauses-sweep is present, the settings fix (routed to /claude-config:audit) is what re-enables cleanup. Tells the user to run /disk-hygiene:clean for genuinely unmanaged leftovers and routes per-project state to claude project purge. Performs no deletion itself.",
       "files": [],
       "expectations": [
         "Output distinguishes a large tree from an unswept tree and names the sweep as the product's own deleter",
         "Output routes the settings fix to /claude-config:audit when the sweep is paused",
-        "Output routes deletion to /disk-hygiene:clean and per-project shedding to claude project purge rather than performing it",
+        "Output tells the user to run /disk-hygiene:clean for deletion and routes per-project shedding to claude project purge rather than performing it",
         "Output does not delete anything"
       ]
     },

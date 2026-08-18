@@ -3,7 +3,8 @@
 Provider-neutral CLI contract for work-item tracker operations. Skills and scripts call the
 core dispatcher (`work-item-tracker.sh`) only; the bound provider adapter executes the
 operation. The seam ships bundled with the `work-items` plugin and resolves plugin-dir
-canonical with a project-root fallback (see "Adapter resolution"). Direction locked by ADR 0022.
+canonical with a project-root fallback (see "Adapter resolution"). Direction locked by
+[ADR 0014](../../../../docs/adr/0014-resolve-seam-engine-plugin-canonical-and-adapters-consumer-first.md).
 
 ## Prerequisites
 
@@ -15,23 +16,97 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
   adapter gates on it at call time (exit `3`), not the dispatcher — minimal shared-code
   blast radius.
 
+### Degradation without `gh` (cloud / MCP-only sessions)
+
+Some execution environments have GitHub access but no `gh` binary — notably cloud sessions
+whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+seam **cannot run the `github` adapter at all**, reads and writes alike: the dispatcher's
+prerequisite gate exits `3` (the same first-run signal as a missing binding), and there is
+deliberately no silent fallback to another provider (the binding names the coordination
+surface; "Offline role activates only by manual binding switch" applies to degradation
+too). Honest limitation, recorded 2026-08-17 (#2942): this repository's own spec board
+(#2933) had to be published through MCP tools with blocking edges as body text, because
+the publishing session had no `gh`.
+
+Evaluated fallbacks, decided as follows:
+
+- **REST fallback inside the `github` adapter (`curl`) — explicitly deferred.** It would
+  duplicate `gh`'s auth, pagination, and endpoint surface inside the adapter, and would
+  silently fork identity routing ("Identity routing (GitHub adapter)" — the bot-wrapper
+  seam wraps `gh`, not raw HTTP). The native sub-issue/dependency surface is exactly what
+  gates `gh ≥ 2.94`; re-deriving it over raw REST is a second implementation to keep
+  conformant. Revisit if gh-less environments become a primary execution surface rather
+  than an occasional one.
+- **MCP tools as an adapter — rejected.** Adapters are shell verb-scripts; MCP tools are
+  callable only by the model, so a shell seam cannot invoke them. A session with MCP-only
+  GitHub access already has item CRUD through those tools directly — what it loses is the
+  seam's value-add (leases, frontier derivation, normalization, conformance).
+
+**Supported path — the backfill ritual.** A `gh`-less session that must publish anyway
+(the #2933 case) publishes through whatever GitHub surface it has, and:
+
+1. records every blocking edge as a structured body line — `Blocked by: <qualified id>`
+   ("ID grammar"; bare `#123` is never persisted) — and parent linkage via the provider
+   surface where it exists (MCP has native sub-issue support);
+2. leaves one provenance comment on the container naming the edges awaiting native
+   backfill;
+3. the next session with `gh ≥ 2.94` replays the recorded edges through the seam
+   (`link-blocks` / `add-sub-item`) and strikes the note.
+
+Leases are NOT part of the ritual: a `gh`-less session must not simulate claims by
+body-editing — claim/renew/reclaim stay seam-only, so an item worked this way is picked up
+as unclaimed coordination (acceptable for a publish, wrong for contended work).
+
 ## Setup (binding file)
 
 The repo binds exactly ONE active provider via `.work-item-tracker.json` at the repo root
-(tracked — which tracker a repo uses is repo-scoped):
+(tracked — which tracker a repo uses is repo-scoped). Layering and location are locked by
+[ADR 0015](../../../../docs/adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md):
+one team layer at the root, one gitignored personal overlay beside it, deliberately no
+user-global layer.
 
 ```json
 {
   "schema_version": "1.0",
   "provider": "github",
+  "docs": "Work-item tracker binding — plugins/work-items/tools/work-item-tracker/CONTRACT.md (Setup)",
   "config": {
     "lease_ttl_hours": 24
   }
 }
 ```
 
-- Discovery: climb from CWD toward the filesystem root; first match wins. Env override
+- Discovery: `.work-item-tracker.json` at the **repo root** — `${CLAUDE_PROJECT_DIR}` when
+  set, else `git rev-parse --show-toplevel`. That single anchor governs ALL of the seam's
+  repo-relative resolution (binding read, consumer-local adapter dirs, the github adapter's
+  bot-wrapper lookup), so a bare shell that finds the binding also finds consumer-local
+  adapters. Discovery is deliberately NOT a CWD-to-filesystem-root climb: a stray
+  ancestor/home binding would silently capture every repo beneath it (#2941). Nested
+  per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
+- **Personal overlay** — an optional gitignored `.work-item-tracker.local.json` beside the
+  team binding merges **per-key over an allowlist, deny-by-default**. Overlayable keys:
+  `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
+  record, so a per-user value is coherent), `config.jira.auth_email`,
+  `config.jira.auth_env` (auth identity is per-account), and the self-describing `docs`
+  pointer. Everything else — `provider`, `config.role_labels`, `config.container_label`,
+  `config.storage_dir`, `config.jira.site`/`project_keys` and the JQL-shaping keys — is
+  shared coordination state and team-layer-only: an overlay value for any such key is a
+  configuration error (exit `3`, naming the offending keys), never a merge — including a
+  non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
+  `{"config":{}}` is inert). Allowlisted keys hold scalars: an object or array value at an
+  allowlisted key is likewise a configuration error, and an explicitly `null` value merges by
+  presence and is judged by normal binding validation, exactly as if the team file carried
+  it — never a silent fallback to the team value either way. A personal
+  provider override is structurally foreclosed — leases, labels, and frontier state live
+  provider-side, so a personal binding would fracture the team's coordination surface.
+  There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The
+  overlay's gitignore line (`.work-item-tracker.local.json`) is appended, announced, by
+  `/work-items:setup apply` — the root-level overlay is outside the marketplace's
+  `.claude/**/*.local.*` convention line.
+- Optional `docs` (either layer): a free-form self-describing pointer naming what the file
+  is and where its contract lives, so the root dotfile explains itself to a teammate who
+  finds it. `/work-items:setup` writes it by default; the seam never reads it.
 - Owner/repo are NEVER recorded in the binding — derived at runtime from the working
   directory's git remote (`gh repo view --json owner,name`). Verbs that need a repo
   context accept an explicit `--repo <owner>/<repo>` override (conformance, cross-repo
@@ -44,6 +119,9 @@ The repo binds exactly ONE active provider via `.work-item-tracker.json` at the 
   invalid (exit `3`). Optional `config.lease_ttl_minutes` (0–59 additive minutes;
   default `0`) combines with `lease_ttl_hours` for sub-hour leases (#1034).
 - `config.storage_dir` is REQUIRED when `provider` is `local-markdown` (no baked default).
+- Format stays JSON: `jq` is the seam's hard prerequisite and the hot readers are
+  shell + Node; YAML would cost a parser in three ecosystems. The comment-ergonomics gap
+  is covered by the `docs` key rather than a format change.
 
 ## Verbs (core public surface)
 
@@ -120,13 +198,15 @@ Two independent resolutions, deliberately opposite:
   plugin's engine by default and a vendored copy still works.
 - **Adapters** (`adapters/<provider>/`): **consumer-local-first, plugin-bundled fallback; first match
   wins.** For the bound `<provider>`, the dispatcher searches
-  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` first, then its own bundled
-  `adapters/<provider>/`. A consuming repo can thus add a provider the plugin does not ship, or shadow
-  a bundled adapter with a local copy it owns fully — without forking the plugin. `WIT_ADAPTERS_DIR`
-  overrides the search with a single explicit adapter root (tests, conformance).
+  `<repo root>/tools/work-item-tracker/adapters/<provider>/` first — the repo root being the seam's
+  single anchor, `${CLAUDE_PROJECT_DIR}` when set, else the git toplevel ("Setup (binding file)") —
+  then its own bundled `adapters/<provider>/`. A consuming repo can thus add a provider the plugin
+  does not ship, or shadow a bundled adapter with a local copy it owns fully — without forking the
+  plugin. `WIT_ADAPTERS_DIR` overrides the search with a single explicit adapter root (tests,
+  conformance).
 
 The binding (`.work-item-tracker.json`) and any consumer-local adapters live in the consuming repo
-(`${CLAUDE_PROJECT_DIR}`); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
+(the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
 which is read-only and replaced on plugin update — no seam state is written there.
 
 ## JSON output contract
@@ -260,21 +340,42 @@ leave the frontier treating the item as unassigned), supersede the lease, append
 explanatory comment, `reclaimed: true`. Ownership is **revalidated immediately before the
 mutation** — the activity round-trips open a window in which a concurrent claimer can renew
 or supersede the lease; if the active lease is no longer this one, or is now live, reclaim
-is a no-op (`reclaimed: false`), never a mutation. A live lease is never reclaimed.
+intends a no-op (`reclaimed: false`). That revalidation is **intent, not a guarantee**: it
+narrows the TOCTOU window but cannot close it — GitHub's issue-comment PATCH documents no
+If-Match / CAS, so a concurrent writer can still win the race and a reclaim can still mutate
+after a stale revalidation. Do not treat the check as CAS. A live lease is never the
+*intended* reclaim target.
 Branch-push activity signals are not implemented (deferred; comments + PR cross-references
-carry the check).
+carry the check). Long-running workers therefore **renew mid-flight** (`renew-lease` on the
+claim's `lease_comment_id`) rather than relying on push activity (`/work-items:work` Step 5).
+
+- **Clock skew.** Liveness compares provider timestamps (`renewed_at` in the marker) to the
+  local clock (`date -u`). Assume the two are close enough for the configured TTL;
+  sub-hour `ttl_minutes` make skew more visible.
+- **ttl-0.** A claim with `ttl_hours: 0` and `ttl_minutes: 0` is born expired. Conformance
+  relies on that; do not treat it as a live lease.
+- **Comment-id monotonicity.** Same-login race arbitration treats an earlier numeric lease
+  handle as the winner. GitHub lists issue comments by ascending ID by default; adapters
+  MUST emit ordered unique numeric `lease_comment_id` handles.
 
 ## Containers and state
 
-Two axes, one item model: a **container** is an ordinary item carrying the `work-map`
-label (a navigable graph root — wayfind maps, decompose breakdowns); **state** is the
+Two axes, one item model: a **container** is an ordinary item carrying the container
+label (default `work-map`; a navigable graph root — wayfind maps, decompose breakdowns);
+**state** is the
 provider's native open/closed. Containers are never claimable by workers (no
 `agent-ready`), so **a container is never its own frontier item**: `list-frontier` excludes
 any item carrying the container label, unconditionally (global and `--parent`-scoped alike).
-The container label is a named constant (`WIT_CONTAINER_LABEL`, default `work-map`) matching
-this contract term; making it a per-repo remap (a consumer wanting a different marker) is
-deferred to the `config.role_labels` convention (label-taxonomy.md "Canonical roles"), keyed
-off that same first request — not a parallel binding key. Read one container's children with
+The container label resolves from the binding — `config.container_label`, a sibling of
+`config.role_labels` (the marker names a graph root, not a worker role, so it is not a
+role entry) — with the shipped default `work-map` when the key is absent or empty
+(resolution in `lib/binding.sh`, exported as `WIT_CONTAINER_LABEL`; default defined once
+in `lib/labels.sh`). The remapped label must exist in the consuming repo, and remapping a
+repo that already holds containers requires relabeling them — the frontier exclusion is an
+exact match against the resolved string, so items still carrying the old marker would
+surface as frontier items. `planning:wayfind` maps share this contract and resolve the
+same binding key (its `tracker-mechanics` doc carries the read), so one remap governs both
+container producers. Read one container's children with
 `list-sub-items <container>`; read the workable frontier within one container with
 `list-frontier --parent <container>`. Aside from that exclusion the frontier is
 label-agnostic and simply never surfaces items that are assigned or blocked.
@@ -294,12 +395,36 @@ label-agnostic and simply never surfaces items that are assigned or blocked.
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
 
+### Contract-version handshake
+
+Adapters resolve consumer-local first ("Adapter resolution"), so a consumer-owned,
+shadowing, or generated adapter can legitimately be built against a different contract
+revision than the engine dispatching to it. The dispatcher therefore performs a
+**directional tolerant-reader handshake** before every dispatch: it compares the manifest's
+declared `schema_version` to the core's contract version (`WIT_SCHEMA_VERSION`,
+`lib/json.sh`). Skew behavior, both directions:
+
+| Manifest vs core | Behavior |
+|---|---|
+| no valid `schema_version` (MAJOR.MINOR) | refuse: exit `3`, stderr says the manifest cannot handshake — consumer/generated adapters MUST declare one |
+| newer MAJOR | refuse: exit `3`, stderr names both versions — "update the `work-items` plugin" |
+| older MAJOR | refuse: exit `3`, stderr names both versions — "update or regenerate the adapter" |
+| same MAJOR, newer MINOR | proceed with a stderr notice: minors are additive, so the core (a tolerant reader) ignores fields it does not know; updating the plugin consumes them |
+| same MAJOR, MINOR ≤ core | proceed silently: additive fields introduced after the adapter's revision are optional by definition, so an older adapter simply omits them |
+
+Major skew is a **configuration error, not a degradation**: exit `3` is the same
+first-run/setup signal as a missing binding, pointing at the mismatched pair rather than
+failing later inside a verb with a shape error. The conformance suite asserts both refusal
+directions and the newer-minor notice against a synthetic skewed manifest, and every real
+conformance case exercises the passing handshake.
+
 ## Identity routing (GitHub adapter)
 
 Tracker WRITES (item create, lease comments, reclaim notes) route through an optional bot wrapper
 (`gh-bot.sh`) when a wrapper is found, and fall back to bare `gh` when neither location has one.
-Resolution is consumer-local-first, plugin-bundled fallback — mirroring "Adapter resolution": the
-adapter checks `${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh` first, independent of where the
+Resolution is consumer-local-first, plugin-bundled fallback — mirroring "Adapter resolution", anchored
+at the same repo root (`${CLAUDE_PROJECT_DIR}`, else the git toplevel): the
+adapter checks `<repo root>/tools/github-auth/gh-bot.sh` first, independent of where the
 adapter itself resolved from (so a shadowed consumer-local adapter still finds the consumer's wrapper),
 then falls back to `…/github-auth/gh-bot.sh` bundled beside the seam tree. A plugin install ships no
 wrapper at either path, so writes use bare `gh` by default (plugin-lift portability); a repo that wants
@@ -341,6 +466,41 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
 - **Offline role activates only by manual binding switch** — the local-markdown
   provider is used when a repo's binding names it, never as an automatic fallback
   from a network failure of another provider.
+
+### Branch, worktree, and lease confinement
+
+The store is working-tree files (`<storage_dir>/<number>.md`). Visibility is
+therefore confined to the tree that holds those files. Untracked or uncommitted
+item files are **not** branch-isolated in the same worktree: `git switch`
+normally carries them onto the new branch (and a nonconflicting uncommitted
+lease edit can likewise follow). Invisibility holds for sibling worktrees that
+do not share those store files, and for committed store files on other branches
+until those commits are merged. `wit_next_number` is the max existing file
+number + 1 with no file lock, so two diverged branches (or two writers against
+one store) can both mint the same next number.
+
+A relative `config.storage_dir` roots against the **binding file's directory**,
+not the caller's CWD (`lib/binding.sh`). Distinct worktrees that resolve the
+same binding (e.g. via a shared `CLAUDE_PROJECT_DIR` — anchored discovery gives
+each worktree its own git-toplevel binding otherwise) therefore share one store
+when `storage_dir` is relative. Distinct
+worktrees that each carry their own copy of the binding and store — the
+`/work-items:work` skill's worker-worktree model — each have a divergent copy:
+an uncommitted lease is invisible to a sibling worktree; a committed lease is a
+lease-churn commit on that worktree's branch. A shared **absolute**
+`storage_dir` across worktrees is one store, so concurrent create/claim races
+on numbers and the lease marker.
+
+Claim identity is `git config user.name`, then `$USER`, then `local`. The same
+git user in two worktrees looks like the same holder. The lease handle is a
+store-global `lease_comment_id` in the marker JSON (not a GitHub comment id).
+The manifest declares `reclaim: false`; invoking `reclaim` exits `6`. On
+expiry, `list-items` reports empty `assignees` (effective post-expiry
+assignment) while `get-item` still shows the stored assignee.
+
+This confinement is why multi-session / multi-machine work needs a
+tracker-published spec on a coordination provider — a `work-map` container lane
+(see "Containers and state"). local-markdown is never that surface.
 
 ## jira adapter
 

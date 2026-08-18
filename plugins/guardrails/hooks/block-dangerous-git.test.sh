@@ -886,6 +886,99 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
 
+# --- #2848: grouping + a bare-computed call target is not a git signal ----------
+# Either factor alone was already allowed — a grouping construct by the #2592
+# command-position fix above, a bare `& $tool` call target by the
+# variable-command-word residual has_dynamic_invocation documents. Their
+# CONJUNCTION still blocked, so ordinary PowerShell (resolve an interpreter into a
+# variable behind a Test-Path fallback, then loop) was refused while the identical
+# construct-free call was waved through. The bare-variable half no longer routes.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
+  '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
+  "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
+# The one single-factor allowance that was previously unpinned: a grouping
+# construct with a LITERAL call target. Pinned here so a future narrowing pass
+# cannot regress it unnoticed.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
+  "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
+# Fail-OPEN guard rails on that narrowing. A SUBEXPRESSION target still fails
+# closed with the same grouping present, on `&` and on `.`, because `('g'+'it')`
+# assembles a name the quote-intact literal probe can never see. Every other sink
+# arm — literal git command word, computed launcher, interpolating-string target —
+# is untouched and must still block alongside the same grouping.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression call target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { & ('g'+'it') reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression dot-source target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { . ('g'+'it') reset --hard }" 2
+# The DOLLAR spelling of that same subexpression target. `$( … )` and `( … )` are
+# one construct, so the git lane must refuse both by shape; recognizing only the
+# paren spelling left `& $($g) reset --hard` ALLOWED while `& ($g) reset --hard`
+# blocked (#2924). Paired with its twin so the two cannot drift apart.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() subexpression call target (fail-closed block — #2924)" \
+  "& \$(\$g) reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the row above (fail-closed block, unchanged)" \
+  "& (\$g) reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() subexpression dot-source target (fail-closed block — #2924)" \
+  ". \$('g'+'it') reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + \$() subexpression call target (fail-closed block — #2924)" \
+  "foreach (\$x in @('a')) { & \$('g'+'it') reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal git command word (still blocked by name)" \
+  "foreach (\$x in @('a')) { git reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + computed launcher (still blocked)" \
+  "foreach (\$x in @('a')) { Start-Process \$tool -ArgumentList 'reset' }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + interpolating-string call target (still blocked)" \
+  "foreach (\$x in @('a')) { & \"\$tool\" reset --hard }" 2
+
+# --- PowerShell token separators bash does not honor (#2928) ----------------
+# PowerShell's tokenizer treats U+00A0 as token-separating whitespace; bash's
+# `[[:space:]]` does not, so a destructive form spelled with one fell outside
+# every boundary this guard measures. Normalized to an ASCII space at intake.
+# Built from a BYTE ESCAPE, never pasted literally — a formatter that normalized
+# a raw U+00A0 to a plain space would leave a case that passes while pinning
+# nothing.
+PS_NBSP=$'\xc2\xa0' # U+00A0 NO-BREAK SPACE
+run_pwsh "PS: U+00A0 between --force and its remote (blocked — #2928)" \
+  "git push --force${PS_NBSP}origin main" 2
+run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \
+  "git${PS_NBSP}reset --hard" 2
+# The normalization changes where token boundaries fall, not what counts as
+# destructive: read-only git stays allowed.
+run_pwsh "PS: U+00A0 inside a read-only git command (allowed — #2928)" \
+  "git log --oneline${PS_NBSP}-n 5" 0
+
+# --- Unspaced assignment before a computed launcher (#2928) -----------------
+# `ps::might_invoke_git`'s launcher class lacked `=`, so dropping the spaces
+# around an assignment hid a launcher whose program is assembled at run time and
+# could be git. The spaced form already failed closed; these bring the two level.
+# The allow rows are the other direction of the same edit: widening a class that
+# gates a FAIL-CLOSED sink is the over-block direction, so an ordinary
+# assignment-of-a-launcher with a bare-variable program must stay allowed.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a computed launcher (fail-closed block — #2928)" \
+  "\$p=Start-Process ('g'+'it') reset" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block — pre-existing)" \
+  "\$p = Start-Process ('g'+'it') reset" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a bare-variable launcher (allowed — #2928 guard)" \
+  "\$out=pwsh \$script" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before Start-Process of a variable (allowed — #2928 guard)" \
+  "\$p=Start-Process \$app" 0
+
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
 # no git token). Assert the softened headline on both the no-git-token path and a

@@ -85,6 +85,18 @@
         "Output explains the opportunity is to inline read-only context via `!` dynamic-context injection instead of a per-invocation tool call",
         "Output treats the WARN as a candidate to hand-verify (convert only if the block runs every invocation to gather context; ignore if illustrative) rather than an automatic defect to fix"
       ]
+    },
+    {
+      "id": 8,
+      "name": "skill-tool-one-per-call-and-invocation-reach-doctrine",
+      "prompt": "When reviewing a SKILL.md that says to call two other skills in one step, and also to invoke a :setup skill via the Skill tool, what does skill-quality:check's cross-skill invocation doctrine say?",
+      "expected_output": "Surfaces the doctrine: the Skill tool takes one skill per call (two skills means two calls); do not instruct Skill-tool invocation of a disable-model-invocation / user-invoked-only target — tell the user to run /plugin:skill instead. Notes that this gate does not automate that reachability check.",
+      "files": [],
+      "expectations": [
+        "Output states that the Skill tool takes one skill per call (a step needing two skills is two calls)",
+        "Output states not to Skill-tool-invoke a disable-model-invocation / user-invoked-only target; tell the user to run the slash command instead",
+        "Output does not claim check-skill.sh currently FAILs that reachability class automatically"
+      ]
     }
   ]
 }

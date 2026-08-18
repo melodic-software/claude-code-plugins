@@ -409,6 +409,31 @@ run_pwsh "PS: call of a string-literal command (blocked)" "& 'git commit --no-ve
 # A call/dot-source of a bare VARIABLE is the deferred variable-command-word form
 # (same residual the Bash guards carry) — it takes the parser path, not the sink.
 run_pwsh "PS: call of a bare variable (deferred residual — not blocked here)" "& \$sb" 0
+# #2848: that residual and a grouping construct are each allowed alone, so their
+# CONJUNCTION must be too — `foreach (…) { & $py run.py $x }` is ordinary
+# PowerShell, and grouping hides nothing from the quote-intact literal git probe.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
+  '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
+  "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
+# The previously unpinned single-factor allowance: grouping with a LITERAL target.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
+  "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
+# Fail-OPEN guard rails: a SUBEXPRESSION target assembles a name no literal probe
+# can see, so it still fails closed with the same grouping present — as does a
+# literal git command word inside the grouping.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression call target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { & ('g'+'it') commit --no-verify }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression dot-source target (fail-closed block — #2848)" \
+  "foreach (\$x in @('a')) { . ('g'+'it') commit --no-verify }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal git command word (still blocked by name)" \
+  "foreach (\$x in @('a')) { git commit --no-verify }" 2
 # Launcher / nested-shell parity with the Bash guard's launcher + `-c` see-through.
 # Routed to the sink; blocked only when the launched argv / command names git.
 run_pwsh "PS: Start-Process git -ArgumentList (blocked)" "Start-Process git -ArgumentList 'commit','--no-verify'" 2
@@ -430,6 +455,32 @@ run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
   '& "$tool" commit --no-verify' 2
+
+# --- PowerShell token separators bash does not honor (#2928) ----------------
+# PowerShell's tokenizer treats U+00A0 as token-separating whitespace; bash's
+# `[[:space:]]` does not. Every boundary in the PowerShell classifier is now fed
+# text where those code points have been normalized to an ASCII space at intake,
+# so a `--no-verify` hidden behind one is seen. Built from a BYTE ESCAPE, never
+# pasted literally — a formatter that normalized a raw U+00A0 to a plain space
+# would leave a case that passes while pinning nothing.
+PS_NBSP=$'\xc2\xa0' # U+00A0 NO-BREAK SPACE
+run_pwsh "PS: U+00A0 before the -m flag of a --no-verify commit (blocked — #2928)" \
+  "git commit --no-verify${PS_NBSP}-m x" 2
+run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \
+  "git${PS_NBSP}commit --no-verify -m x" 2
+# The normalization must not turn read-only git into a block: it changes where
+# token boundaries fall, not what counts as a bypass.
+run_pwsh "PS: U+00A0 inside a read-only git command (allowed — #2928)" \
+  "git log --oneline${PS_NBSP}-n 5" 0
+
+# --- Unspaced assignment before a computed launcher (#2928) -----------------
+# `ps::might_invoke_git`'s launcher class lacked `=`, so dropping the spaces
+# around an assignment hid a launcher whose program is assembled at run time and
+# could be git. The spaced form already failed closed; these bring the two level.
+run_pwsh "PS: unspaced assignment before a computed launcher (fail-closed block — #2928)" \
+  "\$p=Start-Process ('g'+'it') reset" 2
+run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block — pre-existing)" \
+  "\$p = Start-Process ('g'+'it') reset" 2
 
 # --- Sink remediation TEXT --------------------------------------------------
 # run_pwsh discards stderr, so nothing asserted what the trigger lines actually

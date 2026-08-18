@@ -3,6 +3,141 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.31]
+
+### Added
+
+- **Binding overlay + one root anchor (#2941, ADR 0015):** the tracker binding
+  stays a tracked repo-root file, now refined by an optional gitignored
+  `.work-item-tracker.local.json` beside it that merges **per-key over a
+  deny-by-default allowlist** — `config.lease_ttl_hours`,
+  `config.lease_ttl_minutes`, `config.jira.auth_email`, `config.jira.auth_env`,
+  and the new self-describing `docs` pointer; any other overlay key is a
+  configuration error (exit 3, keys named), and there is deliberately no
+  user-global layer (forecloses the per-user provider trap, F1.4). Discovery no
+  longer climbs from CWD to the filesystem root (F1.1): all repo-relative
+  resolution — binding read, consumer-local adapter dirs, the github bot-wrapper
+  lookup — anchors at `${CLAUDE_PROJECT_DIR:-git toplevel}` (F3.8), so a bare
+  shell that finds the binding also finds consumer-local adapter shadows.
+  `/work-items:setup apply` writes the `docs` key by default, owns the
+  overlay's root-level gitignore line (appended, announced), and `check` probes
+  overlay validity; conformance + unit tests cover the merge, the allowlist
+  rejection, and the bare-shell anchoring. Config-cascade implementers row
+  flipped from observed deviation to declared.
+
+## [0.35.30]
+
+### Added
+
+- **Spec-on-tracker container lifecycle (#2934):** `decompose` gains an opt-in
+  "Container lifecycle" — at approval (multi-session sources only, default no,
+  `decompose_container_publish` userConfig pre-select) it can publish the Brief
+  verbatim as a container item (binding-resolved container label + human-gated
+  label, never claimable) with slices as native `--parent` sub-items, and owns
+  the close-at-ship ritual (close-out review against the container body, then
+  archival by closure). `work` reads the parent container body first
+  (pass-by-reference, quoted data under item-content-trust). The seam's
+  container label is now remappable: binding `config.container_label` (sibling
+  of `config.role_labels`, default `work-map`), resolved
+  configured-over-default by `lib/binding.sh` and exported as
+  `WIT_CONTAINER_LABEL`; the F3.7 recorded deferral is converted to a live
+  remap seam (CONTRACT.md, label-taxonomy.md). Upstream's gate-free publish
+  stays excluded — the approval gate is mandatory.
+
+## [0.35.29]
+
+### Changed
+
+- **Lease hardening (#2943):** the `/work-items:work` worker is the durable
+  mid-flight `renew-lease` actor during implement-dispatch; the orchestrator
+  renews only after the worker returns. Branch-push activity stays deferred.
+  CONTRACT documents clock skew, TOCTOU (revalidation is intent, not CAS),
+  ttl-0 born-expired, and comment-id monotonicity as an adapter requirement.
+  Workers renew before the TTL deadline with a safety margin, not only at phase
+  boundaries. local-markdown `renew-lease` refuses expired (including ttl-0)
+  leases the same way the GitHub adapter does.
+
+## [0.35.28]
+
+### Changed
+
+- **`decompose`:** prefactor look-ahead at draft time (prefactor slices block
+  the work they unblock); "one fresh context window" granularity bar alongside
+  S/M/L (qualitative; no token folklore); expand-contract stays default, with
+  an integration-branch fallback when migrate batches cannot land green alone
+  (those items require a separate integration-branch workflow; `/work-items:work`
+  still targets the default branch);
+  present/report "work the frontier" (unblocked slices first). PR-variant
+  agent brief for items with attached code (`agent-brief.md`) does not replace
+  the bug/feature template. Approval gate, born-triaged, and blockers-first
+  publish are unchanged (#2935).
+
+## [0.35.27]
+
+### Changed
+
+- **Naming:** "work item" stays canonical; `track` and `work` Use-when triggers
+  now include ticket/issue synonyms (`add a ticket`, `list tickets`, `close a
+  ticket`, `work the next ticket`/`issue`, `grab the next ticket`). Documented
+  once in this plugin's README. Course SSOT cross-linked from the skills-repo
+  SSOT; v1.2 map rows for `to-tickets` / `triage` / `wayfinder` record
+  absorption under those names (#2947).
+
+## [0.35.26]
+
+### Added
+
+- **Contract-version handshake at the adapter seam (#2942, F3.6).** The dispatcher now
+  compares the adapter manifest's declared `schema_version` to the core contract version
+  before every dispatch (`wit_check_contract_version`, `lib/json.sh`) — a directional
+  tolerant-reader: major skew (either direction) refuses with exit `3` naming both versions
+  and the direction-appropriate fix; a newer-minor manifest proceeds with a stderr notice;
+  an older-minor manifest proceeds silently; an unversioned manifest cannot handshake and
+  refuses. Previously only `.verbs` was read, so a consumer-local, shadowing, or generated
+  adapter skewed silently. Skew behavior is documented both directions in CONTRACT.md
+  ("Contract-version handshake") and covered by dispatcher unit tests plus conformance
+  cases (synthetic skewed shadow of the bound provider). Prerequisite for the
+  adapter-onboarding generator (#2950).
+
+### Fixed
+
+- **The seam's direction-locking ADR citation resolves in-tree (#2942, F3.5).** CONTRACT.md
+  and the GitHub conformance binding cited "ADR 0022", a number `docs/adr/` never reached.
+  The rationale is now recorded as ADR 0014 (engine plugin-canonical / adapters
+  consumer-first, plus the no-standing-sandbox conformance note) and both citations point
+  at it.
+- **Role-label defaults are single-sourced (#2942, F3.7).** The shipped defaults
+  (`needs-human`, `agent-ready`, `recurring`) were defined three times — `lib/binding.sh`
+  literals, a `lib/frontier.sh` parameter default, and a dispatcher inline fallback. They
+  now live once in `lib/labels.sh`; binding resolution, the frontier filter default, and
+  the dispatcher all read the constants.
+
+### Changed
+
+- **`gh`-absent degradation documented honestly (#2942).** CONTRACT.md "Degradation without
+  `gh`" records that MCP-only sessions cannot run the `github` adapter at all, defers a
+  REST fallback (recorded rationale), rejects MCP-as-adapter, and documents the supported
+  backfill ritual: body-text `Blocked by:` edges + a provenance comment, replayed through
+  `link-blocks`/`add-sub-item` from the next `gh ≥ 2.94` session — leases explicitly
+  excluded from the ritual.
+- **Fixed-string postures recorded (#2942, F3.7).** `label-taxonomy.md` "Recorded postures"
+  now defers the `[Maintenance]` title prefix and the `.github/recurring-schedule.json`
+  path as fixed strings until a consumer requests a remap (binding `config` keys when that
+  lands, arriving with a reconciliation step).
+
+## [0.35.25]
+
+### Changed
+
+- **Docs:** local-markdown branch, worktree, and lease confinement documented in
+  CONTRACT.md plus a new adapter operations README
+  (`adapters/local-markdown/README.md`); setup provider-comparison and the plugin
+  README now point at those (#2944). local-markdown remains never a coordination
+  surface.
+- **Docs:** local-markdown isolation and Resolve-item-ID docs corrected for
+  honesty — same-worktree `git switch` carries untracked/uncommitted item files;
+  lookups key by number without re-validating owner/repo (#2944).
+
 ## [0.35.24]
 
 ### Changed

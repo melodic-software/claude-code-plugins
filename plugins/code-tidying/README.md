@@ -5,8 +5,18 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under a research-backed scope
 budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 
-Three skills, one capability:
+Five skills, one capability:
 
+- **`/code-tidying:dissolve-comments`** — enforces self-describing, expressive
+  code over a diff or target: deletes zero-information comments, dissolves
+  code-expressible comments into names and structure via behavior-preserving
+  refactoring (then deletes them), and keeps only terse, load-bearing comments
+  code cannot express. Refactors apply only behind a discovered test net;
+  `safe` mode restricts applied edits to removals.
+- **`/code-tidying:audit-comment-residue`** — read-only classifier for
+  out-of-context comment residue (history narration, plan/session references,
+  conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2
+  findings for author-applied deletion, edits nothing.
 - **`/code-tidying:tidy`** — proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight

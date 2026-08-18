@@ -1,0 +1,100 @@
+{
+  "skill_name": "audit-progressive-disclosure",
+  "evals": [
+    {
+      "id": 1,
+      "name": "mixed-concern-instruction-file-classified",
+      "prompt": "Audit this file for progressive disclosure: read evals/fixtures/mixed-instructions.md relative to the skill directory and classify it as an always-loaded CLAUDE.md-style instruction file.",
+      "expected_output": "Emits a per-file report with tier=always context: the multi-step '## Deploy procedure' is flagged as tier-mismatch (a procedure grown inside an always-loaded file, route to a skill), the '## Frontend style rules' scoped to webapp/frontend/ is flagged as tier-mismatch (path-local content, route to a scoped rule), and the mutually-exclusive '## Legacy migration playbook' vs '## Modern tenant provisioning' pair (plus the rarely-used inline 48-row mapping table) is flagged as mixed-concerns and/or tier-mismatch demotion. Each finding carries treatment guidance naming the destination surface. No edits are applied.",
+      "files": ["evals/fixtures/mixed-instructions.md"],
+      "expectations": [
+        "The deploy procedure is flagged as tier-mismatch with a route-to-skill treatment",
+        "The frontend-only rules are flagged as tier-mismatch with a path-scoped-rule treatment",
+        "The mutually-exclusive legacy-vs-modern sections are flagged (mixed-concerns or demotion) citing content that never co-executes",
+        "Findings use the skill's shape vocabulary and tier semantics; no file is edited"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "healthy-hub-spoke-audits-clean",
+      "prompt": "Audit the skill directory evals/fixtures/healthy-skill (relative to the skill directory) for progressive-disclosure defects.",
+      "expected_output": "Reports the structure as healthy: the hub's pointer to reference/redlining-rules.md carries a when-to-read condition ('for tracked-changes output specifically') and a read intent, the spoke is referenced (no orphan), there are no spoke-to-spoke chains, and the small file sizes fire no oversize finding. Zero Tier 1 and zero Tier 2 findings.",
+      "files": [
+        "evals/fixtures/healthy-skill/SKILL.md",
+        "evals/fixtures/healthy-skill/reference/redlining-rules.md"
+      ],
+      "expectations": [
+        "Zero Tier 1 findings and zero Tier 2 findings are reported",
+        "The conditioned pointer is recognized as adequate (not flagged as blind-pointer)",
+        "The small single-file-plus-one-spoke structure is NOT flagged for lacking further spokes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "broken-hub-spoke-defects-detected",
+      "prompt": "Audit the skill directory evals/fixtures/broken-skill (relative to the skill directory) for progressive-disclosure defects.",
+      "expected_output": "Detects all three structure defects: the hub's bare 'See context/details.md' link is blind-pointer (no when-to-read clause), context/scratch-notes.md is orphan-spoke (nothing references it; 3-way treatment: add pointer, merge up, or delete), and the details.md -> queries.md chain is deep-nesting (required reading two levels from the hub; treatment: link queries.md directly from the hub or flatten).",
+      "files": [
+        "evals/fixtures/broken-skill/SKILL.md",
+        "evals/fixtures/broken-skill/context/details.md",
+        "evals/fixtures/broken-skill/context/queries.md",
+        "evals/fixtures/broken-skill/context/scratch-notes.md"
+      ],
+      "expectations": [
+        "The bare 'See context/details.md' pointer is flagged as blind-pointer",
+        "context/scratch-notes.md is flagged as orphan-spoke with the 3-way treatment",
+        "The details.md -> queries.md chain is flagged as deep-nesting (required reading beyond one level)",
+        "context/queries.md itself is not flagged as an orphan (it is referenced, just too deep)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "read-only-even-when-asked-to-split",
+      "prompt": "Audit my CLAUDE.md for progressive disclosure and just go ahead and do the splits for me — move the sections into skills and rules files.",
+      "expected_output": "Stays read-only despite the request: surfaces findings with treatment guidance naming source sections and destination surfaces, and does NOT apply Edit/Write. It states that the author applies each split (a split action is deferred until demand).",
+      "files": [],
+      "expectations": [
+        "No file is edited or created despite the explicit request to split",
+        "Findings carry treatment guidance naming the destination surface per split",
+        "The read-only contract is honored or explicitly stated"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "toc-two-band-treatment",
+      "prompt": "Two on-demand reference files have no table of contents: one is 420 lines, the other is 180 lines. Classify both under the progressive-disclosure audit.",
+      "expected_output": "Applies the two-band TOC treatment: the 420-line file is a definite finding (missing-toc, Tier 1 — both official sources agree above 300 lines), while the 180-line file is awareness-tier only (Tier 3, no treatment) with the finding text citing the official inconsistency (platform best-practices says >100 lines, skill-creator says >300).",
+      "files": [],
+      "expectations": [
+        "The 420-line file gets a Tier 1 missing-toc finding",
+        "The 180-line file gets a Tier 3 awareness finding with NO treatment",
+        "The official 100-vs-300 conflict is cited rather than presenting either number as the single rule"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "size-alone-under-cap-not-flagged",
+      "prompt": "My SKILL.md is 300 lines with one coherent concern, every pointer conditioned, nothing mixed. Is it an oversize finding?",
+      "expected_output": "No finding: 500 lines is a ceiling, not a target, and the official split trigger is approaching the cap. A 300-line single-concern body with healthy pointers fires nothing; the answer cites the advisory nature of the thresholds.",
+      "files": [],
+      "expectations": [
+        "No oversize finding is reported for a 300-line coherent SKILL.md",
+        "The ceiling-not-target posture is stated (split trigger = approaching the cap)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "boundary-routing-to-siblings",
+      "narration": true,
+      "prompt": "Audit docs/wordy-guide.md for progressive disclosure — it is bloated with filler words, repeats a paragraph that exists in three other files, and I am not sure the doc should exist at all.",
+      "expected_output": "Routes each concern to its owner: filler/wordiness to /docs-hygiene:compress, the cross-file repetition to /docs-hygiene:extract-ssot, and the whole-doc existence question to /docs-hygiene:audit-derivability. This skill reports only loading-structure findings (tier, size, pointers) for the file itself.",
+      "files": [],
+      "expectations": [
+        "Filler/wordiness is routed to /docs-hygiene:compress, not classified as a disclosure shape",
+        "Cross-file repetition is routed to /docs-hygiene:extract-ssot",
+        "The existence question is routed to /docs-hygiene:audit-derivability",
+        "Only loading-structure findings are claimed by this skill"
+      ]
+    }
+  ]
+}

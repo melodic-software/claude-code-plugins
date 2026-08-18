@@ -1,5 +1,18 @@
 # `identify` action — exhaustive duplication survey
 
+## Contents
+
+- [Two modes](#two-modes)
+- [When to invoke](#when-to-invoke)
+- [Inputs](#inputs)
+- [Exhaustive mode steps](#exhaustive-mode-steps)
+- [Subagent prompt template](#subagent-prompt-template)
+- [Output shape (exhaustive mode)](#output-shape-exhaustive-mode)
+- [Targeted mode steps](#targeted-mode-steps)
+- [Anti-patterns guarded](#anti-patterns-guarded)
+- [Sanity checks](#sanity-checks)
+- [Cross-references](#cross-references)
+
 Default mode dispatches a read-only exploration subagent that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
 
 Private surface — external consumers invoke `/docs-hygiene:extract-ssot identify`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).

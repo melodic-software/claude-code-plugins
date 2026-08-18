@@ -32,6 +32,13 @@ checkpointing your current work first (`/session-flow:handoff` when installed).
    relevant state so the user sees what changed.
 6. **Delete or absorb when done.** The answer is the only thing worth keeping.
 
+One substrate-scoped exception to rules 3 and 6: when `/prototype:explore-directions` offers
+the bundled `design` skill's canvas — an explicit, user-chosen alternative to the throwaway
+HTML mockup — the variants live in a published, persistent Artifact under the user's account.
+That persistence is opted into knowingly at the offer site, not a rule violation; the repo side
+stays clean either way (nothing tracked references the canvas, and the durable answer is still
+captured in markdown before the prototype is closed out).
+
 ## When done
 
 Capture what the prototype taught somewhere durable — wherever your project keeps design
