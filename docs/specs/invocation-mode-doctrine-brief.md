@@ -3,7 +3,8 @@
 Lane 8 of the AI Hero course steering chain
 ([#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910); chain contract:
 `docs/topics/pocock-course-lanes/PLAN.md` on branch `claude/plan-mode-discussion-55kszx`, steering
-addendum `docs/upstream/aihero-steering-lanes.md`). Interview ledger:
+rows now in `docs/upstream/aihero-course.md` — the interim steering record dissolved into it at
+the lane 6 harvest). Interview ledger:
 `.work/invocation-mode-doctrine/interview-checklist.md` (8/8 answered, register gate clean).
 
 ## Brief
@@ -32,9 +33,9 @@ question-bounded per ADR 0005.
 - ADR 0005 binds the re-grade: rubric-first, question-bounded — never an unbounded 211-skill
   sweep. The bounding question is fixed by Q7 (below); the 137 default-conformant skills get no
   sweep.
-- Decision rows accumulate in `docs/upstream/aihero-steering-lanes.md`; lane 6 (#2904)
-  harvests them into `docs/upstream/aihero-course.md` later — that file must not be created on
-  this branch.
+- Decision rows accumulated in the interim `docs/upstream/aihero-steering-lanes.md`; lane 6
+  (#2904) harvested them into `docs/upstream/aihero-course.md` (2026-08-18), which is now the
+  durable record.
 - Cross-skill invocation *phrasing* stays lane 6's candidate (#2904); this lane owns invocation
   *doctrine* only.
 
