@@ -120,6 +120,44 @@ A rich page can carry a composite dashboard, an interactive view, a large
 multi-part layout, or a truly graphical result the terminal cannot represent. It is
 delivered per the delivery tiers above (local HTML file or published Artifact).
 
+### Design canvas (bundled `design` skill — presence-gated preview)
+
+A hand-tweakable visual layout — UI mockups and screen flows, landing pages,
+posters/flyers/one-pagers, memos as one flowing artboard — drafted as `.dc.html`
+artboards on one pan/zoom canvas and published as an Artifact running the Claude
+Design canvas editor. Where saving is enabled for the viewer's account the canvas
+is hand-editable (click-to-select, properties panel, inline text, undo/redo) and
+Save publishes a new version; otherwise it is view-plus-PNG/PDF-export. It rides
+the published-Artifact surface, so every Artifact gate above applies, **plus** the
+skill's own gates:
+
+- an early **research preview**: enabled by a server-side rollout flag that
+  defaults off, first-party context only, and an Artifact tool that supports
+  `capabilities` — two same-version clients can differ;
+- removable by settings (`disableBundledSkills`, or `skillOverrides` naming
+  `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
+  AWS) and in headless SDK/CI/MCP contexts;
+- **model-invocable where enabled** (no model-invocation gate in its
+  registration), so the skill can be invoked by name — bare `design`; no
+  namespace exists for bundled skills. A local skill named `design` at any level
+  silently overrides the bundled one.
+
+The honest presence check is whether `design` appears in the current session's
+skill list **and its listed description is the design canvas** — because of the
+override rule above, a bare name match may be an unrelated local skill; when the
+listed description does not describe a canvas/artboard capability, treat the
+capability as absent rather than invoking a shadowing skill. Absent → the
+rich-page paths above cover the ground (and `/design` must not be suggested —
+that user has no such command). Listed-but-refused → user invocation of
+`/design` survives invocability gates.
+
+> Verified 2026-08-18 against the shipped v2.1.234 client (registration and gating
+> extracted from the binary; independently re-verified by two fresh-context
+> validators) and <https://code.claude.com/docs/en/skills>. The skill is unnamed
+> in the Claude Code changelog and docs as of that date, so **no version floor is
+> statable**. Recheck when a release changelog or the commands reference first
+> names the design canvas skill, or when bundled-skill invocability changes.
+
 ## Third-party visualization plugins
 
 Depend on **none** today. The curated first-party marketplace ships no

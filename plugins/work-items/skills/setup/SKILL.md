@@ -77,8 +77,10 @@ when this pass must stop instead of guessing.
      issue (`gh auth status --help`), so an unrelated stale credential would condemn a good
      checkout. Run it to explain a failure, never to gate the choice.
    - **`local-markdown`** — the offline reference provider (one markdown file per item); never a
-     coordination surface. Requires `config.storage_dir` (no baked default) — a tracked directory the
-     items live in (e.g. `.work-items`).
+     coordination surface. The store is working-tree files, so items/leases/ids are branch- and
+     worktree-confined — multi-session work needs a tracker-published spec on a coordination
+     provider. Requires `config.storage_dir` (no baked default; e.g. `.work-items`). See CONTRACT.md
+     "local-markdown adapter" and `adapters/local-markdown/README.md`.
    - **`jira`** — read/resolve-only against a Jira Cloud project set (consume-only: no ticket
      creation/claim/mutation; write verbs exit `6`). Requires `config.jira` (`site`, non-empty
      `project_keys[]`, `auth_email`, `auth_env`) and `curl`; the API token is referenced by env-var
@@ -86,7 +88,7 @@ when this pass must stop instead of guessing.
      contract's "jira adapter". Selecting it does not enable `/work-items:work` or `track start`
      (both need writes) — an accepted gap.
    - **another provider** — supply its adapter consumer-local at
-     `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` (the seam resolves
+     `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/` (the seam resolves
      consumer-local adapters ahead of the bundled set, so a repo can add an unshipped provider or
      shadow a bundled one without forking the plugin); set `provider` to its name here.
 3. **Settle the config — all non-secret:**
@@ -102,27 +104,25 @@ when this pass must stop instead of guessing.
      references it by env-var name / the repo's secret-store convention from inside its adapter, never
      as a literal here. `github` needs none (ambient `gh`); `jira` references its token by `auth_env` name.
 4. **Write the binding.** Re-read `.work-item-tracker.json` from disk immediately before writing and
-   merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any other
-   keys. Write `schema_version: "1.0"`, the chosen `provider`, and the `config`. Confirm the file is
-   tracked, not ignored.
+   merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any
+   other keys. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and — unless one
+   already exists — the self-describing `docs` pointer (CONTRACT.md "Setup (binding file)"). Confirm
+   the file is tracked, not ignored.
+5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
+   (`.work-item-tracker.local.json`, allowlisted keys only — CONTRACT.md "Setup (binding file)") sits
+   at the repo root, outside the `.claude/**/*.local.*` convention line, so when
+   `git check-ignore .work-item-tracker.local.json` reports it uncovered, `apply` appends that line to
+   the consumer's `.gitignore` and **announces the edit** (the ADR 0015 declared exception; touch
+   nothing else there). A *tracked* overlay in the index is a finding to stop and report, never ignore.
 
-Example (`github`):
+Example (`github`; `local-markdown` adds `"storage_dir": ".work-items"`):
 
 ```json
 {
   "schema_version": "1.0",
   "provider": "github",
+  "docs": "Work-item tracker binding — see the work-items plugin's tools/work-item-tracker/CONTRACT.md (Setup)",
   "config": { "lease_ttl_hours": 24 }
-}
-```
-
-Example (`local-markdown`):
-
-```json
-{
-  "schema_version": "1.0",
-  "provider": "local-markdown",
-  "config": { "lease_ttl_hours": 24, "storage_dir": ".work-items" }
 }
 ```
 
@@ -141,10 +141,12 @@ check.
    to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
    parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`, `jira`) or a consumer-local one at
-   `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`; `config.lease_ttl_hours` is
+   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`; `config.lease_ttl_hours` is
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
+   A present overlay (`.work-item-tracker.local.json`) must parse as JSON, carry only allowlisted
+   keys (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked — otherwise FAIL.
    A `github` binding must additionally be **addressable from this checkout**, because everything
    above is shape and owner/repo are never recorded in the binding — every repo-scoped verb derives
    them here (`gh repo view --json owner,name`, per the tracker CONTRACT's "Setup (binding file)"),
@@ -490,7 +492,7 @@ PASS/FAIL/INFO table and its remediation lines, mutating nothing.
   setup is the bulk path that seeds or reshapes the whole schedule, opt-in on a first-time bind.
 - Author or vendor a provider adapter — the seam ships the `github`, `local-markdown`, and `jira`
   adapters; a consumer-supplied adapter lives in the consuming repo at
-  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
+  `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
 - Store secrets — the binding is tracked in git and carries non-secret config only (a provider token is
   referenced by name from inside its adapter, never written here).
 - Write machine-local state — the binding and schedule live in the consumer's tracked tree, never in

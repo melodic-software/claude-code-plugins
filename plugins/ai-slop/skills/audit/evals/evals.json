@@ -1,0 +1,53 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-read-only",
+      "prompt": "/ai-slop:audit docs/example.md",
+      "expected_output": "A findings report for the target file — per-rule findings with file:line locations, fired thresholds, and a summary — with no file modified. The fix flow is offered but not run.",
+      "files": [],
+      "expectations": [
+        "Runs detect.sh on the target and reports findings with file:line locations and the fired condition per finding",
+        "Does NOT edit the target file or any other file on bare invocation",
+        "Mentions the fix action as the explicit follow-up rather than applying rewrites"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fix-runs-semantic-guard",
+      "prompt": "/ai-slop:audit fix docs/example.md",
+      "expected_output": "The file's findings are rewritten per-file (em dashes reworded, stock phrases deflated), each file's before/after pair is verified by a fresh-context semantic-diff subagent that reverts semantic loss or ambiguity, then the detector re-runs and the findings file is re-emitted so no stale findings survive.",
+      "files": [],
+      "expectations": [
+        "Applies rewrites only because fix was explicitly requested",
+        "Verifies every rewritten file with a fresh-context semantic-diff subagent and reverts flagged hunks",
+        "Re-runs the detector and re-emits the findings file after the last fixed file"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "empty-target-repo-wide-prioritized",
+      "prompt": "/ai-slop:audit",
+      "expected_output": "A repo-wide audit over tracked markdown, chunked via --paths-file/--offset/--limit, with instruction surfaces (CLAUDE.md, AGENTS.md, rules, SKILL.md files, READMEs) reported first, then high-change-frequency files; excluded paths from config are named as declined, never silently skipped.",
+      "files": [],
+      "expectations": [
+        "Audits the repo's tracked markdown when no target is given, using the chunk affordances rather than a per-file loop",
+        "Orders the report by instruction-surface impact first, then change frequency",
+        "Surfaces declined/excluded files from the Declined: rows instead of silently skipping them"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "persist-refuses-without-contract",
+      "prompt": "/ai-slop:audit docs/example.md (with the detector-findings contract URL unreachable)",
+      "expected_output": "The audit report is delivered, but no findings file is written: the skill reports that the producer contract could not be fetched and refuses to invent a destination, per persist-findings.md.",
+      "files": [],
+      "expectations": [
+        "Delivers the human-facing findings report regardless",
+        "Does NOT write a findings file when the contract fetch fails",
+        "States that persistence was refused because the contract was unreachable, rather than silently skipping it"
+      ]
+    }
+  ]
+}

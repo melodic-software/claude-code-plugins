@@ -54,6 +54,18 @@ if [[ "$active_id" != "$lease_comment_id" ]]; then
   exit "$EX_CONFLICT"
 fi
 
+# Being the active (non-superseded) lease is still not enough: an active lease can
+# be EXPIRED — `renewed_at + ttl_hours` already elapsed — without a superseding
+# marker yet, including ttl-0 born-expired claims. Renewing that would revive a
+# lease another worker has reasonably treated as expired, defeating TTL-based
+# handoff. Refuse the renewal (conflict) for an expired lease; recovery is a
+# fresh claim, not a revive of the dead handle.
+if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
+  printf 'renew-lease: lease %s is expired (renewed_at + ttl_hours elapsed); not renewing\n' \
+    "$lease_comment_id" >&2
+  exit "$EX_CONFLICT"
+fi
+
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
 new_line="${WIT_LEASE_MARKER}${renewed} -->"

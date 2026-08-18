@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -26,6 +27,29 @@ import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from unittest import mock
+
+# FIXTURE ISOLATION (#2840). An exported ABSOLUTE GIT_DIR overrides repository
+# discovery, so `git -C <fixture> config user.email` writes the CALLER's
+# .git/config and leaves the fixture with no .git — silently re-authoring the
+# caller's next commit. Cleared once at import, mirroring the variable list in
+# scripts/test-git-helpers.sh; scripts/check-fixture-git-isolation.sh keeps it
+# true. This suite is doubly exposed: it also builds a LINKED WORKTREE, whose
+# config writes land in the main clone's SHARED config.
+# GIT_CONFIG is in the list and is a DISTINCT leak path rather than another
+# spelling of the discovery one: it replaces the file the `git config`
+# subcommand reads and writes, so an identity write follows it regardless of
+# `-C`, of GIT_DIR, and of the working directory.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 

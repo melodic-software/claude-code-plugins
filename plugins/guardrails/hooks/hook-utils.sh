@@ -1077,9 +1077,7 @@ hook::telemetry_enabled() {
 #
 # NEVER writes to fd1 (the hook's stdout / additionalContext channel).
 hook::emit_telemetry() {
-  # Opt-in guard.
   [[ -n "${HOOK_TELEMETRY_SINK:-}" ]] || return 0
-  # Fail-open when jq is absent.
   command -v jq >/dev/null 2>&1 || return 0
 
   local hook_id="$1"

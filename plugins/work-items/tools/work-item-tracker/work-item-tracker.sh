@@ -24,18 +24,21 @@ readonly EX_CAPABILITY=6
 # existing match wins:
 #   1. WIT_ADAPTERS_DIR override — a single explicit adapter root, no search
 #      (tests/conformance).
-#   2. Consumer-local — ${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>:
+#   2. Consumer-local — <repo root>/tools/work-item-tracker/adapters/<provider>:
 #      lets a consuming repo add an unshipped provider or shadow a bundled one.
+#      The root is wit_project_root (CLAUDE_PROJECT_DIR, else git toplevel) — the
+#      same anchor the binding read uses, so a bare shell that finds the binding
+#      also finds consumer-local adapters instead of silently skipping them.
 #   3. Plugin-bundled fallback — <seam-dir>/adapters/<provider> (the shipped set).
 # When none exists the bundled path is echoed so the caller emits one not-found error.
 wit_resolve_adapter_dir() {
-  local provider="$1"
+  local provider="$1" root
   if [[ -n "${WIT_ADAPTERS_DIR:-}" ]]; then
     printf '%s\n' "$WIT_ADAPTERS_DIR/$provider"
     return 0
   fi
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local local_dir="$CLAUDE_PROJECT_DIR/tools/work-item-tracker/adapters/$provider"
+  if root="$(wit_project_root)"; then
+    local local_dir="$root/tools/work-item-tracker/adapters/$provider"
     if [[ -d "$local_dir" ]]; then
       printf '%s\n' "$local_dir"
       return 0
@@ -109,6 +112,12 @@ main() {
   manifest="$adapter_dir/capabilities.json"
   [[ -f "$manifest" ]] ||
     fail_config "adapter '$WIT_PROVIDER' has no capabilities.json manifest"
+
+  # Contract-version handshake (CONTRACT.md "Contract-version handshake"):
+  # adapters resolve consumer-local first, so a shadowing/generated adapter can
+  # skew from this engine — refuse major skew, tolerate minor skew loudly.
+  wit_check_contract_version "$WIT_PROVIDER" "$manifest" ||
+    exit "$EX_CONFIG"
 
   [[ "$WIT_PROVIDER" == "github" ]] && check_gh_version
 
@@ -195,8 +204,12 @@ main() {
     if ((rc != 0)); then
       exit "$rc"
     fi
+    # WIT_HUMAN_GATED_LABEL and WIT_CONTAINER_LABEL are guaranteed by
+    # wit_read_binding (which already gated dispatch above) — no inline defaults
+    # here; the shipped defaults are defined once in lib/labels.sh and resolved
+    # by the binding layer (config.role_labels / config.container_label).
     printf '%s\n' "$out" | wit_strip_cr |
-      wit_filter_frontier "$autonomous" "${WIT_HUMAN_GATED_LABEL:-needs-human}" "$WIT_CONTAINER_LABEL"
+      wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
   fi
 

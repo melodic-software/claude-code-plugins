@@ -681,6 +681,32 @@ jobs:
       - name: Check for orphaned eval fixtures
         run: scripts/check-orphaned-fixtures.sh --check
 
+  # A test suite that BUILDS a git fixture must clear the inherited git
+  # environment, in shell and in Python alike. `git -C <fixture>` is a
+  # readability guard, not an isolation guarantee: an exported ABSOLUTE GIT_DIR
+  # overrides repository DISCOVERY, so the fixture identity lands in the
+  # CALLER's .git/config — shared by every worktree of the clone — and the
+  # caller's next commit is silently re-authored. That failed
+  # required_signatures with `no_user` and cost #2827 -> #2830 (#2840). The
+  # check is repo-wide and static; pre-existing debt is grandfathered in
+  # scripts/fixture-git-isolation-baseline.txt with a stale guard. The
+  # self-test runs unconditionally so a broken detector cannot mask a
+  # regression behind a green gate.
+  fixture-git-isolation-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the fixture-git-isolation detector
+        run: bash scripts/check-fixture-git-isolation.test.sh
+      - name: Test that the shared git test harness isolates its fixtures
+        run: bash scripts/test-git-helpers.test.sh
+      - name: Check fixture git isolation
+        run: scripts/check-fixture-git-isolation.sh --check
+
   # Every finding kind audit-fleet.sh emits must have a Finding: <kind>
   # collector-output assertion in audit-fleet.test.sh (or be grandfathered).
   # Lives outside the suite so a stale-base squash that rewrites the test file
@@ -1363,6 +1389,7 @@ jobs:
       - stale-base-overlap-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
+      - fixture-git-isolation-gate
       - fleet-finding-test-coverage-gate
       - fleet-audit-doc-grammar-gate
       - changelog-parity-gate

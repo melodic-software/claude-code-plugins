@@ -16,6 +16,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-skill-portability.sh"
 REAL_TOKENS="$REPO_ROOT/scripts/skill-portability-tokens.txt"
+. "$SELF_DIR/test-git-helpers.sh"
 
 # Minimal token list: just the active branch class, so a synthetic case is not
 # coupled to the shipping list's staged entries.
@@ -669,9 +670,7 @@ cp "$SCRIPT" "$fx/scripts/"
 quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
-    git -C "$fx" init -q &&
-    git -C "$fx" config user.email test@example.com &&
-    git -C "$fx" config user.name test &&
+    git_init_test_repo "$fx" &&
     git -C "$fx" commit -q --allow-empty -m base &&
     base="$(git -C "$fx" rev-parse HEAD)" &&
     mkdir -p 'plugins/p/skills/s' &&

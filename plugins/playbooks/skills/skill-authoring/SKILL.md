@@ -175,4 +175,12 @@ cannot edit (shadow versus chain), and how to diagnose an embedded check that si
 
 ---
 
+## Skill-tool composition (Melodic Software addition)
+
+The Skill tool takes one skill per call; a step needing two skills is two calls. A skill with
+`disable-model-invocation: true` is user-invoked only — no other skill can reach it via the Skill
+tool; tell the user to run `/plugin:skill` instead of attempting the call.
+
+---
+
 Source: [@trq212's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378)
