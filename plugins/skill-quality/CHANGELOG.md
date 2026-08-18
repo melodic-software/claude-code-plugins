@@ -3,6 +3,20 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Added
+
+- **`check`: Check 23 — completion-criteria signal (WARN; advisory heuristic; #2963).** Flags a
+  numbered procedure of three or more steps (outside fenced code blocks) whose text carries no
+  completion-criteria signal token — the premature-completion shape where a step is markable
+  done at the first plausible output. Detects only the absence of any done-condition, never
+  grades a stated criterion; broad token set, so only genuinely signal-free procedures fire.
+  Three test cases (signal-free warns; done-condition silent; fenced illustrative list ignored).
+  The audit-side half of the course lane 7 completion-criteria adoption — the write-side
+  doctrine is `docs-hygiene:write-for-agents` 0.17.0 (#2962), and the check's SKILL.md gotcha
+  entry points authors there via the Skill tool.
+
 ## [0.15.13]
 
 ### Added

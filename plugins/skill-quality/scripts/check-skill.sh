@@ -1266,6 +1266,49 @@ if [[ -n "$CUR_SUMMARY" ]]; then
   fi
 fi
 
+# --- Check 23: completion-criteria signal (WARN; advisory heuristic) ----------
+# Flags a numbered procedure (three or more ordered-list steps outside fenced
+# code blocks) whose text carries no completion-criteria signal — no observable
+# done-condition a reader can test. A step without one invites premature
+# completion: the model marks it done at the first plausible output. Advisory
+# only: a static scan can detect the ABSENCE of any completion signal, never
+# grade the quality of a criterion, and an illustrative list is
+# indistinguishable from an operative one — so the signal tokens are
+# deliberately broad and only genuinely signal-free procedures fire.
+# Write-side doctrine: docs-hygiene:write-for-agents ("Give every step a
+# completion criterion").
+
+CC_SIGNAL='done|complete|verified|verify|confirm|assert|exit|pass|green|criteria|criterion|until|settle|expect|observable|observed|succeed|fail'
+CC_BLOCKS="$(awk -v sigre="$CC_SIGNAL" '
+  function close_block() {
+    if (steps >= 3 && !sig) bad = bad (bad ? "," : "") start "-" last
+    steps = 0; sig = 0
+  }
+  /^[[:space:]]*```/ { fence = !fence; next }
+  fence { next }
+  {
+    lower = tolower($0)
+    if ($0 ~ /^[[:space:]]*[0-9]+[.)][[:space:]]/) {
+      if (steps == 0) start = NR
+      steps++; last = NR
+      if (lower ~ sigre) sig = 1
+    } else if ($0 ~ /^[[:space:]]*$/) {
+      # blank lines separate loose list items without closing the block
+    } else if (steps > 0 && $0 ~ /^[[:space:]]+[^[:space:]]/) {
+      last = NR
+      if (lower ~ sigre) sig = 1
+    } else {
+      close_block()
+    }
+  }
+  END { close_block(); print bad }
+' "$SKILL_MD")"
+if [[ -n "$CC_BLOCKS" ]]; then
+  warn "numbered procedure(s) at lines $CC_BLOCKS carry no completion-criteria signal — steps risk premature completion; give each step an observable done-condition (write-side doctrine: docs-hygiene:write-for-agents)"
+else
+  note "completion-criteria signal present (or no 3+-step numbered procedure)"
+fi
+
 # --- Summary ---------------------------------------------------------------
 
 printf '\n'

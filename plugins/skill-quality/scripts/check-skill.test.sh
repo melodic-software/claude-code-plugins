@@ -2573,6 +2573,83 @@ else
   fail "outside git with no skills root should exit 2 (rc=$rc): $out"
 fi
 
+# 23a. A numbered procedure of 3+ steps with no completion-criteria signal
+#      token anywhere in the block warns (advisory) but passes.
+make_skill cc-signal-missing '---
+name: cc-signal-missing
+description: "Rotate the config. Use when: '"'"'rotating the config'"'"'."
+---
+
+## Steps
+
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-missing 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'completion-criteria signal' <<<"$out"; then
+  pass "3-step procedure without any completion signal warns (completion-criteria)"
+else
+  fail "signal-free numbered procedure should warn (rc=$rc): $out"
+fi
+
+# 23b. The same procedure whose final step states an observable done-condition
+#      is silent — the block carries a completion signal.
+make_skill cc-signal-present '---
+name: cc-signal-present
+description: "Rotate the config safely. Use when: '"'"'rotating the config safely'"'"'."
+---
+
+## Steps
+
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file; the step is done when `validate --config` exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-present 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'completion-criteria signal.*no completion' <<<"$out" && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "procedure with a done-condition does not warn (completion-criteria)"
+else
+  fail "signal-carrying procedure should not warn (rc=$rc): $out"
+fi
+
+# 23c. A signal-free numbered list inside a fenced code block is ignored
+#      (illustrative content never fires the heuristic).
+make_skill cc-signal-fenced '---
+name: cc-signal-fenced
+description: "Show a sample plan. Use when: '"'"'showing a sample plan'"'"'."
+---
+
+## Example output
+
+```text
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "fenced numbered list is ignored by the completion-criteria heuristic"
+else
+  fail "fenced list should not fire the completion-criteria warn (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
