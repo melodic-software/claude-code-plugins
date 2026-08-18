@@ -75,21 +75,35 @@ wit_effective_binding_json() {
     printf 'work-item-tracker: overlay %s is not valid JSON\n' "$overlay" >&2
     return 1
   fi
-  # Every overlay leaf must be exactly one of the allowlisted paths. Leaves are
-  # paths to non-object values, so empty scaffolding ({"config":{}}) is inert
-  # while a wrong-typed intermediate ({"config":5}) is itself a leaf and rejected.
-  # Membership must be element equality (any), never index(): jq's index() on an
-  # array argument is a subsequence search and would miss every allowlisted path.
-  bad="$(jq -c --argjson allowed "$WIT_OVERLAY_ALLOWED_PATHS" \
-    '[paths(type != "object")] | map(select(. as $p | any($allowed[]; . == $p) | not))' "$overlay")"
+  # Every overlay path must be either exactly an allowlisted path, or an
+  # object-valued strict prefix of one (scaffolding like {"config":{}} or
+  # {"config":{"jira":{}}} is inert). Checking leaves alone would let a
+  # non-allowlisted key smuggle through as an empty object ({"provider":{}},
+  # {"config":{"role_labels":{}}}) — silently accepted instead of the required
+  # configuration error. Membership must be element equality (any), never
+  # index(): jq's index() on an array argument is a subsequence search and
+  # would miss every allowlisted path.
+  bad="$(jq -c --argjson allowed "$WIT_OVERLAY_ALLOWED_PATHS" '
+    . as $o
+    | [paths]
+    | map(select(. as $p
+        | (any($allowed[]; . == $p)
+           or ((($o | getpath($p)) | type) == "object"
+               and any($allowed[]; (length > ($p | length)) and (.[:($p | length)] == $p))))
+        | not))' "$overlay")"
   if [[ "$bad" != "[]" ]]; then
     printf 'work-item-tracker: overlay %s sets non-overlayable key(s) %s — only lease TTL and jira auth identity may be personal; see CONTRACT.md "Setup (binding file)"\n' \
       "$overlay" "$bad" >&2
     return 1
   fi
+  # Merge by PRESENCE, not by non-null value: an explicitly null allowlisted key
+  # merges and is then judged by normal binding validation, exactly as if the
+  # team file carried it — never a silent fallback to the team value (the same
+  # rationale as the jira done_category_keys presence-read).
   jq -c -s --argjson allowed "$WIT_OVERLAY_ALLOWED_PATHS" '
     .[0] as $team | .[1] as $o
-    | reduce ($allowed[] | . as $p | select(($o | getpath($p)) != null)) as $p
+    | [$o | paths(type != "object")] as $present
+    | reduce ($allowed[] | . as $p | select(any($present[]; . == $p))) as $p
         ($team; setpath($p; $o | getpath($p)))' "$path" "$overlay"
 }
 

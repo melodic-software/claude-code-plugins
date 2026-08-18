@@ -92,7 +92,11 @@ user-global layer.
   pointer. Everything else — `provider`, `config.role_labels`, `config.container_label`,
   `config.storage_dir`, `config.jira.site`/`project_keys` and the JQL-shaping keys — is
   shared coordination state and team-layer-only: an overlay value for any such key is a
-  configuration error (exit `3`, naming the offending keys), never a merge. A personal
+  configuration error (exit `3`, naming the offending keys), never a merge — including a
+  non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
+  `{"config":{}}` is inert). An explicitly `null` allowlisted value merges by presence and is
+  judged by normal binding validation, exactly as if the team file carried it — never a silent
+  fallback to the team value. A personal
   provider override is structurally foreclosed — leases, labels, and frontier state live
   provider-side, so a personal binding would fracture the team's coordination surface.
   There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The

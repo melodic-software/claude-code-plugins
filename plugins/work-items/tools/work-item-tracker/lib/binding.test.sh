@@ -213,12 +213,30 @@ else
   fail "docs key allowed in the overlay" "success" "failure"
 fi
 
-# Empty scaffolding is inert, not an error.
+# Empty scaffolding on an allowlisted prefix is inert, not an error.
 write_binding "$OVERLAY" '{"config":{}}'
 if wit_read_binding "$OBINDING"; then
   pass "empty overlay scaffolding is inert"
 else
   fail "empty overlay scaffolding is inert" "success" "failure"
+fi
+write_binding "$OVERLAY" '{"config":{"jira":{}}}'
+if wit_read_binding "$OBINDING"; then
+  pass "empty jira scaffolding is inert"
+else
+  fail "empty jira scaffolding is inert" "success" "failure"
+fi
+
+# An explicitly null allowlisted value MERGES (presence, not non-null) and is
+# judged by normal binding validation — never a silent fallback to team values.
+write_binding "$OVERLAY" '{"config":{"jira":{"auth_email":null}}}'
+EJ="$(wit_effective_binding_json "$OBINDING")"
+assert_eq "explicit null overlay value merges as null" "null" "$(jq -c '.config.jira.auth_email' <<<"$EJ")"
+write_binding "$OVERLAY" '{"config":{"lease_ttl_hours":null}}'
+if wit_read_binding "$OBINDING" 2>/dev/null; then
+  fail "null lease_ttl_hours overlay fails binding validation" "failure" "success"
+else
+  pass "null lease_ttl_hours overlay fails binding validation"
 fi
 
 # Deny-by-default: any key outside the allowlist is a configuration error, not a merge.
@@ -240,6 +258,12 @@ assert_overlay_rejected "overlay jira site rejected" '{"config":{"jira":{"site":
 assert_overlay_rejected "overlay jira project_keys rejected" '{"config":{"jira":{"project_keys":["ZZ"]}}}'
 assert_overlay_rejected "wrong-typed intermediate rejected" '{"config":5}'
 assert_overlay_rejected "non-JSON overlay rejected" 'not json'
+# Empty-object values cannot smuggle a non-allowlisted key past the leaf check.
+assert_overlay_rejected "empty-object provider rejected" '{"provider":{}}'
+assert_overlay_rejected "empty-object unknown key rejected" '{"evil":{}}'
+assert_overlay_rejected "empty-object role_labels rejected" '{"config":{"role_labels":{}}}'
+# A null at a non-leaf allowlisted prefix is a leaf, not scaffolding.
+assert_overlay_rejected "null jira subtree rejected" '{"config":{"jira":null}}'
 
 rm -f "$OVERLAY"
 
