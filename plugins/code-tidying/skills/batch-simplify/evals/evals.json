@@ -55,6 +55,19 @@
         "Presents the consolidated deferred list to the user grouped by priority",
         "Files work items for actionable deferred concerns (tracker plugin, gh issue create, or explicit user presentation)"
       ]
+    },
+    {
+      "id": 5,
+      "name": "argument-parsing-is-token-exact",
+      "prompt": "/batch-simplify rebranch",
+      "expected_output": "Does not route to branch mode. 'rebranch' merely contains the substring 'branch'; it equals no branch trigger phrase and matches no time-window pattern, so the skill asks the user what was meant rather than guessing.",
+      "files": [],
+      "expectations": [
+        "Does NOT treat 'rebranch' as a branch-mode request (substring containment is not a match)",
+        "Does not silently fall back to the 48h default for an argument it cannot classify",
+        "Asks the user what scope was intended, per the detection heuristic's unknown-argument rule",
+        "The docs flag is stripped token-wise: a token is dropped only when it equals 'docs', so an argument containing those letters is left intact for the mode parser"
+      ]
     }
   ]
 }

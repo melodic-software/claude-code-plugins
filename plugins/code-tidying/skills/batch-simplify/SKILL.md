@@ -36,9 +36,11 @@ Supported formats: `24h`, `48h`, `72h`, `7d`, `2d`, `1w`. Default: `48h`.
 
 ### Mode 2: Branch diff
 
-Trigger: argument is `branch`, or contains "branch", "feature branch", or "all commits". Uses `git diff --name-only <default-branch>...HEAD` (three-dot — diff from the merge base, so files changed only on the default branch since the branch point are NOT swept in) to find files this branch changed. Requires being on a non-default branch.
+Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** one of `branch`, `feature branch`, or `all commits`. Uses `git diff --name-only <default-branch>...HEAD` (three-dot — diff from the merge base, so files changed only on the default branch since the branch point are NOT swept in) to find files this branch changed. Requires being on a non-default branch.
 
-**Detection heuristic** (after stripping the `docs` flag): empty remaining argument → default `48h` time window; matches `^\d+[hdw]$` → time-window mode; contains a branch trigger word → branch mode; anything else → ask the user rather than guessing.
+Match the whole argument, never a substring: an argument that merely *contains* "branch" — a path, a filename, a future scope value — is not a branch-mode request, and routing it there silently sweeps the wrong file set.
+
+**Detection heuristic** (after stripping the `docs` flag): empty remaining argument → default `48h` time window; matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; anything else → ask the user rather than guessing.
 
 ### Flag: `docs`
 
@@ -52,7 +54,9 @@ Append `docs` to any mode to include `.md` files in the sweep. By default, `.md`
 
 **Examples:** `/code-tidying:batch-simplify branch docs`, `/code-tidying:batch-simplify 72h docs`
 
-**Detection:** if `$ARGUMENTS` contains the word `docs` (case-insensitive), set the docs flag and strip it before parsing the mode. The remaining argument determines time-window vs branch mode.
+**Detection:** split `$ARGUMENTS` into whitespace-separated tokens. If any token **equals** `docs` (case-insensitive), set the docs flag and drop that token; rejoin the rest as the remaining argument, which determines the mode.
+
+Strip token-wise, never by substring: a substring strip mutates any argument that happens to contain those four letters — including a path such as `docs/` — leaving a corrupted remainder for the mode parser to read.
 
 ## Workflow
 

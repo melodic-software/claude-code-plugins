@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4]
+
+### Fixed
+
+- `batch-simplify` argument parsing is now token-exact. Branch mode matched any argument
+  *containing* "branch", so a path or filename carrying those six letters silently swept the
+  wrong file set; it now matches the whole argument against the branch trigger phrases. The
+  `docs` flag was stripped by substring before mode parsing, which mutated any argument
+  containing those four letters — including a `docs/` path — and left a corrupted remainder
+  for the mode parser; it is now dropped token-wise, only when a token equals `docs`.
+  Unknown arguments still route to the ask-the-user rule rather than a guess.
+
 ## [0.10.3]
 
 ### Changed
