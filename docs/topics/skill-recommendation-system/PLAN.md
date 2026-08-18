@@ -450,7 +450,7 @@ frontmatter description, the listing-budget and trigger-preservation surface.
    bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
    ```
 
-2. **Write ADR `docs/adr/0014-<slug>.md`** (next free number; 0013 is the current highest). This is
+2. **Write ADR `docs/adr/0016-<slug>.md`** (next free number after the merge; main brought 0014 and 0015). This is
    a **distilled new document, not a `git mv`** — the graduated content is the decision record
    extracted from a Brief that also carries phase mechanics which should not survive. It earns an
    ADR on all three admission tests: hard to reverse (the candidate-source and output contracts),
@@ -476,7 +476,7 @@ frontmatter description, the listing-budget and trigger-preservation surface.
 
 **Sanity Check:** `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0 with
 no paths under `docs/topics/`, AND `bash scripts/check-changed-skills.sh origin/main` exits 0, AND
-`test -f docs/adr/0014-*.md`.
+`test -f docs/adr/0016-*.md`.
 
 ## Blast radius
 

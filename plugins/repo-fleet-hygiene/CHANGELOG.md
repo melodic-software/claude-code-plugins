@@ -3,6 +3,17 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5]
+
+### Fixed
+
+- `audit-fleet.test.sh` — the unreadable-discovery-root case no longer reports a false FAIL when the
+  suite runs as uid 0. Root bypasses the permission bits the case asserts on, so `chmod a-rx` leaves
+  the directory traversable, the run legitimately succeeds, and the assertion reported a product
+  defect that does not exist. The case is now skipped as root with its reason named. CI is unaffected
+  — GitHub-hosted Ubuntu runners execute as a non-root user, so the assertion still discriminates
+  there; only root containers (a common local and cloud-session shape) see the skip.
+
 ## [0.23.4]
 
 ### Fixed
