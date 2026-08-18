@@ -15,7 +15,9 @@ Two decisions, then the output:
 - **Form** — matched to the *shape* of the content: a mermaid diagram for flow /
   hierarchy / sequence / state / relationships; a markdown table for attribute
   comparison; a chart for quantities; ASCII/Unicode for a small structural sketch;
-  a rich rendered page for a composite or interactive view.
+  a rich rendered page for a composite or interactive view; a hand-editable design
+  canvas (via the bundled `design` skill, when that presence-gated preview is
+  available) for a visual layout the user would rather tweak by hand.
 - **Medium** — one of three ascending tiers, **inline terminal → local HTML file →
   published Artifact**, chosen by the form's weight, a configurable preference, and
   which surfaces are actually available.

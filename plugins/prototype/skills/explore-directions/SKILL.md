@@ -1,5 +1,5 @@
 ---
-description: "Builds throwaway UI variations — several radically different visual layouts on one route, switchable from a floating control bar — to answer 'what should this look like' before committing to a design. Use when: 'mock up a UI', 'try a few designs', 'what should this page look like', 'show me options for this dashboard', 'try a different layout for the settings screen', 'prototype this screen', 'explore design options'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup; you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions — use /prototype:pressure-test for those."
+description: "Builds throwaway UI variations — several radically different visual layouts on one route, switchable from a floating control bar — to answer 'what should this look like' before committing to a design. Use when: 'mock up a UI', 'try a few designs', 'what should this page look like', 'show me options for this dashboard', 'try a different layout for the settings screen', 'prototype this screen', 'explore design options'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup (or, where the bundled design skill is available, an editable design-canvas Artifact); you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions — use /prototype:pressure-test for those."
 argument-hint: "[scope] (e.g., /prototype:explore-directions settings page)"
 user-invocable: true
 disable-model-invocation: false
@@ -135,6 +135,40 @@ Constraints:
   steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
   declaration is what produces variety.
 
+### Design-canvas alternative (bundled `design` skill, when available)
+
+When the intent selector lands on the HTML mockup substrate AND the bundled `design` skill
+appears in this session's skill list, offer the user a choice before building — never switch
+silently; the HTML mockup stays the default:
+
+- **HTML mockup (default)** — the throwaway `file://` page above; nothing persists.
+- **Design canvas** — invoke the bundled `design` skill to draft the variants as artboards on
+  one pan/zoom canvas, published as an Artifact. Name the lifecycle difference in the offer:
+  the canvas is a published, versioned, persistent Artifact — default-private, shareable with
+  teammates at the user's choice — unlike the throwaway local mockup, and losing variants
+  persist on it unless the user deletes or re-seeds the canvas. Hand-editing (click-to-select,
+  properties panel, inline text) applies where saving is enabled for the user's account;
+  otherwise the canvas is view-plus-PNG/PDF-export.
+
+The fallbacks are two distinct states, not one:
+
+- `design` **absent from the skill list** — do not offer or mention it; the HTML mockup covers
+  the same ground (a user whose session lacks the skill has no `/design` command either).
+- `design` **listed but the invocation is refused** (a future invocability gate) — suggest the
+  user run `/design <scope>` themselves; user invocation survives such gates.
+
+The capture discipline is unchanged either way: record the winning-variant key and notes in
+your durable answer; the canvas may live on under the user's account, but nothing tracked in
+the repo references it.
+
+> Verified 2026-08-18: the bundled `design` skill (an early preview of Claude Design inside
+> Claude Code) is model-invocable where enabled — its registration carries no
+> model-invocation gate — per the shipped v2.1.234 client and
+> <https://code.claude.com/docs/en/skills>. It is feature-flag-, account-, and platform-gated
+> (absent on non-first-party platforms and in headless contexts) and unnamed in the changelog,
+> so no version floor is statable. Recheck when a release changelog or the commands reference
+> first names the design canvas skill, or when bundled-skill invocability changes.
+
 ## Process
 
 ### 1. State the question and pick N
@@ -195,6 +229,9 @@ Per the shared discipline — record which variant won and why.
 - **Sub-shape B** — promote the winner to a real route; delete the throwaway route and switcher.
 - **HTML mockup substrate** — discard the mockup file once the winning-variant key and notes are
   captured; nothing tracked is left behind.
+- **Design canvas** — capture the winning-variant key and notes the same way; then ask whether
+  the user wants the canvas kept (it persists under their account) or cleared. Nothing tracked
+  references it either way.
 
 Don't leave variant components or the switcher lying around. They rot fast.
 

@@ -3,6 +3,26 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`explore-directions`: an opt-in design-canvas alternative to the HTML mockup substrate.**
+  When the intent selector lands on the HTML mockup substrate and the bundled `design` skill
+  (the Claude Design canvas preview) appears in the session's skill list, the skill offers a
+  choice — the throwaway HTML mockup stays the default; the canvas drafts the variants as
+  artboards published as an editable Artifact. The offer names the lifecycle difference
+  (published, versioned, persistent, default-private, shareable at the user's choice — vs the
+  throwaway local file), and the fallback branches on two distinct states: absent from the
+  skill list → the HTML mockup, silently (never suggest `/design` to a user who lacks it);
+  listed but invocation refused → suggest the user run `/design` themselves. Carries a
+  four-part upstream-drift stamp (the preview is undocumented upstream; no version floor is
+  statable; recheck on first official naming or an invocability change).
+- **`context/discipline.md`: a substrate-scoped exception to the no-persistence/delete-when-done
+  rules** for the user-chosen canvas, so the shared discipline and the new substrate do not
+  contradict each other. The repo side stays clean either way: nothing tracked references the
+  canvas, and the durable answer is still captured in markdown.
+
 ## [0.7.0]
 
 ### Fixed

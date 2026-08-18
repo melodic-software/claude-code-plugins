@@ -3,6 +3,21 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **`visualize`: a design-canvas form row.** A visual layout the user would rather tweak by
+  hand (UI mockup, screen flow, poster, banner, one-pager) now routes to a design-canvas
+  capability — the bundled `design` skill (the Claude Design canvas preview), when it appears
+  in the session's skill list — offered as an explicit alternative, never a silent default.
+  Fallbacks branch on two states: absent from the list → the rich rendered page, with no
+  mention of `/design`; listed but invocation refused → suggest the user run `/design`. No new
+  `medium` config value: the canvas rides the existing published-Artifact tier. Surface facts,
+  gating (server-side rollout flag, first-party-only, Artifact `capabilities` support,
+  `disableBundledSkills`/`skillOverrides`, platform limits), and the four-part
+  verified-on/recheck record live in `context/decision-matrix.md` per the catalog-spoke rule.
+
 ## [0.2.2]
 
 ### Changed
