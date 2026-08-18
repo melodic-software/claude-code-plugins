@@ -34,6 +34,24 @@ rather than trust it.
 | Rotation signal | A ledger this skill writes itself | Decouples the learning mechanism from undocumented `~/.claude.json` internals, keeping Q4 genuinely deferrable |
 | Native-first gate | PASS — no native mechanism covers "which installed skill should I run now" | `code.claude.com/docs/en/plugin-relevance.md` fetched 2026-08-18: covers marketplace **install** suggestions from session signals, not skill routing |
 
+## Rung-1 contract, resolved by the Phase 1 probe (2026-08-18)
+
+Mechanism: `plugins/claude-ops/skills/inventory/scripts/inventory.py --disk-only`. Probe capture and
+its environmental caveat: `.work/skill-recommendation-system/inventory-capture.md`.
+
+**Result: rung 1 supplies complete skill NAMES (including `disable-model-invocation: true` skills —
+`education:teach` verified present) but NO descriptions and NO `metadata.workflow-stage`.** The
+ladder therefore resolves two distinct needs rather than one:
+
+- **Name completeness** → inventory; else the in-repo `plugins/**/SKILL.md` tree inside a marketplace
+  repo; else the in-context listing with its truncation stated (`liveness-assertion`).
+- **Description / stage enrichment** → frontmatter read where files are reachable; else the listing's
+  surviving descriptions; else absent.
+
+**Absent enrichment means tier 2, never omission** — the two-tier output shape absorbs the gap by
+construction, because tier 1 requires a description and tier 2 is bare names with a count. This is
+the design holding up under a real probe rather than needing a patch.
+
 ## Contract sketch
 
 **`reference/gather.md`** — shared durable-state probe. Consumers: `orient` (full), `workflow`
