@@ -159,9 +159,32 @@ producer-not-critic check (exercised live in this effort, where it corrected two
 work items filed: no plugin change was decided; lane-6 parcels are the three term candidates
 (design concept mapped to shared understanding, asset rush, sycophancy) and coverage phrasing.
 
-## Lane 5
+## Lane 5: grilling-interview parity (issue #2903, decided 2026-08-17)
 
-Rows land here when the interview-parity lane closes (#2903).
+Basis: "The Grill-Execute-Clear Loop" lesson (source:
+`docs/topics/pocock-course-lanes/lessons/05-grill-execute-clear.md`), graded against
+`planning:interview` and against his CURRENT repo texts read from a live clone at HEAD
+`068b6e0` (`skills/productivity/grilling/SKILL.md`, `grill-me/SKILL.md`) — which match the
+SSOT-recorded baseline verbatim in substance, confirming the 2026-08-17 recheck's
+cosmetic-only-drift finding. Register Q36-Q37 under the user's restated acceptance. The
+grilling-family provenance itself is settled in `mattpocock-skills.md` rows 3-4 and is
+confirmed here, not re-derived.
+
+| Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
+|---|---|---|---|
+| The skill interviews you relentlessly until shared understanding; only then do you implement | `me`-mode canonical framing + the confirmation gate ("do not act on the interview's output until they confirm") | **COVERED** (attributed) | The recorded behavioral derivation (SSOT rows 3-4); ours adds the mechanical register gate script on top of the judgment stop. As-of 2026-08-17 |
+| Design tree; rounds; the frontier is every decision whose prerequisites are settled, asked all at once; a dependent question waits for a later round | Frontier-rounds loop, identical in substance | **COVERED** (attributed) | Same derivation record; his current repo text matches the audited baseline. "Design tree" and our "decision tree" are equivalent vocabulary, no action. As-of 2026-08-17 |
+| Per-question format with a recommended answer (the emoji-anchored shape) | Recommendation-per-question with a single verdict marker; emoji anchors are the `use_emoji_question_markers` opt-in, default off | **COVERED** (recorded v1.2 adoption) | Decoration of the existing marker, adopted opt-in; nothing new in the lesson. As-of 2026-08-17 |
+| Finding facts is your job, never the user's; dispatch a sub-agent, don't block the round; decisions are the user's | Facts-vs-decisions split, background fact sub-agents, non-blocking rounds | **COVERED** (attributed) | Same derivation record, near-verbatim overlap by design. As-of 2026-08-17 |
+| Done when the frontier is empty, nothing silently assumed; the user confirms shared understanding first | Stop condition + `check-open-questions.sh` register gate + confirmation gate + auto-guard + unattended ladder | **COVERED** (stronger) | Ours makes the empty-frontier judgment mechanically checkable and defines the no-human path his skill leaves open. As-of 2026-08-17 |
+| The grill-execute-clear loop: understand, execute, clear your mind, next feature | Workflow stages own the shape; the clear leg is the continuation router's territory (clear/handoff chain; spec-first mode runs stages with `/clear` between) | **COVERED**, no term adoption | Q36: a second name for a loop the house taxonomy already owns violates vocabulary parsimony; recorded as a mapping, not a new term. As-of 2026-08-17 |
+| Many rounds is the point; keep going until the frontier is empty | No question cap; the escape is the user's wrap-up | **COVERED** (stronger) | House additions his lesson lacks: the ballooning-frontier route to `planning:wayfind` and the question budget scaling with upstream artifacts. As-of 2026-08-17 |
+| `grill-me` is a user-invoked pointer that calls the model-invoked `grilling` | One skill, three actions (`me`/`auto`/`lock`), user- and model-invocable under trigger discipline | **COVERED** (different shape, deliberate) | His two-skill split expresses his invocation-reach invariant; our single-skill shape predates it and the difference is recorded, not a gap. As-of 2026-08-17 |
+| Walkthrough machinery (npm run reset, `.agents/skills`, the `/` picker) and the lesson-comments example questions | Course-platform machinery and illustration | **NOT RELEVANT** | No repo counterpart owed. As-of 2026-08-17 |
+
+House decisions recorded alongside the rows (Q36-Q37, 2026-08-17): no term adoption for the
+loop name (mapping recorded instead); no work items filed (pure parity lane, the second lane to
+close clean); no new lane-6 parcels beyond the design-tree/decision-tree equivalence note.
 
 ## Coverage index and consolidation
 
