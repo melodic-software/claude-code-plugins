@@ -24,18 +24,21 @@ readonly EX_CAPABILITY=6
 # existing match wins:
 #   1. WIT_ADAPTERS_DIR override — a single explicit adapter root, no search
 #      (tests/conformance).
-#   2. Consumer-local — ${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>:
+#   2. Consumer-local — <repo root>/tools/work-item-tracker/adapters/<provider>:
 #      lets a consuming repo add an unshipped provider or shadow a bundled one.
+#      The root is wit_project_root (CLAUDE_PROJECT_DIR, else git toplevel) — the
+#      same anchor the binding read uses, so a bare shell that finds the binding
+#      also finds consumer-local adapters instead of silently skipping them.
 #   3. Plugin-bundled fallback — <seam-dir>/adapters/<provider> (the shipped set).
 # When none exists the bundled path is echoed so the caller emits one not-found error.
 wit_resolve_adapter_dir() {
-  local provider="$1"
+  local provider="$1" root
   if [[ -n "${WIT_ADAPTERS_DIR:-}" ]]; then
     printf '%s\n' "$WIT_ADAPTERS_DIR/$provider"
     return 0
   fi
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local local_dir="$CLAUDE_PROJECT_DIR/tools/work-item-tracker/adapters/$provider"
+  if root="$(wit_project_root)"; then
+    local local_dir="$root/tools/work-item-tracker/adapters/$provider"
     if [[ -d "$local_dir" ]]; then
       printf '%s\n' "$local_dir"
       return 0

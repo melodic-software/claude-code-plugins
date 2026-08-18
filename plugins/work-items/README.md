@@ -92,9 +92,12 @@ enough that one skill no longer predicts its contents.
 - **The work-item-tracker seam.** The plugin **ships** the seam (dispatcher,
   `lib/`, and the `github`, `local-markdown`, and `jira` adapters) under
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares
-  its active provider in `.work-item-tracker.json` (run `/work-items:setup`). A repo
+  its active provider in `.work-item-tracker.json` at the repo root (run
+  `/work-items:setup`; per-user lease TTL / jira auth identity may ride a
+  gitignored `.work-item-tracker.local.json` overlay beside it). A repo
   may add or shadow an adapter consumer-local at
-  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`. The seam's
+  `<repo root>/tools/work-item-tracker/adapters/<provider>/` (the root being
+  `${CLAUDE_PROJECT_DIR}`, else the git toplevel). The seam's
   contract and per-adapter mechanics are documented in
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`

@@ -37,13 +37,16 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 # wit_gh_resolve_bot_wrapper — echo the bot wrapper path using consumer-local-first
 # resolution (CONTRACT.md "Identity routing (GitHub adapter)"), mirroring the
 # adapter two-root resolution (CONTRACT.md "Adapter resolution"): a consuming
-# repo's own wrapper at ${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh wins,
+# repo's own wrapper at <repo root>/tools/github-auth/gh-bot.sh wins,
 # independent of where the adapter itself resolved from (a shadowed
 # consumer-local adapter must still find the consumer's wrapper, not miss it via
 # its own directory); otherwise the plugin-bundled path beside this adapter tree.
+# The root is the seam's single anchor — CLAUDE_PROJECT_DIR, else the git
+# toplevel — so a bare shell resolves the consumer wrapper too (#2941).
 wit_gh_resolve_bot_wrapper() {
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local consumer_wrapper="$CLAUDE_PROJECT_DIR/tools/github-auth/gh-bot.sh"
+  local root
+  if root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}" && [[ -n "$root" ]]; then
+    local consumer_wrapper="$root/tools/github-auth/gh-bot.sh"
     if [[ -f "$consumer_wrapper" ]]; then
       printf '%s\n' "$consumer_wrapper"
       return 0

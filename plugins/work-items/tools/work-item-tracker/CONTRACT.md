@@ -60,20 +60,48 @@ as unclaimed coordination (acceptable for a publish, wrong for contended work).
 ## Setup (binding file)
 
 The repo binds exactly ONE active provider via `.work-item-tracker.json` at the repo root
-(tracked — which tracker a repo uses is repo-scoped):
+(tracked — which tracker a repo uses is repo-scoped). Layering and location are locked by
+[ADR 0015](../../../../docs/adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md):
+one team layer at the root, one gitignored personal overlay beside it, deliberately no
+user-global layer.
 
 ```json
 {
   "schema_version": "1.0",
   "provider": "github",
+  "docs": "Work-item tracker binding — plugins/work-items/tools/work-item-tracker/CONTRACT.md (Setup)",
   "config": {
     "lease_ttl_hours": 24
   }
 }
 ```
 
-- Discovery: climb from CWD toward the filesystem root; first match wins. Env override
+- Discovery: `.work-item-tracker.json` at the **repo root** — `${CLAUDE_PROJECT_DIR}` when
+  set, else `git rev-parse --show-toplevel`. That single anchor governs ALL of the seam's
+  repo-relative resolution (binding read, consumer-local adapter dirs, the github adapter's
+  bot-wrapper lookup), so a bare shell that finds the binding also finds consumer-local
+  adapters. Discovery is deliberately NOT a CWD-to-filesystem-root climb: a stray
+  ancestor/home binding would silently capture every repo beneath it (#2941). Nested
+  per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
+- **Personal overlay** — an optional gitignored `.work-item-tracker.local.json` beside the
+  team binding merges **per-key over an allowlist, deny-by-default**. Overlayable keys:
+  `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
+  record, so a per-user value is coherent), `config.jira.auth_email`,
+  `config.jira.auth_env` (auth identity is per-account), and the self-describing `docs`
+  pointer. Everything else — `provider`, `config.role_labels`, `config.container_label`,
+  `config.storage_dir`, `config.jira.site`/`project_keys` and the JQL-shaping keys — is
+  shared coordination state and team-layer-only: an overlay value for any such key is a
+  configuration error (exit `3`, naming the offending keys), never a merge. A personal
+  provider override is structurally foreclosed — leases, labels, and frontier state live
+  provider-side, so a personal binding would fracture the team's coordination surface.
+  There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The
+  overlay's gitignore line (`.work-item-tracker.local.json`) is appended, announced, by
+  `/work-items:setup apply` — the root-level overlay is outside the marketplace's
+  `.claude/**/*.local.*` convention line.
+- Optional `docs` (either layer): a free-form self-describing pointer naming what the file
+  is and where its contract lives, so the root dotfile explains itself to a teammate who
+  finds it. `/work-items:setup` writes it by default; the seam never reads it.
 - Owner/repo are NEVER recorded in the binding — derived at runtime from the working
   directory's git remote (`gh repo view --json owner,name`). Verbs that need a repo
   context accept an explicit `--repo <owner>/<repo>` override (conformance, cross-repo
@@ -86,6 +114,9 @@ The repo binds exactly ONE active provider via `.work-item-tracker.json` at the 
   invalid (exit `3`). Optional `config.lease_ttl_minutes` (0–59 additive minutes;
   default `0`) combines with `lease_ttl_hours` for sub-hour leases (#1034).
 - `config.storage_dir` is REQUIRED when `provider` is `local-markdown` (no baked default).
+- Format stays JSON: `jq` is the seam's hard prerequisite and the hot readers are
+  shell + Node; YAML would cost a parser in three ecosystems. The comment-ergonomics gap
+  is covered by the `docs` key rather than a format change.
 
 ## Verbs (core public surface)
 
@@ -162,13 +193,15 @@ Two independent resolutions, deliberately opposite:
   plugin's engine by default and a vendored copy still works.
 - **Adapters** (`adapters/<provider>/`): **consumer-local-first, plugin-bundled fallback; first match
   wins.** For the bound `<provider>`, the dispatcher searches
-  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` first, then its own bundled
-  `adapters/<provider>/`. A consuming repo can thus add a provider the plugin does not ship, or shadow
-  a bundled adapter with a local copy it owns fully — without forking the plugin. `WIT_ADAPTERS_DIR`
-  overrides the search with a single explicit adapter root (tests, conformance).
+  `<repo root>/tools/work-item-tracker/adapters/<provider>/` first — the repo root being the seam's
+  single anchor, `${CLAUDE_PROJECT_DIR}` when set, else the git toplevel ("Setup (binding file)") —
+  then its own bundled `adapters/<provider>/`. A consuming repo can thus add a provider the plugin
+  does not ship, or shadow a bundled adapter with a local copy it owns fully — without forking the
+  plugin. `WIT_ADAPTERS_DIR` overrides the search with a single explicit adapter root (tests,
+  conformance).
 
 The binding (`.work-item-tracker.json`) and any consumer-local adapters live in the consuming repo
-(`${CLAUDE_PROJECT_DIR}`); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
+(the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
 which is read-only and replaced on plugin update — no seam state is written there.
 
 ## JSON output contract
@@ -384,8 +417,9 @@ conformance case exercises the passing handshake.
 
 Tracker WRITES (item create, lease comments, reclaim notes) route through an optional bot wrapper
 (`gh-bot.sh`) when a wrapper is found, and fall back to bare `gh` when neither location has one.
-Resolution is consumer-local-first, plugin-bundled fallback — mirroring "Adapter resolution": the
-adapter checks `${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh` first, independent of where the
+Resolution is consumer-local-first, plugin-bundled fallback — mirroring "Adapter resolution", anchored
+at the same repo root (`${CLAUDE_PROJECT_DIR}`, else the git toplevel): the
+adapter checks `<repo root>/tools/github-auth/gh-bot.sh` first, independent of where the
 adapter itself resolved from (so a shadowed consumer-local adapter still finds the consumer's wrapper),
 then falls back to `…/github-auth/gh-bot.sh` bundled beside the seam tree. A plugin install ships no
 wrapper at either path, so writes use bare `gh` by default (plugin-lift portability); a repo that wants
@@ -441,8 +475,10 @@ number + 1 with no file lock, so two diverged branches (or two writers against
 one store) can both mint the same next number.
 
 A relative `config.storage_dir` roots against the **binding file's directory**,
-not the caller's CWD (`lib/binding.sh`). Distinct worktrees that climb to the
-same binding therefore share one store when `storage_dir` is relative. Distinct
+not the caller's CWD (`lib/binding.sh`). Distinct worktrees that resolve the
+same binding (e.g. via a shared `CLAUDE_PROJECT_DIR` — anchored discovery gives
+each worktree its own git-toplevel binding otherwise) therefore share one store
+when `storage_dir` is relative. Distinct
 worktrees that each carry their own copy of the binding and store — the
 `/work-items:work` skill's worker-worktree model — each have a divergent copy:
 an uncommitted lease is invisible to a sibling worktree; a committed lease is a

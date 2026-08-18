@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.31]
+
+### Added
+
+- **Binding overlay + one root anchor (#2941, ADR 0015):** the tracker binding
+  stays a tracked repo-root file, now refined by an optional gitignored
+  `.work-item-tracker.local.json` beside it that merges **per-key over a
+  deny-by-default allowlist** — `config.lease_ttl_hours`,
+  `config.lease_ttl_minutes`, `config.jira.auth_email`, `config.jira.auth_env`,
+  and the new self-describing `docs` pointer; any other overlay key is a
+  configuration error (exit 3, keys named), and there is deliberately no
+  user-global layer (forecloses the per-user provider trap, F1.4). Discovery no
+  longer climbs from CWD to the filesystem root (F1.1): all repo-relative
+  resolution — binding read, consumer-local adapter dirs, the github bot-wrapper
+  lookup — anchors at `${CLAUDE_PROJECT_DIR:-git toplevel}` (F3.8), so a bare
+  shell that finds the binding also finds consumer-local adapter shadows.
+  `/work-items:setup apply` writes the `docs` key by default, owns the
+  overlay's root-level gitignore line (appended, announced), and `check` probes
+  overlay validity; conformance + unit tests cover the merge, the allowlist
+  rejection, and the bare-shell anchoring. Config-cascade implementers row
+  flipped from observed deviation to declared.
+
 ## [0.35.30]
 
 ### Added

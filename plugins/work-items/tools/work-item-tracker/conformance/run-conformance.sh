@@ -95,6 +95,21 @@ wit_case "unknown verb → usage" 2 definitely-not-a-verb
 WIT_OUT="$(WORK_ITEM_TRACKER_BINDING="/nonexistent-$$.json" bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
 
+# --- binding overlay (CONTRACT.md "Setup (binding file)") ---
+# The gitignored personal overlay beside the binding merges allowlisted keys only
+# (lease TTL, jira auth identity); any other key is a configuration error (exit 3,
+# same first-run signal as a missing binding), and removing the overlay restores
+# the team view. Deep merge semantics are unit-tested (lib/binding.test.sh); this
+# asserts the seam-level behavior through the CLI.
+OVERLAY_PATH="$(cd "$(dirname "$WORK_ITEM_TRACKER_BINDING")" && pwd)/.work-item-tracker.local.json"
+printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERLAY_PATH"
+wit_case "allowlisted overlay key merges; verbs still dispatch" 0 capabilities
+printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERLAY_PATH"
+WIT_OUT="$(bash "$TRACKER" capabilities 2>/dev/null)"
+assert_eq "non-overlayable overlay key → exit 3" "3" "$?"
+rm -f "$OVERLAY_PATH"
+wit_case "overlay removal restores the team binding" 0 capabilities
+
 # --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
 # Every dispatched case in this suite already passes through the handshake against
 # the real adapter's manifest (a bad declared version would fail every case), and

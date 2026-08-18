@@ -6,6 +6,16 @@ semantics, and overlay naming. Per-concern keys and schema are versioned by thei
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table — 2026-08-18
+
+- **`work-items` row (#2941).** Flipped from observed deviation (single-layer, CWD-to-root climb) to
+  declared: team + gitignored local overlay at the repo root (ADR 0015), per-key allowlisted overlay
+  merge (deny-by-default), deliberately no user-global layer, anchored at the repo root with the climb
+  removed. Location precedent: `standards` (layers outside `.claude/`). Includes a declared narrow
+  exception to the no-plugin-writes-gitignore rule: the root-level overlay is outside the
+  `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends its line, announced. No
+  contract rule change — no version bump.
+
 ## Renamed — 2026-07-23
 
 Folder + concept renamed `consumer-config-layering` → `config-cascade` (#1188). No contract change:
