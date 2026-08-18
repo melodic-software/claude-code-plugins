@@ -1,5 +1,29 @@
 # Changelog — session-flow plugin
 
+## [0.24.0]
+
+### Added
+
+- `show-options` — a human-facing menu answering "what should I run next?". Four buckets (Now, Next,
+  Skipped upstream, and a rotating Spotlight of three), each rendered as a ranked shortlist of at
+  most five plus the complete remainder by bare name with an explicit count. Its contract is two
+  rules: never omit a candidate's name, and never invent one; a skill believed to have already run is
+  ranked normally and annotated rather than dropped. Candidates resolve from the full installed
+  catalog rather than the in-context skill listing, which omits every manual-only skill and drops
+  descriptions starting with the least-invoked ones. A pool sourced from that listing discloses its
+  truncation in the output. Durable state is the primary signal, and the skill routes to `orient`
+  for it rather than adding another copy of the probe block seven skills already carry.
+
+### Changed
+
+- `workflow` — its "When two capabilities both fit" precedence section now states that the
+  route-to-exactly-one rule governs **stage** routing, and cedes option surfacing to `show-options`.
+  Without that carve the two skills' contracts read as contradictory: one is required never to
+  present both candidates, the other exists to present the whole set.
+- `setup` and the plugin README — skill counts updated for the fourteenth skill. The README's
+  "other eleven skills are zero-config" line was already off by one before this change and is now
+  correct at thirteen.
+
 ## [0.23.9]
 
 ### Changed

@@ -159,6 +159,14 @@ disambiguate. Precedence:
 3. **Still tied → the earlier stage wins** — every downstream stage remains reachable from it, but
    a skipped upstream stage is gone.
 
+**This rule governs STAGE routing, not option surfacing.** "Never present both" is about refusing to
+hand the user two candidate owners for one stage decision and letting them sort it out. It is not a
+prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
+annotated, for a human to choose from is a different job, and `/session-flow:show-options` owns it.
+Reach for this skill when the user wants the next stage decided; reach for that one when they want
+the menu. The two are complementary, not competing — and when a request could be either, "what comes
+next" is a stage question and belongs here.
+
 ## Key principles (always apply, regardless of mode)
 
 - **Verification rigor is size-independent** — a one-line config change gets the same rigor as a
