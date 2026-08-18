@@ -383,8 +383,9 @@ Course-dictionary and lesson vocabulary graded for entry into this project's ubi
 language. Adoption decisions were made in-lane (register + two-validator audit pass); glossary
 materialization routes through `/domain-driven-design:curate-language`, whose
 convention-resolution ladder found no existing project glossary and more than one plausible
-home — creation is therefore a filed follow-on rather than an in-lane invention (see the
-work-item list below). ADOPTED terms are usable house vocabulary now; the rows are the record.
+home — creation is therefore a filed follow-on rather than an in-lane invention
+([#3000](https://github.com/melodic-software/claude-code-plugins/issues/3000)). ADOPTED terms
+are usable house vocabulary now; the rows are the record.
 
 | Term | Verdict | Basis |
 |---|---|---|
@@ -426,6 +427,7 @@ Filed items across all lanes, by lane:
 - Lane 7: issues #2962, #2963
 - Lane 8: issues #2968, #2969
 - Lane 9: issues #2987, #2989
+- Lane 6: issue #3000 (glossary materialization, deferred by the curate-language ladder)
 
 | # | Lesson | Lane(s) | Disposition |
 |---|--------|---------|-------------|
