@@ -2623,6 +2623,37 @@ else
   fail "signal-carrying procedure should not warn (rc=$rc): $out"
 fi
 
+# 23g. A literal ~~~ line inside a backtick fence does not close it — the
+#      numbered list after it is still masked (matching-marker close semantics).
+make_skill cc-signal-mixed-fence '---
+name: cc-signal-mixed-fence
+description: "Show fence forms. Use when: '"'"'showing fence forms'"'"'."
+---
+
+## Example
+
+```markdown
+You can also use ~~~ fences:
+
+~~~text
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+~~~
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-mixed-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "literal tilde markers inside a backtick fence stay masked (matching-close)"
+else
+  fail "mixed fence markers should not unmask fenced content (rc=$rc): $out"
+fi
+
 # 23e. Two independent 2-step lists separated only by a blank line do NOT merge
 #      into one 4-step block — numbering restart after a blank closes the block.
 make_skill cc-signal-adjacent '---

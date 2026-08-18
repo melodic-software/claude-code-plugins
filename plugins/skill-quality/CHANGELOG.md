@@ -12,7 +12,11 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   completion-criteria signal token — the premature-completion shape where a step is markable
   done at the first plausible output. Detects only the absence of any done-condition, never
   grades a stated criterion; broad token set, so only genuinely signal-free procedures fire.
-  Three test cases (signal-free warns; done-condition silent; fenced illustrative list ignored).
+  Fence-aware for both CommonMark fence forms with matching-marker close semantics;
+  independent lists split at a numbering restart across a blank line (loose ascending lists
+  stay one block). Seven test cases: signal-free warns, done-condition silent, both fence
+  forms ignored, mixed fence markers stay masked, adjacent short lists split, loose list
+  still warns.
   The audit-side half of the course lane 7 completion-criteria adoption — the write-side
   doctrine is `docs-hygiene:write-for-agents` 0.17.0 (#2962), and the check's SKILL.md gotcha
   entry points authors there via the Skill tool.

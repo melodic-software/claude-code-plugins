@@ -1291,7 +1291,11 @@ CC_BLOCKS="$(awk -v sigre="$CC_SIGNAL" '
     if (steps >= 3 && !sig) bad = bad (bad ? "," : "") start "-" last
     steps = 0; sig = 0; had_blank = 0
   }
-  /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+  /^[[:space:]]*(```|~~~)/ {
+    m = ($0 ~ /^[[:space:]]*```/) ? "b" : "t"
+    if (!fence) { fence = 1; fence_ch = m } else if (m == fence_ch) fence = 0
+    next
+  }
   fence { next }
   {
     lower = tolower($0)
