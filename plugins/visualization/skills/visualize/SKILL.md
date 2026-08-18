@@ -69,7 +69,12 @@ unavailable. Never restate its craft here.
 
 When the form is a hand-tweakable visual layout, route to the design-canvas
 capability — the bundled `design` skill, when it appears in this session's skill
-list. Offer it as an explicit alternative, never a silent default: the canvas is a
+list. The canvas exists only on the published-Artifact tier, so the offer is
+also gated on Step 3's medium selection: when an explicit `terminal`/`file`
+argument or the configured preference pins delivery on-machine ("never
+published"), do not offer the canvas — the rich rendered page or local file
+carries the layout instead. Where the medium permits publishing, offer it as an
+explicit alternative, never a silent default: the canvas is a
 published, versioned, persistent Artifact (default-private, shareable with
 teammates at the user's choice; hand-editable where saving is enabled for the
 account, view-plus-PNG/PDF-export otherwise), where this skill's other page paths

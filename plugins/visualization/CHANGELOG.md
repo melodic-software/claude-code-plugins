@@ -13,7 +13,10 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   in the session's skill list — offered as an explicit alternative, never a silent default.
   Fallbacks branch on two states: absent from the list → the rich rendered page, with no
   mention of `/design`; listed but invocation refused → suggest the user run `/design`. No new
-  `medium` config value: the canvas rides the existing published-Artifact tier. Surface facts,
+  `medium` config value: the canvas rides the existing published-Artifact tier — and because that
+  is its only surface, the offer is also skipped when an explicit `terminal`/`file` argument or
+  the configured medium preference pins delivery on-machine (the rich page or local file carries
+  the layout instead), so a "never publish" choice is honored. Surface facts,
   gating (server-side rollout flag, first-party-only, Artifact `capabilities` support,
   `disableBundledSkills`/`skillOverrides`, platform limits), and the four-part
   verified-on/recheck record live in `context/decision-matrix.md` per the catalog-spoke rule.
