@@ -19,9 +19,14 @@ Mode: `me` (relentless) — user asked for an interview session. Domain: enginee
 - Q3 | answered | round 1 | Denominator + aggregation scope? | full installed fleet denominator, cross-repo usage w/ per-repo breakdown (rec accepted; refined by Q8)
 - Q4 | answered | round 1 | V1 output shape? | markdown durable + optional HTML heat map (rec accepted)
 - Q5 | answered | round 1 | "Why unused" layer? | classification heuristics in V1, proactive nudges deferred (rec accepted)
-- Q6 | open | round 2 | Adopt native ~/.claude.json skillUsage/pluginUsage as a first-class data source? |
-- Q7 | open | round 2 | Fix the skill-usage.jsonl retention gap (clean.sh coverage) as part of this work? |
-- Q8 | open | round 2 | Data-source resolution ladder: which stores does the report read, and how is coverage labeled? |
+- Q6 | answered | round 2 | Adopt native ~/.claude.json skillUsage/pluginUsage as a first-class data source? | yes — hybrid native-first, defensive reads (rec accepted)
+- Q7 | answered | round 2 | Fix the skill-usage.jsonl retention gap as part of this work? | yes — extend clean.sh with its own 365-day window (rec accepted)
+- Q8 | answered | round 2 | Data-source resolution ladder + coverage labeling? | opportunistic ladder, read all present sources, label coverage in header; cloud loss documented gap (rec accepted)
+- Q9 | open | round 3 | Single-operator view only, or must it support teammates on shared repos? (round-2 probe, unanswered — NOT assumed) |
+- Q10 | open | round 3 | Skill name / invocation path? |
+- Q11 | open | round 3 | Git-churn secondary axis: what corpus and what does it measure? |
+- Q12 | open | round 3 | Integration seams: how does it consume inventory, and what changes in observability/discovery? |
+- Q13 | open | round 3 | What counts as "cold" — tier definitions and windows? |
 
 ## Facts resolved (round 1→2 investigation, this environment)
 
@@ -38,12 +43,21 @@ Mode: `me` (relentless) — user asked for an interview session. Domain: enginee
 - [x] Denominator + aggregation scope — full fleet, cross-repo w/ per-repo breakdown
 - [x] V1 output shape — markdown + optional HTML heat map
 - [x] "Why unused" layer scope — heuristics in V1, nudges deferred
-- [ ] Native skillUsage/pluginUsage adoption (Q6)
-- [ ] Retention fix for skill-usage.jsonl (Q7)
-- [ ] Data-source resolution ladder + coverage labeling (Q8)
-- [ ] Skill/command name (blocked by: nothing now — round 3)
-- [ ] Git-churn dimension detail (round 3)
-- [ ] Integration seams w/ inventory, observability, discovery (round 3)
+- [x] Native skillUsage/pluginUsage adoption (Q6) — yes, hybrid native-first
+- [x] Retention fix for skill-usage.jsonl (Q7) — yes, own 365d window in clean.sh
+- [x] Data-source resolution ladder + coverage labeling (Q8) — opportunistic, labeled
+- [ ] Operator scope: single vs multi (Q9)
+- [ ] Skill name (Q10)
+- [ ] Git-churn dimension detail (Q11)
+- [ ] Integration seams w/ inventory, observability, discovery (Q12)
+- [ ] Cold-tier definitions and windows (Q13)
+
+## Round-3 grounding facts
+
+- `claude-ops` naming convention: `audit-*` prefix = health/verdict audits (audit-install-state, audit-performance); bare nouns = enumeration/reporting (inventory, observability, morning-brief, plugins, lanes).
+- Inventory seam is clean: `python3 ${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py --out <json>` emits the WHOLE inventory (built-ins, bundled skills, every plugin component); filtering is a presentation concern. Python 3.11+, no third-party deps. This is the denominator source — do not re-enumerate.
+- claude-ops plugin.json description enumerates "Ten skills" — adding one requires updating that manifest description and the plugin README (marketplace catalog convention).
+- All claude-ops skills carry metadata: workflow-stage (operator/anytime) + cadence (daily/weekly/continuous).
 
 ## Session-shorthand glossary
 
