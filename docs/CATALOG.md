@@ -102,7 +102,7 @@ plugin manifests and kept in sync by CI — never hand-edit it; the category voc
 
 ## Presentation
 
-- [`visualization`](../plugins/visualization) — On-demand visualization router: infers what in the current conversation should be shown visually, then decides the best FORM (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, or a rich rendered page) and the best MEDIUM (inline terminal, a local HTML file, or a published Artifact) via a decision matrix over content shape, complexity, and a configurable medium preference. Renders good defaults and asks only when the target is genuinely ambiguous and no form was named. A form-and-medium decision layer in front of the craft capabilities — it routes chart craft and artifact-design fundamentals to those capabilities when installed and never restates them.
+- [`visualization`](../plugins/visualization) — On-demand visualization router: infers what in the current conversation should be shown visually, then decides the best FORM (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, a rich rendered page — or, where the bundled design skill is available, a hand-editable design canvas) and the best MEDIUM (inline terminal, a local HTML file, or a published Artifact) via a decision matrix over content shape, complexity, and a configurable medium preference. Renders good defaults and asks only when the target is genuinely ambiguous and no form was named. A form-and-medium decision layer in front of the craft capabilities — it routes chart craft and artifact-design fundamentals to those capabilities when installed and never restates them.
 
 ## Project Management
 
