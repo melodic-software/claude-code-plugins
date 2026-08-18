@@ -187,7 +187,20 @@ resolution ladder finds none, and `plugins/*/reference/standards-contract.md` ex
 from the repo's own ambient governance, loaded for the surfaces this task touches:
 `docs/PLUGIN-PHILOSOPHY.md` (naming grammar §42-87, skills-as-primary-surface §164-188, instruction
 economy §551-584), `docs/CATALOG-TAXONOMY.md`, `docs/conventions/topic-docs/`,
-`docs/conventions/seam-phrasing/`, and `plugins/skill-quality/` as the check authority.
+`docs/conventions/seam-phrasing/`, **`docs/conventions/liveness-assertion/`** (owner doc for
+green-with-hidden-findings — the truncated-pool-reported-as-complete failure is that class verbatim,
+and the ladder's disclosure contract conforms to it rather than inventing a term),
+**`docs/conventions/plugin-data-report-keying/`** (owner doc for the Spotlight ledger's keying and
+retention), and `plugins/skill-quality/` as the check authority.
+
+**Command form for `check-skill.sh`, used by every phase below.** The script takes a *skill name*
+resolved under a skills root, never a path — verified: passing a path FAILs with "Skill not found".
+Every invocation in this plan uses the form `scripts/check-changed-skills.sh:72-75` uses:
+
+```bash
+CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/session-flow/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash plugins/skill-quality/scripts/check-skill.sh <skill-name>
+```
 
 **Q12 resolved** (arbiter `/planning:plan`): `metadata.workflow-stage: anytime`. Basis — the Brief's
 goal is invocation "at any point"; the nearest functional sibling `workflow` is `anytime`, while the
@@ -211,31 +224,56 @@ Work items:
    inventory is unusable, record the fallback (operator-supplied catalog seam becomes rung 1) and
    flag it as a scope-change note.
 
-**Sanity Check:** the captured output contains a line for `education:teach` (a manual-only skill
-absent from every in-context listing) — `grep -c 'education:teach' <capture>` returns ≥1. A zero
-here means rung 1 does not solve the completeness defect and the phase's fallback path applies.
+Capture destination: `.work/skill-recommendation-system/inventory-capture.md` (memory tier — a raw
+capture, never the contract slice, which Phase 7 prunes).
 
-### Phase 2: Extract the shared durable-state gather seam [TODO]
+**Sanity Check:** `grep -q 'education:teach' .work/skill-recommendation-system/inventory-capture.md`
+exits 0 — `education:teach` is manual-only and absent from every in-context listing, so its presence
+proves rung 1 actually closes the completeness defect. A non-zero exit means it does not, and the
+phase's fallback path applies.
 
-`orient` and `workflow` each inline a near-identical probe block. `point-dont-copy` pins the
-duplication threshold at **two**, so adding a third copy in Phase 3 is barred. Extract first.
+### Phase 2: Route durable state to `orient` — do NOT extract a seam in V1 [TODO]
 
-| File | Action | Rationale |
-|---|---|---|
-| `plugins/session-flow/reference/gather.md` | CREATE | Shared probe engine; named blocks consumers cite |
-| `plugins/session-flow/skills/orient/SKILL.md` | MODIFY | Cite the seam; keep its fuller read set |
-| `plugins/session-flow/skills/workflow/SKILL.md` | MODIFY | Cite the seam (subset) |
+> **Corrected 2026-08-18 by the plan review.** The original phase extracted
+> `plugins/session-flow/reference/gather.md` for two consumers, on the stated basis that `orient` and
+> `workflow` were the only two. **That was factually wrong — verified: seven session-flow skills
+> carry the block and its `#1687` rationale** (`continue-in-background`, `find-handoff`, `handoff`,
+> `orient`, `retro`, `running-retro`, `workflow`). Extracting for two would leave five divergent
+> copies *plus* a new seam — two sources of truth for one probe, worse than the status quo the phase
+> existed to fix.
 
-Must preserve verbatim: the `#1687` no-precompute rationale (`$`-expansion fails in
-worktree-isolated agents), the "treat any failure as an unknown value and carry on" rule, and the
-20-entry `git status --porcelain` cap. Paths resolve through the topic-docs binding — never
-hardcode `.work/` or `docs/topics/`, which are configurable defaults.
+**Pre-flight consumer census (work item 1, before anything else):**
+`grep -rln '1687' plugins/session-flow/skills/` — re-run at execution time and reconcile against the
+seven above; a changed census changes this phase's verdict.
 
-**Sanity Check:** `grep -c 'reference/gather.md' plugins/session-flow/skills/orient/SKILL.md
-plugins/session-flow/skills/workflow/SKILL.md` returns ≥1 for each, AND
-`grep -c '1687' plugins/session-flow/reference/gather.md` returns ≥1, AND
-`bash plugins/skill-quality/scripts/check-skill.sh plugins/session-flow/skills/orient/SKILL.md` and
-the same for `workflow` both exit 0.
+**Resolution: `show-options` gathers nothing of its own. For durable state it routes to
+`/session-flow:orient`,** a same-plugin sibling that already reads a strict superset of what the
+Brief's probe listed. This is `discipline:reuse-or-replace`'s "reuse the established way", adds zero
+new duplication, and unblocks the skill without a seven-file refactor. It was also validator B's own
+recommendation, recorded before this correction.
+
+**Sub-topic promotion (per the plan skill's trigger — 8 files, independent commit boundary, its own
+verification need):** the seven-way gather extraction is promoted OUT of this topic into its own
+effort. It is real, worth doing, and must not ride this skill's PR. Phase 7 files it as a tracked
+follow-up so the finding is not lost with the pruned slice.
+
+**Sanity Check:** `! grep -q '1687' plugins/session-flow/skills/show-options/SKILL.md` exits 0 (the
+new skill inlines no copy of the probe), AND
+`grep -q 'session-flow:orient' plugins/session-flow/skills/show-options/SKILL.md` exits 0, AND
+`test ! -e plugins/session-flow/reference/gather.md` (no seam created in this PR).
+
+### Phase 2b: Seam-phrasing conformance for the routed call [TODO]
+
+Routing to `orient` and to `/claude-ops:inventory` are both cross-component invocations.
+`docs/conventions/seam-phrasing/` requires three elements *at the reference site*: the **gate** ("if
+that plugin is installed"), the **fallback**, and **ownership framing**. `orient` is same-plugin so
+it needs no install gate, but `/claude-ops:inventory` does. No CI gate covers this — it fails at
+review.
+
+**Sanity Check:** for the `claude-ops:inventory` reference, all three elements are present —
+`grep -q 'if.*installed' SKILL.md` exits 0 AND the ladder's rung-2/rung-3 fallback is stated in the
+same paragraph AND the sentence names inventory as the owner of fleet enumeration (hand-verified
+against the convention's three-element list, which has no mechanical checker).
 
 ### Phase 3: Author the skill — integration slice [TODO]
 
@@ -247,43 +285,106 @@ The end-to-end slice: a real invocation resolving a real catalog and rendering a
 
 Frontmatter: `user-invocable: true`, `disable-model-invocation: true`,
 `metadata.workflow-stage: anytime`, `metadata.summary` ≤100 codepoints, description ≤1,536 chars
-with single-quoted trigger phrases.
+with single-quoted trigger phrases, plus an **`argument-hint`** (every mode-bearing sibling ships
+one) so the operator can scope the menu. Decide `shell: bash` deliberately: required only if the
+body carries `!` dynamic-context injections (check 19 FAILs on bash-only syntax without it) — V1
+routes its gathering to `orient`, so the default is **no `shell:` key**.
 
-Body must carry, at minimum: the candidate ladder with pool-health reporting; the two-rule
-no-gatekeeping contract plus the never-invent rule (citing `reference/structure.md:33-38` as
-in-repo precedent, not inventing it); the unnecessary-vs-irrelevant test written explicitly; the
-four buckets with tier-1/tier-2 rendering; the Spotlight rotation ledger; the four-neighbour
-boundary section; and the HTML polarity (terminal = shortlist, HTML = complete sortable table,
-ephemeral tier per `docs/conventions/topic-docs/`).
+Body must carry, at minimum:
 
-Body ≤500 lines hard / 200 soft — promote the HTML rules and the bucket-derivation detail to
-`context/` spokes if the body approaches 200.
+1. The candidate ladder, all three rungs. **Rung 2 must be fully specified** — it is the only rung
+   that works in a consuming repo without `claude-ops`. Define: the documented file the consumer
+   project may supply, its resolution order, its format, and its failure behavior. Name
+   `scripts/generate-cheatsheet.mjs` → `docs/SKILL-CHEAT-SHEET.md` as the in-repo generator of
+   exactly this artifact shape, and either adopt that format for the seam or reject it in writing
+   (`discipline:reuse-or-replace`).
+2. **Truncation disclosure conforming to `docs/conventions/liveness-assertion/`** — cite that
+   convention; do not coin a local term. Presenting a truncated pool as complete is
+   green-with-hidden-findings.
+3. The two-rule no-gatekeeping contract plus the never-invent rule, citing
+   `reference/structure.md`'s **"Every section is always present"** section by name (never by line
+   range — nothing gates line drift).
+4. The unnecessary-vs-irrelevant test, written explicitly.
+5. **Signal priority: durable state PRIMARY, conversation secondary** (Brief obligation 4).
+6. The four buckets with tier-1/tier-2 rendering, and an explicit **output budget** (Brief
+   obligation 5): tier 1 ≤5 per bucket, whole output ≤~60 lines.
+7. **Degraded behavior when the memory root is unreadable or empty** — in a worktree, sibling lane,
+   or fresh clone the memory slice is invisible, so every upstream artifact reads "absent" and
+   Skipped-upstream would falsely claim everything was skipped. The skill must report "cannot ground
+   upstream stages here" rather than infer.
+8. Behavior with **no marketplace metadata** — still yields buckets from names and descriptions.
+9. The Spotlight rotation ledger. **Location decided here, not at implementation time:** memory tier
+   under the resolved `memory_dir`, accepting that it resets per worktree and per clone.
+   `${CLAUDE_PLUGIN_DATA}` is rejected — it is keyed to the plugin id *and nothing else*, so one
+   file per machine would let a spotlight surfaced in repo A suppress it in repo B
+   (`docs/conventions/plugin-data-report-keying/`). Concurrent-write posture: last-write-wins,
+   declared.
+10. **Slug selection** for the artifact-grounded bucket: explicit argument → most-recently-modified
+    slice → branch-derived.
+11. The four-neighbour boundary section.
 
-**Sanity Check:** `bash plugins/skill-quality/scripts/check-skill.sh
-plugins/session-flow/skills/show-options/SKILL.md` exits 0, AND the body contains no enumerated skill
-inventory — `grep -cE '^\s*[-|].*\/(discovery|planning|session-flow|discipline):' SKILL.md` returns
-only the boundary/example references (expected ≤12, hand-verified), never a catalog. AND a live
-invocation renders both tiers: output contains a bucket heading and an "Also …(N):" counted
-remainder line.
+**HTML rendering is CUT from V1.** It appears in no Brief acceptance criterion, and it would drag in
+the ephemeral tier's full obligations (`mktemp` with trailing Xs, a Windows `%LOCALAPPDATA%` branch,
+`docs/conventions/windows-path-emit/`). Revisit as a V2 enhancement.
+
+Body ≤500 lines hard / 200 soft — promote bucket-derivation detail to `context/` spokes if the body
+approaches 200.
+
+**Sanity Check:** `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/session-flow/skills"
+CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh show-options`
+exits 0. AND the body embeds no catalog — portable regex, all namespaces, hard numeric ceiling:
+`test "$(grep -cE '^[[:space:]]*[-|].*/[a-z0-9-]+:[a-z0-9-]+' plugins/session-flow/skills/show-options/SKILL.md)" -le 15`
+(GNU-only `\s` is banned by `scripts/shell-portability-tokens.txt`; the earlier 4-namespace
+alternation false-passed on a catalog drawn from any other plugin). AND the end-to-end render is
+checked by **installing the plugin locally** — `claude --plugin-dir plugins` and invoking
+`/session-flow:show-options` — output contains a bucket heading and a counted `Also …(N):` remainder
+line. If local install is unavailable in the executing environment, this clause downgrades to the
+Phase 4 eval assertions and the plan records that no live render was performed.
 
 ### Phase 4: Evals [TODO]
 
 `evals/evals.json` is mandatory — `check-changed-skills.sh` passes `--require-evals` on any changed
-SKILL.md. Schema: `plugins/skill-quality/reference/evals.schema.json`; house dialect is
-`expectations`; `files: []` with narration matches all 13 siblings.
+SKILL.md. Schema: `plugins/skill-quality/reference/evals.schema.json`, whose `required` is
+`["skill_name","evals"]`. House dialect is `expectations`. Siblings use `files: []`; **none of the
+13 declares `narration`** (the earlier claim that they did was wrong). Set `narration: true`
+deliberately on any case whose prompt names a path — Q4 WARNs on path-shaped prose when `files` is
+empty and `narration` is unset, and several of these prompts will name `.work/…` or `plugins/…`.
 
-Cases (the refusal case is written first, per `check-evals-quality.sh` Q9):
+Cases:
 
 1. **Refusal / anti-pattern** — does not invent a skill name absent from the resolved catalog.
 2. **No-gatekeeping** — exploration already complete; `/discovery:explore` still appears, ranked
    normally, annotated rather than dropped.
-3. **Two-tier shape** — output caps tier 1 at 5 per bucket and states a count for the remainder.
+3. **Two-tier shape and size** — tier 1 capped at 5 per bucket, a stated count for the remainder,
+   and total output within the ≤~60-line budget.
 4. **Pool health** — with no `/claude-ops:inventory` available, output states the listing is
    truncated rather than presenting it as complete.
+5. **No marketplace metadata** — in a repo without `workflow-stage` frontmatter, still yields
+   buckets from names and descriptions (Brief acceptance criterion, previously uncovered).
+6. **Ungroundable memory root** — worktree/fresh clone with no readable memory slice: reports that
+   upstream stages cannot be grounded rather than declaring everything skipped.
+7. **Durable-state primacy** — thin/compacted conversation with rich durable state: buckets derive
+   from the durable reads, not from the conversation.
 
 **Sanity Check:** `bash plugins/skill-quality/scripts/check-evals-quality.sh
-plugins/session-flow/skills/show-options/evals/evals.json` exits 0, AND
-`python3 -c "import json;d=json.load(open('.../evals.json'));assert len(d['evals'])>=4"` succeeds.
+plugins/session-flow/skills/show-options/evals/evals.json` exits 0 — noting its Q9
+refusal-coverage check is a **WARN, not a FAIL**, so the refusal case is asserted explicitly here
+instead:
+
+```bash
+python3 -c "
+import json
+d = json.load(open('plugins/session-flow/skills/show-options/evals/evals.json'))
+assert d['skill_name'] == 'show-options'
+assert len(d['evals']) >= 7
+assert any('invent' in json.dumps(c).lower() for c in d['evals']), 'no refusal case'
+"
+check-jsonschema --schemafile plugins/skill-quality/reference/evals.schema.json \
+  plugins/session-flow/skills/show-options/evals/evals.json
+```
+
+(CI validates the schema through a `check-jsonschema` action rather than a repo script; running the
+binary directly is the local equivalent.)
 
 ### Phase 5: Reciprocal boundary amendment to `workflow` [TODO]
 
@@ -297,48 +398,96 @@ routing; presenting the option set is owned by `show-options`. `workflow` keeps 
 (V1 `show-options` is manual-only, so there is no auto-trigger race), but gains a one-line
 cross-reference.
 
-**Sanity Check:** `grep -c 'show-options' plugins/session-flow/skills/workflow/SKILL.md` returns ≥1,
-AND `check-skill.sh` on `workflow` exits 0, AND check 3 (trigger-phrase preservation) does not
-report a removed trigger.
+**Sanity Check:** `grep -q 'show-options' plugins/session-flow/skills/workflow/SKILL.md` exits 0,
+AND `check-skill.sh` on `workflow` (standard form above) exits 0 with check 3 (trigger-phrase
+preservation) reporting no removed trigger.
 
 ### Phase 6: Plugin surface and regenerated docs [TODO]
 
-| File | Action | Rationale |
+**Every count target is stated explicitly** — an executor that merely increments ships a still-wrong
+number, because "eleven" is *already* off by one against today's thirteen skills.
+
+| File | Action | Exact change |
 |---|---|---|
-| `plugins/session-flow/.claude-plugin/plugin.json` | MODIFY | Description enumerates every skill **by name and states the count** — "thirteen" → "fourteen", add the entry; bump `version` from `0.23.9` |
-| `plugins/session-flow/CHANGELOG.md` | MODIFY | Matching `## [<version>]` heading — `check-changelog-parity.sh --check-bump` fails without it |
-| `plugins/session-flow/README.md` | MODIFY | **Line 3 "bundling thirteen skills"** (missed by exploration, caught by the verifier), the question table, and a `### show-options` subsection |
-| `plugins/session-flow/skills/setup/SKILL.md` | MODIFY | "the other eleven skills are zero-config" count |
+| `plugins/session-flow/.claude-plugin/plugin.json` | MODIFY | `thirteen` → `fourteen`; add the `show-options` entry to the by-name enumeration; `version` **`0.23.9` → `0.24.0`** (new skill = minor) |
+| `plugins/session-flow/CHANGELOG.md` | MODIFY | Add `## [0.24.0]` heading — exact match required |
+| `plugins/session-flow/README.md` | MODIFY | **line 3** `thirteen` → `fourteen`; **line 254** `eleven` → `thirteen`; the question table; a `### show-options` subsection |
+| `plugins/session-flow/skills/setup/SKILL.md` | MODIFY | **line 2** (frontmatter description) `eleven` → `thirteen` |
 | `docs/SKILL-CHEAT-SHEET.md` | REGENERATE | `generate-cheatsheet.mjs --check` fails on drift |
 | `docs/CATALOG.md` | REGENERATE | `generate-catalog.mjs --check`; carries plugin.json's description verbatim |
-| `.claude-plugin/marketplace.json` | KEEP | Verified: carries no skill-level data |
+| `.claude-plugin/marketplace.json` | KEEP | Verified: entry carries `name`/`source`/`category`/`tags` only, no skill-level data |
+| `scripts/skill-leaf-name-registry.txt` | KEEP | Verified: no other plugin owns the `show-options` leaf |
 
-**Sanity Check:** `bash scripts/validate-plugins.sh` exits 0 (runs both generators with `--check`),
-AND `bash scripts/check-changelog-parity.sh --check-bump` exits 0, AND
-`grep -c 'thirteen' plugins/session-flow/README.md plugins/session-flow/.claude-plugin/plugin.json`
-returns 0 for both.
+**Sanity Check** — note the stale-count grep is phrased as a *negative* assertion, because
+`grep -c` returns exit 1 on zero matches and the desired outcome here is zero:
+
+```bash
+node scripts/generate-catalog.mjs --check && node scripts/generate-cheatsheet.mjs --check
+bash scripts/check-changelog-parity.sh --check-bump origin/main
+bash scripts/check-changelog-parity.sh --check-preserved origin/main
+! grep -qE 'thirteen|eleven|twelve' plugins/session-flow/README.md \
+    plugins/session-flow/.claude-plugin/plugin.json \
+    plugins/session-flow/skills/setup/SKILL.md
+CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/session-flow/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash plugins/skill-quality/scripts/check-skill.sh setup
+```
+
+The generators run directly rather than via `validate-plugins.sh`, which exits 2 when `claude` is
+not on `PATH` (here it resolves only through `node_modules/.bin`) — an environmental failure, not a
+real one. `check-skill.sh setup` is included because this phase edits a shipped skill's
+frontmatter description, the listing-budget and trigger-preservation surface.
 
 ### Phase 7: Full gate sweep and close-out [TODO]
 
-1. Run the changed-skill gate: `bash scripts/check-changed-skills.sh` (exits 0).
-2. Run `bash scripts/check-skill-leaf-names.sh --check` and `check-skill-portability.sh` on the
-   changed files.
-3. **Contract-slice prune with pointer** — `contract-slice-prune-gate` currently FAILS on this
-   branch (verified). Graduate durable outcomes first: this Brief's validated design record is ADR
-   material under the admission test (hard to reverse — the candidate-source and output contracts;
-   surprising without context — "why not just read the skill listing?"; a real trade-off — three
-   rejected alternatives). Write `docs/adr/` entry, name the pre-prune commit SHA in the PR body,
-   then a final commit deletes `docs/topics/skill-recommendation-system/`.
+1. Gate sweep — every script takes its base ref explicitly (verified: bare invocation exits 1 with a
+   usage error):
 
-**Sanity Check:** `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` reports no
-paths remaining under `docs/topics/`, AND `bash scripts/check-changed-skills.sh` exits 0.
+   ```bash
+   bash scripts/check-changed-skills.sh origin/main
+   bash scripts/check-skill-leaf-names.sh --check
+   bash scripts/check-skill-portability.sh
+   bash scripts/check-shell-portability.sh      # new SKILL.md is in its scan scope
+   bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
+   ```
+
+2. **Write ADR `docs/adr/0014-<slug>.md`** (next free number; 0013 is the current highest). This is
+   a **distilled new document, not a `git mv`** — the graduated content is the decision record
+   extracted from a Brief that also carries phase mechanics which should not survive. It earns an
+   ADR on all three admission tests: hard to reverse (the candidate-source and output contracts),
+   surprising without context ("why not just read the skill listing?"), and a real trade-off (three
+   rejected alternatives). The ADR must carry:
+   - the candidate-source decision and why the in-context listing alone was rejected (the measured
+     12.7× overflow and the 56 invisible skills);
+   - the two-rule no-gatekeeping contract and why one rule was insufficient;
+   - **the Brief's success criterion and its recheck trigger** — otherwise the only falsifiability
+     hook this design has dies with the pruned slice;
+   - **the `CATALOG-TAXONOMY` subject-wins adjudication** — one paragraph on why session-lifecycle
+     placement beats catalog-subject placement (`claude-ops`, where `inventory` already claims "list
+     all my skills"), since the plan cites that convention and must apply it;
+   - **the `use-your-skills` revisit-trigger adjudication** the Brief's Out-of-scope demands in
+     writing.
+
+3. **File the promoted sub-topic** — the seven-way gather-block extraction (Phase 2) as a tracked
+   work item, so the finding survives the prune.
+
+4. **Contract-slice prune with pointer** — the gate FAILS on this branch today (verified; it names
+   both `PLAN.md` and `design/design-resolution.md`). After graduation: name the pre-prune commit SHA
+   in the PR body, then a final commit deletes `docs/topics/skill-recommendation-system/`.
+
+**Sanity Check:** `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0 with
+no paths under `docs/topics/`, AND `bash scripts/check-changed-skills.sh origin/main` exits 0, AND
+`test -f docs/adr/0014-*.md`.
 
 ## Blast radius
 
-**MEDIUM.** Confined to one plugin plus two regenerated repo docs, and V1 is manual-only so it adds
-no listing-budget cost and cannot auto-fire. The elevating factors are that Phase 2 modifies two
-shipped skills' gather blocks (a regression there degrades `orient` and `workflow`, not just the new
-skill) and Phase 5 edits a doctrine section other skills' routing depends on.
+**LOW-to-MEDIUM — revised down after the plan review.** The original MEDIUM rested largely on Phase 2
+modifying two shipped skills' gather blocks. That phase no longer modifies them at all: the seam
+extraction was withdrawn (it would have touched seven skills, not two) and `show-options` routes to
+`orient` instead. What remains: one new skill file, one evals file, a doctrine amendment in
+`workflow` (Phase 5), and mechanical count edits plus regenerated docs. V1 is manual-only, so it adds
+**no description cost** to the listing budget — a name-sized floor remains, since the listing always
+carries every skill name — and cannot auto-fire. The one genuinely load-bearing edit is Phase 5's
+doctrine change, which other skills' routing reads.
 
 ## Stress-test summary
 
@@ -350,18 +499,19 @@ body — the prior pass validated the *decisions*, not the *phasing*.
 
 ## Execution shape
 
-Predominantly sequential: Phase 1 gates Phase 3's contract, Phase 2 must precede Phase 3 (the
-duplication threshold), and Phase 6 consumes Phase 3's frontmatter.
+Predominantly sequential: Phase 1 gates Phase 3's contract, Phase 2's census verdict gates Phase 3's
+routing, and Phase 6 consumes Phase 3's frontmatter.
 
 | Phase | Surface | Basis |
 |---|---|---|
 | 1 Probe | main session | One invocation plus a judgement call on output shape |
-| 2 Gather seam | main session | Edits two shipped skills; regression risk wants direct oversight |
+| 2 Route-not-extract | main session | A census plus a recorded verdict; no file edits |
+| 2b Seam phrasing | main session | Folds into Phase 3's authoring; no separate edit surface |
 | 3 Skill body | main session | The judgement-heavy core; the whole contract lands here |
-| 4 Evals | sub-agent worker | Mechanical against a fixed schema, file-disjoint from Phase 5 |
+| 4 Evals | sub-agent worker | Mechanical against a fixed schema, file-disjoint from Phase 6 |
 | 5 workflow amendment | main session | Doctrine edit — small, high-consequence |
-| 6 Plugin surface | sub-agent worker | Mechanical count/enumeration edits plus two generator runs |
-| 7 Gate sweep | main session | Interprets gate output and owns the prune-with-pointer |
+| 6 Plugin surface | sub-agent worker | Mechanical count edits plus two generator runs |
+| 7 Gate sweep | main session | Interprets gate output; owns the ADR and the prune-with-pointer |
 
 **One parallel opportunity:** Phases 4 and 6 have zero file overlap and neither consumes the
 other's output; both depend only on Phase 3. Running them concurrently saves little (both are
@@ -378,8 +528,12 @@ the main session.
 ## Open questions
 
 - Q4 (usage-metrics surfacing) and Q11 (execute-after-pick) remain USER-RESERVED — see Brief.
-- Whether the Spotlight ledger lives in the memory slice or a plugin-data path is a Phase 3
-  implementation call; both are self-ignored and neither changes the contract.
+- ~~Spotlight ledger location is a Phase 3 implementation call~~ — **closed by the plan review**: it
+  changes behavior either way (memory tier resets per worktree; `${CLAUDE_PLUGIN_DATA}` is keyed to
+  the plugin id alone, so one file per *machine* leaks across repositories). Decided in Phase 3:
+  memory tier, last-write-wins, stated.
+- The V2 HTML rendering tier, cut from V1 in Phase 3, has no owner doc in this repo — if it returns,
+  it needs the ephemeral-tier and `windows-path-emit` conformance the review enumerated.
 
 ## Handoff to implementation
 
@@ -390,10 +544,26 @@ the main session.
 - **Phase 7 ADR** — confirm the ADR's placement and that the graduated content is right before the
   prune commit deletes the slice; a prune is not reversible from the branch alone.
 
+### Decisions made (gate-passed)
+
+Every choice below was made by `/planning:plan`, not stated in the Brief. Each cleared the
+confidence gate — its basis is evidence captured this session, with no surviving reasonable
+alternative. Override any of them.
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| `[EXEC-SHAPE]` `workflow-stage: anytime` (Q12, arbiter=plan) | Which cheat-sheet section the skill lands in | `anytime` is a valid `STAGES` slug and requires no `cadence`; the nearest functional sibling `workflow` is `anytime` while the nine `session`-tagged siblings are lifecycle actions |
+| `[FALLBACK — confirm or override]` **Withdraw the gather-seam extraction; route to `orient` instead** | Phase 2 stops editing shipped skills entirely; blast radius drops | Verified: seven skills carry the block, not two. Extracting for two leaves five divergent copies plus a new seam — two sources of truth. Routing is `reuse-or-replace`-compliant and was validator B's own recommendation |
+| `[FALLBACK — confirm or override]` **Promote the seven-way extraction to its own topic** | Real cleanup work leaves this PR's scope | The plan skill's sub-topic trigger fires (8 files, independent commit boundary, own verification need). Filed as a tracked item in Phase 7 so it survives the prune |
+| `[EXEC-SHAPE]` **Cut the HTML rendering tier from V1** | Removes a whole rendering surface from Phase 3 | It appears in no Brief acceptance criterion, and it pulls in ephemeral-tier `mktemp` semantics, a Windows branch, and `windows-path-emit` — none budgeted |
+| `[EXEC-SHAPE]` **Spotlight ledger → memory tier, last-write-wins** | Closes an open question rather than deferring it | `${CLAUDE_PLUGIN_DATA}` is keyed to the plugin id and nothing else (`plugin-data-report-keying`), so a fixed filename is one file per machine, shared across every repo |
+| `[EXEC-SHAPE]` **Version `0.23.9` → `0.24.0`** | Fixes the CHANGELOG heading Phase 6 must write | A new skill is a feature addition; `check-changelog-parity.sh` requires an exact heading match |
+| `[EXEC-SHAPE]` **ADR is a distilled new document, not a `git mv`** | Changes Phase 7's graduation mechanism | The Brief carries phase mechanics that should not survive into an ADR; only the decision record graduates |
+
 ### Execution shape (`[EXEC-SHAPE]` tagged)
 
-Sequential seven-phase ordering with the routing table above; Phases 4/6 parallelisable with the
-stated fences and fallback.
+Sequential ordering with the routing table above; Phases 4/6 parallelisable with the stated fences
+and fallback.
 
 ### Mechanical work
 
