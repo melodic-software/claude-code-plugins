@@ -17,8 +17,9 @@ Vetting ran as six lanes on the `pocock-course-lanes` contract
 steering lanes ([#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909),
 [#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910),
 [#2911](https://github.com/melodic-software/claude-code-plugins/issues/2911)). Lanes decide but
-never implement: every ADOPT row points at a filed work item; changes execute through the normal
-pipeline.
+never implement: every plain ADOPT row points at a filed work item (the ADOPT terms sub-form,
+defined with the row schema below, executes via the lane 6 term-verdict table instead); changes
+execute through the normal pipeline.
 
 **Record provenance and supersession.** Lanes 3–5 were each closed by two parallel session
 chains — one writing rows into this document's copy on the contract branch
