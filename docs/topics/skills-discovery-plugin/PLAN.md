@@ -22,6 +22,34 @@ Ship `/claude-ops:audit-skill-starvation` — a read-only findings report that, 
 own machine, classifies every enabled skill into a reach state, explains each cold verdict against
 documented Claude Code mechanics, and withholds verdicts entirely when the data cannot support them.
 
+### The starvation mechanism (verified against docs + the v2.1.232 bundle, 2026-08-18)
+
+Documented verbatim in `skills.md`: *"The listing always contains every skill name, but if you have
+many skills, Claude Code shortens descriptions to fit the listing's character budget… When the
+listing overflows, Claude Code drops descriptions starting with the skills you invoke least, so the
+skills you use most keep their full text."* Settings corroborate: descriptions for least-used skills
+are dropped "so Claude can still invoke them but can't see what they do."
+
+Four mechanics govern it, and three are traps:
+
+- **The budget is in CHARACTERS and is DERIVED, not a constant.** `skillListingBudgetFraction`
+  (default `0.01`) × context window × a hardcoded 4-bytes-per-token estimate.
+  **The familiar "8,000 chars" is not a floor or a constant** — it is that formula at a 200k-token
+  window. On a 1M-context model the budget is ~40,000 chars. Compute it; never hardcode 8,000.
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET` short-circuits the whole calculation unconditionally.
+  Per-skill cap is `skillListingMaxDescChars`, default 1,536, over `description` + `when_to_use`.
+- **Two classes are exempt from the contest and must not be scored as starved:** bundled prompt
+  skills are force-added to the keep set and always retain full descriptions regardless of usage;
+  entries set to `name-only` via `skillOverrides` are pre-excluded, and their freed bytes are NOT
+  returned to the description pool. A "which skills lost their description" report built on pure
+  usage ranking will misattribute both.
+- **The ranking scorer is `usageCount × max(0.5^(days/7), 0.1)` — confirmed in the binary, but the
+  7-day half-life and the 0.1 floor are UNDOCUMENTED implementation detail pinned to v2.1.232.**
+  Reproducing it couples this skill to internals that can change in a patch release. **Prefer
+  reading the ordering from `/doctor` output over reimplementing the scorer** (see Q17).
+- **The overflow warning goes only to the debug log**, so a user is never told their skills were
+  truncated. That silence is the reason this diagnostic has a reason to exist.
+
 ### Constraints
 
 **Data sources — ladder, never summed.**
@@ -30,7 +58,11 @@ documented Claude Code mechanics, and withholds verdicts entirely when the data 
    `skill.name`, `skill.source`, and `invocation_trigger` (`user-slash` | `claude-proactive` |
    `nested-skill`). `invocation_trigger` is the only source that separates *"Claude never picks
    this"* from *"I never run this"*, and it closes the nested-skill attribution gap. Requires a
-   collector; `skill.name` is redacted to `custom_skill` for third-party skills unless
+   collector. **Redaction vocabulary differs per event — do not filter on one literal across
+   events:** on `skill_activated`, `skill.name` collapses to `custom_skill`; on the
+   cost/token/`api_*` attribution attributes, user-defined skill names appear VERBATIM and only
+   third-party plugin skills collapse, to `third-party`. A dashboard filtering one literal
+   everywhere will under- or over-count. `skill.name` is redacted to `custom_skill` unless
    `OTEL_LOG_TOOL_DETAILS=1`, which also widens collection to tool arguments and error strings —
    surface that privacy cost, never enable it silently.
 2. **`skill-usage.jsonl`** (this plugin's hooks) — the no-collector fallback. Adds branch/project
@@ -50,12 +82,22 @@ documented Claude Code mechanics, and withholds verdicts entirely when the data 
   invocations). It is seeded at install with `usageCount: 0` and a current `lastUsedAt` — 46 of 65
   plugins would read as "used today" when none had been used. Permitted use: install-seed detection
   only, gated on `usageCount > 0`.
-- **Native counter mechanics that change the arithmetic:** a 60-second per-skill write debounce
-  (bursts undercount) and lifetime-only counts (can never answer "used in the last 30 days").
+- **Native counter mechanics that change the arithmetic** (verified in the v2.1.232 bundle): a
+  60-second per-skill write debounce (`ypv=60000`) that suppresses BOTH the `usageCount` increment
+  AND the `lastUsedAt` refresh — so a skill invoked every 30 s ages as though last used at the first
+  call in each window — and lifetime-only counts that can never answer "used in the last 30 days".
+  The in-session event still fires every time, and **`skill_activated` telemetry is NOT debounced**,
+  so OTEL counts and local `usageCount` legitimately disagree. Never treat that divergence as a bug
+  or reconcile it away.
 
 **Denominator.** Installed **and enabled** — checkout, installation, and enablement are three
 different sets by `claude-ops:inventory`'s own doctrine, and skills in installed-but-disabled
-plugins must not be libeled. Prefer `claude_code.plugin_loaded`; otherwise inventory plus an
+plugins must not be libeled. Prefer `claude_code.plugin_loaded` — the docs state it is logged "once
+per enabled plugin at session start" and explicitly say to "use this event to inventory which
+plugins are active across your fleet". **It fires per session start, not per install:** deduplicate
+by `plugin_id_hash` (stable, unredacted, exporter-only — the correct join key for third-party
+plugins) and exclude `safe_mode="true"` sessions, where the inventory is reported but nothing
+actually loaded. Otherwise inventory plus an
 enablement check. Call `skills/inventory/scripts/inventory.py --out` for the fleet — never
 re-enumerate it. The join is not free: usage keys are `<plugin>:<leaf>`, while inventory emits bare
 leaf names nested under `disk.installed_plugins[<marketplace>][<plugin>].components.skills[]`, so
@@ -63,7 +105,17 @@ the qualified name must be synthesized from the enclosing dict keys. Two marketp
 same-named plugin collapse to one usage key — detect and report the ambiguity rather than
 misattributing.
 
-**Classification.** Ground every cold verdict in the 13 documented never-auto-invoked reasons.
+**Classification.** Ground every cold verdict in the **15 evidenced never-auto-invoked causes, 11 of
+them genuinely silent** (skill looks fine, is never selected, and nothing surfaces outside
+`--debug`). **Correction, verified 2026-08-18:** there is NO official 13-reason list — `skills.md`
+Troubleshooting is a 4-item checklist. The 15-cause table is assembled from scattered doc sections
+plus binary strings and MUST be labeled that way in any user-facing output; never cite it to a user
+as documented. Silent causes evidenced include malformed frontmatter YAML (body loads with empty
+metadata, `/name` still works, parse error only under `--debug`), an omitted `description` falling
+back to the first body paragraph, description + `when_to_use` truncated past 1,536 chars, a synced
+claude.ai skill whose name collides with any other command (skipped entirely; matching ignores case,
+spacing, invisible chars, and fullwidth/dash variants), dot-prefixed skills-dir entries, and reduced
+mode skipping skill discovery wholesale.
 Three of those are silent misconfigurations and must NEVER be rendered as "delete me". Derivable
 buckets: `disable-model-invocation: true` (59 of 213 local skills — 28% of the fleet),
 `skillOverrides: "off"`, plugin-not-enabled, invoked-only-by-another-skill, and starved-by-budget.
@@ -130,8 +182,13 @@ skill-spawned subprocess's environment). A configurable window must arrive via
   contemplates a team that commits telemetry; this work neither removes nor builds on it.
 - Cloud/ephemeral containers lose both stores with the container. Documented as a known gap; the
   honesty floor is what keeps that gap from becoming a false report.
-- The 7-day half-life in the decay scorer is inferred from binary inspection, not documented — do
-  not present the starvation cutoff as exact without re-verification.
+- The decay scorer's 7-day half-life and 0.1 floor are confirmed present in the v2.1.232 bundle but
+  are UNDOCUMENTED and unversioned — never present a starvation cutoff derived from them as exact,
+  and re-verify on each Claude Code upgrade. This is the single highest-risk dependency in the
+  design.
+- The "documented reasons a skill is never auto-invoked" framing was WRONG in the pre-verification
+  draft of this Brief: no such official list exists. Corrected above to 15 evidenced causes with
+  their provenance stated.
 - No official Anthropic position exists on third-party skill analytics: issue #35319 ("Skill
   invocation tracking and usage analytics") is closed with no maintainer response, and its
   predecessor #20970 was auto-closed for inactivity. Neither blessed nor blocked.
