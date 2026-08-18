@@ -12,8 +12,9 @@
   steps-vs-reference separation with co-location, observable completion criteria with
   premature-completion/post-completion/legwork guards, split-by-sequence,
   positive-form prompting) and points at the audit siblings, the invocation-mode
-  rubric, `claude-memory:audit`'s navigation-pointer remediation, and
-  `curate-language` rather than restating them. Ships `reference/agent-doc-surfaces.md`
+  rubric, and `curate-language` rather than restating them; the
+  restructure-before-pointer caveat is stated inline pending its audit-side home
+  (#2987). Ships `reference/agent-doc-surfaces.md`
   (docs-verified auto-read surface table, Claude Code v2.1.233 baseline, plus
   other-ecosystem analogues) and a 9-case eval suite gating trigger reliability
   (5 positive writing-moment cases, 3 negative route-away controls, 1 doctrine
