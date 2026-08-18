@@ -22,7 +22,9 @@ the basis it was derived against, the as-of date, and a recheck trigger. Columns
 | Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
 
 Verdicts: **ADOPT** (with the filed work item), **REJECT** (with reason), **TRACK** (on a named
-event), **COVERED** (already present at parity or stronger, with evidence).
+event), **COVERED** (already present at parity or stronger, with evidence). One sub-form:
+**ADOPT terms** marks a vocabulary adoption whose execution path is the lane 6 term-verdict
+table rather than a filed work item.
 
 **Recheck trigger, all rows (fixed at creation):** divergence at re-fetch. A read-time re-fetch
 of the row's basis (the lesson text, or the upstream artifact the row cites) finds the source no
@@ -31,10 +33,22 @@ the upstream-drift maintenance procedure. A row may state a stronger trigger inl
 the lesson updates" is not a valid trigger form here because the course publishes no observable
 update signal.
 
+## Basis and re-fetch
+
+The lesson side of every row is one of six lessons from Matt Pocock's AI Hero course on working
+with coding agents (aihero.dev; lesson titles are named per lane section), read as verbatim
+pastes into the vetting sessions on 2026-08-17. No lesson snapshot is retained in this
+repository, by design: durable-tier docs paraphrase and cite rather than reproduce lesson text
+(amendment A2), and the contract-slice prune gate bars committed working slices. Re-fetching a
+row's lesson basis therefore means re-reading the named lesson at the course itself. The
+effort's working records (contract, coverage index, lane summaries) are carried in PR
+[#3008](https://github.com/melodic-software/claude-code-plugins/pull/3008)'s body and the six
+lane issues.
+
 ## Lane 1: handoff (issue #2899, decided 2026-08-17)
 
-Basis for all lane 1 rows: the course handoff lesson as captured in the lane contract
-(`docs/topics/pocock-course-lanes/PLAN.md`, 2026-08-17) plus upstream
+Basis for all lane 1 rows: the course lesson "Handing Off" (verbatim paste, 2026-08-17; no
+snapshot retained; see Basis and re-fetch) plus upstream
 `skills/productivity/handoff/SKILL.md` read live at `068b6e0` (2026-08-17). Our side read live
 the same day: `plugins/session-flow/skills/handoff/SKILL.md`,
 `plugins/session-flow/reference/save-point.md`, `plugins/session-flow/reference/structure.md`
@@ -97,8 +111,8 @@ context-guard reader-contract drift are filed as their own items. Filed:
 
 ## Lane 3: compaction doctrine (issue #2901, decided 2026-08-17)
 
-Basis: the merged Compaction and Auto-Compaction lessons (source:
-`docs/topics/pocock-course-lanes/lessons/03-compaction-and-auto-compaction.md`), graded against
+Basis: the merged "Compaction" and "Auto-Compaction" lessons (verbatim paste, 2026-08-17; no
+snapshot retained; see Basis and re-fetch), graded against
 the verified harness verdicts C1-C6 in the contract's table, the context-guard evidence-degraded
 marker and reader contract, and the handoff skill's fork-beats-compaction doctrine. Register
 Q24-Q29; answers locked under the user's standing acceptance of this session's recommendations
@@ -132,8 +146,8 @@ stance, its figures held as named anchors never adopted numbers.
 
 ## Lane 4: plan mode / asset rush (issue #2902, decided 2026-08-17)
 
-Basis: the "Why Plan Mode Sucks" lesson (source:
-`docs/topics/pocock-course-lanes/lessons/04-why-plan-mode-sucks.md`), graded against
+Basis: the "Why Plan Mode Sucks" lesson (verbatim paste, 2026-08-17; no snapshot retained;
+see Basis and re-fetch), graded against
 `planning:interview` (pre-clarity stance, auto-detect, auto-guard, `lock` STOP-on-gap, the
 general-domain shared-understanding terminal) and `planning:plan` (approval gate, Open Decisions
 before the plan body, devils-advocate dispatch, decision confidence gate), plus verdicts C7-C9.
@@ -141,9 +155,9 @@ Register Q31-Q35 under the user's restated acceptance.
 
 | Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
-| Agents rush from prompt to implementation with no alignment step (the asset rush) | `planning:interview` is the pipeline's pre-clarity stage: a contract locked before exploration, planning, or execution | **ADOPT** (convergent) | The critique is the design rationale the pipeline already embodies; behavior-change work is interview-first by default, with auto-detect keeping it cheap. As-of 2026-08-17 |
+| Agents rush from prompt to implementation with no alignment step (the asset rush) | `planning:interview` is the pipeline's pre-clarity stage: a contract locked before exploration, planning, or execution | **COVERED** (convergent) | The critique is the design rationale the pipeline already embodies; behavior-change work is interview-first by default, with auto-detect keeping it cheap. No change needed, so no work item (verdict reclassified from ADOPT per schema during PR review). As-of 2026-08-17 |
 | Plan mode is a buffer between exploration and implementation: a plan document you review, then proceed | Plan mode is treated as a permission/safety gate; alignment is owned upstream by the interview contract | **COVERED** (position) | The harness feature is not rejected, it is repositioned: a permission mode cannot produce shared understanding, and nothing in the family asks it to. As-of 2026-08-17 |
-| "Plan mode is still rushing": the plan reads like the implementation; the decisions are already made and written down | Two structural answers: the Brief locks intent BEFORE `/planning:plan`, and the plan skill itself refuses to lock decisions inline (Open Decisions surfaced before the plan body; a confidence gate routes judgment calls back to interview rounds; user approval gate before any code; fresh-context devils-advocate stress-test) | **ADOPT** (convergent, already answered structurally) | His diagnosis names exactly the failure the pipeline's two gates exist to prevent; no change needed. As-of 2026-08-17 |
+| "Plan mode is still rushing": the plan reads like the implementation; the decisions are already made and written down | Two structural answers: the Brief locks intent BEFORE `/planning:plan`, and the plan skill itself refuses to lock decisions inline (Open Decisions surfaced before the plan body; a confidence gate routes judgment calls back to interview rounds; user approval gate before any code; fresh-context devils-advocate stress-test) | **COVERED** (convergent, already answered structurally) | His diagnosis names exactly the failure the pipeline's two gates exist to prevent; no change needed, so no work item (verdict reclassified from ADOPT per schema during PR review). As-of 2026-08-17 |
 | Root cause is the sycophantic trait: told to produce, the agent produces | Interview stance: recommendations-first but facts-are-mine/decisions-are-the-user's; the auto-guard forbids resolving a genuine user choice; `/planning:audit-answers` is the producer-not-critic control | **COVERED** | The trait is countered by structure, not exhortation; "sycophancy" and "asset rush" go to lane 6 as term candidates. As-of 2026-08-17 |
 | The design concept (Brooks): shared understanding is not an asset; conversation sharpens it | The general-domain interview terminal drives to a shared understanding and STOPS: no Brief, no artifact, no pipeline handoff | **COVERED** (embodied) | Q33: the endpoint already exists; the term maps to our "shared understanding" (lane-6 adoption candidate); no mechanism change earned. As-of 2026-08-17 |
 | Walkthrough: cycle `shift+tab` until plan mode is on | Verified harness behavior | **CONFIRMED** | Verdict C7 (two-pool); no fixed press count is taught. As-of 2026-08-17 |
@@ -161,10 +175,10 @@ work items filed: no plugin change was decided; lane-6 parcels are the three ter
 
 ## Lane 5: grilling-interview parity (issue #2903, decided 2026-08-17)
 
-Basis: "The Grill-Execute-Clear Loop" lesson (source:
-`docs/topics/pocock-course-lanes/lessons/05-grill-execute-clear.md`), graded against
+Basis: "The Grill-Execute-Clear Loop" lesson (verbatim paste, 2026-08-17; no snapshot
+retained; see Basis and re-fetch), graded against
 `planning:interview` and against his CURRENT repo texts read from a live clone at HEAD
-`068b6e0` (`skills/productivity/grilling/SKILL.md`, `grill-me/SKILL.md`) — which match the
+`068b6e0` (`skills/productivity/grilling/SKILL.md`, `grill-me/SKILL.md`), which match the
 SSOT-recorded baseline verbatim in substance, confirming the 2026-08-17 recheck's
 cosmetic-only-drift finding. Register Q36-Q37 under the user's restated acceptance. The
 grilling-family provenance itself is settled in `mattpocock-skills.md` rows 3-4 and is
@@ -188,17 +202,17 @@ close clean); no new lane-6 parcels beyond the design-tree/decision-tree equival
 
 ## Lane 6: vocabulary + consolidation (issue #2904, decided 2026-08-18)
 
-Consolidation record: the per-lesson coverage index lives in the effort contract
-(`docs/topics/pocock-course-lanes/PLAN.md`, "Coverage index" — pruned with the topic slice at
-PR time, its substance carried in the PR body; the claim-level enumeration is this document's
-lane sections, 49 rows). SSOT maintenance executed by this lane: the row-35 wording correction
+Consolidation record: the per-lesson coverage index is carried in the body of PR
+[#3008](https://github.com/melodic-software/claude-code-plugins/pull/3008) (the effort's
+contract and topic slices were pruned per the contract-slice prune gate; the claim-level
+enumeration is this document's lane sections, 49 rows). SSOT maintenance executed by this lane: the row-35 wording correction
 (audit A1), the invocation-reach and diagnosing-bugs TRACK annotations (2026-08-17 recheck,
 unreleased drift), and the v12-map private-marketplace staleness correction. The parallel
 teach-skill comparison is in-flight (local branch, ledger only); its future outcomes are bound
 to this provenance home by the guard comment on #2904.
 
 **Dictionary-term verdicts** (candidates harvested across lanes; the repo keeps NO central
-glossary — vocabulary lives in each owning plugin's docs, so these are adoption verdicts, not
+glossary; vocabulary lives in each owning plugin's docs, so these are adoption verdicts, not
 glossary entries; central-glossary creation deliberately deferred per the curate-language
 lazy-creation rule, pending the user's placement choice):
 
@@ -207,7 +221,7 @@ lazy-creation rule, pending the user's placement choice):
 | primary source / secondary source | **ADOPT** as working discussion vocabulary, WITH the house refinement: in Claude Code the on-disk JSONL transcript stays lossless across compaction; only the model-visible context turns secondary | Lane 3 rows; handoff structure doc's transcript re-scan rule |
 | smart zone | **PARTIAL**: survives as informal shorthand; the canonical house terms are context-guard's zone words (smart / acceptable / dumb) with declared judgment-default bands; his ~150k number rejected | context-guard reader contract |
 | AFK | **ADOPT** (narrow) as the name of the router's adopted AFK edge | lane 2 rows; build item #2971 |
-| phase boundary | **ALREADY HOUSE** — the continuation router's trigger vocabulary predates the course | session-flow workflow/continuation docs |
+| phase boundary | **ALREADY HOUSE**; the continuation router's trigger vocabulary predates the course | session-flow workflow/continuation docs |
 | design concept | **REJECTED SYNONYM** of "shared understanding" (the general-domain interview terminal); carry an Avoid line if a glossary is ever created | lane 4 rows; planning:interview |
 | asset rush | **ADOPT** as effort/discussion shorthand for the named failure mode; doubtful admission to any future glossary (methodology vocabulary) | lane 4 rows |
-| sycophancy | **NO ACTION** — generic ML vocabulary already in standard use | lane 4 rows |
+| sycophancy | **NO ACTION**; generic ML vocabulary already in standard use | lane 4 rows |

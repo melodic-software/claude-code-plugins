@@ -1,7 +1,7 @@
 # Full map — mattpocock/skills (v1.2.3, HEAD 84fdeff, 2026-08-06) ↔ melodic-software/claude-code-plugins (main a89a4a33)
 
 > **Correction (2026-08-17):** this map's "Claude-only private marketplace" characterization
-> (Codex-sidecar row and the marketplace row of the cross-cutting table) is stale — the
+> (Codex-sidecar row and the marketplace row of the cross-cutting table) is stale; the
 > repository is PUBLIC (verified via the repo listing during the pocock-course-lanes effort).
 > The Claude-only part stands; the private part does not. The map is otherwise a point-in-time
 > record as of its header date. A 2026-08-17 recheck at HEAD `068b6e0` found the 35-skill
