@@ -1,5 +1,27 @@
 # Changelog — docs-hygiene plugin
 
+## [0.17.0]
+
+### Added
+
+- New skill `write-for-agents`: the write-side complement to the audit skills —
+  authoring-time doctrine firing while agent-consumed markdown is written
+  (CLAUDE.md/AGENTS.md content, `.claude/rules` files, agent-loaded reference/context
+  docs, navigation-pointer lines, doc-plus-pointer extractions). Inlines the adapted
+  doctrine (two-loads budgeting, branch-covering front-loaded pointers,
+  steps-vs-reference separation with co-location, observable completion criteria with
+  premature-completion/post-completion/legwork guards, split-by-sequence,
+  positive-form prompting) and points at the audit siblings, the invocation-mode
+  rubric, and `curate-language` rather than restating them; the
+  restructure-before-pointer caveat is stated inline pending its audit-side home
+  (#2987). Ships `reference/agent-doc-surfaces.md`
+  (docs-verified auto-read surface table, Claude Code v2.1.233 baseline, plus
+  other-ecosystem analogues) and a 9-case eval suite gating trigger reliability
+  (5 positive writing-moment cases, 3 negative route-away controls, 1 doctrine
+  behavior case). Route-away fence: SKILL.md authoring, audit requests, and
+  human-facing docs stay with their incumbent owners. Design contract:
+  `docs/specs/write-for-agents-brief.md` (course lane 7, #2909); build issue #2962.
+
 ## [0.16.1]
 
 ### Changed
