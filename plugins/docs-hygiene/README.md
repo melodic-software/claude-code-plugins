@@ -3,8 +3,8 @@
 A Claude Code plugin bundling documentation-hygiene skills — one cohesive
 capability: keeping a repository's tracked markdown lean, deduplicated, and
 free of decayed references. Each skill is invocable on its own; together they
-cover the flavor, noise, duplication, boundary, rename, worth, and loading
-axes of doc upkeep.
+cover the flavor, noise, duplication, boundary, rename, worth, loading,
+and authoring axes of doc upkeep.
 
 ## The skills
 
@@ -17,6 +17,7 @@ axes of doc upkeep.
 | `/docs-hygiene:rename-references` | Sweeps stale references after renames — the forms plain token grep misses: slash-command tokens, relative paths from moved files, frontmatter chains and globs — via a 12-form pattern library with audit, half-rename detection, and apply modes. |
 | `/docs-hygiene:audit-derivability` | Read-only, document-level worth classifier: could a fresh agent re-derive this whole document from the code, config, and structure? Weighs derivability, re-derivation cost, drift risk, and fact ownership into a verdict (delete, convert-to-pointer, keep-as-derivation-cache, keep-owns-facts), splits it by audience, and confirms load-bearing deletions with a fresh-context spot-test. Where the other five trim *inside* a doc, this decides whether the doc should exist. |
 | `/docs-hygiene:audit-progressive-disclosure` | Read-only progressive-disclosure classifier: grades agent-facing instruction markdown against a three-tier load-cost model (always-loaded / invocation-loaded / on-demand) and emits seven finding shapes in two lanes — split opportunities (oversize, mixed-concerns, tier-mismatch) and hub/spoke structure defects (blind-pointer, orphan-spoke, deep-nesting, missing-toc) — with tiered treatment guidance. Thresholds are advisory and Anthropic-prescribed; a deterministic `detect.sh` emits the facts, the judgment layer adjudicates. |
+| `/docs-hygiene:write-for-agents` | The write-side complement to the audit skills: authoring-time doctrine that fires while agent-consumed markdown is being written (CLAUDE.md/AGENTS.md content, rules files, agent-loaded reference docs, pointer lines, doc-plus-pointer extractions) — two-loads budgeting, branch-covering pointers, steps-vs-reference separation, observable completion criteria, split-by-sequence, positive-form prompting — with a verified auto-read surface reference and a trigger-reliability eval suite. |
 
 ## Requirements
 

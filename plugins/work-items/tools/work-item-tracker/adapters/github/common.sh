@@ -33,17 +33,25 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/json.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
+# binding.sh supplies wit_project_root — the seam's single repo-root anchor; the
+# wrapper lookup below must share it, never re-derive its own copy.
+wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
+# shellcheck source=../../lib/binding.sh
+source "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
 
 # wit_gh_resolve_bot_wrapper — echo the bot wrapper path using consumer-local-first
 # resolution (CONTRACT.md "Identity routing (GitHub adapter)"), mirroring the
 # adapter two-root resolution (CONTRACT.md "Adapter resolution"): a consuming
-# repo's own wrapper at ${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh wins,
+# repo's own wrapper at <repo root>/tools/github-auth/gh-bot.sh wins,
 # independent of where the adapter itself resolved from (a shadowed
 # consumer-local adapter must still find the consumer's wrapper, not miss it via
 # its own directory); otherwise the plugin-bundled path beside this adapter tree.
+# The root is the seam's single anchor (wit_project_root — CLAUDE_PROJECT_DIR,
+# else the git toplevel), so a bare shell resolves the consumer wrapper too (#2941).
 wit_gh_resolve_bot_wrapper() {
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local consumer_wrapper="$CLAUDE_PROJECT_DIR/tools/github-auth/gh-bot.sh"
+  local root
+  if root="$(wit_project_root)" && [[ -n "$root" ]]; then
+    local consumer_wrapper="$root/tools/github-auth/gh-bot.sh"
     if [[ -f "$consumer_wrapper" ]]; then
       printf '%s\n' "$consumer_wrapper"
       return 0

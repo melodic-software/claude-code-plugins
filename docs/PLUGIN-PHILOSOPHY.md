@@ -567,7 +567,9 @@ without the instruction, delete it or convert it to a hook"
 applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
 Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
 ([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
-verified 2026-08-08). Four rules follow:
+verified 2026-08-08). Context load is not the only budget: the human maintainer's cognitive load
+is its sibling constraint, and the write-time doctrine budgeting both lives in
+`docs-hygiene:write-for-agents`. Four rules follow:
 
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model — the same failure seen more than once — never anticipation

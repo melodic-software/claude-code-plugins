@@ -17,19 +17,51 @@ write_binding() {
 
 VALID='{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 
-# --- discovery: climb from nested CWD ---
+# --- discovery: anchored at CLAUDE_PROJECT_DIR (never a CWD climb) ---
 
 ROOT="$TEST_TMPDIR/repo"
 mkdir -p "$ROOT/deep/nested"
 write_binding "$ROOT/.work-item-tracker.json" "$VALID"
-OUT="$(cd "$ROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING && wit_find_binding)"
-assert_eq "climb finds root binding" "$ROOT/.work-item-tracker.json" "$OUT"
+OUT="$(cd "$ROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING && export CLAUDE_PROJECT_DIR="$ROOT" && wit_find_binding)"
+assert_eq "CLAUDE_PROJECT_DIR anchor finds root binding from nested CWD" "$ROOT/.work-item-tracker.json" "$OUT"
 
-# --- discovery: nearest binding wins ---
+# --- discovery: git-toplevel fallback when CLAUDE_PROJECT_DIR is unset ---
 
-write_binding "$ROOT/deep/.work-item-tracker.json" "$VALID"
-OUT="$(cd "$ROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING && wit_find_binding)"
-assert_eq "nearest binding wins" "$ROOT/deep/.work-item-tracker.json" "$OUT"
+GITROOT="$TEST_TMPDIR/gitrepo"
+mkdir -p "$GITROOT/deep/nested"
+git init -q "$GITROOT"
+write_binding "$GITROOT/.work-item-tracker.json" "$VALID"
+OUT="$(cd "$GITROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding)"
+assert_eq "git-toplevel fallback finds root binding from nested CWD" "$GITROOT/.work-item-tracker.json" "$OUT"
+
+# --- discovery: a nested per-subdirectory binding is not discovered ---
+
+write_binding "$GITROOT/deep/.work-item-tracker.json" "$VALID"
+OUT="$(cd "$GITROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding)"
+assert_eq "nested binding is ignored; root binding wins" "$GITROOT/.work-item-tracker.json" "$OUT"
+
+# --- discovery: a stray ancestor binding ABOVE the repo root never captures it ---
+
+write_binding "$TEST_TMPDIR/.work-item-tracker.json" "$VALID"
+BARE="$TEST_TMPDIR/bare-gitrepo"
+mkdir -p "$BARE/sub"
+git init -q "$BARE"
+if (cd "$BARE/sub" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding >/dev/null); then
+  fail "ancestor binding above the repo root is not discovered" "failure" "success"
+else
+  pass "ancestor binding above the repo root is not discovered"
+fi
+
+# --- discovery: no anchor at all (no CLAUDE_PROJECT_DIR, not a git repo) fails ---
+
+NOANCHOR="$TEST_TMPDIR/no-anchor"
+mkdir -p "$NOANCHOR"
+write_binding "$NOANCHOR/.work-item-tracker.json" "$VALID"
+if (cd "$NOANCHOR" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding >/dev/null); then
+  fail "no anchor → no discovery, even with a binding in CWD" "failure" "success"
+else
+  pass "no anchor → no discovery, even with a binding in CWD"
+fi
 
 # --- discovery: env override wins ---
 
@@ -140,5 +172,105 @@ assert_eq "configured-empty container label falls back to the default" "work-map
 assert_rejected "numeric container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":5}}'
 assert_rejected "boolean container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":true}}'
 assert_rejected "object container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":{"a":1}}}'
+
+# --- overlay: .work-item-tracker.local.json beside the binding, allowlist-only ---
+
+OROOT="$TEST_TMPDIR/overlay-repo"
+mkdir -p "$OROOT"
+OBINDING="$OROOT/.work-item-tracker.json"
+OVERLAY="$OROOT/.work-item-tracker.local.json"
+
+write_binding "$OBINDING" "$VALID"
+write_binding "$OVERLAY" '{"config":{"lease_ttl_hours":2,"lease_ttl_minutes":30}}'
+if wit_read_binding "$OBINDING"; then
+  pass "overlay-merged binding accepted"
+  assert_eq "overlay lease_ttl_hours wins" "2" "$WIT_LEASE_TTL_HOURS"
+  assert_eq "overlay lease_ttl_minutes wins" "30" "$WIT_LEASE_TTL_MINUTES"
+  assert_eq "team provider survives the merge" "github" "$WIT_PROVIDER"
+else
+  fail "overlay-merged binding accepted" "success" "failure"
+fi
+
+# Keys the overlay does not mention keep their team values (per-key, never wholesale).
+write_binding "$OVERLAY" '{"config":{"lease_ttl_minutes":45}}'
+wit_read_binding "$OBINDING"
+assert_eq "unmentioned team key keeps its value" "24" "$WIT_LEASE_TTL_HOURS"
+assert_eq "mentioned overlay key wins" "45" "$WIT_LEASE_TTL_MINUTES"
+
+# jira auth identity is per-account and overlayable; site/project_keys are not.
+write_binding "$OBINDING" '{"schema_version":"1.0","provider":"jira","config":{"lease_ttl_hours":24,"jira":{"site":"a.atlassian.net","project_keys":["AB"],"auth_email":"team@example.com","auth_env":"TEAM_TOKEN"}}}'
+write_binding "$OVERLAY" '{"config":{"jira":{"auth_email":"me@example.com","auth_env":"MY_TOKEN"}}}'
+EJ="$(wit_effective_binding_json "$OBINDING")"
+assert_eq "overlay jira auth_email wins" "me@example.com" "$(jq -r '.config.jira.auth_email' <<<"$EJ")"
+assert_eq "overlay jira auth_env wins" "MY_TOKEN" "$(jq -r '.config.jira.auth_env' <<<"$EJ")"
+assert_eq "team jira site survives the merge" "a.atlassian.net" "$(jq -r '.config.jira.site' <<<"$EJ")"
+
+# The optional self-describing docs pointer is allowed in either layer.
+write_binding "$OVERLAY" '{"docs":"see CONTRACT.md"}'
+if wit_read_binding "$OBINDING"; then
+  pass "docs key allowed in the overlay"
+else
+  fail "docs key allowed in the overlay" "success" "failure"
+fi
+
+# Empty scaffolding on an allowlisted prefix is inert, not an error.
+write_binding "$OVERLAY" '{"config":{}}'
+if wit_read_binding "$OBINDING"; then
+  pass "empty overlay scaffolding is inert"
+else
+  fail "empty overlay scaffolding is inert" "success" "failure"
+fi
+write_binding "$OVERLAY" '{"config":{"jira":{}}}'
+if wit_read_binding "$OBINDING"; then
+  pass "empty jira scaffolding is inert"
+else
+  fail "empty jira scaffolding is inert" "success" "failure"
+fi
+
+# An explicitly null allowlisted value MERGES (presence, not non-null) and is
+# judged by normal binding validation — never a silent fallback to team values.
+write_binding "$OVERLAY" '{"config":{"jira":{"auth_email":null}}}'
+EJ="$(wit_effective_binding_json "$OBINDING")"
+assert_eq "explicit null overlay value merges as null" "null" "$(jq -c '.config.jira.auth_email' <<<"$EJ")"
+write_binding "$OVERLAY" '{"config":{"lease_ttl_hours":null}}'
+if wit_read_binding "$OBINDING" 2>/dev/null; then
+  fail "null lease_ttl_hours overlay fails binding validation" "failure" "success"
+else
+  pass "null lease_ttl_hours overlay fails binding validation"
+fi
+
+# Deny-by-default: any key outside the allowlist is a configuration error, not a merge.
+assert_overlay_rejected() {
+  local label="$1" content="$2"
+  write_binding "$OVERLAY" "$content"
+  if wit_read_binding "$OBINDING" 2>/dev/null; then
+    fail "$label" "failure" "success"
+  else
+    pass "$label"
+  fi
+}
+
+assert_overlay_rejected "overlay provider override rejected" '{"provider":"local-markdown"}'
+assert_overlay_rejected "overlay role_labels rejected" '{"config":{"role_labels":{"human-gated":"x"}}}'
+assert_overlay_rejected "overlay container_label rejected" '{"config":{"container_label":"my-map"}}'
+assert_overlay_rejected "overlay storage_dir rejected" '{"config":{"storage_dir":"/tmp/x"}}'
+assert_overlay_rejected "overlay jira site rejected" '{"config":{"jira":{"site":"evil.example.com"}}}'
+assert_overlay_rejected "overlay jira project_keys rejected" '{"config":{"jira":{"project_keys":["ZZ"]}}}'
+assert_overlay_rejected "wrong-typed intermediate rejected" '{"config":5}'
+assert_overlay_rejected "non-JSON overlay rejected" 'not json'
+# Empty-object values cannot smuggle a non-allowlisted key past the leaf check.
+assert_overlay_rejected "empty-object provider rejected" '{"provider":{}}'
+assert_overlay_rejected "empty-object unknown key rejected" '{"evil":{}}'
+assert_overlay_rejected "empty-object role_labels rejected" '{"config":{"role_labels":{}}}'
+# A null at a non-leaf allowlisted prefix is a leaf, not scaffolding.
+assert_overlay_rejected "null jira subtree rejected" '{"config":{"jira":null}}'
+# An allowlisted key must hold a scalar: an object or array there would either
+# dodge the merge or reach a downstream surface with no type check — reject at
+# load with the key named, never a silent fallback to the team value.
+assert_overlay_rejected "object-valued allowlisted key rejected" '{"config":{"jira":{"auth_email":{}}}}'
+assert_overlay_rejected "populated object at allowlisted key rejected" '{"config":{"jira":{"auth_email":{"x":1}}}}'
+assert_overlay_rejected "array-valued allowlisted key rejected" '{"config":{"lease_ttl_hours":[]}}'
+
+rm -f "$OVERLAY"
 
 [[ $FAILED -eq 0 ]] || exit 1

@@ -70,6 +70,21 @@ Consequences: any skill another skill chains to MUST be `false` (this is the rub
 cross-skill-reach axis), and no skill body may instruct model invocation of a `true` target —
 the audit-side trigger that guards this lives in the SSOT strand.
 
+## Cross-skill invocation phrasing
+
+When a skill body chains to another skill, name the mechanism explicitly — "invoke
+`/plugin:skill` via the Skill tool" (or an equivalent that names the Skill tool) — never bare
+`/name` prose, which reads as a suggestion to a human rather than an instruction the model
+reliably executes. Scope: this binds NEW and EDITED skill text; the existing fleet is mixed
+(many skills already use the explicit form, others chain bare — e.g. the knowledge pipeline
+handoffs), and normalizing the existing operative chains is the filed sweep
+[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002) (adopted
+2026-08-18, lane 6 of the AI Hero course vetting — `docs/upstream/aihero-course.md`). Upstream
+basis, named
+provenance: mattpocock/skills standardized the same rule in `.agents/invocation.md` (upstream
+PRs #878 and #880) on his measured claim — his repo's measurement, not re-verified here — that
+explicit Skill-tool phrasing has a higher cross-skill hit rate than bare `/name` prose.
+
 ## Splitting by invocation
 
 When one skill serves both an autonomous-reach audience and a manual-timing audience, split it so
@@ -123,4 +138,5 @@ in-lane.
   (enforcement, filed as #2968).
 - `playbooks:skill-authoring`: authoring-time pointer here (filed as #2968).
 - Steering-lane provenance and lesson decision rows:
-  `docs/upstream/aihero-steering-lanes.md` (lane 8).
+  `docs/upstream/aihero-course.md` (lane 8 section; the interim steering record dissolved into
+  it at harvest).
