@@ -218,6 +218,20 @@ the repo's own convention docs, matched to the surfaces this plan touches:
 | Scope budget (this plugin) | `plugins/code-tidying/skills/tidy/reference/scope-budget.md:9-22`, `:121-123` | team |
 | Skill lint | `plugins/skill-quality/scripts/check-skill.sh` — check 3 (trigger preservation), check 4 (500-line cap), check 10 (200-line soft target) | team |
 
+### Skill-lint invocation (used by every phase)
+
+`check-skill.sh` takes a **skill name resolved under a skills root**, not a SKILL.md path — passing a
+path fails with `Skill not found` regardless of the work. Every phase therefore uses the repo's own
+wrapper, which maps changed paths to skill dirs, wires `CHECK_SKILL_BASE_REF`, and adds
+`--require-evals` when a SKILL.md is modified:
+
+```bash
+bash scripts/check-changed-skills.sh origin/main
+```
+
+Direct form, only when a single skill must be checked in isolation:
+`CHECK_SKILL_SKILLS_ROOT=plugins/code-tidying/skills bash plugins/skill-quality/scripts/check-skill.sh batch-simplify`.
+
 ### Phase 1: Fix the argument parser [TODO]
 
 Independently shippable. These are **pre-existing defects**, not repo-mode work: the grammar must be
@@ -232,14 +246,15 @@ so Phase 5 updates exactly that set rather than guessing.
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/code-tidying/skills/batch-simplify/SKILL.md` | MODIFY | `:41` detection heuristic and `:55` docs-flag detection |
+| `plugins/code-tidying/skills/batch-simplify/SKILL.md` | MODIFY | `:39` (where the branch trigger rule is **authored**) and `:41` (where it is restated); `:55` docs-flag detection |
 | `plugins/code-tidying/skills/batch-simplify/evals/evals.json` | MODIFY | Add one eval pinning the corrected grammar |
 | `plugins/code-tidying/CHANGELOG.md` | MODIFY | Patch-bump entry |
 | `plugins/code-tidying/.claude-plugin/plugin.json` | MODIFY | Patch bump |
 
-1. **Fix substring matching.** `:41` routes any argument *containing* "branch" to branch mode. Change
-   to exact-token matching against the branch trigger set (`branch`, `feature branch`,
-   `all commits`), so a value that merely mentions the word does not misroute.
+1. **Fix substring matching.** The rule is authored at `:39` ("argument is `branch`, or contains
+   "branch"…") and restated at `:41`. **Both** must change, or the defect stays live. Change to
+   exact-token matching against the branch trigger set (`branch`, `feature branch`, `all commits`),
+   so a value that merely mentions the word does not misroute.
 2. **Fix stripping precedence.** `:55` strips `docs` from `$ARGUMENTS` before mode parsing. Change to
    token-wise stripping: split the argument into whitespace-separated tokens, remove a token that
    *equals* `docs` (case-insensitive), and parse the remainder — so `docs` as a standalone flag still
@@ -250,11 +265,14 @@ so Phase 5 updates exactly that set rather than guessing.
 **Sanity Check:**
 
 - `grep -n 'contains "branch"' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns **no
-  match** (the substring rule is gone).
-- `grep -n 'equals\|exact token\|token-wise' plugins/code-tidying/skills/batch-simplify/SKILL.md`
-  returns at least 2 matches (both fixes state their matching discipline).
-- `python3 -c "import json;d=json.load(open('plugins/code-tidying/skills/batch-simplify/evals/evals.json'));print(len(d['evals']))"` prints `5`.
-- `bash plugins/skill-quality/scripts/check-skill.sh plugins/code-tidying/skills/batch-simplify/SKILL.md` exits 0.
+  match** (confirms `:39`, the authoring site, was fixed — not just the restatement).
+- `grep -cnE 'exact token|token-wise|equals' plugins/code-tidying/skills/batch-simplify/SKILL.md`
+  returns ≥ 2 (`-E`, not the basic-regex `\|` form — BSD grep on macOS treats `\|` literally and the
+  check would always fail there).
+- `node -e "console.log(require('./plugins/code-tidying/skills/batch-simplify/evals/evals.json').evals.length)"`
+  prints `5` (node, not `python3` — `PLUGIN-PHILOSOPHY.md:178` flags `python3` as a WindowsApps alias
+  stub on Windows).
+- `bash scripts/check-changed-skills.sh origin/main` exits 0.
 - `bash scripts/check-changelog-parity.sh --check-bump origin/main` exits 0.
 
 ### Phase 2: Repo mode exists end-to-end [TODO]
@@ -264,8 +282,8 @@ complete once, correctly, at any scale.
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/code-tidying/skills/batch-simplify/SKILL.md` | MODIFY | `repo` row in the detection heuristic; Mode 3 section; Phase 1 discovery; Phase 2 exclusion; dirty-tree refusal; `:2` description opener; `:4` argument-hint; `:110` exit string |
-| `plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` | CREATE | Progressive-disclosure spoke (stub in this phase, filled in Phase 3) |
+| `plugins/code-tidying/skills/batch-simplify/SKILL.md` | MODIFY | `repo` row in the detection heuristic; Mode 3 section; Phase 1 discovery; Phase 2 exclusion; precondition check; `:2` description, `:4` argument-hint, **`:8` `metadata.summary`**, **`:17` Purpose**, `:110` exit string |
+| `plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` | CREATE | Spoke, with its full section skeleton (Phase 3 fills the bodies) |
 | `plugins/code-tidying/skills/batch-simplify/context/reference.md` | MODIFY | `:34` `Scope: {scope}` line covers the repo case |
 
 1. **Detection heuristic** gains one row: argument is the exact token `repo` → repo mode. Placed so
@@ -273,27 +291,54 @@ complete once, correctly, at any scale.
 2. **Mode 3 section** documents the scope and states that `repo <path>` is deliberately not accepted
    in v1 (Brief, Deferred Q26) — an unknown trailing token falls through to the existing
    ask-the-user rule.
-3. **Phase 1 discovery**: `git ls-files --cached --others --exclude-standard`. No GNU-only
-   constructs (Brief constraint 12 — `code-tidying` is not in the shell-portability baseline).
-4. **Dirty-tree refusal**: repo mode refuses to start when the working tree is dirty, naming the
-   reason (per-group commits would capture uncommitted work).
-5. **Phase 2 exclusion**: add `.github/standards/**` as a read-only deferred class, with the reason
-   (standards-`managed`; local edits are silently lost on sync).
+3. **Phase 1 discovery**: `git ls-files --cached --others --exclude-standard`, anchored to the repo
+   root (`git -C "$(git rev-parse --show-toplevel)" …`) — bare `git ls-files` returns only the
+   current subtree when invoked from a subdirectory. No GNU-only constructs (Brief constraint 12).
+4. **Precondition check, scoped — not a bare dirty-tree refusal.** Two corrections the naive form
+   gets wrong:
+   - It must cover **only files in the sweep universe**, explicitly excluding the working-notes
+     location. The skill's own first step writes a checklist there (`SKILL.md:21`) and repo mode
+     persists run state there; in a consumer repo that location may not be ignored, so a
+     whole-tree refusal would block the run it just set up — and block every resume.
+   - It must reconcile with `--others`. That flag exists to list **untracked** files, so a refusal
+     that treats untracked files as dirty makes the flag dead. Decision: the precondition covers
+     **tracked modifications** in the sweep universe; untracked non-ignored files are swept, and the
+     Mode 3 section says so plainly so nobody is surprised that new files are simplified.
+5. **Phase 2 exclusion, phrased as a discovered class.** Not a hardcoded `.github/standards/**`: the
+   rule is "any directory the consuming repo documents as externally managed or sync-generated is a
+   read-only deferred class". A concrete path may appear as an illustration only, annotated
+   `portability-ok:`. Hardcoding this repo's layout into a general-purpose skill is the exact defect
+   `PLUGIN-PHILOSOPHY.md:8-16` names, and the portability token list would not catch it.
 6. **Empty-scan offer**: the existing no-files exit gains a named offer of repo mode. It offers;
    it never escalates.
-7. **`context/repo-mode.md` created as a stub** with its section headings, so the spoke link in
-   SKILL.md resolves (skill-quality check 5 requires backtick-cited internal files to resolve).
+7. **`context/repo-mode.md` created with its full section skeleton**, so the spoke link resolves
+   (skill-quality check 5) and Phase 3 fills bodies rather than inventing structure.
+8. **Line budget, pre-decided.** SKILL.md is 194 lines against a 200 soft target, so Phase 2 crosses
+   it without relocation. Move the **Mode 3 body** and the **exclusion rationale** into the spoke,
+   leaving only the heuristic row, a two-line Mode 3 pointer, and the discovery command in SKILL.md.
+   Target: **≤ 205 lines** after Phase 2. The approval gate below then confirms a decided answer
+   rather than opening a question mid-implementation.
 
 **Sanity Check:**
 
-- `grep -c 'repo' plugins/code-tidying/skills/batch-simplify/SKILL.md` ≥ 8.
+- `grep -cE '^\| *`?repo`? ' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns ≥ 1 — the
+  heuristic table has a `repo` row. (A bare `grep -c 'repo'` is vacuous: the unmodified file already
+  returns 11, matching "report"/"reports".)
 - `grep -n 'ls-files --cached --others --exclude-standard' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns exactly 1 match.
-- `grep -n '\.github/standards' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns ≥ 1 match.
-- `grep -niE 'dirty|uncommitted' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns ≥ 1 match.
-- `test -f plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` exits 0.
-- `grep -n 'recently changed' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns **no match** on line 2 (the description opener no longer claims changed-files-only).
-- `bash scripts/check-shell-portability.sh origin/main` exits 0.
-- `bash plugins/skill-quality/scripts/check-skill.sh plugins/code-tidying/skills/batch-simplify/SKILL.md` exits 0 (checks 4 and 10: SKILL.md stays under the 500-line cap; note if it crosses the 200-line soft target).
+- `grep -n 'recently changed' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns **no match
+  at all** — `:2`, `:8` and `:17` all carry that phrasing today, so any surviving match is an
+  unfinished edit. (The earlier "no match on line 2" form was unrunnable — grep has no line
+  predicate.)
+- `node -e "const y=require('fs').readFileSync('plugins/code-tidying/skills/batch-simplify/SKILL.md','utf8').split('---')[1];const s=y.match(/summary: (.*)/)[1];console.log([...s].length)"`
+  prints ≤ 100 (check 22's codepoint cap; the pre-edit summary is 71).
+- `grep -qiE "simplify everything" plugins/code-tidying/skills/batch-simplify/SKILL.md` exits 0 — the
+  trigger phrase survives and still means the 48h default.
+- `bash scripts/check-changed-skills.sh origin/main` exits 0 — **run here, not deferred to Phase 5**:
+  it carries check 3 (trigger preservation) against `origin/main`, and once Phase 2 is committed a
+  dropped trigger becomes invisible to later phases whose base ref is HEAD.
+- `bash scripts/check-shell-portability.sh origin/main` and
+  `bash scripts/check-skill-portability.sh origin/main` both exit 0.
+- `wc -l < plugins/code-tidying/skills/batch-simplify/SKILL.md` returns ≤ 205.
 
 ### Phase 3: Repo-scale run machinery [TODO]
 
@@ -302,41 +347,69 @@ current length.
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` | MODIFY | Full spoke content (7 sections below) |
+| `plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` | MODIFY | Full spoke content (9 sections below) |
+
+**Shipped-content rule for this phase.** The spoke ships to consumer repos. It must not name this
+repo's internal tracker items, its PR numbers, or repo-root scripts that do not ship with the plugin
+— the same bar Phase 4 applies to `affected-tests.sh`. Describe the *mechanism*, not our instance
+of it.
 
 1. **Grouping and canonical clusters** — deterministic base pass, then agent refinement (merge
-   undersized, split over the existing 25-file threshold). A synced copy is **removed from its
-   plugin's group** and edited only via its source plus `scripts/sync-*.sh` regeneration; state that
-   #2842 lost its `_lib` bucket to exactly this hazard.
+   undersized, split over the existing 25-file threshold). A synced or generated copy is **removed
+   from its group** and edited only via its source plus the repo's own regeneration script. State the
+   hazard generically ("a prior repository-wide run lost a whole bucket by editing copies directly"),
+   without the PR number.
 2. **Ordering** — dependency constraint only (shared/canonical libraries first). State explicitly
    that churn ranking is **not** used and why (change-frequency alone is a documented
    false-positive generator), so a later reader does not "helpfully" add it back.
 3. **Concurrency** — soft cap 4–6 concurrent simplifiers, stated as a cost/quality choice, **not**
-   the harness ceiling (20). Note that verifiers and refinement agents consume slots too, and that
-   resuming a finished subagent takes a slot without checking the limit. Degrade to sequential;
-   never retry into the cap.
-4. **Run state and resume** — consumer-resolved working-notes location with the existing inline
-   fallback; never a hardcoded `.work/`. Resume is idempotent: a group with uncommitted edits is
-   reverted before resume, not re-simplified on top.
-5. **Confirmation gate** — inventory summary (file count, group count, wave plan, scale estimate) on
-   both entry paths; explicit-prose unattended escape, recorded in the Phase 8 report.
-6. **Deferred items** — persist everything; file High only, **no numeric cap**, at the existing
+   the harness ceiling of 20 concurrent subagents. Note that verifiers and refinement agents consume
+   slots too, and that resuming a finished subagent takes a slot without checking the limit. Degrade
+   to sequential; never retry into the cap.
+4. **Execution and spawn contract** *(Brief "Execution" block — was missing from the draft)* — one
+   agent per group, spawned with an inline prompt and an explicit absolute-path file list;
+   `pr-review-toolkit:code-simplifier` when installed, else `general-purpose`. State that repo mode
+   does **not** invoke the bundled `/simplify`, and give the real reasons: at the spawn-depth limit
+   it silently degrades to a single-pass variant, and each such worker occupies five concurrency
+   slots rather than one. State the Write/Edit-tool path explicitly so agents do not each rediscover
+   a consumer hook that blocks shell writes.
+5. **Refutation verifier** *(Brief "Execution" block)* — a fresh-context verifier per group that
+   tries to refute "behavior preserved", mandatory in repo mode. This is the load-bearing check for
+   files no test suite maps to.
+6. **Run state and resume** — consumer-resolved working-notes location with the existing inline
+   fallback; never a hardcoded `.work/`. Resume is idempotent: revert is scoped to **that group's
+   file list**, never the whole tree — a tree-wide revert would destroy the run-state notes that make
+   resume possible.
+7. **Confirmation gate** — inventory summary (file count, group count, wave plan, scale estimate) on
+   both entry paths; explicit-prose unattended escape, recorded in the Phase 8 report. **`docs` tier**
+   *(Brief scope item)*: when the `docs` flag composes with `repo`, the summary reports the markdown
+   count separately and confirms it as its own tier.
+8. **Wave and union verification** *(Brief scope item)* — each wave verifies the ecosystems that wave
+   touched; one union pass runs at end of run. Files with no mapped suite fall through to §5's
+   verifier plus the union pass.
+9. **Deferred items** — persist everything; file High only, **no numeric cap**, at the existing
    "one per deferred concern, not per site" unit; report high volume as a scope diagnostic; no
    rollup issue. State that High-only is a deliberate repo-mode narrowing from the current
    High+Medium default.
-7. **Delivery** — per-wave PRs, each independently mergeable, opened and merged sequentially so the
-   ≥3-open-PR backlog throttle is respected. State why not one PR (`check-stale-base-overlap.sh` is
-   a required check and a repo-wide PR overlaps everything) and why not per-group (~61 PRs jams the
-   same throttle).
+10. **Delivery** — per-wave PRs, each independently mergeable, opened and merged sequentially so the
+    open-PR backlog throttle is respected. State why not one PR (a repository-wide PR overlaps every
+    path, which stale-base and merge-conflict gates punish, and it exceeds any workable review
+    budget) and why not per-group (dozens of PRs jam the same throttle). Do not name this repo's
+    gate script.
 
 **Sanity Check:**
 
-- `grep -c '^## ' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` ≥ 7.
-- `grep -n 'sync-' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` returns ≥ 1 match.
-- `grep -niE 'churn' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` returns ≥ 1 match (the not-used rationale is present).
-- `grep -n '\.work/' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` returns **no match**.
-- `grep -niE 'no numeric cap|without a cap' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` returns ≥ 1 match.
-- `grep -n '20' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` returns ≥ 1 match (the real ceiling is named).
+- `grep -c '^## ' plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` ≥ 10.
+- `grep -qE 'code-simplifier' …/repo-mode.md` exits 0 and `grep -qiE 'does not invoke|never invokes' …/repo-mode.md` exits 0 — the spawn contract and the `/simplify` exclusion are both present.
+- `grep -qiE 'refut' …/repo-mode.md` exits 0 — the verifier section exists.
+- `grep -qiE 'union' …/repo-mode.md` exits 0 — wave/union verification exists.
+- `grep -n '#2842' …/repo-mode.md` returns **no match**; `grep -nE 'affected-tests|check-stale-base-overlap|scripts/sync-' …/repo-mode.md` returns **no match** — no non-shipping repo-root script or internal tracker id leaked into shipped content.
+- `grep -niE 'churn' …/repo-mode.md` returns ≥ 1 match (the not-used rationale is present).
+- `grep -n '\.work/' …/repo-mode.md` returns **no match**.
+- `grep -qiE 'no numeric cap|without a cap' …/repo-mode.md` exits 0.
+- `grep -qE '20 concurrent' …/repo-mode.md` exits 0 — the real ceiling is named. (A bare `grep -n '20'` is vacuous: it matches any year or four-digit id.)
+- `bash scripts/check-shell-portability.sh origin/main`, `bash scripts/check-skill-portability.sh origin/main`, and `bash scripts/check-changed-skills.sh origin/main` all exit 0 — this phase writes the bulk of the new markdown, including shell snippets and path globs.
+- `npx markdownlint-cli2 plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` reports 0 issues.
 
 ### Phase 4: Doctrine reconciliation [TODO]
 
@@ -355,10 +428,12 @@ Three places where shipping repo mode without an edit would leave the marketplac
 2. **Verification fall-through.** State that files with no mapped test suite fall through to the
    refutation verifier plus the end-of-run union pass. Do **not** name `scripts/affected-tests.sh` —
    it does not ship with the plugin.
-3. **Version-bump phase presence gate.** Gate on a versioned-plugin layout
-   (`plugins/*/.claude-plugin/plugin.json`) with a stated non-silent fallback — "no version
-   discipline detected; skipping bump phase" — and name the base ref `--check-bump` requires. Do not
-   name the repo-root script as an unconditional dependency.
+3. **Version-bump phase presence gate, phrased as a discovered class.** Gate on "a versioned-plugin
+   or package-manifest layout, if the consuming repo has one" — **not** a hardcoded
+   `plugins/*/.claude-plugin/plugin.json`, which is this marketplace's layout baked into a
+   general-purpose skill (`PLUGIN-PHILOSOPHY.md:8-16`). State a non-silent fallback — "no version
+   discipline detected; skipping bump phase" — and note that the parity check, where one exists,
+   needs a base ref. Do not name any repo-root script as an unconditional dependency.
 4. **tidy reciprocity.** `tidy/SKILL.md:37` currently differentiates the two skills by "a time-window
    or branch diff in waves" — the exact mechanism repo mode removes. Rewrite it, and add a one-line
    boundary to **both** skills: batch-simplify owns factual staleness across the whole doc set in one
@@ -366,16 +441,19 @@ Three places where shipping repo mode without an edit would leave the marketplac
 
 **Sanity Check:**
 
-- `grep -n 'verification enough' plugins/code-tidying/skills/batch-simplify/SKILL.md` — the surviving
-  match sits within a sentence that also matches `grep -niE 'time-window|branch mode|diff-scoped'` on
-  the same or adjacent line.
+- `grep -A1 -B1 'verification enough' plugins/code-tidying/skills/batch-simplify/SKILL.md | grep -qiE 'time-window|branch mode|diff-scoped'`
+  exits 0 — the exemption is now scoped to the diff-scoped modes. (The earlier "sits within a
+  sentence" wording was a prose judgment, not a runnable check.)
 - `grep -n 'affected-tests' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns **no match**.
 - `grep -n 'time-window or branch diff in waves' plugins/code-tidying/skills/tidy/SKILL.md` returns
   **no match** (the stale differentiator is gone).
-- `grep -niE 'batch-simplify' plugins/code-tidying/skills/tidy/SKILL.md` returns ≥ 1 match (the
-  boundary line is present).
-- `grep -niE 'no version discipline detected' plugins/code-tidying/skills/batch-simplify/SKILL.md` returns 1 match.
-- `bash plugins/skill-quality/scripts/check-skill.sh plugins/code-tidying/skills/tidy/SKILL.md` exits 0.
+- `grep -qiE 'batch-simplify' plugins/code-tidying/skills/tidy/SKILL.md` exits 0 (the boundary line
+  is present).
+- `grep -qiE 'no version discipline detected' plugins/code-tidying/skills/batch-simplify/SKILL.md` exits 0.
+- `grep -nE '\.claude-plugin/plugin\.json' plugins/code-tidying/skills/batch-simplify/SKILL.md`
+  returns **no match**, or every match carries a `portability-ok:` annotation — the layout is
+  described as a discovered class, not hardcoded.
+- `bash scripts/check-changed-skills.sh origin/main` exits 0 (covers both edited skills).
 
 ### Phase 5: Packaging, sibling docs, and evals [TODO]
 
@@ -389,25 +467,31 @@ Everything that states the mode set, plus the release artifacts.
 | [ ] `plugins/code-tidying/skills/batch-simplify/evals/evals.json` | MODIFY | Add repo-mode evals |
 | [ ] `docs/CATALOG.md` | MODIFY | Regenerate via `scripts/generate-catalog.mjs` |
 | [ ] `docs/SKILL-CHEAT-SHEET.md` | MODIFY | Regenerate via `scripts/generate-cheatsheet.mjs` |
-| [ ] `plugins/code-tidying/skills/batch-simplify/templates/checklist.md` | KEEP | Phase list is unchanged by repo mode — audited, no edit |
+| [ ] `plugins/code-tidying/skills/batch-simplify/templates/checklist.md` | MODIFY | Repo mode adds a confirmation gate, a precondition check, a run-state inventory, a mandatory per-group verifier and per-wave delivery — none tickable in the current 8-phase list; its skip criteria also encode the High+Medium filing default that repo mode narrows to High-only |
 | [ ] `plugins/code-tidying/skills/batch-simplify/SKILL.md` | KEEP | Final read-through only; edits landed in Phases 1–4 |
 
 1. Update the README and manifest description to state three modes.
 2. Regenerate both derived docs with their own scripts rather than hand-editing.
-3. Add at least one repo-mode eval covering: explicit `repo` entry, the confirmation gate, and the
+3. Add repo-mode-conditional rows to the run checklist, and reconcile its filing-tier skip criteria.
+4. Add at least one repo-mode eval covering: explicit `repo` entry, the confirmation gate, and the
    deferred-item policy. Verify the four existing evals still describe current behavior.
-4. Minor version bump plus changelog entry (a new mode is a feature, not a fix).
-5. Confirm every description trigger keyword from the pre-edit description survives
-   (skill-quality check 3).
+5. Minor version bump plus changelog entry (a new mode is a feature, not a fix).
 
 **Sanity Check:**
 
-- `python3 -c "import json;d=json.load(open('plugins/code-tidying/skills/batch-simplify/evals/evals.json'));print(len(d['evals']))"` prints ≥ `6`.
+- `node -e "console.log(require('./plugins/code-tidying/skills/batch-simplify/evals/evals.json').evals.length)"` prints ≥ `6`.
 - `node scripts/generate-catalog.mjs --check` and `node scripts/generate-cheatsheet.mjs --check` both exit 0.
-- `bash scripts/check-changelog-parity.sh --check && bash scripts/check-changelog-parity.sh --check-bump origin/main && bash scripts/check-changelog-parity.sh --check-order` all exit 0.
+- All **four** parity modes exit 0: `--check`, `--check-bump origin/main`, `--check-order`, and
+  `--check-preserved origin/main`. The fourth is not optional here — two bumps land on one branch
+  (patch in Phase 1, minor in Phase 5), and `--check-preserved` is the mode that catches a
+  merge-forward resolution absorbing the Phase 1 heading into the Phase 5 entry.
 - `bash scripts/validate-plugins.sh` exits 0.
 - `bash scripts/check-changed-skills.sh origin/main` exits 0.
-- `grep -c 'recently changed' plugins/code-tidying/README.md` returns 0.
+- `grep -qE 'time window.*branch.*repo' plugins/code-tidying/README.md` exits 0 — the README states
+  all three modes. (The earlier `grep -c 'recently changed' … returns 0` was vacuous: that phrase was
+  never in the README; its actual text is "sweeps files changed in a time window … or on the current
+  branch" at `:15-16`.)
+- `grep -qiE 'repo' plugins/code-tidying/skills/batch-simplify/templates/checklist.md` exits 0.
 
 ## Blast radius
 
@@ -431,14 +515,52 @@ three stated rationales were refuted and recorded as such. Both discovery artifa
 fresh-context refutation verifiers, each returning FAIL-with-corrections, with verdicts written back
 into the artifacts. Research coverage gate exits 1 on one declared, bounded row.
 
-Step 3 plan-reviewer findings are recorded below at approval time.
+**Step 3 plan-reviewer (fresh context, did not author the plan): 20 findings — 1 BLOCKER, 7 HIGH,
+10 MEDIUM, 2 LOW.** Every finding I spot-checked reproduced against the actual files. All confirmed
+findings are fixed in the phases above. The load-bearing ones:
+
+- **BLOCKER — three Sanity Checks were unrunnable.** `check-skill.sh` takes a skill *name* under a
+  skills root, not a SKILL.md path; the planned command fails with `Skill not found` regardless of
+  the work. Verified by running it. Replaced throughout with the repo's own wrapper,
+  `scripts/check-changed-skills.sh origin/main`.
+- **Three Sanity Checks passed before any work was done.** `grep -c 'repo' SKILL.md ≥ 8` — the
+  unmodified file returns 11 ("report"/"reports"). `grep -c 'recently changed' README.md returns 0` —
+  that phrase was never in the README. `grep -n '20' repo-mode.md` — matches any year. All replaced
+  with discriminating forms.
+- **A whole Brief scope block was dropped.** The Execution criteria — spawn contract, the
+  `/simplify` exclusion, the Write/Edit-tool statement, and the mandatory refutation verifier — mapped
+  to no phase item. Also dropped: the `docs` confirmation tier and wave/union verification. Added as
+  spoke sections 4, 5, 7 and 8.
+- **Dirty-tree refusal would have blocked its own run.** The skill writes a checklist to the
+  working-notes location as its first step; a whole-tree refusal blocks the run that just set it up,
+  and blocks every resume. Compounded by the planned resume revert, which would have destroyed the
+  run-state notes. Both scoped down.
+- **Consumer-layout hardcodes.** `.github/standards/**` and `plugins/*/.claude-plugin/plugin.json`
+  were being baked into a general-purpose skill — the exact defect `PLUGIN-PHILOSOPHY.md:8-16` names,
+  and one the portability token list would not catch. Both rephrased as discovered classes.
+- **Internal provenance in shipped content.** The spoke was to cite `#2842` and two repo-root scripts
+  that do not ship with the plugin — inconsistent with the plan's own bar for `affected-tests.sh`.
+- **Cross-platform defects in the plan's own commands.** `grep 'a\|b'` fails on BSD grep (macOS);
+  `python3` is a WindowsApps alias stub. Switched to `grep -E` and `node`.
+- **Reviewer correction.** It reported `.work/` as tracked; it is in fact self-ignored via
+  `.work/.gitignore` containing `*`. But that file was written by a tooling agent this session, not
+  by the repo, so the portability concern behind the finding stands for consumer repos and the fix
+  was applied.
+
+Verified sound and left as-is: both generators do support `--check`; the two-bumps-on-one-branch
+shape passes all four parity modes; every line-number citation in the plan checked out.
 
 ## Execution shape
 
-**Fully sequential — no parallel wave.** The file-overlap matrix collapses: Phases 1, 2 and 4 all
-edit `batch-simplify/SKILL.md`; Phase 3 edits the spoke Phase 2 creates; Phase 5 depends on the final
-state of everything. There is no subset with zero overlap and no dependency, so parallelism has
-nothing to schedule.
+**Sequential — by cost judgment, not by impossibility.** Being accurate about the basis: Phases 1, 2
+and 4 all edit `batch-simplify/SKILL.md` and genuinely must serialize, and Phase 5 depends on the
+final state. But a parallel slice **does** exist — Phase 3 touches only `context/repo-mode.md`, and
+Phase 4's `tidy/SKILL.md` half touches neither that file nor `batch-simplify/SKILL.md`, so folding
+the spoke's creation into Phase 3 would make `{Phase 3} ∥ {Phase 4 tidy-side}` schedulable.
+
+It is not taken. The work is ~500 lines of prose that must hold one voice and one set of cross-
+references across two skills; splitting it across agents buys little wall-clock and risks exactly the
+inconsistency Phase 4 exists to remove. That is a cost/quality call, and it is recorded as one.
 
 Per-phase routing:
 
@@ -450,8 +572,7 @@ Per-phase routing:
 | 4 | main session | Doctrine wording across two skills; highest care, lowest volume |
 | 5 | main session | Mechanical, but gated on generator scripts and parity checks |
 
-Cost note: all-main-session, no sub-agent fan-out. A parallel shape was considered and rejected as
-unschedulable, not as too expensive.
+Cost note: all-main-session, no sub-agent fan-out.
 
 ## Open questions
 
@@ -464,11 +585,15 @@ ranking returns once runs are truncatable. None gates this plan.
 ### User-approval gates
 
 - **Phase 1 shipping alone.** Phase 1 fixes pre-existing behavior and is independently mergeable. If
-  it ships as its own PR, surface that before opening it — it carries its own patch bump, and the
-  later feature bump then lands on top.
-- **SKILL.md crossing the 200-line soft target.** If Phase 2 or 4 pushes the file past check 10's
-  soft target, stop and surface it rather than silently accepting a warning or aggressively cutting
-  existing prose to make room.
+  it ships as its own PR, surface that before opening it — and note the **precondition**: Phase 1's
+  PR and the Phases 2–5 branch both touch `batch-simplify/SKILL.md`, `CHANGELOG.md` and
+  `.claude-plugin/plugin.json`, so once Phase 1 merges, the second branch is behind the target tip on
+  overlapping paths — exactly what the required stale-base-overlap check fails. **Rebase Phases 2–5
+  onto the merged Phase 1 tip before opening the second PR.** Phase 1 also carries its own patch
+  bump, with the feature bump landing on top.
+- **SKILL.md crossing the 200-line soft target.** Phase 2 pre-decides its relocations and targets
+  ≤ 205 lines. If the actual edit still exceeds that, stop and surface it rather than silently
+  accepting a warning or cutting existing prose to make room.
 
 ### Execution shape (`[EXEC-SHAPE]` tagged)
 
@@ -482,8 +607,9 @@ check blocks the next phase. No scope-fencing tables are needed — there are no
 - One commit per phase. Conventional Commits per `docs/conventions/commit-convention/`: Phase 1 is
   `fix(code-tidying):`, Phases 2–4 are `feat(code-tidying):`, Phase 5 is `feat(code-tidying):` or
   `chore(code-tidying):` for the generated-doc regeneration.
-- PLAN.md phase tags advance `[TODO]` → `[DOING]` → `[DONE]` in the same commit as that phase's
-  changes.
+- PLAN.md phase tags advance `[TODO]` → `[DOING]` → `[DONE]` in a separate `docs(topics):` commit,
+  not folded into the `fix(code-tidying):` / `feat(code-tidying):` commit — a `docs/topics/**` edit
+  does not belong under a `code-tidying` scope.
 - Full verification before the PR: `scripts/validate-plugins.sh`, all four
   `check-changelog-parity.sh` modes, `check-changed-skills.sh`, `check-skill-portability.sh`,
   `check-shell-portability.sh`, and `markdownlint-cli2` on every touched markdown file.
