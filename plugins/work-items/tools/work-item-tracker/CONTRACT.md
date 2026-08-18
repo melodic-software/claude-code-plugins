@@ -94,9 +94,10 @@ user-global layer.
   shared coordination state and team-layer-only: an overlay value for any such key is a
   configuration error (exit `3`, naming the offending keys), never a merge — including a
   non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
-  `{"config":{}}` is inert). An explicitly `null` allowlisted value merges by presence and is
-  judged by normal binding validation, exactly as if the team file carried it — never a silent
-  fallback to the team value. A personal
+  `{"config":{}}` is inert). Allowlisted keys hold scalars: an object or array value at an
+  allowlisted key is likewise a configuration error, and an explicitly `null` value merges by
+  presence and is judged by normal binding validation, exactly as if the team file carried
+  it — never a silent fallback to the team value either way. A personal
   provider override is structurally foreclosed — leases, labels, and frontier state live
   provider-side, so a personal binding would fracture the team's coordination surface.
   There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The

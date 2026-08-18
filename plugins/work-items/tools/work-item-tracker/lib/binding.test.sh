@@ -264,6 +264,12 @@ assert_overlay_rejected "empty-object unknown key rejected" '{"evil":{}}'
 assert_overlay_rejected "empty-object role_labels rejected" '{"config":{"role_labels":{}}}'
 # A null at a non-leaf allowlisted prefix is a leaf, not scaffolding.
 assert_overlay_rejected "null jira subtree rejected" '{"config":{"jira":null}}'
+# An allowlisted key must hold a scalar: an object or array there would either
+# dodge the merge or reach a downstream surface with no type check — reject at
+# load with the key named, never a silent fallback to the team value.
+assert_overlay_rejected "object-valued allowlisted key rejected" '{"config":{"jira":{"auth_email":{}}}}'
+assert_overlay_rejected "populated object at allowlisted key rejected" '{"config":{"jira":{"auth_email":{"x":1}}}}'
+assert_overlay_rejected "array-valued allowlisted key rejected" '{"config":{"lease_ttl_hours":[]}}'
 
 rm -f "$OVERLAY"
 
