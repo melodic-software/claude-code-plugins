@@ -1,0 +1,98 @@
+{
+  "skill_name": "write-for-agents",
+  "evals": [
+    {
+      "id": 1,
+      "name": "trigger-claude-md-section",
+      "prompt": "Add a section to our CLAUDE.md that tells the agent how to run the test suite.",
+      "expected_output": "The write-for-agents skill is invoked before or while drafting. The produced section follows its doctrine: positive-form instructions, steps carrying observable completion criteria (e.g. the command plus what output means done), no blind pointers.",
+      "expectations": [
+        "The write-for-agents skill is invoked (its doctrine is applied at the writing moment)",
+        "Steps in the drafted section carry observable completion criteria, not bare commands",
+        "Instructions are phrased positively (what to do), with at most justified paired negations"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "trigger-rules-file",
+      "prompt": "Write a .claude/rules file capturing our API error-handling conventions.",
+      "expected_output": "The write-for-agents skill is invoked. The rule file is written for its load tier (session-start unless paths-scoped), separates any procedure from reference material, and phrases conventions positively.",
+      "expectations": [
+        "The write-for-agents skill is invoked",
+        "The draft accounts for the rules-file load semantics (always-loaded vs paths:-gated) when scoping content"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "trigger-pointer-line",
+      "prompt": "Add a navigation pointer in CLAUDE.md to our deploy runbook.",
+      "expected_output": "The write-for-agents skill is invoked. The pointer front-loads the leading word (e.g. 'Deploys: ...'), states when to follow it and what the reader gets — not a bare 'See docs/deploy.md'.",
+      "expectations": [
+        "The write-for-agents skill is invoked",
+        "The produced pointer front-loads its leading word and carries a when-to-follow condition (no blind pointer)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "trigger-doc-plus-pointer-extraction",
+      "prompt": "This CLAUDE.md section on database migrations is getting long — move it into a doc the agent can load when it needs it, and leave something behind so it can find it.",
+      "expected_output": "The write-for-agents skill is invoked. The extraction produces a spoke doc plus a conditioned pointer in CLAUDE.md (leading word front-loaded, when-to-read stated); the always-loaded surface sheds the moved lines.",
+      "expectations": [
+        "The write-for-agents skill is invoked",
+        "The extraction leaves a conditioned pointer, not a bare reference",
+        "The response accounts for the load-tier change (always-loaded line count drops; spoke loads on demand)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "trigger-agent-context-doc",
+      "prompt": "Write up the auth-flow context doc that our subagents will read before touching the login code.",
+      "expected_output": "The write-for-agents skill is invoked; the doc separates steps from reference, co-locates facts beside the steps that need them, and states completion criteria for any procedure it contains.",
+      "expectations": [
+        "The write-for-agents skill is invoked",
+        "Steps and reference material are structurally separated in the produced doc"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "negative-audit-request",
+      "prompt": "Audit our CLAUDE.md for stale instructions and noise.",
+      "expected_output": "The write-for-agents skill is NOT invoked. The request routes to audit-shaped surfaces (docs-hygiene audit skills or claude-memory/claude-config audits) — this is a read-only findings request, not a writing moment.",
+      "expectations": [
+        "The write-for-agents skill is NOT invoked",
+        "An audit-shaped skill or workflow handles the request"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "negative-skill-authoring",
+      "prompt": "Create a skill that formats SQL files on save.",
+      "expected_output": "The write-for-agents skill is NOT invoked. Skill authoring routes to playbooks:skill-authoring / skill-quality:check territory per the route-away fence.",
+      "expectations": [
+        "The write-for-agents skill is NOT invoked",
+        "The skill-authoring surfaces are engaged or named instead"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "negative-human-readme",
+      "prompt": "Write a quickstart README for end users installing our CLI from npm.",
+      "expected_output": "The write-for-agents skill is NOT invoked — human-facing docs are out of its scope; the README is written for people without the agent-doc doctrine's machinery.",
+      "expectations": [
+        "The write-for-agents skill is NOT invoked"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "behavior-doctrine-applied-to-draft",
+      "prompt": "Improve evals/fixtures/draft-rule.md (relative to the skill directory) as an agent-consumed rule file, applying the write-for-agents doctrine.",
+      "expected_output": "The rewrite: flips the two bare prohibitions into positive-form instructions (keeping at most a justified paired negation), replaces 'See the migrations doc' with a conditioned front-loaded pointer or removes it, and rewrites the three steps with observable completion criteria — in particular step 3's 'Done when it works' becomes a goal-state test, and any post-completion obligation is stated on its step.",
+      "files": ["evals/fixtures/draft-rule.md"],
+      "expectations": [
+        "Prohibitions are rewritten in positive form",
+        "The blind pointer gains a when-to-follow condition and front-loaded leading word, or is removed as unroutable",
+        "Each step carries an observable completion criterion; 'works' is replaced by a goal-state test"
+      ]
+    }
+  ]
+}

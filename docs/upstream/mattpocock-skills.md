@@ -86,8 +86,8 @@ design-locked as `docs-hygiene:write-for-agents`
 (contract: `docs/specs/write-for-agents-brief.md`; build:
 [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
-completion-criteria criterion). The GAP/PARTIAL verdict cells below flip to ADOPTED when #2962
-merges.
+completion-criteria criterion). **#2962 built (docs-hygiene 0.17.0)**: the gap-1/2 verdict
+cells below are ADOPTED; #2963's audit-side criterion remains the one open follow-on.
 
 **Lane 8 closed 2026-08-17**: gap 3 (invocation) is decided — invocation-mode rubric homed at
 `docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes;
@@ -97,12 +97,12 @@ flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2
 
 | Upstream section | Our surface | Verdict |
 |---|---|---|
-| Context pointers (wording-as-trigger, branches, front-loaded leading word) | `docs-hygiene:audit-progressive-disclosure` (blind-pointer finding + six pointer-quality criteria in its tier model) — audit-time; `playbooks:skill-authoring` description-as-trigger — skills only | PARTIAL — no authoring-time home for non-skill agent docs (gap 1 → #2909) |
-| The two loads (context load / cognitive load) | PLUGIN-PHILOSOPHY Instruction economy (context load only) | GAP — cognitive-load-as-budget doctrine absent (→ #2909) |
-| Information hierarchy (steps vs reference, ladder, co-location, sprawl) | three-tier load-cost model ≈ the ladder | PARTIAL — co-location and steps-vs-reference distinction absent (→ #2909) |
-| Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | none — the prior mapping was silent on this section (oversight, not a decision) | GAP (gap 2 → #2909) |
-| When to split (by sequence / by invocation) | tier-model split triggers are size/concern-based only; invocation axis now owned by the rubric | PARTIAL — sequence half rides #2962; invocation half ADOPTED (lane 8: `docs/conventions/invocation-mode/`) |
-| Leading words + negation | tracked strand (below) | TRACKED — disposition path #2909 |
+| Context pointers (wording-as-trigger, branches, front-loaded leading word) | `docs-hygiene:write-for-agents` (authoring-time, branch-covering front-loaded pointer doctrine) + `audit-progressive-disclosure` (audit-time criteria) + `playbooks:skill-authoring` (skills) | ADOPTED (adapted; #2962, docs-hygiene 0.17.0) |
+| The two loads (context load / cognitive load) | `write-for-agents` "Budget both loads" + PLUGIN-PHILOSOPHY Instruction-economy cross-reference | ADOPTED (adapted; #2962) |
+| Information hierarchy (steps vs reference, ladder, co-location, sprawl) | `write-for-agents` steps-vs-reference + co-location doctrine; three-tier load-cost model carries the ladder | ADOPTED (adapted; #2962) |
+| Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | `write-for-agents` "Give every step a completion criterion" (write-side); audit-side criterion rides #2963 | ADOPTED (adapted; #2962 — audit-side pending #2963) |
+| When to split (by sequence / by invocation) | `write-for-agents` split-by-sequence; invocation axis owned by the rubric (`docs/conventions/invocation-mode/`), pointed at, never restated | ADOPTED (both halves; #2962 + lane 8) |
+| Leading words + negation | `write-for-agents` "Prompt the positive" | ADOPTED (adapted; #2962 — tracked strand retired below) |
 | Pruning: single source of truth | `docs-hygiene:extract-ssot` + the topic-docs single-home rule | PARITY+ |
 | Pruning: environment-as-truth ("cache") | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict + drift control) | PARITY+ (stronger — cache without drift control is not a cache) |
 | Pruning: relevance / sediment | `claude-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
@@ -126,9 +126,9 @@ triggers stand until the owning lane records the disposition:
   negation/negative-space port deferred from that session's gap scan) — this record
   cross-links that deferral rather than opening a second ledger entry. Trigger: a
   mattpocock/skills release whose changeset names `writing-for-agents`.
-  **Disposition (lane 7, 2026-08-17): adopted into the `docs-hygiene:write-for-agents` design
-  (#2962) — this row retires when that implementation merges; the release trigger stands until
-  then.**
+  **RETIRED (2026-08-18): adopted as `write-for-agents` "Prompt the positive"
+  (docs-hygiene 0.17.0, #2962). The release-named recheck trigger now applies only as an
+  ordinary attribution-table row concern, not an open strand.**
 - **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
   `disable-model-invocation: true` — can be invoked by no other skill).
   **Disposition (lane 8, 2026-08-17): CONFIRMED against current official docs**
