@@ -54,6 +54,16 @@ the upstream-drift maintenance procedure. A row may state a stronger trigger inl
 the lesson updates" is not a valid trigger form here because the course publishes no observable
 update signal.
 
+**Re-fetch basis for course-lesson claims (deliberate, maintainer-decided):** the lesson pastes
+are NOT durably committed — course pages are account-gated, and the maintainer authorized
+committing the verbatim texts only on the contract branch's topic slice, pruned before any
+merge to this public default branch. A future re-fetch therefore compares against the live
+course (account required) or, as the durable proxy, the companion skills repo pinned per the
+SSOT — the same regime the sibling
+[aihero-shipping-course.md](aihero-shipping-course.md) records. Where a row's basis names a
+lesson file under `docs/topics/pocock-course-lanes/lessons/`, that citation is provenance (what
+the lane graded, with its as-of date), not a promise the file exists on this branch.
+
 ## Lane 1: handoff (issue #2899, decided 2026-08-17)
 
 Basis for all lane 1 rows: the course handoff lesson as captured in the lane contract
@@ -305,8 +315,12 @@ Interview-first per contract; register gate clean (8/8); user confirmed. Contrac
 | Invocation-reach invariant (MECHANICS) | CONFIRMED | Docs-verified 2026-08-17 (`true` → model-invisible everywhere, human `/name` only); SSOT strand records CONFIRMED with the audit-side trigger kept, upstream-release trigger retired |
 
 Fleet re-grade (ADR 0005-bounded, executed in-lane): 10 non-setup `true` skills graded — 9
-KEEP, 1 FLIP (`planning:questionnaire` → model-invoked, filed). Lane 8 closed with the rubric
-homed, enforcement filed, flip filed, SSOT gap-3 rows dispositioned and strand CONFIRMED.
+KEEP, 1 FLIP (`planning:questionnaire` → model-invoked). Lane 8 closed with the rubric homed,
+enforcement filed
+([#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968): explicit-key
+normalization + `skill-quality:check` criterion), the flip filed
+([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969)), SSOT gap-3
+rows dispositioned and strand CONFIRMED.
 
 ### Lane 9: steering validations (issue #2911, closed 2026-08-17)
 
@@ -408,10 +422,13 @@ are usable house vocabulary now; the rows are the record.
 **Cross-skill invocation phrasing (the routed lane 7 candidate):** ADOPT (adapted). Upstream
 standardized cross-skill dependencies on explicit "Call the Skill tool with \"name\"" phrasing
 (`.agents/invocation.md`, PRs #878/#880), on his measured claim — his repo's measurement, named
-provenance, bucket ii — that it outperforms bare `/name` prose. This fleet already practices
-the equivalent ("invoke `/plugin:skill` via the Skill tool") but had codified it nowhere; the
-doctrine now lives in `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation
-phrasing"), added by this lane.
+provenance, bucket ii — that it outperforms bare `/name` prose. This fleet practices the
+equivalent in part ("invoke `/plugin:skill` via the Skill tool" appears across the verification
+and implementation families) but the practice was mixed — several operative chains hand off
+bare — and codified nowhere; the doctrine now lives in
+`docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"), added by this
+lane and scoped to new/edited text, with the fleet normalization sweep filed as
+[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002).
 
 ## Coverage index (the journey's completion gate)
 
