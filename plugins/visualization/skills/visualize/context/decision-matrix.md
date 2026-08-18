@@ -143,9 +143,13 @@ skill's own gates:
   silently overrides the bundled one.
 
 The honest presence check is whether `design` appears in the current session's
-skill list. Absent → the rich-page paths above cover the ground (and `/design`
-must not be suggested — that user has no such command). Listed-but-refused → user
-invocation of `/design` survives invocability gates.
+skill list **and its listed description is the design canvas** — because of the
+override rule above, a bare name match may be an unrelated local skill; when the
+listed description does not describe a canvas/artboard capability, treat the
+capability as absent rather than invoking a shadowing skill. Absent → the
+rich-page paths above cover the ground (and `/design` must not be suggested —
+that user has no such command). Listed-but-refused → user invocation of
+`/design` survives invocability gates.
 
 > Verified 2026-08-18 against the shipped v2.1.234 client (registration and gating
 > extracted from the binary; independently re-verified by two fresh-context

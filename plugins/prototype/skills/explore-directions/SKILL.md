@@ -138,8 +138,10 @@ Constraints:
 ### Design-canvas alternative (bundled `design` skill, when available)
 
 When the intent selector lands on the HTML mockup substrate AND the bundled `design` skill
-appears in this session's skill list, offer the user a choice before building — never switch
-silently; the HTML mockup stays the default:
+appears in this session's skill list with a description that is the design canvas (a local
+skill named `design` at any level silently overrides the bundled one — if the listed
+description is something else, treat the canvas as absent), offer the user a choice before
+building — never switch silently; the HTML mockup stays the default:
 
 - **HTML mockup (default)** — the throwaway `file://` page above; nothing persists.
 - **Design canvas** — invoke the bundled `design` skill to draft the variants as artboards on
