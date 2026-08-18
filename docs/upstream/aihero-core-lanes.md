@@ -44,6 +44,28 @@ coverage regression-gating the lock/auto-guard defenses).
 | Shift+Tab cycling / plan-mode entry (C7); ExitPlanMode approval flow + EnterPlanMode (C8) | CONFIRMED | Recorded as-is from the contract's verdict table |
 | `/plan` views the current plan (C9) | PARTIALLY TRUE | `/plan [description]` ENTERS plan mode; no documented command views the plan — the lesson's claim corrected in-row |
 
-## Lane 5 — grilling parity (#2903)
+## Lane 5 — grilling parity (#2903, closed 2026-08-18)
 
-*(pending)*
+Interview: 1 round (4 questions) + a user-invoked `/planning:audit-answers` adversarial pass —
+two fresh-context validators, each reviewing the whole answer set with the producing session's
+rationale withheld, each fetching the upstream grilling-family primaries independently. The
+audit CHALLENGED the provisional zero-work-items answer and corrected two evidence
+attributions; merged per the one-dissent-wins rule. **One work item filed**:
+[#2998](https://github.com/melodic-software/claude-code-plugins/issues/2998).
+
+| Claim / concern (lesson) | Verdict | Detail |
+|---|---|---|
+| grill-execute-clear: design tree | PARITY (attributed) | The tree model is verbatim-adjacent in the interview's loop doc; the decision-tree ledger is its persistence; rename recorded in the SSOT |
+| Frontier rounds | PARITY (attributed) | Core loop, including dependency-goes-to-a-later-round and non-blocking sub-agent fact dispatch |
+| Empty-frontier stop | PARITY+ (corrected by audit) | The user-confirmation gate itself is PARITY — upstream has it verbatim ("Do not act on it until the user confirms"). The genuine house strengtheners: the mechanical register-gate script, the ask-time register + drift check, the testable-acceptance-criteria stop, and me-mode's named-assumption-is-not-a-stop rule |
+| "Execute" step | DELIBERATELY DIFFERENT | The interview hands off (Step 5 routing), never executes — pre-clarity is a discovery stage |
+| "Clear" step | DELIBERATELY DIFFERENT — course side UNVERIFIED | The course lesson is unreachable (egress-blocked) and upstream's own repo docs teach the opposite ("Hand the same conversation straight to to-spec"). Our recommend-clear (never auto-clear) sits post-Brief and is licensed by Brief/ledger persistence — which dissolves upstream's own recorded no-ledger complaint. Loop-position nuance recorded; lesson text re-opens this row if supplied (tracked) |
+| Emoji anchors + answer-by-number | CURRENT — no change | Opt-in default-off is the recorded deliberate adaptation; our any-order/partial-round/accept-shorthand set is a superset. Two cosmetic unadopted deltas noted, deliberately unfiled: upstream's bolded question-title slot; his answer-the-recommendation polarity note |
+| Ungrillable question → prototype detour | ADOPT — filed #2998 | Both validators: absent from the interview (grep-confirmed), while upstream fires it mid-grilling ("stop grilling… build the throwaway version… come back and answer in one line"); our route exists only downstream (wayfind / plan / brainstorm) |
+| Plan-mode-off while grilling | ADOPT — filed #2998 | Beyond upstream's taste point, a mechanical edge the audit surfaced: the ask-time register write is load-bearing and plan mode's read-only enforcement blocks it; includes reconciling `planning:plan`'s clarifying-rounds-in-plan-mode sentence with the lane 4 asset-rush doctrine |
+| Grilling as a primitive, not a scheduled step | PARITY | The interview is exactly the primitive `prd`/`design`/`plan` reach for (propagated per the SSOT rows); our single dual-invocable shape also dissolves upstream's most-reported bug (partial dependency loading across its wrapper skills) |
+| Provenance correction (adjacent, from the audit) | CORRECTED in SSOT | The PR-#532 row's "ADR 3-gate + glossary purity are house additions" claim is contradicted on current upstream main (`domain-modeling` carries both near-identically); annotated as convergent-or-derived, direction unverifiable |
+
+Harvest notes for lane 6: the lane 3–4 C-row citations point at the contract PLAN.md on the
+UNMERGED `claude/plan-mode-discussion-55kszx` branch — graduate or re-cite before that branch
+is deleted; C8 was confirmed via the contract table only (not re-reproduced by the audit).
