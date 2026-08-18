@@ -21,6 +21,7 @@ against <https://code.claude.com/docs/en/memory> before relying on it.
 | Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when the agent reads files there; NOT re-injected after `/compact` until the next matching read |
 | Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand on matching file read |
 | User rules | `~/.claude/rules/*.md` | Session start, before project rules (lower priority) |
+| `--add-dir` CLAUDE.md/rules | `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md` in each added directory | Session start, ONLY when `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; off by default — otherwise these files do not load at all |
 | `@` imports | `@path` inside CLAUDE.md/rules; max 4 hops; skipped in code spans/fences | Expanded at launch with the importing file — an import does NOT reduce context vs inlining |
 | AGENTS.md | not read natively | Only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `~/.claude/projects/<project>/memory/MEMORY.md` | Session start: first 200 lines or 25KB, whichever first |

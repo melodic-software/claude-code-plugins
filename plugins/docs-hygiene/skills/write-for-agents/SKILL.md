@@ -43,13 +43,13 @@ text alone, without opening the target.
 - **Cover the branches.** State when to follow it AND what the reader gets ("for tracked-changes
   output specifically, read X"), so both the follow and the skip are informed decisions.
 - A pointer that exists only because changes must be mirrored across distant folders can mask a
-  cohesion problem — `claude-memory:audit`'s navigation-pointer remediation guidance (if that
-  plugin is installed) owns the restructure-before-pointer call; consider it before adding the
-  pointer.
+  cohesion problem. Before adding it, consider restructuring so the things that change together
+  live together — a pointer papering over low cohesion outlives the reorganization that would
+  have removed it.
 
-The full pointer-quality criteria live in `audit-progressive-disclosure`'s tier model
-([`../audit-progressive-disclosure/context/tier-model.md`](../audit-progressive-disclosure/context/tier-model.md))
-— write to them now rather than failing them at audit time.
+The full pointer-quality criteria are owned by the sibling audit skill — invoke
+`/docs-hygiene:audit-progressive-disclosure` via the Skill tool to grade a draft against them,
+rather than failing them at audit time.
 
 ## Separate steps from reference, and co-locate what runs together
 
@@ -95,12 +95,12 @@ the positive alternative in the same sentence.
 
 ## After writing
 
-- Repeated the same prose a third time? Route to `extract-ssot`.
-- Resolved or coined a domain term? Route to `domain-driven-design:curate-language` (if
-  installed) — never hand-write a glossary entry.
-- Editing exposed pre-existing problems in the surrounding doc? Route to the audit siblings
-  (`audit-noise`, `audit-derivability`, `audit-progressive-disclosure`) rather than expanding
-  this write into an audit.
+- Repeated the same prose a third time? Invoke `/docs-hygiene:extract-ssot` via the Skill tool.
+- Resolved or coined a domain term? Invoke `/domain-driven-design:curate-language` via the
+  Skill tool (if that plugin is installed) — never hand-write a glossary entry.
+- Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit
+  sibling via the Skill tool (`/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
+  `/docs-hygiene:audit-progressive-disclosure`) rather than expanding this write into an audit.
 
 ## What this skill does NOT do
 
