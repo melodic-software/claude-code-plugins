@@ -222,4 +222,13 @@ assert_eq "plugin-bundled adapter is the fallback" "local-markdown" "$(jq -r '.p
 OUT="$(WORK_ITEM_TRACKER_BINDING="$BINDING" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "WIT_ADAPTERS_DIR override wins over consumer-local" "fake" "$(jq -r '.provider' <<<"$OUT")"
 
+# --- F3.8: consumer-local resolution in a bare shell (no CLAUDE_PROJECT_DIR) ---
+# The consumer-local root anchors at the git toplevel when CLAUDE_PROJECT_DIR is
+# unset — the same anchor the binding read uses — so a bare shell that finds the
+# binding also finds consumer-local adapters instead of silently skipping them (#2941).
+git init -q "$PROJECT"
+mkdir -p "$PROJECT/deep"
+OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
+assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
+
 [[ $FAILED -eq 0 ]] || exit 1
