@@ -2623,6 +2623,60 @@ else
   fail "signal-carrying procedure should not warn (rc=$rc): $out"
 fi
 
+# 23e. Two independent 2-step lists separated only by a blank line do NOT merge
+#      into one 4-step block — numbering restart after a blank closes the block.
+make_skill cc-signal-adjacent '---
+name: cc-signal-adjacent
+description: "Two short flows. Use when: '"'"'running two short flows'"'"'."
+---
+
+## Flow A then flow B
+
+1. Open the first file.
+2. Update the first value.
+
+1. Open the second file.
+2. Update the second value.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-adjacent 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "adjacent 2-step lists split at the numbering restart (no spurious warn)"
+else
+  fail "adjacent short lists should not merge into a warnable block (rc=$rc): $out"
+fi
+
+# 23f. A LOOSE ascending list (blank lines between items, numbering continues)
+#      is still ONE block — a signal-free 3-step loose procedure warns.
+make_skill cc-signal-loose '---
+name: cc-signal-loose
+description: "Rotate the loose config. Use when: '"'"'rotating the loose config'"'"'."
+---
+
+## Steps
+
+1. Open the config file.
+
+2. Update the rotation value.
+
+3. Save the file.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-loose 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "loose ascending 3-step list stays one block and warns when signal-free"
+else
+  fail "loose signal-free procedure should still warn (rc=$rc): $out"
+fi
+
 # 23d. A signal-free numbered list inside a TILDE-fenced code block is ignored
 #      (both CommonMark fence forms are illustrative content).
 make_skill cc-signal-tilde '---

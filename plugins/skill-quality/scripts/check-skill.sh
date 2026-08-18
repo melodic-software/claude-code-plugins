@@ -1279,23 +1279,35 @@ fi
 # completion criterion").
 
 CC_SIGNAL='done|complete|verified|verify|confirm|assert|exit|pass|green|criteria|criterion|until|settle|expect|observable|observed|succeed|fail'
+# Blank lines separate LOOSE list items without closing the block — but a
+# numbered item that RESTARTS numbering (its number <= the previous item's)
+# after a blank line is a new, independent list, and merging the two would
+# both fire a spurious warn on adjacent short lists and let one list's signal
+# clear the other. Side effect, accepted: an all-ones-numbered LOOSE list
+# (CommonMark lazy numbering, blank lines between items) closes at every item
+# and so under-reports — consistent with the advisory posture above.
 CC_BLOCKS="$(awk -v sigre="$CC_SIGNAL" '
   function close_block() {
     if (steps >= 3 && !sig) bad = bad (bad ? "," : "") start "-" last
-    steps = 0; sig = 0
+    steps = 0; sig = 0; had_blank = 0
   }
   /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
   fence { next }
   {
     lower = tolower($0)
     if ($0 ~ /^[[:space:]]*[0-9]+[.)][[:space:]]/) {
+      n = $0
+      sub(/^[[:space:]]*/, "", n)
+      sub(/[.)].*$/, "", n)
+      n = n + 0
+      if (steps > 0 && had_blank && n <= last_n) close_block()
       if (steps == 0) start = NR
-      steps++; last = NR
+      steps++; last = NR; last_n = n; had_blank = 0
       if (lower ~ sigre) sig = 1
     } else if ($0 ~ /^[[:space:]]*$/) {
-      # blank lines separate loose list items without closing the block
+      had_blank = 1
     } else if (steps > 0 && $0 ~ /^[[:space:]]+[^[:space:]]/) {
-      last = NR
+      last = NR; had_blank = 0
       if (lower ~ sigre) sig = 1
     } else {
       close_block()
