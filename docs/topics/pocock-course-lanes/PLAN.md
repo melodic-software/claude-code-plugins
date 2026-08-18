@@ -168,7 +168,7 @@ stand" overclaim to match context-guard's own "declared judgment defaults" langu
 | 3 compaction doctrine | [#2901](https://github.com/melodic-software/claude-code-plugins/issues/2901) | **CLOSED** (filed #2995; Q24–Q30) | fork-beats-compaction, auto-compact stance, evidence-degraded marker, harness claims |
 | 4 plan-mode | [#2902](https://github.com/melodic-software/claude-code-plugins/issues/2902) | **CLOSED** (no items filed; Q31–Q35) | asset-rush critique vs interview-first sequencing, lock-mode audit |
 | 5 grilling parity | [#2903](https://github.com/melodic-software/claude-code-plugins/issues/2903) | **CLOSED** (no items; Q36–Q37) | course-lesson deltas vs planning:interview |
-| 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | **NEXT** (final lane) | aihero-course.md consolidation (created by lane 1 per A2), term adoption, SSOT TRACK annotations + row-35 and "private marketplace" corrections, coverage index |
+| 6 vocabulary + provenance | [#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904) | **CLOSED** (Q38–Q40; glossary deferred to user) | aihero-course.md consolidation (created by lane 1 per A2), term adoption, SSOT TRACK annotations + row-35 and "private marketplace" corrections, coverage index |
 
 This table is the persistent roadmap: each closing lane session updates its row (status +
 closing commit + filed items) in the same commit that closes the lane, so any fresh session
@@ -199,6 +199,33 @@ for lanes 3–5 to cite, with corroboration labels:
 
 Cures for the single-pool rows when convenient: run `/compact <instructions>` and `/plan` in a
 live interactive session (Tier-0).
+
+## Coverage index (lane 6, 2026-08-18) — the "everything is represented" gate
+
+Every claim in the six pasted lessons maps to a disposition. The claim-level enumeration IS the
+lane sections of [`docs/upstream/aihero-course.md`](../../upstream/aihero-course.md) (49 rows
+total; counts verified against the doc); this index points, per the do-not-duplicate rule, and
+records what sits outside the rows:
+
+| Lesson (committed source) | Dispositions | Where |
+|---|---|---|
+| Handing Off (`lessons/01`) | 9 rows: 3 ADOPT, 4 REJECT, 2 COVERED; items #2955 #2956 #2957 | aihero-course.md Lane 1 |
+| Clear/Compact/Handoff/Subagent (`lessons/02`) | 10 rows: 1 ADOPT-modified, 3 REJECT, 6 COVERED; items #2971 #2972 #2973 | aihero-course.md Lane 2 |
+| Compaction (`lessons/03`, first half) | rows within Lane 3's 12: compact-as-default REJECT, seeds-fresh-session REJECT (C4), steering COVERED (C6), queueing UNKNOWN (C5), QA carve-out REJECT track-on-event, vocabulary ADOPT-terms | aihero-course.md Lane 3; item #2995 |
+| Auto-Compaction (`lessons/03`, second half) | rows within Lane 3's 12: autoCompactWindow CONFIRMED (C1-C3), every-harness NOT RELEVANT, mid-phase COVERED, human-owns-boundary ADOPT | aihero-course.md Lane 3; item #2995 |
+| Why Plan Mode Sucks (`lessons/04`) | 9 rows: 2 ADOPT-convergent, 1 REJECT (stale /plan demo, C9), 3 COVERED, 2 CONFIRMED walkthrough, 1 NOT RELEVANT; no items | aihero-course.md Lane 4 |
+| Grill-Execute-Clear (`lessons/05`) | 9 rows: 8 COVERED (parity, several stronger), 1 NOT RELEVANT (course machinery); no items | aihero-course.md Lane 5 |
+
+Outside the rows, also represented: the harness-claims verdict table (C1-C9, this file) grades
+every mechanical claim the lessons make about Claude Code; quiz-answer claims are covered where
+they restate lesson claims (the two that add error, C4's "seeds a fresh session" and "compaction
+writes no file", are named in Lane 3's rows); dictionary-term candidates are the lane-6
+term-adoption set; course-platform machinery (npm run reset, commit maps, skill-picker
+walkthroughs, Discord) carries NOT RELEVANT rows or is excluded as non-claims. Known-open cures,
+deliberately not blockers: C5 empirical probe, C6/C9-positive second-pool probes (interactive
+session required). The parallel teach-skill comparison (local branch
+`claude/teach-skill-comparison-h3rpag`) is in-flight with no outcomes yet; its future results
+are bound to this provenance home by the guard comment on #2904.
 
 ## Upstream recheck — 2026-08-17 (pre-lane gate)
 

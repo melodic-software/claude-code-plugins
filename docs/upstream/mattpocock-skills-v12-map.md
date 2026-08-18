@@ -1,5 +1,13 @@
 # Full map — mattpocock/skills (v1.2.3, HEAD 84fdeff, 2026-08-06) ↔ melodic-software/claude-code-plugins (main a89a4a33)
 
+> **Correction (2026-08-17):** this map's "Claude-only private marketplace" characterization
+> (Codex-sidecar row and the marketplace row of the cross-cutting table) is stale — the
+> repository is PUBLIC (verified via the repo listing during the pocock-course-lanes effort).
+> The Claude-only part stands; the private part does not. The map is otherwise a point-in-time
+> record as of its header date. A 2026-08-17 recheck at HEAD `068b6e0` found the 35-skill
+> inventory and all relation rows structurally intact (record: `aihero-course.md` effort +
+> the pocock-course-lanes contract).
+
 Sources: his-repo full inventory (35 skills, every SKILL.md read), our-repo provenance sweep (git log + grep + docs), v1.2.0 release notes, v1.2 changelog article, video transcript. As-of 2026-08-08.
 
 Legend — **Relation**: DERIVED (attributed port), PARTIAL (specific ideas taken, attributed), CONVERGENT (same territory, no provenance), NONE (no counterpart). **v1.2+ delta**: what changed upstream since our port / what's new.

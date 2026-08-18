@@ -186,8 +186,28 @@ House decisions recorded alongside the rows (Q36-Q37, 2026-08-17): no term adopt
 loop name (mapping recorded instead); no work items filed (pure parity lane, the second lane to
 close clean); no new lane-6 parcels beyond the design-tree/decision-tree equivalence note.
 
-## Coverage index and consolidation
+## Lane 6: vocabulary + consolidation (issue #2904, decided 2026-08-18)
 
-Owned by lane 6 ([#2904](https://github.com/melodic-software/claude-code-plugins/issues/2904)):
-the per-lesson coverage index mapping every claim to its disposition, dictionary-term adoption,
-and final consolidation of this document.
+Consolidation record: the per-lesson coverage index lives in the effort contract
+(`docs/topics/pocock-course-lanes/PLAN.md`, "Coverage index" — pruned with the topic slice at
+PR time, its substance carried in the PR body; the claim-level enumeration is this document's
+lane sections, 49 rows). SSOT maintenance executed by this lane: the row-35 wording correction
+(audit A1), the invocation-reach and diagnosing-bugs TRACK annotations (2026-08-17 recheck,
+unreleased drift), and the v12-map private-marketplace staleness correction. The parallel
+teach-skill comparison is in-flight (local branch, ledger only); its future outcomes are bound
+to this provenance home by the guard comment on #2904.
+
+**Dictionary-term verdicts** (candidates harvested across lanes; the repo keeps NO central
+glossary — vocabulary lives in each owning plugin's docs, so these are adoption verdicts, not
+glossary entries; central-glossary creation deliberately deferred per the curate-language
+lazy-creation rule, pending the user's placement choice):
+
+| Term (his dictionary) | Verdict | Where the meaning lives |
+|---|---|---|
+| primary source / secondary source | **ADOPT** as working discussion vocabulary, WITH the house refinement: in Claude Code the on-disk JSONL transcript stays lossless across compaction; only the model-visible context turns secondary | Lane 3 rows; handoff structure doc's transcript re-scan rule |
+| smart zone | **PARTIAL**: survives as informal shorthand; the canonical house terms are context-guard's zone words (smart / acceptable / dumb) with declared judgment-default bands; his ~150k number rejected | context-guard reader contract |
+| AFK | **ADOPT** (narrow) as the name of the router's adopted AFK edge | lane 2 rows; build item #2971 |
+| phase boundary | **ALREADY HOUSE** — the continuation router's trigger vocabulary predates the course | session-flow workflow/continuation docs |
+| design concept | **REJECTED SYNONYM** of "shared understanding" (the general-domain interview terminal); carry an Avoid line if a glossary is ever created | lane 4 rows; planning:interview |
+| asset rush | **ADOPT** as effort/discussion shorthand for the named failure mode; doubtful admission to any future glossary (methodology vocabulary) | lane 4 rows |
+| sycophancy | **NO ACTION** — generic ML vocabulary already in standard use | lane 4 rows |
