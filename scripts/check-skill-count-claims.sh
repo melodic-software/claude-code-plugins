@@ -414,17 +414,17 @@ for plugin_dir in plugins/*/; do
             # exemption is only "used" when it actually suppressed a mismatch, and
             # marking it here would let a row survive the stale guard after the
             # prose it covered was fixed.
-            report+=("ok|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+            report+=("ok|$file:$lineno|$plugin|$claimed_raw|$expected|$basis|$actual")
           else
             # Exemption matching uses the SUBJECT, so a substring recorded for a
             # wrapped claim can span the join the same way the match did.
             mark_if_exempt "$file" "$subject"
             if ((exempt_hit)); then
               exempted=$((exempted + 1))
-              report+=("exempt|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+              report+=("exempt|$file:$lineno|$plugin|$claimed_raw|$expected|$basis|$actual")
             else
               mismatches=$((mismatches + 1))
-              report+=("MISMATCH|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+              report+=("MISMATCH|$file:$lineno|$plugin|$claimed_raw|$expected|$basis|$actual")
             fi
           fi
           # One claim per line: the forms overlap by design (a line can satisfy
@@ -446,7 +446,7 @@ if [[ "$mode" == "discover" ]]; then
   fi
   printf '%-9s %-58s %-18s %s\n' "VERDICT" "SITE" "PLUGIN" "CLAIMED -> ACTUAL"
   for row in "${report[@]}"; do
-    IFS='|' read -r verdict site plugin claimed expected basis <<<"$row"
+    IFS='|' read -r verdict site plugin claimed expected basis actual_count <<<"$row"
     suffix=""
     [[ "$basis" == "minus-one" ]] && suffix=" (total minus one)"
     printf '%-9s %-58s %-18s %s -> %s%s\n' \
@@ -460,13 +460,17 @@ fi
 failed=0
 
 for row in "${report[@]}"; do
-  IFS='|' read -r verdict site plugin claimed expected basis <<<"$row"
+  IFS='|' read -r verdict site plugin claimed expected basis actual_count <<<"$row"
   [[ "$verdict" == "MISMATCH" ]] || continue
   corrected="$(render_expected "$claimed" "$expected")"
-  total="$expected"
-  [[ "$basis" == "minus-one" ]] && total=$((expected + 1))
+  # The real count is READ from the row, never reconstructed as `expected + 1`.
+  # `expected` is clamped at zero on the minus-one basis, so for a plugin with no
+  # skills at all the reconstruction recovered one instead of zero and the message
+  # contradicted its own next line ("...has one" above "...should be zero"). That
+  # is precisely the last-skill-removed case whole-fleet scanning exists to catch,
+  # so it is the path most likely to hit it.
   printf 'FAIL: %s claims "%s skill(s)" but plugin %s has %s.\n' \
-    "$site" "$claimed" "$plugin" "$(int_to_word "$total")" >&2
+    "$site" "$claimed" "$plugin" "$(int_to_word "$actual_count")" >&2
   if [[ "$basis" == "minus-one" ]]; then
     printf '      This is the "all but this one" idiom, so the number should be %s.\n' "$corrected" >&2
   fi

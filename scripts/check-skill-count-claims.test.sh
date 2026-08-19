@@ -110,7 +110,9 @@ readme epsilon 'A plugin bundling 5 skills for one job.'
 # the README keeps its "One skill" line. Removal is the drift this gate most needs
 # to catch, and skipping a plugin with no skills/ directory reports it as success.
 mkdir -p "$TMP/plugins/zeta"
-readme zeta 'One skill, one job: being deleted.'
+readme zeta \
+  'One skill, one job: being deleted.' \
+  'Only the observer needs setup; the other three skills are zero-config.'
 
 # eta: a claim split by an ordinary markdown wrap. Reflowing a paragraph must not
 # be able to disable the gate for a claim it previously held.
@@ -231,6 +233,18 @@ if [[ "$(grep -c 'iota/README.md' <<<"$out")" -eq 1 ]]; then
   pass "a claim adjacent to a blank line is reported exactly once"
 else
   fail "iota's claim should appear exactly once: $out"
+fi
+
+# 7g. The FAIL text for a zero-skill plugin on the minus-one basis must not
+#     contradict itself. `expected` is clamped at zero there, so reconstructing
+#     the real count as `expected + 1` reported "has one" directly above "should
+#     be zero".
+out_check="$(run --check)"
+if grep -q 'plugin zeta has zero' <<<"$out_check" &&
+  grep -q 'the number should be zero' <<<"$out_check"; then
+  pass "zero-skill minus-one FAIL text agrees with itself"
+else
+  fail "zeta's minus-one FAIL should say 'has zero' and 'should be zero': $out_check"
 fi
 
 # 7f. A sentence matching two grammars across a wrap is still ONE claim.
