@@ -2762,6 +2762,47 @@ else
   fail "fenced list should not fire the completion-criteria warn (rc=$rc): $out"
 fi
 
+# Check 21 liveness. Its awk program must actually RUN, not merely exit 0.
+#
+# The regression this guards: the scanner used ERE interval expressions
+# (`^ {0,3}`, `[0-9]{1,9}`), which mawk 1.3.4 -- the default awk on Debian,
+# Ubuntu, and the ubuntu-24.04 CI runner -- rejects with "REcompile() - panic".
+# awk then aborted, emitted zero records, and every skill reported
+# `PASS -- 0 errors` with the check silently enforcing nothing. A dead gate that
+# reports green is the exact false-green class the liveness-assertion convention
+# forbids, and the canary workflow already names this failure mode for a
+# different script ("awk dialects differ between the runner's mawk and a
+# developer's gawk").
+#
+# Asserting "no panic on stderr" alone would not catch a future scanner that
+# runs but matches nothing, so this asserts the POSITIVE: unguarded judgment
+# language must produce the warn.
+make_skill cc-fresh-eyes-live '---
+name: cc-fresh-eyes-live
+description: "Grade a plan. Use when: '"'"'grading a plan'"'"'."
+---
+
+## Review
+
+   - a list item indented three spaces, which the scanner must parse
+   > a quoted line the scanner must strip
+
+Run the outcome gate before handing back.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-fresh-eyes-live 2>&1)"
+rc=$?
+if grep -q 'REcompile() - panic' <<<"$out"; then
+  fail "check 21 awk program panicked -- interval expressions are back (rc=$rc): $out"
+elif [[ $rc -eq 0 ]] && grep -q 'same-context judgment language' <<<"$out"; then
+  pass "check 21 is live: unguarded judgment language warns under this awk"
+else
+  fail "check 21 emitted no finding for unguarded judgment language -- the scanner may be inert (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
