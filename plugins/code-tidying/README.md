@@ -5,18 +5,31 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under a research-backed scope
 budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 
-Three skills, one capability:
+Five skills, one capability:
 
+- **`/code-tidying:dissolve-comments`** — enforces self-describing, expressive
+  code over a diff or target: deletes zero-information comments, dissolves
+  code-expressible comments into names and structure via behavior-preserving
+  refactoring (then deletes them), and keeps only terse, load-bearing comments
+  code cannot express. Refactors apply only behind a discovered test net;
+  `safe` mode restricts applied edits to removals.
+- **`/code-tidying:audit-comment-residue`** — read-only classifier for
+  out-of-context comment residue (history narration, plan/session references,
+  conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2
+  findings for author-applied deletion, edits nothing.
 - **`/code-tidying:tidy`** — proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
   structure-only PR. Overflow is filed as deferred work items, never silently
   dropped.
-- **`/code-tidying:batch-simplify`** — sweeps files changed in a time window
-  (`48h` default, `7d`, ...) or on the current branch through grouped,
-  dependency-ordered simplification waves, with per-group verification and a
-  never-drop deferred-items contract. Use it when you forgot to run
-  `/simplify` after each task.
+- **`/code-tidying:batch-simplify`** — sweeps files through grouped,
+  dependency-ordered simplification waves in one of three scope modes:
+  a time window (`48h` default, `7d`, ...), the current branch, or `repo`.
+  Per-group verification and a never-drop deferred-items contract throughout.
+  The whole-repository mode is explicit-entry only, gates on a confirmed
+  inventory, runs a mandatory per-group refutation verifier, and delivers one
+  independently mergeable PR per wave. Use it when you forgot to run
+  `/simplify` after each task, or to sweep a repository that never had one.
 - **`/code-tidying:setup`** — `check` inspects the tracked
   `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
   sections, leftover placeholders, tracked-not-ignored); `apply` interviews the

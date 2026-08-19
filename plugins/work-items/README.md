@@ -6,9 +6,9 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-The tracker's capabilities are split across five focused skills (plus a setup
+The tracker's capabilities are split across six focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
-about work items, tracked work, or what to do next):
+about work items, tickets, issues, tracked work, or what to do next):
 
 ```text
 /work-items:track                      # stats dashboard (default)
@@ -16,6 +16,7 @@ about work items, tracked work, or what to do next):
 /work-items:work                       # auto-select + claim + execute one item
 /work-items:triage 42
 /work-items:decompose                  # break the topic's PLAN.md into tickets
+/work-items:ship                       # macro map over a spec container: status, shape, next step
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
 ```
 
@@ -27,8 +28,16 @@ about work items, tracked work, or what to do next):
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
 | `/work-items:triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
+| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step — thin by design, mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows — inferring candidate items from the repo and interviewing per item — is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
+
+## Naming
+
+**Work item** is the canonical term. **Ticket** and **issue** are first-class
+synonyms for invocation — they appear in skill Use-when triggers so phrasing
+like "add a ticket" or "work the next issue" routes here — not a rename of the
+plugin, seam, or surface.
 
 ## `/work-items:track` actions
 
@@ -52,9 +61,10 @@ provider adapter executes it (contract + resolution:
 selection, single-item fetch — uses seam verbs directly. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
-(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`). The skill core
-inlines no provider commands, so swapping the backend is swapping the bound
-adapter, not editing the skills.
+(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`;
+local-markdown: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/local-markdown/README.md`).
+The skill core inlines no provider commands, so swapping the backend is swapping the bound
+adapter, not editing the skills. CONTRACT.md remains the SSOT for verbs.
 
 ## Multi-agent claim protocol
 
@@ -84,9 +94,12 @@ enough that one skill no longer predicts its contents.
 - **The work-item-tracker seam.** The plugin **ships** the seam (dispatcher,
   `lib/`, and the `github`, `local-markdown`, and `jira` adapters) under
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares
-  its active provider in `.work-item-tracker.json` (run `/work-items:setup`). A repo
+  its active provider in `.work-item-tracker.json` at the repo root (run
+  `/work-items:setup`; per-user lease TTL / jira auth identity may ride a
+  gitignored `.work-item-tracker.local.json` overlay beside it). A repo
   may add or shadow an adapter consumer-local at
-  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`. The seam's
+  `<repo root>/tools/work-item-tracker/adapters/<provider>/` (the root being
+  `${CLAUDE_PROJECT_DIR}`, else the git toplevel). The seam's
   contract and per-adapter mechanics are documented in
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`
@@ -153,6 +166,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the lane's telemetry sentinel marker (`work-items:work-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state — including first_drain_complete, whose loss would end one machine's earn-trust ratification gate because a different machine finished a drain. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments — set an opaque id if a machine name should not be published in a public tracker. |
+| `decompose_container_publish` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_DECOMPOSE_CONTAINER_PUBLISH` | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns (the Brief published as a container item carrying the binding-resolved container label, default work-map, with slices as native sub-items). The approval gate itself is unchanged and mandatory — this key changes the offered default answer, never bypasses approval. Leave unset (or false) for the default plain ask with a default answer of no; this key declares no default so an unset value stays distinguishable from a configured one. |
 | `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum concurrent dispatch waves /work-items:work's autonomous execute step allows per invocation (it runs exactly one item per invocation). Give a whole number of waves; a fractional value is floored to whole waves since a wave is discrete. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default — this key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap). |
 | `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |
 | `work_loop_item_cap_ceiling` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_CEILING` | Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling. |

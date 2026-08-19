@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- **`improve`: cross-dimension improvement asks now route to `/improvement:find` in the listing
+  description.** The new `improvement` plugin's finder claims the general "what should we improve" /
+  "find improvements" / "highest-impact improvement" asks, and one-sided boundaries cannot resolve an
+  auto-invocation race — both descriptions must route. The Skip-when clause now hands a
+  cross-dimension or evidence-driven ask to `/improvement:find` and names this skill as the
+  single-lens architecture-depth pass, mirroring `improvement:find`'s own Skip-when, which hands
+  single-lens architecture deepening here. Every base trigger phrase is preserved verbatim
+  ('what should we improve' moved into the routing clause, still quoted); guarded by the
+  skill-quality trigger-continuity check. Description-only — no body or behavior change.
+
 ## [0.5.3]
 
 ### Changed

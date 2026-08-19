@@ -188,7 +188,7 @@ See [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.
 - **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes, plugin hooks
   live in each plugin's own manifest, direct-path invocations from `settings.json` bypass the plugin
   system, and enablement is read at session start. This skill emits `recent_writers` as behavioural
-  evidence and routes the verdict to `/claude-ops:plugins audit`.
+  evidence and tell the user to run `/claude-ops:plugins audit` for the verdict.
 - **`backups/` cannot be pruned meaningfully.** It is a rotating buffer, retained at 5 and refilling
   in about 90 seconds. Any per-file finding about it is stale before it is written.
 - **An empty directory may be deliberate.** An empty `skills/` can be an experiment's independent

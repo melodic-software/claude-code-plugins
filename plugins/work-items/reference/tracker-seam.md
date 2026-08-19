@@ -1,6 +1,6 @@
 # Shared tracker context — every work-items skill
 
-The five work-items skills (`track`, `triage`, `work`, `decompose`, `scan-todos`) share one tracker
+The work-items skills (`track`, `triage`, `work`, `decompose`, `scan-todos`, `ship`) share one tracker
 seam, one label taxonomy, one canonical-role remap, and one topic-docs binding. Those invariants
 live here so each skill states them once by reference rather than restating them. Read this document
 (and the references it links) at the start of any work-items skill invocation.

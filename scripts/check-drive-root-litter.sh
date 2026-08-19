@@ -123,6 +123,17 @@ it claims. Re-check the run's results before trusting them, then:
 
   * fix the emitter - see docs/conventions/windows-path-emit/README.md, and
     scripts/emit-windows-path.sh for the conversion itself;
-  * remove the phantom tree once you have confirmed it holds nothing else.
+  * CHECK FOR A REGISTERED GIT WORKTREE BEFORE REMOVING ANYTHING. A phantom
+    tree can contain one: a `git worktree add` given an unconverted path
+    registers the worktree in the parent repository, so the directory is live
+    state and not merely residue. Look for a `.git` FILE (not directory) whose
+    contents read `gitdir: <repo>/.git/worktrees/<name>`; that names the parent
+    repository. Deregister with `git -C <parent-repo> worktree remove --force
+    <path>` - which removes the directory too - rather than deleting the
+    directory first, which strands the registry entry and leaves `git worktree
+    prune` as the only cleanup, on a repository whose other entries may belong
+    to live lanes;
+  * remove the phantom tree once you have confirmed it holds nothing else and
+    nothing in it is registered.
 EOF
 exit 1

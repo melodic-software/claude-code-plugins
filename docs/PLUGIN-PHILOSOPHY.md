@@ -59,6 +59,7 @@ Verb meanings are fixed:
 | `audit`, `scan` | Read-only findings report. Mutation only behind an explicit user override such as an autofix argument, never on bare invocation; safety qualifiers may narrow what an override touches. |
 | `check` | Deterministic pass/fail gate. |
 | `clean`, `tidy`, `fix` | Mutates the target. |
+| `realign` | Consumes a findings artifact a sibling `audit` produced and drives the human-gated realignment it recommends; never re-judges the surface itself. Mutation only behind explicit per-item user acceptance, never on bare invocation and never under a blanket approval. |
 | `setup` | Configures the plugin for a consumer, per the setup section below. |
 | `update` | Refreshes vendored upstream material. |
 
@@ -338,7 +339,10 @@ config file or an external tool and whose manifest carries only a kill switch.
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true` — matching
 upstream's own rule for the flag, "for workflows with side effects that you want to trigger
 manually" ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10) —
-and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. The
+and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
+contract is exception class (ii) of the fleet's invocation-mode rubric
+([`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md)), which owns the
+default and the other reasons a skill may set the flag. The
 rest of the shape is house doctrine, and says so: upstream documents native *initialization*
 surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
 split and the criteria above rest on the reasoning given here rather than on upstream backing. This
@@ -490,6 +494,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
+| Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
@@ -552,7 +557,9 @@ per concern, cross-platform operation, and stress-testing before presentation.
 
 Every standing instruction this marketplace ships — a CLAUDE.md line, a hook that corrects model
 behavior, a skill's always-loaded listing text — is a per-session tax on every consumer, paid
-whether or not the instruction ever fires. Official doctrine is explicit: "CLAUDE.md is loaded
+whether or not the instruction ever fires. (Whether a skill's description enters that
+always-loaded listing at all is the invocation-mode choice — owned by the rubric at
+[`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md).) Official doctrine is explicit: "CLAUDE.md is loaded
 every session, so only include things that apply broadly… For each line, ask: 'Would removing this
 cause Claude to make mistakes?' If not, cut it," and "If Claude already does something correctly
 without the instruction, delete it or convert it to a hook"
@@ -560,7 +567,9 @@ without the instruction, delete it or convert it to a hook"
 applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
 Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
 ([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
-verified 2026-08-08). Four rules follow:
+verified 2026-08-08). Context load is not the only budget: the human maintainer's cognitive load
+is its sibling constraint, and the write-time doctrine budgeting both lives in
+`docs-hygiene:write-for-agents`. Four rules follow:
 
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model — the same failure seen more than once — never anticipation

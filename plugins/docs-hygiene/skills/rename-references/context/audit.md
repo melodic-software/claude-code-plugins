@@ -1,5 +1,13 @@
 # Audit Mode — Read-Only Rename Sweep
 
+## Contents
+
+- [Inputs](#inputs)
+- [Workflow (Phases 1–3 only)](#workflow-phases-13-only)
+- [Output discipline](#output-discipline)
+- [Special cases](#special-cases)
+- [Hand-off](#hand-off)
+
 Audit mode runs the full pattern library + triage classifier against the codebase but performs NO Edit calls. Output is a findings report. Use when:
 
 - Pre-rename impact analysis ("how big is the blast radius if I rename X?")

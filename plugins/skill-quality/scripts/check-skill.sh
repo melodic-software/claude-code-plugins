@@ -1266,6 +1266,120 @@ if [[ -n "$CUR_SUMMARY" ]]; then
   fi
 fi
 
+# --- Check 23: completion-criteria signal (WARN; advisory heuristic) ----------
+# Flags a numbered procedure (three or more ordered-list steps outside fenced
+# code blocks) whose text carries no completion-criteria signal — no observable
+# done-condition a reader can test. A step without one invites premature
+# completion: the model marks it done at the first plausible output. Advisory
+# only: a static scan can detect the ABSENCE of any completion signal, never
+# grade the quality of a criterion, and an illustrative list is
+# indistinguishable from an operative one — so the signal tokens are
+# deliberately broad and only genuinely signal-free procedures fire.
+# Write-side doctrine: docs-hygiene:write-for-agents ("Give every step a
+# completion criterion").
+
+CC_SIGNAL='done|complete|verified|verify|confirm|assert|exit|pass|green|criteria|criterion|until|settle|expect|observable|observed|succeed|fail'
+# Blank lines separate LOOSE list items without closing the block — but a
+# numbered item that RESTARTS numbering (its number <= the previous item's)
+# after a blank line is a new, independent list, and merging the two would
+# both fire a spurious warn on adjacent short lists and let one list's signal
+# clear the other. Side effect, accepted: an all-ones-numbered LOOSE list
+# (CommonMark lazy numbering, blank lines between items) closes at every item
+# and so under-reports — consistent with the advisory posture above.
+CC_BLOCKS="$(awk -v sigre="$CC_SIGNAL" '
+  function close_block() {
+    if (steps >= 3 && !sig) bad = bad (bad ? "," : "") start "-" last
+    steps = 0; sig = 0; had_blank = 0
+  }
+  /^[[:space:]]*(```|~~~)/ {
+    m = ($0 ~ /^[[:space:]]*```/) ? "b" : "t"
+    if (!fence) { fence = 1; fence_ch = m } else if (m == fence_ch) fence = 0
+    next
+  }
+  fence { next }
+  {
+    lower = tolower($0)
+    if ($0 ~ /^[[:space:]]*[0-9]+[.)][[:space:]]/) {
+      n = $0
+      sub(/^[[:space:]]*/, "", n)
+      sub(/[.)].*$/, "", n)
+      n = n + 0
+      if (steps > 0 && had_blank && n <= last_n) close_block()
+      if (steps == 0) start = NR
+      steps++; last = NR; last_n = n; had_blank = 0
+      if (lower ~ sigre) sig = 1
+    } else if ($0 ~ /^[[:space:]]*$/) {
+      had_blank = 1
+    } else if (steps > 0 && $0 ~ /^[[:space:]]+[^[:space:]]/) {
+      last = NR; had_blank = 0
+      if (lower ~ sigre) sig = 1
+    } else {
+      close_block()
+    }
+  }
+  END { close_block(); print bad }
+' "$SKILL_MD")"
+if [[ -n "$CC_BLOCKS" ]]; then
+  warn "numbered procedure(s) at lines $CC_BLOCKS carry no completion-criteria signal — steps risk premature completion; give each step an observable done-condition (write-side doctrine: docs-hygiene:write-for-agents)"
+else
+  note "completion-criteria signal present (or no 3+-step numbered procedure)"
+fi
+
+# --- Check 24: explicit invocation mode --------------------------------------
+# Every skill states its invocation mode explicitly. The official default for an
+# absent key is already `false` (docs table row, code.claude.com/docs/en/skills),
+# so this is an auditability rule rather than a behavior change: an explicit key
+# makes the choice reviewable, and a `true` reviewable against the exception
+# classes in the rubric that owns this decision —
+# docs/conventions/invocation-mode/README.md.
+#
+# Severity is scoped by tree, deliberately. A marketplace plugin skill
+# (plugins/*/skills/*) FAILs: the rubric is this fleet's convention and the fleet
+# is normalized to it. A skill outside that tree — a consumer's project or user
+# skill — WARNs instead, because the harness default already makes an absent key
+# behave as `false`, and failing someone else's tree over a house convention
+# would be wrong.
+#
+# The exception class a `true` claims is NOT machine-checkable: a static scan
+# cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
+# is deterministic — the PLUGIN-PHILOSOPHY setup contract names `setup` skills —
+# so every other `true` emits a note for hand-verification against the rubric
+# rather than a warning nothing can clear.
+
+INVOCATION_RUBRIC='docs/conventions/invocation-mode/README.md'
+# Validated as a BARE YAML boolean, deliberately WITHOUT quote stripping: `"false"`
+# is a YAML string, not the boolean this key takes, and normalizing the quotes
+# away would ship malformed invocation metadata while reporting PASS. Only
+# leading/trailing whitespace is trimmed — deleting whitespace wholesale would
+# splice a scalar broken by an internal space back into a passing boolean. A
+# trailing `# comment` is already removed by skill_frontmatter::field, so an
+# author may annotate the exception class inline.
+DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
+DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
+DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
+DMI_VAL="$(printf '%s' "$DMI_TRIMMED" | tr '[:upper:]' '[:lower:]')"
+if [[ -z "$DMI_VAL" ]]; then
+  if [[ "$SKILL_REL" == plugins/*/skills/* ]]; then
+    err "frontmatter has no explicit disable-model-invocation key — every skill in this marketplace states its invocation mode (the absent-key default is false; write it out so the choice is auditable). Rubric: $INVOCATION_RUBRIC"
+  else
+    warn "frontmatter has no explicit disable-model-invocation key — the absent-key default is false, so behavior is unchanged; writing it out makes the choice auditable (marketplace-fleet convention: $INVOCATION_RUBRIC)"
+  fi
+elif [[ "$DMI_VAL" != "true" && "$DMI_VAL" != "false" ]]; then
+  if [[ "$DMI_TRIMMED" == \"*\" || "$DMI_TRIMMED" == \'*\' ]]; then
+    err "disable-model-invocation is the quoted string $DMI_TRIMMED — YAML reads that as a string, not a boolean; write it unquoted as true or false"
+  else
+    err "disable-model-invocation is '$DMI_TRIMMED' — expected the boolean true or false"
+  fi
+elif [[ "$DMI_VAL" == "true" ]]; then
+  if [[ "$SKILL_NAME" == "setup" ]]; then
+    note "invocation mode: user-invoked only — exception class (ii), setup contract"
+  else
+    note "invocation mode: user-invoked only — hand-verify it against an exception class ((i) side-effect/manual-timing, (ii) setup, (iii) maintainer-only) in $INVOCATION_RUBRIC; a static scan cannot attribute the class"
+  fi
+else
+  note "invocation mode: model-invoked (fleet default)"
+fi
+
 # --- Summary ---------------------------------------------------------------
 
 printf '\n'

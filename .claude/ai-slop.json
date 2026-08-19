@@ -1,0 +1,7 @@
+{
+  "excluded_paths": [
+    "plugins/*/skills/*/vendor/**",
+    "plugins/ai-slop/skills/audit/reference/catalog.md",
+    "plugins/ai-slop/skills/audit/scripts/fixtures/**"
+  ]
+}

@@ -1,6 +1,7 @@
 ---
 description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
@@ -20,7 +21,7 @@ checkout resolution, fleet-scale evidence collection, rollup, and action-plan ro
 The currently shipped collector produces the detailed read-only report described below, including
 the compact machine-readable rollup and action-plan artifact from
 [#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) /
-[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609). Execute that plan with
+[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609). Tell the user to run
 `/repo-fleet-hygiene:apply --plan-file <path>` (dry-run by default; `--apply` plus confirmation or
 `--yes` to mutate). Do not add an execute flag to this audit script.
 
@@ -207,8 +208,9 @@ repository — not "GitHub was unreachable so nothing was wrong." Manual-review 
 (for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
 `N candidates` when the action plan correctly lists `Actions: none`.
 
-When acting on a fleet report, prefer `/repo-fleet-hygiene:apply --plan-file <path>` (dry-run, then
-`--apply`) over driving per-repository skills by hand.
+When the user wants to act on a fleet report, tell them to run
+`/repo-fleet-hygiene:apply --plan-file <path>` (dry-run, then `--apply`) rather than driving
+per-repository skills by hand.
 
 ## Fleet cleanup plan
 
@@ -232,8 +234,8 @@ Never parse this skill's human report into executable operations. The apply verb
 
 On this release, the rollup, `--apply-plan` dry-run, and `/repo-fleet-hygiene:apply` ship. Do not
 invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`. Return the
-report, rollup, and plan path; hand execution to `:apply`. A `HIGH` evidence tier is never itself
-permission to delete a branch or worktree.
+report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` for execution. A
+`HIGH` evidence tier is never itself permission to delete a branch or worktree.
 
 Related fleet contracts that remain separate:
 

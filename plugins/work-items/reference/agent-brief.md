@@ -75,6 +75,15 @@ Apply this template when:
 
 The brief can be the issue body itself or posted as a comment (prefixed with `## Agent Brief` heading so agents can locate it).
 
+### PR-variant briefs
+
+When the item is a pull request (or otherwise carries attached code), keep the same heading and sections — do **not** replace the bug/feature template above. Specialize two fields:
+
+- **Current behavior** = **current-behavior-of-the-diff**: what the attached change actually does today (as written), including gaps vs the verified requirement.
+- **Desired behavior** = **finish-what-exists**: remaining work that makes the attached change mergeable — adopt, rework, or complete — rather than restarting from a blank implementation.
+
+The brief specifies what's left to do *to the existing diff*. Apply this variant when the item is a PR / attached code; ordinary bug and feature items still use Current/Desired as written in the template.
+
 ## Anti-patterns
 
 | Bad | Why | Fix |
@@ -84,3 +93,4 @@ The brief can be the issue body itself or posted as a comment (prefixed with `##
 | No out-of-scope section | Agent gold-plates | List 2-3 explicit boundaries |
 | Procedural steps ("open file, add line") | Agent makes different implementation choices | Describe desired behavior |
 | Implementation-specific ("use a HashMap") | Constrains agent unnecessarily | Describe the requirement the data structure must satisfy |
+| Restarting a PR from a blank implementation | Ignores attached code | Finish what exists; current-behavior-of-the-diff |

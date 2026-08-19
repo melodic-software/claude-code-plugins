@@ -3,6 +3,86 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Changed
+
+- **`questionnaire` is model-invoked (#2969).** Course lane 8's fleet grade found it was the one
+  `disable-model-invocation: true` skill matching none of the rubric's three exception classes: it
+  has no side effects beyond writing a Markdown document, is not a setup skill, and is not
+  maintainer-only. The flip was gated on re-checking for a latent rationale the grade could not see
+  — a trigger collision with `interview` — and there is none: the two are separated by who holds
+  the knowledge, and each description already routes to the other on that axis. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+- **`questionnaire` gains real trigger phrases.** 0.30.1 deliberately left them unoptimized because
+  a hidden skill's description is never matched against user text. Now that it is model-invoked,
+  the description carries phrases a user would actually type ("I don't know, that's the client's
+  call", "send this to someone else to answer", "write up questions for our security team") beside
+  the ones it already had. Every phrase already present is preserved verbatim.
+
+## [0.30.7]
+
+### Added
+
+- **`plan` close-out: spec-container ship ritual (#2934).** Close-out gains a
+  presence-gated step 4: when the `work-items` plugin is installed and the
+  topic's decomposition published a spec container, route the container's
+  close-at-ship ritual through `/work-items:decompose` "Container lifecycle"
+  (that path owns the mechanics; close-out only sequences it). Partial ships
+  leave the container open; no container or no plugin skips silently.
+
+### Changed
+
+- **`wayfind`: container label resolved from the seam's binding key, not hardcoded
+  (#2934 review).** The map marker previously appeared as a literal `work-map` in the
+  bootstrap check, the create command, the open-maps pre-compute, and prose. Now that
+  `config.container_label` is a live per-repo remap in the work-item tracker seam, a
+  hardcoded literal would strand wayfind maps on the old string after a remap — no longer
+  matching the seam's frontier exclusion, so `/work-items:work-loop` would surface a map
+  as a claimable item. `tracker-mechanics.md` gains a resolve-once snippet (same key,
+  shipped default `work-map` when no binding/key/jq) that also repeats the seam's type rule
+  on wayfind's own read path — a present non-string value is a configuration error that
+  stops the create, never a silent fallback (wayfind never routes through the seam's
+  loader, so it cannot assume that validation ran); the create/bootstrap snippets use
+  `"$CONTAINER_LABEL"`; the `SKILL.md` pre-compute resolves the label inline with a
+  string-typed read (non-string or empty → default; display-only, fail-soft).
+
+## [0.30.6]
+
+### Changed
+
+- **`wayfind`: refer-by-name narration and out-of-scope ledger semantics.** Human-facing
+  reports name items by title (number as a link or suffix). Out-of-scope is for scope, not
+  sharpness; a wrongly scoped item closes with an Out-of-scope line and does not enter
+  Decisions-so-far. C20 map-as-index was already present (#2939).
+- **`wayfind`: graduate recipe qualifies wrongly scoped closes.** Tracker mechanics and
+  map-anatomy invariant 2: in-scope stays comment → Decisions-so-far → close; wrongly
+  scoped uses one Out-of-scope line and `gh issue close --reason "not planned"` (#2939).
+
+## [0.30.5]
+
+### Added
+
+- **`draft-goal-condition` ships evals covering Step 0 routing** — multi-window /
+  multi-ticket work routes to `/work-items`, interval-driven work still routes to
+  `/loop`, and a single-window measurable intent still proceeds to draft (#2938).
+
+### Changed
+
+- **`draft-goal-condition` Step 0** routes multi-window / multi-ticket work to
+  `/work-items` — already-decomposed backlogs to `/work-items:work` (or the
+  work-loop), undecomposed plans to `/work-items:decompose` then work — instead
+  of `/goal`. When `work-items` is not installed, advise installing it (or draft
+  only if the user insists on one-session completion). Advisory default;
+  single-session drafting is unchanged (#2938).
+
+## [0.30.4]
+
+### Changed
+
+- `check-open-questions.sh` drops a comment that restated the adjacent
+  field-count check and its error message (comment-only; no behavior change).
+
 ## [0.30.3]
 
 ### Changed

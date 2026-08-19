@@ -1,5 +1,12 @@
 # Apply Mode — Full Rename Workflow
 
+## Contents
+
+- [Inputs](#inputs)
+- [Workflow (7 phases)](#workflow-7-phases)
+- [Special cases](#special-cases)
+- [Hand-off summary](#hand-off-summary)
+
 Apply mode performs the complete rename: sweep → triage → user confirmation → Edit → re-sweep → handoff. Primary workflow when the user has decided to rename and wants the audit + edit done in one invocation.
 
 Preview mode is the same workflow with the Edit phase replaced by "report planned edits." Use preview when the user wants to see exactly what would change before committing.

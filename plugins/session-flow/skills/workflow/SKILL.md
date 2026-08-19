@@ -1,6 +1,6 @@
 ---
 description: "Navigate a staged development workflow (explore → research → plan → implement → test → review → verify → retro), suggest the next stage, and route the end-of-phase continuation mechanism (continue / clear / handoff / background / clean-stop / compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start, at a phase boundary, or whenever the next step is unclear."
-argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue)"
+argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue, /workflow continue auto)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -11,15 +11,10 @@ metadata:
 
 ## Repository context — gather first
 
-Collect these with **individual** Bash calls, one command per call:
-
-- Current branch — `git branch --show-current`
-- Working tree — `git status --porcelain`, reading **at most the first 20 entries**
-- Recent commits — `git log --oneline -5`
-
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion — keep `$`-expansion
-out of the pre-compute block (#1687).
+Take `branch`, `status`, and `recent-commits` at `-5`. No session id — this skill stamps no ledger.
+Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
+rationale for gathering at run time rather than pre-computing:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
 
@@ -60,7 +55,8 @@ This skill adapts to the consuming repo rather than imposing structure:
 
 ## Argument parsing
 
-Parse the first argument to determine mode:
+Parse the first argument to determine mode; when it is `continue`, parse the second token too —
+`auto` is its only modifier, and anything else (or nothing) is the plain suggest-only mode.
 
 | Argument | Mode | Action |
 |----------|------|--------|
@@ -70,7 +66,8 @@ Parse the first argument to determine mode:
 | `wrap-up` | **Wrap-up** | Load `context/wrap-up.md` — end-of-session checklist |
 | `philosophy` | **Philosophy** | Load `context/philosophy.md` — depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md` — stage-by-stage execution with `/clear` between stages |
-| `continue` | **Continuation** | Load `context/continuation.md` — end-of-phase continuation-mechanism router |
+| `continue` | **Continuation** | Load `context/continuation.md` — end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
+| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier — consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation licence to EXECUTE the mechanism it routes to. Authorizes this invocation only — never a standing mode, and never a substitute for a routed skill's own hard gate |
 
 ## Default mode (no arguments)
 
@@ -115,6 +112,11 @@ its ordered router; recommend exactly one mechanism with its rationale, zone-inf
 context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
 skip this — the default is simply to continue.
 
+The router **suggests; it does not act** — the recommendation goes to the human with the evidence
+that drove it, and executing the routed mechanism takes an explicit per-invocation licence
+(`continue auto`, or the user's own words), which expires with the invocation. Its inputs beyond
+the gather above are presence-gated pointers to the siblings that own them; the rules live there.
+
 ### 5. Track progress (tasks ≥3 stages)
 
 For work expected to span 3+ stages, create a task per applicable stage via TaskCreate, mark
@@ -158,6 +160,14 @@ disambiguate. Precedence:
    generic implement pass; a route-finding problem belongs to wayfinding, not an oversized plan.
 3. **Still tied → the earlier stage wins** — every downstream stage remains reachable from it, but
    a skipped upstream stage is gone.
+
+**This rule governs STAGE routing, not option surfacing.** "Never present both" is about refusing to
+hand the user two candidate owners for one stage decision and letting them sort it out. It is not a
+prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
+annotated, for a human to choose from is a different job, and `/session-flow:show-options` owns it.
+Reach for this skill when the user wants the next stage decided; reach for that one when they want
+the menu. The two are complementary, not competing — and when a request could be either, "what comes
+next" is a stage question and belongs here.
 
 ## Key principles (always apply, regardless of mode)
 

@@ -3,6 +3,39 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`audit`: /init-then-prune eval fixture (course lane 9, #2989).** New eval case
+  `init-shaped-bloat-graded-with-c5-carve-out` grades the audit against a static bloated
+  CLAUDE.md fixture (`evals/fixtures/init-bloated-claude-md.md`) in the shape `/init`
+  produces — file-by-file codebase inventory, restated standard conventions, copied
+  framework documentation, 200+ visible lines. Expectations pin C1 (line-budget FAIL),
+  C2 (derivable standard-convention lines, grouped by section), and C5 (codebase-description
+  and framework-doc flagging) — and pin the discrimination side: the fixture's curated
+  runbook pointer must be KEEP under C5's navigation-pointer carve-out (#2987), and its
+  non-obvious first-run gotcha must not be flagged. A static fixture was chosen over live
+  `/init` generation for determinism (lane 9 decision, recorded in
+  `docs/upstream/aihero-course.md`, "Lane 9: steering validations").
+
+## [0.10.0]
+
+### Added
+
+- **`audit`: navigation-pointer criteria patches (course lane 9, #2987).** C5 gains the
+  navigation-pointer carve-out: a curated pointer to a non-obvious, load-bearing doc (where to
+  look, when) is KEEP, a file-by-file inventory Claude can rebuild stays FLAG — marked as a
+  repo extension (official docs state no navigation posture; the `update` action must not
+  overwrite it). C7 gains the navigation-section note tying its missing-file FAIL to that
+  posture ("a stale highway is worse than no highway"). C3's placement table gains the
+  nested-CLAUDE.md destination row (docs-verified load semantics: on-demand below cwd,
+  ancestors in full at launch, post-compaction pricing already in the table's cost paragraph)
+  and the conversational `@`-mention row (one-turn steering vs launch-loaded `@path` imports).
+  The `fix` workflow gains C5 fix patterns — delete, curate-into-pointer, and
+  restructure-before-pointing (things that change together live together), with the write-side
+  authoring doctrine pointed at `docs-hygiene:write-for-agents`.
+
 ## [0.9.3]
 
 ### Changed

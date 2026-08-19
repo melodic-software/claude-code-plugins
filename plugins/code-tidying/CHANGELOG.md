@@ -3,6 +3,96 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `batch-simplify` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
+## [0.12.0]
+
+### Added
+
+- **`batch-simplify` gains a third scope mode, `repo`** — a behavior-preserving simplification
+  sweep over every code file in the repository, not just a diff. Entry is explicit only: an
+  explicit `repo` argument, or the user accepting the offer the empty-scan exit now makes. It
+  never auto-escalates, and it presents an inventory summary — file count, group count, wave
+  plan, scale estimate, exclusions by class — for confirmation before any group is dispatched.
+  The file universe is `git ls-files --cached --others --exclude-standard` anchored to the repo
+  root, so untracked non-ignored files are swept too and a run started in a subdirectory still
+  covers the whole tree. The run refuses to start on tracked modifications inside the sweep
+  universe, scoped so it cannot block the checklist the skill writes as its own first step, or
+  any resume. `repo <path>` is deliberately not accepted in this version.
+- **New progressive-disclosure spoke `context/repo-mode.md`**, loaded only when the mode fires:
+  two-pass grouping with canonical-cluster detection (generated copies are edited via their
+  source, never directly); dependency-only ordering with the reasoning against churn ranking
+  recorded; a 4–6 concurrent-simplifier soft cap stated against the tooling's 20-subagent
+  ceiling, degrading to sequential rather than retrying; an inline-prompt spawn contract that
+  states the Write/Edit path explicitly and does not invoke the bundled `/simplify`; a mandatory
+  per-group refutation verifier; idempotent resume with revert scoped to the group's file list;
+  per-wave verification plus an end-of-run union pass; High-only work-item filing with no numeric
+  cap; and one independently mergeable pull request per wave.
+- **Externally managed and sync-generated directories are now a read-only deferred class** in the
+  Phase 2 filters, recognized from what the consuming repo documents about itself rather than
+  from a hardcoded path.
+
+### Changed
+
+- **`batch-simplify` Phase 7's verification exemption is scoped to the diff-scoped modes.** It
+  previously asserted that an objective cross-ecosystem pass is "verification enough" because
+  simplification is behavior-preserving — a scale-invariant claim that repo mode contradicts,
+  since at repo scale no human reads the diff before it merges. Phase 7 also now reports files
+  with no mapped test suite as unmapped rather than as passing.
+- **`tidy` and `dissolve-comments` no longer describe `batch-simplify` as diff-only.** `tidy`'s
+  differentiation prose named "a time-window or branch diff in waves" — the exact mechanism repo
+  mode removes — and `dissolve-comments` called it "windowed batch sweeps" in two places. A
+  reciprocal documentation boundary is now stated in both `batch-simplify` and `tidy`:
+  `batch-simplify` owns factual staleness across the whole doc set in one pass; `tidy`'s
+  `docs-prose` lane owns incremental structural prose work under a scope budget.
+- The run checklist template gains repo-mode-conditional rows and states the filing tier per
+  mode.
+
+## [0.11.1]
+
+### Fixed
+
+- `batch-simplify` argument parsing is now token-exact. Branch mode matched any argument
+  *containing* "branch", so a path or filename carrying those six letters silently swept the
+  wrong file set; it now matches the whole argument against the branch trigger phrases. The
+  `docs` flag was stripped by substring before mode parsing, which mutated any argument
+  containing those four letters — including a `docs/` path — and left a corrupted remainder
+  for the mode parser; it is now dropped token-wise, only when a token equals `docs`.
+  Unknown arguments still route to the ask-the-user rule rather than a guess.
+
+## [0.11.0]
+
+### Added
+
+- **New skill `/code-tidying:dissolve-comments`** — the edit-applying enforcement
+  counterpart to `audit-comment-residue`: a three-way comment triage over a diff or
+  explicit target that deletes zero-information comments, dissolves code-expressible
+  comments into names and structure via named Fowler-catalog refactorings and then
+  deletes them, and keeps only terse, load-bearing comments code cannot express.
+  Class-B refactors apply only behind a discovered runnable test net (lint never opens
+  the apply path); `safe` mode restricts applied edits to removals. Public-API doc
+  comments, legal headers, machine-read directives, `TODO(#issue)` markers, and the
+  plugin's standard path-exclusion tier are never touched; removed narrative is staged
+  as a proposed commit-message block before deletion is final. Doctrine grounded in a
+  verified research pass (Fowler, Martin ⇄ Ousterhout debate, McConnell, Google
+  eng-practices, Anthropic prompting guidance) and locked through an interviewed,
+  two-validator-audited task-branch Brief (contract tier — pruned before merge per the
+  topic-docs convention); the surviving doctrine lives in the skill's `reference/`
+  docs, and the decision trail in the branch history of
+  `.work/plugin-marketplace-code-clarity/interview-checklist.md`.
+
+### Fixed
+
+- **README skill list drift** — `audit-comment-residue` was missing from the README's
+  skill list; both it and the new `dissolve-comments` are now listed.
+
 ## [0.10.3]
 
 ### Changed

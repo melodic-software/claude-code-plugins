@@ -115,11 +115,12 @@
 # statically unambiguous marker word inside the matched extent.
 # `portability-ok: <reason>` is the one-line escape for a diagnostic
 # or example that names one of these utilities.
-# Guard markers are seeded for the one class that needs one today
-# (readlink -f, requiring an actual `||` fallback relationship with a
-# co-located realpath attempt — not mere co-location); a further class
-# enables its own guard here, proven against an `--all` audit first — see the
-# token file's STAGED section.
+# Guard markers are seeded for the two classes that need one today —
+# readlink -f behind a co-located `realpath ... || readlink -f` ladder, and
+# stat -c behind a co-located `stat -c ... || stat -f ...` ladder — each
+# requiring an actual `||` fallback relationship, not mere co-location; a
+# further class enables its own guard here, proven against an `--all` audit
+# first — see the token file's STAGED section.
 #
 # Exit 0 = clean (or nothing in scope); 1 = one or more violations; 2 = usage /
 # environment error (fail closed — never a silent skip).
@@ -150,7 +151,7 @@ esac
 # skill markdown first; the baseline shrinks (a stale entry — file missing or
 # clean — fails the gate). --paths never consults it: that mode is the audit
 # tool that measured the backlog and must keep seeing every hit.
-BASELINE="${SHELL_PORTABILITY_MD_BASELINE:-scripts/shell-portability-skill-md-baseline.txt}"
+BASELINE="${SHELL_PORTABILITY_MD_BASELINE:-scripts/shell-portability-skill-md-baseline.txt}" # env override is test injection
 
 usage() {
   printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
@@ -160,8 +161,12 @@ usage() {
 # is_scannable <path> — a shell file this gate is responsible for. Vendor/
 # upstream-synced copies carry their own drift gate, not this contract.
 # Skill markdown under plugins/*/skills/ is in scope (#2704): agents execute
-# shell snippets from those files. evals/ carries adversarial fixture prompts
-# by design (same exclusion check-skill-portability.sh uses). Likewise the
+# shell snippets from those files. Plugin reference docs under
+# plugins/*/reference/ are in scope for the same reason — a shared engine doc a
+# skill body cites carries the same executable snippets, and extracting a block
+# out of a skill and into a reference must not silently drop its gate coverage.
+# evals/ carries adversarial fixture prompts by design (same exclusion
+# check-skill-portability.sh uses). Likewise the
 # cross-plugin sync copies registered in
 # scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
 # byte-identical to its in-repo SOURCE, so the source is where this contract
@@ -173,6 +178,7 @@ is_scannable() {
   */vendor/* | */evals/*) return 1 ;;
   *.sh) ;;
   plugins/*/skills/*.md) ;;
+  plugins/*/reference/*.md) ;;
   *) return 1 ;;
   esac
   local registry="scripts/cross-plugin-source-registry.txt" rel line
@@ -188,13 +194,11 @@ is_scannable() {
 }
 
 # Active baseline entries: exact repo-relative paths, full-string equality.
-# SHELL_PORTABILITY_MD_BASELINE overrides the path (test injection).
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
   mapfile -t baseline_entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$' || true)
 fi
 
-# baselined <path> — 0 when the path is on the skill-md backlog list.
 baselined() {
   local path="$1" entry
   for entry in "${baseline_entries[@]}"; do
@@ -203,7 +207,6 @@ baselined() {
   return 1
 }
 
-# Resolve the file set for the requested mode.
 files=()
 apply_baseline=0
 if (($# == 0)); then
@@ -222,6 +225,7 @@ case "$mode" in
     {
       find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*'
       find plugins -type f -path 'plugins/*/skills/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
+      find plugins -type f -path 'plugins/*/reference/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
     } | sed 's|^\./||' | sort -u
   )
   ;;
@@ -1387,36 +1391,16 @@ scan_file() {
       i++
       c = substr(l, i, 1)
       if (c == "/" || c == "#" || c == "%") i++
-      # Pattern half: walk to the separator.
-      st = "U"
-      sep = 0
-      while (i <= e - 1) {
-        c = substr(l, i, 1)
-        if (st == "S") {
-          if (c == SQ) st = "U"
-          i++
-          continue
-        }
-        if (c == BS) { i += 2; continue }
-        if (c == SQ) { st = "S"; i++; continue }
-        if (c == DQ) {
-          if (st == "D") st = "U"
-          else st = "D"
-          i++
-          continue
-        }
-        if (opens_frame(l, i)) {
-          i = skip_frame(l, i, e - 1)
-          continue
-        }
-        if (st == "U" && c == "/") { sep = i; break }
-        i++
-      }
+      sep = first_unquoted(l, i, e - 1, "/")
       if (sep == 0) return 0
-      # Replacement half: the first unquoted `&`.
-      i = sep + 1
+      return first_unquoted(l, sep + 1, e - 1, "&")
+    }
+    # first_unquoted — offset of the first <target> character reached in
+    # unquoted state walking l from i through lim (honoring single/double quote
+    # state, backslash pairs, and expansion frames); 0 when none.
+    function first_unquoted(l, i, lim, target,   st, c) {
       st = "U"
-      while (i <= e - 1) {
+      while (i <= lim) {
         c = substr(l, i, 1)
         if (st == "S") {
           if (c == SQ) st = "U"
@@ -1432,10 +1416,10 @@ scan_file() {
           continue
         }
         if (opens_frame(l, i)) {
-          i = skip_frame(l, i, e - 1)
+          i = skip_frame(l, i, lim)
           continue
         }
-        if (st == "U" && c == "&") return i
+        if (st == "U" && c == target) return i
         i++
       }
       return 0
@@ -1554,13 +1538,6 @@ scan_file() {
         report_hit(line, lineno, AMPTOK, annotated_above,
           subst_amp_hit(line, 1), line, qline, mask, "amp")
     }
-    # report_hit — print the first hit whose OWN physical line is unexcused,
-    # stepping past any the annotation on that line covers. Returns 1 if
-    # anything was printed, so the second view is only consulted when the first
-    # found nothing (one report per pattern per record, as before).
-    # (Definition below; next_hit() has to be declared first because report_hit()
-    # advances through it.)
-    #
     # next_hit — the next occurrence at or after <from>, dispatched by CLASS
     # KIND. awk has no function references, so the kind is passed explicitly at
     # every call site rather than defaulted: a dropped argument arrives as the
@@ -1571,7 +1548,10 @@ scan_file() {
       if (kind == "amp") return subst_amp_hit(view, from)
       return has_unguarded(view, q, p, m, from)
     }
-    # report_hit — see the doc block above next_hit().
+    # report_hit — print the first hit whose OWN physical line is unexcused,
+    # stepping past any the annotation on that line covers. Returns 1 if
+    # anything was printed, so the second view is only consulted when the first
+    # found nothing (one report per pattern per record, as before).
     function report_hit(line, lineno, p, annotated_above, off, view, q, m, kind,   k) {
       # A backslash continuation removes the newline, so its physical lines are
       # one line in the strongest sense: the record is reported whole, at its

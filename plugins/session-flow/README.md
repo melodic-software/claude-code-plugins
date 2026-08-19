@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling thirteen skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
 interruption, how to leave it durable before the machine goes away, how to retire finished work and
 reconcile the task ledger, where things stand and why, whether its assumptions are still current,
@@ -21,6 +21,7 @@ what to learn from it while it runs and after, and how to arm it for delegation-
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
+| `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
 
 ## Output styles
 
@@ -249,9 +250,33 @@ a spawned subagent's internal task list is not readable. It touches no git state
 /session-flow:reconcile   # inventory → inspect → retire finished + close done → report
 ```
 
+### show-options
+
+Turns the installed catalog from something the operator must remember into something they consult.
+Renders five buckets — **Now**, **Next**, **Skipped upstream** (artifact-grounded), **Later** (the
+in-domain remainder beyond the near horizon, rendered as bare names only), and a rotating
+**Spotlight** of three — each as a ranked shortlist of at most five in full treatment plus the
+complete remainder by bare name with an explicit count, so nothing is off-screen unstated.
+
+Its contract is two rules: **never omit a candidate's name**, and **never invent one**. A skill the
+evidence says already ran is ranked normally and annotated `(ran this session)` — the model's judgment
+reaches rank and annotations, never presence. Candidates resolve from the full installed catalog
+(`/claude-ops:inventory` when installed, else a project-supplied catalog, else the in-context listing
+*with its truncation disclosed*), because that listing omits every manual-only skill and drops
+descriptions starting with the least-invoked ones — the very skills worth surfacing. Durable state is
+the primary signal; it builds no probe of its own and routes to `orient` for that.
+
+Distinct from `workflow`, which routes to exactly one next **stage**: this one lays out the menu and
+lets the human choose. Writes only its small Spotlight rotation ledger; otherwise read-only.
+
+```shell
+/session-flow:show-options            # menu for the current moment
+/session-flow:show-options my-topic   # scope the artifact-grounded reads to a topic slice
+```
+
 ### setup
 
-A check-centric setup for the **observer substrate only** — the other eleven skills are zero-config.
+A check-centric setup for the **observer substrate only** — the other thirteen skills are zero-config.
 `check` (default) verifies the observer's runtime prerequisites (Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;

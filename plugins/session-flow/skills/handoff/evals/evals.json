@@ -108,6 +108,60 @@
         "The goal quote does not displace the /goal re-arm from the first line, and the bullets do not come between them",
         "The reasoning recognizes that prompt-only points at no file, so the goal travels in the prompt or not at all"
       ]
+    },
+    {
+      "id": 9,
+      "name": "purpose-argument-tailors-emphasis-only",
+      "prompt": "/handoff file api-refactor the next session will be used to review the new endpoint design with the platform team before any more code is written",
+      "expected_output": "The trailing free text after the topic token is parsed as the purpose argument — no quoting needed. It tailors emphasis only: the Resumption brief leads with the design-review purpose, Suggested skills are selected for that review use, and Remaining actions are ordered to put the review-relevant items first where ordering is otherwise free. Every mandatory body section is still present in the structure doc's order, and the resume prompt between the rails keeps its standard shape (Read directive, Prior session line, Handoff origin line) — purpose changes what is emphasized, never what is emitted.",
+      "files": [],
+      "expectations": [
+        "Everything after the topic token (api-refactor) is read as natural-language purpose text without quoting or new syntax",
+        "The Resumption brief leads with the stated purpose — the framing opens from what the next session is for",
+        "Suggested skills are selected for the review purpose, each still tied to a concrete remaining item",
+        "No mandatory body section is dropped, renamed, or reordered — the full structure-doc section set is present in order",
+        "The resume prompt between the dashed rails keeps the standard shape; the purpose does not alter the directive, rails, or origin line"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "purpose-conflicting-with-goal-is-flagged",
+      "prompt": "My goal, stated this morning: 'get the payment retry bug fixed and verified before Friday's release.' /handoff prompt cleanup start migrating the billing module to the new ORM next session",
+      "expected_output": "The purpose (start an ORM migration) does not serve the recorded goal (fix and verify the payment retry bug before Friday). The skill flags the conflict at write time instead of silently obeying the purpose: it says plainly that the stated purpose does not serve the recorded goal and asks whether the goal has changed. The Original goal travels verbatim and unamended — a purpose is never authority to amend it; only an explicit dated amendment from the user changes the goal.",
+      "files": [],
+      "expectations": [
+        "The conflict between the purpose text and the recorded goal is surfaced explicitly at write time, not silently obeyed",
+        "The Original goal is carried verbatim and is NOT amended, re-worded, or replaced on the strength of the purpose argument",
+        "The response asks whether the goal has changed rather than deciding on its own that it did",
+        "The purpose is not silently dropped either — the flag names what was asked for and why it does not serve the goal"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "prompt-only-carries-the-purpose-inline",
+      "prompt": "/handoff prompt lint-pass the next session will be used by a teammate doing release prep, not by me — the only thing left is to re-run the linter on the docs branch.",
+      "expected_output": "Prompt-only writes no body sections, so the tailoring surfaces (Resumption brief, Suggested skills) do not exist, and with a single remaining action the bullet ordering cannot express the purpose either. The purpose therefore travels between the rails as a Purpose: line, below the goal quote when one is present and above the remaining-work bullets — the same travels-in-the-prompt-or-not-at-all rationale as the Original goal rule. The rails, copy instruction, and detection-contract signals are unchanged.",
+      "files": [],
+      "expectations": [
+        "The purpose is NOT discarded on the prompt-only path — a Purpose: line carries it inline between the dashed rails",
+        "The Purpose: line sits below the goal quote (when present) and above the remaining-work bullets",
+        "The reasoning recognizes that prompt-only writes no file and its delivery may hand the rails block to a background agent as the only thing it sees, so the purpose travels in the prompt or not at all",
+        "The rails, the copy instruction above the top rail, and the rest of the detection-contract shape are unchanged — the purpose line is content between the rails, not a shape change"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "rails-prompt-is-the-final-text-not-replaced-by-the-file",
+      "prompt": "This session is deep into a long refactor and the context is nearly full — a zone warning just fired. Handoff.",
+      "expected_output": "The save-point is BOTH halves: the durable file AND the rails resume prompt, with the prompt emitted as the response's final text (after the ticked checklist, followed only by any below-rail /loop re-arm notes). Writing the file and ending the turn on the checklist or on 'EXECUTION STOPS HERE' is a failed handoff even when the file's content is correct — the engine mandates that a resume prompt is ALWAYS emitted and makes the file the optional half, so a turn that delivers only the file leaves the operator with a /clear they cannot resume from. STOP governs the underlying refactor, never the emission of the prompt.",
+      "files": [],
+      "expectations": [
+        "The rails resume prompt is actually emitted in the response — the handoff file existing on disk does not satisfy it",
+        "The rails block is the FINAL text of the response, after the ticked checklist; nothing follows it except below-the-rails /loop re-arm notes when a loop is active",
+        "The response does not end on the post-write checklist, on 'EXECUTION STOPS HERE', or on any summary that displaces the prompt",
+        "The reasoning treats STOP as ending the underlying refactor, not as licence to end the response once the file is written",
+        "The heavy context / zone warning is not treated as a reason to shorten or skip the prompt — it is the condition the save-point exists for"
+      ]
     }
   ]
 }

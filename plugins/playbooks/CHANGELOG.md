@@ -4,6 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.7]
+
+### Added
+
+- **`skill-authoring`: authoring-time pointer to the invocation-mode rubric (#2968).** The
+  Skill-tool composition section now routes the mode decision to
+  `docs/conventions/invocation-mode/README.md` — the model-invoked default, the three exception
+  classes a `true` may claim, and the split-by-invocation question — and notes that
+  `skill-quality:check` enforces the explicit key. Points, never restates.
+
+## [0.8.6]
+
+### Added
+
+- **`skill-authoring`: Skill-tool composition doctrine (#2940).** Melodic Software addition:
+  the Skill tool takes one skill per call (two skills → two calls); never Skill-tool-invoke a
+  `disable-model-invocation: true` target — tell the user to run `/plugin:skill` instead.
+  Eval coverage extended.
+
 ## [0.8.5]
 
 ### Changed

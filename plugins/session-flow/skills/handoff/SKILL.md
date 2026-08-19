@@ -1,6 +1,6 @@
 ---
 description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the user reports the session is heavy, a context-measuring mechanism says to fork, or your own responses are visibly drifting, repeating, or looping. Never on your own estimate of the remaining window — a budget reading is not a decay signal. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
-argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff file phase-3)"
+argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -11,17 +11,10 @@ metadata:
 
 ## Context — gather first
 
-Collect these with **individual** Bash calls, one command per call:
-
-- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
-- Current branch — `git branch --show-current`
-- Uncommitted changes — `git status --porcelain`, reading **at most the first 20 entries**
-- Recent commits — `git log --oneline -5`
-
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
-fail at load in exactly the isolated sessions that most need a save-point — keep `$`-expansion out of
-the pre-compute block (#1687).
+Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale — which bit
+this skill hardest, failing it at load in exactly the isolated sessions that most need a save-point:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
 
@@ -47,7 +40,7 @@ different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic]` — both optional and positional:
+`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]` — all optional and positional:
 
 - **Method** (`file` | `prompt`) — recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
@@ -55,6 +48,11 @@ different delivery.
 - **Topic** — short kebab slug for the filename. When the first token is not a method keyword it IS
   the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
+- **Purpose** — everything after the topic token is optional natural-language purpose text
+  answering "what will the next session be used for?" — no quoting, no new syntax, and
+  invocations without it parse exactly as before. What purpose is allowed to change (emphasis
+  only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
+  emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
 ## Hard rule — handoff ALWAYS terminates current execution
 
@@ -63,14 +61,25 @@ save-point, THEN STOPS. It does NOT keep executing the underlying task in the cu
 defeats the purpose. STOP is the default and near-universal outcome — NEVER unlocked by the user
 having listed multiple steps, nor by the remaining work being "small".
 
+**What STOP means, and the one thing it never means.** STOP ends the UNDERLYING TASK. It never ends
+the response before the resume prompt is on screen, because emitting that prompt is not work that
+follows the save-point — it IS the save-point. The engine is explicit that the prompt is the
+mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only decision
+is whether to ALSO write a durable handoff file." So a turn that writes the file and stops has
+delivered the optional half and dropped the required one — the operator is left holding a `/clear`
+they cannot resume from, which is strictly worse than never having run the skill, since the skill
+reports success. This is an observed failure, not a hypothetical (`context/gotchas.md`). Until the
+rails prompt is in the response, the save-point does not exist and STOP has not been reached.
+
 **Mandatory STOP gate (walk every box):**
 
 - [ ] Path chosen (full vs prompt-only) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
-  resume prompt")
+  resume prompt") — the box that is never satisfied by having written the file
 - [ ] `/clear`-then-paste instruction surfaced to the user
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
-  session ends as far as the task is concerned
+  session ends as far as the task is concerned — reachable only once the box above is genuinely
+  ticked, never as the act that replaces it
 
 **NOT authorization to continue (these all STOP):**
 
@@ -89,13 +98,27 @@ specifically (e.g. "don't `/clear` between phases, keep going").
   fork (`context-guard`'s zone report is one) — never your own estimate of the remaining window
 - Quality degrading (context rot) — responses drifting, repeating, or looping. This is the signal
   that is yours to read, because decay shows up in the output and never in a budget number
+- Extending the session chain — the deliberate escape-and-resume cadence (save-point, `/clear`,
+  fresh session) whose handoff files carry the `session_id`/`previous_handoff` chain that
+  `/session-flow:retro` later walks for retrospective reconstruction. A first-class use this
+  skill owns, not a byproduct of the others
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
 - Last turn had an unexpected compaction
+- Crossing a boundary — handing the work to a colleague, another repository or checkout, or
+  another agent, or forking a mid-phase side task into its own session
 - Sharing state with another session or machine
 
-Going AFK but the work should keep moving → that is the sibling
-`/session-flow:continue-in-background` skill's job, and only on the user's explicit request.
+### Routing signals — which form to use when
+
+| Situation | Route |
+|---|---|
+| Deep-window escape with session-chain value | Full handoff file — the default |
+| Small follow-ups, no chain value | Prompt-only — accepting its documented retro-gap cost (no file, no chain pointer for `/session-flow:retro` to walk) |
+| The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
+| Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill — only on the user's explicit request |
+| The machine itself may go away | `/session-flow:clean-stop` semantics — make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
+| Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries — the line the other side re-resolves the file from. The file itself is memory-tier and gitignored — visible only in the checkout that wrote it — so when the other side cannot read that checkout, it must travel out-of-band (send the file with the prompt, or promote its substance into an artifact the other side can read, per the promote rule below) |
 
 ## Fork beats compaction when the window is deep
 
@@ -112,6 +135,23 @@ matters, chosen deliberately, while a compaction summary carries forward whateve
 happened to keep, and the degradation that prompted the move rides along into the continued
 session. Judge the threshold by window position and response quality, never by a fixed token count
 — it shifts with model and configuration.
+
+## Reference other artifacts; promote durable value — never commit the file
+
+**Do not duplicate content captured in another artifact.** Content that already lives in a durable
+artifact — a spec, plan, ADR, issue, commit, or committed diff — is referenced by path or URL,
+never restated in the save-point. The engine's per-section guidance ("Summarize; never transcribe"
+in the structure doc's file-roles section) is this rule applied locally; it holds across the whole
+save-point, on both paths. Uncommitted or half-finished edits remain the exception that same
+file-roles section owns: they have no commit to reference, so their state — which part is
+implemented and working, which part is not — is described in the save-point, the one place it
+exists.
+
+**Promote the content, never the file.** When a handoff carries durable value — a decision, a
+constraint, a finding worth keeping beyond this task — promote that substance into a committed
+artifact (a topic contract, an issue, a PR body) and reference it from there. The handoff file
+itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
+user-controlled removal — nothing expires, sweeps, or ages these files out silently.
 
 ## Produce the save-point
 
@@ -132,6 +172,15 @@ types `/clear` and pastes; nothing is launched on their behalf.
 Tick each item in the response so the user can verify the exit shape. Missing any tick = handoff
 incomplete. Known failure patterns live in `context/gotchas.md` — load on demand when a step feels
 ambiguous.
+
+**Output order is fixed: ticked checklist first, rails prompt last.** The rails resume prompt —
+the copy instruction, the two dashed rails, and every below-the-rails `/loop` re-arm note — is the
+FINAL text of the response, with nothing after it. This order exists because the rails prompt is
+the deliverable the operator copies, and a turn that ends on anything else has been observed to end
+*without the rails prompt at all* under heavy context: the save-point file exists, but the operator
+has nothing to paste after `/clear`. A response whose last text is not the rails block (plus its
+below-rail notes) is a FAILED handoff even when every box above is ticked — emit the rails block
+before ending the turn, always.
 
 **Full path:**
 
@@ -155,6 +204,10 @@ ambiguous.
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring
+  rules — the Resumption brief leads with it, Suggested skills are selected for it, Remaining
+  actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
+  goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file by its **absolute**,
   forward-slash-normalized path — never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd — with the `Handoff origin:` line naming the repository
@@ -163,7 +216,8 @@ ambiguous.
   the top rail; `/goal` first line if a goal is active; a below-the-rails note re-arming EVERY
   surviving loop — one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up
   message (engine doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE**
+- [ ] **EXECUTION STOPS HERE** — the rails prompt and its below-rail notes follow these ticks as
+  the response's final text (see "Output order is fixed" above)
 
 **Prompt-only path:**
 
@@ -176,12 +230,17 @@ ambiguous.
 - [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
+  the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
+  emphasis only") — never discarded; a goal-conflicting purpose flagged rather than obeyed. No
+  purpose given → nothing to tick
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
 - [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
   note re-arming EVERY surviving loop — one `/loop [<interval>] <original prompt>` line per loop,
   each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE** — "small enough" means the prompt captures the work, NOT "small
-  enough to skip `/clear` and finish in-session"
+  enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
+  these ticks as the response's final text (see "Output order is fixed" above)
 
 ## What this skill does NOT do
 
