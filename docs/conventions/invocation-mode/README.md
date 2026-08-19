@@ -138,9 +138,9 @@ both plausibly firing on "I need to ask…"-shaped requests. There is none: the 
 *who holds the knowledge*, and each description already routes to the other on that axis
 (`questionnaire` says to run `/planning:interview` when the user can answer themselves;
 `interview`'s phrases — "ask me questions first", "what do you need to know" — are about
-interrogating the user, while `questionnaire`'s name a third-party holder who is asked instead).
-Two costs of the `true`
-turned up instead, both now paid: its trigger phrases were deliberately left unoptimized because a
+interrogating the user, while `questionnaire`'s phrases name the third-party holder who is asked in
+the user's place). Two costs of the `true` surfaced instead, both now paid: its trigger phrases were
+deliberately left unoptimized because a
 hidden skill's description is never matched against user text (planning CHANGELOG 0.30.1), and its
 own description advertises a hand-off from an interview branch that the invocation-reach invariant
 made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 `true` = 48 `*:setup`
