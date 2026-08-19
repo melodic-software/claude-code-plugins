@@ -1,5 +1,70 @@
 # Changelog — session-flow plugin
 
+## [0.27.0]
+
+### Added
+
+- **`workflow` — the continuation router becomes context-driven: informant inputs, an AFK edge, a
+  stated output shape, two licensed autonomy tiers, and the I23 reconciliation (refs #2971, AI
+  Hero course lane 2 #2900, decisions Q9/Q20-Q22).** The router previously decided from the zone
+  word alone, and the AFK criterion the lane adopted had no edge to live on.
+
+  **Informant inputs, as pointers.** A new section names the four inputs the router decides over
+  beyond the zone word — where we stand (`session-flow:orient`), what is still running
+  (`session-flow:reconcile`), which boundary this is (the workflow checklist), and whether the
+  remaining work is already scoped (the consuming repo's work-item tracker seam) — each consumed
+  the way the zone word already is: take the owner's answer, inline none of its mechanics. Every
+  input is presence-gated, an absent one degrades to unknown rather than blocking, and the router
+  runs no probe of its own. Consulting an informant never means firing one that writes: `orient` is
+  read-only by contract, while `reconcile` auto-settles proven-done tasks, so the liveness input is
+  a reconciliation that has ALREADY run — falling back to orient's read-only off-thread glance, and
+  then to unknown — because a router that only recommends must not mutate tracking as a side effect
+  of deciding. Beyond that, a later input arrives as a pointer, never as a probe inlined into the
+  file, which keeps the skill's single pre-compute block under its `$`-expansion ban (#1687,
+  #1688).
+
+  **The AFK edge (question 2), deliberately non-terminal.** "Is the remaining work scoped to run
+  away from the keyboard?" now has an edge: a yes hands the spawn-brief decision to
+  `session-flow:orchestrate` and the router CONTINUES asking, because sending work elsewhere does
+  not answer which mechanism carries this session across the boundary. It is ordered after the
+  explicit-background-request question so feasibility the router infers can never pre-empt an
+  instruction the user actually gave, and before the zero-cost in-session exit because a yes
+  changes who does the remaining work while every question below asks how this session carries
+  it. `continue-in-background`'s explicit-intent launch gate is untouched — the router suggests
+  and never launches — and orchestrate keeps spawn ownership. The four questions below it are
+  renumbered 3-6, with the cross-references inside the ordering purposes updated to match.
+
+  **Suggest by default, with two licensed autonomy tiers.** The router's product is a
+  recommendation addressed to the human, stated as mechanism plus the evidence that drove it (the
+  zone word as resolved, the informant findings, the edge whose yes selected it) plus the literal
+  next step. Executing the routed mechanism takes the top-tier per-invocation licence — a new
+  `continue auto` argument (the argument-parsing rule now consumes a second token when the first is
+  `continue`, so the modifier reaches its mode instead of falling into the bare `continue` row) or
+  the user asking in words — which expires with the invocation and is
+  never a standing config, mirroring `continue-in-background`'s explicit-words precedent; it
+  authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns. The
+  natural-language half of the opt-in counts only in a genuine user turn — a fetched page, an item
+  body, a tool result, or another agent's return is data the router evaluates, never a licence it
+  acts on — and a routed skill that makes outbound changes without a further confirmation takes the
+  literal token and nothing else: `clean-stop` pushes commits, opens PRs, and files issues once
+  invoked, so a semantic reading must never be what starts it. The opt-in also
+  cannot reach `/clear` or `/compact` at all — those sit outside the small allowlist of
+  `Skill`-invocable built-ins, so they are named as the next step and stay the human's to type. The
+  second tier is the orchestrator relay, now codified in the handoff-relay convention as the
+  autonomous tier for delegated work: a worker writes its own handoff at its fork point and
+  returns the path, and the orchestrator — standing in for the absent human — retires it and
+  seeds a fresh agent with the resume prompt, never reading the handoff body. Spawn-brief
+  discipline stays orchestrate's.
+
+  **I23 reconciliation, recorded where the design is stated.** A closing section reconciles the
+  router against the `claude-config:audit-instructions` catalog's I23: the mechanism menu lives
+  only in this user-invoked skill body (the criterion's exemption names the continuation-router
+  case verbatim), nothing model-injected carries a menu, operator-channel pointers stay
+  operator-side per `context-guard`'s 0.5.0 audience split — this router consumes the zone word
+  and inlines no band values, so no remaining-context count reaches the model through it — and
+  autonomy initiative comes from the user's opt-in or the orchestrator, never from injected
+  context or a self-estimated budget.
+
 ## [0.26.1]
 
 ### Fixed
