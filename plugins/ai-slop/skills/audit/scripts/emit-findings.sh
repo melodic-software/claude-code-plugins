@@ -118,7 +118,8 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 LC_ALL=C awk -v branch="$BRANCH" -v tier="$TIER" -v date_utc="$DATE_UTC" '
   # Tier/Action mirror of the severity crosswalk (see header comment).
   function rule_tier(slug) {
-    if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts")
+    if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts" ||
+        slug == "rule-chatbot-artifacts")
       return "IMPORTANT"
     return "SUGGESTION"
   }
@@ -129,6 +130,8 @@ LC_ALL=C awk -v branch="$BRANCH" -v tier="$TIER" -v date_utc="$DATE_UTC" '
       return "Delete the assistant-frame sentence; check surrounding prose did not depend on it"
     if (slug == "rule-llm-citation-artifacts")
       return "Remove the generation artifact; decide whether the claim needs a real citation"
+    if (slug == "rule-chatbot-artifacts")
+      return "Delete the chat-turn sentence; keep any real content it carried in document register"
     return "Guarded rewrite via /ai-slop:audit fix (judgment; see crosswalk row)"
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.

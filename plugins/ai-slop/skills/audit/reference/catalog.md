@@ -1,10 +1,13 @@
 # AI-writing tell catalog
 
-The rule inventory for `/ai-slop:audit`. Every sign of AI writing catalogued by the source page
-below, each classified for detectability and applicability, with its V1 disposition. Script rules
-are implemented in `../scripts/detect.sh` and carry argued severity-crosswalk rows; rubric tells
-are applied by the skill's judgment layer; `recorded-only` tells are catalogued but not run in V1
-(the entry says why).
+The rule inventory for `/ai-slop:audit`, drawn from two sources: every sign of AI writing
+catalogued by the Wikipedia page below, plus the additions adapted from Cursor's `unslop` skill
+(its own attribution block follows Wikipedia's). Each tell is classified for detectability and
+applicability, with its V1 disposition. Script rules are implemented in `../scripts/detect.sh`
+and carry argued severity-crosswalk rows; rubric tells are applied by the skill's judgment layer;
+`recorded-only` tells are catalogued but not run in V1 (the entry says why). Fix-time rewrite
+guidance (what to write INSTEAD of a tell) lives in [`rewrite-guide.md`](rewrite-guide.md), not
+here: this file decides what flags, that file decides what replaces it.
 
 <!-- ai-slop-ignore-file: this catalog quotes the tells it detects; scanning it flags its own rule corpus -->
 
@@ -18,6 +21,13 @@ this file is licensed under
 [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 (CC BY-SA 4.0), as the source requires.
 
+The "Cursor unslop additions" section derives from the `unslop` skill in Cursor's `pstack` plugin,
+[cursor/plugins `pstack/skills/unslop/SKILL.md`](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md),
+pinned at commit [`99559f2`](https://github.com/cursor/plugins/blob/99559f2f52047978602ef365589275831e76af07/pstack/skills/unslop/SKILL.md)
+(2026-08-02), MIT-licensed. Changes were made: its patterns are deduplicated against the Wikipedia
+inventory, reworded into this catalog's entry form, and classified; its rewrite guidance is
+adapted separately into [`rewrite-guide.md`](rewrite-guide.md).
+
 ## Upstream-drift record
 
 - **Claim**: this catalog's tell inventory derives from the source page revision cited above.
@@ -30,10 +40,21 @@ this file is licensed under
   sections exceeded the fetch window at catalog time and are recorded as section notes below,
   without entries. The recheck trigger covers closing this gap.
 
+Second record, for the Cursor source:
+
+- **Claim**: the "Cursor unslop additions" section and `rewrite-guide.md` derive from the commit
+  pinned in the attribution block, with the overlap map below accounting for every upstream
+  pattern.
+- **Basis**: the commit-pinned URL in the attribution block.
+- **As of**: 2026-08-19.
+- **Recheck trigger**: same as the Wikipedia record (each `ai-slop` release and each fleet
+  audit); the file is versioned with `pstack` releases, so a commit-pinned recheck is cheap.
+
 ## Inventory
 
-59 tells catalogued from the source revision. Entry marker: `### rule-<slug>: <name>`. The
-qualified id used in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
+59 tells catalogued from the Wikipedia source revision, plus 7 in the "Cursor unslop additions"
+section at the end of this file. Entry marker: `### rule-<slug>: <name>`. The qualified id used
+in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
 
 - **detectability**: `mechanical` (patterns a script can match) or `judgment` (needs a reader).
 - **applicability**: `general-prose` (any markdown/docs corpus) or `wikipedia-specific`
@@ -58,6 +79,20 @@ defaults. Outcomes:
 - `rule-negative-parallelism` ships without the source's third pattern ("X rather than Y"):
   too common in ordinary technical prose to fire on occurrence, recorded for post-V1
   density treatment.
+
+Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
+
+- The three new script rules calibrated clean: chatbot-artifact phrases, stacked hedges, and the
+  distinctive filler phrases each measured 0 to 3 occurrences corpus-wide; "in order to" measured
+  20, low enough to fire per occurrence (each hit has a mechanical fix, so volume is work, not
+  noise).
+- `rule-abstract-metaphor-jargon` stays rubric, not script, on measurement: "substrate" alone hit
+  114 times in legitimate technical use on this corpus. A word-list scan cannot make the
+  literal-versus-metaphor call the tell turns on.
+- `vocab_add` candidates "utilize", "leverage", "facilitate" (the Cursor plain-word list) joined
+  the shipped vocabulary default: "leverage" measured 32 occurrences here, but the density gate
+  (3.0/1000 words, minimum 3 hits per file) kept the rule quiet on every file, so the shipped
+  default stays neutral while saturated files still flag.
 
 ## Content
 
@@ -208,7 +243,10 @@ defaults. Outcomes:
 - applicability: general-prose
 - v1: recorded-only
 - Bold-lead-in bullets substituting for prose structure. Post-V1 script candidate; high overlap
-  with legitimate reference-doc style, needs careful calibration.
+  with legitimate reference-doc style, needs careful calibration. Boundary refinement from the
+  Cursor source: the tell is a bold label whose colon restates the line ("**Performance:**
+  Performance improved..."); a bold lead-in that ends in a period, names the item, and is
+  followed by genuinely new detail is reference-doc style, not a tell.
 
 ### rule-em-dash: Overuse of em dashes
 
@@ -545,3 +583,109 @@ Era-bound tells the source dates to earlier model generations. Catalogued for co
 - applicability: wikipedia-specific
 - v1: recorded-only
 - Reference access dates inconsistent with publication dates.
+
+## Cursor unslop additions
+
+Tells adapted from the Cursor `unslop` skill (attribution block above) that the Wikipedia
+inventory does not already carry. The overlap map first, so the drift recheck can account for
+every upstream pattern; then the new entries.
+
+### Overlap map
+
+Upstream patterns already covered by a Wikipedia-derived entry, or routed to the rewrite guide
+(fix-time guidance is not a tell inventory):
+
+| Upstream pattern | Where it lives here |
+|---|---|
+| Puffery | `rule-significance-inflation` |
+| Name-dropping | `rule-vague-attribution` (rubric); `rule-canned-notability` records the Wikipedia-specific form |
+| Superficial -ing phrases | `rule-superficial-analysis` |
+| Promotional language | `rule-promotional-language` |
+| Vague attributions | `rule-vague-attribution` |
+| Formulaic challenges; generic conclusions | `rule-challenges-conclusion` (script core); optimism closers without the formula fall to the rubric via `rule-superficial-analysis` |
+| AI vocabulary; prefer the plain word | `rule-ai-vocabulary` (the plain-word list joined the shipped vocabulary default; see the calibration record) |
+| Fancy ways to say "is" | `rule-copulative-avoidance` |
+| "Not just X, but Y" | `rule-negative-parallelism` |
+| Rule of three | `rule-rule-of-three` |
+| Synonym cycling | `rule-elegant-variation` |
+| Em dash overuse | `rule-em-dash`; the no-substitute-tell guardrail (no parentheses or en dashes in its place) is fix guidance in `rewrite-guide.md` |
+| Boldface overuse | `rule-bold-overuse` |
+| Inline-header lists | `rule-inline-header-lists` (its boundary refinement is from this source) |
+| Title case headings | `rule-title-case` |
+| Decorative emojis | `rule-emoji-formatting` |
+| Curly quotes | `rule-curly-artifacts` |
+| Cutoff disclaimers | `rule-knowledge-cutoff-disclaimer` |
+| Adding soul; plain speech (mechanism over feeling, sentence splitting, active voice, adverbs) | `rewrite-guide.md` (rewrite disciplines, not detection tells); the mechanism-over-feeling test also flags via `rule-mechanism-free-claims` below |
+
+### rule-chatbot-artifacts: Chat-turn residue and sycophancy
+
+- detectability: mechanical (phrase core), judgment (tone residual)
+- applicability: general-prose
+- v1: script
+- Assistant chat-turn phrasing committed as document prose: "I hope this helps", "Let me know if
+  you...", "Feel free to ask", "I'd be happy to", "Happy to help", and the sycophancy openers
+  "Great question" and "You're absolutely right". The phrase list is the script rule; overall
+  conversational or flattering tone without a listed phrase falls to the rubric alongside
+  `rule-collaborative-communication`. Merges the source's "chatbot phrases" and "sycophantic
+  tone" patterns; bare "Certainly!" and "Of course!" were left off the phrase list as too common
+  in legitimate prose.
+
+### rule-filler-phrases: Filler phrases
+
+- detectability: mechanical
+- applicability: general-prose
+- v1: script
+- Multiword filler with a shorter exact equivalent: "in order to" (for "to"), "due to the fact
+  that" (for "because"), "it is important to note that", "it is worth noting that", "it should
+  be noted that" (all deletable). Fires per occurrence; each hit has a mechanical rewrite.
+
+### rule-stacked-hedging: Stacked hedging
+
+- detectability: mechanical (stacked core), judgment (residual)
+- applicability: general-prose
+- v1: script
+- Two hedges propping each other up: "could potentially", "may potentially", "might possibly",
+  "could possibly", "might potentially". One hedge is a claim about uncertainty; two is filler.
+  Hedging spread across a sentence ("it could be argued that it might") needs a reader and falls
+  to the rubric.
+
+### rule-false-ranges: False ranges
+
+- detectability: judgment
+- applicability: general-prose
+- v1: rubric
+- "From X to Y" where X and Y sit on no meaningful scale ("from dashboards to microservices"):
+  a list dressed as a spectrum. The construction is mechanical but the scale call is not, and
+  legitimate ranges ("from 2 to 10 seconds") dominate; rubric only.
+
+### rule-colon-crutch: Colon as mid-sentence connector
+
+- detectability: judgment
+- applicability: general-prose
+- v1: rubric
+- A colon splicing two clauses where neither a list nor an example follows, letting the first
+  clause lean on the second instead of standing alone. Colons before lists and examples are
+  fine; the connector use needs a reader to distinguish, so no script core ships.
+
+### rule-abstract-metaphor-jargon: Abstract metaphor nouns
+
+- detectability: mechanical (word cues), judgment (literal versus metaphor)
+- applicability: general-prose
+- v1: rubric
+- Metaphor nouns standing in for a plainer concrete word: "substrate", "wedge", "nexus", "locus",
+  "vantage", "north star", "flywheel", "bedrock", "endgame", "gold-plating", plus "primitive",
+  "harness", "scaffolding", "vector", "surface", "ratchet", "paradigm", "modality" in their
+  metaphorical (not domain-literal) senses. The tell turns on the literal-versus-metaphor call:
+  "harness" naming an actual test harness is not a tell. Calibration kept this out of the script
+  layer (see the calibration record's second pass). Replacements live in `rewrite-guide.md`.
+
+### rule-mechanism-free-claims: Feeling-words instead of mechanism
+
+- detectability: judgment
+- applicability: general-prose
+- v1: rubric
+- A sentence naming a feeling about the thing ("SQL you can read", "the database stays close at
+  hand") where the reader needs the mechanism or the number ("`.toSQL()` returns the exact string
+  sent to the database"). Two tests: can the sentence be restated as a concrete instruction,
+  fact, or number (if not, cut it); and could it appear unchanged in another project's docs (if
+  so, it says nothing about this one).

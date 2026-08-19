@@ -132,6 +132,25 @@ cat >"$MIDEMOJI" <<EOF
 The reaction was ${CHECKMARK} from the whole team.
 EOF
 
+CURSOR="$TEST_TMPDIR/cursor.md"
+cat >"$CURSOR" <<'EOF'
+# Cursor-derived rules
+
+Great question! I hope this helps, and let me know if you need more.
+We did this in order to ship, due to the fact that the deadline slipped.
+It could potentially fail here and might possibly regress there.
+We leverage tools to facilitate work and utilize helpers for the rest.
+EOF
+
+CURSORNEG="$TEST_TMPDIR/cursorneg.md"
+cat >"$CURSORNEG" <<'EOF'
+# Benign neighbors of the Cursor-derived patterns
+
+Feel free to customize the config for your repo. The run may fail on old
+shells, and a question mark ends each prompt. Sort keys in ascending order to
+keep diffs stable.
+EOF
+
 # --- Seed-rule cases -------------------------------------------------------------
 
 out="$(bash "$DETECT" "$SLOP" 2>&1)"
@@ -163,6 +182,25 @@ assert_contains "roster: rule-of-three density fires" "$out" "Finding: rule=ai-s
 
 out="$(bash "$DETECT" "$MIDEMOJI" 2>&1)"
 assert_not_contains "emoji negative: content-position emoji does not fire the formatting rule" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
+
+# --- Cursor-derived rules ----------------------------------------------------------
+
+out="$(bash "$DETECT" "$CURSOR" 2>&1)"
+assert_contains "cursor: chatbot-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-chatbot-artifacts"
+assert_contains "cursor: filler-phrases fires" "$out" "Finding: rule=ai-slop/audit/rule-filler-phrases"
+assert_contains "cursor: stacked-hedging fires" "$out" "Finding: rule=ai-slop/audit/rule-stacked-hedging"
+assert_contains "cursor: plain-word vocab additions fire the density rule" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
+
+out="$(bash "$DETECT" "$CURSORNEG" 2>&1)"
+assert_not_contains "cursor negative: benign near-miss phrasing stays quiet" "$out" "Finding:"
+
+CURSOROUT="$TEST_TMPDIR/cursor-out.txt"
+bash "$DETECT" "$CURSOR" >"$CURSOROUT" 2>&1 || true
+bash "$SCRIPT_DIR/emit-findings.sh" --from "$CURSOROUT" --out "$TEST_TMPDIR/findings/cursor.md" --branch test-branch >/dev/null 2>&1
+cursor_row="$(LC_ALL=C grep -m1 'rule-chatbot-artifacts' "$TEST_TMPDIR/findings/cursor.md")"
+assert_contains "cursor: chatbot-artifacts emits at IMPORTANT (crosswalk mirror)" "$cursor_row" "IMPORTANT"
+filler_row="$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TEST_TMPDIR/findings/cursor.md")"
+assert_contains "cursor: filler-phrases emits at SUGGESTION (crosswalk mirror)" "$filler_row" "SUGGESTION"
 
 # --- Exemptions ------------------------------------------------------------------
 

@@ -35,7 +35,10 @@ EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
-DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring"
+# The trailing three are the Cursor plain-word additions (catalog calibration
+# record, second pass): common enough alone that only the density gate makes
+# them safe to ship.
+DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate"
 
 # --- Rule registry ---------------------------------------------------------------
 # Pattern rules: slug|fired label|case-insensitive(0/1)|ERE
@@ -49,6 +52,9 @@ PATTERN_RULES=(
   "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|(knowledge cutoff|as of my last (update|training)|i cannot browse|i do not have access to real|as an ai( language)? model)"
   "rule-llm-citation-artifacts|citation residue|0|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
   "rule-utm-params|tracking parameter|0|utm_[a-z]+="
+  "rule-chatbot-artifacts|chat-turn residue|1|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right)"
+  "rule-filler-phrases|filler phrase|1|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
+  "rule-stacked-hedging|stacked hedge|1|((could|may|might) potentially|(could|might) possibly)"
 )
 # Density rules: slug|threshold key|default threshold|ERE (vocab ERE is built at runtime).
 # A density rule needs BOTH density >= threshold AND at least DENSITY_MIN_HITS

@@ -1,5 +1,5 @@
 ---
-description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-tolerance by default), emoji formatting, AI vocabulary, negative parallelisms, citation artifacts, and the rest of the Signs-of-AI-writing catalog, plus a judgment rubric for puffery, vague attribution, and promotional tone. Use when: 'check for AI slop', 'de-slop this doc', 'find AI tells', 'does this read AI-written', 'remove em dashes', or before publishing agent-written prose. Read-only by default; 'fix' as an explicit argument applies rewrites behind a semantic-diff guard and may be chained ('detect and rewrite'). Empty target audits the repo's tracked markdown, high-impact and high-velocity files first."
+description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-tolerance by default), emoji formatting, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedging, citation artifacts, and the rest of the catalog (Wikipedia's Signs of AI writing plus Cursor's unslop additions), plus a judgment rubric for puffery, vague attribution, promotional tone, metaphor jargon, and mechanism-free claims. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', or before publishing agent-written prose. Read-only by default; 'fix' as an explicit argument applies rewrites behind a semantic-diff guard and may be chained ('detect and rewrite'). Empty target audits the repo's tracked markdown, high-impact and high-velocity files first."
 argument-hint: "[audit|fix] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -19,7 +19,8 @@ Effective config: !`${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/n
 
 Detect and remove AI-writing tells in checked-in markdown prose. Two detection layers over one
 rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from Wikipedia's
-"Signs of AI writing", revision-pinned):
+"Signs of AI writing", revision-pinned, plus the additions adapted from Cursor's `unslop` skill,
+commit-pinned):
 
 1. **Deterministic**: `${CLAUDE_SKILL_DIR}/scripts/detect.sh` runs the catalog's `v1: script`
    rules. Its findings carry argued severity tiers (the detector-findings convention's crosswalk)
@@ -64,14 +65,18 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
 Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
 "detect and rewrite" request). Per file, worst-first:
 
-1. **Apply** the file's findings: rewrite each flagged line (em dashes to commas, colons,
-   periods, or restructured sentences; deflate stock phrases; collapse parallelisms; strip
-   `utm_*` params; delete or source residue artifacts) and the rubric rewrites for tells the
-   audit reported. Preserve meaning over style: when a rewrite would change what a sentence
-   asserts, skip it and record why. **Triads collapse toward one**: for a `rule-of-three`
-   finding, prefer the single strongest item and cut the rest — keep all three only when each
-   is load-bearing (a complete set the reader needs, not rhetorical rhythm; enumerating three
-   actual things is not a tell). Fewer parallel items is also less to maintain.
+1. **Apply** the file's findings per [`reference/rewrite-guide.md`](reference/rewrite-guide.md)
+   (read it first; it owns the replacement forms, the plain-speech target, and the voice
+   guidance): rewrite each flagged line (em dashes to commas, periods, or restructured
+   sentences — never parentheses or en dashes, which swap one tell for another; deflate stock
+   phrases; collapse parallelisms; delete filler and chat residue; strip `utm_*` params; delete
+   or source residue artifacts) and the rubric rewrites for tells the audit reported. Preserve
+   meaning over style: when a rewrite would change what a sentence asserts, skip it and record
+   why. **Triads collapse toward one**: for a `rule-of-three` finding, prefer the single
+   strongest item and cut the rest — keep all three only when each is load-bearing (a complete
+   set the reader needs, not rhetorical rhythm; enumerating three actual things is not a tell).
+   Fewer parallel items is also less to maintain. Close each file with the guide's self-audit
+   pass ("what still makes this read machine-written?") before handing it to verification.
 2. **Verify** with a fresh-context semantic-diff subagent (the compress model): hand it the
    before/after pair, blind to the rewrite rationale; it flags SEMANTIC LOSS (a qualifier,
    threshold, or claim dropped) and AMBIGUITY (a reading the original excluded). Revert every
