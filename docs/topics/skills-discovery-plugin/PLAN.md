@@ -228,4 +228,146 @@ skill-spawned subprocess's environment). A configurable window must arrive via
 
 ## Plan
 
-*Not yet written — `/planning:plan` fills this section.*
+**Scale:** medium-large (new skill + shared-harness change + 9-file registration).
+**Technique:** tracer bullet / walking skeleton — the design unknowns were resolved upstream
+(`design/`), and the remaining risk is *integration* across four data sources, so Phase 1 is a thin
+end-to-end slice that runs for real, not a horizontal layer.
+**Standards grounded:** repo `CLAUDE.md`; `docs/PLUGIN-PHILOSOPHY.md` (naming grammar, cross-plugin
+boundary); `docs/conventions/plugin-data-report-keying/`; `docs/conventions/hook-budget/`;
+`docs/extensibility-contract-smoke-tests.md` Test B; registration precedent commit `4a1184cd`.
+**TDD:** Red-Green-Refactor per phase. The pure classifier is the unit seam; `*.test.sh` covers the
+CLI surface. Tests ride each phase — there is no "testing phase".
+
+### Phase 1: Walking skeleton — end-to-end at T-baseline [TODO]
+
+The integration slice. Denominator → one source → three-field model → markdown, running for real.
+
+- Create `plugins/claude-ops/skills/audit-skill-starvation/SKILL.md` (frontmatter per the
+  `observability`/`inventory` pair; `metadata.workflow-stage: operator`, `cadence: weekly`).
+- `scripts/collect.sh`: call `inventory.py --out` for the fleet; synthesize `<plugin>:<leaf>` from
+  the nested dict keys; read native `skillUsage`, checking BOTH the qualified key and the bare-name
+  fallback.
+- `scripts/classify.*`: **pure** — `(denominator, events, config, clock) → model`. Emits the
+  `observation` field plus `withheld`. Clock is injected; nothing reads wall-clock inside.
+- `scripts/render.sh`: markdown only at this phase; prints every source horizon.
+- Honesty floor live from the first commit: `observed_horizon` per source, tiers clamped to it,
+  `not-observable` as the default verdict, exposure floor (30d created / 7d inactive) suppressing
+  cold verdicts.
+- Tests (red first): horizon-shorter-than-window → nothing renders `dormant`; empty store +
+  populated native → `not-observable`, never "never used"; install-seeded `pluginUsage` row → never
+  read as usage or recency.
+- **Sanity Check:** `bash plugins/claude-ops/skills/audit-skill-starvation/scripts/render.sh` exits 0
+  and its output matches `grep -q "observed_horizon"`; on this 3-day-old container the run reports
+  `not-observable` for the bulk of the fleet rather than a "never used" wall.
+  `bash plugins/claude-ops/skills/audit-skill-starvation/*.test.sh` exits 0.
+
+### Phase 2: Reachability — the frontmatter and enablement pass [TODO]
+
+`inventory.py` emits bare names with no frontmatter, so reachability needs its own read. This does
+NOT re-enumerate the fleet — it reads frontmatter only for skills inventory already named.
+
+- Frontmatter pass over each named skill's `SKILL.md`: `disable-model-invocation`, `description`
+  presence and length, `when_to_use`, malformed-YAML detection.
+- Enablement: prefer `claude_code.plugin_loaded` when present (dedupe by `plugin_id_hash`, exclude
+  `safe_mode="true"`); else the settings-scope enablement check.
+- Emit `reachability` as one of `model-reachable` / `user-only` / `hidden` / `misconfigured` /
+  `unknown`, with `misconfigured` carrying its sub-cause list and evidence.
+- Every rendered cause is labeled with provenance — assembled from scattered docs plus binary
+  strings, **never** presented as an official list.
+- Tests: a `disable-model-invocation` skill resolves `user-only`, not "unused"; malformed YAML
+  resolves `misconfigured` with fix-me copy, never a removal candidate; undetermined → `unknown`.
+- **Sanity Check:** run against this repo; `grep -c '"reachability"'` on the JSON equals the skill
+  count, and `grep -c 'user-only'` is at least 55 (59 of 213 local skills set
+  `disable-model-invocation`; 55 absorbs churn). No row renders `misconfigured` alongside removal
+  wording — a `grep -i "delete\|remove"` returns no line that also matches `misconfigured`.
+
+### Phase 3: Starvation — budget arithmetic, then the inferential band [TODO]
+
+- **Certain half:** budget = `skillListingBudgetFraction` (default 0.01) × context window ×
+  4 bytes/token, with `SLASH_COMMAND_TOOL_CHAR_BUDGET` overriding unconditionally. **Compute it —
+  never hardcode 8,000.** Demand = the sum of `description` + `when_to_use` per skill, each capped at
+  `skillListingMaxDescChars` (default 1,536), over the **competing set only**.
+- Exemptions applied before the sum: bundled prompt skills are exempt; `skillOverrides: name-only`
+  entries are excluded and their freed bytes are NOT returned to the pool.
+- `overflow_chars > 0` proves truncation → report magnitude and approximate name-only count. This is
+  the headline finding, and it needs no undocumented constant.
+- **Inferential half:** rank the competing set by the observable proxy; render a band, never a
+  cutoff; label it inferential; never claim exactness.
+- Tests: demand just under and just over budget (boundary); bundled + name-only excluded from both
+  the sum and the ranking; a 1M-token context window yields ~40,000 chars, not 8,000.
+- **Sanity Check:** a fixture pinning a 1M-token context asserts `budget_chars == 40000` (regression
+  guard on the derived-not-constant correction); `overflow_chars` sign matches each boundary
+  fixture; any band output satisfies `grep -q "inferential"`.
+
+### Phase 4: Source ladder — T-local and T-full [TODO]
+
+- Add the `skill-usage.jsonl` collector (scope-resolved via `claude_ops::resolve_skill_usage_dir`,
+  all three scopes) and the OTEL `claude_code.skill_activated` collector.
+- Tier resolution `T-full` / `T-local` / `T-baseline`; a claim renders only at a supporting tier, and
+  the run states its tier and why.
+- Reconciliation rule applied and printed — `max()` per skill, or native-for-lifetime and
+  JSONL-for-attribution. **Never sum.** OTEL-vs-native divergence is expected (telemetry is not
+  debounced; the native counter is) and is never reconciled away.
+- **No dedupe pass** — the hook writes one destination per invocation, and id-less
+  second-granularity rows would collapse genuine same-second invocations.
+- Redaction handled per event: `custom_skill` on `skill_activated`; `third-party` on the cost/token
+  attribution attributes, where user-defined names appear verbatim.
+- Tests: the same event present in native + JSONL is counted once, never summed; two genuine
+  same-second invocations count twice; a cross-marketplace same-leaf collision yields
+  `ambiguous-attribution`.
+- **Sanity Check:** the double-count fixture asserts the reconciled total equals the max and not the
+  sum; `jq -e '.tier' <json>` exits 0 and its value matches the sources actually present.
+
+### Phase 5: Outputs — keying, JSON, optional HTML [TODO]
+
+- Add `plugins/claude-ops/lib/state-key.sh` (claude-ops's first `lib/`), adopting the registered
+  helper rather than minting a second keying scheme.
+- JSON per `plugin-data-report-keying` Rule 1: one file per run **plus** an appended history line;
+  never a rolling `latest.json`. `schema_version`, additive-only.
+- `withheld` rendered as a first-class section in both markdown and JSON.
+- Optional self-contained HTML at larger scopes, mirroring observability's precedent; markdown stays
+  the durable record.
+- **Sanity Check:** the written path matches
+  `${CLAUDE_PLUGIN_DATA}/<component>/<repo-identity>/<worktree-discriminator>/` — assert with `find`
+  plus a regex; two consecutive runs produce two files and grow the history file by exactly one line
+  (`wc -l`); `jq -e '.withheld' <json>` exits 0.
+
+### Phase 6: Retention, routing, and registration [TODO]
+
+Touches at least 10 files — inventory table required.
+
+| File | Action | Rationale |
+|---|---|---|
+| `skills/observability/scripts/clean.sh` | MODIFY | prune `skill-usage.jsonl` via the hooks' path policy across `repo`/`user`/`data-dir`; needs its own retention flag (`--keep-days` is single-valued today) |
+| `skills/observability/SKILL.md` | MODIFY | retention table (1 of 4 locations) |
+| `skills/observability/context/read-routing.md` | MODIFY | retention table + the skill-reach routing row |
+| `skills/observability/context/operator-setup-retention.md` | MODIFY | retention table |
+| `.claude-plugin/plugin.json` | MODIFY | MINOR version bump; `"Ten skills"` → `"Eleven skills"` plus an enumeration clause |
+| `README.md` | MODIFY | intro count ten → eleven; one `## Skills` row. **Never hand-edit the generated options block** |
+| `CHANGELOG.md` | MODIFY | entry per precedent |
+| `docs/CATALOG.md` | REGENERATE | `node scripts/generate-catalog.mjs` |
+| `docs/SKILL-CHEAT-SHEET.md` | REGENERATE | `node scripts/generate-cheatsheet.mjs` |
+| `skills/audit-skill-starvation/evals/evals.json` | CREATE | per-skill evals, matching the reference pair |
+| `.claude-plugin/marketplace.json` | KEEP | its entry carries no skill enumeration — precedent `4a1184cd` did not touch it |
+| `docs/CATALOG-TAXONOMY.md` | KEEP | governs plugin categories, not skills; `claude-ops` is already `claude-code` |
+| `scripts/skill-leaf-name-registry.txt` | KEEP unless colliding | registering a non-colliding leaf is itself a CI failure |
+
+- **Sanity Check:** `bash scripts/check-skill-leaf-names.sh --check` exits 0;
+  `node scripts/generate-catalog.mjs --check` and `node scripts/generate-cheatsheet.mjs --check` exit
+  0; `python3 scripts/check-manifest-duplicate-keys.py` exits 0;
+  `python3 scripts/sync-plugin-options-docs.py --check` exits 0;
+  `claude plugin validate plugins/claude-ops` exits 0;
+  `grep -c "Eleven skills" plugins/claude-ops/.claude-plugin/plugin.json` equals 1; and
+  `clean.sh --dry-run` reports a skill-usage target under a `user`-scope fixture, proving the
+  silent-no-op defect is fixed.
+
+## Blast radius
+
+**MEDIUM-HIGH.** A new module plus a change to a *shared* harness (`clean.sh`) that other skills'
+retention depends on, plus generated catalog surfaces gated in CI. Mitigating: the skill is
+read-only, adds no hooks, and the only mutation anywhere in the change is one added pruning target.
+
+## Open questions
+
+- **Q18 (USER-RESERVED) — session transcripts in V1?** Surfaces at this approval gate, undecided.
+- **Q19 — leaf name** `audit-skill-starvation`: confirm via `scripts/check-skill-leaf-names.sh`.
