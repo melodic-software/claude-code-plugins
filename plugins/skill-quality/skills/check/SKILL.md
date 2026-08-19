@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-three-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, completion-criteria signal, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage warnings); `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-four-check static contract gate (frontmatter, explicit invocation mode, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, completion-criteria signal, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage warnings); `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...] — omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,7 @@ metadata:
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh` — twenty-three checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh` — twenty-four checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema, then runs the bundled `check-evals-quality.sh` — a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
@@ -221,6 +221,15 @@ and review against the invariant.
   checks is `docs-hygiene:write-for-agents` (steps state observable completion criteria; guard
   premature completion, post-completion obligations, and legwork) — when authoring new agent docs or
   fixing a flagged procedure, invoke `/docs-hygiene:write-for-agents` via the Skill tool.
+- Check 24 (explicit invocation mode) FAILs a marketplace plugin skill (`plugins/*/skills/*`) whose
+  frontmatter omits `disable-model-invocation`, and only WARNs anywhere else: the absent-key default
+  is already `false`, so a consumer's own skill is informed by this fleet's convention rather than
+  broken by it. A non-boolean value FAILs everywhere. The rubric that owns the decision — the
+  model-invoked default and the only three exception classes a `true` may claim — is
+  [`docs/conventions/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
+  Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
+  (ii), the PLUGIN-PHILOSOPHY setup contract), so every other `true` emits a note to hand-verify
+  rather than a warning no scan could clear.
 - `check-evals-quality.sh` requires `jq` (exit 2 without it — the schema validation of
   `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q9) are lexical heuristics:
   Q9 (set-coverage) detects refusal/anti-pattern cases by wording, so a set whose guardrail case

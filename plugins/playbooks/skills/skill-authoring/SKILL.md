@@ -181,6 +181,12 @@ The Skill tool takes one skill per call; a step needing two skills is two calls.
 `disable-model-invocation: true` is user-invoked only — no other skill can reach it via the Skill
 tool; tell the user to run `/plugin:skill` instead of attempting the call.
 
+**Choosing the mode at authoring time**: write `disable-model-invocation` explicitly on every skill,
+and decide its value against the
+[invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md)
+— it owns the model-invoked default, the only three exception classes a `true` may claim, and the
+when-to-split-by-invocation question. `skill-quality:check` enforces the explicit key.
+
 ---
 
 Source: [@trq212's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378)

@@ -2314,6 +2314,7 @@ printf '{"name":"demo","version":"0.1.0"}\n' >"$TMP/plugins/demo/.claude-plugin/
 printf '%s' '---
 name: aliased-skill
 description: "Repeats its directory. Use when: '"'"'checking the plugin redundancy warning'"'"'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -2760,6 +2761,141 @@ if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out";
   pass "fenced numbered list is ignored by the completion-criteria heuristic"
 else
   fail "fenced list should not fire the completion-criteria warn (rc=$rc): $out"
+fi
+
+# 24a. An explicit `disable-model-invocation: false` reports the fleet default
+#      and raises no missing-key finding.
+make_skill dmi-explicit-false '---
+name: dmi-explicit-false
+description: "State the mode. Use when: '"'"'stating the mode'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+A skill that states its invocation mode.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-explicit-false 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'invocation mode: model-invoked' <<<"$out" &&
+  ! grep -q 'no explicit disable-model-invocation key' <<<"$out"; then
+  pass "explicit disable-model-invocation: false reports the fleet default"
+else
+  fail "explicit false should report the model-invoked default (rc=$rc): $out"
+fi
+
+# 24b. Outside the marketplace plugin tree a missing key WARNs, never fails —
+#      the absent-key default is already false, so a consumer's own skill is
+#      informed, not broken, by this fleet's convention.
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
+  pass "missing key outside plugins/ warns without failing"
+else
+  fail "missing key outside plugins/ should warn, not fail (rc=$rc): $out"
+fi
+
+# 24c. Inside plugins/*/skills/* the same omission FAILs — the rubric is this
+#      fleet's convention and the fleet is normalized to it.
+PLUGIN_SKILLS="$TMP/plugins/demo/skills"
+mkdir -p "$PLUGIN_SKILLS/dmi-plugin-missing"
+printf '%s' '---
+name: dmi-plugin-missing
+description: "Omit the mode. Use when: '"'"'omitting the mode'"'"'."
+---
+
+## Purpose
+
+A plugin skill missing its invocation mode.
+
+## Gotchas
+
+None known.
+' >"$PLUGIN_SKILLS/dmi-plugin-missing/SKILL.md"
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$PLUGIN_SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" dmi-plugin-missing) 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
+  pass "missing key inside plugins/*/skills/* fails"
+else
+  fail "missing key inside plugins/ should fail (rc=$rc): $out"
+fi
+
+# 24d. A non-boolean value fails wherever it appears — the key is a boolean and
+#      a typo'd value would otherwise read as an unreviewed mode.
+make_skill dmi-bad-value '---
+name: dmi-bad-value
+description: "State a bad mode. Use when: '"'"'stating a bad mode'"'"'."
+disable-model-invocation: yes
+---
+
+## Purpose
+
+A skill whose invocation mode is not a boolean.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-bad-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "disable-model-invocation is 'yes'" <<<"$out"; then
+  pass "non-boolean disable-model-invocation fails"
+else
+  fail "non-boolean value should fail (rc=$rc): $out"
+fi
+
+# 24e. A non-setup `true` is noted for hand-verification against the exception
+#      classes — never warned, because no static scan can clear it.
+make_skill dmi-true-nonsetup '---
+name: dmi-true-nonsetup
+description: "Hide from the model. Use when: '"'"'hiding from the model'"'"'."
+disable-model-invocation: true
+---
+
+## Purpose
+
+A user-invoked-only skill that is not a setup skill.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-true-nonsetup 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'hand-verify it against an exception class' <<<"$out" &&
+  ! grep -q 'WARN.*exception class' <<<"$out"; then
+  pass "non-setup true is noted for hand-verification, not warned"
+else
+  fail "non-setup true should emit a hand-verify note (rc=$rc): $out"
+fi
+
+# 24f. A `setup` skill's true is class (ii) by the setup contract — the one
+#      attribution a static scan can make on its own.
+make_skill setup '---
+name: setup
+description: "Install the thing. Use when: '"'"'installing the thing'"'"'."
+disable-model-invocation: true
+---
+
+## Purpose
+
+The setup skill.
+
+## Gotchas
+
+None known.
+'
+out="$(run setup 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'exception class (ii), setup contract' <<<"$out"; then
+  pass "setup skill's true is attributed to class (ii) deterministically"
+else
+  fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

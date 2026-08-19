@@ -1325,6 +1325,48 @@ else
   note "completion-criteria signal present (or no 3+-step numbered procedure)"
 fi
 
+# --- Check 24: explicit invocation mode --------------------------------------
+# Every skill states its invocation mode explicitly. The official default for an
+# absent key is already `false` (docs table row, code.claude.com/docs/en/skills),
+# so this is an auditability rule rather than a behavior change: an explicit key
+# makes the choice reviewable, and a `true` reviewable against the exception
+# classes in the rubric that owns this decision —
+# docs/conventions/invocation-mode/README.md.
+#
+# Severity is scoped by tree, deliberately. A marketplace plugin skill
+# (plugins/*/skills/*) FAILs: the rubric is this fleet's convention and the fleet
+# is normalized to it. A skill outside that tree — a consumer's project or user
+# skill — WARNs instead, because the harness default already makes an absent key
+# behave as `false`, and failing someone else's tree over a house convention
+# would be wrong.
+#
+# The exception class a `true` claims is NOT machine-checkable: a static scan
+# cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
+# is deterministic — the PLUGIN-PHILOSOPHY setup contract names `setup` skills —
+# so every other `true` emits a note for hand-verification against the rubric
+# rather than a warning nothing can clear.
+
+INVOCATION_RUBRIC='docs/conventions/invocation-mode/README.md'
+DMI_RAW="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")")"
+DMI_VAL="$(printf '%s' "$DMI_RAW" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+if [[ -z "$DMI_VAL" ]]; then
+  if [[ "$SKILL_REL" == plugins/*/skills/* ]]; then
+    err "frontmatter has no explicit disable-model-invocation key — every skill in this marketplace states its invocation mode (the absent-key default is false; write it out so the choice is auditable). Rubric: $INVOCATION_RUBRIC"
+  else
+    warn "frontmatter has no explicit disable-model-invocation key — the absent-key default is false, so behavior is unchanged; writing it out makes the choice auditable (marketplace-fleet convention: $INVOCATION_RUBRIC)"
+  fi
+elif [[ "$DMI_VAL" != "true" && "$DMI_VAL" != "false" ]]; then
+  err "disable-model-invocation is '$DMI_RAW' — expected the boolean true or false"
+elif [[ "$DMI_VAL" == "true" ]]; then
+  if [[ "$SKILL_NAME" == "setup" ]]; then
+    note "invocation mode: user-invoked only — exception class (ii), setup contract"
+  else
+    note "invocation mode: user-invoked only — hand-verify it against an exception class ((i) side-effect/manual-timing, (ii) setup, (iii) maintainer-only) in $INVOCATION_RUBRIC; a static scan cannot attribute the class"
+  fi
+else
+  note "invocation mode: model-invoked (fleet default)"
+fi
+
 # --- Summary ---------------------------------------------------------------
 
 printf '\n'
