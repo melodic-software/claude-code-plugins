@@ -49,7 +49,7 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 ### 1. Gather source material
 
-Read the source document (PLAN.md/PRD.md located per the tier-selected lookup above — the configured tier's location only, never mix locations for one topic). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch full body and comments.
+Read the source document (PLAN.md/PRD.md located per the tier-selected lookup above — the configured tier's location only, never mix locations for one topic). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch its full body and comments through the bound adapter's **provider-mechanic** read (`gh issue view <n> --repo <owner>/<repo> --json body,title,comments` on GitHub) — the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing").
 
 Use the project's domain glossary vocabulary throughout (its ubiquitous-language / glossary files when present). Respect the project's architecture decision records in the area.
 
