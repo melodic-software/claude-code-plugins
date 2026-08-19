@@ -3,6 +3,61 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **`quality-gate` gains a tenth lens: `close-out` (#3027).** `spec` mode (0.22.0) judges one
+  branch against its originating item; a spec container is not a branch. Its work lands as many
+  merges over days or weeks, and `work-items:decompose` and `work-items:ship` both routed container
+  close-out at "the review plugin's spec-fidelity machinery" without a container-scoped basis
+  existing anywhere. `context/close-out.md` is that basis. It is **`spec` mode at container scale,
+  not a second spec lens** — the finding-class enum, the spec-line quoting rule, the
+  item-content-trust fence, the dispatch policy, and the both-directions judging all stay owned by
+  `context/spec.md` and are reused by citation. What close-out owns is *what* gets judged: which
+  container, which spec body, and which change set counts as "what the container shipped."
+- **A mode-scoped diff-basis override, because squash-merge destroys the ancestry.** This is the
+  first mode that does not use SKILL.md's single Review diff base at all — it derives its own, per
+  execution shape:
+  - `integration branch → single PR` — one branch, one PR, so the basis is an ordinary range: the
+    PR's `merge-base(base, head)`..head while open, its squash commit once merged.
+  - `per-item PRs` (the default) — the basis is a **commit SET, not a range**, and the reviewer
+    reads the union of the per-commit diffs. A two-dot `<first>..<last>` over the default branch
+    would sweep in every foreign commit merged between the container's first and last item, and the
+    review would then report findings against work the container never shipped. The cost of the set
+    — cross-item interactions must be read *across* diffs rather than in one composite hunk — is
+    stated in the report rather than hidden.
+- **A closing-commit ladder that degrades honestly.** Provider close-linkage
+  (`Issue.closedByPullRequestsReferences`, reduced the **inverse** way from the `work-items` github
+  adapter's in-flight check — that one keeps `OPEN` and drops `MERGED`; close-out wants exactly the
+  `MERGED` nodes and their `mergeCommit.oid`) → a heuristic scan of the default branch's squash
+  subjects, flagged as heuristic → ask → **skip with a note**. A failed query is never read as an
+  empty set, and a sub-item with several hits is disambiguated rather than guessed. The GitHub MCP
+  tools are named as the equivalent mechanic for sessions without `gh`.
+- **`no-code` and `unresolved` are kept apart** — found by dogfooding the mode against container
+  #2933, where an investigation item (#2945) closed on a recorded decision comment with zero PRs. A
+  *successful* close-linkage query returning no merged PRs is an **answer**: that item shipped no
+  code by design, its criteria are judged against its closing comment, and it stays out of the
+  basis. Only a *failed* query falls to the scan, and only the scan produces `unresolved`. The same
+  run showed why the scan needs reductions at all: the board-publishing commit matched **every**
+  sub-item it listed, so a candidate referencing many of the container's sub-items is dropped as
+  journey narration, and closing-keyword forms outrank bare mentions.
+- **Two gates and a dry run.** Close-out is pre-flight gated on its own basis rather than the branch
+  base, plus a rollup check that the container is actually finished — running the cumulative pass at
+  12/20 manufactures `missing` findings for work that is merely not done yet. `--dry-run` exercises
+  container / spec / shape / basis resolution and stops before dispatching, which is how the basis
+  is verified against a container still in flight.
+- **The verdict is posted to the container, not just to the findings directory.** The findings
+  location lives in the contract slice, which is pruned before merge — so the artifact that survives
+  close-out is the comment on the tracker item. The mode produces the verdict; the close itself
+  stays owned by `work-items:decompose`'s ship ritual, and a `missing` or `wrong` finding against a
+  stated acceptance criterion keeps the container open.
+- **Provider degradation stated outright.** The basis derivation is GitHub-only in practice, and the
+  file says so: `jira` declares `list-sub-items: false` (exit 6) and has no merge-commit concept, so
+  it degrades to asking the operator; `local-markdown` is barred from containers entirely and gets
+  no close-out path at all. A provider that cannot answer emits a skip note, never a silent partial
+  pass.
+
 ## [0.22.0]
 
 ### Added

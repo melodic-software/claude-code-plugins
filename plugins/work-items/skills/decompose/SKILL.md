@@ -246,9 +246,13 @@ over a published container (status, execution-shape discipline, next step) — i
 back through this ritual, which this skill owns. The container closes when the work ships:
 every sub-item closed, the plan's PR-time close-out done (`/planning:plan close-out` routes its
 container step through this section when the `planning` plugin is installed), and a close-out
-review of the shipped whole against the container body passed — use the review plugin's
-spec-fidelity machinery when installed, otherwise a manual pass against the Brief's acceptance
-criteria. Close with a comment linking the shipping PRs. The drift doctrine: a **closed**
+review of the shipped whole against the container body passed — `/review:quality-gate close-out
+--container <container-id>` when the `review` plugin is installed (it derives the cumulative diff
+basis per execution shape, judges the container's acceptance criteria, and posts its verdict back
+to the container), otherwise a manual pass against the Brief's acceptance criteria. That review
+produces the verdict; **this ritual owns the close** — a `missing` or `wrong` finding against a
+stated criterion keeps the container open and becomes a new item or a re-decompose. Close with a
+comment linking the shipping PRs. The drift doctrine: a **closed**
 container leaves the active views but stays findable, so no spec sits in the repo or the open
 tracker for future agents to trust over the code. Never leave a shipped container open as
 documentation, and never edit a closed container into a living doc — follow-up work is a new
