@@ -1,5 +1,24 @@
 # Changelog — session-flow plugin
 
+## [0.25.0]
+
+### Added
+
+- **`handoff` / `continue-in-background` — optional trailing purpose argument (refs #2955,
+  AI Hero course lane 1 #2899).** Both producers' surface extends from `[file|prompt] [topic]` to
+  `[file|prompt] [topic] [purpose...]`: everything after the topic token is optional
+  natural-language purpose text answering "what will the next session be used for?" — no quoting,
+  no new syntax, and existing invocations parse identically. The engine doc
+  (`reference/save-point.md`, "The purpose argument tailors emphasis only") owns the semantics:
+  purpose tailors emphasis only — the Resumption brief leads with it, Suggested skills are
+  selected for it, Remaining actions are ordered by it where ordering is otherwise free — and it
+  never drops or reorders the mandatory section set, never alters the emitted resume-prompt shape
+  (`find-handoff`'s detection contract is untouched), and never amends the Original goal: a
+  purpose that contradicts the goal is flagged at write time, not silently obeyed. Adopted from
+  upstream `mattpocock/skills` `handoff`'s purpose argument per the lane 1 decision
+  (`docs/upstream/aihero-course.md`, lane 1). Two eval cases cover the tailoring bounds and the
+  conflict flag.
+
 ## [0.24.0]
 
 ### Added
