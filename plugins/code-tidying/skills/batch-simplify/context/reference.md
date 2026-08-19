@@ -31,7 +31,7 @@ Present a final report:
 ```text
 ## Batch Simplify Results
 
-Scope: {scope}  (e.g., "48h" or "branch chore/misc-maintenance vs main")
+Scope: {scope}  (e.g., "48h", "branch chore/misc-maintenance vs main", or "repo — whole repository")
 Files scanned: {total_files}
 Groups processed: {group_count}
 

@@ -55,6 +55,64 @@
         "Presents the consolidated deferred list to the user grouped by priority",
         "Files work items for actionable deferred concerns (tracker plugin, gh issue create, or explicit user presentation)"
       ]
+    },
+    {
+      "id": 5,
+      "name": "argument-parsing-is-token-exact",
+      "prompt": "/batch-simplify rebranch",
+      "expected_output": "Does not route to branch mode. 'rebranch' merely contains the substring 'branch'; it equals no branch trigger phrase and matches no time-window pattern, so the skill asks the user what was meant rather than guessing.",
+      "files": [],
+      "expectations": [
+        "Does NOT treat 'rebranch' as a branch-mode request (substring containment is not a match)",
+        "Does not silently fall back to the 48h default for an argument it cannot classify",
+        "Asks the user what scope was intended, per the detection heuristic's unknown-argument rule",
+        "The docs flag is stripped token-wise: a token is dropped only when it equals 'docs', so an argument containing those letters is left intact for the mode parser"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "repo-mode-gates-on-a-confirmed-inventory",
+      "prompt": "/batch-simplify repo",
+      "expected_output": "Enters repo mode, discovers the whole-repository file universe, refuses to start if the sweep universe carries tracked modifications, and presents an inventory summary for confirmation before dispatching any simplifier agent.",
+      "files": [],
+      "expectations": [
+        "Routes 'repo' to repo mode rather than the 48h default or the ask-the-user rule",
+        "Discovers files with git ls-files --cached --others --exclude-standard anchored to the repository root, not a time-window or branch diff",
+        "Checks for tracked modifications in the sweep universe only, and does not refuse on the basis of the working-notes location",
+        "Presents an inventory summary — file count, group count, wave plan, scale estimate, exclusions by class — and waits for confirmation before spawning any simplifier",
+        "Does NOT dispatch simplifier agents before the user confirms",
+        "Loads context/repo-mode.md for the repo-scale machinery rather than improvising it"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "empty-scan-offers-repo-mode-without-escalating",
+      "prompt": "/batch-simplify 24h",
+      "expected_output": "Finds no changed code files in the window, reports that, and names repo mode as an option the user may choose. It does not widen its own scope.",
+      "files": [],
+      "expectations": [
+        "Reports that no code files changed in the 24h window and exits",
+        "Names /code-tidying:batch-simplify repo as an available next step in that same report",
+        "Does NOT begin a whole-repository sweep on its own — offering is not entering",
+        "Waits for the user to ask before any repo-mode work starts"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "repo-mode-verifies-and-files-per-its-own-doctrine",
+      "prompt": "I reviewed the inventory summary you just presented for the repo-mode run. It looks right — go ahead and run it.",
+      "expected_output": "Treats the reply as the confirmation the gate was waiting on and proceeds with the planned run: each group through a simplifier and then a fresh-context refutation verifier, one pull request per wave, work items filed for High-priority deferrals only while every deferral is persisted to the run-state inventory.",
+      "files": [],
+      "expectations": [
+        "Proceeds from the already-presented inventory rather than re-discovering or re-planning the run",
+        "Runs a fresh-context verifier per group that tries to refute 'behavior preserved' — mandatory in repo mode, not optional as in the diff-scoped modes",
+        "Does NOT treat the end-of-run cross-ecosystem pass as sufficient on its own at repo scale",
+        "Reports groups with no mapped test suite as unmapped rather than as passing",
+        "Persists every deferred item to the run-state inventory at the consuming project's working-notes location, never a hardcoded path",
+        "Files work items for High-priority deferrals only, with no numeric cap, one item per concern rather than per site",
+        "Delivers one independently mergeable pull request per wave, merged before the next wave opens — not one repository-wide pull request",
+        "Keeps concurrency to a 4-6 simplifier soft cap and degrades to sequential under rate-limit pressure rather than retrying"
+      ]
     }
   ]
 }

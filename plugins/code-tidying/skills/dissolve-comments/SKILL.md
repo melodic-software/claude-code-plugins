@@ -1,5 +1,5 @@
 ---
-description: "Enforce self-describing, expressive code over changed files: a three-way comment triage that deletes zero-information comments, dissolves code-expressible comments into names and structure via behavior-preserving refactoring and then deletes them, and keeps only terse, load-bearing comments code cannot express (why, constraints, contracts). Applies edits: deletions are near-mechanical; refactors apply only behind a discovered test net, else they are proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), lane-hunting structural tidyings (tidy), windowed batch sweeps (batch-simplify), markdown noise (docs-hygiene audit-noise), adding missing why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
+description: "Enforce self-describing, expressive code over changed files: a three-way comment triage that deletes zero-information comments, dissolves code-expressible comments into names and structure via behavior-preserving refactoring and then deletes them, and keeps only terse, load-bearing comments code cannot express (why, constraints, contracts). Applies edits: deletions are near-mechanical; refactors apply only behind a discovered test net, else they are proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), lane-hunting structural tidyings (tidy), windowed or repo-wide batch sweeps (batch-simplify), markdown noise (docs-hygiene audit-noise), adding missing why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
 argument-hint: "[safe] [target]"
 disable-model-invocation: false
 user-invocable: true
@@ -100,7 +100,8 @@ ladder: [reference/safety.md](reference/safety.md).
   out-of-context residue; this applies edits across the full triage. Run the audit when you want
   findings without changes.
 - **Not `/code-tidying:tidy` or `/code-tidying:batch-simplify`.** No lane rotation, no scope
-  budget, no windowed waves — this is an on-demand enforcement pass over one diff or target.
+  budget, no windowed or repo-wide waves — this is an on-demand enforcement pass over one diff or
+  target.
 - **Not a bug-hunter or general simplifier.** `/code-review` and `/simplify` own those.
 
 ## Gotchas
