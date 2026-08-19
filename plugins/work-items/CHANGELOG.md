@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.1]
+
+### Added
+
+- **Re-decompose (rerouting) flow in `/work-items:decompose` (#2949):** a
+  documented usage pattern of existing seam verbs — not a new capability —
+  for when mid-flight review shows the destination is wrong. Five steps:
+  close unimplemented children as not-planned (provider-mechanic close, each
+  with a one-line comment linking the superseding direction; claimed items
+  are coordinated with, never closed from under their holder), keep
+  implemented children untouched, re-interview/edit the spec where it lives
+  (container body under the spec-on-tracker model, or the topic Brief when no
+  container exists), regenerate the remaining slices through the normal
+  draft → approve → publish steps (`create-item --parent --blocked-by`), and
+  continue on the updated frontier. Doctrine: **tickets are disposable, the
+  spec is editable** — slices are projections of the spec at decomposition
+  time and are re-projected, never hand-patched, when the spec moves. Bounds:
+  post-ship wrongness is a new spec, never a patch to a closed container;
+  small drift is an ordinary body edit, not a reroute. `/work-items:ship`'s
+  existing re-slice route lands on this flow.
+
 ## [0.36.0]
 
 ### Added

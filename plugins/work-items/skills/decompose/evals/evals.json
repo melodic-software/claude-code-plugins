@@ -83,6 +83,21 @@
         "Resolves the container label from the binding's config.container_label (default work-map) and adds the human-gated label instead of hard-coding label strings or making the container claimable",
         "States the close-at-ship ritual (close-out review against the container body, archival by closure) rather than leaving the container open as living documentation"
       ]
+    },
+    {
+      "id": 7,
+      "name": "re-decompose-reroute-disposable-tickets-editable-spec",
+      "prompt": "/work-items:decompose — mid-flight review showed our spec container's remaining direction is wrong: the export feature should stream, not batch. Two sub-items are already merged, one is claimed and in progress by another session, three are untouched. Close out the old tickets and cut new ones for the streaming direction.",
+      "expected_output": "Runs the re-decompose (rerouting) flow, not a fresh decomposition. Enumerates the container's children via the seam (list-sub-items --state all). The three untouched slices the new direction obsoletes are closed as not-planned through the bound adapter, each with a one-line comment linking the superseding direction. The claimed in-flight slice is NOT closed out from under its holder — the skill coordinates with the claim holder (or routes a stale lease to /work-items:track audit) before touching it. The two merged slices stay untouched — not reopened, relabeled, or edited. The spec is edited FIRST (the container body via an approved adapter body edit — or the topic Brief when no container exists) before any slices are regenerated; regeneration runs the normal draft steps and the approval gate holds — nothing publishes unapproved — with new slices created via create-item --parent --blocked-by. The disposable-tickets/editable-spec doctrine is what governs: slices are re-projected from the edited spec, never hand-patched. If the journey had already shipped, the skill would refuse to patch the closed container and open a new spec instead.",
+      "files": [],
+      "expectations": [
+        "Closes only the obsoleted unimplemented slices, as not-planned via the bound adapter, each with a one-line comment linking the superseding direction",
+        "Does not close the actively claimed slice out from under its holder — coordinates with the claim holder or routes a stale lease to /work-items:track audit first",
+        "Leaves already-implemented (merged) children untouched — no reopen, relabel, or edit",
+        "Edits the spec (container body via approved adapter edit, or topic Brief) before regenerating slices, never regenerating against the unedited spec",
+        "Holds the mandatory approval gate on regenerated slices and publishes them via create-item with --parent and native --blocked-by edges",
+        "Would treat post-ship wrongness as a new spec (new container or topic), never a patch to a closed container"
+      ]
     }
   ]
 }
