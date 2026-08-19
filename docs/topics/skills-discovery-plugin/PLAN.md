@@ -495,7 +495,29 @@ questions.
   plus a regex; two consecutive runs produce two files and grow the history file by exactly one line
   (`wc -l`); `jq -e '.withheld' <json>` exits 0.
 
-### Phase 7: Retention, routing, and registration [TODO]
+### Phase 7: Retention, routing, and registration [DONE]
+
+**Completed 2026-08-18.** Sanity-check evidence: `scripts/validate-plugins.sh` (the umbrella that
+already runs the catalog and cheat-sheet `--check` pair plus the contract validators) reports
+"Validation passed"; `check-skill-leaf-names.sh --check`, `check-manifest-duplicate-keys.py`,
+`sync-plugin-options-docs.py --check`, `sync-state-key.sh --check`, and
+`check-cross-plugin-source-drift.sh --check` all pass; `grep -c "Eleven skills"` on the manifest
+equals 1; `shellcheck` clean on `clean.sh`; markdownlint 0 issues; and `check-skill.sh` PASSes for
+BOTH `audit-skill-starvation` and the modified `observability`, 0 errors 0 warnings each.
+
+**The destructive path is proven safe by test, not by argument.** Test 9 grew eight assertions
+(32/32 pass), and the rollback property is asserted FIRST: with no skill-usage flag the 45-day rows
+survive a 30-day hook prune, so a run without the flag behaves exactly as before and reverting is
+dropping one branch. Then: the target uses its own 365-day window rather than inheriting
+`--keep-days`; `--dry-run` names the resolved target and modifies nothing; a short window does prune
+(so the branch is real, not inert); `data-dir` **exits 2 rather than guessing** a location from
+`CLAUDE_PLUGIN_DATA`; a traversing `--skill-usage-dir` exits 2; and an unknown scope exits 2 rather
+than defaulting.
+
+All six retention/flag surfaces moved together (the count AC 10 originally got wrong): `clean.sh`
+header and unknown-flag usage string, `observability/SKILL.md` argument-hint and retention table,
+`read-routing.md`, and `operator-setup-retention.md` — plus the new routing row pointing
+skill-reach questions at the new skill.
 
 Touches at least 10 files — inventory table required.
 

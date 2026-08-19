@@ -11,7 +11,10 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # Inline test helpers — self-contained, no external test lib (ships with the plugin).
 FAILED=0
 CASE_NUM=0
-pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"; }
+pass() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
+}
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s — expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
@@ -160,7 +163,7 @@ TODAY=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
 if date -u -d "45 days ago" +%s >/dev/null 2>&1; then
   OLD_45=$(date -u -d "45 days ago" +%Y-%m-%dT%H:%M:%SZ) # portability-ok: see if-guard above (#1510)
-  OLD_5=$(date -u -d "5 days ago" +%Y-%m-%dT%H:%M:%SZ) # portability-ok: see if-guard above (#1510)
+  OLD_5=$(date -u -d "5 days ago" +%Y-%m-%dT%H:%M:%SZ)   # portability-ok: see if-guard above (#1510)
 else
   OLD_45=$(date -u -v-45d +%Y-%m-%dT%H:%M:%SZ)
   OLD_5=$(date -u -v-5d +%Y-%m-%dT%H:%M:%SZ)
@@ -196,6 +199,55 @@ assert_eq "clean --keep-days 4 prunes 5-day-old" "2" "$after_hook" # only today'
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 4 --quiet) >/dev/null 2>&1
 after_hook2=$(lines_in "$HOOK_FX")
 assert_eq "clean is idempotent" "$after_hook" "$after_hook2"
+
+# --- 9s: skill-usage target (opt-in; its own window; its own resolved location) ---
+# The rollback property is asserted first and is the important one: with no
+# skill-usage flag this script must behave byte-for-byte as it did before the
+# target existed, so reverting the feature is dropping one branch.
+SU_FX="$clean_test_dir/.claude/observability/skill-usage.jsonl"
+: >"$SU_FX"
+for _ in 1 2 3; do
+  printf '{"ts":"%s","event":"SkillUse","skill":"a:one","source":"tool"}\n' "$OLD_45" >>"$SU_FX"
+done
+printf '{"ts":"%s","event":"SkillUse","skill":"b:two","source":"expansion"}\n' "$TODAY" >>"$SU_FX"
+
+# 9s-a: inert without the flag — the 45-day rows survive a 30-day hook prune.
+(cd "$clean_test_dir" && bash "$CLEAN" --keep-days 30 --quiet) >/dev/null 2>&1
+assert_eq "clean leaves skill-usage untouched without its flag" "4" "$(lines_in "$SU_FX")"
+
+# 9s-b: opted in with a long window, the same old rows still survive — proving
+# the target uses ITS OWN window rather than inheriting --keep-days.
+(cd "$clean_test_dir" && bash "$CLEAN" --keep-days 30 --skill-usage-scope repo --quiet) >/dev/null 2>&1
+assert_eq "skill-usage uses its own 365d window, not --keep-days" "4" "$(lines_in "$SU_FX")"
+
+# 9s-c: dry-run reports the resolved target without modifying it.
+su_out=$(cd "$clean_test_dir" && bash "$CLEAN" --dry-run --skill-usage-scope repo 2>&1 || true)
+case "$su_out" in
+*"skill-usage target"*) assert_eq "clean --dry-run names the skill-usage target" "1" "1" ;;
+*) assert_eq "clean --dry-run names the skill-usage target" "1" "0" ;;
+esac
+assert_eq "clean --dry-run preserves skill-usage" "4" "$(lines_in "$SU_FX")"
+
+# 9s-d: a short window does prune, so the branch is real and not inert.
+(cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope repo --keep-skill-usage-days 4 --quiet) >/dev/null 2>&1
+assert_eq "skill-usage prunes at its own short window" "1" "$(lines_in "$SU_FX")"
+
+# 9s-e: data-dir refuses to guess a location. CLAUDE_PLUGIN_DATA in a skill
+# subprocess was observed pointing at an UNRELATED plugin's data directory, so a
+# delete path is never derived from it.
+rc=0
+(cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope data-dir --quiet) >/dev/null 2>&1 || rc=$?
+assert_eq "data-dir scope demands an explicit dir (exit 2)" "2" "$rc"
+
+# 9s-f: a traversing dir is refused rather than resolved.
+rc=0
+(cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope repo --skill-usage-dir ../../etc --quiet) >/dev/null 2>&1 || rc=$?
+assert_eq "traversal in --skill-usage-dir rejected (exit 2)" "2" "$rc"
+
+# 9s-g: an unknown scope is refused rather than defaulted.
+rc=0
+(cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope nonsense --quiet) >/dev/null 2>&1 || rc=$?
+assert_eq "unknown skill-usage scope rejected (exit 2)" "2" "$rc"
 
 # 9e: missing files don't crash
 empty_dir="$TEST_TMPDIR/empty-clean"
