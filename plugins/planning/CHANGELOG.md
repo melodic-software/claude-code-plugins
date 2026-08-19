@@ -15,7 +15,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   installed), then returns and answers it in one line; the categorization taxonomy in
   `context/loop.md` gains a **Needs-an-artifact** arm beside resolvable / blocked / defer, marked
   explicitly as a route rather than a deferral. The prototype is the instrument that produces the
-  answer, not a deliverable. Adopted from the grilling-family upstream at the course lane 5 audit,
+  answer, not a deliverable. The detour honors the prototype skills' own model-initiated entry gate:
+  confirm the spike's scope and checkpoint the interview before handing off, which the ask-time
+  register write and the per-lock-in ledger/Brief persistence already supply. Adopted from the grilling-family upstream at the course lane 5 audit,
   where both validators grep-confirmed the route existed in our fleet only downstream, in
   `wayfind` / `plan` / `brainstorm`.
 
