@@ -659,5 +659,44 @@ class ChurnGitReaderTest(unittest.TestCase):
         self.assertIsNone(engine.read_churn(self.tmp, "untracked.md"))
 
 
+class ReportPathTest(unittest.TestCase):
+    """Report keying, and the environment variable that cannot be trusted."""
+
+    def test_path_carries_the_state_key_segments(self):
+        path = engine.report_path(
+            data_root="/data",
+            state_key="github.com/o/r/abcd1234",
+            stamp="20260818T000000Z",
+        )
+        self.assertIn("github.com/o/r/abcd1234", path)
+        self.assertTrue(path.endswith("20260818T000000Z.json"))
+        self.assertIn("audit-skill-starvation", path)
+
+    def test_refuses_to_build_a_path_without_a_state_key(self):
+        """Without the key every run from every repo overwrites the last, and a
+        read-back can serve one project's findings as another's."""
+        with self.assertRaises(ValueError):
+            engine.report_path(data_root="/data", state_key="", stamp="s")
+
+    def test_refuses_an_empty_data_root(self):
+        """CLAUDE_PLUGIN_DATA was observed pointing at an UNRELATED plugin's
+        data directory in a skill subprocess, so it is never taken on faith."""
+        with self.assertRaises(ValueError):
+            engine.report_path(data_root="", state_key="k", stamp="s")
+
+    def test_history_line_is_appended_not_overwritten(self):
+        import json
+        import pathlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = pathlib.Path(tmp, "history.jsonl")
+            engine.append_history(str(hist), {"run": 1})
+            engine.append_history(str(hist), {"run": 2})
+            lines = hist.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(lines), 2)
+            self.assertEqual(json.loads(lines[1])["run"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

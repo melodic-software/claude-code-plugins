@@ -175,6 +175,43 @@ def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
     return events, horizon
 
 
+COMPONENT = "audit-skill-starvation"
+
+
+def report_path(data_root: str, state_key: str, stamp: str) -> str:
+    """Where one run's JSON lands, per the plugin-data-report-keying convention.
+
+    ``<data_root>/<component>/<state-key>/<stamp>.json`` -- one file per RUN,
+    never a rolling ``latest.json``. ``${CLAUDE_PLUGIN_DATA}`` alone carries no
+    project, worktree, or session segment, so a fixed filename there is one file
+    per MACHINE: every repo overwrites the last, and a read-back can serve one
+    project's findings as another's.
+
+    Both inputs are required rather than defaulted. In a skill-spawned
+    subprocess ``CLAUDE_PLUGIN_DATA`` was observed pointing at an *unrelated*
+    installed plugin's data directory, so an empty value must fail loudly here
+    rather than silently write somewhere surprising.
+    """
+    if not data_root:
+        raise ValueError(
+            "data_root is required: CLAUDE_PLUGIN_DATA is not a dependable "
+            "per-plugin signal in a skill subprocess and must be resolved "
+            "explicitly by the caller"
+        )
+    if not state_key:
+        raise ValueError(
+            "state_key is required: without it every run from every repository "
+            "overwrites the last"
+        )
+    return f"{data_root.rstrip('/')}/{COMPONENT}/{state_key.strip('/')}/{stamp}.json"
+
+
+def append_history(path: str, entry: dict) -> None:
+    """Append one line to the run history. Never rewrites prior lines."""
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, sort_keys=True) + "\n")
+
+
 def read_churn(repo_root: str, rel_path: str, follow: bool = True) -> dict | None:
     """Authoring churn for one file, from git history.
 
@@ -672,6 +709,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fixture", help="path to a fixture JSON bundle")
     parser.add_argument("--render", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--now", help="RFC3339 instant to use as the clock")
+    parser.add_argument(
+        "--write",
+        metavar="DATA_ROOT",
+        help=(
+            "persist the JSON report under DATA_ROOT, keyed per the "
+            "plugin-data-report-keying convention. Pass the root explicitly — "
+            "CLAUDE_PLUGIN_DATA is not a dependable per-plugin signal here."
+        ),
+    )
+    parser.add_argument(
+        "--state-key",
+        help="repo-identity/worktree-discriminator, from lib/state-key.sh",
+    )
     args = parser.parse_args(argv)
 
     if not args.fixture:
@@ -693,6 +743,39 @@ def main(argv: list[str] | None = None) -> int:
         horizons=horizons,
         listing_config=listing_cfg,
     )
+
+    if args.write:
+        import os
+
+        stamp = clock.strftime("%Y%m%dT%H%M%SZ")
+        try:
+            path = report_path(args.write, args.state_key or "", stamp)
+        except ValueError as exc:
+            # A missing key is an operator-fixable mistake, not a crash: say
+            # what to run rather than printing a traceback.
+            print(f"error: {exc}", file=sys.stderr)
+            print(
+                'hint: pass --state-key "$(bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh")"',
+                file=sys.stderr,
+            )
+            return 2
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(model, handle, indent=2)
+        # One file per run PLUS an appended history line: a rolling latest.json
+        # would hand any future scheduled run an overwrite defect on day one.
+        append_history(
+            os.path.join(os.path.dirname(path), "history.jsonl"),
+            {
+                "stamp": stamp,
+                "tier": model["tier"],
+                "skills": len(model["skills"]),
+                "withheld": len(model["withheld"]),
+                "overflow_chars": model["listing"]["overflow_chars"],
+            },
+        )
+        print(path)
+        return 0
 
     if args.render == "json":
         print(json.dumps(model, indent=2))

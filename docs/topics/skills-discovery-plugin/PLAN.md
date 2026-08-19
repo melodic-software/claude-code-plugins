@@ -452,7 +452,27 @@ Added in plan review: acceptance criteria 11 and 12 had **no phase at all** in t
   `jq -r '.skills[]|select(.churn==null)' <json>` is non-empty for a non-locally-authored skill
   (blank, not 0); and the rendered section matches `grep -qv "wasted"`.
 
-### Phase 6: Outputs — keying, JSON, optional HTML [TODO]
+### Phase 6: Outputs — keying, JSON, optional HTML [DONE]
+
+**Completed 2026-08-18.** Sanity-check evidence: the written path is
+`<root>/audit-skill-starvation/github.com/melodic-software/claude-code-plugins/05a2a927/<stamp>.json`
+— component, repo-identity, and 8-char worktree discriminator, matched by regex. Two consecutive
+runs produce **2 files** and grow `history.jsonl` by **exactly 1 line** each; `jq -e '.withheld'`
+exits 0. Both state-key CI gates pass with the new carrier: `sync-state-key.sh --check` reports
+"All 2 plugin copies match", and `check-cross-plugin-source-drift.sh --check` reports no
+unregistered or drifted clusters — the failure plan review predicted, avoided by adding
+`plugins/claude-ops/lib/state-key.sh` to the `copies=` array in the same change. 52 unit tests
+green; `ruff` and `shellcheck` clean; `check-skill.sh --require-evals` PASS, 0 errors 0 warnings.
+
+**The untrusted-environment guard is enforced, not documented.** `report_path` raises on an empty
+`data_root` or `state_key` rather than defaulting, because `CLAUDE_PLUGIN_DATA` was observed in a
+skill subprocess pointing at an *unrelated* plugin's data directory. The CLI turns that into a clean
+exit 2 with the exact command to produce a key, not a traceback.
+
+**Deviation (recorded):** the optional HTML view is not built. Markdown is the durable record and
+JSON is the machine surface; HTML was always "optional at larger scopes" in the Brief, and with no
+live collector yet there is no large scope to render. Deferred rather than dropped — noted in Open
+questions.
 
 - Add `plugins/claude-ops/lib/state-key.sh` (claude-ops's first `lib/`), adopting the registered
   helper rather than minting a second keying scheme. **It is a gated sync cluster:** canonical at
