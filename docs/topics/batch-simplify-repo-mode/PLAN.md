@@ -232,7 +232,7 @@ bash scripts/check-changed-skills.sh origin/main
 Direct form, only when a single skill must be checked in isolation:
 `CHECK_SKILL_SKILLS_ROOT=plugins/code-tidying/skills bash plugins/skill-quality/scripts/check-skill.sh batch-simplify`.
 
-### Phase 1: Fix the argument parser [TODO]
+### Phase 1: Fix the argument parser [DONE]
 
 Independently shippable. These are **pre-existing defects**, not repo-mode work: the grammar must be
 coherent before a third scope value can be added to it. Ships as its own `fix:` commit and can be
