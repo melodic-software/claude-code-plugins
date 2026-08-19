@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0
+## [0.2.0]
 
 - Added a set of catalog entries inspired by
   [Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md),
@@ -42,7 +42,7 @@
 - Relay expectations narrowed to what is true: `rule-utm-params` is the one relay-applicable rule;
   every other rule is `/ai-slop:audit fix` work.
 
-## 0.1.0
+## [0.1.0]
 
 - Initial release: `audit` skill (read-only default, explicit `fix` action), `setup` skill,
   deterministic detector with the mechanical rule roster, judgment rubric, and the
