@@ -57,8 +57,16 @@ and confirm it yields a non-empty diff BEFORE dispatching any reviewer.
 - **Unresolvable base** — an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
   after a fetch (do NOT silently substitute a different base — that reviews the wrong diff), or no
   ladder ref resolves at all → report which ref failed and STOP.
-- **Nothing to review** — a truly clean tree, or untracked-only changes → say which, and STOP;
-  never stage files to manufacture a diff.
+- **Nothing to review** — no tracked diff against the base AND no untracked files → say so and
+  STOP; never stage files to manufacture a diff.
+
+**Untracked-only is reviewable here, and this is a deliberate divergence from `fanout`.** This
+skill's Shared inputs hand untracked files to the dispatched reviewer directly ("Shared inputs";
+the `self` and `slice` worker templates both read them), so a branch whose whole change is new
+files has a real change set — stopping on it would make a new-module or new-test review report
+"nothing to review" about work that is plainly there. `fanout` stops on that case because its
+surfaces receive only the merge-base diff, which cannot show an unstaged file. Review the untracked
+files in place; still never `git add` them.
 
 Either outcome dispatches ZERO reviewers: a lens run against an empty or wrong change set produces
 noise, not a verdict. `spec` mode adds one gate of its own on top of this one — an explicitly

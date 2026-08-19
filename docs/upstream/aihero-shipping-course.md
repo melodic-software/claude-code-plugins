@@ -115,20 +115,31 @@ withheld; three of five initial answers revised on evidence).
   perspective is a `lens`. Three incompatible senses were live before that note.
 - **C14 ADOPTED-corrected**: spec-source discovery ladder in `context/spec.md` — `--spec <path|id>`
   → item refs harvested from branch commits / PR body → the topic's contract slice → ask → skip
-  with a note. Three corrections over the course's version: (1) the seam's normalized item object
-  has **no `body` field**, so identity and `parent_id` come from `get-item` while spec text comes
-  from the **provider-mechanic read**; (2) a harvested bare `#N` is **promoted** to the qualified
-  `<provider>:<owner>/<repo>#<number>` form before use, since bare refs are never durable
-  identifiers; (3) the contract-slice rung keys on the **topic slug**, not the branch slug — the
-  branch axis is deliberately lossy. This is the first `review` → `work-items` cross-plugin seam
-  call in the marketplace, so the presence gate and the seam-absent degradation are explicit.
+  with a note. Corrections over the course's version: (1) the seam's normalized item object has
+  **no `body` field**, so spec text comes from the **provider-mechanic read**; (2) a harvested bare
+  `#N` is **validated** (strictly numeric; owner/repo to a repo-name shape) and then **promoted** to
+  the qualified `<provider>:<owner>/<repo>#<number>` form, with the read scoped by `--repo` to that
+  id's own repository — commit and PR text is attacker-influenceable through a fork PR, and a bare
+  number would read a same-numbered issue in the *current* repo; (3) the contract-slice rung keys
+  on the **topic slug**, not the branch slug — the branch axis is deliberately lossy. **Design
+  correction found in PR review:** the item is read through a documented public seam or the provider
+  mechanic, never by invoking the sibling plugin's seam CLI — `PLUGIN-PHILOSOPHY.md` forbids
+  discovering another plugin's installation directory, and no namespaced item-fetch action exists
+  today. So this is *not* the marketplace's first cross-plugin seam call; the provider-mechanic read
+  is the operative path, the rung works with no tracker plugin installed, and parent linkage (whose
+  authoritative source, `get-item`, is unreachable from here) degrades to best-effort or an explicit
+  `--spec`.
   Recorded limit: the contract slice is pruned before merge, so that rung goes empty post-merge and
   recovery is best-effort — which is why the tracker item is the durable spec home.
 - **C15 PARTIAL**: `fanout`'s fail-fast preflight ported into `quality-gate`, which had none. Two
   costs the course's version omits and this port carries: the gate is **mode-scoped** (`criteria`
   is a reference mode that legitimately runs on a clean tree and is exempt), and `quality-gate`'s
   narrow `allowed-tools` allowlist had to be **widened** with the git read verbs the gate needs or
-  it stalls headless.
+  it stalls headless. A third, found in PR review: the port must **not** copy `fanout`'s
+  untracked-only stop. `fanout` stops there because its surfaces receive only the merge-base diff,
+  which cannot show an unstaged file; `quality-gate` hands untracked files to the reviewer directly,
+  so a new-files-only branch is a real change set and stopping on it would report "nothing to
+  review" about work that is plainly there.
 - **C16 ALREADY-PRESENT**: both suppression halves — repo standards override a conflicting baseline
   smell, and skip what tooling already enforces — are carried in one sentence at
   `plugins/review/agents/code-reviewer.md`, corroborated in `quality-gate/context/criteria.md` and
