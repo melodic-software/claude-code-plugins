@@ -3,7 +3,7 @@ description: "Single-lens review checkpoint between 'code works' and 'code is re
 argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate spec [--spec <path|id>], /review:quality-gate slice <name>)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref:*)"]
+allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref:*)", "Bash(git fetch:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
 shell: bash
 metadata:
   workflow-stage: review
