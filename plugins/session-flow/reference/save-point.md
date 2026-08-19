@@ -17,6 +17,15 @@ with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the 
 memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*` — create
 it (announced) when absent; never edit the consumer's root `.gitignore`.
 
+**Worktree caveat.** A save-point written inside a `git worktree` checkout resolves its memory
+root within that worktree, so the handoff file lives there — and dies with `git worktree remove`.
+That is acceptable only when the worktree completes as a merged PR unit: the work is durable in
+merged history by the time the worktree goes. When pausing un-merged worktree work, write the
+handoff from the main checkout instead, or rely on `/session-flow:clean-stop`'s
+preserve-before-remove step — before removing a worktree it inspects the ignored content a plain
+`git status` hides (`git status --ignored`) and preserves or surfaces anything not reproducible,
+generated handoff data included.
+
 ## Locate the position first
 
 Before emitting anything, establish where the work stands: if a plan or checklist artifact backs

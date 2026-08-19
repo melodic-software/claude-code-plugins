@@ -87,13 +87,27 @@ specifically (e.g. "don't `/clear` between phases, keep going").
   fork (`context-guard`'s zone report is one) — never your own estimate of the remaining window
 - Quality degrading (context rot) — responses drifting, repeating, or looping. This is the signal
   that is yours to read, because decay shows up in the output and never in a budget number
+- Extending the session chain — the deliberate escape-and-resume cadence (save-point, `/clear`,
+  fresh session) whose handoff files carry the `session_id`/`previous_handoff` chain that
+  `/session-flow:retro` later walks for retrospective reconstruction. A first-class use this
+  skill owns, not a byproduct of the others
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
 - Last turn had an unexpected compaction
+- Crossing a boundary — handing the work to a colleague, another repository or checkout, or
+  another agent, or forking a mid-phase side task into its own session
 - Sharing state with another session or machine
 
-Going AFK but the work should keep moving → that is the sibling
-`/session-flow:continue-in-background` skill's job, and only on the user's explicit request.
+### Routing signals — which form to use when
+
+| Situation | Route |
+|---|---|
+| Deep-window escape with session-chain value | Full handoff file — the default |
+| Small follow-ups, no chain value | Prompt-only — accepting its documented retro-gap cost (no file, no chain pointer for `/session-flow:retro` to walk) |
+| The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
+| Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill — only on the user's explicit request |
+| The machine itself may go away | `/session-flow:clean-stop` semantics — make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
+| Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries — the line the other side re-resolves the file from |
 
 ## Fork beats compaction when the window is deep
 
@@ -110,6 +124,19 @@ matters, chosen deliberately, while a compaction summary carries forward whateve
 happened to keep, and the degradation that prompted the move rides along into the continued
 session. Judge the threshold by window position and response quality, never by a fixed token count
 — it shifts with model and configuration.
+
+## Reference other artifacts; promote durable value — never commit the file
+
+**Do not duplicate content captured in another artifact.** Content that already lives in a spec,
+plan, ADR, issue, commit, or diff is referenced by path or URL, never restated in the save-point.
+The engine's per-section guidance ("Summarize; never transcribe" in the structure doc's file-roles
+section) is this rule applied locally; it holds across the whole save-point, on both paths.
+
+**Promote the content, never the file.** When a handoff carries durable value — a decision, a
+constraint, a finding worth keeping beyond this task — promote that substance into a committed
+artifact (a topic contract, an issue, a PR body) and reference it from there. The handoff file
+itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
+user-controlled removal — nothing expires, sweeps, or ages these files out silently.
 
 ## Produce the save-point
 
