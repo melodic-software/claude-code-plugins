@@ -10,6 +10,18 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   Quote the user's goal verbatim in section 1, copy it from the prior file read off disk instead of
   re-deriving it, and write completion criteria as the goal-states they establish — a criterion that
   can be satisfied while the goal is no closer is a process milestone under the wrong heading.
+- **The file written, the prompt never emitted** — observed at high context occupancy: the handoff
+  file lands on disk with correct content, the checklist reports success, and the turn ends without
+  the rails prompt ever reaching the screen. The operator is left holding a `/clear` they cannot
+  resume from — worse than never running the skill, because the skill claimed to have run. The
+  inversion is what makes it easy: the engine's optional half (the file) gets delivered and its
+  mandatory half ("A resume prompt is ALWAYS emitted") gets dropped, while every STOP instruction in
+  the skill reads as licence to end the turn once the file exists. Two rules exist against it, and
+  they are the same rule from both ends: STOP ends the underlying task, never the response before
+  the prompt is on screen (SKILL.md, "What STOP means"); and the rails block plus its below-rail
+  `/loop` re-arm notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
+  when it happens anyway: `/session-flow:find-handoff` rung 1 globs the handoffs dir and needs no
+  transcript.
 - **Prompt-only when durability is required** — prompt-only fits small, self-contained follow-ups;
   when a plan artifact, dead-ends, or load-bearing decisions back the work, write the durable
   handoff file. Any doubt → full handoff.

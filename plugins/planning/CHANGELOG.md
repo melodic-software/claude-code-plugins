@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Changed
+
+- **`questionnaire` is model-invoked (#2969).** Course lane 8's fleet grade found it was the one
+  `disable-model-invocation: true` skill matching none of the rubric's three exception classes: it
+  has no side effects beyond writing a Markdown document, is not a setup skill, and is not
+  maintainer-only. The flip was gated on re-checking for a latent rationale the grade could not see
+  — a trigger collision with `interview` — and there is none: the two are separated by who holds
+  the knowledge, and each description already routes to the other on that axis. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+- **`questionnaire` gains real trigger phrases.** 0.30.1 deliberately left them unoptimized because
+  a hidden skill's description is never matched against user text. Now that it is model-invoked,
+  the description carries phrases a user would actually type ("I don't know, that's the client's
+  call", "send this to someone else to answer", "write up questions for our security team") beside
+  the ones it already had. Every phrase already present is preserved verbatim.
+
 ## [0.30.7]
 
 ### Added

@@ -101,6 +101,20 @@ if [[ "$SYS" == *"/compact"* && "$SYS" == *"/session-flow:handoff"* && "$SYS" ==
 else
   fail "operator channel missing the continuation menu: $SYS"
 fi
+# The standalone-install fallback is asserted SEPARATELY from the menu above,
+# because naming `/session-flow:handoff` is not the same property as offering
+# something an operator can act on. context-guard is independently installable
+# (hook header), so on a solo install option 3's only durable-state path names a
+# command that does not exist — and it says so at the one moment state must
+# survive. A compression pass dropped this clause once with the whole suite
+# still green, which is the case for pinning it rather than trusting the menu
+# assertion to cover it: that check passes on a menu that has become
+# unactionable.
+if [[ "$SYS" == *"hand-written resume note"* ]]; then
+  ok "operator channel keeps a durable-state option a standalone install can act on"
+else
+  fail "operator channel lost the standalone-install fallback: $SYS"
+fi
 
 # 2. Same zone again → silent (once per transition).
 run "$H" "$D" s1

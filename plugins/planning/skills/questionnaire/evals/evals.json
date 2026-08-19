@@ -30,11 +30,11 @@
       "id": 3,
       "name": "routes-self-answerable-to-interview",
       "prompt": "/planning:questionnaire cache eviction policy — actually I think I know the answer, I just haven't decided.",
-      "expected_output": "The skill recognizes the decision is the user's own to make (no third-party knowledge holder) and routes to /planning:interview instead of producing a questionnaire for nobody.",
+      "expected_output": "The skill recognizes the decision is the user's own to make (no third-party knowledge holder) and hands off to /planning:interview — invoked via the Skill tool, not named as bare advice — instead of producing a questionnaire for nobody.",
       "files": [],
       "expectations": [
         "Output does not produce a questionnaire when no other person holds the knowledge",
-        "Output recommends /planning:interview (or an equivalent decision conversation with the user) instead",
+        "The hand-off to /planning:interview is an explicit Skill-tool invocation rather than bare /name prose left for the user to act on",
         "The skill never invents a recipient to justify the artifact"
       ]
     },
@@ -48,6 +48,17 @@
         "Output completes with the document written and the path reported despite no tracker being available",
         "Output does not hardcode a gh/GitHub call to track the questionnaire lifecycle",
         "Output does not attempt to send or transmit the questionnaire itself; delivery stays with the user"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "model-routes-third-party-decision-here",
+      "prompt": "I can't finish this plan until I know the data-retention window, and that's legal's call, not mine.",
+      "expected_output": "With no slash command typed, the request routes to this skill rather than to /planning:interview, because a third party holds the knowledge — the axis the two skills split on. It then interviews the send only (who legal is to the user, what they need back) and never quizzes the user about retention rules, which is the gap the questionnaire exists to close.",
+      "expectations": [
+        "The request routes here rather than to /planning:interview, on the grounds that another person holds the knowledge",
+        "Questions to the user cover the send (recipient, what is needed back), never the retention subject itself",
+        "The deliverable is a questionnaire document written to the topic's memory slice, with its path reported"
       ]
     }
   ]

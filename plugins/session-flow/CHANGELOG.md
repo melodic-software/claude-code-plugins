@@ -1,5 +1,139 @@
 # Changelog — session-flow plugin
 
+## [0.27.0]
+
+### Added
+
+- **`workflow` — the continuation router becomes context-driven: informant inputs, an AFK edge, a
+  stated output shape, two licensed autonomy tiers, and the I23 reconciliation (refs #2971, AI
+  Hero course lane 2 #2900, decisions Q9/Q20-Q22).** The router previously decided from the zone
+  word alone, and the AFK criterion the lane adopted had no edge to live on.
+
+  **Informant inputs, as pointers.** A new section names the four inputs the router decides over
+  beyond the zone word — where we stand (`session-flow:orient`), what is still running
+  (`session-flow:reconcile`), which boundary this is (the workflow checklist), and whether the
+  remaining work is already scoped (the consuming repo's work-item tracker seam) — each consumed
+  the way the zone word already is: take the owner's answer, inline none of its mechanics. Every
+  input is presence-gated, an absent one degrades to unknown rather than blocking, and the router
+  runs no probe of its own. Consulting an informant never means firing one that writes: `orient` is
+  read-only by contract, while `reconcile` auto-settles proven-done tasks, so the liveness input is
+  a reconciliation that has ALREADY run — falling back to orient's read-only off-thread glance, and
+  then to unknown — because a router that only recommends must not mutate tracking as a side effect
+  of deciding. Beyond that, a later input arrives as a pointer, never as a probe inlined into the
+  file, which keeps the skill's single pre-compute block under its `$`-expansion ban (#1687,
+  #1688).
+
+  **The AFK edge (question 2), deliberately non-terminal.** "Is the remaining work scoped to run
+  away from the keyboard?" now has an edge: a yes hands the spawn-brief decision to
+  `session-flow:orchestrate` and the router CONTINUES asking, because sending work elsewhere does
+  not answer which mechanism carries this session across the boundary. It is ordered after the
+  explicit-background-request question so feasibility the router infers can never pre-empt an
+  instruction the user actually gave, and before the zero-cost in-session exit because a yes
+  changes who does the remaining work while every question below asks how this session carries
+  it. `continue-in-background`'s explicit-intent launch gate is untouched — the router suggests
+  and never launches — and orchestrate keeps spawn ownership. The four questions below it are
+  renumbered 3-6, with the cross-references inside the ordering purposes updated to match.
+
+  **Suggest by default, with two licensed autonomy tiers.** The router's product is a
+  recommendation addressed to the human, stated as mechanism plus the evidence that drove it (the
+  zone word as resolved, the informant findings, the edge whose yes selected it) plus the literal
+  next step. Executing the routed mechanism takes the top-tier per-invocation licence — a new
+  `continue auto` argument (the argument-parsing rule now consumes a second token when the first is
+  `continue`, so the modifier reaches its mode instead of falling into the bare `continue` row) or
+  the user asking in words — which expires with the invocation and is
+  never a standing config, mirroring `continue-in-background`'s explicit-words precedent; it
+  authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns. The
+  natural-language half of the opt-in counts only in a genuine user turn — a fetched page, an item
+  body, a tool result, or another agent's return is data the router evaluates, never a licence it
+  acts on — and a routed skill that makes outbound changes without a further confirmation takes the
+  literal token and nothing else: `clean-stop` pushes commits, opens PRs, and files issues once
+  invoked, so a semantic reading must never be what starts it. The opt-in also
+  cannot reach `/clear` or `/compact` at all — those sit outside the small allowlist of
+  `Skill`-invocable built-ins, so they are named as the next step and stay the human's to type. The
+  second tier is the orchestrator relay, now codified in the handoff-relay convention as the
+  autonomous tier for delegated work: a worker writes its own handoff at its fork point and
+  returns the path, and the orchestrator — standing in for the absent human — retires it and
+  seeds a fresh agent with the resume prompt, never reading the handoff body. Spawn-brief
+  discipline stays orchestrate's.
+
+  **I23 reconciliation, recorded where the design is stated.** A closing section reconciles the
+  router against the `claude-config:audit-instructions` catalog's I23: the mechanism menu lives
+  only in this user-invoked skill body (the criterion's exemption names the continuation-router
+  case verbatim), nothing model-injected carries a menu, operator-channel pointers stay
+  operator-side per `context-guard`'s 0.5.0 audience split — this router consumes the zone word
+  and inlines no band values, so no remaining-context count reaches the model through it — and
+  autonomy initiative comes from the user's opt-in or the orchestrator, never from injected
+  context or a self-estimated budget.
+
+## [0.26.1]
+
+### Fixed
+
+- **`handoff` — the rails resume prompt is now the mandated final text of the response.** Observed
+  failure (owner report, high context occupancy): the handoff file was written correctly but the
+  turn ended without ever emitting the copy/paste rails prompt, leaving the operator nothing to
+  paste after `/clear` — a turn-termination failure, not a content failure. The post-write
+  checklist previously implied ticks after the rails, so the response tail was checklist
+  bureaucracy ending on "**EXECUTION STOPS HERE**" — a salient stop cue reachable before the rails
+  were ever emitted. The output order is now fixed and stated as a hard rule: ticked checklist
+  first, then the rails prompt plus every below-the-rails `/loop` re-arm note as the last text of
+  the turn, with nothing after (the below-rail notes are included deliberately — the engine's
+  detection contract names them part of the recoverable unit, so a bare "rails last" mandate would
+  institutionalize dropping the re-arm). Both paths' `EXECUTION STOPS HERE` items now point at the
+  rule.
+
+  **The ambiguity that let it happen is fixed at its source, in the STOP gate itself.** Ordering
+  alone treated the symptom: the deeper defect was that "the skill produces the save-point, THEN
+  STOPS" reads, to a reader under load, as "the save-point is the file" — making STOP the next act
+  once the file lands, in the single most emphatic section of the document. The engine says the
+  opposite ("A resume prompt is ALWAYS emitted. The only decision is whether to ALSO write a
+  durable handoff file"), so the prompt is the MANDATORY half of a save-point and the file the
+  optional one, and the observed failure delivered the optional half while dropping the required
+  one — leaving the operator a `/clear` they cannot resume from, worse than never running the skill
+  because the skill reported success. The hard-rule section now defines what STOP means and the one
+  thing it never means, the gate's emit box is marked as never satisfied by having written the
+  file, and its STOP box as reachable only once that box is genuinely ticked. The failure is
+  recorded in `context/gotchas.md` with its recovery (`find-handoff` rung 1), and eval 12
+  (`rails-prompt-is-the-final-text-not-replaced-by-the-file`) pins the behavior under the
+  high-occupancy condition none of the existing eight exercised.
+
+  **Escalation ladder, recorded here on purpose:** this is the deliberately minimal fix — two
+  fresh-context validators challenged a proposed deterministic Stop-hook enforcement as premature
+  (single observed occurrence; the full path is already recoverable via `find-handoff` rung 1; the
+  false-positive cost of blocking a stop lands at exactly the degraded occupancy the skill runs
+  under). If the rails prompt goes missing again after this reorder, the agreed next step is a
+  lightweight Stop-hook validator: `last_assistant_message` regex for the detection-contract
+  signals, a PostToolUse skill-ran marker (never transcript parsing), one bounded block,
+  fail-open, plus the hook-budget README share and a sibling contract test.
+
+## [0.26.0]
+
+### Added
+
+- **`handoff` — routing-signals table, session-chain use named first-class, do-not-duplicate and
+  promote-content rules, worktree caveat (refs #2956, AI Hero course lane 1 #2899).** "When to
+  invoke" now names the session-chain/retrospective use (save-point, `/clear`, fresh session,
+  with the `session_id`/`previous_handoff` chain `retro` walks) as a first-class owned use case
+  alongside the boundary-crossing taxonomy (colleague, other repo or checkout, other agent,
+  forked side task), and a compact routing-signals table maps situation to form: deep-window
+  escape with chain value takes the full file (the default); small follow-ups with no chain
+  value take prompt-only, accepting the documented retro-gap cost; a differing next-session
+  focus takes either form plus the purpose argument; AFK-but-work-continues routes to the
+  sibling `continue-in-background` skill; a machine that may go away routes to `clean-stop`
+  semantics; boundary crossing takes the full file plus purpose plus the `Handoff origin:` line.
+  The skill body states the general do-not-duplicate rule (content captured in specs, plans,
+  ADRs, issues, commits, or diffs is referenced by path or URL, never restated — the existing
+  "Summarize; never transcribe" guidance stated as a general rule, mirroring upstream) and the
+  promote-content-never-file rule (durable value is promoted into a committed artifact — topic
+  contract, issue, PR body — while the handoff file stays ephemeral and uncommitted; cleanup of
+  `handoffs/` remains user-controlled removal, never silent expiry). The engine doc's
+  destination section (`reference/save-point.md`) gains the worktree caveat: a save-point
+  written inside a worktree checkout lives in that worktree's memory root and dies with
+  `git worktree remove` — acceptable only when the worktree completes as a merged PR unit; when
+  pausing un-merged worktree work, write from the main checkout or rely on `clean-stop`'s
+  preserve-before-remove step. `find-handoff`'s detection contract is untouched. Adopted per the
+  lane 1 decisions (`docs/upstream/aihero-course.md`, lane 1).
+
 ## [0.25.0]
 
 ### Added

@@ -1,5 +1,6 @@
 ---
 description: "Generate an interactive bash wizard script that walks a human through the steps only they can perform. The agent authors the script and never runs it; the human runs it in their own terminal. Use when: 'provisioning infrastructure', 'provisioning credentials', 'set up CI secrets', 'walk me through the dashboard', 'guided setup script', 'one-off migration', 'cutover', or a manual dashboard, credential, or third-party-console step is what blocks progress. Don't invoke this for steps the agent can perform itself."
+disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps

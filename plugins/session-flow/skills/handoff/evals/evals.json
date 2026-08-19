@@ -148,6 +148,20 @@
         "The reasoning recognizes that prompt-only writes no file and its delivery may hand the rails block to a background agent as the only thing it sees, so the purpose travels in the prompt or not at all",
         "The rails, the copy instruction above the top rail, and the rest of the detection-contract shape are unchanged — the purpose line is content between the rails, not a shape change"
       ]
+    },
+    {
+      "id": 12,
+      "name": "rails-prompt-is-the-final-text-not-replaced-by-the-file",
+      "prompt": "This session is deep into a long refactor and the context is nearly full — a zone warning just fired. Handoff.",
+      "expected_output": "The save-point is BOTH halves: the durable file AND the rails resume prompt, with the prompt emitted as the response's final text (after the ticked checklist, followed only by any below-rail /loop re-arm notes). Writing the file and ending the turn on the checklist or on 'EXECUTION STOPS HERE' is a failed handoff even when the file's content is correct — the engine mandates that a resume prompt is ALWAYS emitted and makes the file the optional half, so a turn that delivers only the file leaves the operator with a /clear they cannot resume from. STOP governs the underlying refactor, never the emission of the prompt.",
+      "files": [],
+      "expectations": [
+        "The rails resume prompt is actually emitted in the response — the handoff file existing on disk does not satisfy it",
+        "The rails block is the FINAL text of the response, after the ticked checklist; nothing follows it except below-the-rails /loop re-arm notes when a loop is active",
+        "The response does not end on the post-write checklist, on 'EXECUTION STOPS HERE', or on any summary that displaces the prompt",
+        "The reasoning treats STOP as ending the underlying refactor, not as licence to end the response once the file is written",
+        "The heavy context / zone warning is not treated as a reason to shorten or skip the prompt — it is the condition the save-point exists for"
+      ]
     }
   ]
 }

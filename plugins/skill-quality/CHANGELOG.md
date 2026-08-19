@@ -3,6 +3,19 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **`check`: Check 24 — explicit invocation mode (#2968).** Every skill states
+  `disable-model-invocation` explicitly. A marketplace plugin skill (`plugins/*/skills/*`) that
+  omits the key FAILs; anywhere else it WARNs, since the absent-key default is already `false` and
+  a consumer skill should be informed by this fleet convention rather than broken by it. A
+  non-boolean value FAILs everywhere. Class attribution stays hand-verified against
+  `docs/conventions/invocation-mode/README.md`: only a `setup` skill's `true` is decidable by a
+  static scan (class (ii), setup contract), so every other `true` emits a note rather than a
+  warning no scan could clear.
+
 ## [0.16.0]
 
 ### Added
