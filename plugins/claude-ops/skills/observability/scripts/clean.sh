@@ -242,6 +242,10 @@ prune_file() {
     "$label" "$before_lines" "$after_lines" "$pruned" "$before_bytes" "$after_bytes"
 }
 
+# Resolved once, above every consumer: the skill-usage data-dir branch below and
+# the OTEL delegation further down both need it.
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 prune_file "$HOOK_LOG" "ts"
 
 # --- skill-usage.jsonl (opt-in, its own window, its own resolved location) ---
@@ -303,7 +307,8 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     ;;
   esac
 
-  if [[ -z "$SKILL_USAGE_BASE" ]]; then
+  # data-dir builds its path from the supplied data root, not from a base.
+  if [[ "$SKILL_USAGE_SCOPE" != "data-dir" && -z "$SKILL_USAGE_BASE" ]]; then
     echo "ERROR: could not resolve a base directory for scope $SKILL_USAGE_SCOPE" >&2
     exit 2
   fi
@@ -339,7 +344,6 @@ fi
 # prune does not. It uses its own CC_OTEL_RETENTION_DAYS / CC_OTEL_BODY_RETENTION_DAYS env
 # windows (defaults 7 / 2), NOT --keep-days, and only stops the Collector when records
 # actually exceed a window (it dry-checks first).
-SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRUNE_OTEL="${SKILL_DIR}/otel/prune-otel-store.sh"
 if [[ -f "$PRUNE_OTEL" ]]; then
   log "clean: OTEL store (CC_OTEL_RETENTION_DAYS=${CC_OTEL_RETENTION_DAYS:-7}, CC_OTEL_BODY_RETENTION_DAYS=${CC_OTEL_BODY_RETENTION_DAYS:-2}; stops Collector only if records exceed a window)"

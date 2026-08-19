@@ -232,6 +232,21 @@ assert_eq "clean --dry-run preserves skill-usage" "4" "$(lines_in "$SU_FX")"
 (cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope repo --keep-skill-usage-days 4 --quiet) >/dev/null 2>&1
 assert_eq "skill-usage prunes at its own short window" "1" "$(lines_in "$SU_FX")"
 
+# 9s-d2: data-dir HAPPY PATH — the branch must reach the store the WRITER
+# actually produces (<data-root>/skill-usage/<repo-slug>), not a repo-relative
+# path. Without this the branch could abort or prune the wrong file and no test
+# would notice.
+su_data_root="$TEST_TMPDIR/plugin-data"
+su_slug_dir="$su_data_root/skill-usage/$(basename "$clean_test_dir")-$(printf '%s' "$clean_test_dir" | sha1sum | cut -c1-8)"
+mkdir -p "$su_slug_dir"
+printf '{"ts":"%s","event":"SkillUse","skill":"old:one"}\n' "$OLD_45" >"$su_slug_dir/skill-usage.jsonl"
+printf '{"ts":"%s","event":"SkillUse","skill":"new:two"}\n' "$TODAY" >>"$su_slug_dir/skill-usage.jsonl"
+su_dd_out=$(cd "$clean_test_dir" && bash "$CLEAN" --dry-run --skill-usage-scope data-dir --skill-usage-data-root "$su_data_root" 2>&1 || true)
+case "$su_dd_out" in
+*"$su_data_root/skill-usage/"*) assert_eq "data-dir resolves under the plugin data root" "1" "1" ;;
+*) assert_eq "data-dir resolves under the plugin data root" "1" "0" ;;
+esac
+
 # 9s-e: data-dir refuses to guess a location. CLAUDE_PLUGIN_DATA in a skill
 # subprocess was observed pointing at an UNRELATED plugin's data directory, so a
 # delete path is never derived from it.

@@ -26,9 +26,12 @@ Three independent fields per skill: `reachability` (can the model select it),
 collapsing them produces the libel above -- "cannot be selected" and "has not
 been seen" demand opposite actions.
 
-**Fixture-driven today.** The CLI reads a prepared bundle; the live collectors
-that would assemble one from a real installation are not wired yet. The parsers
-for each source exist and are unit-tested, but nothing calls them from disk.
+Run it live (the default) and it collects from the installation: the fleet and
+its frontmatter by walking a plugins root, the native counters from
+`~/.claude.json`, and the plugin's own store when its path is supplied. Each
+source is optional -- a missing one narrows the reported tier rather than
+failing the run. `--fixture` replays a prepared bundle instead, for tests and
+reproductions.
 """
 
 from __future__ import annotations
@@ -181,6 +184,115 @@ def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
         )
     horizon = min((e["ts"] for e in events), default=None)
     return events, horizon
+
+
+def parse_frontmatter(text: str) -> dict:
+    """Minimal YAML-frontmatter read for the fields reachability needs.
+
+    Deliberately not a YAML parser: this reads five scalar keys out of a fenced
+    block, and anything it cannot parse is reported as `_malformed` rather than
+    guessed. A real parser would be a third-party dependency the sibling engines
+    do not take, and a wrong-but-confident parse is worse here than an honest
+    "cannot tell" -- `misconfigured` is a fix-me, not a delete-me.
+    """
+    if not text.startswith("---"):
+        return {"_malformed": True}
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {"_malformed": True}
+    block = text[3:end]
+
+    out: dict = {}
+    key = None
+    for raw in block.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        if raw[:1] not in (" ", "\t") and ":" in raw:
+            key, _, value = raw.partition(":")
+            key = key.strip()
+            value = value.strip()
+            if value:
+                out[key] = value.strip('"').strip("'")
+                key = None
+        elif key and raw.strip():
+            # A folded/continued scalar; keep the first line's worth.
+            out.setdefault(key, raw.strip().strip('"').strip("'"))
+            key = None
+    if not out:
+        return {"_malformed": True}
+
+    return {
+        "description": out.get("description", ""),
+        "when_to_use": out.get("when_to_use", ""),
+        "disable_model_invocation": str(
+            out.get("disable-model-invocation", out.get("disable_model_invocation", ""))
+        ).lower()
+        == "true",
+        "user_invocable": out.get("user-invocable", out.get("user_invocable", "")),
+    }
+
+
+def collect_fleet(plugins_root: str) -> list[dict]:
+    """Walk a plugins root into denominator entries with frontmatter attached.
+
+    `inventory.py` owns "what is installed" but emits bare leaf names with no
+    frontmatter and no paths, so reachability cannot be answered from it alone
+    (a gap the design recorded). This walk supplies the frontmatter for the
+    skills it finds; it does not re-implement enablement, which stays `None` ->
+    `unknown` until a source can answer it.
+    """
+    import os
+
+    entries: list[dict] = []
+    if not os.path.isdir(plugins_root):
+        return entries
+    for plugin in sorted(os.listdir(plugins_root)):
+        skills_dir = os.path.join(plugins_root, plugin, "skills")
+        if not os.path.isdir(skills_dir):
+            continue
+        for leaf in sorted(os.listdir(skills_dir)):
+            path = os.path.join(skills_dir, leaf, "SKILL.md")
+            if not os.path.isfile(path):
+                continue
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    frontmatter = parse_frontmatter(handle.read())
+            except OSError:
+                frontmatter = {"_malformed": True}
+            entries.append(
+                {
+                    "qualified_name": f"{plugin}:{leaf}",
+                    "source": "plugin",
+                    # Enablement is not knowable from the filesystem alone, and
+                    # guessing it would libel a disabled plugin's skills.
+                    "plugin_enabled": None,
+                    "frontmatter": frontmatter,
+                    "path": path,
+                }
+            )
+    return entries
+
+
+def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
+    """Read `~/.claude.json` -> events + horizon, or nothing if absent."""
+    try:
+        with open(claude_json_path, encoding="utf-8") as handle:
+            blob = json.load(handle)
+    except (OSError, ValueError):
+        return [], None
+    first_start = blob.get("firstStartTime")
+    if not first_start:
+        return [], None
+    return parse_native(blob.get("skillUsage") or {}, _parse_ts(first_start))
+
+
+def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
+    """Read the plugin's own skill-usage store, if it exists."""
+    try:
+        with open(store_path, encoding="utf-8") as handle:
+            return parse_jsonl(handle.read().splitlines())
+    except OSError:
+        return [], None
 
 
 COMPONENT = "audit-skill-visibility"
@@ -407,6 +519,7 @@ def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
         "overflow_chars": overflow,
         "verdict": verdict,
         "competing_count": len(competing),
+        "starved_count": sum(1 for r in competing if r["verdict"] == "likely-starved"),
         "exempt_count": len(rows) - len(competing),
         "skills": rows,
     }
@@ -685,15 +798,19 @@ def _render_markdown(model: dict) -> str:
             lines += [
                 f"**Your skill listing is over budget by "
                 f"{listing['overflow_chars']:,} characters.** "
-                f"{listing['competing_count']} skills are competing for "
+                f"{listing['competing_count']} skills compete for "
                 f"{listing['budget_chars']:,} characters of description budget, "
-                f"and descriptions are dropped least-invoked-first — so the "
-                f"skills below are running name-only, which is why the model "
-                f"stops matching requests to them.",
+                f"and descriptions are dropped least-invoked-first — so roughly "
+                f"**{listing['starved_count']}** of them are running name-only, "
+                f"which is why the model stops matching requests to those.",
                 "",
-                "Which *particular* skills lost their descriptions is inferential:",
-                "the ordering comes from an undocumented scorer. Treat the ranking",
-                "as a likelihood band, not a cutoff line.",
+                f"The other {listing['competing_count'] - listing['starved_count']} "
+                f"competing skills keep their descriptions: only enough of the "
+                f"least-used tail is dropped to close the gap, not the whole set.",
+                "",
+                "*Which* particular skills lost theirs is inferential — the ordering",
+                "comes from an undocumented scorer. Treat the ranking as a likelihood",
+                "band, not a cutoff line.",
                 "",
             ]
         else:
@@ -768,7 +885,31 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--fixture", help="path to a fixture JSON bundle")
+    parser.add_argument(
+        "--fixture",
+        help="path to a prepared JSON bundle (tests and reproductions); omit to "
+        "collect from the live installation",
+    )
+    parser.add_argument(
+        "--plugins-root",
+        help="plugins directory to enumerate (default: ./plugins)",
+    )
+    parser.add_argument(
+        "--claude-json",
+        help="path to ~/.claude.json for the native counters",
+    )
+    parser.add_argument(
+        "--skill-usage",
+        help="path to a skill-usage.jsonl store (resolve it with the hooks' "
+        "scope policy; it is not guessed here)",
+    )
+    parser.add_argument(
+        "--context-window",
+        type=int,
+        default=200_000,
+        help="context window in TOKENS for the listing-budget arithmetic "
+        "(default 200000; the budget is derived from this, never hardcoded)",
+    )
     parser.add_argument("--render", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--now", help="RFC3339 instant to use as the clock")
     parser.add_argument(
@@ -786,19 +927,55 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if not args.fixture:
-        print("error: --fixture is required at this phase", file=sys.stderr)
-        return 2
+    if args.fixture:
+        bundle = _load_fixture(args.fixture)
+        clock = _parse_ts(args.now) if args.now else _parse_ts(bundle["now"])
+        horizons = {k: _parse_ts(v) for k, v in bundle.get("horizons", {}).items()}
+        events = [dict(e, ts=_parse_ts(e["ts"])) for e in bundle.get("events", [])]
+        denominator = bundle["denominator"]
+        cfg = Config(**bundle.get("config", {}))
+        listing_cfg = ListingConfig(**bundle.get("listing_config", {}))
+    else:
+        # Live collection. Each source is optional: a missing one narrows the
+        # tier rather than failing the run, which is the same honesty the
+        # verdicts themselves apply.
+        import os
 
-    bundle = _load_fixture(args.fixture)
-    clock = _parse_ts(args.now) if args.now else _parse_ts(bundle["now"])
-    horizons = {k: _parse_ts(v) for k, v in bundle.get("horizons", {}).items()}
-    events = [dict(e, ts=_parse_ts(e["ts"])) for e in bundle.get("events", [])]
-    cfg = Config(**bundle.get("config", {}))
-    listing_cfg = ListingConfig(**bundle.get("listing_config", {}))
+        clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
+        plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
+        denominator = collect_fleet(plugins_root)
+        if not denominator:
+            print(
+                f"error: no skills found under {plugins_root!r}; "
+                "pass --plugins-root <path> to point at a plugins directory",
+                file=sys.stderr,
+            )
+            return 2
+
+        events, horizons = [], {}
+        native_path = args.claude_json or os.path.expanduser("~/.claude.json")
+        native_events, native_horizon = collect_native(native_path)
+        if native_horizon:
+            events += native_events
+            horizons["native"] = native_horizon
+        if args.skill_usage:
+            jsonl_events, jsonl_horizon = collect_jsonl(args.skill_usage)
+            if jsonl_horizon:
+                events += jsonl_events
+                horizons["jsonl"] = jsonl_horizon
+
+        cfg = Config()
+        listing_cfg = ListingConfig(
+            context_window_tokens=args.context_window,
+            env_char_budget=(
+                int(os.environ["SLASH_COMMAND_TOOL_CHAR_BUDGET"])
+                if os.environ.get("SLASH_COMMAND_TOOL_CHAR_BUDGET", "").isdigit()
+                else None
+            ),
+        )
 
     model = classify(
-        denominator=bundle["denominator"],
+        denominator=denominator,
         events=events,
         config=cfg,
         clock=clock,

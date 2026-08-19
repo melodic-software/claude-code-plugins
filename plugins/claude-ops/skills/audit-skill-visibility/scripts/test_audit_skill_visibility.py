@@ -6,10 +6,19 @@ the failure it prevents, because a fixture whose purpose is forgotten gets
 "fixed" by the next person who sees it fail.
 """
 
+import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
-import audit_skill_visibility as engine
+# ISOLATION (#2840). The churn tests below build throwaway git repositories. An
+# inherited ABSOLUTE GIT_DIR overrides repository discovery and outranks `git
+# -C`, so a fixture's `git config` would write its throwaway identity into the
+# CALLER's .git/config — shared by every worktree of the clone — instead of into
+# the fixture. Cleared unconditionally, before any test spawns git.
+for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_v, None)
+
+import audit_skill_visibility as engine  # noqa: E402  (import follows the git-env clear above)
 
 
 def _utc(y, m, d):
@@ -858,6 +867,72 @@ class PerSourceHorizonTest(unittest.TestCase):
             horizons={"native": now - timedelta(days=3)},
         )
         self.assertEqual(model["skills"][0]["observation"]["value"], "not-observable")
+
+
+class FrontmatterParseTest(unittest.TestCase):
+    """Reads the few keys reachability needs, and admits when it cannot.
+
+    Frontmatter uses HYPHENATED keys (`disable-model-invocation`) while the
+    classifier keys on underscores; normalizing here is what stops a live run
+    from silently reporting every user-only skill as model-reachable.
+    """
+
+    def test_normalizes_the_hyphenated_invocation_key(self):
+        text = '---\ndescription: "d"\ndisable-model-invocation: true\n---\nbody\n'
+        self.assertTrue(engine.parse_frontmatter(text)["disable_model_invocation"])
+
+    def test_false_invocation_key_is_not_truthy(self):
+        text = '---\ndescription: "d"\ndisable-model-invocation: false\n---\n'
+        self.assertFalse(engine.parse_frontmatter(text)["disable_model_invocation"])
+
+    def test_reads_description_and_when_to_use(self):
+        text = '---\ndescription: "hello"\nwhen_to_use: "later"\n---\n'
+        parsed = engine.parse_frontmatter(text)
+        self.assertEqual(parsed["description"], "hello")
+        self.assertEqual(parsed["when_to_use"], "later")
+
+    def test_missing_fence_is_malformed_not_empty(self):
+        self.assertTrue(engine.parse_frontmatter("no fence here")["_malformed"])
+
+    def test_unterminated_fence_is_malformed(self):
+        self.assertTrue(engine.parse_frontmatter("---\ndescription: x\n")["_malformed"])
+
+
+class CollectFleetTest(unittest.TestCase):
+    """The live denominator walk."""
+
+    def test_walks_plugins_into_qualified_names(self):
+        import pathlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            skill = pathlib.Path(tmp, "myplugin", "skills", "myskill")
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(
+                '---\ndescription: "d"\n---\nbody\n', encoding="utf-8"
+            )
+            entries = engine.collect_fleet(tmp)
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["qualified_name"], "myplugin:myskill")
+        self.assertEqual(entries[0]["frontmatter"]["description"], "d")
+
+    def test_enablement_is_unknown_never_assumed(self):
+        """The filesystem cannot answer enablement, and guessing it would libel
+        a disabled plugin's skills as reachable."""
+        import pathlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            skill = pathlib.Path(tmp, "p", "skills", "s")
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(
+                '---\ndescription: "d"\n---\n', encoding="utf-8"
+            )
+            entries = engine.collect_fleet(tmp)
+        self.assertIsNone(entries[0]["plugin_enabled"])
+
+    def test_missing_root_is_empty_not_an_exception(self):
+        self.assertEqual(engine.collect_fleet("/nonexistent/path/here"), [])
 
 
 if __name__ == "__main__":
