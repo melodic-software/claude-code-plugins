@@ -1,5 +1,19 @@
 # Changelog — docs-hygiene plugin
 
+## [0.17.2]
+
+### Fixed
+
+- **The `markdownlint-cli2` requirement said "the other five skills do not use it" — wrong on the
+  count and wrong on the substance.** The plugin has eight skills, so "the other" is seven; and
+  `extract-ssot` does use it, naming it as one option for its ship-gate lint step. The sentence now
+  names its subjects instead of counting them: `compress` is the only skill that gates its entry
+  point on the linter, `extract-ssot` offers it as a lint option, and no other skill calls it. That
+  is the treatment this plugin's own `audit-noise` `enum-list` shape prescribes for a hardcoded
+  consumer count — a derivation or a category citation in place of a number that drifts on every
+  add. Found by `scripts/check-skill-count-claims.sh`, a new fleet gate for exactly this defect;
+  the count half of that gate is the mechanical counterpart to `enum-list`'s advisory half.
+
 ## [0.17.1]
 
 ### Changed

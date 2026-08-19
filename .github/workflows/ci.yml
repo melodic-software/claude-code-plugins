@@ -548,6 +548,27 @@ jobs:
       - name: Check for unregistered cross-plugin skill leaf-name collisions
         run: scripts/check-skill-leaf-names.sh --check
 
+  # A plugin's prose counts its own skills by hand ("bundling fourteen skills",
+  # "the other thirteen skills are zero-config") and nothing recomputes those
+  # numbers when a skill lands, so adding one silently falsifies every sentence
+  # that counted the old set. Measured: PR #3011 went stale on six such counts,
+  # each caught by a different reviewer rather than by anything mechanical, and
+  # session-flow's CHANGELOG records an "other eleven skills" line that was
+  # already off by one before that PR. Self-test first so a broken detector
+  # cannot mask a regression.
+  skill-count-claim-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run skill-count-claim tests
+        run: bash scripts/check-skill-count-claims.test.sh
+      - name: Check every skill-count claim against the tree
+        run: scripts/check-skill-count-claims.sh --check
+
   # A ${user_config.*} token in a plugin hook config silently drops the whole
   # hook entry whenever the key is unset (the declared userConfig `default` is
   # unimplemented upstream — anthropics/claude-code#46477), so the hook never
@@ -1382,6 +1403,7 @@ jobs:
       - cross-plugin-source-drift
       - detector-findings-crosswalk-gate
       - skill-leaf-name-gate
+      - skill-count-claim-gate
       - userconfig-argv-gate
       - hook-exec-form-gate
       - plugin-options-docs-gate

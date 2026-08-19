@@ -96,18 +96,27 @@ scripts/affected-tests.sh --explain       # ... and say why each one was selecte
 scripts/affected-tests.sh path/to/file.sh # explicit paths instead of a diff
 ```
 
-It maps a changed file to its co-located `*.test.sh`, to any suite that names
-it, and to its dependents transitively — and it fans a shared-lib change out to
-every carrying plugin by reading the `copies=(...)` array out of that lib's
+It maps a changed file to its co-located suite, to any suite that names it, and
+to its dependents transitively — and it fans a shared-lib change out to every
+carrying plugin by reading the `copies=(...)` array out of that lib's
 `scripts/sync-*.sh` manifest, the same manifest CI's `*-sync` lanes enforce. The
 fan-out is derived on every run, never transcribed, so a new carrying plugin is
 covered the moment it exists.
 
+All four ecosystems that carry suites here are selected, each by its own naming
+convention: shell `*.test.sh`, Node `*.test.js` and `*.test.mjs`, Python
+`test_*.py`, and Pester `*.Tests.ps1`. Only the shell suites are executed by
+`--run`, because the others are driven by lane-specific invocations that cannot
+be derived from a suite path; those are named as `NOT RUN` and `--run` exits 3
+rather than reporting success over suites that never executed.
+
 A changed file that maps to nothing is an **error**, not an empty selection —
 "zero suites" must never be read as "nothing to run". Path classes that
-genuinely carry no shell suite are recorded, with the CI lane that does cover
-them, in [`scripts/affected-tests-no-suite.txt`](scripts/affected-tests-no-suite.txt);
-`--allow-unmapped` is the escape hatch for everything else.
+genuinely carry no suite are recorded, with the CI lane that does cover them, in
+[`scripts/affected-tests-no-suite.txt`](scripts/affected-tests-no-suite.txt);
+`--allow-unmapped` is the escape hatch for everything else. That list is for
+prose and manifests, never for code: a source file with no coverage is supposed
+to fail here.
 
 The runner is deliberately sequential: parallelising it measured sublinear
 (the suites are spawn-bound), and several guardrails suites assert wall-clock

@@ -28,7 +28,8 @@ Invoke via `@review:<agent>` or let Claude delegate.
 
 - **`/review:quality-gate [mode]`** — the single-lens checkpoint between "code works"
   and "code is ready". Modes: `self` (fresh-context self-review), `code`, `architecture`,
-  `security`, `pr`, `criteria`, `slice <name>`, `restatement`.
+  `security`, `spec` (spec-fidelity — did the change deliver what the originating item, plan, or
+  brief asked for), `pr`, `criteria`, `slice <name>`, `restatement`.
 - **`/review:fanout [mode]`** — breadth review: fans out across the
   reviewer agents, the project's own per-concern review criteria docs, and optional
   orchestrator review plugins, then normalizes everything into one ranked findings report.

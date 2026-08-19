@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compose a conforming review-findings file from detect.sh output.
 #
-#   emit-findings.sh --from <detect-output> --out <path> [--branch <b>] [--tier <t>]
+#   emit-findings.sh --from <detect-output> --out <path> [--branch <b>]
 #
 # The FINDINGS HOME is never resolved here: the caller (the audit skill)
 # resolves it through the detector-findings convention's rung order and its
@@ -20,17 +20,20 @@
 # per the persist contract, coverage is the payload.
 set -euo pipefail
 
+# No `tier:` frontmatter is emitted. Both owner docs (context/persist-findings.md
+# and the detector-findings adopter row) say this producer omits it, and nothing
+# here computes a value: the retired --tier flag defaulted to a hardcoded
+# "medium" that described no property of the run.
 FROM=""
 OUT=""
 BRANCH=""
-TIER="medium"
 
 usage() {
   cat <<'EOF'
 emit-findings.sh — compose a review-findings file from detect.sh output.
 
 Usage:
-  emit-findings.sh --from <detect-output> --out <path> [--branch <b>] [--tier <small|medium|large>]
+  emit-findings.sh --from <detect-output> --out <path> [--branch <b>]
 
 --out is the CONVENTION-RESOLVED destination; if it exists, a -2/-3 suffix is
 appended (non-overwrite naming). --branch defaults to the current git branch.
@@ -62,11 +65,6 @@ while [[ $# -gt 0 ]]; do
     BRANCH="$2"
     shift 2
     ;;
-  --tier)
-    require_opt_value "$@"
-    TIER="$2"
-    shift 2
-    ;;
   --help | -h)
     usage
     exit 0
@@ -86,12 +84,6 @@ done
   echo "emit-findings.sh: --from file not found: $FROM" >&2
   exit 2
 }
-case "$TIER" in small | medium | large) ;; *)
-  echo "emit-findings.sh: --tier must be small|medium|large" >&2
-  exit 2
-  ;;
-esac
-
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
@@ -115,10 +107,11 @@ mkdir -p "$(dirname "$OUT")"
 
 DATE_UTC="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 
-LC_ALL=C awk -v branch="$BRANCH" -v tier="$TIER" -v date_utc="$DATE_UTC" '
+LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" '
   # Tier/Action mirror of the severity crosswalk (see header comment).
   function rule_tier(slug) {
-    if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts")
+    if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts" ||
+        slug == "rule-chatbot-artifacts")
       return "IMPORTANT"
     return "SUGGESTION"
   }
@@ -129,6 +122,12 @@ LC_ALL=C awk -v branch="$BRANCH" -v tier="$TIER" -v date_utc="$DATE_UTC" '
       return "Delete the assistant-frame sentence; check surrounding prose did not depend on it"
     if (slug == "rule-llm-citation-artifacts")
       return "Remove the generation artifact; decide whether the claim needs a real citation"
+    if (slug == "rule-chatbot-artifacts")
+      return "Delete the chat-turn sentence; keep any real content it carried in document register"
+    if (slug == "rule-filler-phrases")
+      return "Substitute per rewrite-guide.md: \"in order to\" -> \"to\", \"due to the fact that\" -> \"because\"; delete the note-phrases outright"
+    if (slug == "rule-stacked-hedging")
+      return "Keep the one hedge that states the real uncertainty; drop the other"
     return "Guarded rewrite via /ai-slop:audit fix (judgment; see crosswalk row)"
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
@@ -174,7 +173,7 @@ LC_ALL=C awk -v branch="$BRANCH" -v tier="$TIER" -v date_utc="$DATE_UTC" '
     next
   }
   END {
-    printf "---\ntype: review-findings\ndate: %s\nbranch: %s\ntier: %s\n---\n\n", date_utc, branch, tier
+    printf "---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n", date_utc, branch
     print "## Findings"
     print ""
     print "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |"

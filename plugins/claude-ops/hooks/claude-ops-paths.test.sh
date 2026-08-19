@@ -22,9 +22,13 @@ assert_eq "valid nested path resolves under project" "$PROJECT/telemetry/skills"
 for case_name in posix_absolute windows_drive windows_drive_relative unc traversal backslash_traversal; do
   case "$case_name" in
   posix_absolute) value="/tmp/skills" ;;
-  windows_drive) value='C:\\temp\\skills' ;;
+  # The backslashes in these arms are Windows path fixtures, not GNU grep \s
+  # classes; they are the input these cases exist to normalize, so the construct
+  # cannot be spelled away. Each marker rides its own arm rather than this block,
+  # so reordering the arms cannot silently detach an exemption from its site.
+  windows_drive) value='C:\\temp\\skills' ;; # portability-ok: Windows drive path fixture
   windows_drive_relative) value='C:skills' ;;
-  unc) value='\\\\server\\share\\skills' ;;
+  unc) value='\\\\server\\share\\skills' ;; # portability-ok: UNC share path fixture
   traversal) value='../outside' ;;
   backslash_traversal) value='..\\outside' ;;
   *)
@@ -80,6 +84,8 @@ assert_eq "repo_slug is stable across calls" "$slug" "$(claude_ops::repo_slug "$
 
 assert_eq "normalize_rel_segments drops ./ and //" ".claude/observability" \
   "$(claude_ops::normalize_rel_segments './.claude//observability/')"
+# portability-ok: 'telemetry\skills' is a backslash-separated path fixture, not
+# a GNU grep \s class — folding it is what this case asserts.
 assert_eq "normalize_rel_segments folds backslashes" "telemetry/skills" \
   "$(claude_ops::normalize_rel_segments 'telemetry\skills')"
 

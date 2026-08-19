@@ -6,6 +6,16 @@ semantics, and overlay naming. Per-concern keys and schema are versioned by thei
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table — 2026-08-19
+
+- **`ai-slop` row added.** The surface implemented the full three-layer cascade from its first
+  release and was never tabled, so the table under-reported a conforming surface rather than an
+  open gap. Found by a verifier while checking an unrelated exploration: the plugin registered its
+  Wikipedia source with `upstream-drift` but was invisible to this table, the same
+  shape-implemented-registration-missed defect in two conventions at once. Records the two
+  list keys that replace rather than merge (`vocab_add` / `vocab_remove`), and that no key is
+  policy-floor class.
+
 ## Implementers table — 2026-08-18
 
 - **`work-items` row (#2941).** Flipped from observed deviation (single-layer, CWD-to-root climb) to

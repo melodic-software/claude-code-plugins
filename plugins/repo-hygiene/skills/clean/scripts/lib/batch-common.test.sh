@@ -20,7 +20,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
 # --- 1. batch_normalize_input: backslash -> forward slash, CR + trailing slash ---
-got="$(batch_normalize_input 'D:\work\acme\keepme')"
+got="$(batch_normalize_input 'D:\work\acme\keepme')" # portability-ok: a Windows drive path fixture, not a GNU grep \w class — the backslashes are the input this case normalizes
 assert_contains "backslash path normalized to forward slashes" "$got" 'D:/work/acme/keepme'
 backslash=$'\134'
 assert_not_contains "no backslash remains" "$got" "$backslash"

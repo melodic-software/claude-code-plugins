@@ -25,6 +25,18 @@ Independent of severity — how sure the reviewer is that the finding is real:
 | `low` | Suspicious pattern, unverified |
 | `unscored` | The emitting surface reported no confidence — absence of a score is NOT low confidence |
 
+## Vocabulary
+
+**In this plugin, "axis" means one of the two above — severity or confidence.** They are the two
+independent scales every finding carries, and merging and ranking findings across them is what
+`fanout`'s normalization pipeline exists to do; a rule forbidding that would negate the pipeline.
+
+A *review perspective* — standards conformance vs spec conformance, code vs architecture vs
+security — is a **lens**, not an axis. Lenses are not comparable to each other and are presented
+separately (`quality-gate` runs one per invocation; `fanout` regroups its merged queue by dimension
+alongside the ranked view). Three incompatible senses of "axis" were live across this plugin's docs
+before this note; use "lens" for perspectives and keep "axis" for severity and confidence.
+
 ## Security severity mapping
 
 The `security-reviewer` agent emits P1–P5 (CVSS-anchored). Fold into tiers as: P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.

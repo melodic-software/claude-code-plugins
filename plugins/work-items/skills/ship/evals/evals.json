@@ -5,10 +5,11 @@
       "id": 1,
       "name": "ship-macro-map-per-item-shape-routes-work",
       "prompt": "/work-items:ship #300 — #300 is an open container item (labeled work-map) whose body carries the Brief and the line `**Execution shape:** per-item PRs`. Four of seven sub-items are closed; two are open and unblocked; one is open but blocked.",
-      "expected_output": "Fetches the container via the seam (get-item), reads sub-items (list-sub-items --state all) and the scoped frontier (list-frontier --parent), then reports a compact macro map: 4/7 closed, the two frontier items, one blocked. States the per-item-PRs discipline — separate branch/worktree per item from the default branch, per-item PR closes each item, seam claim as the collision signal, parallel items allowed — and routes the next step to /work-items:work. Reads only; mutates nothing on the tracker.",
+      "expected_output": "Resolves the container's identity and rollup through seam verbs (get-item, list-sub-items --state all, list-frontier --parent), and reads the Brief itself through the bound adapter's provider-mechanic read rather than expecting a body field back from get-item. Reports a compact macro map: 4/7 closed, the two frontier items, one blocked. States the per-item-PRs discipline — separate branch/worktree per item from the default branch, per-item PR closes each item, seam claim as the collision signal, parallel items allowed — and routes the next step to /work-items:work. Reads only; mutates nothing on the tracker.",
       "files": [],
       "expectations": [
-        "Reads the container, sub-item rollup, and container-scoped frontier through seam verbs (get-item, list-sub-items, list-frontier --parent) rather than inline provider commands",
+        "Reads the container's identity, sub-item rollup, and container-scoped frontier through seam verbs (get-item, list-sub-items, list-frontier --parent)",
+        "Obtains the container's Brief text through a provider-mechanic read (e.g. gh issue view --json body), NOT by expecting a body field in get-item's output",
         "Reports the closed/total rollup and the workable frontier as a compact macro map",
         "States the per-item-PRs discipline: separate branch per item from the default branch, per-item PR closes the item, seam claim as the collision signal between parallel items",
         "Routes execution to /work-items:work instead of claiming or executing an item itself",

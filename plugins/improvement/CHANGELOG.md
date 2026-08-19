@@ -3,6 +3,16 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Fixed
+
+- **README opener said "One skill" for a two-skill plugin.** `/improvement:setup` shipped alongside
+  `find` in 0.1.0 and appears in the table, but the sentence introducing it was never recounted — so
+  the plugin's very first release described itself as smaller than it was. Found by
+  `scripts/check-skill-count-claims.sh`, a new fleet gate that compares every hand-written skill
+  count against the tree.
+
 ## [0.1.0]
 
 ### Added

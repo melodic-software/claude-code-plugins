@@ -3,6 +3,42 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Added
+
+- **`batch-simplify` narrows any scope to a path.** The argument grammar is now
+  `[<scope>] [<path>...] [docs]`: a scope selects the file universe (a time window, the branch diff,
+  or the whole repository) and a path selects a region of it. Narrowing is orthogonal to scope
+  rather than a repo-only sub-mode, because binding it to `repo` would assert that only the
+  whole-repository universe may be narrowed — leaving "what I changed this week, but only under
+  `plugins/knowledge`" unreachable and forcing a second grammar change later. The path is applied as
+  a native git pathspec on each mode's own discovery command, so merge-base semantics for branch
+  mode and `--since` for a time window still hold over the narrowed set, and repo mode's
+  confirmation gate and tracked-modification refusal still fire on the narrowed inventory. Purely
+  additive: a path argument previously fell through to the ask-the-user rule in every mode, so no
+  existing invocation changes meaning. A token counts as a path only if it **resolves** — without
+  that condition the addition would have weakened the token-exact typo guard, turning `rebranch`
+  from an explicit question into a silent sweep of nothing.
+- **`repo <lane>` is explicitly rejected**, with the rationale recorded in the reference spoke. A
+  lane in the sibling `/code-tidying:tidy` is a seven-part object (scope globs, merge semantics,
+  watch-for patterns, extra exclusions, verification commands, commit type, research sources) of
+  which this skill would use only the globs; reusing the word would leave `lane` meaning two
+  different things in sibling skills of one plugin. Paths also compose where lanes do not — lanes
+  exist only in repos that have configured `.claude/tidy-lanes/`.
+
+### Changed
+
+- **The hotspot-ranking question is recorded as settled** in `context/repo-mode.md`. The spoke
+  previously argued only against the weak forms (churn alone, churn weighted by file size), leaving
+  the strong form — churn weighted by a complexity or code-health measure, which is what "hotspot
+  analysis" usually means — unaddressed and so open in practice. It is now rejected on a reason that
+  reaches the strong form: ranking answers "where should I look first", a triage question repo mode
+  has already answered by sweeping every group and filing High-only with no cap, so reordering work
+  that is all going to happen anyway has no consumer. The one condition under which reopening would
+  be coherent is named: ordering only matters under truncation or resume, so a truncation knob would
+  have to land first.
+
 ## [0.12.1]
 
 ### Changed

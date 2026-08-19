@@ -1,8 +1,8 @@
 ---
-description: "Batch-run simplification across changed files — or across an entire repository — grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', 'simplify the whole repo', or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup — use /simplify instead."
+description: "Batch-run simplification across changed files — or across an entire repository — grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', 'simplify the whole repo', 'simplify just this folder', 'simplify everything under <path>', or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup — use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window | branch | repo] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo — default: 48h)"
+argument-hint: "[time-window | branch | repo] [path...] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo — default: 48h)"
 shell: bash
 metadata:
   workflow-stage: review
@@ -23,7 +23,7 @@ For any batch run (Phases 1-8), copy `templates/checklist.md` into your project'
 
 ## Arguments
 
-`$ARGUMENTS` — optional scope for the file scan. Three modes:
+`$ARGUMENTS` — optional scope for the file scan: `[<scope>] [<path>...] [docs]`. The scope picks a *universe* (three modes below); a path narrows it to a *region*. They are independent, so any scope takes any path.
 
 ### Mode 1: Time window (default)
 
@@ -41,11 +41,25 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 Match the whole argument, never a substring: an argument that merely *contains* "branch" — a path, a filename, a future scope value — is not a branch-mode request, and routing it there silently sweeps the wrong file set.
 
-**Detection heuristic** (after stripping the `docs` flag): empty remaining argument → default `48h` time window; matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode; anything else → ask the user rather than guessing.
+**Detection heuristic** (after stripping the `docs` flag): read the **first** remaining token as the scope — matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
+
+Decide the scope **before** testing any token as a path, never after. Stripping paths first lets a repository that happens to contain a directory named `repo` or `branch` swallow the scope keyword — `/code-tidying:batch-simplify repo` would resolve `repo` as a path, find no scope left, and silently run the 48-hour default narrowed to that directory instead of the whole-repository sweep that was asked for. If the first token is not a scope, the scope defaults to `48h` and *every* token is a path; a token that resolves to nothing is neither a scope nor a path, so it falls through to asking the user rather than guessing. To sweep a directory genuinely named `repo`, spell it `./repo`.
 
 ### Mode 3: Whole repository
 
-Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** `repo`. Sweeps every non-excluded file in the repository rather than a diff — including untracked files that are not ignored, so newly added work is swept too. Explicit entry only: it never auto-escalates from another mode, and it confirms the inventory with the user after Phase 4 — once grouping and wave planning have produced the numbers that gate reports — and before any group is dispatched. `repo <path>` is deliberately not accepted; a trailing token falls through to the ask-the-user rule above. Repo-scale machinery — grouping, waves, concurrency, resume, delivery — lives in [context/repo-mode.md](context/repo-mode.md), loaded only when this mode fires.
+Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** `repo`. Sweeps every non-excluded file in the repository rather than a diff — including untracked files that are not ignored, so newly added work is swept too. Explicit entry only: it never auto-escalates from another mode, and it confirms the inventory with the user after Phase 4 — once grouping and wave planning have produced the numbers that gate reports — and before any group is dispatched. A trailing path narrows the sweep (see **Narrowing to a path**) without changing any of the above — the confirmation gate still fires, on the narrowed inventory. Repo-scale machinery — grouping, waves, concurrency, resume, delivery — lives in [context/repo-mode.md](context/repo-mode.md), loaded only when this mode fires.
+
+### Narrowing to a path
+
+Any scope accepts one or more trailing paths: `48h plugins/knowledge`, `branch src/`, `repo plugins/code-tidying`. Narrowing is orthogonal to scope because the two answer different questions — the scope decides *which universe* (changed recently, changed on this branch, everything), the path decides *which region of it*. Binding paths to one mode would assert that only that universe may be narrowed, which nothing supports.
+
+Apply the path as a native pathspec on that mode's own discovery command (`-- <path>`), never as a filter over the results: the pathspec is what makes the mode's own semantics — merge-base for branch, `--since` for a window — hold over the narrowed set.
+
+Resolve each path against the **invocation directory**, then express it **repo-root-relative** before handing it to a root-anchored command. Repo mode runs `git -C <repo-root>`, and `-C` changes directory before the pathspec is applied: a bare `code-tidying` typed from inside `plugins/` resolves locally but would be read at the root as a top-level `code-tidying`, sweeping the wrong set or nothing at all while reporting a clean run.
+
+A token counts as a path only if it **resolves** to an existing file or directory. A token that resolves to nothing is neither a path nor a scope, so it falls through to the ask-the-user rule — which is what keeps a mistyped scope or path an explicit question instead of a silent sweep of nothing.
+
+`repo <lane>` is deliberately **not** accepted; use a path. Rationale in [context/reference.md](context/reference.md) "Why narrowing is a path, not a lane".
 
 ### Flag: `docs`
 
@@ -67,7 +81,7 @@ Strip token-wise, never by substring: a substring strip mutates any argument tha
 
 ### Phase 1: Discover changed code files
 
-Both modes union committed history with uncommitted changes (staged + unstaged) so nothing is missed.
+Both modes union committed history with uncommitted changes (staged + unstaged) so nothing is missed. When a path was given, append `-- <path>...` to every git command in this phase, including the working-tree `git diff`, so the narrowing holds over both halves of the union.
 
 **Branch mode** (argument matches the branch/feature-branch/all-commits pattern):
 
@@ -86,7 +100,7 @@ Requires being on a non-default branch. If on the default branch, report the err
 { git log --since="${NORMALIZED_TIME_WINDOW} ago" --diff-filter=ACDMR --name-only --pretty=format:""; git diff --diff-filter=ACDMR --name-only HEAD; } | sort -u | grep -v '^$'
 ```
 
-**Repo mode** — the file universe is `git -C "$(git rev-parse --show-toplevel)" ls-files --cached --others --exclude-standard`, anchored to the repo root so a run started in a subdirectory still sweeps the whole tree. Refuse to start if any file in that universe carries tracked modifications, naming them; scope that check to the swept universe and exclude the working-notes location from both the check and the sweep — a whole-tree refusal would block the checklist this skill writes as its own first step, and would block every resume.
+**Repo mode** — the file universe is `git -C "$(git rev-parse --show-toplevel)" ls-files --cached --others --exclude-standard [-- <path>...]`, with any `<path>` converted to repo-root-relative first (the `-C` makes the pathspec root-anchored, so a path typed relative to a subdirectory would otherwise be read against the wrong base), anchored to the repo root so a run started in a subdirectory still sweeps the whole tree. Refuse to start if any file in that universe carries tracked modifications, naming them; scope that check to the swept universe and exclude the working-notes location from both the check and the sweep — a whole-tree refusal would block the checklist this skill writes as its own first step, and would block every resume.
 
 ### Phase 2: Filter to code files
 

@@ -1,0 +1,32 @@
+# Accepted non-claims for scripts/check-skill-count-claims.sh.
+#
+# The gate matches a closed set of composition-claim grammars (see the script
+# header). A sentence can satisfy one of those grammars while asserting
+# something else entirely -- a count of the skills that share a dependency, not
+# a count of the skills the plugin has. Those are the rows below.
+#
+# This is an AUDIT TRAIL, not a mute list. Each row records a human judgement
+# that one specific sentence is not a claim about the plugin's size, and a
+# reader should be able to tell from the note why. Before adding a row, check
+# the alternative first: the sentence can usually be reworded so it names its
+# subjects instead of counting them, which removes the drift rather than
+# excusing it -- and that is what `/docs-hygiene:audit-noise`'s `enum-list`
+# treatment prescribes anyway. Prefer the reword.
+#
+# NEVER add a row because CI is red on a number that is simply wrong. A wrong
+# number is the defect this gate exists to catch; exempting it reproduces
+# exactly the silent-wrong-count state that motivated the gate.
+#
+# Format: `<repo-relative-path>|<distinctive substring of the claim line>`,
+# optionally followed by `# reason`. Blank lines and `#` lines are ignored.
+# The substring is matched against the raw line, so an edit elsewhere in the
+# file cannot retire the entry the way a line number would. Keep the substring
+# long enough to identify one sentence and short enough to survive rewrapping.
+#
+# The gate FAILS on a stale row -- a path that no longer exists, or a substring
+# that no longer produces a mismatch -- so the list can only shrink. A row left
+# behind after its prose was fixed would sit there pre-authorizing whatever
+# wrong number lands on that line next.
+
+plugins/claude-config/README.md|are required across three skills, not one  # dependency-sharing count, not a plugin-size count: the sentence names its three skills (audit, audit-permission-grants, audit-instructions) inline, so it is self-checking against its own list.
+plugins/claude-config/skills/setup/SKILL.md|the other three skills still run  # prerequisite-scope count, not a plugin-size count: "the other three" means the other three of the four JSON-parsing audit skills item 1 above names, so it counts a named subset rather than the plugin. Only visible to the gate once wrapped lines are joined, which is why it surfaced later than its sibling row above.

@@ -66,7 +66,8 @@
         "Does NOT treat 'rebranch' as a branch-mode request (substring containment is not a match)",
         "Does not silently fall back to the 48h default for an argument it cannot classify",
         "Asks the user what scope was intended, per the detection heuristic's unknown-argument rule",
-        "The docs flag is stripped token-wise: a token is dropped only when it equals 'docs', so an argument containing those letters is left intact for the mode parser"
+        "The docs flag is stripped token-wise: a token is dropped only when it equals 'docs', so an argument containing those letters is left intact for the mode parser",
+        "Does NOT treat 'rebranch' as a path: a token counts as a path only when it resolves to an existing file or directory, so a non-resolving token still falls through to the ask-the-user rule rather than narrowing the sweep to nothing"
       ]
     },
     {
@@ -112,6 +113,47 @@
         "Files work items for High-priority deferrals only, with no numeric cap, one item per concern rather than per site",
         "Delivers one independently mergeable pull request per wave, merged before the next wave opens — not one repository-wide pull request",
         "Keeps concurrency to a 4-6 simplifier soft cap and degrades to sequential under rate-limit pressure rather than retrying"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "path-narrows-a-non-repo-scope",
+      "prompt": "/batch-simplify 7d plugins/knowledge",
+      "expected_output": "Runs the 7-day time-window mode narrowed to plugins/knowledge. Scope and path are independent: the scope still selects which universe (changed in 7 days), the path selects which region of it, and narrowing is not reserved to repo mode.",
+      "files": [],
+      "expectations": [
+        "Routes '7d' to time-window mode and treats 'plugins/knowledge' as a path, not as an unknown scope",
+        "Does NOT refuse the path on the grounds that narrowing belongs to repo mode",
+        "Passes the path as a native git pathspec (-- plugins/knowledge) on the discovery commands rather than filtering results afterwards",
+        "Applies the pathspec to BOTH halves of the union — the git log window and the working-tree git diff",
+        "Normalizes '7d' to '7 days' for git's approxidate parser"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "path-narrows-repo-mode-without-loosening-its-gate",
+      "prompt": "/batch-simplify repo plugins/code-tidying",
+      "expected_output": "Enters repo mode narrowed to plugins/code-tidying. The narrowing changes the file universe only; the confirmation gate, the tracked-modification refusal and the repo-mode spoke all still apply, now over the narrowed inventory.",
+      "files": [],
+      "expectations": [
+        "Routes 'repo' to repo mode with 'plugins/code-tidying' as a path rather than asking the user",
+        "Adds the pathspec to git ls-files --cached --others --exclude-standard, still anchored to the repository root",
+        "Still presents an inventory summary and waits for confirmation before dispatching any simplifier",
+        "Scopes the tracked-modification refusal to the narrowed universe, not the whole tree",
+        "Still loads context/repo-mode.md for the repo-scale machinery"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "a-non-resolving-token-is-not-a-path",
+      "prompt": "/batch-simplify repo plugins/does-not-exist",
+      "expected_output": "Does not sweep. 'plugins/does-not-exist' resolves to nothing, so it is neither a path nor a scope and falls through to the ask-the-user rule. Treating it as a path would silently sweep an empty universe and report a clean run over nothing.",
+      "files": [],
+      "expectations": [
+        "Checks that the token resolves to an existing file or directory before accepting it as a path",
+        "Asks the user what was meant rather than sweeping an empty file universe",
+        "Does NOT report 'no code files found' as though the run had succeeded",
+        "Does not fall back to an unnarrowed whole-repository sweep, which would be wider than what was asked for"
       ]
     }
   ]

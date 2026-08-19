@@ -465,7 +465,7 @@
       "displayName": "AI Slop",
       "source": "./plugins/ai-slop",
       "category": "quality",
-      "tags": ["ai-slop", "ai-writing", "slop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
+      "tags": ["ai-slop", "ai-writing", "slop", "unslop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
     },
     {
       "name": "miro",

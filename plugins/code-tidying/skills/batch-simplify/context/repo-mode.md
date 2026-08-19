@@ -78,15 +78,28 @@ Order groups by dependency constraint only: shared and canonical libraries befor
 consumes them. Simplifying a shared helper after its callers means the callers were reviewed against
 a shape that no longer exists.
 
-**Churn ranking is deliberately not used**, and a later reader should not add it back as an
-improvement. Ordering by change frequency alone is a documented false-positive generator — the files
-that change most are frequently the ones that are supposed to change most, and ranking them as
-problems surfaces noise ahead of signal. Weighting churn by file size amplifies that error rather
-than correcting it, because size correlates with legitimate churn. Dependency order has a defensible
-reason to exist: correctness. Churn order does not.
+**Hotspot ranking is deliberately not used. This is a settled decision, not an open question**, and
+a later reader should not add it back as an improvement.
+
+Ordering by change frequency alone is a documented false-positive generator — the files that change
+most are frequently the ones that are supposed to change most, and ranking them as problems surfaces
+noise ahead of signal. Weighting churn by file size amplifies that error rather than correcting it,
+because size correlates with legitimate churn.
+
+The strongest form of the idea — churn weighted by a complexity or code-health measure, which is what
+"hotspot analysis" usually means — is rejected for a different and more decisive reason than the weak
+forms, and rejecting only the weak ones would leave it open. Hotspot ranking answers *where should I
+look first*, which is a triage question. Repo mode has already answered it: the sweep covers every
+group in the universe, and filing is High-only with no numeric cap. A ranking that reorders work
+which is all going to happen anyway changes nothing about what gets found. It has no consumer here.
 
 Ordering only changes outcomes when a run is truncated or resumed, since an untruncated run reaches
-every group regardless. That is the whole of its job here.
+every group regardless. That is the whole of its job here — and it is why the two are coupled: a
+truncation knob is the only thing that would GIVE ranking a consumer. So reopening this coherently
+means landing that knob first and accepting what it implies (a repo sweep that deliberately stops
+early), then bringing a ranking signal with a second criterion beyond frequency. Adding the ranking
+on its own, in the order the idea usually arrives, buys a documented false-positive mode and nothing
+else.
 
 ## Concurrency
 

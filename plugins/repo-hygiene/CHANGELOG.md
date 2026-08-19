@@ -3,6 +3,15 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.7]
+
+### Changed
+
+- **`batch-common.test.sh`'s Windows drive-path fixture now carries a `portability-ok:` marker**, so
+  the whole-repo `check-shell-portability.sh --all` audit runs clean instead of reporting a hit it
+  will always report. The backslashes in `'D:\work\acme\keepme'` are the input the case normalizes,
+  not a GNU `\w` class. No behavior change; the assertion is untouched.
+
 ## [0.10.6]
 
 ### Changed

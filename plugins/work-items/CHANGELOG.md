@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.2]
+
+### Fixed
+
+- **No surface claims the seam returns an item body any more (#3028).** `ship`'s macro-state snippet
+  annotated `get-item` with `# body = the spec`, under a heading reading "no inline provider
+  commands" — so a session following the skill's own snippet to read the container spec got no spec
+  text, and the placement implied the seam could do something it cannot. The normalized item object
+  is `schema_version, id, title, state, assignees, labels, type, blocked_by_count, parent_id, url`;
+  there is **no `body` field**, and `--body` exists only as a *write* parameter on `create-item`.
+  `work`'s pass-by-reference step carried the identical premise ("fetch the container via the seam
+  … and read its Brief body") and is corrected with it; `decompose`'s "fetch full body and comments"
+  now names the mechanism instead of leaving it to inference.
+- **Fixed at the source, not just at the call sites.** `reference/tracker-seam.md`'s operation-
+  routing table listed "single-item fetch" under Coordination with nothing said about the body,
+  which is what let the assumption spread — the same false premise was independently proposed in
+  Lane D's first-draft design and caught by the same audit. The table now marks single-item fetch as
+  identity/state/`parent_id` **not** body, lists reading an item's body under Provider mechanics,
+  and carries a paragraph stating the split outright: `get-item` stays authoritative for
+  `parent_id` (how a slice reaches its container), body text is a provider-mechanic read
+  (`gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, the provider's REST
+  equivalent otherwise), and a surface showing a body read must label it as such. Provider mechanics
+  run unbound, so the read still works where no binding resolves; `local-markdown`, which stores
+  item text as the file itself, is named rather than papered over as parity.
+
 ## [0.36.1]
 
 ### Added

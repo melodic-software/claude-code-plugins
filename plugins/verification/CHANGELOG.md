@@ -3,6 +3,15 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Fixed
+
+- **README opener said "Two skills" for a three-skill plugin.** `/verification:setup` was added
+  without the sentence above the table being recounted, so the front page understated the set while
+  the table right below it listed all three. Found by `scripts/check-skill-count-claims.sh`, a new
+  fleet gate that compares every hand-written skill count against the tree.
+
 ## [0.5.2]
 
 ### Changed

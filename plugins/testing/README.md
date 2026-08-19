@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow — plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, and diagnose failures to root cause. Four skills, one concern: proving
+end-to-end, and diagnose failures to root cause. Five skills, one concern: proving
 behavior with tests.
 
 | Skill | What it does |
@@ -11,6 +11,7 @@ behavior with tests.
 | `/testing:write` | Test authoring discipline — vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification — start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
+| `/testing:audit` | Can't-fail test detection — a deterministic script finds assertion-free bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, and C#; reports with a coverage denominator, gates fail-closed via `--check`, and opt-in persists findings for a review fix pass. |
 
 ## Works in any repo
 

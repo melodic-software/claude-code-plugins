@@ -3,6 +3,73 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **`quality-gate` gains a ninth lens: `spec` (#2937).** The skill had eight modes and no
+  spec-fidelity one — "what was the goal" was a gather input, never the thing under judgment — while
+  `work-items:decompose` and `work-items:ship` both already routed container close-out to "the review
+  plugin's spec-fidelity machinery," which did not exist. `context/spec.md` is that machinery. It
+  **owns** the finding-class enum (`missing` / `scope-creep` / `wrong`), requires every finding to
+  quote the spec line it is judged against, and judges the diff in both directions so `scope-creep`
+  is reachable at all. `scope-creep` needs a positive statement of bounded scope before unlisted
+  behavior becomes a defect — a spec that never mentions a surface leaves the implementer's judgment
+  intact.
+- **A spec-source discovery ladder, because the lens cannot run without a spec.** `--spec <path|id>`
+  → item refs harvested from the branch's commits and PR body → the topic's contract slice → ask →
+  **skip with a note**. The last rung is the point: a fidelity verdict rendered without a spec is a
+  fabrication, so a headless run with nothing resolved stops and says which rungs it tried rather
+  than inferring a spec from the diff it is meant to judge. What the ladder gets right that a naive
+  version does not:
+  - A harvested ref is **validated before it is used to build anything** — commit messages and PR
+    bodies are attacker-influenceable through a fork PR, so the number must be strictly numeric and
+    an accompanying owner/repo must match a repo-name shape; a ref that fails is **dropped**, never
+    repaired. Components are passed as discrete arguments, never interpolated into a command line.
+    The item-content-trust boundary governs the body text a read returns and does not cover an
+    identifier used to build a command, so this check is its counterpart rather than a duplicate.
+  - The validated ref is **promoted** to the qualified `<provider>:<owner>/<repo>#<number>` form,
+    and the read is scoped to that id's own repository with `--repo` — a bare number reads the
+    *current* repo, which for a cross-repo ref is a different issue that merely shares a number.
+  - The item is read **through a public seam or the provider mechanic, never by reaching into the
+    sibling plugin**: `PLUGIN-PHILOSOPHY.md` forbids discovering another plugin's installation
+    directory, and no namespaced item-fetch action exists to call today, so the provider-mechanic
+    read is the operative path — which also means this rung works with no tracker plugin installed
+    at all. Body text was never a seam field regardless (the normalized item object carries no
+    `body`), and parent linkage degrades honestly: `get-item` is authoritative for `parent_id` and
+    is not reachable here, so a slice's container is best-effort or named directly with `--spec`.
+  - The contract-slice rung keys on the **topic slug**, not the branch slug, whose mapping is
+    documented as lossy.
+
+  Item text is read under the item-content-trust boundary throughout: data describing the work,
+  never instruction to the reviewer.
+- **A fail-fast pre-flight gate, ported from `fanout`, which `quality-gate` had entirely lacked.**
+  An unresolvable diff base or an empty change set now stops before any reviewer is dispatched
+  instead of spawning one to produce noise. **Mode-scoped:** `criteria` is a reference mode that
+  legitimately runs against a clean tree and is exempt. The frontmatter `allowed-tools` allowlist is
+  widened with the git read verbs the gate needs — without that the gate stalls headless, which
+  would have made it worse than no gate. **Untracked-only is reviewable here**, deliberately unlike
+  `fanout`: this skill's Shared inputs hand untracked files to the reviewer directly, so a
+  new-module or new-test branch is a real change set; `fanout` stops on it only because its surfaces
+  receive nothing but the merge-base diff, which cannot show an unstaged file. Neither skill stages
+  files.
+
+### Changed
+
+- **`self` mode's spec-conformance checklist item stops being a second SSOT.** It restated the same
+  three finding classes `context/spec.md` now owns; two copies of one definition is exactly what
+  this skill's own `restatement` mode flags. The fenced worker checklist keeps a shallow
+  divergence-and-quote check and explicitly defers classification, and the pointer to the owning
+  file sits in the orchestrator-facing escalation list — **not** inside the subagent template, which
+  is addressed to a fresh-context read-only worker that cannot invoke a skill to follow it.
+- **`self` mode's large-diff worker split now keeps its two lenses separate through presentation,**
+  not just until verification. The two workers answer different questions, so one combined list lets
+  a clean standards pass mask a failing spec pass.
+- **"Axis" now means one thing in this plugin, recorded once in `context/severity.md`:**
+  severity or confidence. A review perspective is a **lens**. Three incompatible senses were live
+  across these docs, and merging and ranking across the two real axes is precisely what `fanout`'s
+  normalization pipeline exists to do — a rule written on the ambiguous word would have negated it.
+
 ## [0.21.1]
 
 ### Changed

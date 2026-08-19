@@ -14,7 +14,7 @@ Design judgment and completeness check after implementation, before verification
 6. **Present** findings table + strengths + verdict; suggest escalation when warranted
 7. **Do not fix during review** — fixes happen after review completes
 
-For large diffs, dispatch two parallel read-only workers (standards axis vs spec-conformance axis) with the same template and an axis focus; keep findings separate; merge only after verification.
+For large diffs, dispatch two parallel read-only workers with the same template and one **lens** each — standards conformance vs spec conformance. Verify both sets as usual, then **present them separately, under their own headings**: the two lenses answer different questions, so a combined list lets a clean standards pass mask a failing spec pass (and the reverse). "Lens" is the deliberate word here — in this plugin **`axis` means severity/confidence** ([`${CLAUDE_PLUGIN_ROOT}/context/severity.md`](${CLAUDE_PLUGIN_ROOT}/context/severity.md) "Vocabulary"), and merging and ranking across those two is exactly what `fanout` exists to do.
 
 ## Subagent prompt template
 
@@ -57,8 +57,10 @@ Run the checklist below. Do not edit files. Return the findings table only.
 - New dependencies declared in the project's dependency manifest
 - Error messages are user-safe
 
-### Spec conformance (when a plan/brief exists)
-- (a) Missing/partial vs spec; (b) scope creep not backed by spec; (c) wrong implementation vs spec
+### Spec conformance (when a plan/brief exists — surface check only)
+- Flag anywhere the change diverges from the plan/brief, quoting the line diverged from. Do not
+  classify or grade the divergence; a dedicated lens owns that taxonomy and the dispatcher routes
+  to it.
 
 Report format:
 
@@ -75,6 +77,10 @@ If zero findings: "No self-review issues found in changed files."
 
 ## When to suggest escalation
 
+- Spec fidelity — the change judged against what was actually asked for → `spec` mode
+  ([spec.md](spec.md)), which owns the finding-class enum and the spec-source
+  discovery ladder. The checklist above only surfaces divergence; this is where it gets classified
+  and graded
 - Dependency direction / module boundaries → `architecture` mode
 - Auth, input handling, secrets → `security` mode
 - Widespread code-quality concerns → `code` mode

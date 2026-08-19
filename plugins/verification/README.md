@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **verification stage** of a disciplined dev workflow —
 prove a change achieved its intended outcome, and prove measurable-improvement claims
-against a baseline captured before the change. Two skills, one concern: turning a
+against a baseline captured before the change. Three skills, one concern: turning a
 green build into confirmed outcomes.
 
 | Skill | What it does |

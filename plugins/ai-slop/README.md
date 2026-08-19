@@ -15,14 +15,21 @@ Two layers:
 
 1. A deterministic detector (`skills/audit/scripts/detect.sh`) for mechanical tells: em dashes
    (zero-tolerance by default), emoji formatting, AI vocabulary density, negative parallelisms,
-   citation artifacts, and more.
-2. A judgment rubric applied by the skill for tells no script can rule on: significance inflation,
-   promotional tone, vague attribution, elegant variation.
+   chatbot phrases, filler phrases, stacked hedging, citation artifacts, and more.
+2. A judgment rubric applied by the skill for tells no script can rule on: superficial analysis,
+   promotional tone, vague attribution, elegant variation, false ranges, colon crutches,
+   abstract metaphor jargon, mechanism-free claims. (Significance inflation ships as a *script*
+   rule, not a rubric tell — its stock-phrase core is mechanical.)
 
-The rule inventory is distilled from Wikipedia's
-["Signs of AI writing"](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing) into
-[`skills/audit/reference/catalog.md`](skills/audit/reference/catalog.md), revision-pinned and
-tracked under the upstream-drift convention.
+The rule inventory in [`skills/audit/reference/catalog.md`](skills/audit/reference/catalog.md) is
+distilled from Wikipedia's
+["Signs of AI writing"](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing)
+(revision-pinned, tracked under the upstream-drift convention), plus a set of additions inspired by
+[Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md)
+and deduplicated against it in the catalog's overlap map. Fix-time rewrite guidance (plain speech,
+substitution guardrails, adding voice) lives in
+[`skills/audit/reference/rewrite-guide.md`](skills/audit/reference/rewrite-guide.md), which the
+`fix` action applies.
 
 Detector output names every exempted file (`Declined:` rows with a cause: excluded glob or
 file marker) alongside per-rule declined counts, so an exemption is always visible, never

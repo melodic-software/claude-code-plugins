@@ -4,6 +4,16 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.3.0 — 2026-08-19
+
+Three `ai-slop:audit` rows join the crosswalk (`rule-chatbot-artifacts`, `rule-filler-phrases`,
+`rule-stacked-hedging`), from the plugin's integration of Cursor's `unslop` pattern set (ai-slop
+0.2.0). Minor under this contract's own rule: additive crosswalk rows, no obligation changed.
+`rule-chatbot-artifacts` argues IMPORTANT on the same degradation walk as the
+knowledge-cutoff-disclaimer row (chat-turn residue asserts a conversational exchange false of the
+committed document); the other two argue SUGGESTION. The adopter row's tier-spread counts update
+to twelve SUGGESTION and three IMPORTANT.
+
 ## 2.2.0 — 2026-08-17
 
 Third adopter tabled (`ai-slop:audit`), with its twelve rules admitted to the crosswalk. Minor
