@@ -22,11 +22,14 @@ Five skills, one capability:
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
   structure-only PR. Overflow is filed as deferred work items, never silently
   dropped.
-- **`/code-tidying:batch-simplify`** — sweeps files changed in a time window
-  (`48h` default, `7d`, ...) or on the current branch through grouped,
-  dependency-ordered simplification waves, with per-group verification and a
-  never-drop deferred-items contract. Use it when you forgot to run
-  `/simplify` after each task.
+- **`/code-tidying:batch-simplify`** — sweeps files through grouped,
+  dependency-ordered simplification waves in one of three scope modes:
+  a time window (`48h` default, `7d`, ...), the current branch, or `repo`.
+  Per-group verification and a never-drop deferred-items contract throughout.
+  The whole-repository mode is explicit-entry only, gates on a confirmed
+  inventory, runs a mandatory per-group refutation verifier, and delivers one
+  independently mergeable PR per wave. Use it when you forgot to run
+  `/simplify` after each task, or to sweep a repository that never had one.
 - **`/code-tidying:setup`** — `check` inspects the tracked
   `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
   sections, leftover placeholders, tracked-not-ignored); `apply` interviews the

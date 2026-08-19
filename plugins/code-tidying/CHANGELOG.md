@@ -3,6 +3,49 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **`batch-simplify` gains a third scope mode, `repo`** — a behavior-preserving simplification
+  sweep over every code file in the repository, not just a diff. Entry is explicit only: an
+  explicit `repo` argument, or the user accepting the offer the empty-scan exit now makes. It
+  never auto-escalates, and it presents an inventory summary — file count, group count, wave
+  plan, scale estimate, exclusions by class — for confirmation before any group is dispatched.
+  The file universe is `git ls-files --cached --others --exclude-standard` anchored to the repo
+  root, so untracked non-ignored files are swept too and a run started in a subdirectory still
+  covers the whole tree. The run refuses to start on tracked modifications inside the sweep
+  universe, scoped so it cannot block the checklist the skill writes as its own first step, or
+  any resume. `repo <path>` is deliberately not accepted in this version.
+- **New progressive-disclosure spoke `context/repo-mode.md`**, loaded only when the mode fires:
+  two-pass grouping with canonical-cluster detection (generated copies are edited via their
+  source, never directly); dependency-only ordering with the reasoning against churn ranking
+  recorded; a 4–6 concurrent-simplifier soft cap stated against the tooling's 20-subagent
+  ceiling, degrading to sequential rather than retrying; an inline-prompt spawn contract that
+  states the Write/Edit path explicitly and does not invoke the bundled `/simplify`; a mandatory
+  per-group refutation verifier; idempotent resume with revert scoped to the group's file list;
+  per-wave verification plus an end-of-run union pass; High-only work-item filing with no numeric
+  cap; and one independently mergeable pull request per wave.
+- **Externally managed and sync-generated directories are now a read-only deferred class** in the
+  Phase 2 filters, recognized from what the consuming repo documents about itself rather than
+  from a hardcoded path.
+
+### Changed
+
+- **`batch-simplify` Phase 7's verification exemption is scoped to the diff-scoped modes.** It
+  previously asserted that an objective cross-ecosystem pass is "verification enough" because
+  simplification is behavior-preserving — a scale-invariant claim that repo mode contradicts,
+  since at repo scale no human reads the diff before it merges. Phase 7 also now reports files
+  with no mapped test suite as unmapped rather than as passing.
+- **`tidy` and `dissolve-comments` no longer describe `batch-simplify` as diff-only.** `tidy`'s
+  differentiation prose named "a time-window or branch diff in waves" — the exact mechanism repo
+  mode removes — and `dissolve-comments` called it "windowed batch sweeps" in two places. A
+  reciprocal documentation boundary is now stated in both `batch-simplify` and `tidy`:
+  `batch-simplify` owns factual staleness across the whole doc set in one pass; `tidy`'s
+  `docs-prose` lane owns incremental structural prose work under a scope budget.
+- The run checklist template gains repo-mode-conditional rows and states the filing tier per
+  mode.
+
 ## [0.11.1]
 
 ### Fixed
