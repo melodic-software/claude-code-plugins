@@ -1,5 +1,14 @@
 # Changelog — docs-hygiene plugin
 
+## [0.17.1]
+
+### Changed
+
+- `write-for-agents`: the restructure-before-pointer caveat now names its landed audit-side
+  remediation home (`claude-memory:audit` C5 fix guidance, #2987), retiring the 0.17.0 entry's
+  pending note; the principle stays stated inline so the skill remains complete when
+  claude-memory is not installed.
+
 ## [0.17.0]
 
 ### Added

@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.5.4
-Last updated: 2026-08-15
+Version: 1.6.0
+Last updated: 2026-08-19
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -74,6 +74,8 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 | Always-on project conventions | CLAUDE.md |
 | Machine-specific config/preferences | CLAUDE.local.md |
 | Language/framework-specific rules | `.claude/rules/` (path-scoped when that fits) |
+| Subdirectory-specific conventions | Nested `CLAUDE.md` in that subdirectory — loads on demand when Claude reads files there (ancestors of cwd load in full at launch); post-compaction re-injection priced below (code.claude.com/docs/en/memory) |
+| One-off steering for the current conversation | A conversational `@`-mention of the file — includes the file's full content in the conversation (code.claude.com/docs/en/common-workflows, "Reference files and directories"); distinct from `@path` imports *in* CLAUDE.md, which load at launch every session (priced in the imports row below). **Provenance**: the one-conversation scope and the cheaper-than-any-permanent-pointer framing are inferred, not doc-stated, and the placement posture is a repo extension (that doc is outside this file's `Source:` set) — the `update` action must not overwrite this row |
 | Reference material needed sometimes | Skills — the body loads on demand; a new skill's listing entry does not (priced below) |
 | Learnings Claude discovered while working, not instructions you authored | Auto memory — Claude writes it; you do not hand-author entries, and asking Claude to remember something lands here rather than in CLAUDE.md. Available only while auto memory is enabled (gated below) |
 | Deterministic enforcement | Hooks (guaranteed execution) |
@@ -154,10 +156,21 @@ characters in the skill listing to reduce context usage", and "Plugin skills are
 
 **How to check**:
 
-1. Flag file-by-file codebase descriptions (Claude can `ls` and read files)
+1. Flag file-by-file codebase descriptions (Claude can `ls` and read files) — with a
+   **navigation-pointer carve-out**: a curated navigation pointer — a short entry routing to a
+   non-obvious, load-bearing doc or surface, saying where to look and when — is KEEP, not a
+   codebase description. The distinction is curation: a pointer to something Claude could not
+   cheaply rediscover (a buried runbook, a convention registry, the one doc that owns a
+   decision) earns its line; a file-by-file inventory of what Claude can rebuild with
+   `ls`/Glob stays FLAG.
 2. Flag standard language conventions Claude already knows
 3. Flag framework documentation that should be linked, not copied
 4. WARN per instance
+
+**Provenance**: the KEEP branch is a **repo extension, not doc-derived** — the official
+include/exclude table states no navigation posture (checked 2026-08-17 against
+code.claude.com/docs/en/memory) — so the `update` action must not overwrite it with doc-sourced
+text.
 
 **Why**: Official include/exclude table: Exclude "Anything Claude can figure out by reading code",
 "Standard language conventions Claude already knows", "Detailed API documentation (link to docs
@@ -202,6 +215,11 @@ skills, agents, and output styles are outside that population — those pairs be
 4. Check counts (e.g., "13 MCP servers" vs actual `.mcp.json`)
 5. FAIL for missing files or wrong versions
 6. WARN for stale counts
+
+**Navigation-section note**: stale pointers are the standing cost of the curated navigation
+sections C5's KEEP branch permits — "a stale highway is worse than no highway": a pointer that
+outlives its target misroutes every future session. This check's missing-file FAIL is what keeps
+that posture honest, so give C5-kept navigation entries particular attention here.
 
 **Why**: Stale references cause Claude to hallucinate or waste time looking for nonexistent files.
 
