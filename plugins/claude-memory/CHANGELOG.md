@@ -3,6 +3,23 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit`: navigation-pointer criteria patches (course lane 9, #2987).** C5 gains the
+  navigation-pointer carve-out: a curated pointer to a non-obvious, load-bearing doc (where to
+  look, when) is KEEP, a file-by-file inventory Claude can rebuild stays FLAG — marked as a
+  repo extension (official docs state no navigation posture; the `update` action must not
+  overwrite it). C7 gains the navigation-section note tying its missing-file FAIL to that
+  posture ("a stale highway is worse than no highway"). C3's placement table gains the
+  nested-CLAUDE.md destination row (docs-verified load semantics: on-demand below cwd,
+  ancestors in full at launch, post-compaction pricing already in the table's cost paragraph)
+  and the conversational `@`-mention row (one-turn steering vs launch-loaded `@path` imports).
+  The `fix` workflow gains C5 fix patterns — delete, curate-into-pointer, and
+  restructure-before-pointing (things that change together live together), with the write-side
+  authoring doctrine pointed at `docs-hygiene:write-for-agents`.
+
 ## [0.9.3]
 
 ### Changed

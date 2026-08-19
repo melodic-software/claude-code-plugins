@@ -45,7 +45,8 @@ text alone, without opening the target.
 - A pointer that exists only because changes must be mirrored across distant folders can mask a
   cohesion problem. Before adding it, consider restructuring so the things that change together
   live together — a pointer papering over low cohesion outlives the reorganization that would
-  have removed it.
+  have removed it. (Audit-side remediation home: `claude-memory:audit`'s C5 fix guidance, if
+  that plugin is installed.)
 
 The full pointer-quality criteria are owned by the sibling audit skill — invoke
 `/docs-hygiene:audit-progressive-disclosure` via the Skill tool to grade a draft against them,

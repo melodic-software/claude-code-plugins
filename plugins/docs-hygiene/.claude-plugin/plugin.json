@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "docs-hygiene",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "Documentation-hygiene toolkit: compress (flavor-trim markdown with a semantic-diff safety net), audit-noise (classify markdown noise), extract-ssot (deduplicate repeated content into a single source of truth), audit-encapsulation (detect citations into skill-private surfaces), rename-references (sweep stale references after renames), audit-derivability (classify whether a whole document earns its existence \u2014 could a fresh agent re-derive it from the code?), audit-progressive-disclosure (grade instruction files against a load-tier model for split opportunities and hub/spoke disclosure defects), and write-for-agents (authoring-time doctrine that fires while agent-consumed markdown is being written).",
   "author": {
     "name": "Melodic Software",
