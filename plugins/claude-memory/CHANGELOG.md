@@ -16,7 +16,8 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   and framework-doc flagging) — and pin the discrimination side: the fixture's curated
   runbook pointer must be KEEP under C5's navigation-pointer carve-out (#2987), and its
   non-obvious first-run gotcha must not be flagged. A static fixture was chosen over live
-  `/init` generation for determinism (lane 9 decision, `docs/upstream/aihero-steering-lanes.md`).
+  `/init` generation for determinism (lane 9 decision, recorded in
+  `docs/upstream/aihero-course.md`, "Lane 9: steering validations").
 
 ## [0.10.0]
 
