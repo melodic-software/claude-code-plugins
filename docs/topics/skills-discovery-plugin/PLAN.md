@@ -477,5 +477,22 @@ read-only, adds no hooks, and the only mutation anywhere in the change is one ad
 
 ## Open questions
 
-- **Q18 (USER-RESERVED) — session transcripts in V1?** Surfaces at this approval gate, undecided.
-- **Q19 — leaf name** `audit-skill-starvation`: confirm via `scripts/check-skill-leaf-names.sh`.
+- **Q18 (USER-RESERVED) — session transcripts in V1? RESOLVED 2026-08-18: NO.** Surfaced at the
+  approval gate with the plan-time context it was reserved for; the user approved the plan as
+  presented, and no phase reads transcripts. V1 therefore stays machine-local and scope-limited, and
+  the Brief's documented cloud/ephemeral gap stands. Revisit trigger: if the scope-limited framing
+  proves too narrow in use, transcripts are the known path to retroactive and cross-repo coverage —
+  a follow-up topic, not a mid-flight scope change.
+- **Q19 — leaf name** `audit-skill-starvation`: confirm via `scripts/check-skill-leaf-names.sh` in
+  Phase 7. It collides with nothing today, so the registry stays untouched (registering a
+  non-colliding leaf is itself a CI failure).
+- **Branch-name note:** the plan is `feat/`-shaped, but this session is mandated to develop on
+  `claude/skills-discovery-plugin-z1ij9y`. Keeping it deliberately — the mandate outranks the naming
+  convention, and renaming would push to a branch this session is not authorized to use.
+
+## Plan approval
+
+Approved 2026-08-18 after the fresh-context plan review and the applied-findings revision.
+Execution shape: **fully sequential** — Phase 1 gates the rest; each later phase consumes the prior
+phase's model. Single-session, main-thread execution; no parallel agents (the one file-disjoint lane,
+registration, is well under the ~100 LOC threshold that would justify the orchestration cost).
