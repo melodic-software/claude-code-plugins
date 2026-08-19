@@ -10,7 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Both zone-crossing message channels compressed** (owner report: the operator message was
-  overly verbose). The operator `systemMessage` drops from ~900 to ~380 chars pre-interpolation:
+  overly verbose). The operator `systemMessage` drops from 914 to 470 characters — measured with
+  `wc -m` on the template literal before interpolation, trailing newline excluded:
   menu-first, one clause per option, keeping the four continuation options, the `zones.json`
   tunability pointer, the `/session-flow:workflow` router, the test-pinned "yours to choose"
   ownership phrase, and the "(if installed)" hedges. Option 3 also keeps a terse manual
@@ -23,7 +24,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   still green, which is the case for the separate pin. Dropped: the snapshot-seam
   provenance parenthetical and the vendor-variance hedge. The model-channel `additionalContext`
   gets the matching conservative trim
-  (~740 → ~490 chars): all four semantics survive verbatim where the contract test pins them —
+  (741 → 558 characters, or 976 → 738 with the dumb-zone addendum appended, same measurement):
+  all four semantics survive verbatim where the contract test pins them —
   measurement-not-instruction, "Do not volunteer", "operator's call", and the dumb-zone
   durable-notes rider — and the "crossed from the <previous>" phrasing stays for the
   partial-write recovery assertion. The evidence-degraded label shortens to
