@@ -53,7 +53,11 @@
 #                    foo.js are found exactly the way a shell suite is. Widening
 #                    the corpus is what taught it the other three ecosystems; the
 #                    rule itself did not change.
-#   R4 dependents    any other source file (.sh .js .mjs .py .ps1 .psm1) whose
+#   R4 dependents    any other source file (.sh .bash .js .mjs .cjs .py .ps1
+#                    .psm1 — the same set the reverse-lookup pathspec searches,
+#                    and the same set lang_family() names; all three move
+#                    together or a path is classified into a family nothing ever
+#                    greps) whose
 #                    text contains the file's basename is a dependent; R2/R3 are
 #                    then applied to IT, transitively. This is what carries a lib
 #                    change out to the hooks that source it.
