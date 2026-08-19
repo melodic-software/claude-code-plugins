@@ -16,7 +16,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ownership phrase, and the "(if installed)" hedges. Option 3 also keeps a terse manual
   alternative — "or a hand-written resume note" — because context-guard installs standalone: a
   menu whose only durable-state path names an absent plugin leaves such an install with no
-  actionable option at exactly the moment state must survive. Dropped: the snapshot-seam
+  actionable option at exactly the moment state must survive. That clause is now **contract-pinned
+  by its own assertion** rather than left to the menu check: naming `/session-flow:handoff` and
+  offering something a solo install can act on are different properties, and the menu assertion
+  passes on a menu that has become unactionable. This clause was dropped once with the whole suite
+  still green, which is the case for the separate pin. Dropped: the snapshot-seam
   provenance parenthetical and the vendor-variance hedge. The model-channel `additionalContext`
   gets the matching conservative trim
   (~740 → ~490 chars): all four semantics survive verbatim where the contract test pins them —
