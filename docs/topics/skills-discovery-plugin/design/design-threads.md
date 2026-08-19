@@ -65,7 +65,7 @@ never a delete-me. A `user-only` one with no observation is simply a skill you t
 Claude picks. A single flat enum forces all three into one bucket and reproduces the libel the audit
 exists to prevent.
 
-## T4 — The inventory→usage join — RESOLVED (directional detail below)
+## T4 — The inventory→usage join — RESOLVED
 
 Usage keys are `<plugin>:<leaf>`; inventory emits bare leaves nested under
 `disk.installed_plugins[<marketplace>][<plugin>].components.skills[]`. Synthesize the qualified name
@@ -89,7 +89,12 @@ retention harness. `read-routing.md` gains a routing row. `clean.sh` gains the s
 via the hooks' path policy (all three scopes). No hook changes. `claude-ops` gains its first `lib/`
 for `state-key.sh`.
 
-## T7 — Report contract (JSON) — DIRECTIONAL
+## T7 — Report contract (JSON) — RESOLVED in [`contracts.md`](contracts.md) "Report schema"
+
+Rationale recorded there: keyed per `plugin-data-report-keying` Rule 1 (the observability precedent
+lacks the state key and is absent from that convention's adoption table); one file per run plus an
+appended history line rather than a rolling `latest.json`, so a future routine cannot inherit an
+overwrite defect; `withheld` is first-class so a declined verdict is visible rather than missing.
 
 Keyed per `plugin-data-report-keying` Rule 1; one file per run plus an appended history line; never
 a rolling `latest.json`. Schema carries: run metadata (tier from T1, per-source horizons from T5,
@@ -97,7 +102,12 @@ budget arithmetic from T2-certain), then one row per skill with both T3 axes, th
 each, and an explicit `confidence` on any inferential field. Versioned with a `schema_version`,
 additive-only, per the marketplace's existing envelope discipline.
 
-## T8 — Test seams — DIRECTIONAL
+## T8 — Test seams — RESOLVED in [`module-boundary.md`](module-boundary.md) "Test seams"
+
+Rationale recorded there: one seam — the pure classifier `(denominator, events, config, clock) →
+model` — because purity is what makes the audit's failure modes testable, and an injected clock is
+what makes horizon behavior testable at all. Nine fixtures, each pinning a specific defect the audit
+found. Shell `*.test.sh` covers the CLI surface per repo convention.
 
 Highest-value seam is a **pure classifier**: `(denominator, events, config, clock) → report model`,
 exercised with fixtures for the failure modes the audit found — empty store, horizon shorter than
@@ -106,7 +116,12 @@ name collision, bundled-exempt skills, over-budget and under-budget listings. In
 what makes horizon and tier behavior testable at all. Shell-level `*.test.sh` per repo convention
 covers the CLI surface. Aim for the fewest seams that cover the surface.
 
-## T9 — Design defaults — DIRECTIONAL
+## T9 — Design defaults — RESOLVED in [`module-boundary.md`](module-boundary.md) "Design defaults"
+
+Rationale recorded there: config arrives as flags because `CLAUDE_PLUGIN_OPTION_*` provably does not
+reach a skill-spawned subprocess; the source ladder is the extension axis; the skill emits no
+telemetry of its own because the hook budget is already over its documented ceiling; testability
+follows from T8's pure classifier and injected clock.
 
 - **Configurability:** windows and the exposure floor must be tunable, but `CLAUDE_PLUGIN_OPTION_*`
   cannot reach a skill's Bash script (proven by the repo's own smoke tests) — so config arrives via
