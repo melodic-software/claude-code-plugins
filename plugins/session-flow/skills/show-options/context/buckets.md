@@ -1,6 +1,6 @@
 # Buckets and rendering
 
-How `show-options` sorts the resolved catalog into four buckets and renders them in two tiers. The
+How `show-options` sorts the resolved catalog into five buckets and renders them in two tiers. The
 two rules in `SKILL.md` govern *presence*; everything here governs *order*, *grouping*, and *shape*.
 
 ## Why four, and why not the obvious four
@@ -58,6 +58,24 @@ Skipped upstream: cannot ground upstream stages here — the memory slice is not
 checkout, so artifact absence is not evidence of a skipped stage.
 ```
 
+### Later — the in-domain remainder, tier 2 only
+
+Everything relevant to this project that sits beyond the Next horizon: testing, review, and
+verification skills early in a session; migration and release skills mid-build. Under the earlier
+four-bucket cut these fit nowhere — not Now, not the two-to-three-step Next, not upstream, and not a
+three-entry Spotlight — so the never-omit rule could only be honoured by stretching another bucket's
+definition or by dropping them. Both are failures; this bucket is the fix.
+
+**It renders tier 2 only** — bare invocation names with a count, roughly one wrapped line — and that
+constraint is what keeps it from becoming the 60-row dumping ground "Standing" was. A catch-all is
+safe precisely because it costs a line; a catch-all with full treatment is the failure mode measured
+above.
+
+It holds relevance, not everything. An out-of-domain skill (songwriting in a code session) is still
+omitted under the irrelevant test in `SKILL.md`. If `Later` starts approaching the whole catalog,
+the irrelevant test is being applied too timidly — that is the signal to tighten it, not to cap
+`Later`.
+
 ### Spotlight — exactly three, least-recently-surfaced
 
 Ranking alone re-shows the same handful of skills forever. That serves the immediate decision and
@@ -65,9 +83,29 @@ teaches the operator nothing about the rest of their catalog — repeated exposu
 entries is restudy, not learning. Rotation forces encounters with different corners of the fleet
 across invocations.
 
-**Ledger.** Reads and writes one small record of what it last surfaced, in the resolved memory tier
-(per the plugin's topic-docs binding). Two consequences, both accepted and both stated rather than
-hidden:
+**Ledger — path and record shape are fixed here, not left to the invocation.** Two sessions choosing
+different filenames or formats would each fail to recover what the other surfaced, and the
+least-recently-surfaced ordering would never advance. So:
+
+- **Path:** `<memory_dir>/show-options/spotlight-ledger.json`, with `<memory_dir>` resolved through
+  the plugin's topic-docs binding (default `.work/`). Not under a topic slug — rotation is a
+  property of the operator's catalog, not of any one topic, and a per-slug ledger would restart the
+  rotation on every new piece of work.
+- **Record shape:** a JSON object mapping a fully-qualified invocation name to the ISO-8601 UTC
+  timestamp it was last surfaced in Spotlight. Nothing else — no ranks, no counts, no history.
+
+  ```json
+  {"/discipline:point-dont-copy": "2026-08-19T00:41:12Z", "/education:teach": "2026-08-18T22:03:57Z"}
+  ```
+
+- **Ordering:** a skill absent from the ledger has never been surfaced and sorts before every
+  present entry; among present entries, oldest timestamp first. Write back only the three surfaced
+  this invocation.
+- **A missing or unparsable ledger is not an error.** Treat it as empty — every candidate is
+  then never-surfaced — and write a fresh one. Rotation degrades to arbitrary-but-fair on first
+  run, which is correct.
+
+Two consequences, both accepted and both stated rather than hidden:
 
 - It **resets per worktree and per clone**, because the memory tier is not shared across checkouts.
   A fresh checkout starts the rotation over. That is a mild loss, not a correctness problem.

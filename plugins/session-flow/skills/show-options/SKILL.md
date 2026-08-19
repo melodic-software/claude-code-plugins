@@ -60,9 +60,16 @@ forgotten ones this skill exists to surface. Ladder:
 
 1. `/claude-ops:inventory` — if that plugin is installed. It owns whole-fleet enumeration and its
    bundled script already reports every installed skill including manual-only ones; reuse it rather
-   than walking the plugin cache, whose layout is undocumented and version-keyed. **Done when** the
-   returned set contains at least one skill absent from the in-context listing, proving it reached
-   past the listing's blind spot; if it returns nothing usable, fall to rung 2.
+   than walking the plugin cache, whose layout is undocumented and version-keyed. **Read its output
+   from stdout — never pass `--out` into the consuming project**, whose documented example writes
+   `./claude-inventory.json` into the working directory; this skill writes nothing but its Spotlight
+   ledger, and littering a consumer's repo to render a menu would break that. **Reconcile installed
+   against enabled** — inventory reports `installed_plugins` and `enabled_plugins` as distinct sets
+   and asks callers to say which they used; a skill in an installed-but-disabled plugin is named
+   with an `(plugin not enabled)` annotation rather than silently listed as runnable or silently
+   dropped. **Done when** the returned set contains at least one skill absent from the in-context
+   listing, proving it reached past the listing's blind spot; if it returns nothing usable, fall to
+   rung 2.
 2. An operator-supplied catalog file, when the consuming project provides one. **Done when** a
    declared catalog path resolves and parses; if the project declares none, fall to rung 3.
 3. The in-context listing — last resort. **Done when** the pool is built *and* the output carries
@@ -106,16 +113,24 @@ Inferring from that would announce that the operator skipped every upstream stag
 opposite of the truth. Report `cannot ground upstream stages here` and leave the bucket empty with
 that reason.
 
-## The four buckets
+## The five buckets
 
 Full derivation rules and rendering: [`context/buckets.md`](context/buckets.md).
 
-| Bucket | Holds |
-|---|---|
-| **Now** | Fits the current moment |
-| **Next** | Two or three steps ahead on the trajectory |
-| **Skipped upstream** | Stages upstream of the detected position **whose output artifact is absent on disk** — artifact-grounded, never inferred from conversation |
-| **Spotlight** | Exactly three, ordered least-recently-surfaced |
+| Bucket | Holds | Tiers |
+|---|---|---|
+| **Now** | Fits the current moment | 1 + 2 |
+| **Next** | Two or three steps ahead on the trajectory | 1 + 2 |
+| **Skipped upstream** | Stages upstream of the detected position **whose output artifact is absent on disk** — artifact-grounded, never inferred from conversation | 1 + 2 |
+| **Later** | Everything else in-domain: relevant to this project but beyond the Next horizon | **2 only** |
+| **Spotlight** | Exactly three, ordered least-recently-surfaced | 1 only |
+
+**`Later` is the catch-all that makes rule 1 true.** Without it, a skill that is in-domain but
+downstream — testing and review skills early in a session — fits no bucket and would have to be
+dropped, silently breaking the never-omit rule. It renders **tier 2 only**: bare names with a count,
+roughly one wrapped line. That is what lets the catch-all exist without recreating the 60-row
+dumping ground an earlier cut of this design had. Anything genuinely out-of-domain is still omitted
+under the irrelevant test above; `Later` catches relevance, not everything.
 
 `Skipped upstream` is deliberately artifact-grounded: "everything upstream" is definitionally the
 whole early catalog and carries no information. `workflow` already sets this precedent — verify a
@@ -123,11 +138,11 @@ stage from its artifact, not from conversation vibes.
 
 `Spotlight` exists because ranking alone re-shows the same five skills forever, which serves a
 decision but teaches nothing. Rotation forces encounters with different corners of the catalog over
-time. It reads and writes one small ledger of what it last surfaced, in the resolved memory tier —
-accepting that the ledger resets per worktree and per clone, and that concurrent sessions are
-last-write-wins. It is deliberately **not** in `${CLAUDE_PLUGIN_DATA}`, which is keyed to the plugin
-id and nothing else, so a fixed filename there would be one file per *machine* and a spotlight shown
-in one repository would suppress it in another.
+time. It reads and writes one small ledger of what it last surfaced — path and record shape are
+fixed in [`context/buckets.md`](context/buckets.md) so two sessions cannot pick different ones and
+lose the rotation. It is deliberately **not** in `${CLAUDE_PLUGIN_DATA}`, which is keyed to the
+plugin id and nothing else, so a fixed filename there would be one file per *machine* and a
+spotlight shown in one repository would suppress it in another.
 
 ## Render two tiers
 

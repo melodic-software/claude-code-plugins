@@ -253,7 +253,8 @@ a spawned subagent's internal task list is not readable. It touches no git state
 ### show-options
 
 Turns the installed catalog from something the operator must remember into something they consult.
-Renders four buckets — **Now**, **Next**, **Skipped upstream** (artifact-grounded), and a rotating
+Renders five buckets — **Now**, **Next**, **Skipped upstream** (artifact-grounded), **Later** (the
+in-domain remainder beyond the near horizon, rendered as bare names only), and a rotating
 **Spotlight** of three — each as a ranked shortlist of at most five in full treatment plus the
 complete remainder by bare name with an explicit count, so nothing is off-screen unstated.
 

@@ -4,9 +4,12 @@
 
 ### Added
 
-- `show-options` — a human-facing menu answering "what should I run next?". Four buckets (Now, Next,
-  Skipped upstream, and a rotating Spotlight of three), each rendered as a ranked shortlist of at
-  most five plus the complete remainder by bare name with an explicit count. Its contract is two
+- `show-options` — a human-facing menu answering "what should I run next?". Five buckets (Now, Next,
+  Skipped upstream, Later, and a rotating Spotlight of three), each rendered as a ranked shortlist of
+  at most five plus the complete remainder by bare name with an explicit count — except `Later`,
+  which is tier-2 only. `Later` is what makes the never-omit rule true: an in-domain skill beyond the
+  near horizon (testing and review early in a session) fits no other bucket, and rendering it as one
+  counted line catches it without recreating a dumping-ground bucket. Its contract is two
   rules: never omit a candidate's name, and never invent one; a skill believed to have already run is
   ranked normally and annotated rather than dropped. Candidates resolve from the full installed
   catalog rather than the in-context skill listing, which omits every manual-only skill and drops
