@@ -107,7 +107,7 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 | The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
 | Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill — only on the user's explicit request |
 | The machine itself may go away | `/session-flow:clean-stop` semantics — make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
-| Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries — the line the other side re-resolves the file from |
+| Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries — the line the other side re-resolves the file from. The file itself is memory-tier and gitignored — visible only in the checkout that wrote it — so when the other side cannot read that checkout, it must travel out-of-band (send the file with the prompt, or promote its substance into an artifact the other side can read, per the promote rule below) |
 
 ## Fork beats compaction when the window is deep
 
@@ -127,10 +127,14 @@ session. Judge the threshold by window position and response quality, never by a
 
 ## Reference other artifacts; promote durable value — never commit the file
 
-**Do not duplicate content captured in another artifact.** Content that already lives in a spec,
-plan, ADR, issue, commit, or diff is referenced by path or URL, never restated in the save-point.
-The engine's per-section guidance ("Summarize; never transcribe" in the structure doc's file-roles
-section) is this rule applied locally; it holds across the whole save-point, on both paths.
+**Do not duplicate content captured in another artifact.** Content that already lives in a durable
+artifact — a spec, plan, ADR, issue, commit, or committed diff — is referenced by path or URL,
+never restated in the save-point. The engine's per-section guidance ("Summarize; never transcribe"
+in the structure doc's file-roles section) is this rule applied locally; it holds across the whole
+save-point, on both paths. Uncommitted or half-finished edits remain the exception that same
+file-roles section owns: they have no commit to reference, so their state — which part is
+implemented and working, which part is not — is described in the save-point, the one place it
+exists.
 
 **Promote the content, never the file.** When a handoff carries durable value — a decision, a
 constraint, a finding worth keeping beyond this task — promote that substance into a committed
