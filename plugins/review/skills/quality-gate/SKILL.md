@@ -1,9 +1,9 @@
 ---
-description: "Single-lens review checkpoint between 'code works' and 'code is ready' — routes to self, code, architecture, security, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', or 'security review', or after implementation completes."
-argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate slice <name>)"
+description: "Single-lens review checkpoint between 'code works' and 'code is ready' — routes to self, code, architecture, security, spec, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', 'security review', or 'does this match the spec/issue/plan', or after implementation completes."
+argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate spec [--spec <path|id>], /review:quality-gate slice <name>)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)"]
+allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -39,6 +39,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 | "review the code", "code review" | **code** | [context/code.md](context/code.md) |
 | "architecture review", new modules, cross-cutting structure | **architecture** | [context/architecture.md](context/architecture.md) |
 | "security review", auth/input handling, API endpoints | **security** | [context/security.md](context/security.md) |
+| "does this match the spec/issue/plan", "did we build what was asked", scope-creep check, `spec [--spec <path\|id>]` | **spec** | [context/spec.md](context/spec.md) |
 | "review the PR", a PR exists for the branch | **pr** | [context/pr.md](context/pr.md) |
 | "review criteria", "what should I check" | **criteria** | [context/criteria.md](context/criteria.md) |
 | `slice <name>`, "review testing", "review concurrency" | **slice** | [context/per-slice.md](context/per-slice.md) |
@@ -46,10 +47,36 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 
 Ambiguous → present the modes and ask. **Read the matching context file before proceeding.**
 
+## Step 0.5: Pre-flight gate (diff-consuming modes only)
+
+**Mode-scoped by design.** `criteria` is a reference mode — it loads criteria rather than reviewing
+a change, and legitimately runs against a clean tree — so it is **exempt** and never gated. Every
+other mode consumes the review diff, so for those: resolve the review diff base ("Shared inputs")
+and confirm it yields a non-empty diff BEFORE dispatching any reviewer.
+
+- **Unresolvable base** — an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
+  after a fetch (do NOT silently substitute a different base — that reviews the wrong diff), or no
+  ladder ref resolves at all → report which ref failed and STOP.
+- **Nothing to review** — no tracked diff against the base AND no untracked files → say so and
+  STOP; never stage files to manufacture a diff.
+
+**Untracked-only is reviewable here, and this is a deliberate divergence from `fanout`.** This
+skill's Shared inputs hand untracked files to the dispatched reviewer directly ("Shared inputs";
+the `self` and `slice` worker templates both read them), so a branch whose whole change is new
+files has a real change set — stopping on it would make a new-module or new-test review report
+"nothing to review" about work that is plainly there. `fanout` stops on that case because its
+surfaces receive only the merge-base diff, which cannot show an unstaged file. Review the untracked
+files in place; still never `git add` them.
+
+Either outcome dispatches ZERO reviewers: a lens run against an empty or wrong change set produces
+noise, not a verdict. `spec` mode adds one gate of its own on top of this one — an explicitly
+passed `--spec` ref that does not resolve is also a STOP ([context/spec.md](context/spec.md)
+"Rung 1").
+
 ## Step 1: Gather context
 
 1. **What changed?** — pre-computed facts above + the review diff base
-2. **What was the goal?** — the original task, approved plan, or user intent from conversation
+2. **What was the goal?** — the original task, approved plan, or user intent from conversation. In every mode but `spec` this is background for judging the change; making the goal the thing under judgment is `spec` mode, which owns the spec-source discovery ladder and the fidelity finding classes
 3. **What conventions apply?** — resolve the project's standards for the changed surfaces through the standards index per the Shared-inputs criteria-resolution binding, so every review mode grounds in the same rows plan formulation loaded
 
 ## Step 2: Execute the review

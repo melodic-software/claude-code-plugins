@@ -42,7 +42,7 @@ PARTIAL / REJECTED / OPEN.
 | A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | PARTIAL (C4 adopted gate-added; C3 partial; C1 already-present; C2 routed to #2936) | #2934 |
 | B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED | #2935 |
 | C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
-| D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
+| D | Two-axis review, spec lens, discovery ladder, preflight | C12–C16 | review:quality-gate | PARTIAL (C12+C14 adopted-corrected; C13+C16 already-present; C15 partial) | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
@@ -90,6 +90,69 @@ consumer-configurable throughout.
 - **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch.
 - **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
 - **C17 ADOPTED**: PR-variant brief in `plugins/work-items/reference/agent-brief.md` (current-behavior-of-the-diff, finish-what-exists). Does not replace the bug/feature template.
+
+## Lane D (#2937)
+
+Design locked 2026-08-19 after adversarial validation (two fresh-context validators, rationale
+withheld; three of five initial answers revised on evidence).
+
+- **C12 ADOPTED-corrected**: `spec` mode — a 9th `quality-gate` lens judging the diff against its
+  originating spec, in `plugins/review/skills/quality-gate/context/spec.md`. That file **owns** the
+  finding-class enum (`missing` / `scope-creep` / `wrong`, each finding quoting its spec line);
+  `self.md`'s fenced worker checklist keeps a shallow divergence check and does not restate the
+  taxonomy, and the pointer to the owning file sits in orchestrator-facing escalation text, not
+  inside the subagent template a fresh-context worker cannot act on. Fills the dangling consumer in
+  `work-items:decompose` and `work-items:ship`, which both route container close-out to "the review
+  plugin's spec-fidelity machinery."
+- **C13 ALREADY-PRESENT + one targeted edit**: the course's two-axis intent is already implemented
+  as `fanout`'s two-axis presentation (merged ranked queue plus a per-dimension regrouping). The
+  originally proposed "never merge or rerank across axes" rule was **withdrawn** — it would negate
+  the normalization pipeline `fanout` exists to run, and its second scope (invocations pairing spec
+  with a quality mode) is unimplementable against `quality-gate`'s one-lens-per-invocation rule.
+  Landed instead: `self.md`'s parallel-worker split tightened from "merge only after verification"
+  to keep-separate presentation, and the **vocabulary recorded once** in
+  `plugins/review/context/severity.md` — in this plugin `axis` means severity/confidence; a review
+  perspective is a `lens`. Three incompatible senses were live before that note.
+- **C14 ADOPTED-corrected**: spec-source discovery ladder in `context/spec.md` — `--spec <path|id>`
+  → item refs harvested from branch commits / PR body → the topic's contract slice → ask → skip
+  with a note. Corrections over the course's version: (1) the seam's normalized item object has
+  **no `body` field**, so spec text comes from the **provider-mechanic read**; (2) a harvested bare
+  `#N` is **validated** (strictly numeric; owner/repo to a repo-name shape) and then **promoted** to
+  the qualified `<provider>:<owner>/<repo>#<number>` form, with the read scoped by `--repo` to that
+  id's own repository — commit and PR text is attacker-influenceable through a fork PR, and a bare
+  number would read a same-numbered issue in the *current* repo; (3) the contract-slice rung keys
+  on the **topic slug**, not the branch slug — the branch axis is deliberately lossy. **Design
+  correction found in PR review:** the item is read through a documented public seam or the provider
+  mechanic, never by invoking the sibling plugin's seam CLI — `PLUGIN-PHILOSOPHY.md` forbids
+  discovering another plugin's installation directory, and no namespaced item-fetch action exists
+  today. So this is *not* the marketplace's first cross-plugin seam call; the provider-mechanic read
+  is the operative path, the rung works with no tracker plugin installed, and parent linkage (whose
+  authoritative source, `get-item`, is unreachable from here) degrades to best-effort or an explicit
+  `--spec`.
+  Recorded limit: the contract slice is pruned before merge, so that rung goes empty post-merge and
+  recovery is best-effort — which is why the tracker item is the durable spec home.
+- **C15 PARTIAL**: `fanout`'s fail-fast preflight ported into `quality-gate`, which had none. Two
+  costs the course's version omits and this port carries: the gate is **mode-scoped** (`criteria`
+  is a reference mode that legitimately runs on a clean tree and is exempt), and `quality-gate`'s
+  narrow `allowed-tools` allowlist had to be **widened** with the git read verbs the gate needs or
+  it stalls headless. A third, found in PR review: the port must **not** copy `fanout`'s
+  untracked-only stop. `fanout` stops there because its surfaces receive only the merge-base diff,
+  which cannot show an unstaged file; `quality-gate` hands untracked files to the reviewer directly,
+  so a new-files-only branch is a real change set and stopping on it would report "nothing to
+  review" about work that is plainly there.
+- **C16 ALREADY-PRESENT**: both suppression halves — repo standards override a conflicting baseline
+  smell, and skip what tooling already enforces — are carried in one sentence at
+  `plugins/review/agents/code-reviewer.md`, corroborated in `quality-gate/context/criteria.md` and
+  `code-review/SKILL.md`. No change.
+- **CI code-review lane stays quality-only** (reasoned rejection, not a phantom exclusion): the
+  original "deliberately excluded" clause was a no-op — no coupling to `quality-gate` existed to
+  exclude. The lane is org-owned, already declares lane-splitting doctrine, and its scope rules
+  foreclose absence-of-code findings. Revisitable on demand rather than silently narrowed.
+- **Container close-out review split out** to #3027: its mechanism is broken
+  four ways as originally specified (no seam verb yields a closing PR; "union of merge commits"
+  is the empty set under this repo's squash-merge default; the integration-branch execution shape
+  has no per-item PRs at all; a container-scoped basis conflicts with `quality-gate`'s singular
+  review-diff-base contract) and it is structurally larger than a mode addition.
 
 ## Lane W (#2939)
 
