@@ -39,11 +39,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The "no documented threshold" paragraph carries a dated refinement.** Upstream is now more
   specific than the "when approaching context limits" phrasing the paragraph quotes: with no window
   configured, compaction fires at the model's context limit, with enumerated exceptions that fire
-  earlier (cloud sessions, 200K-boundary model/configuration combinations, unrecognized model IDs).
-  A percentage default is implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` but still unpublished as a
-  number, so the conclusion is unchanged — the bands stay declared judgment defaults — while the
-  trigger is now documented as model- and environment-dependent, which is why no single band set is
-  correct everywhere. Verified 2026-08-19.
+  earlier (cloud sessions, 200K-boundary model/configuration combinations, unrecognized model IDs,
+  and Sonnet 5 at "about 967K tokens by default" on its 1M window). That Sonnet 5 figure is the one
+  published number in the set; at ~97% of the window it sits well above the shipped `dumb` band, so
+  it is recorded as context rather than as a reason to move the bands. A percentage default is
+  implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` but still unpublished as a number, so the conclusion
+  is unchanged — the bands stay declared judgment defaults — while the trigger is now documented as
+  model- and environment-dependent, which is why no single band set is correct everywhere. Verified
+  2026-08-19.
 - **The evidence-degraded marker's `trigger` field now has consumer guidance.** The field's values
   were documented; what a consumer should *do* with them was not. The contract now states that
   consumers deliberately do not differentiate on `trigger` (evidence degradation is

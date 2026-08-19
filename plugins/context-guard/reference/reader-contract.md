@@ -292,8 +292,13 @@ now more specific than "when approaching context limits" — with no window conf
 fires **at the model's context limit**, with enumerated exceptions that fire earlier (cloud
 sessions compact as the conversation *approaches* the limit; Sonnet 4.6 / Opus 4.6 without extended
 context, and Opus 4.8 / Opus 5 running on a 200K window, compact at the 200K boundary; a
-`CLAUDE_CODE_DISABLE_1M_CONTEXT=1` session on a native-1M model likewise; an unrecognized model ID
-compacts at whatever window Claude Code assumes for it). A *percentage* default is implied by
+`CLAUDE_CODE_DISABLE_1M_CONTEXT=1` session on a native-1M model likewise; **Sonnet 5 compacts at
+the threshold for its configuration — "about 967K tokens by default" on its 1M window, i.e. before
+the window fills**; an unrecognized model ID compacts at whatever window Claude Code assumes for
+it). That Sonnet 5 figure is the one published number in the set, and it sits at ~97% of the
+window — comfortably above the shipped `dumb` band, so it does not disturb the margin that the
+bands-below-the-trigger rule protects, the way a lowered window does. A *percentage* default is
+implied by
 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored" but is still
 not published as a number — so the conclusion is unchanged: the bands remain declared judgment
 defaults. What this does change is that the trigger is **model- and environment-dependent**, so no
@@ -301,8 +306,8 @@ single band set is correct everywhere.
 
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated" — the value is as-of the last API response, not
-the next request; and with `autoCompactEnabled: false` no compaction ever fires (the session hard
--stops at the window instead), which makes the dumb band the *only* tripwire — strictly more
+the next request; and with `autoCompactEnabled: false` no compaction ever fires (the session
+hard-stops at the window instead), which makes the dumb band the *only* tripwire — strictly more
 load-bearing, never less.
 
 ### The trigger has no documented threshold, but it IS operator-tunable
@@ -346,8 +351,8 @@ on the session's behalf and the boundary was reached too late. Auto-compact offe
 hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
 window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
 with it — normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
-trigger at **40% of the full window**, which is *inside* the shipped `smart` band (≤ 50): auto-
-compact would fire while every zone still reads green. Keeping bands below that trigger means
+trigger at **40% of the full window**, which is *inside* the shipped `smart` band (≤ 50), so
+auto-compact would fire while every zone still reads green. Keeping bands below that trigger means
 pulling the percentage bands under 40, not comparing 400000 against the same-looking `dumb`
 occupancy number — those two 400000s are different quantities.
 
