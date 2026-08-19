@@ -80,12 +80,15 @@ the same rules:
 - **`per-item PRs`** — separate branch (and worktree) per item from the default branch; per-item PR
   closes each item; independent items may run in parallel; the seam claim is the collision signal.
   Items route through the standard `/work-items:work` path.
-- **`integration branch → single PR`** — one shared branch, items closed sequentially as
-  **checkpoints**; claim each item via the seam before working it even though work is sequential
-  (a second machine can join the branch), renew the lease mid-flight on long items, pull before
-  starting and push before closing each item; no per-item PRs — one PR at the end carries the
-  journey. This shape is worked on the shared branch directly, not through `/work-items:work`'s
-  default-branch worktree path.
+- **`integration branch → single PR`** — one shared branch (named by the container's
+  `**Integration branch:**` line — state it; absent → offer to record it before any work joins
+  the branch), items closed sequentially as **checkpoints**; claim each item via the seam before
+  working it even though work is sequential (a second machine can join the branch), renew the
+  lease mid-flight on long items, pull before starting and push before closing each item;
+  **one item in flight at a time** — an active claim on any sibling sub-item defers new claims on
+  this container, because per-item leases alone do not serialize a shared branch; no per-item
+  PRs — one PR at the end carries the journey. This shape is worked on the shared branch
+  directly, not through `/work-items:work`'s default-branch worktree path.
 - **Line absent** — apply the `per-item PRs` default loudly and offer to record the line (an
   ordinary body edit through the bound adapter, mutation-gated like any tracker write). An
   unrecognized value is reported, not obeyed.
@@ -97,11 +100,12 @@ when a named plugin is absent, state the manual fallback instead.
 
 | Journey state | Route |
 |---|---|
-| Frontier has items (per-item shape) | `/work-items:work` — auto-select, claim, execute one item |
-| Frontier has items (shared-branch shape) | Work the next checkpoint on the integration branch: claim via the seam, execute under the project's workflow, close the item, push — this skill states the discipline; the work itself runs in-session or in the operator's worker |
+| Frontier has items (per-item shape) | `/work-items:work` — auto-select, claim, execute one item. Say the caveat out loud: it selects over the **global** frontier by priority tier, not this container's scoped frontier, so it may legitimately pick a higher-tier item elsewhere. To drive *this* journey's named item specifically, claim it directly instead (`/work-items:track start <id>`) and execute it under the project's workflow |
+| Frontier has items (shared-branch shape) | Work the next checkpoint on the integration branch — but first check the Step 2 rollup for an active sibling claim: one item in flight at a time, so an active claim anywhere in the container means report who holds it and defer, never claim a second item onto the shared branch. Clear → claim via the seam, execute under the project's workflow, close the item, push — this skill states the discipline; the work itself runs in-session or in the operator's worker |
 | Frontier empty, open items all blocked or claimed | Report who holds what (claims, blockers); stale leases route to `/work-items:track audit` |
 | Slices no longer fit the spec (scope drift, unresolved unknowns) | `/work-items:decompose` — re-slicing and container publish belong to it |
-| All sub-items closed | Close-out: the container close ritual belongs to `/work-items:decompose` ("Container lifecycle — ship ritual") — a close-out review of the shipped whole against the container body (`/planning:plan close-out` and the review plugin's machinery when installed, else a manual pass against the Brief's acceptance criteria), then close with a comment linking the shipping PRs. Never close without the review; never leave a shipped container open as documentation |
+| All sub-items closed (shared-branch shape) | The journey's terminal step comes first: open the single integration PR from the shared branch (`/source-control:pull-request` when installed, else the operator's PR flow) and run the full verification gates — closed checkpoints record durable progress, not shipment. Then the close-out below runs at PR time; the container closes only when the PR ships |
+| All sub-items closed (per-item shape, or the integration PR is up) | Close-out: the container close ritual belongs to `/work-items:decompose` ("Container lifecycle — ship ritual") — a close-out review of the shipped whole against the container body (`/planning:plan close-out` and the review plugin's machinery when installed, else a manual pass against the Brief's acceptance criteria), then close with a comment linking the shipping PRs. Never close without the review; never leave a shipped container open as documentation |
 | Session ending mid-journey (phase boundary) | `/session-flow:handoff` or `/session-flow:clean-stop` when installed (else: push durable state and record a resume pointer on the claimed item). In shared-branch shape, prefer stopping **at a checkpoint** — an item closed and pushed — over a bare phase boundary |
 
 This skill mutates nothing on the happy path — it reads, states, and routes. Its only offered

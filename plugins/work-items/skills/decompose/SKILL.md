@@ -125,7 +125,10 @@ Ask the user:
 - When the container is approved, one follow-up line: **execution shape** — `per-item PRs`
   (default) or `integration branch → single PR`? Per-container, never a repo-level setting; the
   choice is recorded as a durable line in the container body and read back by `/work-items:ship`
-  ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md))
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md)).
+  Choosing the integration shape also names the shared branch, recorded as the sibling
+  `**Integration branch:** <branch-name>` line (deferable to the first working session when the
+  name is not yet known)
 
 Iterate one question at a time until the user approves — never publish an unapproved breakdown.
 
@@ -216,7 +219,9 @@ coordination provider instead of publishing a spec that cannot travel.
 - **Body**: the Brief **verbatim** (TLDR / Goal / Constraints / Acceptance criteria / Captured
   assumptions / Out-of-scope / Deferred questions), plus an optional `## Testing decisions`
   section when test-topology decisions (with prior-art test pointers) were locked at plan time,
-  and the approved `**Execution shape:** <choice>` line appended after the Brief sections
+  and the approved `**Execution shape:** <choice>` line appended after the Brief sections —
+  plus the sibling `**Integration branch:** <branch-name>` line when the integration shape was
+  chosen and named
   ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md)
   "The shape line"). No inflation — the Brief as approved is the spec; do not expand it into a
   "long, extensive" document for the tracker's benefit.

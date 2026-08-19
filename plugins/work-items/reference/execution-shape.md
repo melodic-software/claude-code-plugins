@@ -30,6 +30,12 @@ or
 - **Absent line = `per-item PRs`** (the default). A reader applying the default says so loudly —
   "no execution-shape line; per-item PRs assumed" — and offers to record the line rather than
   leaving the default implicit forever.
+- The shared-branch shape needs one more durable fact: **which branch**. A sibling line directly
+  under the shape line records it — `**Integration branch:** <branch-name>` — written when the
+  shape is chosen (the branch is named at the same approval follow-up) or backfilled by the first
+  session that provisions the branch. A fresh session (cloud or local) resolves the shared branch
+  from this line, never from convention or guesswork; when the line is absent, a reader says so
+  and offers to record it before any work joins the branch.
 - The line is data in an item body like any other item text — the item-content-trust boundary
   applies. It selects between two documented disciplines; it never widens authority, and any other
   value is reported as unrecognized (fall back to stating both disciplines), not obeyed.
@@ -52,18 +58,33 @@ Independent, parallelizable items; each item is its own micro journey to the def
 
 Sequential checkpoints on one shared branch; the journey ships as one PR at the end.
 
-- One integration branch hosts the whole journey; items are closed **sequentially** as work lands
-  on it, each closure a checkpoint. No per-item PRs; the single PR at the end carries the journey
-  and the container's close-out.
+- One integration branch (recorded in the container's `**Integration branch:**` line) hosts the
+  whole journey; items are closed **sequentially** as work lands on it, each closure a
+  checkpoint. No per-item PRs; the single PR at the end carries the journey and the container's
+  close-out.
 - **Shared-branch discipline** (this is what makes distributed cloud + local execution on the same
   branch safe): claim each item via the seam before working it even though work is sequential —
   two sessions (a cloud agent and a local machine) can legitimately share the branch, and the
   claim, not the branch, is the collision signal; renew the lease mid-flight on long items; pull
   before starting an item and push before closing it, so every checkpoint is durable and the next
   session (or machine) starts from it.
+- **One item in flight at a time.** Sequentiality is enforced by the claim check, not assumed: a
+  shared branch cannot host two concurrent checkpoints, so an active claim on **any** sibling
+  sub-item defers new claims on this container — even of an independent frontier item — until the
+  active item closes or its lease is reclaimed. Per-item leases alone do not serialize a shared
+  branch; this container-scoped check is what does.
+- **Closing a checkpoint records durable progress, not shipment.** The item closes when its work
+  lands on the integration branch — that is the checkpoint contract (safe to clear context, next
+  session resumes from it) — while shipment is the **container's** close: single PR merged plus
+  the close-out review. An integration PR that fails review or is abandoned leaves the container
+  open with its closed checkpoints intact, which is exactly the recoverable signal — the journey
+  reads unfinished at the container even though its items are closed.
 - Green is promised at the end: intermediate checkpoints keep the integration branch coherent, but
   full verification gates run before the single PR merges (plus any per-checkpoint gates the
-  project's workflow defines).
+  project's workflow defines). When the **last** item closes, the journey's terminal step is
+  opening that single PR from the integration branch (`/source-control:pull-request` when
+  installed) and running the full gates; the container's close-out runs at PR time and the
+  container closes only when the PR ships.
 - The standard `/work-items:work` path provisions worktrees from the default branch and opens
   per-item PRs, so items in this shape are worked on the shared branch directly (operator-driven),
   not through that path — the same caveat `/work-items:decompose` records for its
