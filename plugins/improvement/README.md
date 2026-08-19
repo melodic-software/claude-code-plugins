@@ -1,7 +1,7 @@
 # improvement
 
 A Claude Code plugin answering the question the fleet had no entry point for: **"what should we
-improve here, and how do we know?"** One skill, one concern: finding improvement candidates —
+improve here, and how do we know?"** Two skills, one concern: finding improvement candidates —
 across dimensions, at any size — and backing every one with evidence.
 
 | Skill | What it does |
