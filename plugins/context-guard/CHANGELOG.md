@@ -5,6 +5,26 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.14]
+
+### Changed
+
+- **Both zone-crossing message channels compressed** (owner report: the operator message was
+  overly verbose). The operator `systemMessage` drops from ~900 to ~380 chars pre-interpolation:
+  menu-first, one clause per option, keeping the four continuation options, the `zones.json`
+  tunability pointer, the `/session-flow:workflow` router, the test-pinned "yours to choose"
+  ownership phrase, and the "(if installed)" hedges (context-guard installs standalone — a bare
+  menu would recommend commands a solo install does not have). Dropped: the snapshot-seam
+  provenance parenthetical, the vendor-variance hedge, and the write-a-resume-file-by-hand
+  fallback clause. The model-channel `additionalContext` gets the matching conservative trim
+  (~740 → ~490 chars): all four semantics survive verbatim where the contract test pins them —
+  measurement-not-instruction, "Do not volunteer", "operator's call", and the dumb-zone
+  durable-notes rider — and the "crossed from the <previous>" phrasing stays for the
+  partial-write recovery assertion. The evidence-degraded label shortens to
+  "dumb (evidence-degraded: this session was compacted)". No behavior change; the two-channel
+  contract (menu to operator only, counter-steer to model only) is untouched and the full test
+  suite passes unchanged.
+
 ## [0.7.13]
 
 ### Changed
