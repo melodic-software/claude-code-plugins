@@ -6,10 +6,10 @@ Copy into your project's working-notes location. Tick as each phase completes.
 
 - [ ] Phase 0 (repo mode only): Precondition — no tracked modifications in the sweep universe (working-notes location excluded); run state initialized
 - [ ] Phase 1: Discover changed code files — `git diff` / `git log` against the scope, or `git ls-files` for repo mode; collect the candidate set
-- [ ] Phase 1.5 (repo mode only): Confirmation gate — inventory summary (file count, groups, wave plan, scale estimate, exclusions by class) presented and confirmed, or an explicit-prose unattended authorization recorded for Phase 8
 - [ ] Phase 2: Filter to code files — exclude lockfiles, docs, generated content, vendor, append-only records
 - [ ] Phase 3: Verify existence — confirm each candidate still exists in the working tree
 - [ ] Phase 4: Group files — by project/ecosystem, dependency-ordered
+- [ ] Phase 4.5 (repo mode only): Confirmation gate — inventory summary (surviving file count, groups, wave plan, scale estimate, exclusions by class) presented and confirmed, or an explicit-prose unattended authorization recorded for Phase 8. Sits here, after grouping and wave planning, because every number it reports is computed in Phases 2–4 — and still before any dispatch, so it remains the cost gate
 - [ ] Phase 5: Create tasks — one TaskCreate per group; track via TaskUpdate
 - [ ] Phase 6: Run simplification waves — simplifier agent per group; capture findings + deferrals
 - [ ] Phase 6.1 (repo mode only): Refutation verifier per group — fresh context, tries to refute "behavior preserved"; a confirmed refutation reverts that group's file list

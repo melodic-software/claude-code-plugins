@@ -100,10 +100,11 @@
     {
       "id": 8,
       "name": "repo-mode-verifies-and-files-per-its-own-doctrine",
-      "prompt": "/batch-simplify repo — I have confirmed the inventory, proceed",
-      "expected_output": "Runs each group through a simplifier and then a fresh-context refutation verifier, delivers one pull request per wave, and files work items for High-priority deferrals only while persisting every deferral to the run-state inventory.",
+      "prompt": "I reviewed the inventory summary you just presented for the repo-mode run. It looks right — go ahead and run it.",
+      "expected_output": "Treats the reply as the confirmation the gate was waiting on and proceeds with the planned run: each group through a simplifier and then a fresh-context refutation verifier, one pull request per wave, work items filed for High-priority deferrals only while every deferral is persisted to the run-state inventory.",
       "files": [],
       "expectations": [
+        "Proceeds from the already-presented inventory rather than re-discovering or re-planning the run",
         "Runs a fresh-context verifier per group that tries to refute 'behavior preserved' — mandatory in repo mode, not optional as in the diff-scoped modes",
         "Does NOT treat the end-of-run cross-ecosystem pass as sufficient on its own at repo scale",
         "Reports groups with no mapped test suite as unmapped rather than as passing",

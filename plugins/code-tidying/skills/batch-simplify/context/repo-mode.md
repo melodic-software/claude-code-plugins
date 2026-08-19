@@ -157,9 +157,10 @@ the diff before merge; at repo scale nobody does, and large parts of any reposit
 suite mapped to them at all. For those files the refutation pass and the end-of-run union pass are
 the only checks that ever run.
 
-Treat a confirmed refutation as a group-level failure: revert that group (see below), record what
-the verifier found, and either re-run the group with the finding in the prompt or defer it. Do not
-merge a group whose verifier found a real behavior change.
+Treat a confirmed refutation as a group-level failure: revert that group by the two-step mechanism in
+"Run state and resume" below — tracked paths via `git checkout --`, untracked paths from their
+pre-dispatch snapshot — record what the verifier found, and either re-run the group with the finding
+in the prompt or defer it. Do not merge a group whose verifier found a real behavior change.
 
 ## Run state and resume
 
@@ -176,18 +177,43 @@ Record, and keep current as the run proceeds:
 - Which wave each delivered group shipped in.
 
 **Resume is idempotent.** On resume, re-read the run state, then for each group whose status is
-in-flight or simplified-but-unverified, **revert that group's file list** before re-running it —
-`git checkout --` scoped to exactly those paths. Re-simplifying on top of a partial pass produces
-changes neither the original agent nor the new one reasoned about as a whole.
+in-flight or simplified-but-unverified, **revert that group's file list** before re-running it.
+Re-simplifying on top of a partial pass produces changes neither the original agent nor the new one
+reasoned about as a whole.
 
 **Scope the revert to the group's file list, never the tree.** A tree-wide revert destroys the
 run-state notes that make the resume possible, which converts a recoverable interruption into a lost
 run.
 
+**Reverting a group takes two mechanisms, because the sweep universe holds two kinds of file.**
+`git checkout --` restores a tracked file from the index. It cannot restore an untracked one — git
+has no prior version to restore — and it does not fail politely: git resolves every pathspec before
+touching anything, so a single untracked path in the list aborts the **whole** command and leaves the
+group's tracked files unreverted too. A revert written as one `git checkout --` over a mixed list
+therefore reverts nothing while appearing to have run.
+
+So, **before dispatching a group**, snapshot the current content of every untracked file in its list
+into the run state alongside the group's entry. Then revert in two steps:
+
+1. `git checkout --` over the group's **tracked** paths only.
+2. Restore each untracked path from its pre-dispatch snapshot. A file the simplifier created that
+   has no snapshot did not exist before the group ran — delete it rather than leaving it behind.
+
+Partition the list by asking git, not by guessing from the path: a path listed by
+`git ls-files --error-unmatch` is tracked, and anything else is not.
+
+**The refutation verifier's revert-on-refutation path uses this same two-step mechanism** — it is
+reverting the same kind of group's file list, so a single-command `git checkout --` fails there in
+exactly the same way.
+
 ## Confirmation gate
 
-Before any group is dispatched, present the inventory summary and wait. This applies on both entry
-paths — an explicit `repo` argument is a request to plan the run, not a licence to start it.
+Present the inventory summary and wait — **after grouping and wave planning, before any group is
+dispatched.** The position is load-bearing in both directions: every number below is computed by the
+filter, existence and grouping phases, so a gate raised before them can only report a raw candidate
+count or an invented one; and a gate raised after dispatch is not a cost gate at all. This applies on
+both entry paths — an explicit `repo` argument is a request to plan the run, not a licence to start
+it.
 
 The summary states:
 
