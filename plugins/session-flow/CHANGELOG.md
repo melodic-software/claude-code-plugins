@@ -1,5 +1,41 @@
 # Changelog — session-flow plugin
 
+## [0.24.0]
+
+### Added
+
+- `show-options` — a human-facing menu answering "what should I run next?". Five buckets (Now, Next,
+  Skipped upstream, Later, and a rotating Spotlight of three), each rendered as a ranked shortlist of
+  at most five plus the complete remainder by bare name with an explicit count — except `Later`,
+  which is tier-2 only. `Later` is what makes the never-omit rule true: an in-domain skill beyond the
+  near horizon (testing and review early in a session) fits no other bucket, and rendering it as one
+  counted line catches it without recreating a dumping-ground bucket. Its contract is two
+  rules: never omit a candidate's name, and never invent one; a skill believed to have already run is
+  ranked normally and annotated rather than dropped. Candidates resolve from the full installed
+  catalog rather than the in-context skill listing, which omits every manual-only skill and drops
+  descriptions starting with the least-invoked ones. A pool sourced from that listing discloses its
+  truncation in the output. Durable state is the primary signal, and the skill routes to `orient`
+  for it rather than adding another copy of the probe block seven skills already carry.
+
+### Changed
+
+- `workflow` — its "When two capabilities both fit" precedence section now states that the
+  route-to-exactly-one rule governs **stage** routing, and cedes option surfacing to `show-options`.
+  Without that carve the two skills' contracts read as contradictory: one is required never to
+  present both candidates, the other exists to present the whole set.
+- `setup` and the plugin README — skill counts updated for the fourteenth skill. The README's
+  "other eleven skills are zero-config" line was already off by one before this change and is now
+  correct at thirteen.
+- **`reference/gather.md` — the durable-state probe block is extracted to one owner doc.** Seven
+  skills (`continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`,
+  `workflow`) each carried a near-identical copy of the probe list, the one-command-per-call and
+  treat-failure-as-unknown rules, and the `#1687` no-precompute rationale. Each now names the probe
+  subset it takes and cites the seam. The per-consumer differences are preserved and documented as
+  deliberate rather than normalised away: `orient` reads `git log -8` where the save-point skills
+  read `-5`, `retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state
+  beyond the branch, and `workflow` takes no session id. `continue-in-background`'s warning that this
+  block is never the dirty-tree gate is kept at its call site and generalised in the seam.
+
 ## [0.23.9]
 
 ### Changed

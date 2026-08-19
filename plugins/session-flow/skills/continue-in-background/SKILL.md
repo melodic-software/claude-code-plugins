@@ -11,19 +11,13 @@ metadata:
 
 ## Context — gather first
 
-Collect these with **individual** Bash calls, one command per call:
+Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
-- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
-- Current branch — `git branch --show-current`
-- Uncommitted changes — `git status --porcelain`, reading **at most the first 20 entries**
-- Recent commits — `git log --oneline -5`
-
-Treat any failure as an unknown value and carry on — this block only colors the save-point, and
-nothing here is the dirty-tree gate. That gate runs its own commands at delivery step 1 and reads a
-git failure as a reason NOT to launch; never carry this block's shrug, or its non-`-uall`
-`git status` output, into it. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
-fail at load — keep `$`-expansion out of the pre-compute block (#1687).
+**This block only colors the save-point; nothing here is the dirty-tree gate.** That gate runs its
+own commands at delivery step 1 and reads a git failure as a reason NOT to launch — never carry this
+block's shrug, or its non-`-uall` `git status` output, into it.
 
 ## Purpose
 
