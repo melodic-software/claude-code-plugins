@@ -11,9 +11,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   left behind by the two late changes in 0.33.0 — the `audit-skill-starvation` → `-visibility`
   rename, and the commit that added the live collection path. The *Run it* section and
   `argument-hint` documented only `--fixture`, so an operator following the documentation
-  hand-authored a JSON bundle instead of running the engine against their real install — the one
-  invocation that answers the question the skill exists for. The bare live command is now the
-  primary form, with `--fixture` described as the reproduction path the tests use. The field
+  hand-authored a JSON bundle instead of running the engine live — the path that actually answers
+  the question the skill exists for. The live invocation is now the primary form, with `--fixture`
+  described as the reproduction path the tests use. *Run it* also now states where each live input
+  comes from, because the two resolve differently and the difference is load-bearing: usage reads
+  this machine's `~/.claude.json` wherever you run it, but the fleet being audited defaults to
+  `./plugins` **relative to the current directory**, so outside a plugins-layout checkout the bare
+  command exits non-zero with `no skills found` and `--plugins-root <dir>` is required. Nothing is
+  silently audited either way. The field
   table's `starvation` row said "Phase 3" for a field that has computed live since the skill
   shipped, and the Markdown report's H1 still read "Skill starvation report". No behavior change:
   the engine, its collection paths, and its verdicts are untouched.

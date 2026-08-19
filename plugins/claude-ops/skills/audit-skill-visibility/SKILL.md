@@ -1,6 +1,6 @@
 ---
 description: "Audit whether each installed skill is actually VISIBLE to the model — and diagnose why most of a fleet never gets used. A skill is invisible when its description is dropped by the skill-listing context budget (Claude Code drops descriptions starting with the least-invoked skills, so an unused skill loses the keywords that would let it be matched and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest — computing whether the listing overflows from documented settings, and withholding every verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
-argument-hint: "[--render markdown|json] [--now <RFC3339>] [--fixture <path>] — runs live with no arguments"
+argument-hint: "[--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>] — collects live; fleet defaults to ./plugins"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -46,11 +46,33 @@ section with its reason. **A declined verdict is reported, never omitted.**
 
 ## Run it
 
-Bare, it collects from this machine's real install and reports on it:
+It collects live by default — no fixture required. Two inputs resolve
+differently, and the difference decides which command you want:
+
+- **Usage** comes from this machine regardless of where you run it
+  (`~/.claude.json`, overridable with `--claude-json`).
+- **The fleet being audited** — the denominator — is a plugins directory
+  enumerated from disk, and it defaults to **`./plugins` relative to your
+  current directory**, not to an installed root.
+
+So from a plugins-layout repo (this marketplace, or any checkout with a
+`plugins/` directory), bare audits the tree you are standing in:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py"
 ```
+
+Anywhere else that exits non-zero with `no skills found` — nothing is silently
+audited. Name the fleet you mean:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
+  --plugins-root <dir>
+```
+
+`<dir>` is any directory holding one subdirectory per plugin, each with a
+`skills/` directory — the layout both a marketplace checkout and an installed
+plugin root use.
 
 `--render json` swaps the Markdown report for the machine-readable model, and
 `--now <RFC3339>` pins the clock the horizon is measured against.
