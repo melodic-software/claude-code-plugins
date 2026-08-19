@@ -122,6 +122,10 @@ Ask the user:
   native sub-items? (opt-in, default no — see "Container lifecycle" below; the
   `${user_config.decompose_container_publish}` user config pre-selects yes when it resolves
   `true`; a surviving `${user_config.…}` placeholder or empty render means unset — plain ask)
+- When the container is approved, one follow-up line: **execution shape** — `per-item PRs`
+  (default) or `integration branch → single PR`? Per-container, never a repo-level setting; the
+  choice is recorded as a durable line in the container body and read back by `/work-items:ship`
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md))
 
 Iterate one question at a time until the user approves — never publish an unapproved breakdown.
 
@@ -211,9 +215,11 @@ coordination provider instead of publishing a spec that cannot travel.
 
 - **Body**: the Brief **verbatim** (TLDR / Goal / Constraints / Acceptance criteria / Captured
   assumptions / Out-of-scope / Deferred questions), plus an optional `## Testing decisions`
-  section when test-topology decisions (with prior-art test pointers) were locked at plan time.
-  No inflation — the Brief as approved is the spec; do not expand it into a "long, extensive"
-  document for the tracker's benefit.
+  section when test-topology decisions (with prior-art test pointers) were locked at plan time,
+  and the approved `**Execution shape:** <choice>` line appended after the Brief sections
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md)
+  "The shape line"). No inflation — the Brief as approved is the spec; do not expand it into a
+  "long, extensive" document for the tracker's benefit.
 - **Labels**: the container label resolved from the binding (`config.container_label`, default
   `work-map` — [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
   "Container label") plus the human-gated role label: a container is never claimable and never
@@ -230,7 +236,9 @@ coordination provider instead of publishing a spec that cannot travel.
   not survive to it. The fallback discovery path (no line found) is a tracker query for an
   open item carrying the binding-resolved container label whose body cites the topic slug.
 
-**Ship ritual — close at ship, archival by closure.** The container closes when the work ships:
+**Ship ritual — close at ship, archival by closure.** `/work-items:ship` is the macro router
+over a published container (status, execution-shape discipline, next step) — it routes the close
+back through this ritual, which this skill owns. The container closes when the work ships:
 every sub-item closed, the plan's PR-time close-out done (`/planning:plan close-out` routes its
 container step through this section when the `planning` plugin is installed), and a close-out
 review of the shipped whole against the container body passed — use the review plugin's
