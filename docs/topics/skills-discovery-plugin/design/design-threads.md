@@ -4,7 +4,7 @@ Scope: `module`. Tier A. Brief: [`../PLAN.md`](../PLAN.md) (locked + verificatio
 Status vocabulary: **resolved** (decided) / **directional** (direction agreed, detail deferred) /
 **open** (needs the user) / **deferred** (needs research or a later gate).
 
-## T1 — Source strategy: is the OTEL collector required? (Brief Q16) — OPEN
+## T1 — Source strategy: is the OTEL collector required? (Brief Q16) — RESOLVED
 
 `claude_code.skill_activated` is the only source carrying `invocation_trigger`, and that attribute
 is what separates *Claude never picks this* from *I never run this*. But it needs a running
@@ -23,7 +23,7 @@ time. Tiers: **T-full** (OTEL present → trigger attribution available), **T-lo
 tool-vs-expansion split, no proactive-vs-nested distinction), **T-baseline** (native counters only →
 lifetime totals, no windowing). A claim is rendered only at a tier that supports it.
 
-## T2 — Starvation cutoff: how is "starved" computed? (Brief Q17) — OPEN
+## T2 — Starvation cutoff: how is "starved" computed? (Brief Q17) — RESOLVED
 
 The scorer `usageCount × max(0.5^(days/7), 0.1)` is confirmed in the v2.1.232 bundle but is
 undocumented and unversioned. The verifier's steer was: do not reimplement it.
@@ -46,7 +46,7 @@ claims and deserve different confidence.**
 
 This also degrades correctly: the certain half holds at every capability tier from T1.
 
-## T3 — Reach state: one taxonomy or two orthogonal axes? — OPEN
+## T3 — Reach state: one taxonomy or two orthogonal axes? — RESOLVED (refined to THREE fields)
 
 The Brief says every skill resolves to exactly one reach state. Modeling that as a single flat enum
 collapses two genuinely independent questions.
@@ -116,6 +116,24 @@ covers the CLI surface. Aim for the fewest seams that cover the surface.
 - **Observability:** the skill is itself a read-only reporter; it emits no telemetry of its own
   (adding a hook would violate the hook budget the Brief already respects).
 - **Testability:** driven by T8's injected clock and pure classifier.
+
+## Resolution log (user-approved)
+
+- **T1 resolved:** OTEL optional; declared capability tiers `T-full` / `T-local` / `T-baseline`, and
+  a claim renders only at a tier that supports it. Closes Brief Q16.
+- **T2 resolved:** split the claim by confidence — the overflow fact is arithmetic over documented
+  inputs and ships as the headline; which skills lose descriptions ships as a labeled likelihood
+  band. The undocumented scorer is never reimplemented as an exact cutoff. Closes Brief Q17.
+- **T3 resolved, then refined during type modeling:** the two axes became **three independent
+  fields** (`reachability`, `observation`, `starvation`). `exempt` was wrongly placed on the
+  reachability axis — a bundled prompt skill is fully model-reachable and merely exempt from the
+  description contest, so leaving it there would have rendered every bundled skill as unreachable.
+  See [`contracts.md`](contracts.md).
+- **Consequence for the Brief:** acceptance criterion 2 ("exactly one reach state") is superseded —
+  each skill resolves to exactly one value on each of the three fields. The Brief carries a dated
+  scope-change note recording this.
+
+No threads remain open. Q18 stays USER-RESERVED for the plan approval gate.
 
 ## Dependency order
 

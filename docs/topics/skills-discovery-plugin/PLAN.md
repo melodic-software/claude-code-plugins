@@ -158,8 +158,12 @@ skill-spawned subprocess's environment). A configurable window must arrive via
 
 1. `/claude-ops:audit-skill-starvation` runs read-only and never writes user-visible state except
    its keyed report artifacts.
-2. Every skill in the enabled denominator resolves to exactly one reach state, including
-   `not observable`.
+2. **Superseded 2026-08-18 by design thread T3** (user-approved). Was: "resolves to exactly one
+   reach state, including `not observable`." Now: every skill in the enabled denominator resolves to
+   exactly one value on EACH of three independent fields — `reachability`, `observation`,
+   `starvation`. Type modeling showed a single enum collapses *can the model select this* with
+   *have we observed it*, and misfiles bundled skills (model-reachable, but exempt from the
+   description contest) as unreachable. See `design/contracts.md`.
 3. The report prints `observed_horizon` and no tier boundary exceeds it.
 4. With data below the exposure floor, the report withholds cold verdicts and says why, instead of
    emitting a fleet-wide "never used" wall.
