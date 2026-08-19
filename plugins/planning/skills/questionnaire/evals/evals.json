@@ -30,11 +30,11 @@
       "id": 3,
       "name": "routes-self-answerable-to-interview",
       "prompt": "/planning:questionnaire cache eviction policy — actually I think I know the answer, I just haven't decided.",
-      "expected_output": "The skill recognizes the decision is the user's own to make (no third-party knowledge holder) and routes to /planning:interview instead of producing a questionnaire for nobody.",
+      "expected_output": "The skill recognizes the decision is the user's own to make (no third-party knowledge holder) and hands off to /planning:interview — invoked via the Skill tool, not named as bare advice — instead of producing a questionnaire for nobody.",
       "files": [],
       "expectations": [
         "Output does not produce a questionnaire when no other person holds the knowledge",
-        "Output recommends /planning:interview (or an equivalent decision conversation with the user) instead",
+        "The hand-off to /planning:interview is an explicit Skill-tool invocation rather than bare /name prose left for the user to act on",
         "The skill never invents a recipient to justify the artifact"
       ]
     },

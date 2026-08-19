@@ -22,7 +22,7 @@ This is the third routing bucket beside `/planning:interview`'s facts-vs-decisio
 
 **Interview the send, not the subject.** Interview the user only about the *send*, which they can always answer: who it goes to, and what they need back. Never quiz the user about the subject the recipient holds — that knowledge gap is exactly why the questionnaire exists. The questions in the document target the **gap** between what the recipient knows and what the user needs.
 
-**Route away when no one else holds the answer.** If it emerges that the user can answer the decision themselves (no third-party knowledge holder), do not produce a questionnaire for nobody — recommend `/planning:interview` and stop. Never invent a recipient to justify the artifact.
+**Route away when no one else holds the answer.** If it emerges that the user can answer the decision themselves (no third-party knowledge holder), do not produce a questionnaire for nobody — invoke `/planning:interview` via the Skill tool and stop this skill. Never invent a recipient to justify the artifact. The explicit hand-off matters now that this skill is model-invoked: the model can land here from a natural-language request, and bare `/name` prose would read as advice to the human and strand the decision unresolved.
 
 ## The loop
 

@@ -138,12 +138,21 @@ both plausibly firing on "I need to ask…"-shaped requests. There is none: the 
 *who holds the knowledge*, and each description already routes to the other on that axis
 (`questionnaire` says to run `/planning:interview` when the user can answer themselves;
 `interview`'s phrases — "ask me questions first", "what do you need to know" — are about
-interrogating the user, while `questionnaire`'s name a third-party holder). Two costs of the `true`
+interrogating the user, while `questionnaire`'s name a third-party holder who is asked instead).
+Two costs of the `true`
 turned up instead, both now paid: its trigger phrases were deliberately left unoptimized because a
 hidden skill's description is never matched against user text (planning CHANGELOG 0.30.1), and its
 own description advertises a hand-off from an interview branch that the invocation-reach invariant
-made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 `true`, leaving
-9 non-setup `true` skills, all class-attributed above.
+made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 `true` = 48 `*:setup`
+plus 10 non-setup.
+
+**One of those 10 is not graded above, and this is where that is recorded.**
+`session-flow:show-options` landed 2026-08-18, a day after the grade, so the table's population
+predates it and the ADR 0005 bound leaves it unswept rather than silently covered. Its `true` is
+therefore un-attributed to any exception class as of this writing — check 24 emits its
+hand-verify note for exactly this case. Grading it is filed as
+[#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); the other nine
+carry the verdicts in the table.
 
 ## Cross-references
 
