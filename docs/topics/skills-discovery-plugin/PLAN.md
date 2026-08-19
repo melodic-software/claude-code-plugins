@@ -300,7 +300,22 @@ cross-process hops — the collect/classify/render split from `module-boundary.m
 — but its report carries neither reachability nor the starvation headline. It is a skeleton, not a
 shippable V0. Do not read Phase 1's output as the product.
 
-### Phase 2: Reachability — the frontmatter and enablement pass [TODO]
+### Phase 2: Reachability — the frontmatter and enablement pass [DONE]
+
+**Completed 2026-08-18.** Sanity-check evidence: against `tests/fixtures/fleet-reachability.json`
+(four skills, known composition) the exact counts are `user-only` 1, `misconfigured` 1,
+`model-reachable` 1, `hidden` 1 — asserted both in the unit suite and via `jq` on the rendered JSON.
+Removal-wording guard passes: `grep -Eic 'delete|remove'` over every `misconfigured` remedy returns
+0. Provenance guard passes: each misconfigured row carries
+`"assembled-from-docs-and-binary, not an official list"`. 19 unit tests green; `ruff` clean;
+`check-skill.sh --require-evals` PASS, 0 errors 0 warnings.
+
+**Deviation (recorded):** the plan sketched the enablement read as `plugin_loaded`-or-settings
+inside this phase. The classifier stayed pure — it consumes `plugin_enabled` as an input on the
+denominator entry, and `None` resolves to `unknown` rather than being guessed. The actual reading of
+that signal belongs to `collect` and lands with the source ladder in Phase 4, which is where the
+OTEL `plugin_loaded` collector is built. No scope change: the field, its values, and its guards are
+all delivered here.
 
 `inventory.py` emits bare names with no frontmatter, so reachability needs its own read. This does
 NOT re-enumerate the fleet — it reads frontmatter only for skills inventory already named.

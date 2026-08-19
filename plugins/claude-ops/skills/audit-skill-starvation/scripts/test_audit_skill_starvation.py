@@ -194,5 +194,112 @@ class AmbiguousAttributionTest(unittest.TestCase):
         )
 
 
+class ReachabilityTest(unittest.TestCase):
+    """Can the model ever select this skill?
+
+    Kept orthogonal to `observation` on purpose: a single flat verdict collapses
+    "cannot be selected" with "has not been seen", and those demand opposite
+    actions. `user-only` is not a problem; `misconfigured` is a fix; only
+    `model-reachable` with no observation is a starvation candidate.
+    """
+
+    def _row(self, **frontmatter):
+        now = _utc(2026, 8, 18)
+        entry = _skill("a:one")
+        entry["frontmatter"] = frontmatter
+        entry["plugin_enabled"] = frontmatter.pop("_plugin_enabled", True)
+        model = engine.classify(
+            denominator=[entry],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        return model["skills"][0]["reachability"]
+
+    def test_disable_model_invocation_is_user_only_not_unused(self):
+        reach = self._row(description="d", disable_model_invocation=True)
+        self.assertEqual(reach["value"], "user-only")
+
+    def test_normal_skill_is_model_reachable(self):
+        reach = self._row(description="a real description")
+        self.assertEqual(reach["value"], "model-reachable")
+
+    def test_malformed_frontmatter_is_misconfigured_and_never_a_removal(self):
+        reach = self._row(_malformed=True)
+        self.assertEqual(reach["value"], "misconfigured")
+        self.assertIn("malformed-frontmatter", reach["causes"])
+        # The remedy must not read as "delete this skill" -- several silent
+        # causes look exactly like disuse and are actually fixable.
+        self.assertNotRegex(reach["remedy"].lower(), r"delete|remove")
+
+    def test_missing_description_is_misconfigured(self):
+        reach = self._row(description="")
+        self.assertEqual(reach["value"], "misconfigured")
+        self.assertIn("no-description", reach["causes"])
+
+    def test_skill_overrides_off_is_hidden(self):
+        reach = self._row(description="d", skill_override="off")
+        self.assertEqual(reach["value"], "hidden")
+
+    def test_disabled_plugin_is_hidden(self):
+        reach = self._row(description="d", _plugin_enabled=False)
+        self.assertEqual(reach["value"], "hidden")
+
+    def test_undetermined_enablement_is_unknown_never_guessed(self):
+        now = _utc(2026, 8, 18)
+        entry = _skill("a:one")
+        entry["frontmatter"] = {"description": "d"}
+        entry["plugin_enabled"] = None  # genuinely undetermined
+        model = engine.classify(
+            denominator=[entry],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        self.assertEqual(model["skills"][0]["reachability"]["value"], "unknown")
+
+
+class ReachabilityFixtureTest(unittest.TestCase):
+    """Exact counts against a fixture of known composition.
+
+    Deliberately not a live-machine assertion: the denominator is the operator's
+    enabled fleet, which differs per machine, so a live count cannot tell a
+    regression from a smaller install.
+    """
+
+    def test_four_skill_fixture_resolves_one_of_each(self):
+        import json
+        import pathlib
+
+        fixture = (
+            pathlib.Path(__file__).parent.parent
+            / "tests"
+            / "fixtures"
+            / "fleet-reachability.json"
+        )
+        bundle = json.loads(fixture.read_text(encoding="utf-8"))
+        now = datetime.fromisoformat(bundle["now"])
+        model = engine.classify(
+            denominator=bundle["denominator"],
+            events=[],
+            config=engine.Config(**bundle.get("config", {})),
+            clock=now,
+            horizons={
+                k: datetime.fromisoformat(v) for k, v in bundle["horizons"].items()
+            },
+        )
+        counts: dict[str, int] = {}
+        for row in model["skills"]:
+            counts[row["reachability"]["value"]] = (
+                counts.get(row["reachability"]["value"], 0) + 1
+            )
+        self.assertEqual(counts.get("user-only"), 1)
+        self.assertEqual(counts.get("misconfigured"), 1)
+        self.assertEqual(counts.get("model-reachable"), 1)
+        self.assertEqual(counts.get("hidden"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

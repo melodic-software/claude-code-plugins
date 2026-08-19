@@ -55,12 +55,22 @@ questions that demand different actions.
 | Field | Answers | Phase |
 |---|---|---|
 | `observation` | What has actually been seen, within a stated horizon | **live** |
-| `reachability` | Can the model ever select this skill | Phase 2 |
+| `reachability` | Can the model ever select this skill | **live** |
 | `starvation` | Is it competing for description budget, and likely losing | Phase 3 |
 
 `observation` values: `active` · `cooling` · `dormant` · `no-observation-in-horizon`
 · `not-observable`. The last is the default whenever the data cannot support
 better, and it is never a synonym for unused.
+
+`reachability` values: `model-reachable` · `user-only` · `hidden` ·
+`misconfigured` · `unknown`. Only `model-reachable` with no observation is a
+starvation candidate — `user-only` means you type it by design, and
+`misconfigured` is a fix. Each carries its causes, evidence, and a remedy.
+
+**The reachability causes are not an official list.** No such list is published;
+this catalogue is assembled from scattered documentation plus strings in the
+shipped binary, and every row says so in its `provenance`. Do not present it to
+a user as documented.
 
 ## Counting rules that are not obvious
 

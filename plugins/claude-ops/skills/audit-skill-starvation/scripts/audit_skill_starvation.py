@@ -64,6 +64,99 @@ def is_usage_evidence(entry: dict) -> bool:
     return int(entry.get("usageCount", 0) or 0) > 0
 
 
+# Remedies are phrased as fixes on purpose. Several of these causes are SILENT
+# -- the skill looks fine, can never be selected, and nothing surfaces outside
+# --debug -- which makes them read exactly like disuse. Recommending removal for
+# a skill that is merely misconfigured is the failure this table prevents.
+MISCONFIGURED_REMEDIES = {
+    "malformed-frontmatter": (
+        "The frontmatter YAML does not parse, so the skill loads with empty "
+        "metadata and no description to match against; the parse error surfaces "
+        "only under --debug. Fix the YAML."
+    ),
+    "no-description": (
+        "No description, so the listing falls back to the first body paragraph, "
+        "which may carry none of the keywords a request would match. Add one."
+    ),
+}
+
+
+def reachability(entry: dict) -> dict:
+    """Structural: can the model ever select this skill?
+
+    Independent of whether it has been *observed* -- see the module docstring.
+    Returns a value plus the causes and evidence behind it, never a bare label,
+    because the remedy differs per cause.
+    """
+    frontmatter = entry.get("frontmatter") or {}
+    enabled = entry.get("plugin_enabled")
+
+    causes: list[str] = []
+    if frontmatter.get("_malformed"):
+        causes.append("malformed-frontmatter")
+    elif not frontmatter.get("description"):
+        causes.append("no-description")
+
+    if causes:
+        return {
+            "value": "misconfigured",
+            "causes": causes,
+            "remedy": " ".join(MISCONFIGURED_REMEDIES[c] for c in causes),
+            "evidence": "frontmatter",
+            # Provenance matters: this catalogue is assembled from scattered doc
+            # sections plus binary strings. There is no official list of reasons
+            # a skill is never auto-invoked, and claiming otherwise to a user
+            # would cite something that does not exist.
+            "provenance": "assembled-from-docs-and-binary, not an official list",
+        }
+
+    if frontmatter.get("skill_override") == "off":
+        return {
+            "value": "hidden",
+            "causes": ["skill-override-off"],
+            "remedy": "Hidden from both the model and the user by skillOverrides.",
+            "evidence": "settings",
+            "provenance": "documented",
+        }
+
+    if enabled is None:
+        # Never guess enablement. An unknown is reported as unknown.
+        return {
+            "value": "unknown",
+            "causes": ["enablement-undetermined"],
+            "remedy": "Enablement could not be determined from the available sources.",
+            "evidence": None,
+            "provenance": "n/a",
+        }
+
+    if not enabled:
+        return {
+            "value": "hidden",
+            "causes": ["plugin-not-enabled"],
+            "remedy": "The owning plugin is installed but not enabled.",
+            "evidence": "plugin_loaded",
+            "provenance": "documented",
+        }
+
+    if frontmatter.get("disable_model_invocation"):
+        # Not a defect and not disuse: the operator typed it by design.
+        return {
+            "value": "user-only",
+            "causes": ["disable-model-invocation"],
+            "remedy": "By design: the description is kept out of the model's context.",
+            "evidence": "frontmatter",
+            "provenance": "documented",
+        }
+
+    return {
+        "value": "model-reachable",
+        "causes": [],
+        "remedy": "",
+        "evidence": "frontmatter",
+        "provenance": "documented",
+    }
+
+
 def _reconcile(events: list[dict]) -> int:
     """Count invocations without summing sources that recorded the same one.
 
@@ -140,6 +233,7 @@ def classify(
                 "attribution": (
                     "ambiguous-attribution" if seen[name] > 1 else "unambiguous"
                 ),
+                "reachability": reachability(entry),
                 "observation": {
                     "value": value,
                     "count": count,
