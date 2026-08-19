@@ -135,6 +135,19 @@
         "The response asks whether the goal has changed rather than deciding on its own that it did",
         "The purpose is not silently dropped either — the flag names what was asked for and why it does not serve the goal"
       ]
+    },
+    {
+      "id": 11,
+      "name": "prompt-only-carries-the-purpose-inline",
+      "prompt": "/handoff prompt lint-pass the next session will be used by a teammate doing release prep, not by me — the only thing left is to re-run the linter on the docs branch.",
+      "expected_output": "Prompt-only writes no body sections, so the tailoring surfaces (Resumption brief, Suggested skills) do not exist, and with a single remaining action the bullet ordering cannot express the purpose either. The purpose therefore travels between the rails as a Purpose: line, below the goal quote when one is present and above the remaining-work bullets — the same travels-in-the-prompt-or-not-at-all rationale as the Original goal rule. The rails, copy instruction, and detection-contract signals are unchanged.",
+      "files": [],
+      "expectations": [
+        "The purpose is NOT discarded on the prompt-only path — a Purpose: line carries it inline between the dashed rails",
+        "The Purpose: line sits below the goal quote (when present) and above the remaining-work bullets",
+        "The reasoning recognizes that prompt-only writes no file and its delivery may hand the rails block to a background agent as the only thing it sees, so the purpose travels in the prompt or not at all",
+        "The rails, the copy instruction above the top rail, and the rest of the detection-contract shape are unchanged — the purpose line is content between the rails, not a shape change"
+      ]
     }
   ]
 }

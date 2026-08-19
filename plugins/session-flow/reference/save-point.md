@@ -137,6 +137,18 @@ three places:
   sequencing dependency still binds, purpose never licenses running an action before one it
   depends on.
 
+**Prompt-only carries the purpose inline — never discard it.** The three surfaces above are
+full-path sections, and prompt-only writes none of them; its delivery can also hand the rails
+block to a background agent as the only thing that agent ever sees. So on prompt-only, a stated
+purpose travels between the rails as a single `Purpose: <text>` line directly below the goal
+quote (and its dated amendment lines, when present) and above the remaining-work bullets — the
+same travels-in-the-prompt-or-not-at-all rationale the Original goal rule above states. The
+inline bullets are still ordered by it where ordering is free, but ordering alone cannot carry
+it — with one action left it expresses nothing — so the line is the carrier, not a fallback.
+This is content between the rails, not a shape change: every detection-contract signal below
+(the rails, the copy-instruction line, the `Read @…` directive, the `Prior session:` line) is
+untouched.
+
 What purpose may NEVER do:
 
 - It never drops, renames, or reorders the mandatory section set ([`structure.md`](structure.md)'s

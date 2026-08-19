@@ -14,10 +14,13 @@
   selected for it, Remaining actions are ordered by it where ordering is otherwise free — and it
   never drops or reorders the mandatory section set, never alters the emitted resume-prompt shape
   (`find-handoff`'s detection contract is untouched), and never amends the Original goal: a
-  purpose that contradicts the goal is flagged at write time, not silently obeyed. Adopted from
-  upstream `mattpocock/skills` `handoff`'s purpose argument per the lane 1 decision
-  (`docs/upstream/aihero-course.md`, lane 1). Two eval cases cover the tailoring bounds and the
-  conflict flag.
+  purpose that contradicts the goal is flagged at write time, not silently obeyed. On the
+  prompt-only path — which writes none of the tailoring surfaces and can hand the rails block to
+  a background agent as the only thing it sees — a stated purpose travels inline between the
+  rails as a `Purpose:` line below the goal quote, never discarded (content between the rails,
+  not a detection-contract shape change). Adopted from upstream `mattpocock/skills` `handoff`'s
+  purpose argument per the lane 1 decision (`docs/upstream/aihero-course.md`, lane 1). Three eval
+  cases cover the tailoring bounds, the conflict flag, and the prompt-only carriage.
 
 ## [0.24.0]
 
