@@ -27,6 +27,49 @@ Third axis of this plugin. `/discovery:explore` answers **what IS**, `/discovery
 The failure this exists to prevent is a confident story built from thin evidence. A plausible
 narrative about a decision is worse than an admission of ignorance, because it is acted upon.
 
+## Routing — dispatch by default
+
+**From the main conversation, this skill dispatches the `discovery:intent-tracer` subagent.** Intent
+archaeology reads a lot of other people's writing — review threads, ticket histories, design
+documents — and keeping that out of the orchestrator's context window is the point. The agent
+investigates each resolvable category, writes the artifact set, and returns a file pointer plus a
+verification request, not the transcript. The parent resolves the **pre-dispatch envelope** first —
+six fields (target on the `Topic:` line, reason, memory-slice path, memory root, budget, capability
+flags), written into the dispatch prompt as the labelled template in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+— and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the
+sibling verifier for tier assignment, and writing that verdict back into the index.
+
+**Run inline instead** for tight turn-by-turn iteration, for cost, or when the invoking context is
+already a subagent — and inline runs the identical discipline; the escape hatch relaxes nothing
+below. **An un-runnable gate is not one of the three reasons**: probe `--help` on the artifact
+checker before dispatching, and a denied or errored probe **halts** rather than routing you inline.
+All three reasons in full, and the halt rule: [`context/dispatch.md`](context/dispatch.md).
+
+**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload,
+and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere
+else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload,
+and a missing or mismatched token is a **hard failure: the parent discards the run**, never
+downgrades or accepts the artifact.
+
+```text
+discovery-trace-intent-preload-7b3e2d
+```
+
+**Pre-dispatch:** create the memory slice and touch `<that slice>/.trace-intent-dispatch` as the
+acceptance gate's freshness baseline. Without it a slice that already holds an earlier run's index
+passes every on-disk check even when this dispatch wrote nothing at all. **Both shell forms of that
+command are in the parent contract** — copy the one matching this session's shell, because the POSIX
+form's `touch` is not a command in PowerShell and its directory flag is a parameter error there.
+
+**Post-dispatch, the payload is graded off disk before it is believed** — `status: complete` is the
+agent's claim about its own run, and a claim is not evidence. The gate's three steps, the reason this
+family ships no coverage ledger, the by-value rung, and the boundary the parent still owns after the
+gate passes are in [`context/dispatch.md`](context/dispatch.md). Two things worth knowing before you
+get there: **any non-zero exit halts the workflow**, and a gate that could not run is a FAIL rather
+than a skip; and a `claims_by_tier` census sitting entirely in `Speculative` and `Unknown` is a
+**successful** run over an undocumented decision, never grounds for a re-dispatch.
+
 ## Scope
 
 Investigate the following target: $ARGUMENTS

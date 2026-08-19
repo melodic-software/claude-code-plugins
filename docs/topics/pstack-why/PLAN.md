@@ -365,7 +365,20 @@ Pre-dispatch paragraph wholesale would break; no discard-instead-of-resume presc
   directly because check 12 is WARN-only and never checks *which* skills are named.
 - `check-skill.sh` re-run exits 0 with the body under 500 lines
 
-### Phase 3: The agent and the dispatch machinery [TODO]
+### Phase 3: The agent and the dispatch machinery [DONE]
+
+**Two deviations from the block below, both recorded rather than silent:**
+
+1. **A fourth file was created — `skills/trace-intent/context/dispatch.md`** — and the
+   `parent-contract.md` pointer-table row points there rather than at the skill's Routing section.
+   Wiring the whole dispatch contract into `SKILL.md` put it at 254 lines against a 200-line soft
+   target, which is a `check-skill.sh` warning and this lane's acceptance criterion is 0 warnings.
+   The spoke also restores symmetry: both siblings already own a family-specific dispatch file.
+2. **The `assert_` sanity check is satisfied by executed assertions, not static call sites.** The
+   third write-boundary assertion comes from extending the existing `for agent in …` loop, so the
+   static `grep -c 'assert_'` count is unchanged at 33. The regression net did grow: the suite's
+   passing-assertion count went 34 → 35, and `check-dispatch-artifact.test.sh` gained a whole
+   third shape suite. Measured by running both suites on the branch base and on the change.
 
 | File | Action | Rationale |
 |---|---|---|

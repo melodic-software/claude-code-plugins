@@ -1,21 +1,23 @@
 # The parent's cross-family contract
 
-Everything the **parent** owes a dispatched `discovery:explorer` or `discovery:researcher` run that
-is **identical for both families**. It exists because it did not: five statements below were
-previously carried in two to six copies each, and every one of them had drifted apart by the time
-the drift was audited — the envelope's field list, the pre-dispatch baseline command, the claim
-about `$ARGUMENTS`, the agents' write boundary, and what to do with a partial slice.
+Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:researcher` or
+`discovery:intent-tracer` run that is **identical across all three families**. It exists because it
+did not: five statements below were previously carried in two to six copies each, and every one of
+them had drifted apart by the time the drift was audited — the envelope's field list, the
+pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and what to
+do with a partial slice.
 
-Three files answer "what does the parent owe", and the split is deliberate:
+Four files answer "what does the parent owe", and the split is deliberate:
 
 | File | Owns |
 |---|---|
-| **this file** | what is the same for exploration and research |
+| **this file** | what is the same for exploration, research and intent tracing |
 | `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md` | explore-only: the collision rule, the six-dimension cost of a re-dispatch, that family's ladder |
 | `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` | research-only: the coverage ledger, the fan-out sub-slice rule, that family's ladder |
+| `${CLAUDE_PLUGIN_ROOT}/skills/trace-intent/context/dispatch.md` | intent-only: the reason-per-skip check that stands in for a coverage ledger, why a thin tier census is a pass, that family's ladder |
 
-A statement that would be true of both families belongs here, and the other two point at it. Adding
-a second copy is the defect this file removes.
+A statement that would be true of more than one family belongs here, and the others point at it.
+Adding a second copy is the defect this file removes.
 
 ## The pre-dispatch envelope
 
@@ -28,6 +30,7 @@ parenthetical out of:
 
 ```text
 Topic: <the resolved topic>                     # /discovery:explore → Scope: <the resolved scope>
+                                                # /discovery:trace-intent → the resolved target, on this same line
 Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
@@ -37,6 +40,13 @@ Capability flags: nested spawning <available|unavailable>
 
 Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
+
+**`/discovery:trace-intent` keeps the `Topic:` label rather than adding a `Target:` one.** Its
+argument is user-facing a target — a decision, a file, a symbol, a convention — but the label a
+dispatched agent parses is the same label its siblings parse, and the echo-back field in every
+return payload is `topic_as_received`. A fourth label for the same envelope slot would put the
+family's name for its input in one place and the field that verifies it in another, which is exactly
+the drift this file exists to close.
 
 **Memory root is its own line, not derivable from the slice path.** When the slice is nested — a
 sub-slice for a collision or a parallel fan-out — no one can tell from the path alone which ancestor
@@ -71,13 +81,13 @@ gate as `--newer-than`:
 
 ```bash
 # POSIX shells (bash, zsh, Git Bash)
-mkdir -p <memory-slice path> && touch <memory-slice path>/.<explore|research>-dispatch
+mkdir -p <memory-slice path> && touch <memory-slice path>/.<explore|research|trace-intent>-dispatch
 ```
 
 ```powershell
 # PowerShell — `touch` is not a command here and `mkdir -p` is a parameter error
 New-Item -ItemType Directory -Force -Path '<memory-slice path>' | Out-Null
-New-Item -ItemType File -Force -Path '<memory-slice path>/.<explore|research>-dispatch' | Out-Null
+New-Item -ItemType File -Force -Path '<memory-slice path>/.<explore|research|trace-intent>-dispatch' | Out-Null
 ```
 
 Run whichever matches the shell this session actually has — on Windows without Git Bash that is
@@ -133,7 +143,7 @@ stated reason was never sourced.
 
 Do not merge this with the section above. One is about a placeholder **the plugin's own body**
 carries on the preload path; this one is about placeholder-shaped text **a caller** types or writes
-into a dispatch prompt. Neither is evidence for the other. All three entry skills point here rather
+into a dispatch prompt. Neither is evidence for the other. All four entry skills point here rather
 than each carrying its own copy.
 
 **A `${CLAUDE_…}`-shaped token in a topic or scope may not arrive as you typed it.** Stated as what
@@ -161,7 +171,7 @@ claim, not a fact — say so rather than repeating it.
 
 ## Running the acceptance gate
 
-Both `SKILL.md` files carry the gate's steps. What follows is the same for both families whenever
+Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever
 the gate has to *run* — including an inline research run that still owes criterion 11's script
 verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
 `--help` probe.
@@ -172,12 +182,13 @@ Probe only the scripts the **chosen** route will need. Each script's `--help` is
 and exits 0:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # dispatched explore or research
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # any dispatched route
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
 ```
 
-- **Dispatched route (explore or research):** probe `check-dispatch-artifact.sh` before dispatching.
-  Research also probes the coverage checker. A denied, declined, or errored probe is the same FAIL
+- **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
+  before dispatching. Research also probes the coverage checker; trace-intent owes no ledger and so
+  probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
   as a non-zero gate exit — **halt**. Do not take the inline escape hatch to dodge an un-runnable
   post-dispatch gate.
 - **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage

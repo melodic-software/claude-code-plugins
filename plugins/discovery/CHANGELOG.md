@@ -23,6 +23,21 @@
   evidence are deliberately **not** shipped, because no seam in this marketplace reaches
   them and four permanently-empty investigators would report the same gap forever; the
   adapter seam for adding one is documented instead.
+- **`discovery:intent-tracer`** — the purpose-built subagent `/discovery:trace-intent`
+  dispatches by default, so review threads, ticket histories and design documents stay
+  out of the orchestrator's context window. It follows the `discovery:researcher`
+  pattern — a `disallowedTools:` denylist and no `tools:` allowlist — because an
+  allowlist strips every MCP tool, and two of this skill's three evidence categories
+  live behind MCP forge and tracker surfaces; an allowlisted agent would report both as
+  unavailable forever and be unable to tell that gap apart from a real one. It is
+  read-only on every evidence surface it touches: it never comments on a pull request,
+  transitions a ticket, or edits a page.
+- `skills/trace-intent/context/dispatch.md` — the intent family's parent-side dispatch
+  contract: the three inline escape hatches, the post-dispatch acceptance gate, the
+  reason-per-skip check that stands in for a coverage ledger (this family's corpus is
+  whatever the environment exposes, so an enumerate-then-mark ledger would count against
+  a denominator nobody can fix in advance), why a tier census sitting entirely in
+  `Speculative` / `Unknown` is a **pass**, and the by-value rung.
 
 ### Changed
 
@@ -30,6 +45,17 @@
   `/discovery:trace-intent`. Its `'how does this work'` trigger is why-shaped, so
   without the reverse boundary auto-discovery could route intent questions into the
   wrong sibling — the same defect the research / research-deep boundary already fixes.
+- `reference/parent-contract.md` now covers three dispatched families rather than two:
+  the pointer table gains the intent row, the pre-dispatch baseline command names
+  `.trace-intent-dispatch` in both its POSIX and PowerShell forms, and the gate's
+  pre-flight probe list distinguishes the routes that owe a coverage checker from the
+  one that does not. `/discovery:trace-intent` keeps the shared `Topic:` envelope label
+  rather than adding a `Target:` one, so the label a dispatched agent parses and the
+  `topic_as_received` field that verifies it stay the same name.
+- `scripts/contract.test.sh` extends its write-boundary loop to the third agent, and
+  `scripts/check-dispatch-artifact.test.sh` runs its full shape suite a third time for
+  `INTENT.md` — an `EXPLORE.md`-only run would let an `INTENT.md` regression through on
+  the strength of an explore-shaped pass.
 
 ## [0.15.6]
 
