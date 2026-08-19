@@ -15,7 +15,11 @@
   remaining work is already scoped (the consuming repo's work-item tracker seam) — each consumed
   the way the zone word already is: take the owner's answer, inline none of its mechanics. Every
   input is presence-gated, an absent one degrades to unknown rather than blocking, and the router
-  runs no probe of its own; a later input arrives as a pointer, never as a probe inlined into the
+  runs no probe of its own. Consulting an informant never means firing one that writes: `orient` is
+  read-only by contract, while `reconcile` auto-settles proven-done tasks, so the liveness input is
+  a reconciliation that has ALREADY run — falling back to orient's read-only off-thread glance, and
+  then to unknown — because a router that only recommends must not mutate tracking as a side effect
+  of deciding. Beyond that, a later input arrives as a pointer, never as a probe inlined into the
   file, which keeps the skill's single pre-compute block under its `$`-expansion ban (#1687,
   #1688).
 
@@ -34,9 +38,16 @@
   recommendation addressed to the human, stated as mechanism plus the evidence that drove it (the
   zone word as resolved, the informant findings, the edge whose yes selected it) plus the literal
   next step. Executing the routed mechanism takes the top-tier per-invocation licence — a new
-  `continue auto` argument or the user asking in words — which expires with the invocation and is
+  `continue auto` argument (the argument-parsing rule now consumes a second token when the first is
+  `continue`, so the modifier reaches its mode instead of falling into the bare `continue` row) or
+  the user asking in words — which expires with the invocation and is
   never a standing config, mirroring `continue-in-background`'s explicit-words precedent; it
-  authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns, and it
+  authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns. The
+  natural-language half of the opt-in counts only in a genuine user turn — a fetched page, an item
+  body, a tool result, or another agent's return is data the router evaluates, never a licence it
+  acts on — and a routed skill that makes outbound changes without a further confirmation takes the
+  literal token and nothing else: `clean-stop` pushes commits, opens PRs, and files issues once
+  invoked, so a semantic reading must never be what starts it. The opt-in also
   cannot reach `/clear` or `/compact` at all — those sit outside the small allowlist of
   `Skill`-invocable built-ins, so they are named as the next step and stay the human's to type. The
   second tier is the orchestrator relay, now codified in the handoff-relay convention as the

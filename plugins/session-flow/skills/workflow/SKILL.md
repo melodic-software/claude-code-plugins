@@ -55,7 +55,8 @@ This skill adapts to the consuming repo rather than imposing structure:
 
 ## Argument parsing
 
-Parse the first argument to determine mode:
+Parse the first argument to determine mode; when it is `continue`, parse the second token too —
+`auto` is its only modifier, and anything else (or nothing) is the plain suggest-only mode.
 
 | Argument | Mode | Action |
 |----------|------|--------|
@@ -66,7 +67,7 @@ Parse the first argument to determine mode:
 | `philosophy` | **Philosophy** | Load `context/philosophy.md` — depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md` — stage-by-stage execution with `/clear` between stages |
 | `continue` | **Continuation** | Load `context/continuation.md` — end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
-| `continue auto` | **Continuation (autonomous)** | Same router, plus the per-invocation licence to EXECUTE the mechanism it routes to. Authorizes this invocation only — never a standing mode, and never a substitute for a routed skill's own hard gate |
+| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier — consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation licence to EXECUTE the mechanism it routes to. Authorizes this invocation only — never a standing mode, and never a substitute for a routed skill's own hard gate |
 
 ## Default mode (no arguments)
 
