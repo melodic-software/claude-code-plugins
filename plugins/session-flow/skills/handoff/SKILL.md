@@ -1,6 +1,6 @@
 ---
 description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the user reports the session is heavy, a context-measuring mechanism says to fork, or your own responses are visibly drifting, repeating, or looping. Never on your own estimate of the remaining window — a budget reading is not a decay signal. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
-argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff file phase-3)"
+argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -40,7 +40,7 @@ different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic]` — both optional and positional:
+`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]` — all optional and positional:
 
 - **Method** (`file` | `prompt`) — recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
@@ -48,6 +48,11 @@ different delivery.
 - **Topic** — short kebab slug for the filename. When the first token is not a method keyword it IS
   the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
+- **Purpose** — everything after the topic token is optional natural-language purpose text
+  answering "what will the next session be used for?" — no quoting, no new syntax, and
+  invocations without it parse exactly as before. What purpose is allowed to change (emphasis
+  only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
+  emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
 ## Hard rule — handoff ALWAYS terminates current execution
 
@@ -148,6 +153,10 @@ ambiguous.
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring
+  rules — the Resumption brief leads with it, Suggested skills are selected for it, Remaining
+  actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
+  goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file by its **absolute**,
   forward-slash-normalized path — never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd — with the `Handoff origin:` line naming the repository
@@ -169,6 +178,10 @@ ambiguous.
 - [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
+  the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
+  emphasis only") — never discarded; a goal-conflicting purpose flagged rather than obeyed. No
+  purpose given → nothing to tick
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
 - [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
   note re-arming EVERY surviving loop — one `/loop [<interval>] <original prompt>` line per loop,

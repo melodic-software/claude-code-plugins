@@ -122,6 +122,49 @@ later hops. The full path preserves that history in §1's `Amended:` field; a pr
 collapses it back to a single line discards the record of what the goal was and when it stopped
 being that, which no later full-path handoff can reconstruct.
 
+## The purpose argument tailors emphasis only
+
+A citing skill may hand the engine optional trailing purpose text — the invocation's answer to
+"what will the next session be used for?" (the producer's `[file|prompt] [topic] [purpose...]`
+surface, parsed from `$ARGUMENTS`). When present, purpose tailors **emphasis only**, in exactly
+three places:
+
+- The **Resumption brief** leads with it — the brief's framing opens from what the next session is
+  for, still inside its six-line cap.
+- **Suggested skills** are selected for it — the skills recommended are the ones serving that use,
+  each still tied to a concrete remaining item.
+- **Remaining actions** are ordered by it — among actions whose order is otherwise free; a genuine
+  sequencing dependency still binds, purpose never licenses running an action before one it
+  depends on.
+
+**Prompt-only carries the purpose inline — never discard it.** The three surfaces above are
+full-path sections, and prompt-only writes none of them; its delivery can also hand the rails
+block to a background agent as the only thing that agent ever sees. So on prompt-only, a stated
+purpose travels between the rails as a single `Purpose: <text>` line directly below the goal
+quote (and its dated amendment lines, when present) and above the remaining-work bullets — the
+same travels-in-the-prompt-or-not-at-all rationale the Original goal rule above states. The
+inline bullets are still ordered by it where ordering is free, but ordering alone cannot carry
+it — with one action left it expresses nothing — so the line is the carrier, not a fallback.
+This is content between the rails, not a shape change: every detection-contract signal below
+(the rails, the copy-instruction line, the `Read @…` directive, the `Prior session:` line) is
+untouched.
+
+What purpose may NEVER do:
+
+- It never drops, renames, or reorders the mandatory section set ([`structure.md`](structure.md)'s
+  ordered body sections). The structure is the anti-drift contract; every section is still present,
+  and one with nothing purpose-relevant to say still says so.
+- It never alters the emitted resume-prompt shape — the rails, the directive, the origin line, the
+  re-arm notes. That shape is the detection contract below; changing it for a purpose would be a
+  knowing contract break requiring a coordinated `find-handoff` change, which passing a purpose is
+  not.
+- It never amends the Original goal. A purpose that contradicts the goal is **flagged at write
+  time, not silently obeyed**: say plainly that the stated purpose does not serve the recorded
+  goal and ask whether the goal has changed — the goal moves only by the explicit dated amendment
+  the structure doc's `Amended:` field records, never because a purpose pointed elsewhere.
+
+Absent purpose text, nothing here applies and the engine behaves exactly as it always has.
+
 ## Writing the handoff file (full path)
 
 The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
