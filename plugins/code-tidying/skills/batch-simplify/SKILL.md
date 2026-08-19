@@ -44,7 +44,7 @@ Match the whole argument, never a substring: an argument that merely *contains* 
 
 ### Mode 3: Whole repository
 
-Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** `repo`. Sweeps every non-excluded file in the repository rather than a diff — including untracked files that are not ignored, so newly added work is swept too. Explicit entry only: it never auto-escalates from another mode, and it confirms the inventory with the user before Phase 4. `repo <path>` is deliberately not accepted; a trailing token falls through to the ask-the-user rule above. Repo-scale machinery — grouping, waves, concurrency, resume, delivery — lives in [context/repo-mode.md](context/repo-mode.md), loaded only when this mode fires.
+Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** `repo`. Sweeps every non-excluded file in the repository rather than a diff — including untracked files that are not ignored, so newly added work is swept too. Explicit entry only: it never auto-escalates from another mode, and it confirms the inventory with the user after Phase 4 — once grouping and wave planning have produced the numbers that gate reports — and before any group is dispatched. `repo <path>` is deliberately not accepted; a trailing token falls through to the ask-the-user rule above. Repo-scale machinery — grouping, waves, concurrency, resume, delivery — lives in [context/repo-mode.md](context/repo-mode.md), loaded only when this mode fires.
 
 ### Flag: `docs`
 

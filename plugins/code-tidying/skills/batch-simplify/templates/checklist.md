@@ -20,7 +20,7 @@ Copy into your project's working-notes location. Tick as each phase completes.
 
 ## Skip criteria
 
-- Phases 0, 1.5, 6.1 and 6.2 SKIPPED outside repo mode
+- Phases 0, 4.5, 6.1 and 6.2 SKIPPED outside repo mode
 - Phase 6.5 SKIPPED when no deferred items surfaced (no out-of-scope findings)
 - Phase 5 task tracking SKIPPED for single-group changes (1 wave)
 
