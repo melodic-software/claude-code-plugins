@@ -1,7 +1,7 @@
 # Dependabot keeps this repo's dependencies current with REVIEWED pull requests — GitHub-native,
 # no third-party app and no PAT. It covers full-SHA GitHub Actions, the root locked Node CI
-# toolchain, the standards-managed runner-policy and pr-convention-policy dependency roots, the
-# hash-locked Python CI toolchain, and the miro plugin's bundled Node MCP server. The plugin hooks
+# toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
+# toolchain, and the miro plugin's bundled Node MCP server. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
 # validation reproducible. No auto-merge is configured, so every bump is a PR that runs ci before a
 # human merges.
@@ -70,25 +70,6 @@ updates:
   # updates are reviewed and cannot drift behind the materialized component.
   - package-ecosystem: npm
     directory: /.github/standards/runner-policy
-    labels:
-      - dependencies
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-    groups:
-      npm-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-  # The standards-distributed PR convention policy ships its own package manifest
-  # and lockfile too. It is an independent dependency root for the same reason:
-  # the title/body parser must stay patched without waiting on the synced component.
-  - package-ecosystem: npm
-    directory: /.github/standards/pr-convention-policy
     labels:
       - dependencies
     schedule:
