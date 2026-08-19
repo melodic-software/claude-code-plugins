@@ -3,6 +3,55 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **`quality-gate` gains a ninth lens: `spec` (#2937).** The skill had eight modes and no
+  spec-fidelity one — "what was the goal" was a gather input, never the thing under judgment — while
+  `work-items:decompose` and `work-items:ship` both already routed container close-out to "the review
+  plugin's spec-fidelity machinery," which did not exist. `context/spec.md` is that machinery. It
+  **owns** the finding-class enum (`missing` / `scope-creep` / `wrong`), requires every finding to
+  quote the spec line it is judged against, and judges the diff in both directions so `scope-creep`
+  is reachable at all. `scope-creep` needs a positive statement of bounded scope before unlisted
+  behavior becomes a defect — a spec that never mentions a surface leaves the implementer's judgment
+  intact.
+- **A spec-source discovery ladder, because the lens cannot run without a spec.** `--spec <path|id>`
+  → item refs harvested from the branch's commits and PR body → the topic's contract slice → ask →
+  **skip with a note**. The last rung is the point: a fidelity verdict rendered without a spec is a
+  fabrication, so a headless run with nothing resolved stops and says which rungs it tried rather
+  than inferring a spec from the diff it is meant to judge. Three details the ladder gets right and
+  a naive version does not: a harvested bare `#123` is **promoted** to the qualified
+  `<provider>:<owner>/<repo>#<number>` form before use; spec **body text does not come from the
+  tracker seam** (its normalized item object has no `body` field — `get-item` supplies identity and
+  `parent_id`, the provider mechanic supplies the body); and the contract-slice rung keys on the
+  **topic slug**, not the branch slug, whose mapping is documented as lossy. Reaching the tracker at
+  all is presence-gated with an explicit seam-absent degradation — this is the first cross-plugin
+  seam call in the marketplace — and item text is read under the item-content-trust boundary: data
+  describing the work, never instruction to the reviewer.
+- **A fail-fast pre-flight gate, ported from `fanout`, which `quality-gate` had entirely lacked.**
+  An unresolvable diff base or an empty change set now stops before any reviewer is dispatched
+  instead of spawning one to produce noise. **Mode-scoped:** `criteria` is a reference mode that
+  legitimately runs against a clean tree and is exempt. The frontmatter `allowed-tools` allowlist is
+  widened with the git read verbs the gate needs — without that the gate stalls headless, which
+  would have made it worse than no gate.
+
+### Changed
+
+- **`self` mode's spec-conformance checklist item stops being a second SSOT.** It restated the same
+  three finding classes `context/spec.md` now owns; two copies of one definition is exactly what
+  this skill's own `restatement` mode flags. The fenced worker checklist keeps a shallow
+  divergence-and-quote check and explicitly defers classification, and the pointer to the owning
+  file sits in the orchestrator-facing escalation list — **not** inside the subagent template, which
+  is addressed to a fresh-context read-only worker that cannot invoke a skill to follow it.
+- **`self` mode's large-diff worker split now keeps its two lenses separate through presentation,**
+  not just until verification. The two workers answer different questions, so one combined list lets
+  a clean standards pass mask a failing spec pass.
+- **"Axis" now means one thing in this plugin, recorded once in `context/severity.md`:**
+  severity or confidence. A review perspective is a **lens**. Three incompatible senses were live
+  across these docs, and merging and ranking across the two real axes is precisely what `fanout`'s
+  normalization pipeline exists to do — a rule written on the ambiguous word would have negated it.
+
 ## [0.21.1]
 
 ### Changed
