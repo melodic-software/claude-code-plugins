@@ -340,7 +340,7 @@ complete once, correctly, at any scale.
   `bash scripts/check-skill-portability.sh origin/main` both exit 0.
 - `wc -l < plugins/code-tidying/skills/batch-simplify/SKILL.md` returns ≤ 205.
 
-### Phase 3: Repo-scale run machinery [TODO]
+### Phase 3: Repo-scale run machinery [DONE]
 
 Fills the spoke. All content here is loaded only when repo mode fires, keeping SKILL.md near its
 current length.
