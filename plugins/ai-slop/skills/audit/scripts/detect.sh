@@ -305,6 +305,16 @@ matches_glob() {
 # line, and the trailing line form must not be backtick-quoted. Without this, a
 # document that DOCUMENTS the markers exempts itself — found by dogfooding when
 # the plugin's own README declined and was silently half-scanned.
+#
+# Every form takes the same optional `: reason`, because the fix flow tells the
+# operator to suppress with one (audit SKILL.md, step 3) and the catalog names
+# the marker as the remedy for a recorded false-positive class. When only the
+# file form parsed a reason, the two forms an operator reaches for first failed
+# differently and silently: a line marker carrying a reason did not match, so
+# the finding stayed AND the reason text landed in its own excerpt; a `-start`
+# carrying one never opened the block, so the whole block was scanned. The `-end`
+# form takes one for the same reason in the dangerous direction — an unmatched
+# `-end` leaves `ignored` set and silently swallows the rest of the file.
 extract_prose() {
   # Fences per CommonMark: openers may be indented up to three spaces (matched
   # with [ ]? repetition — mawk has no {n,m} intervals), and a fence closes
@@ -321,10 +331,10 @@ extract_prose() {
       if (fence == "~") { fence = ""; next }
     }
     fence != "" { next }
-    /^[[:space:]]*<!-- ai-slop-ignore-start -->[[:space:]]*$/ { ignored = 1; next }
-    /^[[:space:]]*<!-- ai-slop-ignore-end -->[[:space:]]*$/ { ignored = 0; next }
+    /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/ { ignored = 1; next }
+    /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/ { ignored = 0; next }
     ignored { print "DECLINE\tblock"; next }
-    /<!-- ai-slop-ignore -->/ && $0 !~ /`<!-- ai-slop-ignore -->/ { print "DECLINE\tline"; next }
+    /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore/ { print "DECLINE\tline"; next }
     {
       line = $0
       gsub(/`[^`]*`/, "", line)   # inline code spans

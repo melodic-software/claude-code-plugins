@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.2]
+
+The in-file suppression the fix flow and the catalog both tell operators to reach for now works in
+the two forms they reach for first. Only `ai-slop-ignore-file` parsed the documented `: reason`;
+the line and block forms did not, and each failed differently and without saying so.
+
+- **Every marker form takes the optional `: reason`** — `<!-- ai-slop-ignore -->`,
+  `-start`, `-end`, and `-file`. Previously a line marker carrying a reason did not match, so the
+  finding was still reported and the operator's own reason text was quoted back inside its excerpt;
+  an `ai-slop-ignore-start` carrying one never opened the block, so every line meant to be exempt
+  was scanned instead. `-end` takes one for the failure in the dangerous direction: an unmatched
+  `-end` left the block open and silently swallowed the rest of the file.
+- The audit skill's fix flow closes a file with findings "explicitly suppressed (in-file marker
+  with a reason)", and the catalog names the marker as the remedy for the recorded
+  `rule-knowledge-cutoff-disclaimer` false-positive class. Both instructions were unfollowable for
+  a single line or a block; they are now true of the code.
+- The backtick guard that stops a document *describing* the markers from exempting itself
+  generalized alongside them, so a backticked mention carrying a reason is still a mention.
+- **Four new detector cases** (86 → 90) covering a reasoned line marker, a reasoned block, the
+  `-end` close, and the declined counts — plus the marker-documentation fixture extended with a
+  reasoned mention.
+- Calibration record: the knowledge-cutoff false-positive class measured on the 1214-file dogfood
+  corpus. All 8 findings fall in the recorded class, none was genuine assistant-frame residue.
+
 ## [0.2.1]
 
 Eval coverage for the layer a shell test cannot reach. The deterministic side already had 86 cases

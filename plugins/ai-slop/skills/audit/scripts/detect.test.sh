@@ -101,6 +101,19 @@ cat >"$MARKED" <<EOF
 An exempted line ${EM} with an em dash. <!-- ai-slop-ignore -->
 EOF
 
+REASONED="$TEST_TMPDIR/reasoned.md"
+cat >"$REASONED" <<EOF
+# Markers carrying a reason
+
+A line marker ${EM} with a reason. <!-- ai-slop-ignore: quoting the tell itself -->
+
+<!-- ai-slop-ignore-start: sample block, quoted verbatim -->
+Inside the block ${EM} stays exempt.
+<!-- ai-slop-ignore-end: end of sample -->
+
+After the block, an em dash ${EM} must still be flagged.
+EOF
+
 FENCED="$TEST_TMPDIR/fenced.md"
 cat >"$FENCED" <<EOF
 # Code fences
@@ -124,7 +137,8 @@ cat >"$DOCMARKS" <<EOF
 
 Opt-outs: \`<!-- ai-slop-ignore -->\` per line, \`<!-- ai-slop-ignore-start -->\`
 and \`<!-- ai-slop-ignore-end -->\` for blocks, \`<!-- ai-slop-ignore-file -->\`
-for whole files. After the mentions, an em dash ${EM} must still be flagged.
+for whole files. Each takes an optional reason: \`<!-- ai-slop-ignore: why -->\`.
+After the mentions, an em dash ${EM} must still be flagged.
 EOF
 
 MIDFILEMARK="$TEST_TMPDIR/midfilemark.md"
@@ -247,6 +261,12 @@ assert_contains "cursor: filler-phrases emits at SUGGESTION (crosswalk mirror)" 
 out="$(bash "$DETECT" "$MARKED" 2>&1)"
 assert_not_contains "line marker: em dash on marked line not flagged" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 assert_contains "line marker: declined count nonzero" "$out" "declined=1"
+
+out="$(bash "$DETECT" "$REASONED" 2>&1)"
+assert_not_contains "reasoned line marker: marked line not flagged" "$out" "line=3"
+assert_not_contains "reasoned block: block interior not flagged" "$out" "line=6"
+assert_contains "reasoned block: -end with a reason still closes the block" "$out" "line=9"
+assert_contains "reasoned markers: line and block interior both declined" "$out" "declined=2"
 
 out="$(bash "$DETECT" "$FENCED" 2>&1)"
 assert_not_contains "fences: fenced and inline-code content not flagged" "$out" "Finding:"
