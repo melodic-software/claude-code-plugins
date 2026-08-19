@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.2.1]
+
+Eval coverage for the layer a shell test cannot reach. The deterministic side already had 86 cases
+over all 15 script rules; the judgment side had none, which is the half that only a model performs.
+
+- **Five new `audit` evals** (4 → 9, in line with sibling audit skills): the rubric layer reports
+  but never enters the findings file; a `fix` never swaps an em dash for a parenthesis or en dash
+  (the rewrite guide's substitution guardrail, and the tell most likely to be violated silently
+  because the swap looks like a fix); triads collapse toward the strongest item rather than being
+  repunctuated; the recorded knowledge-cutoff false-positive class routes to a marker or config
+  rather than a rewrite, and never to weakening the rule; exemptions are named with their cause.
+- **Two new `setup` evals** (3 → 5) covering the `_comment` rationale key added in 0.2.0: it is a
+  documented annotation rather than unknown-key drift, and disabling a rule records why alongside
+  the trade-off against `em_dash_allowed_paths`.
+- Every eval case carries `narration: true`. The four original cases named a prose path that
+  resolves nowhere, which the skill-quality Q4 check warns on unless the case declares itself
+  narrative.
+- Two eval scenarios corrected in review, both cases of a golden answer the scenario could not
+  produce: the rubric-boundary case used promotional words that are themselves in the mechanical
+  vocabulary list, so a second script finding fired and contradicted its own "one script finding"
+  answer (measured: 3 hits, density 142.9/1000); and the triad case demanded a load-bearing triad
+  be kept while supplying only rhetorical ones.
+- The triad case needed a second correction, caught in review after the first: its load-bearing
+  example used multi-word items ("project settings"), which `rule-rule-of-three`'s ERE
+  (`[A-Za-z]+, [A-Za-z]+, and [A-Za-z]+`) requires to be single tokens, so the detector never
+  surfaced it and the fix flow had nothing to judge. Each scenario is now verified by running the
+  detector over it — the triad case measures 3 hits at 60.0/1000 words, with all three triads
+  reaching the finding.
+
 ## [0.2.0]
 
 - Added a set of catalog entries inspired by
