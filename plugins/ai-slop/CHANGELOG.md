@@ -21,8 +21,13 @@ over all 15 script rules; the judgment side had none, which is the half that onl
   produce: the rubric-boundary case used promotional words that are themselves in the mechanical
   vocabulary list, so a second script finding fired and contradicted its own "one script finding"
   answer (measured: 3 hits, density 142.9/1000); and the triad case demanded a load-bearing triad
-  be kept while supplying only rhetorical ones. Both scenarios now contain exactly what their
-  expectations grade.
+  be kept while supplying only rhetorical ones.
+- The triad case needed a second correction, caught in review after the first: its load-bearing
+  example used multi-word items ("project settings"), which `rule-rule-of-three`'s ERE
+  (`[A-Za-z]+, [A-Za-z]+, and [A-Za-z]+`) requires to be single tokens, so the detector never
+  surfaced it and the fix flow had nothing to judge. Each scenario is now verified by running the
+  detector over it — the triad case measures 3 hits at 60.0/1000 words, with all three triads
+  reaching the finding.
 
 ## [0.2.0]
 

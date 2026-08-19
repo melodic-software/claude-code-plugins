@@ -82,8 +82,8 @@
     {
       "id": 7,
       "name": "triads-collapse-toward-the-strongest-item",
-      "prompt": "/ai-slop:audit fix docs/example.md — the file trips rule-of-three on two kinds of triad. Rhetorical: \"the tool is fast, simple, and reliable\" and \"it reads clean, tight, and portable\". Load-bearing: \"the layers are managed policy, project settings, and the local overlay\" — a complete set the reader needs, where dropping one names a cascade that does not exist.",
-      "expected_output": "The two rhetorical triads collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The layer enumeration is KEPT intact, with that judgment stated — enumerating three actual things is not a tell.",
+      "prompt": "/ai-slop:audit fix docs/example.md — the file trips rule-of-three at 3 hits on two kinds of triad. Rhetorical: \"the tool is fast, simple, and reliable\" and \"it reads clean, tight, and portable\". Load-bearing: \"the cascade layers are user, team, and local\" — a complete set the reader needs, where dropping one names a resolution order that does not exist. All three match the density rule's ERE, so all three reach the fix flow as one finding.",
+      "expected_output": "The two rhetorical triads collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The cascade enumeration is KEPT intact, with that judgment stated — enumerating three actual things is not a tell.",
       "files": [],
       "narration": true,
       "expectations": [
