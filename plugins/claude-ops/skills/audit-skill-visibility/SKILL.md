@@ -1,18 +1,25 @@
 ---
-description: "Diagnose why most of an installed skill fleet never gets used — separating skills STARVED by Claude Code's skill-listing context budget (which drops descriptions starting with the least-invoked skills, so an unused skill loses the keywords that would let it be matched, and stays unused) from skills genuinely not wanted, from skills the run simply cannot observe. Computes whether the listing is overflowing at all from documented settings, and withholds every cold verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'which skills are starved', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'skill adoption', 'which skills are cold', 'I have too many skills to know when to use them', 'audit skill starvation'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "Audit whether each installed skill is actually VISIBLE to the model — and diagnose why most of a fleet never gets used. A skill is invisible when its description is dropped by the skill-listing context budget (Claude Code drops descriptions starting with the least-invoked skills, so an unused skill loses the keywords that would let it be matched and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest — computing whether the listing overflows from documented settings, and withholding every verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
 argument-hint: "[--fixture <path>] [--render markdown|json] [--now <RFC3339>] — fixture-driven at this phase"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: operator
-  summary: Separate starved skills from unwanted and unobservable; withhold unsupported verdicts
+  summary: Which skills the model can actually see, which are starved, and which are unobservable
   cadence: weekly
 ---
 
 ## Purpose
 
-Answers one question: **why does most of my skill fleet never get used?**
+Answers one question: **can the model actually see each of my skills — and if not, why?**
+
+That is the question behind the one operators usually ask, which is *why does most of
+my skill fleet never get used?* A skill the model cannot see cannot be chosen, so
+"unused" is very often a visibility failure wearing a preference costume.
+
+**Visibility is Claude Code's own term** for this: `skillOverrides` is documented under
+"Override skill visibility". This skill audits every way a skill loses it.
 
 Claude Code budgets the model-visible skill listing at a fraction of the context
 window (`skillListingBudgetFraction`, default 0.01) and, when it overflows,
@@ -40,7 +47,7 @@ section with its reason. **A declined verdict is reported, never omitted.**
 ## Run it
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-starvation/scripts/audit_skill_starvation.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
   --fixture <bundle.json> --render json
 ```
 

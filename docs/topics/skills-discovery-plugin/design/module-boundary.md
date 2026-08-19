@@ -1,4 +1,4 @@
-# Module boundary — audit-skill-starvation
+# Module boundary — audit-skill-visibility
 
 Resolves T6, T8, T9 from [`design-threads.md`](design-threads.md).
 
@@ -25,7 +25,7 @@ target.
 ```text
 plugins/claude-ops/
   lib/state-key.sh                      # NEW — first lib/ in this plugin; report keying
-  skills/audit-skill-starvation/
+  skills/audit-skill-visibility/
     SKILL.md                            # frontmatter + routing; ${user_config.*} substitution
     context/                            # progressive disclosure, read on demand
       classification.md                 #   the 15 causes + provenance rules
@@ -45,7 +45,7 @@ presentation; the judgement in the middle takes data and a clock and returns a m
 ## Dependency direction
 
 ```text
-audit-skill-starvation
+audit-skill-visibility
   ├── reads ──> inventory/scripts/inventory.py --out        (denominator)
   ├── reads ──> hooks/claude-ops-paths.sh                   (store resolution)
   ├── reads ──> ~/.claude.json, skill-usage.jsonl, OTEL     (sources)

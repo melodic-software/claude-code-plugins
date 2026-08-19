@@ -18,7 +18,7 @@ diagnostic, `invocation_trigger` attribution, per-repo/trend detail, and the why
 
 ### Goal
 
-Ship `/claude-ops:audit-skill-starvation` — a read-only findings report that, for the operator's
+Ship `/claude-ops:audit-skill-visibility` — a read-only findings report that, for the operator's
 own machine, classifies every enabled skill into a reach state, explains each cold verdict against
 documented Claude Code mechanics, and withholds verdicts entirely when the data cannot support them.
 
@@ -156,7 +156,7 @@ skill-spawned subprocess's environment). A configurable window must arrive via
 
 ### Acceptance criteria
 
-1. `/claude-ops:audit-skill-starvation` runs read-only and never writes user-visible state except
+1. `/claude-ops:audit-skill-visibility` runs read-only and never writes user-visible state except
    its keyed report artifacts.
 2. **Superseded 2026-08-18 by design thread T3** (user-approved). Was: "resolves to exactly one
    reach state, including `not observable`." Now: every skill in the enabled denominator resolves to
@@ -228,7 +228,7 @@ skill-spawned subprocess's environment). A configurable window must arrive via
   cross-repo-enumerable source, and the shipped Doctor uses them — but scanning ~50 recent files
   per project is the largest single cost in the design. Arbiter: **USER-RESERVED** — it changes the
   scope-limited framing the Brief currently commits to.
-- **Q19 — Final leaf name.** `audit-skill-starvation` is proposed and satisfies both naming
+- **Q19 — Final leaf name.** `audit-skill-visibility` is proposed and satisfies both naming
   challenges (verb phrase; no consumer-adoption promise). Confirm against
   `scripts/check-skill-leaf-names.sh`. Arbiter: `/planning:plan`.
 
@@ -249,7 +249,7 @@ CLI surface. Tests ride each phase — there is no "testing phase".
 **Completed 2026-08-18.** Sanity-check evidence: engine exits 0 rendering JSON from
 `tests/fixtures/fleet-basic.json`; `jq -e '.observed_horizon'` passes; all 4 of 4 rows resolve
 `not-observable` (exact count, per the revised criterion — not "the bulk"); `withheld` is non-empty
-with reasons; `audit_skill_starvation.test.sh` passes 11 unit tests plus its end-to-end fixture
+with reasons; `audit_skill_visibility.test.sh` passes 11 unit tests plus its end-to-end fixture
 assertion; `shellcheck` and `ruff` clean; and `check-skill.sh --require-evals` reports
 **PASS — 0 errors, 0 warnings** (the gate that would have blocked every later phase had evals been
 deferred). Deviations: none.
@@ -257,10 +257,10 @@ deferred). Deviations: none.
 The integration slice. Denominator → one source → three-field model → markdown, running for real.
 
 **Language pinned (was an undecided `classify.*` in the pre-review draft):** the engine is
-`scripts/audit_skill_starvation.py` — **Python 3.11+, no third-party deps**, matching
+`scripts/audit_skill_visibility.py` — **Python 3.11+, no third-party deps**, matching
 `inventory.py`, `install_state.py`, and `audit_performance.py`, which are the shape every claude-ops
 skill doing structured data work already uses. Shell is used here only for the thin
-`audit-skill-starvation.test.sh` wrapper, because `scripts/run-plugin-tests.sh` discovers only
+`audit-skill-visibility.test.sh` wrapper, because `scripts/run-plugin-tests.sh` discovers only
 `*.test.sh`. One Python module with subcommands (`collect` / `classify` / `render`), not three
 cross-process hops — the collect/classify/render split from `module-boundary.md` is preserved as
 **function boundaries**, which is what made `classify` purely testable in the first place.
@@ -290,10 +290,10 @@ cross-process hops — the collect/classify/render split from `module-boundary.m
   read as usage or recency.
 - **Sanity Check:** against a **fixture** fleet (not the live machine — `inventory.py` needs the
   `claude` executable and a populated `~/.claude/plugins`, so a live run is not reproducible in CI):
-  `python3 scripts/audit_skill_starvation.py --fixture tests/fixtures/fleet-basic --render json`
+  `python3 scripts/audit_skill_visibility.py --fixture tests/fixtures/fleet-basic --render json`
   exits 0; `jq -e '.observed_horizon' <json>` exits 0; with the injected clock inside the exposure
   floor, `jq '[.skills[]|select(.observation.value=="not-observable")]|length' == (.skills|length)`
-  — i.e. **all** rows, an exact count rather than "the bulk". `bash …/audit-skill-starvation.test.sh`
+  — i.e. **all** rows, an exact count rather than "the bulk". `bash …/audit-skill-visibility.test.sh`
   exits 0, and `bash scripts/check-changed-skills.sh HEAD~1` exits 0 (proves the evals gate passes).
 
 **Honest scope note:** Phase 1 retires the *integration* risk it was chosen for — it runs end to end
@@ -455,7 +455,7 @@ Added in plan review: acceptance criteria 11 and 12 had **no phase at all** in t
 ### Phase 6: Outputs — keying, JSON, optional HTML [DONE]
 
 **Completed 2026-08-18.** Sanity-check evidence: the written path is
-`<root>/audit-skill-starvation/github.com/melodic-software/claude-code-plugins/05a2a927/<stamp>.json`
+`<root>/audit-skill-visibility/github.com/melodic-software/claude-code-plugins/05a2a927/<stamp>.json`
 — component, repo-identity, and 8-char worktree discriminator, matched by regex. Two consecutive
 runs produce **2 files** and grow `history.jsonl` by **exactly 1 line** each; `jq -e '.withheld'`
 exits 0. Both state-key CI gates pass with the new carrier: `sync-state-key.sh --check` reports
@@ -503,7 +503,7 @@ already runs the catalog and cheat-sheet `--check` pair plus the contract valida
 `sync-plugin-options-docs.py --check`, `sync-state-key.sh --check`, and
 `check-cross-plugin-source-drift.sh --check` all pass; `grep -c "Eleven skills"` on the manifest
 equals 1; `shellcheck` clean on `clean.sh`; markdownlint 0 issues; and `check-skill.sh` PASSes for
-BOTH `audit-skill-starvation` and the modified `observability`, 0 errors 0 warnings each.
+BOTH `audit-skill-visibility` and the modified `observability`, 0 errors 0 warnings each.
 
 **The destructive path is proven safe by test, not by argument.** Test 9 grew eight assertions
 (32/32 pass), and the rollback property is asserted FIRST: with no skill-usage flag the 45-day rows
@@ -556,7 +556,7 @@ could delete another plugin's files. Therefore:
 | `CHANGELOG.md` | MODIFY | entry per precedent |
 | `docs/CATALOG.md` | REGENERATE | `node scripts/generate-catalog.mjs` |
 | `docs/SKILL-CHEAT-SHEET.md` | REGENERATE | `node scripts/generate-cheatsheet.mjs` |
-| `skills/audit-skill-starvation/evals/evals.json` | KEEP | created in Phase 1 — CI FAILs any `SKILL.md` diff without it, so it cannot wait until here |
+| `skills/audit-skill-visibility/evals/evals.json` | KEEP | created in Phase 1 — CI FAILs any `SKILL.md` diff without it, so it cannot wait until here |
 | `.claude-plugin/marketplace.json` | KEEP | its entry carries no skill enumeration — precedent `4a1184cd` did not touch it |
 | `docs/CATALOG-TAXONOMY.md` | KEEP | governs plugin categories, not skills; `claude-ops` is already `claude-code` |
 | `scripts/skill-leaf-name-registry.txt` | KEEP unless colliding | registering a non-colliding leaf is itself a CI failure |
@@ -590,7 +590,7 @@ read-only, adds no hooks, and the only mutation anywhere in the change is one ad
   the Brief's documented cloud/ephemeral gap stands. Revisit trigger: if the scope-limited framing
   proves too narrow in use, transcripts are the known path to retroactive and cross-repo coverage —
   a follow-up topic, not a mid-flight scope change.
-- **Q19 — leaf name** `audit-skill-starvation`: confirm via `scripts/check-skill-leaf-names.sh` in
+- **Q19 — leaf name** `audit-skill-visibility`: confirm via `scripts/check-skill-leaf-names.sh` in
   Phase 7. It collides with nothing today, so the registry stays untouched (registering a
   non-colliding leaf is itself a CI failure).
 - **Branch-name note:** the plan is `feat/`-shaped, but this session is mandated to develop on

@@ -1,4 +1,4 @@
-# Design threads — audit-skill-starvation
+# Design threads — audit-skill-visibility
 
 Scope: `module`. Tier A. Brief: [`../PLAN.md`](../PLAN.md) (locked + verification-corrected).
 Status vocabulary: **resolved** (decided) / **directional** (direction agreed, detail deferred) /

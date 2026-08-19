@@ -175,7 +175,7 @@ def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
     return events, horizon
 
 
-COMPONENT = "audit-skill-starvation"
+COMPONENT = "audit-skill-visibility"
 
 
 def report_path(data_root: str, state_key: str, stamp: str) -> str:

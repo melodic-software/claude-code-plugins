@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The Python floor has one origin: MIN_PYTHON in the engine. Parse it rather
 # than restating the number here.
-ENGINE="$SCRIPT_DIR/audit_skill_starvation.py"
+ENGINE="$SCRIPT_DIR/audit_skill_visibility.py"
 FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$ENGINE")"
 if [[ -z "$FLOOR" ]]; then
   echo "FAIL: could not parse MIN_PYTHON from $ENGINE" >&2
@@ -27,7 +27,7 @@ fi
   exit 0
 }
 
-(cd "$SCRIPT_DIR" && "$PYTHON" -m unittest -v test_audit_skill_starvation)
+(cd "$SCRIPT_DIR" && "$PYTHON" -m unittest -v test_audit_skill_visibility)
 
 # Contract check: the shipped fixture must resolve every row to not-observable.
 # A fresh install is exactly where a naive report libels the fleet as unused, so

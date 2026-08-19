@@ -1,4 +1,4 @@
-"""Unit tests for the audit-skill-starvation classifier.
+"""Unit tests for the audit-skill-visibility classifier.
 
 The classifier is pure -- `(denominator, events, config, clock) -> model` -- and
 every test here pins a defect found during this topic's audit. Each test names
@@ -9,7 +9,7 @@ the failure it prevents, because a fixture whose purpose is forgotten gets
 import unittest
 from datetime import datetime, timedelta, timezone
 
-import audit_skill_starvation as engine
+import audit_skill_visibility as engine
 
 
 def _utc(y, m, d):
@@ -670,7 +670,7 @@ class ReportPathTest(unittest.TestCase):
         )
         self.assertIn("github.com/o/r/abcd1234", path)
         self.assertTrue(path.endswith("20260818T000000Z.json"))
-        self.assertIn("audit-skill-starvation", path)
+        self.assertIn("audit-skill-visibility", path)
 
     def test_refuses_to_build_a_path_without_a_state_key(self):
         """Without the key every run from every repo overwrites the last, and a

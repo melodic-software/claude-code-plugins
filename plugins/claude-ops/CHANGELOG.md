@@ -7,8 +7,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Added
 
-- **`/claude-ops:audit-skill-starvation` — diagnose why most of an installed skill fleet never gets
-  used.** Claude Code budgets the model-visible skill listing at `skillListingBudgetFraction` of the
+- **`/claude-ops:audit-skill-visibility` — audit whether the model can actually SEE each installed
+  skill.** That is the question behind "why does most of my fleet never get used?": a skill the model
+  cannot see can never be chosen, so unused is very often a visibility failure rather than a
+  preference. *Visibility* is Claude Code's own term here — `skillOverrides` is documented under
+  "Override skill visibility" — and this skill audits every way a skill loses it.
+  Claude Code budgets the model-visible skill listing at `skillListingBudgetFraction` of the
   context window and, when it overflows, drops descriptions starting with the skills you invoke
   least. A skill at zero usage therefore loses its description, loses the keywords a request would
   match against, and stays at zero — "unused" is partly self-causing. The skill separates **starved**

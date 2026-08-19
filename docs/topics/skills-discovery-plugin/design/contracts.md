@@ -1,4 +1,4 @@
-# Contracts — audit-skill-starvation
+# Contracts — audit-skill-visibility
 
 Type model and output contract. Resolves T1, T2, T3, T7 from
 [`design-threads.md`](design-threads.md).
