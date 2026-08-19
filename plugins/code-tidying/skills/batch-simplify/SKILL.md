@@ -53,7 +53,7 @@ Any scope accepts one or more trailing paths: `48h plugins/knowledge`, `branch s
 
 Apply the path as a native pathspec on that mode's own discovery command (`-- <path>`), never as a filter over the results: the pathspec is what makes the mode's own semantics — merge-base for branch, `--since` for a window — hold over the narrowed set.
 
-A token counts as a path only if it **resolves** to an existing file or directory. A token that resolves to nothing is neither a path nor a scope, so it falls through to the ask-the-user rule — which is what keeps a typo (`brnach`) an explicit question instead of a silent sweep of nothing.
+A token counts as a path only if it **resolves** to an existing file or directory. A token that resolves to nothing is neither a path nor a scope, so it falls through to the ask-the-user rule — which is what keeps a mistyped scope or path an explicit question instead of a silent sweep of nothing.
 
 `repo <lane>` is deliberately **not** accepted; use a path. Rationale in [context/reference.md](context/reference.md) "Why narrowing is a path, not a lane".
 
