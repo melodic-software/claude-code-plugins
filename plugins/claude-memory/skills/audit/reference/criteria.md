@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.5.4
-Last updated: 2026-08-15
+Version: 1.6.0
+Last updated: 2026-08-19
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
