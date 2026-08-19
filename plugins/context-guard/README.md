@@ -58,7 +58,13 @@ tool that needs it — so long-running workflows can route heavy work away from 
   or missing `jq` all resolve `unknown` — consumers take their conservative path on data they
   cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults: no
   official auto-compaction threshold is documented (verified 2026-07-24); `zones.json` is the
-  tuning path.
+  tuning path. The trigger itself is operator-tunable even though its default is unpublished —
+  `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
+  `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` — and bands belong **below** whatever it resolves
+  to, normalized into the percentage shape, so the session reaches a boundary decision before the
+  harness compacts for it. Note that `used_percentage` always measures against the model's *full*
+  window, so a lowered auto-compact window no longer shows up in the percentage. The reader
+  contract owns those surfaces, their verification dates, and the rationale.
 - **Integrity boundary (stated honestly).** The snapshot directory is owner-only where POSIX
   modes work; on Windows ACL volumes the `chmod` is a no-op and other local users could forge
   snapshots. Zones are routing hints — consumers must never attach security or egress decisions
