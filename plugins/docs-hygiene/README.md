@@ -27,7 +27,9 @@ and authoring axes of doc upkeep.
   post-edit lint pass is the mandatory ship gate. It must be on `PATH` or
   installed in the consuming repo (`node_modules/.bin/markdownlint-cli2`);
   when absent, `compress` stops at the entry point with that remediation
-  instead of shipping unverified output. The other five skills do not use it.
+  instead of shipping unverified output. `compress` is the only skill that gates
+  its entry point on it; `extract-ssot` names it as one option for its ship-gate
+  lint step, and no other skill calls it.
 - **`caveman` plugin** (optional) — a compression backend for `compress`;
   absent, an in-session fallback applies and every verification gate still
   runs.

@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1]
+
+### Changed
+
+- **`claude-ops-paths.test.sh`'s Windows path fixtures now carry `portability-ok:` markers**, so the
+  whole-repo `check-shell-portability.sh --all` audit runs clean instead of reporting three hits it
+  will always report. The backslashes in `'C:\temp\skills'`, `'\\server\share\skills'` and
+  `'telemetry\skills'` are the input these cases normalize, not GNU `\s` classes, so the construct
+  cannot be spelled away — an exemption with a stated reason is the correct disposition. Each marker
+  rides its own `case` arm rather than a shared comment block above them, so reordering the arms
+  cannot silently detach an exemption from the site it excuses. No behavior change; the suite's
+  assertions are untouched.
+
 ## [0.33.0]
 
 ### Added

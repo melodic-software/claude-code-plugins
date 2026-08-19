@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Fixed
+
+- **The README claimed four skills and documented four, in a plugin that has five.** `/testing:audit`
+  landed in 0.6.0 and reached the plugin manifest's description but never the README — so the front
+  page both miscounted the set and omitted a whole skill from its table, and a reader arriving there
+  had no way to learn `audit` exists. Both halves are corrected: the count reads five, and `audit`
+  has its table row. Found by `scripts/check-skill-count-claims.sh`, a new fleet gate that compares
+  every hand-written skill count against the tree; this was one of four live drifts it surfaced on
+  its first run.
+
 ## [0.6.1]
 
 ### Changed
