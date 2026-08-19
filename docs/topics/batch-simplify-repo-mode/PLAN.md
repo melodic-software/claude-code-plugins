@@ -275,7 +275,7 @@ so Phase 5 updates exactly that set rather than guessing.
 - `bash scripts/check-changed-skills.sh origin/main` exits 0.
 - `bash scripts/check-changelog-parity.sh --check-bump origin/main` exits 0.
 
-### Phase 2: Repo mode exists end-to-end [TODO]
+### Phase 2: Repo mode exists end-to-end [DONE]
 
 The walking skeleton: the mode parses, discovers, filters, and reports. Everything a run needs to
 complete once, correctly, at any scale.
