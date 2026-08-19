@@ -3,6 +3,21 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`audit`: /init-then-prune eval fixture (course lane 9, #2989).** New eval case
+  `init-shaped-bloat-graded-with-c5-carve-out` grades the audit against a static bloated
+  CLAUDE.md fixture (`evals/fixtures/init-bloated-claude-md.md`) in the shape `/init`
+  produces — file-by-file codebase inventory, restated standard conventions, copied
+  framework documentation, 200+ visible lines. Expectations pin C1 (line-budget FAIL),
+  C2 (derivable standard-convention lines, grouped by section), and C5 (codebase-description
+  and framework-doc flagging) — and pin the discrimination side: the fixture's curated
+  runbook pointer must be KEEP under C5's navigation-pointer carve-out (#2987), and its
+  non-obvious first-run gotcha must not be flagged. A static fixture was chosen over live
+  `/init` generation for determinism (lane 9 decision, `docs/upstream/aihero-steering-lanes.md`).
+
 ## [0.10.0]
 
 ### Added
