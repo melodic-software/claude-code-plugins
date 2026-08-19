@@ -430,7 +430,13 @@ deliberately left alone: extending it would assert a budget claim this plan does
 - `grep -c 'trace-intent' plugins/discovery/reference/parent-contract.md` returns >= 3 (pointer
   table row, both baseline forms).
 
-### Phase 4: The third sidecar header schema [TODO]
+### Phase 4: The third sidecar header schema [DONE]
+
+**One addition beyond the block below:** `SKILL.md`'s Output section gained a four-line
+persist-the-artifact paragraph pointing at `context/artifact-shape.md`. Without it the schema file
+was reachable only from the agent, so an **inline** run — the documented escape hatch — had no route
+to the header contract it is supposed to write. Paid for by compressing prose elsewhere in the file;
+the skill stays at 0 errors, 0 warnings.
 
 | File | Action | Rationale |
 |---|---|---|
@@ -520,7 +526,31 @@ weak-but-admissible rung gets filled exactly when the record is thin.
 - The attribution table exists with the four columns of its model (Upstream skill | Ours | Relation |
   What was taken / rejected)
 
-### Phase 7: Full sweep, and the fresh-eyes verification gap [TODO]
+### Phase 7: Full sweep, and the fresh-eyes verification gap [DONE]
+
+**Sweep result, run 2026-08-19 against `origin/main` merged in.** Every gate below exits 0:
+`affected-tests.sh --run` (29 shell suites, plus the one Python lane it selects but does not
+execute, run separately: 71 passed), `check-changed-skills.sh origin/main` (3 skills, 0 failed),
+`validate-plugins.sh`, `validate-plugin-contracts.mjs`, `check-skill-leaf-names.sh --check`,
+`check-skill-portability.sh origin/main`, `check-evals-quality.sh`, all four changelog-parity modes,
+`check-skill-count-claims.sh`, `check-cross-plugin-source-drift.sh`,
+`check-plugin-manifest-presence.sh`, `check-discriminating-test-skips.sh`, the four discovery
+suites, `check-skill.test.sh`, `markdownlint-cli2` over every new and edited markdown file, and
+`shellcheck` over both edited `.test.sh` files. `check-skill.sh --require-evals` on `trace-intent`:
+**0 errors, 0 warnings**, all 10 base-ref trigger phrases preserved; 7 preserved on
+`reason-dont-recite` and 6 on `explore`. Version bumps asserted directly rather than through
+`--check-bump`: `discovery` 0.15.6 → 0.16.0, `discipline` 0.12.9 → 0.12.10. Catalog and cheat sheet
+regenerate to no diff.
+
+**One finding worth carrying forward.** `explore` reports 5 warnings on this branch against 3 on
+`origin/main`, and **none of the two extra is this branch's doing**: running *this* branch's
+repaired `check-skill.sh` against *main's* unmodified `explore/SKILL.md` also yields 5. The delta is
+Phase 0's check-21 repair making pre-existing defects visible, exactly as intended. Left unfixed as
+out of scope.
+
+**`trace-intent/SKILL.md` now sits at exactly 200 lines, the soft-target ceiling.** Any further
+addition trips the warning, so the next edit to it must land in a spoke or pay for itself by
+compressing prose in the same pass.
 
 **Sanity Check:**
 

@@ -38,6 +38,17 @@
   whatever the environment exposes, so an enumerate-then-mark ledger would count against
   a denominator nobody can fix in advance), why a tier census sitting entirely in
   `Speculative` / `Unknown` is a **pass**, and the by-value rung.
+- `skills/trace-intent/context/artifact-shape.md` — the third sidecar header schema, and
+  deliberately neither sibling's. The research header's `confidence` / source `tier` /
+  publishing `pool` describe external evidence and would let "someone hinted at this in a
+  merge thread" occupy the field a fetched primary source does; the exploration header's
+  `verified: read | grep | inferred` describes whether a repository file was opened, which
+  is the one axis this skill refuses to grade intent on. `tier` is readable off the header
+  so a verifier who never saw the run can grade tier assignment mechanically, and
+  `reliability` is a sibling of `ref` rather than of `tier` — only `tier` routes a claim to
+  an output section. **Sources consulted** lives in the index rather than a sidecar,
+  because a sidecar is opt-in reading and a reader who takes the answer and stops must
+  still meet the shape of the record behind it.
 
 ### Changed
 
@@ -52,6 +63,12 @@
   one that does not. `/discovery:trace-intent` keeps the shared `Topic:` envelope label
   rather than adding a `Target:` one, so the label a dispatched agent parses and the
   `topic_as_received` field that verifies it stay the same name.
+- `reference/topic-docs.md` records `INTENT.md` in the plugin's writes table and widens the
+  single write-boundary statement from two dispatched agents to three. The artifact stays
+  **private** — it is deliberately absent from `reference/artifact-protocol.md`, which is one
+  of five byte-identical copies across five plugins, so promoting a kind into it costs an
+  identical edit to all five plus a protocol version bump. That price is worth paying for an
+  artifact several plugins consume and not for one this skill writes and its own reader reads.
 - `scripts/contract.test.sh` extends its write-boundary loop to the third agent, and
   `scripts/check-dispatch-artifact.test.sh` runs its full shape suite a third time for
   `INTENT.md` — an `EXPLORE.md`-only run would let an `INTENT.md` regression through on

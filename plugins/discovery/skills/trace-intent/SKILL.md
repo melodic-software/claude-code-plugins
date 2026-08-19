@@ -22,10 +22,9 @@ and sometimes gone. This skill reconstructs intent from those records and is hon
 it could not recover.
 
 Third axis of this plugin. `/discovery:explore` answers **what IS**, `/discovery:research` answers
-**what SHOULD BE**, and this answers **what WAS, and why**.
-
-The failure this exists to prevent is a confident story built from thin evidence. A plausible
-narrative about a decision is worse than an admission of ignorance, because it is acted upon.
+**what SHOULD BE**, and this answers **what WAS, and why**. The failure it exists to prevent is a
+confident story built from thin evidence: a plausible narrative about a decision is worse than an
+admission of ignorance, because it is acted upon.
 
 ## Routing — dispatch by default
 
@@ -35,10 +34,10 @@ documents — and keeping that out of the orchestrator's context window is the p
 investigates each resolvable category, writes the artifact set, and returns a file pointer plus a
 verification request, not the transcript. The parent resolves the **pre-dispatch envelope** first —
 six fields (target on the `Topic:` line, reason, memory-slice path, memory root, budget, capability
-flags), written into the dispatch prompt as the labelled template in
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
-— and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the
-sibling verifier for tier assignment, and writing that verdict back into the index.
+flags), written into the dispatch prompt as the labelled template in the
+[parent contract](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) — and owns the **post-dispatch
+boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier for tier
+assignment, and writing that verdict back into the index.
 
 **Run inline instead** for tight turn-by-turn iteration, for cost, or when the invoking context is
 already a subagent — and inline runs the identical discipline; the escape hatch relaxes nothing
@@ -57,10 +56,10 @@ discovery-trace-intent-preload-7b3e2d
 ```
 
 **Pre-dispatch:** create the memory slice and touch `<that slice>/.trace-intent-dispatch` as the
-acceptance gate's freshness baseline. Without it a slice that already holds an earlier run's index
-passes every on-disk check even when this dispatch wrote nothing at all. **Both shell forms of that
-command are in the parent contract** — copy the one matching this session's shell, because the POSIX
-form's `touch` is not a command in PowerShell and its directory flag is a parameter error there.
+acceptance gate's freshness baseline. Without it a slice already holding an earlier run's index
+passes every on-disk check even when this dispatch wrote nothing. **Both shell forms of that command
+are in the parent contract** — copy the one matching this session's shell, because the POSIX form's
+`touch` is not a command in PowerShell and its directory flag is a parameter error there.
 
 **Post-dispatch, the payload is graded off disk before it is believed** — `status: complete` is the
 agent's claim about its own run, and a claim is not evidence. The gate's three steps, the reason this
@@ -77,10 +76,9 @@ Investigate the following target: $ARGUMENTS
 Under dispatch the target arrives in the dispatch prompt instead. Do not rely on seeing an unfilled
 slot: a target that did not arrive in this prompt is a missing target, not an empty one, and it is a
 parent-envelope failure the agent reports rather than repairs. Contract:
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](../../reference/parent-contract.md).
-
-Running inline with no target, infer it from the conversation — the file, symbol, decision, or
-convention under discussion.
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](../../reference/parent-contract.md). Running
+inline with no target, infer it from the conversation — the file, symbol, decision, or convention
+under discussion.
 
 ## The intent-evidence tier
 
@@ -102,10 +100,9 @@ something real about how the decision was made — usually that it was never wri
 ### Source reliability rides alongside, and never routes
 
 The tier alone cannot distinguish a review comment written by the change's author from a wiki page
-four years stale — both are `Direct`. So every citation also carries a short reliability note:
-who wrote it, how close they were to the decision, and how old it is.
-
-This is a note, not a second ladder. Only the tier decides which section a claim lands in.
+four years stale — both are `Direct`. So every citation also carries a short reliability note: who
+wrote it, how close they were to the decision, and how old it is. This is a note, not a second
+ladder — only the tier decides which section a claim lands in.
 
 ### Code shape is not intent evidence
 
@@ -115,14 +112,13 @@ tier — it leaves the scale entirely and is recorded as a gap.
 
 This is a deliberate departure from the upstream skill this one is reauthored from, which permits
 labelled code-shape inference at `Inferred`. The reason is operational rather than epistemic: code
-is the only evidence source that is always present and costs nothing to consult, so a
-weak-but-admissible rung for it gets filled exactly when the real record is thin — which is exactly
-when a reader most needs to be told the record is thin.
+is always present and costs nothing to consult, so a weak-but-admissible rung for it gets filled
+exactly when the real record is thin — which is exactly when a reader most needs to be told so.
 
-**Version-control behaviour is not code shape.** Change coupling, churn, and hotspot data are
-evidence the code alone cannot give you, and they are admissible. But they locate rather than
-explain: they show that two files always change together, never why anyone decided that. Behavioural
-signal reaches `Inferred` and never `Direct`.
+**Version-control behaviour is not code shape.** Change coupling, churn and hotspot data are evidence
+the code alone cannot give you, and they are admissible — but they locate rather than explain: they
+show that two files always change together, never why anyone decided that. Behavioural signal reaches
+`Inferred` and never `Direct`.
 
 ## Evidence categories
 
@@ -144,10 +140,9 @@ routes through `/work-items:track` when the `work-items` plugin is installed, wh
 provider-neutral seam; without it, use whatever tracker interface the session actually has, and when
 none resolves, report the tracker category as unavailable.
 
-Categories beyond these three — team chat, application observability, error tracking, product
-analytics — are real sources of intent and are **not shipped as investigators**, because nothing in
-this marketplace reaches them and four permanently-empty investigators would report the same gap on
-every run forever. The extension seam for adding one is in
+Categories beyond these three — team chat, observability, error tracking, product analytics — carry
+real intent evidence and are **not shipped as investigators**: nothing in this marketplace reaches
+them, so four permanently-empty investigators would report the same gap forever. Extension seam:
 [`context/evidence-categories.md`](context/evidence-categories.md).
 
 ## Skipping a category
@@ -159,9 +154,8 @@ Exactly two reasons permit skipping, and both are written into the output:
    no runtime path, so error tracking cannot hold anything" qualifies.
 
 "Probably not in the tracker" and "docs likely don't cover this" do **not** qualify. Deciding in
-advance that a source is empty is how a blind spot becomes a finding. Run the search and let the
-null result speak — an empty category costs one search; a missed design document costs a wrong
-answer that someone acts on.
+advance that a source is empty is how a blind spot becomes a finding. Run the search and let the null
+result speak: an empty category costs one search, a missed design document costs a wrong answer.
 
 ## Output
 
@@ -180,6 +174,12 @@ nothing in them are omitted, except **Sources consulted**, which is never omitte
 
 When the question precedes an actual change, close with a Preserve / Change / Avoid / Risk
 constraint set the planning stage can consume.
+
+**Persist it as `INTENT.md` plus `INTENT-<section>.md` sidecars** in the memory slice, so a fresh
+session can resume from the artifact alone. The index is the entry point at every size, and **Sources
+consulted** lives in it rather than in a sidecar — a reader who takes the answer and stops must still
+meet the shape of the record behind it. Header schema, and why neither sibling family's header fits:
+[`context/artifact-shape.md`](context/artifact-shape.md).
 
 ## Outcome gate
 
