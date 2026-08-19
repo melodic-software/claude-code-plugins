@@ -455,7 +455,7 @@ Three places where shipping repo mode without an edit would leave the marketplac
   described as a discovered class, not hardcoded.
 - `bash scripts/check-changed-skills.sh origin/main` exits 0 (covers both edited skills).
 
-### Phase 5: Packaging, sibling docs, and evals [TODO]
+### Phase 5: Packaging, sibling docs, and evals [DONE]
 
 Everything that states the mode set, plus the release artifacts.
 
