@@ -187,9 +187,25 @@ not validation.
 Since 0.4.0 the plugin itself ships hooks over its own seam — the first shipped consumer:
 
 - **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): on a transition into a zone worse
-  than any this session has already reported, inject continuation guidance (a minimal generic
-  continuation tree plus a presence-gated pointer to `session-flow:workflow`'s router). Silent
-  while the zone is unchanged, improving, or `unknown`. **Hysteresis** (since 0.7.0): the gate is
+  than any this session has already reported, report the crossing on **two channels with two
+  audiences** (the 0.5.0 audience split). The **model channel** (`additionalContext`) carries the
+  determination and a counter-steer — the reading is a measurement rather than an instruction, real
+  degradation shows up in the model's own output and never in a zone word, and the model is told to
+  keep working the task in hand — plus, in `dumb`, a note to write each expensive conclusion to a
+  durable note against a short compaction distance. The **operator channel** (`systemMessage`)
+  carries the same crossing plus the continuation menu that is the human's call to make (continue /
+  `/clear` / handoff-then-`/clear`, with a hand-written resume note as the standalone-install
+  fallback / `/compact`) and the presence-gated pointer to `session-flow:workflow`'s router.
+  **Neither the menu nor the router pointer ever reaches the model channel.** A menu injected into
+  model context manufactures the model's own initiative to stop, summarize, or hand off — a live
+  finding under the instruction-audit catalog's I23 (`claude-config`, `reference/criteria.md`),
+  whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
+  the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
+  measurement decides only *when to ask*; the model still decides whether to stop. The model
+  channel states that continuation is the operator's CALL, never that the operator has SEEN the
+  menu — no documented hook behavior tells a hook whether an operator is present, so a delivery
+  claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
+  `unknown`. **Hysteresis** (since 0.7.0): the gate is
   the worst zone already *reported*, not the zone last *seen*. That marker decays only when the
   session returns to `smart` — the bottom of the ladder (**since 0.7.2**; 0.7.0 asked instead for an
   improvement of at least two ranks, which no band but `dumb` could ever satisfy, so a session that

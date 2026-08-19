@@ -5,7 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.14]
+## [0.7.15]
+
+### Fixed
+
+- **`reference/reader-contract.md` described pre-0.5.0 advisory injection (#2973).** The
+  zone-crossing hooks section still called the injection "a minimal generic continuation tree plus
+  a presence-gated pointer to `session-flow:workflow`'s router", as one undifferentiated block —
+  the shape before the 0.5.0 audience split moved the menu off the model channel. The reference
+  therefore misdescribed shipped behavior to every reader of the seam. It now states what each
+  channel carries — `additionalContext`: the determination plus the counter-steer, and the
+  durable-note addendum in `dumb`; `systemMessage`: the same crossing plus the continuation menu
+  and the router pointer — that neither the menu nor the pointer ever reaches the model channel,
+  and the I23 rationale for the split. Verified against `hooks/zone-crossing-inject.sh`'s actual
+  emission rather than its header summary. Documentation only; no behavior change.
 
 ### Changed
 
