@@ -13,16 +13,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (#2995).** `reference/reader-contract.md` said no auto-compaction threshold is documented and
   stopped there, which left readers with the impression that the trigger is entirely opaque. The
   *default* is unpublished, but the trigger is operator-tunable, and none of the surfaces that tune
-  it appeared anywhere in the plugin. The contract now names all three — `autoCompactWindow`
+  it appeared anywhere in the plugin. The contract now names all four — `autoCompactWindow`
   (`settings.json`, 100,000–1,000,000 tokens, no numeric default), `CLAUDE_CODE_AUTO_COMPACT_WINDOW`
-  (environment, highest precedence), and `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` — each
+  (environment, highest precedence, plain integer only), `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
+  (percentage of the window, lower-only), and `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` —
   verified 2026-08-17 against two independent pools (the official settings reference and the shipped
-  binary's schema strings). Added with them: the **bands-below-the-trigger** rule and its rationale
+  binary's schema strings) and re-verified 2026-08-19 against the live settings, env-vars, and
+  model-config pages. Added with them: the **bands-below-the-trigger** rule and its rationale
   (a firing means the boundary decision was reached too late), the explicit position that
   auto-compact nonetheless stays *enabled* as a last-resort safety net because unattended sessions
   have no human at the boundary, and the vendored Boris §64 rot figure recorded as a named
   practitioner anchor — carrying its Opus 5 amendment — never as an adopted number. The README
   points at the contract for all of it. Documentation only; no behavior change.
+- **The trigger comparison is stated in the percentage shape, not occupancy.** The contract already
+  forbids equating its two zone shapes without normalizing; the new guidance now honors that rule
+  explicitly. A configured auto-compact window is a fill threshold in the percentage shape's
+  input-token accounting, not the token shape's occupancy, so the worked example normalizes: a
+  400,000-token window on a 1M-class model puts the trigger at 40% of the full window — inside the
+  shipped `smart` band, meaning auto-compact fires while every zone still reads green. Records the
+  docs' own consequence with it: `used_percentage` always measures against the model's **full**
+  context window, so a lowered auto-compact window stops being visible in the percentage at all.
+
+### Changed
+
+- **The "no documented threshold" paragraph carries a dated refinement.** Upstream is now more
+  specific than the "when approaching context limits" phrasing the paragraph quotes: with no window
+  configured, compaction fires at the model's context limit, with enumerated exceptions that fire
+  earlier (cloud sessions, 200K-boundary model/configuration combinations, unrecognized model IDs).
+  A percentage default is implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` but still unpublished as a
+  number, so the conclusion is unchanged — the bands stay declared judgment defaults — while the
+  trigger is now documented as model- and environment-dependent, which is why no single band set is
+  correct everywhere. Verified 2026-08-19.
 - **The evidence-degraded marker's `trigger` field now has consumer guidance.** The field's values
   were documented; what a consumer should *do* with them was not. The contract now states that
   consumers deliberately do not differentiate on `trigger` (evidence degradation is

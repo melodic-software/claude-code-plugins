@@ -287,6 +287,18 @@ with a declared margin (if compaction triggers at ≥ 90% as its phrasing implie
 leads it by ≥ 15 points), not doc-derived constants. `zones.json` is the correction path if
 compaction is ever observed earlier.
 
+*Refinement, verified 2026-08-19 (model-config, "Default auto-compact thresholds"):* the docs are
+now more specific than "when approaching context limits" — with no window configured, compaction
+fires **at the model's context limit**, with enumerated exceptions that fire earlier (cloud
+sessions compact as the conversation *approaches* the limit; Sonnet 4.6 / Opus 4.6 without extended
+context, and Opus 4.8 / Opus 5 running on a 200K window, compact at the 200K boundary; a
+`CLAUDE_CODE_DISABLE_1M_CONTEXT=1` session on a native-1M model likewise; an unrecognized model ID
+compacts at whatever window Claude Code assumes for it). A *percentage* default is implied by
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored" but is still
+not published as a number — so the conclusion is unchanged: the bands remain declared judgment
+defaults. What this does change is that the trigger is **model- and environment-dependent**, so no
+single band set is correct everywhere.
+
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated" — the value is as-of the last API response, not
 the next request; and with `autoCompactEnabled: false` no compaction ever fires (the session hard
@@ -295,17 +307,36 @@ load-bearing, never less.
 
 ### The trigger has no documented threshold, but it IS operator-tunable
 
-No *default* threshold is documented (above), yet the point at which auto-compact fires is a
-configured value the operator can read and set. Three surfaces govern it. Verified 2026-08-17
-against two independent pools — the official
+No *default* threshold is published as a number (above), yet the point at which auto-compact fires
+is a configured value the operator can read and set. **Four** surfaces govern it. Verified
+2026-08-17 against two independent pools — the official
 [settings reference](https://code.claude.com/docs/en/settings) and the shipped binary's own schema
-strings (v2.1.233):
+strings (v2.1.233) — and re-verified 2026-08-19 against the live settings,
+[env-vars](https://code.claude.com/docs/en/env-vars), and
+[model-config](https://code.claude.com/docs/en/model-config) pages:
 
 | Surface | Kind | What it does |
 |---|---|---|
-| `autoCompactWindow` | `settings.json` key | How full the window gets before auto-compact fires, **in tokens, `100000` to `1000000`** (binary schema: `.int().min(1e5).max(1e6).optional()`). **No numeric default** — unset means a window tuned for the model, deliberately not published as a number. Written by the `/autocompact` command; the `--autocompact` flag sets it for one launch (both require Claude Code ≥ 2.1.221). |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Same units and range; **highest precedence** — overrides the command, the flag, and the setting while it is set. |
-| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key (default `true`, shown in `/config` as **Auto-compact**) / environment variable | Turns auto-compact off entirely. Distinct from `DISABLE_COMPACT`, which disables *all* compaction including `/compact`. |
+| `autoCompactWindow` | `settings.json` key | How full the window gets before auto-compact fires, **in tokens, `100000` to `1000000`** (binary schema: `.int().min(1e5).max(1e6).optional()`). **No numeric default** — unset means a window tuned for the model, deliberately not published as a number. Written by the `/autocompact` command; the `--autocompact` flag sets it for one launch and, unlike the command, is not preempted by a higher-priority settings scope. |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Same units and range; **highest precedence** — overrides the command, the flag, and the setting while set. **Accepts a plain integer only**: the command and flag take `500k` / `1M` / a bare `500` meaning thousands, but the variable reads `500k` as `500` and clamps to the 100K minimum. |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Sets the **percentage (1–100) of the auto-compact window** at which compaction triggers. **Can only lower the threshold** — values above the default percentage are ignored. Applies only in sessions that compact *before* the model's context limit, and to subagents as well as the main conversation. |
+| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key (default `true`, shown in `/config` as **Auto-compact**) / environment variable | Turns auto-compact off entirely. (`DISABLE_COMPACT`, which disables *all* compaction including `/compact`, comes from the 2026-08-17 binary-strings pool; it is not listed on the env-vars page as of 2026-08-19 — treat it as unconfirmed by docs.) |
+
+Claude Code caps the window at the model's actual context window, so a configured value above it
+does not extend anything.
+
+**Normalize before comparing — the trigger is not in occupancy.** The two zone shapes answer
+different questions and must never be equated (see "Occupancy and combination rule"), and the
+trigger belongs to the **percentage** shape's accounting, not the token shape's: `used_percentage`
+is input-token-based and answers *distance to compaction*, while the token bands measure
+**occupancy** (`total_input_tokens + total_output_tokens`) and answer *distance to quality loss*.
+A configured window is a fill threshold, so compare it against the percentage shape and let the
+occupancy bands move independently.
+
+One consequence is load-bearing enough to state on its own, and it is the docs' own warning
+(env-vars, verified 2026-08-19): **`used_percentage` always measures against the model's full
+context window**, so once the auto-compact window is lowered, *the percentage no longer indicates
+when compaction will run*. A consumer reading only the percentage will not see the trigger coming.
 
 **Tune bands BELOW the effective trigger, never above it.** Whatever the trigger resolves to on a
 machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
@@ -313,10 +344,12 @@ boundary decision — finish the phase, `/clear`, write a handoff — while that
 being made deliberately; if auto-compact fires first, the harness has already made a lossy choice
 on the session's behalf and the boundary was reached too late. Auto-compact offers no steering
 hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
-window was managed. Operators who lower `autoCompactWindow` are moving the trigger, so the bands in
-`zones.json` move with it — a 400000-token trigger on a 1M window puts the shipped 1M `dumb`
-boundary (400000 occupancy) exactly *at* the trigger rather than below it, which forfeits the
-margin.
+window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
+with it — normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
+trigger at **40% of the full window**, which is *inside* the shipped `smart` band (≤ 50): auto-
+compact would fire while every zone still reads green. Keeping bands below that trigger means
+pulling the percentage bands under 40, not comparing 400000 against the same-looking `dumb`
+occupancy number — those two 400000s are different quantities.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
