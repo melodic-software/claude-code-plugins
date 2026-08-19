@@ -164,8 +164,9 @@ usage() {
 # shell snippets from those files. Plugin reference docs under
 # plugins/*/reference/ are in scope for the same reason — a shared engine doc a
 # skill body cites carries the same executable snippets, and extracting a block
-# out of a skill and into a reference must not silently drop its gate coverage. evals/ carries adversarial fixture prompts
-# by design (same exclusion check-skill-portability.sh uses). Likewise the
+# out of a skill and into a reference must not silently drop its gate coverage.
+# evals/ carries adversarial fixture prompts by design (same exclusion
+# check-skill-portability.sh uses). Likewise the
 # cross-plugin sync copies registered in
 # scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
 # byte-identical to its in-repo SOURCE, so the source is where this contract
