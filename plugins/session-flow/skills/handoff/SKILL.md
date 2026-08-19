@@ -153,6 +153,10 @@ ambiguous.
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring
+  rules — the Resumption brief leads with it, Suggested skills are selected for it, Remaining
+  actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
+  goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file by its **absolute**,
   forward-slash-normalized path — never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd — with the `Handoff origin:` line naming the repository
@@ -174,6 +178,10 @@ ambiguous.
 - [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
+  the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
+  emphasis only") — never discarded; a goal-conflicting purpose flagged rather than obeyed. No
+  purpose given → nothing to tick
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
 - [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
   note re-arming EVERY surviving loop — one `/loop [<interval>] <original prompt>` line per loop,

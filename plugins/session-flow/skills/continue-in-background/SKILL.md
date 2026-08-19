@@ -164,6 +164,11 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 
 - [ ] Explicit user intent for background delegation verified (hard gate) — absent intent →
   save-point + `/clear`-then-paste exit, no launch, reason stated
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring rules
+  — full path: brief lead, Suggested-skills selection, Remaining-actions order; prompt-only: the
+  inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
+  the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
+  launch command. No purpose given → nothing to tick
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; other uncommitted changes without the linked-worktree exception → no launch, reason
