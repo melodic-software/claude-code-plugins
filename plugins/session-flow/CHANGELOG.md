@@ -1,5 +1,33 @@
 # Changelog — session-flow plugin
 
+## [0.26.0]
+
+### Added
+
+- **`handoff` — routing-signals table, session-chain use named first-class, do-not-duplicate and
+  promote-content rules, worktree caveat (refs #2956, AI Hero course lane 1 #2899).** "When to
+  invoke" now names the session-chain/retrospective use (save-point, `/clear`, fresh session,
+  with the `session_id`/`previous_handoff` chain `retro` walks) as a first-class owned use case
+  alongside the boundary-crossing taxonomy (colleague, other repo or checkout, other agent,
+  forked side task), and a compact routing-signals table maps situation to form: deep-window
+  escape with chain value takes the full file (the default); small follow-ups with no chain
+  value take prompt-only, accepting the documented retro-gap cost; a differing next-session
+  focus takes either form plus the purpose argument; AFK-but-work-continues routes to the
+  sibling `continue-in-background` skill; a machine that may go away routes to `clean-stop`
+  semantics; boundary crossing takes the full file plus purpose plus the `Handoff origin:` line.
+  The skill body states the general do-not-duplicate rule (content captured in specs, plans,
+  ADRs, issues, commits, or diffs is referenced by path or URL, never restated — the existing
+  "Summarize; never transcribe" guidance stated as a general rule, mirroring upstream) and the
+  promote-content-never-file rule (durable value is promoted into a committed artifact — topic
+  contract, issue, PR body — while the handoff file stays ephemeral and uncommitted; cleanup of
+  `handoffs/` remains user-controlled removal, never silent expiry). The engine doc's
+  destination section (`reference/save-point.md`) gains the worktree caveat: a save-point
+  written inside a worktree checkout lives in that worktree's memory root and dies with
+  `git worktree remove` — acceptable only when the worktree completes as a merged PR unit; when
+  pausing un-merged worktree work, write from the main checkout or rely on `clean-stop`'s
+  preserve-before-remove step. `find-handoff`'s detection contract is untouched. Adopted per the
+  lane 1 decisions (`docs/upstream/aihero-course.md`, lane 1).
+
 ## [0.25.0]
 
 ### Added
