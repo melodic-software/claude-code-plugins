@@ -1,5 +1,36 @@
 # Changelog — discovery plugin
 
+## [0.16.0]
+
+### Added
+
+- **`/discovery:trace-intent` — reconstruct why a thing was built the way it was.**
+  The plugin's third evidence-substrate axis: `explore` answers what IS, `research`
+  answers what SHOULD BE, and this answers what WAS and why, from records outside
+  the code — review discussion, tickets, long-form documents. Every claim carries an
+  **intent-evidence tier** (Direct / Supported / Inferred / Speculative / Unknown)
+  measuring inferential distance from an explicit statement of intent, which is a
+  different axis from the research skill's source-authority tiers and is deliberately
+  not that vocabulary. A per-citation source-reliability note rides alongside without
+  routing, because evidence directness and source reliability are separate questions —
+  a review comment by the change's author and a four-year-old wiki page are both
+  `Direct` and are not equally trustworthy. `Unknown` is a first-class tier: an
+  investigated question that came back empty is a finding about how the decision was
+  made. Reauthored from the `why` skill in `cursor/plugins` (MIT); provenance and the
+  one deliberate departure are recorded in `docs/upstream/cursor-pstack.md`.
+- Three evidence categories ship — source control, long-form documents, issue tracker —
+  each presence-gated, none assumed. Four further categories that carry real intent
+  evidence are deliberately **not** shipped, because no seam in this marketplace reaches
+  them and four permanently-empty investigators would report the same gap forever; the
+  adapter seam for adding one is documented instead.
+
+### Changed
+
+- `/discovery:explore`'s description gains an explicit boundary against
+  `/discovery:trace-intent`. Its `'how does this work'` trigger is why-shaped, so
+  without the reverse boundary auto-discovery could route intent questions into the
+  wrong sibling — the same defect the research / research-deep boundary already fixes.
+
 ## [0.15.6]
 
 ### Changed
