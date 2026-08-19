@@ -125,18 +125,20 @@ setup skills are class (ii) by contract; the 141
 | `playbooks:update` | (iii) maintainer-only | KEEP `true` |
 | `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` |
 
-The 17 missing-key skills are normalized to explicit `false` (all sit in the default class) —
-filed with the enforcement criterion as
-[#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968) rather than edited
-in-lane.
+The 17 missing-key skills were normalized to explicit `false` (all sat in the default class), and
+the enforcement criterion shipped alongside them as `skill-quality:check` **check 24** — both under
+[#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), filed rather than
+edited in-lane. Fleet after that normalization (2026-08-19): 220 top-level skills = 161 `false` /
+0 missing key / 59 `true`.
 
 ## Cross-references
 
 - PLUGIN-PHILOSOPHY: setup contract (class ii source), Instruction economy (listing-cost
   doctrine), Convention registry (this doc's row).
-- `skill-quality:check`: `listing-budget` (measurement) and the explicit-key criterion
-  (enforcement, filed as #2968).
-- `playbooks:skill-authoring`: authoring-time pointer here (filed as #2968).
+- `skill-quality:check`: `listing-budget` (measurement) and check 24, the explicit-key criterion
+  (enforcement — FAIL for a marketplace plugin skill, WARN elsewhere; class attribution is
+  hand-verified against this doc, since only a `setup` skill's `true` is decidable by a static scan).
+- `playbooks:skill-authoring`: authoring-time pointer here ("Choosing the mode at authoring time").
 - Steering-lane provenance and lesson decision rows:
   `docs/upstream/aihero-course.md` (lane 8 section; the interim steering record dissolved into
   it at harvest).
