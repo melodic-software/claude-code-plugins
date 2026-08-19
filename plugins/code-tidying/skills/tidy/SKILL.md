@@ -34,7 +34,7 @@ This skill encapsulates the agentic application of three converging ideas:
 **What tidy is NOT** — read carefully, differentiation matters:
 
 - **Not `/simplify`** (Claude Code's bundled skill) — that takes the conversation's recent diff and tightens it. Tidy hunts a lane independent of recent activity.
-- **Not `batch-simplify`** (this plugin's sibling skill) — that processes a time-window or branch diff in waves. Tidy targets a glob-scoped lane and stops when the scope budget is hit.
+- **Not `batch-simplify`** (this plugin's sibling skill) — that sweeps an entire scope in waves: a time-window diff, a branch diff, or the whole repository. Tidy targets a glob-scoped lane and stops when the scope budget is hit. On documentation specifically: batch-simplify owns factual staleness across the whole doc set in one pass; tidy's `docs-prose` lane owns incremental structural prose work under a scope budget.
 - **Not issue-tracker work** — tidy never starts from a filed item; it discovers improvements not yet filed, and files overflow as deferred items.
 - **Not a docs fact-checker** — tidy improves *structure*, not factual accuracy.
 

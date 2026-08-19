@@ -48,7 +48,7 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 ### Flag: `docs`
 
-Append `docs` to any mode to include `.md` files in the sweep. By default, `.md` files are excluded because they're prose, not code. The `docs` flag tells the simplifier to review documentation for consistency — stale references, outdated library names, incorrect API examples, or references to renamed/removed code.
+Append `docs` to any mode to include `.md` files in the sweep. By default, `.md` files are excluded because they're prose, not code. The `docs` flag tells the simplifier to review documentation for consistency — stale references, outdated library names, incorrect API examples, or references to renamed/removed code. Boundary with the sibling `/code-tidying:tidy`: batch-simplify owns factual staleness across the whole doc set in one pass; tidy's `docs-prose` lane owns incremental structural prose work under a scope budget.
 
 **When to use `docs`:**
 
@@ -181,7 +181,7 @@ After all groups complete, consolidate the deferred items collected in Phase 6. 
 
 After all groups complete, run final verification across all affected ecosystems using the consuming project's canonical build/test/lint commands (its `CLAUDE.md` usually names them; generic fallbacks per ecosystem in [context/reference.md](context/reference.md) "Ecosystem verification commands (Phase 7)").
 
-Simplification is behavior-preserving, so this objective cross-ecosystem pass is verification enough — a fresh-context verifier is the rule only where a verdict is subjective, not where the check is a mechanical pass/fail. A change that passes only because it altered behavior is a regression this final verification exists to catch (Gotchas).
+In the diff-scoped modes — time window and branch — simplification is behavior-preserving and this objective cross-ecosystem pass is verification enough: a fresh-context verifier is the rule only where a verdict is subjective, not where the check is a mechanical pass/fail. That exemption is scoped to those modes and does not carry into repo mode, where no human reads the diff before it merges; there a per-group refutation verifier is mandatory ([context/repo-mode.md](context/repo-mode.md)). A change that passes only because it altered behavior is a regression this final verification exists to catch (Gotchas). Files with no mapped test suite are common in any repository: report them as unmapped rather than as passing — in repo mode they fall through to the per-group refutation verifier plus this end-of-run pass, which are then the only checks behind them.
 
 Report the final verification results as a summary table.
 

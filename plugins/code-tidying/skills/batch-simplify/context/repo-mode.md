@@ -267,3 +267,12 @@ from the other direction, and each carries its own CI cost.
 
 Between waves, merge before opening the next. A wave whose base is the previous wave's merged tip
 never conflicts with it; a wave branched alongside it eventually does.
+
+**Version discipline, if the consuming repo has any.** Some repositories require a version bump and a
+changelog entry in the same change that touches a versioned component. Where the repo has such a
+layout — versioned component manifests, a package manifest, a changelog the project treats as a
+release artifact — each wave PR carries the bump for the components that wave touched, and any
+parity check the repo runs will need the base ref to compare against. Where it has none, say so
+rather than silently skipping: *"no version discipline detected; skipping bump step."* Discover the
+layout from the repo; do not assume a particular manifest path, and do not treat a repo-root helper
+script as a dependency, since a consuming project has no obligation to have one.
