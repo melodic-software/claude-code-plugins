@@ -516,5 +516,143 @@ else
   fail "live co-located selection too wide or wrong (rc=$RC, count=$count): $out"
 fi
 
+# --- per-ecosystem suite naming --------------------------------------------
+# The selector was shell-only: R2 looked for <stem>.test.sh and nothing else,
+# and the reverse lookup searched `-- '*.sh'`. Every one of the ~180 non-shell
+# suites in this repo was therefore invisible, so a .py sitting NEXT TO its own
+# test_<stem>.py was reported UNMAPPED — a false "nothing covers this" that
+# trains people to reach for --allow-unmapped and erodes the fail-loud contract.
+# Each ecosystem names its suites differently, so each needs its own case.
+repo="$(mk_repo)"
+mkdir -p "$repo/eco"
+
+# Python: the suite PREFIXES the stem, and this repo folds `-` to `_` for the
+# suites covering its hyphenated scripts.
+printf 'def helper():\n    return 1\n' >"$repo/eco/widget_mod.py"
+printf 'import widget_mod\n' >"$repo/eco/test_widget_mod.py"
+printf 'def helper():\n    return 1\n' >"$repo/eco/check-thing.py"
+printf 'import importlib\n' >"$repo/eco/test_check_thing.py"
+
+# Node: co-located <stem>.test.js / .test.mjs.
+printf 'export const a = 1;\n' >"$repo/eco/gadget.js"
+printf 'import { a } from "./gadget.js";\n' >"$repo/eco/gadget.test.js"
+printf 'export const b = 2;\n' >"$repo/eco/probe.mjs"
+printf 'import { b } from "./probe.mjs";\n' >"$repo/eco/probe.test.mjs"
+
+# Pester: the suite SUFFIXES the stem and lives in a mirrored tree, so it is
+# found by the reference rule (it dot-sources the file) rather than by R2.
+mkdir -p "$repo/eco/ps" "$repo/eco/pstests"
+printf 'function Get-Thing { 1 }\n' >"$repo/eco/ps/Get-Thing.ps1"
+printf ". (Join-Path \$PSScriptRoot 'Get-Thing.ps1')\nDescribe 'Get-Thing' { }\n" >"$repo/eco/pstests/Get-Thing.Tests.ps1"
+
+run_sel "$repo" eco/widget_mod.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/test_widget_mod.py; then
+  ok "python: a co-located test_<stem>.py is selected"
+else
+  fail "python co-located (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/check-thing.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/test_check_thing.py; then
+  ok "python: a hyphenated stem finds its underscore-folded suite"
+else
+  fail "python hyphen fold (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/gadget.js
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/gadget.test.js; then
+  ok "node: a co-located <stem>.test.js is selected"
+else
+  fail "node co-located (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/probe.mjs
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/probe.test.mjs; then
+  ok "node: a co-located <stem>.test.mjs is selected"
+else
+  fail "node .mjs co-located (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/ps/Get-Thing.ps1
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/pstests/Get-Thing.Tests.ps1; then
+  ok "powershell: a Pester suite in a mirrored tree is found by reference"
+else
+  fail "pester reference (rc=$RC): $OUT"
+fi
+
+# --- a changed non-shell suite selects ITSELF (R1 is not shell-only) --------
+run_sel "$repo" eco/test_widget_mod.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/test_widget_mod.py; then
+  ok "a changed non-shell suite selects itself"
+else
+  fail "non-shell self-selection (rc=$RC): $OUT"
+fi
+
+# --- BOTH covering suites, not just the first ------------------------------
+# A .py can be covered twice over: by a co-located test_<stem>.py AND by a
+# <stem>.test.sh that drives it. Returning only the first is an under-selection,
+# the one direction this tool treats as unsafe, so both must come back.
+printf 'def helper():\n    return 1\n' >"$repo/eco/dual.py"
+printf 'import dual\n' >"$repo/eco/test_dual.py"
+suite_body dual >"$repo/eco/dual.test.sh"
+run_sel "$repo" eco/dual.py
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$OUT" eco/test_dual.py &&
+  has_line "$OUT" eco/dual.test.sh; then
+  ok "a file covered in two ecosystems selects BOTH suites"
+else
+  fail "dual-ecosystem coverage (rc=$RC): $OUT"
+fi
+
+# --- cross-language matches are followed exactly one hop -------------------
+# Widening the corpus to four ecosystems introduced an edge that never existed
+# when the reverse lookup was `-- '*.sh'`: a match ACROSS languages. Left
+# uncapped, those coincidental matches chained (js -> ps1 -> sh) and saturated
+# on the far-end hubs — measured at every .js in the repo selecting the same 156
+# of 439 suites. One hop still reaches the suite covering the crossed-to file,
+# which is what keeps a .sh wrapper around a .py helper working; what it must
+# NOT do is keep walking from there and drag in that file's own dependents.
+mkdir -p "$repo/eco/hop"
+printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
+# A .ps1 that merely MENTIONS the js basename — not a real dependency.
+printf "# mentions origin.js in a comment only\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
+# A shell file that depends on the .ps1, with its own suite. Reaching this suite
+# would require a SECOND cross-language hop, which the rule forbids.
+printf 'echo "runs Far.ps1"\n' >"$repo/eco/hop/far-runner.sh"
+suite_body far-runner >"$repo/eco/hop/far-runner.test.sh"
+run_sel "$repo" eco/hop/origin.js
+if ! has_line "$OUT" eco/hop/far-runner.test.sh; then
+  ok "a cross-language match does not chain into a second hop"
+else
+  fail "cross-language walk chained past one hop (rc=$RC): $OUT"
+fi
+
+# --- --run refuses to guess a runner for another ecosystem -----------------
+# Selected-but-not-run must never report as success. The invocations differ per
+# lane (python -m unittest against a named module, npm test, node --test,
+# vitest, Pester) and cannot be derived from a suite path; a guessed runner
+# either errors as though the suite failed, or exits 0 having run nothing, which
+# is a PASS the change never earned. Exit 3 says "ran the shell ones, these
+# still need their own lane".
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run eco/gadget.js 2>&1)"
+RC=$?
+if [[ "$RC" -eq 3 ]] && printf '%s' "$OUT" | grep -q 'NOT RUN'; then
+  ok "--run reports a non-shell suite as NOT RUN and exits 3"
+else
+  fail "--run should exit 3 naming the unrun suite (rc=$RC): $OUT"
+fi
+
+# --- LIVE repo: the false-UNMAPPED regression this all exists to fix -------
+# hook_telemetry.py sits directly beside test_hook_telemetry.py and was still
+# reported UNMAPPED. Asserted against the LIVE repo, not a fixture: the point is
+# that the tool tracks THIS corpus's real conventions.
+out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/disk-hygiene/lib/hook_telemetry.py 2>/dev/null)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/disk-hygiene/lib/test_hook_telemetry.py; then
+  ok "live: a .py beside its test_<stem>.py is no longer UNMAPPED"
+else
+  fail "live python co-located selection (rc=$RC): $out"
+fi
+
 printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 ((FAIL == 0))
