@@ -3,6 +3,33 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Fixed
+
+- **Check 21 was a dead gate reporting green.** Its awk program used ERE interval
+  expressions (`^ {0,3}` at three sites, `[0-9]{1,9}` at one). mawk 1.3.4 — the
+  default `awk` on Debian and Ubuntu — rejects them with `REcompile() - panic`, so
+  awk aborted, emitted zero records, and every skill reported `PASS — 0 errors`
+  while the fresh-eyes declaration check enforced nothing at all. The four
+  expressions become POSIX-safe equivalents (`^ ? ? ?`, `[0-9][0-9]*`), verified
+  to behave identically under both mawk and gawk.
+
+  This is the false-green class [`docs/conventions/liveness-assertion/`](../../docs/conventions/liveness-assertion/README.md)
+  forbids, and the repository had already named the exact failure mode for a
+  different script: `.github/workflows/silent-revert-canary.yml` warns that "awk
+  dialects differ between the runner's mawk and a developer's gawk" and that the
+  result is "a false GREEN". The lesson had never been applied here.
+
+### Added
+
+- A liveness regression test for check 21. It asserts the **positive** — that
+  unguarded judgment language produces the warn — because asserting only that no
+  panic reaches stderr would not catch a future scanner that runs but matches
+  nothing. Reviving the check surfaced findings that had been invisible:
+  `discovery:explore` moved from 2 warnings to 5 and `discovery:research` from 2 to
+  8. Those are pre-existing and left unfixed; the check reports them now.
+
 ## [0.17.0]
 
 ### Added
