@@ -207,8 +207,14 @@ default branch's history for commits referencing each sub-item. **Flag the whole
 in the report** — this matches text, and text can lie:
 
 ```bash
-git log origin/<default> --format='%H %s' --grep='#<sub-item-number>\b'
+git log origin/<default> --format='%H %s' \
+  --extended-regexp --grep='#<sub-item-number>([^0-9]|$)'
 ```
+
+The trailing `([^0-9]|$)` is the right-hand boundary — without it `#12` also matches `#123`, which
+silently attributes another item's commit to this one. It is written as an explicit ERE class
+rather than a word-boundary escape on purpose: that escape is a GNU extension BSD userland (macOS)
+does not honor, so the boundary would quietly vanish on the platform least likely to be running CI.
 
 Three reductions this rung needs, all of them learned from running it:
 
