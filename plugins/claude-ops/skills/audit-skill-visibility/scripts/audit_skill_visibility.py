@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Skill-starvation diagnostic: starved vs genuinely unwanted vs not observable.
+"""Skill-visibility audit: can the model see each skill, and if not, why.
 
 Claude Code budgets the model-visible skill listing at a fraction of the context
 window and, on overflow, drops descriptions starting with the skills you invoke
@@ -20,14 +20,22 @@ clock, and per-source horizons, and returns a model. Nothing inside reads the
 wall clock, the filesystem, or the environment -- which is what makes the
 failure modes above testable at all.
 
-Phase 1 scope: the `observation` field. `reachability` and `starvation` arrive
-in later phases per docs/topics/skills-discovery-plugin/PLAN.md.
+Three independent fields per skill: `reachability` (can the model select it),
+`observation` (what was actually recorded, horizon-qualified), and `starvation`
+(is it losing the description-budget contest). They are kept orthogonal because
+collapsing them produces the libel above -- "cannot be selected" and "has not
+been seen" demand opposite actions.
+
+**Fixture-driven today.** The CLI reads a prepared bundle; the live collectors
+that would assemble one from a real installation are not wired yet. The parsers
+for each source exist and are unit-tested, but nothing calls them from disk.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -177,6 +185,11 @@ def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
 
 COMPONENT = "audit-skill-visibility"
 
+# One safe path segment. Mirrors the pattern lib/state-key.sh validates its own
+# output against, so a hand-supplied key is held to the same bar as a derived
+# one. `..` cannot match: the first character class excludes `.`.
+SAFE_KEY_SEGMENT = re.compile(r"[a-z0-9][a-z0-9._-]*")
+
 
 def report_path(data_root: str, state_key: str, stamp: str) -> str:
     """Where one run's JSON lands, per the plugin-data-report-keying convention.
@@ -203,7 +216,23 @@ def report_path(data_root: str, state_key: str, stamp: str) -> str:
             "state_key is required: without it every run from every repository "
             "overwrites the last"
         )
-    return f"{data_root.rstrip('/')}/{COMPONENT}/{state_key.strip('/')}/{stamp}.json"
+
+    # The key becomes DIRECTORY COMPONENTS, and `makedirs` will happily build
+    # whatever it is told to. `strip('/')` only trims the ends, so a value like
+    # `../../../tmp/evil` would escape the plugin's namespace entirely and turn
+    # a report writer into an arbitrary-directory-creation primitive.
+    #
+    # `lib/state-key.sh` already validates the identities it produces against a
+    # strict segment pattern for exactly this reason, and `clean.sh` rejects the
+    # same shape in `--skill-usage-dir`. A caller-supplied key gets the same
+    # treatment here rather than trusting every future caller to pre-sanitize.
+    segments = [s for s in state_key.strip("/").split("/") if s]
+    if not segments or not all(SAFE_KEY_SEGMENT.fullmatch(s) for s in segments):
+        raise ValueError(
+            "state_key must be '/'-separated segments of [a-z0-9][a-z0-9._-]* "
+            f"(got: {state_key!r}) — produce it with lib/state-key.sh"
+        )
+    return f"{data_root.rstrip('/')}/{COMPONENT}/{'/'.join(segments)}/{stamp}.json"
 
 
 def append_history(path: str, entry: dict) -> None:
@@ -258,6 +287,8 @@ class ListingConfig:
     budget_fraction: float = 0.01
     max_desc_chars: int = 1536
     bytes_per_token: int = 4
+    # The literal " - " the harness inserts between description and when_to_use.
+    joiner_chars: int = 3
     env_char_budget: int | None = None
 
 
@@ -296,11 +327,19 @@ def _eligibility(entry: dict) -> str:
 
 
 def _demand_chars(entry: dict, cfg: ListingConfig) -> int:
+    """Characters one skill contributes to the listing.
+
+    The harness inserts a literal " - " between `description` and `when_to_use`,
+    so a two-field entry costs three characters more than the concatenation.
+    `skill-quality/scripts/check-listing-budget.sh` models the same joiner as
+    `JOINER_CHARS=3`; the two implementations are deliberate duplicates (the
+    cross-plugin boundary bars importing) and must stay reconciled.
+    """
     frontmatter = entry.get("frontmatter") or {}
-    text = (frontmatter.get("description") or "") + (
-        frontmatter.get("when_to_use") or ""
-    )
-    return min(len(text), cfg.max_desc_chars)
+    description = frontmatter.get("description") or ""
+    when_to_use = frontmatter.get("when_to_use") or ""
+    joiner = cfg.joiner_chars if (description and when_to_use) else 0
+    return min(len(description) + joiner + len(when_to_use), cfg.max_desc_chars)
 
 
 def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
@@ -337,10 +376,22 @@ def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
     # Least-used first: that is the order the product drops descriptions in, so
     # rank 1 is the most likely to have already lost its description.
     competing.sort(key=lambda r: (r["usage_score"], r["qualified_name"]))
+    # Descriptions are dropped least-invoked-first only UNTIL the listing fits,
+    # so the starved set is the prefix whose demand covers the overflow -- not
+    # the whole fleet. Marking every competing row starved on a one-character
+    # overflow would libel exactly the skills the mechanism protects longest,
+    # and the renderer would tell the user they are running name-only.
+    remaining = overflow
     for rank, row in enumerate(competing, start=1):
         row["band"] = rank if overflow > 0 else None
-        row["verdict"] = "likely-starved" if overflow > 0 else "listing-fits"
         row["confidence"] = "inferential" if overflow > 0 else "certain"
+        if overflow <= 0:
+            row["verdict"] = "listing-fits"
+        elif remaining > 0:
+            row["verdict"] = "likely-starved"
+            remaining -= row["demand_chars"]
+        else:
+            row["verdict"] = "likely-retained"
     for row in rows:
         if row["eligibility"] != "competing":
             row["band"] = None
@@ -487,8 +538,19 @@ def classify(
     listing = compute_listing(denominator, listing_config or ListingConfig())
     starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
     # Narrowest horizon = the most recent start = the least we can see back to.
+    # Two different questions, two different horizons.
+    #
+    # `observed_horizon` is the NARROWEST (most recent start) — it answers "what
+    # is the least this run can see", and belongs in the run header.
+    #
+    # A per-row "nothing was recorded" claim is backed by the WIDEST coverage
+    # available, because a source that looked across a year and saw nothing
+    # supports the claim regardless of another source's short retention. Gating
+    # every row on the narrowest span let a 7-day OTEL retention erase a year of
+    # native history and pin the whole fleet to `not-observable`.
     observed_horizon = max(horizons.values()) if horizons else clock
-    observable_days = (clock - observed_horizon).days
+    widest_horizon = min(horizons.values()) if horizons else clock
+    observable_days = (clock - widest_horizon).days
 
     seen: dict[str, int] = defaultdict(int)
     for entry in denominator:

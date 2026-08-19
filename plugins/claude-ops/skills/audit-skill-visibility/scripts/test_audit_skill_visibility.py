@@ -678,6 +678,32 @@ class ReportPathTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.report_path(data_root="/data", state_key="", stamp="s")
 
+    def test_refuses_a_traversing_state_key(self):
+        """The key becomes directory components and makedirs builds whatever it
+        is told to, so `..` must be rejected rather than merely stripped."""
+        for bad in (
+            "../../../../tmp/evil",
+            "github.com/o/../../../etc",
+            "a/../b",
+            "..",
+            "/../x",
+        ):
+            with self.assertRaises(ValueError, msg=f"accepted {bad!r}"):
+                engine.report_path(data_root="/data", state_key=bad, stamp="s")
+
+    def test_refuses_key_segments_outside_the_safe_alphabet(self):
+        for bad in ("UPPER/case", "has space/x", "semi;colon", "tilde~x"):
+            with self.assertRaises(ValueError, msg=f"accepted {bad!r}"):
+                engine.report_path(data_root="/data", state_key=bad, stamp="s")
+
+    def test_accepts_a_real_state_key_shape(self):
+        path = engine.report_path(
+            data_root="/data",
+            state_key="github.com/melodic-software/repo/05a2a927",
+            stamp="s",
+        )
+        self.assertIn("github.com/melodic-software/repo/05a2a927", path)
+
     def test_refuses_an_empty_data_root(self):
         """CLAUDE_PLUGIN_DATA was observed pointing at an UNRELATED plugin's
         data directory in a skill subprocess, so it is never taken on faith."""
@@ -696,6 +722,142 @@ class ReportPathTest(unittest.TestCase):
             lines = hist.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(len(lines), 2)
             self.assertEqual(json.loads(lines[1])["run"], 2)
+
+
+class OverflowConsumptionTest(unittest.TestCase):
+    """Only enough least-used skills to COVER the overflow lose descriptions.
+
+    Review finding (P1): marking every competing skill `likely-starved` on any
+    positive overflow libels the most-used skills in the fleet — the ones the
+    documented mechanism keeps longest — and the renderer then tells the user
+    those rows are running name-only.
+    """
+
+    def _listing(self, n, chars, budget_tokens):
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * chars},
+                "plugin_enabled": True,
+                "usage_score": i,  # a:0 least used
+            }
+            for i in range(n)
+        ]
+        return engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=budget_tokens)
+        )
+
+    def test_one_char_overflow_starves_only_the_least_used_row(self):
+        # 8 skills x 1000 chars = 8000 demand against an 8000 budget... push 1 over.
+        listing = self._listing(n=8, chars=1001, budget_tokens=200_000)
+        self.assertGreater(listing["overflow_chars"], 0)
+        starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
+        retained = [s for s in listing["skills"] if s["verdict"] == "likely-retained"]
+        self.assertEqual(len(starved), 1, "only the least-used row should be starved")
+        self.assertEqual(starved[0]["qualified_name"], "a:0")
+        self.assertEqual(len(retained), 7)
+
+    def test_starved_set_covers_the_overflow_and_no_more(self):
+        # 10 x 1000 = 10_000 against 8_000 -> overflow 2_000 -> exactly 2 rows.
+        listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
+        self.assertEqual(listing["overflow_chars"], 2_000)
+        starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
+        self.assertEqual(len(starved), 2)
+        self.assertEqual(sorted(s["qualified_name"] for s in starved), ["a:0", "a:1"])
+
+    def test_most_used_skill_is_never_starved_while_others_can_absorb_it(self):
+        listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
+        hottest = max(listing["skills"], key=lambda s: s["usage_score"])
+        self.assertEqual(hottest["verdict"], "likely-retained")
+
+
+class JoinerCharsTest(unittest.TestCase):
+    """The listing inserts a literal ' - ' between description and when_to_use.
+
+    Review finding (P2): concatenating the fields undercounts every two-field
+    entry by three characters. `skill-quality/scripts/check-listing-budget.sh`
+    already models this as JOINER_CHARS=3, and contracts.md required the two
+    implementations be reconciled.
+    """
+
+    def test_joiner_counted_when_both_fields_present(self):
+        entry = {
+            "qualified_name": "a:one",
+            "frontmatter": {"description": "abcde", "when_to_use": "fghij"},
+            "plugin_enabled": True,
+        }
+        listing = engine.compute_listing(
+            [entry], engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["demand_chars"], 5 + 3 + 5)
+
+    def test_no_joiner_when_only_description(self):
+        entry = {
+            "qualified_name": "a:one",
+            "frontmatter": {"description": "abcde"},
+            "plugin_enabled": True,
+        }
+        listing = engine.compute_listing(
+            [entry], engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["demand_chars"], 5)
+
+
+class PerSourceHorizonTest(unittest.TestCase):
+    """A short-retention source must not erase a longer source's coverage.
+
+    Review finding (P1): taking the narrowest horizon as one global span means a
+    7-day OTEL retention pins every row to 7 days even when native counters
+    reach back a year — so nothing ever escapes `not-observable` at T-full.
+    """
+
+    def test_long_native_history_survives_a_short_otel_retention(self):
+        now = _utc(2026, 8, 18)
+        model = engine.classify(
+            denominator=[_skill("a:one")],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={
+                "otel": now - timedelta(days=7),  # short retention
+                "native": now - timedelta(days=365),  # long history, saw nothing
+            },
+        )
+        row = model["skills"][0]["observation"]
+        self.assertEqual(
+            row["value"],
+            "no-observation-in-horizon",
+            "a year of native coverage with zero events IS a supportable claim",
+        )
+
+    def test_run_header_still_reports_the_narrowest_horizon(self):
+        now = _utc(2026, 8, 18)
+        model = engine.classify(
+            denominator=[_skill("a:one")],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={
+                "otel": now - timedelta(days=7),
+                "native": now - timedelta(days=365),
+            },
+        )
+        # observed_horizon stays the narrowest: it answers "what is the least
+        # this run can see", which is a different question from per-row backing.
+        self.assertEqual(
+            model["observed_horizon"], (now - timedelta(days=7)).isoformat()
+        )
+
+    def test_short_coverage_everywhere_still_withholds(self):
+        now = _utc(2026, 8, 18)
+        model = engine.classify(
+            denominator=[_skill("a:one")],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=3)},
+        )
+        self.assertEqual(model["skills"][0]["observation"]["value"], "not-observable")
 
 
 if __name__ == "__main__":

@@ -48,6 +48,8 @@ QUIET=0
 # what it was, so reverting the feature is dropping one branch.
 SKILL_USAGE_SCOPE=""
 SKILL_USAGE_DIR=".claude/observability"
+# Only used by the data-dir scope, and only ever supplied explicitly.
+SKILL_USAGE_DATA_ROOT=""
 # Its own window, deliberately far longer than the 30-day hook-events default:
 # the store is the input to a starvation report that WANTS long history, and its
 # rows carry names and branches only, not content.
@@ -80,6 +82,15 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skill-usage-dir=*)
     SKILL_USAGE_DIR="${1#*=}"
+    shift
+    ;;
+  --skill-usage-data-root)
+    shift
+    SKILL_USAGE_DATA_ROOT="${1:-}"
+    shift
+    ;;
+  --skill-usage-data-root=*)
+    SKILL_USAGE_DATA_ROOT="${1#*=}"
     shift
     ;;
   --keep-skill-usage-days)
@@ -267,12 +278,24 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
   repo) SKILL_USAGE_BASE="$REPO_ROOT" ;;
   user) SKILL_USAGE_BASE="${HOME:-}" ;;
   data-dir)
-    # Never a bare $CLAUDE_PLUGIN_DATA — see the note above.
-    if [[ "$SKILL_USAGE_DIR" == ".claude/observability" ]]; then
-      echo "ERROR: --skill-usage-scope data-dir requires an explicit --skill-usage-dir" >&2
+    # The writer stores rows at ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>,
+    # NOT at a repo-relative path — so this branch must reproduce that layout or
+    # it prunes a file the writer never touches. The data root is still never
+    # taken from the environment (a skill subprocess saw it pointing at an
+    # unrelated plugin's directory); it is supplied explicitly and the slug is
+    # re-derived here with the writer's own algorithm.
+    if [[ -z "$SKILL_USAGE_DATA_ROOT" ]]; then
+      echo "ERROR: --skill-usage-scope data-dir requires --skill-usage-data-root <path>" >&2
+      echo "       (the plugin data root; CLAUDE_PLUGIN_DATA is not dependable here)" >&2
       exit 2
     fi
-    SKILL_USAGE_BASE="$REPO_ROOT"
+    case "$SKILL_USAGE_DATA_ROOT" in
+    /* | [A-Za-z]:*) ;;
+    *)
+      echo "ERROR: --skill-usage-data-root must be an absolute path (got: $SKILL_USAGE_DATA_ROOT)" >&2
+      exit 2
+      ;;
+    esac
     ;;
   *)
     echo "ERROR: --skill-usage-scope must be repo, user, or data-dir (got: $SKILL_USAGE_SCOPE)" >&2
@@ -285,6 +308,7 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     exit 2
   fi
 
+  # portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
   if date -u -d "1 day ago" +%s >/dev/null 2>&1; then
     SU_EPOCH=$(date -u -d "${KEEP_SKILL_USAGE_DAYS} days ago" +%s) # portability-ok: see if-guard above (#1510)
     SU_CUTOFF_ISO=$(date -u -d "@$SU_EPOCH" +%Y-%m-%dT%H:%M:%SZ)   # portability-ok: see if-guard above (#1510)
@@ -293,7 +317,18 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     SU_CUTOFF_ISO=$(date -u -r "$SU_EPOCH" +%Y-%m-%dT%H:%M:%SZ)
   fi
 
-  SKILL_USAGE_LOG="${SKILL_USAGE_BASE%/}/${SKILL_USAGE_DIR}/skill-usage.jsonl"
+  if [[ "$SKILL_USAGE_SCOPE" == "data-dir" ]]; then
+    # Reproduce the writer's layout: <data-root>/skill-usage/<repo-slug>. The
+    # slug algorithm lives with the hooks; source it rather than restating it,
+    # so the two cannot drift into pruning different paths.
+    # shellcheck source=../../../hooks/hook-utils.sh
+    . "${SKILL_DIR}/../../hooks/hook-utils.sh"
+    # shellcheck source=../../../hooks/claude-ops-paths.sh
+    . "${SKILL_DIR}/../../hooks/claude-ops-paths.sh"
+    SKILL_USAGE_LOG="${SKILL_USAGE_DATA_ROOT%/}/skill-usage/$(claude_ops::repo_slug "$REPO_ROOT")/skill-usage.jsonl"
+  else
+    SKILL_USAGE_LOG="${SKILL_USAGE_BASE%/}/${SKILL_USAGE_DIR}/skill-usage.jsonl"
+  fi
   log "clean: skill-usage (scope $SKILL_USAGE_SCOPE, keeping on/after $SU_CUTOFF_ISO, --keep-skill-usage-days $KEEP_SKILL_USAGE_DAYS)"
   log "clean: skill-usage target $SKILL_USAGE_LOG"
   prune_file "$SKILL_USAGE_LOG" "ts" "$SU_CUTOFF_ISO"

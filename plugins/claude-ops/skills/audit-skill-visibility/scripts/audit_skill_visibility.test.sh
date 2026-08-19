@@ -2,6 +2,14 @@
 # Cross-platform contract wrapper for the skill-starvation engine test suite.
 set -euo pipefail
 
+# ISOLATION (#2840). The churn tests build throwaway git repositories, and the
+# Python subprocess inherits this environment. An exported absolute GIT_DIR
+# outranks `git -C` and overrides repository DISCOVERY, so a fixture's
+# `git config` would write its throwaway identity into the CALLER's .git/config
+# — shared by every worktree of the clone — instead of into the fixture. Cleared
+# unconditionally here, before anything spawns git.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The Python floor has one origin: MIN_PYTHON in the engine. Parse it rather
