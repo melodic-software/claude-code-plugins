@@ -266,9 +266,10 @@ fi
 # Operator channel: the same crossing, plus the continuation menu that is the
 # human's call to make. Menu-first and terse — the detail behind the bands
 # lives in the plugin README, not on the status line. The "(if installed)"
-# hedges stay: context-guard installs standalone (see header), and a bare menu
-# would otherwise recommend commands a solo install does not have.
-operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: (1) continue — remaining work is small; (2) /clear — this context is disposable; (3) /session-flow:handoff (if installed), then /clear — state must survive; (4) /compact — last resort, at a phase boundary. Full router: /session-flow:workflow (if installed)."
+# hedges stay, and option 3 keeps a manual alternative: context-guard installs
+# standalone (see header), so a menu naming only session-flow leaves such an
+# install no actionable path when state must survive.
+operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: (1) continue — remaining work is small; (2) /clear — this context is disposable; (3) /session-flow:handoff (if installed) or a hand-written resume note, then /clear — state must survive; (4) /compact — last resort, at a phase boundary. Full router: /session-flow:workflow (if installed)."
 
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \

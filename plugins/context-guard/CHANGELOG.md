@@ -13,10 +13,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   overly verbose). The operator `systemMessage` drops from ~900 to ~380 chars pre-interpolation:
   menu-first, one clause per option, keeping the four continuation options, the `zones.json`
   tunability pointer, the `/session-flow:workflow` router, the test-pinned "yours to choose"
-  ownership phrase, and the "(if installed)" hedges (context-guard installs standalone — a bare
-  menu would recommend commands a solo install does not have). Dropped: the snapshot-seam
-  provenance parenthetical, the vendor-variance hedge, and the write-a-resume-file-by-hand
-  fallback clause. The model-channel `additionalContext` gets the matching conservative trim
+  ownership phrase, and the "(if installed)" hedges. Option 3 also keeps a terse manual
+  alternative — "or a hand-written resume note" — because context-guard installs standalone: a
+  menu whose only durable-state path names an absent plugin leaves such an install with no
+  actionable option at exactly the moment state must survive. Dropped: the snapshot-seam
+  provenance parenthetical and the vendor-variance hedge. The model-channel `additionalContext`
+  gets the matching conservative trim
   (~740 → ~490 chars): all four semantics survive verbatim where the contract test pins them —
   measurement-not-instruction, "Do not volunteer", "operator's call", and the dumb-zone
   durable-notes rider — and the "crossed from the <previous>" phrasing stays for the

@@ -53,7 +53,7 @@ only the rails prompt emission is missing — a turn-termination failure, not a 
   "A resume prompt is ALWAYS emitted" — the prompt is the mandatory half of a save-point, the file
   the optional one. The gate's emit box is marked as never satisfied by having written the file.
 - The failure pattern and its `find-handoff` recovery are recorded in `context/gotchas.md`, and
-  eval 9 pins rails-as-final-text under the high-occupancy condition the existing eight missed.
+  eval 12 pins rails-as-final-text under the high-occupancy condition the existing evals missed.
 - The escalation ladder is recorded (session-flow CHANGELOG + follow-up work item): recurrence
   after the reorder triggers a lightweight Stop-hook validator (`last_assistant_message` regex +
   PostToolUse skill-ran marker, one bounded block, fail-open) — design named so it is a small step
@@ -64,7 +64,7 @@ only the rails prompt emission is missing — a turn-termination failure, not a 
 ### Captured assumptions
 
 - The rails-emission failure is salience/turn-termination at degraded occupancy; the reorder and
-  the STOP-semantics fix target that cause. Efficacy remains unproven in the field — eval 9 now
+  the STOP-semantics fix target that cause. Efficacy remains unproven in the field — eval 12 now
   exercises the high-occupancy condition, but an eval is not production evidence — hence the
   escalation ladder rather than a guarantee claim.
 - Failure frequency is unknown (owner report only; no telemetry) — proportionality of the

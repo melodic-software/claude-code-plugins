@@ -40,6 +40,7 @@
   lightweight Stop-hook validator: `last_assistant_message` regex for the detection-contract
   signals, a PostToolUse skill-ran marker (never transcript parsing), one bounded block,
   fail-open, plus the hook-budget README share and a sibling contract test.
+
 ## [0.26.0]
 
 ### Added
