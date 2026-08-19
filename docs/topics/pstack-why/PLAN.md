@@ -271,7 +271,7 @@ asserting only "no panic on stderr" would not catch a future scanner that runs b
   this work, and fixing them is scope creep. They are, however, the answer to the exploration's open
   question — AC8's clean declaration is a **new** bar, not a restored one.
 
-### Phase 1: Skeleton that passes every fleet gate [TODO]
+### Phase 1: Skeleton that passes every fleet gate [DONE]
 
 The integration slice. Prove the skill resolves, the manifest validates and the generated docs
 regenerate **before** investing in prose — a content-first order would discover a metadata or naming
@@ -304,7 +304,7 @@ codepoints.
   now three), and the "**Both** skills document an inline escape hatch" sentence at `:26-27` is
   re-counted.
 
-### Phase 2: The method body and its spokes [TODO]
+### Phase 2: The method body and its spokes [DONE]
 
 The substance. Reauthored from upstream, never copied.
 
@@ -441,7 +441,7 @@ five plugins plus a protocol version bump (constraint 9).
 - `node scripts/validate-plugin-contracts.mjs` exits 0 — the five lifecycle copies stay
   byte-identical and untouched
 
-### Phase 5: The cross-plugin seam [TODO]
+### Phase 5: The cross-plugin seam [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
@@ -480,7 +480,7 @@ review legibility, not because anything gates it. It may run first or last.
   returns 2. `check-changelog-parity.sh --check-bump` only fires when a version *changed*, so a
   forgotten bump passes it vacuously — AC11 needs this assertion, not that one.
 
-### Phase 6: Provenance, and the deliberate-departure record [TODO]
+### Phase 6: Provenance, and the deliberate-departure record [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
