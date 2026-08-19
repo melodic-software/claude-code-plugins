@@ -50,7 +50,7 @@ in doubt; it is what stops "never observed" from being reported as "never used".
 ## Field 3 — `starvation` (budget competition)
 
 ```text
-eligibility : competing | exempt-bundled | exempt-name-only
+eligibility : competing | exempt-bundled | exempt-name-only | exempt-user-only
 verdict     : listing-fits | likely-starved | likely-retained | not-assessable
 confidence  : certain | inferential
 band        : 1..N rank within the competing set   (inferential only)
@@ -66,6 +66,22 @@ Per T2 the claim is split by confidence, and the two halves are computed separat
   returned to the pool. If demand > budget, truncation is provably occurring: report the overflow
   magnitude and the approximate count running name-only. **This is the headline, and it needs no
   undocumented constant.**
+
+  **`exempt-user-only` corrects a defect found in plan review.** A skill with
+  `disable-model-invocation: true` spends NO description budget — the docs' invocation-control table
+  records "Description not in context", and hiding a skill "removes the skill from Claude's context
+  entirely". This repo's own shipped implementation of the same arithmetic,
+  `plugins/skill-quality/scripts/check-listing-budget.sh`, skips those skills for exactly that
+  reason. Locally that is 59 of 213 skills — **28% of the fleet.** Counting them would inflate
+  `overflow_chars` and could flip the run's headline verdict from `listing-fits` to overflow. They
+  are excluded from the demand sum AND from the ranking.
+
+  **Reuse note (replace, argued):** `check-listing-budget.sh` already computes this arithmetic, but
+  it lives in the `skill-quality` plugin and `docs/PLUGIN-PHILOSOPHY.md` bars importing across
+  plugins. It is also a static repo-authoring check, whereas this skill needs the operator's LIVE
+  effective settings and context window. So the computation is deliberately duplicated — and because
+  duplication drifts, both files carry a cross-reference comment naming the other, and their
+  exemption rules must be reconciled whenever either changes.
 - **`inferential`** — which specific skills lose their descriptions. Ranked by the observable proxy,
   rendered as a band, never as a hard cutoff, always labeled. Never presented as exact.
 
@@ -92,6 +108,7 @@ existing envelope discipline.
   "schema_version": "1.0.0",
   "generated_at": "<RFC3339 UTC>",
   "tier": "T-full | T-local | T-baseline",
+  "observed_horizon": "<RFC3339>",  // narrowest of the per-source horizon_start values
   "sources": [ { "source": "otel|jsonl|native", "horizon_start": "<RFC3339>", "events": 0 } ],
   "listing": {
     "budget_chars": 0,          // computed, never hardcoded
@@ -122,4 +139,4 @@ part of an honest report, and a consumer can see that a verdict was declined rat
 | starved | `likely-starved` | "unused", "cold" | names the mechanism (budget suppression), not a usage tally |
 | not observable | `not-observable` | "never used", "never" | the audit's central correction — absence of data is not absence of use |
 | competing | `competing` | "eligible" | says what the skill is doing: contending for description budget |
-| horizon | `horizon_start` | "since", "window" | distinct from the tier *windows*; a horizon bounds what CAN be known |
+| horizon | `horizon_start` per source, `observed_horizon` for the run | "since", "window" | distinct from the tier *windows*; a horizon bounds what CAN be known. Both tokens are emitted: per-source values gate per-source claims (T5), and the run header prints `observed_horizon` — the NARROWEST of them — because a reader needs one number for "how far back can this report see at all" |

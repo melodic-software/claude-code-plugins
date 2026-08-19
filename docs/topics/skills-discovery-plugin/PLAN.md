@@ -173,8 +173,14 @@ skill-spawned subprocess's environment). A configurable window must arrive via
 8. Silent-misconfiguration classes are rendered as fixable, never as removal candidates.
 9. Markdown is the durable record; HTML is optional; JSON conforms to the keying convention
    (one file per run plus an appended history line — never a rolling `latest.json`).
-10. `clean.sh` prunes `skill-usage.jsonl` across all three scopes via the hooks' path policy, under
-    its own retention flag, with all four retention-doc locations updated together.
+10. `clean.sh` prunes `skill-usage.jsonl` across all three scopes under its own retention flag, with
+    all **six** retention/flag surfaces updated together. **Corrected 2026-08-18 by plan review:**
+    was "four retention-doc locations" and "via the hooks' path policy". The count is six
+    (`clean.sh` header + unknown-flag usage string, `observability/SKILL.md` argument-hint +
+    retention table, `read-routing.md`, `operator-setup-retention.md`), and the path policy cannot be
+    consumed directly — a skill-spawned `clean.sh` inherits no `CLAUDE_PLUGIN_OPTION_*`, so scope and
+    dir arrive as explicit flags, and the `data-dir` branch never trusts a bare
+    `$CLAUDE_PLUGIN_DATA`.
 11. Churn uses `git log --follow` for counts and `git log -1 --format=%cI` for authoring date
     (filesystem mtime is checkout time — verified drift: 2026-08-15 clone vs 2026-08-12 commit).
 12. The churn × usage cross-tab is labeled so it cannot read as "wasted authoring effort" — invalid
@@ -242,24 +248,49 @@ CLI surface. Tests ride each phase — there is no "testing phase".
 
 The integration slice. Denominator → one source → three-field model → markdown, running for real.
 
-- Create `plugins/claude-ops/skills/audit-skill-starvation/SKILL.md` (frontmatter per the
-  `observability`/`inventory` pair; `metadata.workflow-stage: operator`, `cadence: weekly`).
-- `scripts/collect.sh`: call `inventory.py --out` for the fleet; synthesize `<plugin>:<leaf>` from
-  the nested dict keys; read native `skillUsage`, checking BOTH the qualified key and the bare-name
-  fallback.
-- `scripts/classify.*`: **pure** — `(denominator, events, config, clock) → model`. Emits the
-  `observation` field plus `withheld`. Clock is injected; nothing reads wall-clock inside.
-- `scripts/render.sh`: markdown only at this phase; prints every source horizon.
-- Honesty floor live from the first commit: `observed_horizon` per source, tiers clamped to it,
-  `not-observable` as the default verdict, exposure floor (30d created / 7d inactive) suppressing
-  cold verdicts.
+**Language pinned (was an undecided `classify.*` in the pre-review draft):** the engine is
+`scripts/audit_skill_starvation.py` — **Python 3.11+, no third-party deps**, matching
+`inventory.py`, `install_state.py`, and `audit_performance.py`, which are the shape every claude-ops
+skill doing structured data work already uses. Shell is used here only for the thin
+`audit-skill-starvation.test.sh` wrapper, because `scripts/run-plugin-tests.sh` discovers only
+`*.test.sh`. One Python module with subcommands (`collect` / `classify` / `render`), not three
+cross-process hops — the collect/classify/render split from `module-boundary.md` is preserved as
+**function boundaries**, which is what made `classify` purely testable in the first place.
+
+- Create `SKILL.md` modeled on **`audit-install-state` and `audit-performance`** (the `audit-*`
+  siblings — NOT the `observability`/`inventory` action routers, whose scope grammars do not apply).
+  Pin: `description` (with `Use when:` trigger phrases and a `Not for:` line routing `/doctor`,
+  `/skill-doctor`, and `skill-quality`'s static listing-budget check, so the description does not
+  read as a duplicate of any of them), `argument-hint`, `user-invocable: true`,
+  `disable-model-invocation: false`, `shell: bash`, `metadata.workflow-stage: operator`,
+  `metadata.summary`, `cadence: weekly`.
+- Create `evals/evals.json` **in this phase, not later** — `scripts/check-changed-skills.sh` passes
+  `--require-evals` for any `SKILL.md` in the diff, which makes a missing evals file a hard FAIL in
+  the `skill-quality-gate` CI job. A stub eval set that grows per phase. (Precedent `4a1184cd`
+  landed SKILL.md, evals, and the engine in one commit.)
+- `collect`: call `inventory.py --out` for the fleet; synthesize `<plugin>:<leaf>` from the nested
+  dict keys; read native `skillUsage`, checking BOTH the qualified key and the bare-name fallback.
+- `classify`: **pure** — `(denominator, events, config, clock) → model`. Emits `observation` plus
+  `withheld`. Clock injected; nothing reads wall-clock inside.
+- `render`: markdown **and a minimal JSON model dump** from this phase. JSON lands early on purpose —
+  every later phase's sanity check is then a mechanical `jq`, instead of grepping prose.
+- Honesty floor live from the first commit: `horizon_start` per source, `observed_horizon` (the
+  narrowest of them) in the run header, tiers clamped to it, `not-observable` as the default verdict,
+  exposure floor (30d created / 7d inactive) suppressing cold verdicts.
 - Tests (red first): horizon-shorter-than-window → nothing renders `dormant`; empty store +
   populated native → `not-observable`, never "never used"; install-seeded `pluginUsage` row → never
   read as usage or recency.
-- **Sanity Check:** `bash plugins/claude-ops/skills/audit-skill-starvation/scripts/render.sh` exits 0
-  and its output matches `grep -q "observed_horizon"`; on this 3-day-old container the run reports
-  `not-observable` for the bulk of the fleet rather than a "never used" wall.
-  `bash plugins/claude-ops/skills/audit-skill-starvation/*.test.sh` exits 0.
+- **Sanity Check:** against a **fixture** fleet (not the live machine — `inventory.py` needs the
+  `claude` executable and a populated `~/.claude/plugins`, so a live run is not reproducible in CI):
+  `python3 scripts/audit_skill_starvation.py --fixture tests/fixtures/fleet-basic --render json`
+  exits 0; `jq -e '.observed_horizon' <json>` exits 0; with the injected clock inside the exposure
+  floor, `jq '[.skills[]|select(.observation.value=="not-observable")]|length' == (.skills|length)`
+  — i.e. **all** rows, an exact count rather than "the bulk". `bash …/audit-skill-starvation.test.sh`
+  exits 0, and `bash scripts/check-changed-skills.sh HEAD~1` exits 0 (proves the evals gate passes).
+
+**Honest scope note:** Phase 1 retires the *integration* risk it was chosen for — it runs end to end
+— but its report carries neither reachability nor the starvation headline. It is a skeleton, not a
+shippable V0. Do not read Phase 1's output as the product.
 
 ### Phase 2: Reachability — the frontmatter and enablement pass [TODO]
 
@@ -276,10 +307,16 @@ NOT re-enumerate the fleet — it reads frontmatter only for skills inventory al
   strings, **never** presented as an official list.
 - Tests: a `disable-model-invocation` skill resolves `user-only`, not "unused"; malformed YAML
   resolves `misconfigured` with fix-me copy, never a removal candidate; undetermined → `unknown`.
-- **Sanity Check:** run against this repo; `grep -c '"reachability"'` on the JSON equals the skill
-  count, and `grep -c 'user-only'` is at least 55 (59 of 213 local skills set
-  `disable-model-invocation`; 55 absorbs churn). No row renders `misconfigured` alongside removal
-  wording — a `grep -i "delete\|remove"` returns no line that also matches `misconfigured`.
+- **Sanity Check:** against a **fixture** fleet of known composition —
+  `tests/fixtures/fleet-reachability` holding exactly four skills (one `disable-model-invocation`,
+  one malformed-YAML, one normal, one hidden) — assert EXACT counts:
+  `jq '[.skills[]|select(.reachability.value=="user-only")]|length' == 1`, likewise `1` each for
+  `misconfigured`, `model-reachable`, `hidden`. A live run against this machine stays an
+  informational smoke, never the gate: the denominator is the operator's enabled fleet, which
+  differs per machine, so a live count cannot distinguish a regression from a smaller fleet.
+  Removal-wording guard, scoped to a file that exists:
+  `jq -r '.skills[]|select(.reachability.value=="misconfigured")|.reachability.remedy' <json> |
+  grep -Eiv 'delete|remove'` matches every line (i.e. no misconfigured remedy suggests removal).
 
 ### Phase 3: Starvation — budget arithmetic, then the inferential band [TODO]
 
@@ -287,14 +324,28 @@ NOT re-enumerate the fleet — it reads frontmatter only for skills inventory al
   4 bytes/token, with `SLASH_COMMAND_TOOL_CHAR_BUDGET` overriding unconditionally. **Compute it —
   never hardcode 8,000.** Demand = the sum of `description` + `when_to_use` per skill, each capped at
   `skillListingMaxDescChars` (default 1,536), over the **competing set only**.
-- Exemptions applied before the sum: bundled prompt skills are exempt; `skillOverrides: name-only`
-  entries are excluded and their freed bytes are NOT returned to the pool.
+- **Exemptions applied before the sum — three classes, not two.** Bundled prompt skills are exempt;
+  `skillOverrides: name-only` entries are excluded and their freed bytes are NOT returned to the
+  pool; and **`disable-model-invocation: true` skills are exempt** (`exempt-user-only`). That third
+  class was missing from the pre-review draft and is a correctness defect, not a nicety: the docs
+  record "Description not in context" for that flag, this repo's own
+  `plugins/skill-quality/scripts/check-listing-budget.sh` skips those skills for exactly that
+  reason, and locally they are **59 of 213 — 28% of the fleet**. Counting them inflates
+  `overflow_chars` and can flip the run's headline verdict.
+- **Reuse decision (replace, argued — the pre-review draft skipped this).**
+  `check-listing-budget.sh` already computes this arithmetic, but it lives in the `skill-quality`
+  plugin and `docs/PLUGIN-PHILOSOPHY.md` bars cross-plugin imports; it is also a static
+  repo-authoring check, while this skill needs the operator's LIVE effective settings and context
+  window. So the computation is duplicated deliberately. Because duplication drifts, add a
+  cross-reference comment in BOTH files naming the other, and reconcile the exemption rules against
+  `check-listing-budget.sh` whenever either changes.
 - `overflow_chars > 0` proves truncation → report magnitude and approximate name-only count. This is
   the headline finding, and it needs no undocumented constant.
 - **Inferential half:** rank the competing set by the observable proxy; render a band, never a
   cutoff; label it inferential; never claim exactness.
-- Tests: demand just under and just over budget (boundary); bundled + name-only excluded from both
-  the sum and the ranking; a 1M-token context window yields ~40,000 chars, not 8,000.
+- Tests: demand just under and just over budget (boundary); bundled, name-only, AND
+  `disable-model-invocation` skills each contribute **zero** characters to the sum and are absent
+  from the ranking; a 1M-token context window yields ~40,000 chars, not 8,000.
 - **Sanity Check:** a fixture pinning a 1M-token context asserts `budget_chars == 40000` (regression
   guard on the derived-not-constant correction); `overflow_chars` sign matches each boundary
   fixture; any band output satisfies `grep -q "inferential"`.
@@ -318,10 +369,37 @@ NOT re-enumerate the fleet — it reads frontmatter only for skills inventory al
 - **Sanity Check:** the double-count fixture asserts the reconciled total equals the max and not the
   sum; `jq -e '.tier' <json>` exits 0 and its value matches the sources actually present.
 
-### Phase 5: Outputs — keying, JSON, optional HTML [TODO]
+### Phase 5: Churn cross-reference [TODO]
+
+Added in plan review: acceptance criteria 11 and 12 had **no phase at all** in the pre-review draft.
+
+- Read git history for skills authored in the CURRENT repo only: commit count via
+  `git log --follow` (renames sever the path otherwise — this repo demonstrably ports skills), and
+  authoring date via `git log -1 --format=%cI` (**never** filesystem mtime, which is checkout time —
+  verified drift on this container: mtime 2026-08-15 clone vs committer date 2026-08-12).
+- Skills not authored locally render **blank**, never zero — no data and never-touched are different
+  facts.
+- Render one cross-reference section, labeled so it cannot read as "wasted authoring effort": in a
+  public marketplace, skills are authored FOR CONSUMERS, so local non-use is not waste.
+- Section is skipped entirely outside an authoring repo.
+- **Sanity Check:** a fixture where filesystem mtime and `%cI` disagree asserts the report uses
+  `%cI`; a fixture with a renamed skill asserts the `--follow` count exceeds the non-follow count;
+  `jq -r '.skills[]|select(.churn==null)' <json>` is non-empty for a non-locally-authored skill
+  (blank, not 0); and the rendered section matches `grep -qv "wasted"`.
+
+### Phase 6: Outputs — keying, JSON, optional HTML [TODO]
 
 - Add `plugins/claude-ops/lib/state-key.sh` (claude-ops's first `lib/`), adopting the registered
-  helper rather than minting a second keying scheme.
+  helper rather than minting a second keying scheme. **It is a gated sync cluster:** canonical at
+  `plugins/claude-config/lib/state-key.sh`, carriers enumerated in `scripts/sync-state-key.sh`
+  (`copies=(plugins/claude-memory/lib/state-key.sh)` today), gated by the `state-key-sync` and
+  `cross-plugin-source-drift` CI jobs. **Adding a third copy REQUIRES editing that `copies=` array
+  in the same change** — otherwise the new carrier is unmaintained by the sync gate, and any byte of
+  divergence fails the drift check.
+- **`CLAUDE_PLUGIN_DATA` is not trustworthy here.** The repo's own smoke test records that in a
+  skill-spawned subprocess it "pointed at an **unrelated** installed plugin's data directory" and
+  "is not a dependable per-plugin signal". The report path must be re-derived, never taken from a
+  bare `$CLAUDE_PLUGIN_DATA`, and the test must set it explicitly rather than inherit it.
 - JSON per `plugin-data-report-keying` Rule 1: one file per run **plus** an appended history line;
   never a rolling `latest.json`. `schema_version`, additive-only.
 - `withheld` rendered as a first-class section in both markdown and JSON.
@@ -332,13 +410,37 @@ NOT re-enumerate the fleet — it reads frontmatter only for skills inventory al
   plus a regex; two consecutive runs produce two files and grow the history file by exactly one line
   (`wc -l`); `jq -e '.withheld' <json>` exits 0.
 
-### Phase 6: Retention, routing, and registration [TODO]
+### Phase 7: Retention, routing, and registration [TODO]
 
 Touches at least 10 files — inventory table required.
 
+**The prune path must not trust the environment — this is the one destructive path in an otherwise
+read-only change.** `clean.sh` is a *skill-spawned* subprocess, so it does NOT inherit
+`CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` / `_DIR` (the same smoke-test finding this plan already
+cites for config), which means it can call `claude_ops::resolve_skill_usage_dir` but **cannot supply
+its arguments**. Worse, the `data-dir` branch needs `CLAUDE_PLUGIN_DATA`, which in a skill
+subprocess was observed pointing at an *unrelated plugin's* data directory — a prune trusting it
+could delete another plugin's files. Therefore:
+
+- `clean.sh` takes the scope and relative dir as **explicit flags** (`--skill-usage-scope`,
+  `--skill-usage-dir`, `--keep-skill-usage-days`), substituted from `${user_config.*}` in
+  `observability/SKILL.md` — the only supported delivery path.
+- The `data-dir` branch prunes only a path it re-derives itself; it never sweeps a bare
+  `$CLAUDE_PLUGIN_DATA`.
+- **Rollback story:** the new target is inert unless its flag is passed. With the flag absent,
+  hook-events pruning is bit-identical to today, so reverting is dropping one flag branch. Test 9
+  gains an assertion pinning that.
+- The retention/flag surface is **six** places, not the four the Brief's AC 10 says: `clean.sh:13`
+  (header, which `--help` prints), `clean.sh:65` (unknown-flag usage string),
+  `observability/SKILL.md:5` (`argument-hint`), `observability/SKILL.md:78` (retention table),
+  `context/read-routing.md:66`, and `context/operator-setup-retention.md:82`.
+
 | File | Action | Rationale |
 |---|---|---|
-| `skills/observability/scripts/clean.sh` | MODIFY | prune `skill-usage.jsonl` via the hooks' path policy across `repo`/`user`/`data-dir`; needs its own retention flag (`--keep-days` is single-valued today) |
+| `skills/observability/scripts/clean.sh` | MODIFY | prune `skill-usage.jsonl` across `repo`/`user`/`data-dir` via **explicit flags** (verified: `OBS_DIR` is hardcoded to `${REPO_ROOT}/.claude/observability`, `--keep-days` is single-valued, and the script exits 2 outside a git repo) |
+| `skills/observability/claude-observability.test.sh` | MODIFY | Test 9 is the existing `clean.sh` test (it `git init`s a temp repo); it gains skill-usage coverage plus the flag-absent bit-identical assertion |
+| `scripts/sync-state-key.sh` | MODIFY | one line in `copies=` — a new `lib/state-key.sh` carrier is unmaintained by the sync gate without it |
+| `docs/conventions/plugin-data-report-keying/README.md` | MODIFY | adoption table — the Brief cites this table's contents as evidence; no CI gate, so it drifts silently |
 | `skills/observability/SKILL.md` | MODIFY | retention table (1 of 4 locations) |
 | `skills/observability/context/read-routing.md` | MODIFY | retention table + the skill-reach routing row |
 | `skills/observability/context/operator-setup-retention.md` | MODIFY | retention table |
@@ -347,19 +449,25 @@ Touches at least 10 files — inventory table required.
 | `CHANGELOG.md` | MODIFY | entry per precedent |
 | `docs/CATALOG.md` | REGENERATE | `node scripts/generate-catalog.mjs` |
 | `docs/SKILL-CHEAT-SHEET.md` | REGENERATE | `node scripts/generate-cheatsheet.mjs` |
-| `skills/audit-skill-starvation/evals/evals.json` | CREATE | per-skill evals, matching the reference pair |
+| `skills/audit-skill-starvation/evals/evals.json` | KEEP | created in Phase 1 — CI FAILs any `SKILL.md` diff without it, so it cannot wait until here |
 | `.claude-plugin/marketplace.json` | KEEP | its entry carries no skill enumeration — precedent `4a1184cd` did not touch it |
 | `docs/CATALOG-TAXONOMY.md` | KEEP | governs plugin categories, not skills; `claude-ops` is already `claude-code` |
 | `scripts/skill-leaf-name-registry.txt` | KEEP unless colliding | registering a non-colliding leaf is itself a CI failure |
 
-- **Sanity Check:** `bash scripts/check-skill-leaf-names.sh --check` exits 0;
-  `node scripts/generate-catalog.mjs --check` and `node scripts/generate-cheatsheet.mjs --check` exit
-  0; `python3 scripts/check-manifest-duplicate-keys.py` exits 0;
-  `python3 scripts/sync-plugin-options-docs.py --check` exits 0;
-  `claude plugin validate plugins/claude-ops` exits 0;
-  `grep -c "Eleven skills" plugins/claude-ops/.claude-plugin/plugin.json` equals 1; and
-  `clean.sh --dry-run` reports a skill-usage target under a `user`-scope fixture, proving the
-  silent-no-op defect is fixed.
+- **Sanity Check:** `bash scripts/validate-plugins.sh` exits 0 — the umbrella already runs the
+  catalog and cheat-sheet `--check` pair, `validate-plugin-contracts.mjs`, and
+  `generate-identity-prerequisites.mjs --check`, so call it rather than the piecemeal list. Plus:
+  `bash scripts/check-skill-leaf-names.sh --check` exits 0 (verified: the script exists and takes
+  `--check`, and registering a non-colliding leaf is itself a failure, so
+  `skill-leaf-name-registry.txt` stays untouched); `python3 scripts/check-manifest-duplicate-keys.py`
+  exits 0; `python3 scripts/sync-plugin-options-docs.py --check` exits 0;
+  `bash scripts/sync-state-key.sh --check` and `bash scripts/check-cross-plugin-source-drift.sh
+  --check` exit 0 (the new carrier); `grep -c "Eleven skills"
+  plugins/claude-ops/.claude-plugin/plugin.json` equals 1; and — in a fixture that **is a git repo**
+  (or sets `CLAUDE_PROJECT_DIR`, since `clean.sh` exits 2 otherwise, exactly as Test 9 already
+  arranges) — `clean.sh --dry-run --skill-usage-scope user` reports a skill-usage target, proving
+  the silent-no-op defect is fixed, while a run with no skill-usage flag leaves hook-events output
+  byte-identical to today.
 
 ## Blast radius
 
