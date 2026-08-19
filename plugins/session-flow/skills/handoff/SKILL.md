@@ -126,6 +126,15 @@ Tick each item in the response so the user can verify the exit shape. Missing an
 incomplete. Known failure patterns live in `context/gotchas.md` — load on demand when a step feels
 ambiguous.
 
+**Output order is fixed: ticked checklist first, rails prompt last.** The rails resume prompt —
+the copy instruction, the two dashed rails, and every below-the-rails `/loop` re-arm note — is the
+FINAL text of the response, with nothing after it. This order exists because the rails prompt is
+the deliverable the operator copies, and a turn that ends on anything else has been observed to end
+*without the rails prompt at all* under heavy context: the save-point file exists, but the operator
+has nothing to paste after `/clear`. A response whose last text is not the rails block (plus its
+below-rail notes) is a FAILED handoff even when every box above is ticked — emit the rails block
+before ending the turn, always.
+
 **Full path:**
 
 - [ ] Position located + next stage named (fresh reads this turn)
@@ -156,7 +165,8 @@ ambiguous.
   the top rail; `/goal` first line if a goal is active; a below-the-rails note re-arming EVERY
   surviving loop — one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up
   message (engine doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE**
+- [ ] **EXECUTION STOPS HERE** — the rails prompt and its below-rail notes follow these ticks as
+  the response's final text (see "Output order is fixed" above)
 
 **Prompt-only path:**
 
@@ -174,7 +184,8 @@ ambiguous.
   note re-arming EVERY surviving loop — one `/loop [<interval>] <original prompt>` line per loop,
   each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE** — "small enough" means the prompt captures the work, NOT "small
-  enough to skip `/clear` and finish in-session"
+  enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
+  these ticks as the response's final text (see "Output order is fixed" above)
 
 ## What this skill does NOT do
 
