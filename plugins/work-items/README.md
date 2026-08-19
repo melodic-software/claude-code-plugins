@@ -6,7 +6,7 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-The tracker's capabilities are split across five focused skills (plus a setup
+The tracker's capabilities are split across six focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
 about work items, tickets, issues, tracked work, or what to do next):
 
@@ -16,6 +16,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 /work-items:work                       # auto-select + claim + execute one item
 /work-items:triage 42
 /work-items:decompose                  # break the topic's PLAN.md into tickets
+/work-items:ship                       # macro map over a spec container: status, shape, next step
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
 ```
 
@@ -27,6 +28,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
 | `/work-items:triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
+| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step — thin by design, mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows — inferring candidate items from the repo and interviewing per item — is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
 

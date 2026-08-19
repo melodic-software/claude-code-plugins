@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0]
+
+### Added
+
+- **`/work-items:ship` — macro-journey router (#2948):** a thin, user-invocable
+  router over one spec container. It resolves the container (argument, topic
+  PLAN.md pointer, or a binding-resolved container-label query), reads the
+  macro state through seam verbs (`get-item`, `list-sub-items`,
+  `list-frontier --parent`), states the container's **execution shape** and
+  that mode's discipline, and routes the next step to the machinery that owns
+  it — `/work-items:work` (next item), `/work-items:decompose` (re-slice and
+  the container close ritual), planning/review close-out machinery and
+  session-flow presence-gated — mutating nothing on the happy path. Execution
+  shape is a **per-container** choice, never repo-level: `per-item PRs`
+  (default; separate branches, per-item PRs, seam claim as the collision
+  signal) or `integration branch → single PR` (sequential checkpoints on one
+  shared branch: seam claims even for sequential work, mid-flight lease
+  renewal, pull-before-start/push-before-close, one PR at the end). The choice
+  is recorded as a durable `**Execution shape:**` line in the container body
+  by `/work-items:decompose`'s approval gate (one-line follow-up when a
+  container publish is approved); an absent line defaults to per-item PRs
+  loudly. Grammar, disciplines, and the canonical journey vocabulary — *item*
+  (always a graph node, phase-agnostic), *checkpoint* (an item closed within a
+  shared-branch flow), *phase boundary* (the session-level continue / clear /
+  compact / handoff moment; every checkpoint is a phase boundary with durable
+  progress, not vice versa) — live in the new
+  `reference/execution-shape.md`. The container label stays binding-resolved
+  (`config.container_label`); the skill hard-codes no labels, paths, or
+  topology.
+
 ## [0.35.31]
 
 ### Added
