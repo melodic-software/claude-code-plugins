@@ -20,6 +20,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the I23 rationale for the split. Verified against `hooks/zone-crossing-inject.sh`'s actual
   emission rather than its header summary. Documentation only; no behavior change.
 
+## [0.7.14]
+
 ### Changed
 
 - **Both zone-crossing message channels compressed** (owner report: the operator message was
