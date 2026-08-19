@@ -67,6 +67,19 @@
         "Lists multiple matching containers and asks the user to pick rather than guessing",
         "On zero matches, routes to /work-items:decompose for container publishing instead of creating a container itself"
       ]
+    },
+    {
+      "id": 6,
+      "name": "ship-shared-branch-terminal-pr-before-close-out",
+      "prompt": "/work-items:ship #330 — the container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/330-schema-swap`. The last sub-item was just closed; every sub-item is now closed. No PR exists from the integration branch. Wrap it up.",
+      "expected_output": "Recognizes that in the shared-branch shape closed checkpoints record durable progress, not shipment, so the journey's terminal step comes before any close-out: open the single integration PR from integration/330-schema-swap (/source-control:pull-request when installed, else the operator's PR flow) and run the full verification gates. The container close-out (the decompose-owned ship ritual: close-out review against the container body, closing comment linking the shipping PR) is stated as running at PR time, and the container closes only when that PR ships — the skill does not route a direct close-out, and does not close the container, while no integration PR exists.",
+      "files": [],
+      "expectations": [
+        "States the terminal step first — open the single integration PR from the recorded integration branch and run the full verification gates — rather than routing straight to close-out",
+        "Says closed checkpoints record durable progress, not shipment, as the reason close-out cannot run yet",
+        "Places the close-out ritual at PR time and the container's closure at PR shipment, not before",
+        "Does not close the container or propose closing it while no integration PR exists"
+      ]
     }
   ]
 }
