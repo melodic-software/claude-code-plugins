@@ -3,6 +3,21 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.2]
+
+### Fixed
+
+- **`audit-skill-visibility`'s own docs now describe the skill that shipped.** Three strings were
+  left behind by the two late changes in 0.33.0 — the `audit-skill-starvation` → `-visibility`
+  rename, and the commit that added the live collection path. The *Run it* section and
+  `argument-hint` documented only `--fixture`, so an operator following the documentation
+  hand-authored a JSON bundle instead of running the engine against their real install — the one
+  invocation that answers the question the skill exists for. The bare live command is now the
+  primary form, with `--fixture` described as the reproduction path the tests use. The field
+  table's `starvation` row said "Phase 3" for a field that has computed live since the skill
+  shipped, and the Markdown report's H1 still read "Skill starvation report". No behavior change:
+  the engine, its collection paths, and its verdicts are untouched.
+
 ## [0.33.1]
 
 ### Changed
