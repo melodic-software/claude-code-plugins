@@ -11,15 +11,10 @@ metadata:
 
 ## Repository context — gather first
 
-Collect these with **individual** Bash calls, one command per call:
-
-- Current branch — `git branch --show-current`
-- Working tree — `git status --porcelain`, reading **at most the first 20 entries**
-- Recent commits — `git log --oneline -5`
-
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion — keep `$`-expansion
-out of the pre-compute block (#1687).
+Take `branch`, `status`, and `recent-commits` at `-5`. No session id — this skill stamps no ledger.
+Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
+rationale for gathering at run time rather than pre-computing:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
 

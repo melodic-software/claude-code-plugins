@@ -23,6 +23,15 @@
 - `setup` and the plugin README — skill counts updated for the fourteenth skill. The README's
   "other eleven skills are zero-config" line was already off by one before this change and is now
   correct at thirteen.
+- **`reference/gather.md` — the durable-state probe block is extracted to one owner doc.** Seven
+  skills (`continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`,
+  `workflow`) each carried a near-identical copy of the probe list, the one-command-per-call and
+  treat-failure-as-unknown rules, and the `#1687` no-precompute rationale. Each now names the probe
+  subset it takes and cites the seam. The per-consumer differences are preserved and documented as
+  deliberate rather than normalised away: `orient` reads `git log -8` where the save-point skills
+  read `-5`, `retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state
+  beyond the branch, and `workflow` takes no session id. `continue-in-background`'s warning that this
+  block is never the dirty-tree gate is kept at its call site and generalised in the seam.
 
 ## [0.23.9]
 

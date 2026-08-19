@@ -161,7 +161,10 @@ usage() {
 # is_scannable <path> — a shell file this gate is responsible for. Vendor/
 # upstream-synced copies carry their own drift gate, not this contract.
 # Skill markdown under plugins/*/skills/ is in scope (#2704): agents execute
-# shell snippets from those files. evals/ carries adversarial fixture prompts
+# shell snippets from those files. Plugin reference docs under
+# plugins/*/reference/ are in scope for the same reason — a shared engine doc a
+# skill body cites carries the same executable snippets, and extracting a block
+# out of a skill and into a reference must not silently drop its gate coverage. evals/ carries adversarial fixture prompts
 # by design (same exclusion check-skill-portability.sh uses). Likewise the
 # cross-plugin sync copies registered in
 # scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
@@ -174,6 +177,7 @@ is_scannable() {
   */vendor/* | */evals/*) return 1 ;;
   *.sh) ;;
   plugins/*/skills/*.md) ;;
+  plugins/*/reference/*.md) ;;
   *) return 1 ;;
   esac
   local registry="scripts/cross-plugin-source-registry.txt" rel line
@@ -220,6 +224,7 @@ case "$mode" in
     {
       find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*'
       find plugins -type f -path 'plugins/*/skills/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
+      find plugins -type f -path 'plugins/*/reference/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
     } | sed 's|^\./||' | sort -u
   )
   ;;

@@ -60,9 +60,14 @@ forgotten ones this skill exists to surface. Ladder:
 
 1. `/claude-ops:inventory` — if that plugin is installed. It owns whole-fleet enumeration and its
    bundled script already reports every installed skill including manual-only ones; reuse it rather
-   than walking the plugin cache, whose layout is undocumented and version-keyed.
-2. An operator-supplied catalog file, when the consuming project provides one.
-3. The in-context listing — last resort, and its truncation is **disclosed in the output**.
+   than walking the plugin cache, whose layout is undocumented and version-keyed. **Done when** the
+   returned set contains at least one skill absent from the in-context listing, proving it reached
+   past the listing's blind spot; if it returns nothing usable, fall to rung 2.
+2. An operator-supplied catalog file, when the consuming project provides one. **Done when** a
+   declared catalog path resolves and parses; if the project declares none, fall to rung 3.
+3. The in-context listing — last resort. **Done when** the pool is built *and* the output carries
+   the truncation disclosure; a pool from this rung without that line is an incomplete result, not
+   a finished one.
 
 **Descriptions and stage metadata — enrichment, not completeness.** Read frontmatter where the files
 are reachable; otherwise use whatever descriptions the listing still carries; otherwise absent.
