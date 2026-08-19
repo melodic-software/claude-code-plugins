@@ -7,6 +7,7 @@
       "prompt": "/ai-slop:audit docs/example.md",
       "expected_output": "A findings report for the target file — per-rule findings with file:line locations, fired thresholds, and a summary — with no file modified. The fix flow is offered but not run.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Runs detect.sh on the target and reports findings with file:line locations and the fired condition per finding",
         "Does NOT edit the target file or any other file on bare invocation",
@@ -19,6 +20,7 @@
       "prompt": "/ai-slop:audit fix docs/example.md",
       "expected_output": "The file's findings are rewritten per-file (em dashes reworded, stock phrases deflated), each file's before/after pair is verified by a fresh-context semantic-diff subagent that reverts semantic loss or ambiguity, then the detector re-runs and the findings file is re-emitted so no stale findings survive.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Applies rewrites only because fix was explicitly requested",
         "Verifies every rewritten file with a fresh-context semantic-diff subagent and reverts flagged hunks",
@@ -31,6 +33,7 @@
       "prompt": "/ai-slop:audit",
       "expected_output": "A repo-wide audit over tracked markdown, chunked via --paths-file/--offset/--limit, with instruction surfaces (CLAUDE.md, AGENTS.md, rules, SKILL.md files, READMEs) reported first, then high-change-frequency files; excluded paths from config are named as declined, never silently skipped.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Audits the repo's tracked markdown when no target is given, using the chunk affordances rather than a per-file loop",
         "Orders the report by instruction-surface impact first, then change frequency",
@@ -43,10 +46,76 @@
       "prompt": "/ai-slop:audit docs/example.md (with the detector-findings contract URL unreachable)",
       "expected_output": "The audit report is delivered, but no findings file is written: the skill reports that the producer contract could not be fetched and refuses to invent a destination, per persist-findings.md.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Delivers the human-facing findings report regardless",
         "Does NOT write a findings file when the contract fetch fails",
         "States that persistence was refused because the contract was unreachable, rather than silently skipping it"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "rubric-findings-reach-the-report-not-the-findings-file",
+      "prompt": "/ai-slop:audit docs/example.md — the file contains promotional register (\"a vibrant, groundbreaking platform nestled in the heart of the stack\") and one em dash, but nothing else the detector matches.",
+      "expected_output": "Both layers report: the em dash appears as a script finding, and the promotional tone as a rubric finding citing its catalog entry. The persisted findings file carries the script finding ONLY — the rubric verdict never enters it, because a rubric tell has no crosswalk row to look a tier up from.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the promotional-register tell as a rubric finding, quoting the offending text and naming the catalog entry it comes from",
+        "Does NOT place any rubric finding in the persisted findings file — only the script finding appears there",
+        "States the V1 boundary explicitly rather than silently omitting the rubric verdict from the file"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "fix-never-swaps-one-tell-for-another",
+      "prompt": "/ai-slop:audit fix docs/example.md — the file's only finding is a single em dash in \"the parser accepts empty input — a change from 0.3.\"",
+      "expected_output": "The em dash is resolved into a comma, a period, or a restructured sentence. It is NOT replaced with a parenthesis, an en dash, or a spaced hyphen: rewrite-guide.md's substitution guardrail names those as the same interruption wearing a different mark.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads reference/rewrite-guide.md before applying the rewrite, per the fix flow's first step",
+        "The rewritten line contains no em dash, en dash, parenthesis, or spaced hyphen standing in for the original punctuation",
+        "Preserves the sentence's claim — the version fact survives the rewrite"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "triads-collapse-toward-the-strongest-item",
+      "prompt": "/ai-slop:audit fix docs/example.md — the file trips rule-of-three on \"the tool is fast, simple, and reliable\" and similar triads, where the three items are rhetorical rather than a complete set.",
+      "expected_output": "Each flagged triad collapses toward the single strongest item rather than being reworded into a three-item list with different punctuation. A triad whose three elements are individually load-bearing — a complete set the reader needs — is kept, with that judgment stated.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Collapses rhetorical triads toward one item rather than preserving all three in a reworded form",
+        "Keeps a triad when each element is load-bearing, and says why it was kept",
+        "Does not treat every three-item enumeration as a tell — enumerating three actual things is not slop"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "known-false-positive-routes-to-config-not-a-rewrite",
+      "prompt": "/ai-slop:audit docs/example.md — the file is documentation ABOUT model knowledge cutoffs, so rule-knowledge-cutoff-disclaimer fires on prose that is describing the concept rather than disclaiming on the document's own behalf.",
+      "expected_output": "The finding is reported, and the recommended remedy is the in-file marker or a config exclusion — not a rewrite. This is the false-positive class the catalog's calibration record names for that rule, and the recorded answer is an exemption with a stated reason rather than weakening the rule.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes prose ABOUT knowledge cutoffs as the recorded false-positive class rather than deleting the sentence",
+        "Recommends the in-file ignore marker or a config exclusion, citing the calibration record",
+        "Does NOT propose weakening or disabling the shipped rule to make this corpus pass"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "declined-exemptions-are-named-with-their-cause",
+      "prompt": "/ai-slop:audit — the consuming repo's .claude/ai-slop.json disables rule-em-dash and excludes two paths, and three more files carry in-file ignore markers.",
+      "expected_output": "The report states which rules were disabled, names each declined file with its cause (excluded glob vs file marker), and gives the per-rule declined counts from the detector's Summary rows — so an exemption is always visible as a decision, never as an absence of findings.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names the disabled rule(s) explicitly rather than reporting zero findings for them without comment",
+        "Reports each declined file alongside its cause, distinguishing a config exclusion from an in-file marker",
+        "Carries the per-rule declined counts into the report instead of dropping them"
       ]
     }
   ]
