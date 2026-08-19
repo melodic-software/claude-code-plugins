@@ -52,7 +52,7 @@ PATTERN_RULES=(
   "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|(knowledge cutoff|as of my last (update|training)|i cannot browse|i do not have access to real|as an ai( language)? model)"
   "rule-llm-citation-artifacts|citation residue|0|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
   "rule-utm-params|tracking parameter|0|utm_[a-z]+="
-  "rule-chatbot-artifacts|chat-turn residue|1|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right)"
+  "rule-chatbot-artifacts|chat-turn residue|1|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right|found the smoking gun)"
   "rule-filler-phrases|filler phrase|1|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
   "rule-stacked-hedging|stacked hedge|1|((could|may|might) potentially|(could|might) possibly)"
 )

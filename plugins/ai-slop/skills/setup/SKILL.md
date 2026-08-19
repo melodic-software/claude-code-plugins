@@ -22,6 +22,7 @@ tuning in `.claude/ai-slop.json`, resolved per the config-cascade convention: us
 | `vocab_remove` | word list | Removals from the AI-vocabulary list |
 | `disabled_rules` | rule slugs | Rules the audit skips entirely (reported as disabled) |
 | `thresholds` | map | Per-rule density thresholds: `ai_vocabulary`, `copulative_avoidance`, `rule_of_three` (matches per 1000 words; density rules also need at least 3 matches) |
+| `_comment` | string | Free-text rationale for the choices in this file. Read by nobody; JSON has no comment syntax, and a config that disables a rule without recording why is the drift this skill exists to catch. Not drift — do not flag it as an unknown key |
 
 ## check (default — read-only)
 

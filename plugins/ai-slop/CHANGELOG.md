@@ -2,8 +2,9 @@
 
 ## 0.2.0
 
-- Integrated Cursor's `unslop` skill (cursor/plugins `pstack`, MIT, commit-pinned) as the
-  catalog's second source, deduplicated against the Wikipedia inventory in an overlap map.
+- Added a set of catalog entries inspired by
+  [Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md),
+  deduplicated against the Wikipedia inventory in an overlap map.
 - Three new detector rules, calibrated against this marketplace's corpus: `rule-chatbot-artifacts`
   (chat-turn residue and sycophancy phrases; IMPORTANT in the severity crosswalk),
   `rule-filler-phrases` (`in order to`, `due to the fact that`, deletable note-phrases), and
@@ -16,8 +17,30 @@
   meaning preservation, and a closing self-audit pass. The `fix` flow reads it first.
 - AI-vocabulary default list gains the plain-word trio `utilize`, `leverage`, `facilitate`
   (density-gated; measured quiet on the calibration corpus).
-- `rule-inline-header-lists` gains the source's boundary refinement: a bold lead-in that ends in
-  a period and is followed by new detail is reference-doc style, not a tell.
+- `rule-inline-header-lists` records a boundary refinement as **calibration pre-work** for a
+  post-V1 script rule: a bold lead-in that ends in a period and is followed by new detail is
+  reference-doc style, not a tell. The entry stays `recorded-only`, so nothing runs it yet.
+- Overlap map says "catalogued by" rather than "covered by", and names the rows whose entries are
+  dormant; Name-dropping is recorded as deliberately out of scope for general prose, and generic
+  conclusions as detected only in their formulaic half.
+- `rule-chatbot-artifacts` gains "Found the smoking gun"; `rule-abstract-metaphor-jargon` and the
+  rewrite guide gain `evacuate` -> "move out". Two narrowings that were silent are now recorded:
+  the promotional word core deliberately omits travel-copy words with no technical base rate, and
+  the shipped AI-vocabulary list is a deliberate narrowing of the era-union rather than the union
+  itself (`vocab_add` restores the rest).
+- **Findings file no longer emits a `tier:` frontmatter field**, and `--tier` is retired from
+  `emit-findings.sh`. Both owner docs already said this producer omits it, and the flag defaulted
+  to a hardcoded value describing no property of the run.
+- `rule-filler-phrases` and `rule-stacked-hedging` carry their own Action strings instead of the
+  generic judgment fallback.
+- **Roster-agreement guard**: the suite now asserts all 15 rules' emitted tiers (was 2) and fails
+  when `detect.sh`'s registry no longer matches the tabled set, so a rule added without a
+  crosswalk row can no longer emit SUGGESTION by silent fall-through.
+- **Test config isolation**: the suite pins `HOME` and `CLAUDE_PROJECT_DIR` to empty directories
+  so fixtures grade against shipped defaults. Found by dogfooding — a consuming repo disabling a
+  rule for its own house style turned nine unrelated cases red.
+- Relay expectations narrowed to what is true: `rule-utm-params` is the one relay-applicable rule;
+  every other rule is `/ai-slop:audit fix` work.
 
 ## 0.1.0
 

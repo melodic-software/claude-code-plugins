@@ -1,7 +1,8 @@
 {
+  "_comment": "rule-em-dash is disabled here because this marketplace's house style uses em dashes deliberately: measured 34,999 matching lines across 1229 tracked markdown files (2026-08-19), which is a style choice, not a defect backlog. Disabling beats enumerating em_dash_allowed_paths, which would need near-total path coverage to be useful. The shipped default stays zero-tolerance; this is the consuming repo's own decision, which is exactly what the config layer is for.",
   "excluded_paths": [
     "plugins/*/skills/*/vendor/**",
-    "plugins/ai-slop/skills/audit/reference/catalog.md",
-    "plugins/ai-slop/skills/audit/scripts/fixtures/**"
-  ]
+    "plugins/ai-slop/skills/audit/reference/catalog.md"
+  ],
+  "disabled_rules": ["rule-em-dash"]
 }

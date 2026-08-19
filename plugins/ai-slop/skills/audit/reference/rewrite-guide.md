@@ -7,13 +7,8 @@ rewrite that changes what a sentence asserts is skipped and recorded).
 
 <!-- ai-slop-ignore-file: this guide quotes the tells it rewrites; scanning it flags its own examples -->
 
-## Attribution and license
-
-Adapted from the `unslop` skill in Cursor's `pstack` plugin,
-[cursor/plugins `pstack/skills/unslop/SKILL.md`](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md),
-pinned at commit [`99559f2`](https://github.com/cursor/plugins/blob/99559f2f52047978602ef365589275831e76af07/pstack/skills/unslop/SKILL.md)
-(2026-08-02), MIT-licensed. Changes were made: the guidance is reorganized around this plugin's
-fix flow and its detection rules, and pattern material that duplicates the catalog is omitted.
+Inspired by
+[Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md).
 
 ## Substitution guardrails
 
@@ -64,7 +59,8 @@ not only to the flagged words:
 - **Metaphor jargon** (`rule-abstract-metaphor-jargon`): pick the concrete word. "Substrate"
   becomes "base"; "wedge in" becomes "add"; "vector" becomes "way" or "method"; "gold-plating"
   becomes "more than the job needs"; "ratchet" becomes the mechanism's real name or "a limit
-  that only tightens"; "endgame" becomes "the last phase"; "north star" becomes "the goal".
+  that only tightens"; "endgame" becomes "the last phase"; "north star" becomes "the goal";
+  "evacuate" becomes "move out".
   Leave domain-literal uses alone: a harness that is a test harness keeps its name.
 
 ## Adding voice

@@ -1,5 +1,5 @@
 ---
-description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-tolerance by default), emoji formatting, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedging, citation artifacts, and the rest of the catalog (Wikipedia's Signs of AI writing plus Cursor's unslop additions), plus a judgment rubric for puffery, vague attribution, promotional tone, metaphor jargon, and mechanism-free claims. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', or before publishing agent-written prose. Read-only by default; 'fix' as an explicit argument applies rewrites behind a semantic-diff guard and may be chained ('detect and rewrite'). Empty target audits the repo's tracked markdown, high-impact and high-velocity files first."
+description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-tolerance by default), emoji formatting, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedging, citation artifacts, and the rest of the catalog (distilled from Wikipedia's Signs of AI writing), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon, and mechanism-free claims. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', or before publishing agent-written prose. Read-only by default; 'fix' as an explicit argument applies rewrites behind a semantic-diff guard and may be chained ('detect and rewrite'). Empty target audits the repo's tracked markdown, high-impact and high-velocity files first."
 argument-hint: "[audit|fix] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -19,12 +19,15 @@ Effective config: !`${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/n
 
 Detect and remove AI-writing tells in checked-in markdown prose. Two detection layers over one
 rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from Wikipedia's
-"Signs of AI writing", revision-pinned, plus the additions adapted from Cursor's `unslop` skill,
-commit-pinned):
+"Signs of AI writing", revision-pinned, plus the catalog's "Cursor unslop additions" section):
 
 1. **Deterministic**: `${CLAUDE_SKILL_DIR}/scripts/detect.sh` runs the catalog's `v1: script`
    rules. Its findings carry argued severity tiers (the detector-findings convention's crosswalk)
-   and can reach the `review:fanout fix` relay as a conforming findings file.
+   and persist as a conforming findings file. **What the relay can actually apply is narrow**:
+   `rule-utm-params` alone is auto-applicable, and the relay's cleanup route is a
+   code-simplification skill that never loads this skill's rewrite guide. Every other rule is
+   `/ai-slop:audit fix` work — the findings file is how a consumer *sees* them, not how they get
+   rewritten.
 2. **Judgment rubric**: the catalog's `v1: rubric` tells, applied by reading the prose. Rubric
    findings reach the human report only, never the findings file.
 
@@ -56,9 +59,11 @@ commit-pinned):
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
    whenever the audit examined tracked files: fetch the producer contract first and refuse to
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
-6. **Recommend**, never auto-run: the `fix` action for the findings, `/ai-slop:setup` when the
-   run tripped over deliberate house style (heavy declined counts or a flooded rule), or
-   `review:fanout fix` where the consumer prefers the relay to apply mechanical fixes.
+6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
+   run tripped over deliberate house style (heavy declined counts or a flooded rule). Recommend
+   `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can
+   apply meaning-preservingly; routing prose rewrites there retires the findings without fixing
+   them.
 
 ## Fix flow (explicit invocation only)
 

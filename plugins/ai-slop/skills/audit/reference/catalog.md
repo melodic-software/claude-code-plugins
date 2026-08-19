@@ -1,9 +1,8 @@
 # AI-writing tell catalog
 
-The rule inventory for `/ai-slop:audit`, drawn from two sources: every sign of AI writing
-catalogued by the Wikipedia page below, plus the additions adapted from Cursor's `unslop` skill
-(its own attribution block follows Wikipedia's). Each tell is classified for detectability and
-applicability, with its V1 disposition. Script rules are implemented in `../scripts/detect.sh`
+The rule inventory for `/ai-slop:audit`: every sign of AI writing catalogued by the Wikipedia page
+below, plus the additions in the "Cursor unslop additions" section. Each tell is classified for
+detectability and applicability, with its V1 disposition. Script rules are implemented in `../scripts/detect.sh`
 and carry argued severity-crosswalk rows; rubric tells are applied by the skill's judgment layer;
 `recorded-only` tells are catalogued but not run in V1 (the entry says why). Fix-time rewrite
 guidance (what to write INSTEAD of a tell) lives in [`rewrite-guide.md`](rewrite-guide.md), not
@@ -21,12 +20,8 @@ this file is licensed under
 [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 (CC BY-SA 4.0), as the source requires.
 
-The "Cursor unslop additions" section derives from the `unslop` skill in Cursor's `pstack` plugin,
-[cursor/plugins `pstack/skills/unslop/SKILL.md`](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md),
-pinned at commit [`99559f2`](https://github.com/cursor/plugins/blob/99559f2f52047978602ef365589275831e76af07/pstack/skills/unslop/SKILL.md)
-(2026-08-02), MIT-licensed. Changes were made: its patterns are deduplicated against the Wikipedia
-inventory, reworded into this catalog's entry form, and classified; its rewrite guidance is
-adapted separately into [`rewrite-guide.md`](rewrite-guide.md).
+The "Cursor unslop additions" section was inspired by
+[Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md).
 
 ## Upstream-drift record
 
@@ -39,16 +34,6 @@ adapted separately into [`rewrite-guide.md`](rewrite-guide.md).
 - **Known fetch gap**: the page's "Comment-specific indicators" and "Ineffective indicators"
   sections exceeded the fetch window at catalog time and are recorded as section notes below,
   without entries. The recheck trigger covers closing this gap.
-
-Second record, for the Cursor source:
-
-- **Claim**: the "Cursor unslop additions" section and `rewrite-guide.md` derive from the commit
-  pinned in the attribution block, with the overlap map below accounting for every upstream
-  pattern.
-- **Basis**: the commit-pinned URL in the attribution block.
-- **As of**: 2026-08-19.
-- **Recheck trigger**: same as the Wikipedia record (each `ai-slop` release and each fleet
-  audit); the file is versioned with `pstack` releases, so a commit-pinned recheck is cheap.
 
 ## Inventory
 
@@ -67,7 +52,8 @@ in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
 Calibrated 2026-08-17 against this marketplace's tracked markdown (1161 files) with neutral
 defaults. Outcomes:
 
-- All 12 `v1: script` rules ship; none demoted.
+- All 12 `v1: script` rules ship as of this pass; none demoted. (The roster is 15 after the
+  second pass below adds three.)
 - Density rules gained a minimum-hits floor (3) after short files fired on a single
   normal-prose occurrence (one triad in a 201-word document hit 5.0/1000 words).
 - `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
@@ -129,7 +115,10 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 - v1: rubric
 - Travel-guide tone: "nestled", "vibrant", "boasts a", "groundbreaking", "renowned",
   "in the heart of", "diverse array". The word core rides `rule-ai-vocabulary`'s list; the tone
-  call is the rubric's.
+  call is the rubric's. "Breathtaking", "stunning" and "must-visit" are deliberately not in the
+  mechanical word core: they are travel-copy words with almost no technical-prose base rate here,
+  so a script rule for them would sit dead in this corpus while the rubric already catches the
+  register.
 
 ### rule-vague-attribution: Vague attributions and overgeneralization of opinions
 
@@ -172,8 +161,13 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
   "interplay", "landscape", "meticulous", "pivotal", "underscore", "tapestry", "testament",
   "valuable", "vibrant". Mid-2024 to mid-2025 adds "align with", "enhance", "fostering",
   "highlighting", "showcasing". Mid-2025 onward: "emphasizing", "enhance", "highlighting",
-  "showcasing". Shipped list is the union, config-extensible; the density threshold is the
-  calibrated condition.
+  "showcasing". **The shipped list is a deliberate narrowing of that union, not the union
+  itself** — it keeps the distinctive words and drops the ones with heavy legitimate technical
+  use: "additionally", "enhance", "emphasizing", "highlighting", "align with", "valuable", and
+  "landscape" as an abstract noun (the literal phrase "evolving landscape" is still caught by
+  `rule-significance-inflation`). A consuming repo that wants the full union adds them through
+  `vocab_add`. The list is config-extensible either way; the density threshold is the calibrated
+  condition.
 
 ### rule-copulative-avoidance: Avoidance of basic copulatives
 
@@ -243,10 +237,12 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 - applicability: general-prose
 - v1: recorded-only
 - Bold-lead-in bullets substituting for prose structure. Post-V1 script candidate; high overlap
-  with legitimate reference-doc style, needs careful calibration. Boundary refinement from the
-  Cursor source: the tell is a bold label whose colon restates the line ("**Performance:**
-  Performance improved..."); a bold lead-in that ends in a period, names the item, and is
-  followed by genuinely new detail is reference-doc style, not a tell.
+  with legitimate reference-doc style, needs careful calibration. **Calibration pre-work, not a
+  live boundary** (this entry is `recorded-only`, so neither layer runs it): the tell is a bold
+  label whose colon restates the line ("**Performance:** Performance improved..."); a bold
+  lead-in that ends in a period, names the item, and is followed by genuinely new detail is
+  reference-doc style, not a tell. Promoting this rule means running that boundary against a real
+  corpus first.
 
 ### rule-em-dash: Overuse of em dashes
 
@@ -586,32 +582,34 @@ Era-bound tells the source dates to earlier model generations. Catalogued for co
 
 ## Cursor unslop additions
 
-Tells adapted from the Cursor `unslop` skill (attribution block above) that the Wikipedia
-inventory does not already carry. The overlap map first, so the drift recheck can account for
-every upstream pattern; then the new entries.
+Tells from the `unslop` skill linked at the top of this file that the Wikipedia inventory does not
+already carry. The overlap map first, accounting for every upstream pattern; then the new entries.
 
 ### Overlap map
 
-Upstream patterns already covered by a Wikipedia-derived entry, or routed to the rewrite guide
-(fix-time guidance is not a tell inventory):
+Upstream patterns **catalogued by** a Wikipedia-derived entry, or routed to the rewrite guide
+(fix-time guidance is not a tell inventory). "Catalogued" is deliberately weaker than "covered":
+a row pointing at a `recorded-only` entry is bookkeeping, not detection — nothing runs it in
+either layer, and those rows say so.
 
 | Upstream pattern | Where it lives here |
 |---|---|
 | Puffery | `rule-significance-inflation` |
-| Name-dropping | `rule-vague-attribution` (rubric); `rule-canned-notability` records the Wikipedia-specific form |
+| Name-dropping | **Not detected — deliberately out of scope for general prose.** `rule-canned-notability` records the Wikipedia-specific form and is `recorded-only`; its own entry says there is no general-prose analogue worth a rule. Not `rule-vague-attribution`, which is the opposite tell (naming *no* source, not naming many with no content) |
 | Superficial -ing phrases | `rule-superficial-analysis` |
 | Promotional language | `rule-promotional-language` |
 | Vague attributions | `rule-vague-attribution` |
-| Formulaic challenges; generic conclusions | `rule-challenges-conclusion` (script core); optimism closers without the formula fall to the rubric via `rule-superficial-analysis` |
+| Formulaic challenges | `rule-challenges-conclusion` — the "Despite its X, faces challenges" formula its ERE actually matches |
+| Generic conclusions | **Only the formulaic half is detected**, by the row above. A bare optimism closer ("The future looks bright") matches no shipped rule: `rule-superficial-analysis` needs a present-participle tail and does not reach it |
 | AI vocabulary; prefer the plain word | `rule-ai-vocabulary` (the plain-word list joined the shipped vocabulary default; see the calibration record) |
 | Fancy ways to say "is" | `rule-copulative-avoidance` |
 | "Not just X, but Y" | `rule-negative-parallelism` |
 | Rule of three | `rule-rule-of-three` |
 | Synonym cycling | `rule-elegant-variation` |
 | Em dash overuse | `rule-em-dash`; the no-substitute-tell guardrail (no parentheses or en dashes in its place) is fix guidance in `rewrite-guide.md` |
-| Boldface overuse | `rule-bold-overuse` |
-| Inline-header lists | `rule-inline-header-lists` (its boundary refinement is from this source) |
-| Title case headings | `rule-title-case` |
+| Boldface overuse | `rule-bold-overuse` — `recorded-only`, so catalogued and dormant |
+| Inline-header lists | `rule-inline-header-lists` — `recorded-only`, so catalogued and dormant; the boundary refinement in that entry is calibration pre-work, not a live boundary |
+| Title case headings | `rule-title-case` — `recorded-only` here (the markdown linter lane owns heading structure) |
 | Decorative emojis | `rule-emoji-formatting` |
 | Curly quotes | `rule-curly-artifacts` |
 | Cutoff disclaimers | `rule-knowledge-cutoff-disclaimer` |
@@ -624,11 +622,11 @@ Upstream patterns already covered by a Wikipedia-derived entry, or routed to the
 - v1: script
 - Assistant chat-turn phrasing committed as document prose: "I hope this helps", "Let me know if
   you...", "Feel free to ask", "I'd be happy to", "Happy to help", and the sycophancy openers
-  "Great question" and "You're absolutely right". The phrase list is the script rule; overall
-  conversational or flattering tone without a listed phrase falls to the rubric alongside
-  `rule-collaborative-communication`. Merges the source's "chatbot phrases" and "sycophantic
-  tone" patterns; bare "Certainly!" and "Of course!" were left off the phrase list as too common
-  in legitimate prose.
+  "Great question", "You're absolutely right", and the false-triumph closer "Found the smoking
+  gun". The phrase list is the script rule; overall conversational or flattering tone without a
+  listed phrase falls to the rubric alongside `rule-collaborative-communication`. Merges the
+  source's "chatbot phrases" and "sycophantic tone" patterns; bare "Certainly!" and "Of course!"
+  were left off the phrase list as too common in legitimate prose.
 
 ### rule-filler-phrases: Filler phrases
 
@@ -674,8 +672,8 @@ Upstream patterns already covered by a Wikipedia-derived entry, or routed to the
 - v1: rubric
 - Metaphor nouns standing in for a plainer concrete word: "substrate", "wedge", "nexus", "locus",
   "vantage", "north star", "flywheel", "bedrock", "endgame", "gold-plating", plus "primitive",
-  "harness", "scaffolding", "vector", "surface", "ratchet", "paradigm", "modality" in their
-  metaphorical (not domain-literal) senses. The tell turns on the literal-versus-metaphor call:
+  "harness", "scaffolding", "vector", "surface", "ratchet", "paradigm", "modality", and
+  "evacuate" (for moving code) in their metaphorical (not domain-literal) senses. The tell turns on the literal-versus-metaphor call:
   "harness" naming an actual test harness is not a tell. Calibration kept this out of the script
   layer (see the calibration record's second pass). Replacements live in `rewrite-guide.md`.
 
