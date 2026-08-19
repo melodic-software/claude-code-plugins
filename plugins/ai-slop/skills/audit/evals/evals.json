@@ -56,8 +56,8 @@
     {
       "id": 5,
       "name": "rubric-findings-reach-the-report-not-the-findings-file",
-      "prompt": "/ai-slop:audit docs/example.md — the file contains promotional register (\"a vibrant, groundbreaking platform nestled in the heart of the stack\") and one em dash, but nothing else the detector matches.",
-      "expected_output": "Both layers report: the em dash appears as a script finding, and the promotional tone as a rubric finding citing its catalog entry. The persisted findings file carries the script finding ONLY — the rubric verdict never enters it, because a rubric tell has no crosswalk row to look a tier up from.",
+      "prompt": "/ai-slop:audit docs/example.md — the file contains promotional register (\"a breathtaking, must-visit dashboard sitting in the heart of the stack\") and one em dash. The promotional words are deliberately outside the mechanical vocabulary list, so the detector matches the em dash and nothing else.",
+      "expected_output": "Both layers report: the em dash appears as the single script finding, and the promotional tone as a rubric finding citing its catalog entry. The persisted findings file carries that one script finding ONLY — the rubric verdict never enters it, because a rubric tell has no crosswalk row to look a tier up from.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -82,8 +82,8 @@
     {
       "id": 7,
       "name": "triads-collapse-toward-the-strongest-item",
-      "prompt": "/ai-slop:audit fix docs/example.md — the file trips rule-of-three on \"the tool is fast, simple, and reliable\" and similar triads, where the three items are rhetorical rather than a complete set.",
-      "expected_output": "Each flagged triad collapses toward the single strongest item rather than being reworded into a three-item list with different punctuation. A triad whose three elements are individually load-bearing — a complete set the reader needs — is kept, with that judgment stated.",
+      "prompt": "/ai-slop:audit fix docs/example.md — the file trips rule-of-three on two kinds of triad. Rhetorical: \"the tool is fast, simple, and reliable\" and \"it reads clean, tight, and portable\". Load-bearing: \"the layers are managed policy, project settings, and the local overlay\" — a complete set the reader needs, where dropping one names a cascade that does not exist.",
+      "expected_output": "The two rhetorical triads collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The layer enumeration is KEPT intact, with that judgment stated — enumerating three actual things is not a tell.",
       "files": [],
       "narration": true,
       "expectations": [

@@ -17,6 +17,12 @@ over all 15 script rules; the judgment side had none, which is the half that onl
 - Every eval case carries `narration: true`. The four original cases named a prose path that
   resolves nowhere, which the skill-quality Q4 check warns on unless the case declares itself
   narrative.
+- Two eval scenarios corrected in review, both cases of a golden answer the scenario could not
+  produce: the rubric-boundary case used promotional words that are themselves in the mechanical
+  vocabulary list, so a second script finding fired and contradicted its own "one script finding"
+  answer (measured: 3 hits, density 142.9/1000); and the triad case demanded a load-bearing triad
+  be kept while supplying only rhetorical ones. Both scenarios now contain exactly what their
+  expectations grade.
 
 ## [0.2.0]
 
