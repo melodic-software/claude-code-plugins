@@ -227,6 +227,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | --- | --- | --- | --- |
 | [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory — what is there, what the product manages, what is stale |
 | [`/claude-ops:audit-performance`](../plugins/claude-ops/skills/audit-performance/SKILL.md) | `claude-ops` | continuous | Capture slowness evidence while slow — version, sweep health, tree walk, sessions, fleet |
+| [`/claude-ops:audit-skill-visibility`](../plugins/claude-ops/skills/audit-skill-visibility/SKILL.md) | `claude-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
 | [`/claude-ops:inventory`](../plugins/claude-ops/skills/inventory/SKILL.md) | `claude-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
 | [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions |
