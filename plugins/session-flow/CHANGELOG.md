@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.24.1]
+## [0.26.1]
 
 ### Fixed
 
@@ -28,7 +28,7 @@
   because the skill reported success. The hard-rule section now defines what STOP means and the one
   thing it never means, the gate's emit box is marked as never satisfied by having written the
   file, and its STOP box as reachable only once that box is genuinely ticked. The failure is
-  recorded in `context/gotchas.md` with its recovery (`find-handoff` rung 1), and eval 9
+  recorded in `context/gotchas.md` with its recovery (`find-handoff` rung 1), and eval 12
   (`rails-prompt-is-the-final-text-not-replaced-by-the-file`) pins the behavior under the
   high-occupancy condition none of the existing eight exercised.
 
@@ -40,6 +40,55 @@
   lightweight Stop-hook validator: `last_assistant_message` regex for the detection-contract
   signals, a PostToolUse skill-ran marker (never transcript parsing), one bounded block,
   fail-open, plus the hook-budget README share and a sibling contract test.
+## [0.26.0]
+
+### Added
+
+- **`handoff` — routing-signals table, session-chain use named first-class, do-not-duplicate and
+  promote-content rules, worktree caveat (refs #2956, AI Hero course lane 1 #2899).** "When to
+  invoke" now names the session-chain/retrospective use (save-point, `/clear`, fresh session,
+  with the `session_id`/`previous_handoff` chain `retro` walks) as a first-class owned use case
+  alongside the boundary-crossing taxonomy (colleague, other repo or checkout, other agent,
+  forked side task), and a compact routing-signals table maps situation to form: deep-window
+  escape with chain value takes the full file (the default); small follow-ups with no chain
+  value take prompt-only, accepting the documented retro-gap cost; a differing next-session
+  focus takes either form plus the purpose argument; AFK-but-work-continues routes to the
+  sibling `continue-in-background` skill; a machine that may go away routes to `clean-stop`
+  semantics; boundary crossing takes the full file plus purpose plus the `Handoff origin:` line.
+  The skill body states the general do-not-duplicate rule (content captured in specs, plans,
+  ADRs, issues, commits, or diffs is referenced by path or URL, never restated — the existing
+  "Summarize; never transcribe" guidance stated as a general rule, mirroring upstream) and the
+  promote-content-never-file rule (durable value is promoted into a committed artifact — topic
+  contract, issue, PR body — while the handoff file stays ephemeral and uncommitted; cleanup of
+  `handoffs/` remains user-controlled removal, never silent expiry). The engine doc's
+  destination section (`reference/save-point.md`) gains the worktree caveat: a save-point
+  written inside a worktree checkout lives in that worktree's memory root and dies with
+  `git worktree remove` — acceptable only when the worktree completes as a merged PR unit; when
+  pausing un-merged worktree work, write from the main checkout or rely on `clean-stop`'s
+  preserve-before-remove step. `find-handoff`'s detection contract is untouched. Adopted per the
+  lane 1 decisions (`docs/upstream/aihero-course.md`, lane 1).
+
+## [0.25.0]
+
+### Added
+
+- **`handoff` / `continue-in-background` — optional trailing purpose argument (refs #2955,
+  AI Hero course lane 1 #2899).** Both producers' surface extends from `[file|prompt] [topic]` to
+  `[file|prompt] [topic] [purpose...]`: everything after the topic token is optional
+  natural-language purpose text answering "what will the next session be used for?" — no quoting,
+  no new syntax, and existing invocations parse identically. The engine doc
+  (`reference/save-point.md`, "The purpose argument tailors emphasis only") owns the semantics:
+  purpose tailors emphasis only — the Resumption brief leads with it, Suggested skills are
+  selected for it, Remaining actions are ordered by it where ordering is otherwise free — and it
+  never drops or reorders the mandatory section set, never alters the emitted resume-prompt shape
+  (`find-handoff`'s detection contract is untouched), and never amends the Original goal: a
+  purpose that contradicts the goal is flagged at write time, not silently obeyed. On the
+  prompt-only path — which writes none of the tailoring surfaces and can hand the rails block to
+  a background agent as the only thing it sees — a stated purpose travels inline between the
+  rails as a `Purpose:` line below the goal quote, never discarded (content between the rails,
+  not a detection-contract shape change). Adopted from upstream `mattpocock/skills` `handoff`'s
+  purpose argument per the lane 1 decision (`docs/upstream/aihero-course.md`, lane 1). Three eval
+  cases cover the tailoring bounds, the conflict flag, and the prompt-only carriage.
 
 ## [0.24.0]
 

@@ -1,6 +1,7 @@
 ---
 description: "Batch-run simplification across changed files — or across an entire repository — grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', 'simplify the whole repo', or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup — use /simplify instead."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[time-window | branch | repo] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo — default: 48h)"
 shell: bash
 metadata:

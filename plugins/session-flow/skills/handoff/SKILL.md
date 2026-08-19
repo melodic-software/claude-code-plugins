@@ -1,6 +1,6 @@
 ---
 description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the user reports the session is heavy, a context-measuring mechanism says to fork, or your own responses are visibly drifting, repeating, or looping. Never on your own estimate of the remaining window — a budget reading is not a decay signal. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
-argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff file phase-3)"
+argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -40,7 +40,7 @@ different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic]` — both optional and positional:
+`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]` — all optional and positional:
 
 - **Method** (`file` | `prompt`) — recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
@@ -48,6 +48,11 @@ different delivery.
 - **Topic** — short kebab slug for the filename. When the first token is not a method keyword it IS
   the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
+- **Purpose** — everything after the topic token is optional natural-language purpose text
+  answering "what will the next session be used for?" — no quoting, no new syntax, and
+  invocations without it parse exactly as before. What purpose is allowed to change (emphasis
+  only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
+  emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
 ## Hard rule — handoff ALWAYS terminates current execution
 
@@ -93,13 +98,27 @@ specifically (e.g. "don't `/clear` between phases, keep going").
   fork (`context-guard`'s zone report is one) — never your own estimate of the remaining window
 - Quality degrading (context rot) — responses drifting, repeating, or looping. This is the signal
   that is yours to read, because decay shows up in the output and never in a budget number
+- Extending the session chain — the deliberate escape-and-resume cadence (save-point, `/clear`,
+  fresh session) whose handoff files carry the `session_id`/`previous_handoff` chain that
+  `/session-flow:retro` later walks for retrospective reconstruction. A first-class use this
+  skill owns, not a byproduct of the others
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
 - Last turn had an unexpected compaction
+- Crossing a boundary — handing the work to a colleague, another repository or checkout, or
+  another agent, or forking a mid-phase side task into its own session
 - Sharing state with another session or machine
 
-Going AFK but the work should keep moving → that is the sibling
-`/session-flow:continue-in-background` skill's job, and only on the user's explicit request.
+### Routing signals — which form to use when
+
+| Situation | Route |
+|---|---|
+| Deep-window escape with session-chain value | Full handoff file — the default |
+| Small follow-ups, no chain value | Prompt-only — accepting its documented retro-gap cost (no file, no chain pointer for `/session-flow:retro` to walk) |
+| The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
+| Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill — only on the user's explicit request |
+| The machine itself may go away | `/session-flow:clean-stop` semantics — make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
+| Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries — the line the other side re-resolves the file from. The file itself is memory-tier and gitignored — visible only in the checkout that wrote it — so when the other side cannot read that checkout, it must travel out-of-band (send the file with the prompt, or promote its substance into an artifact the other side can read, per the promote rule below) |
 
 ## Fork beats compaction when the window is deep
 
@@ -116,6 +135,23 @@ matters, chosen deliberately, while a compaction summary carries forward whateve
 happened to keep, and the degradation that prompted the move rides along into the continued
 session. Judge the threshold by window position and response quality, never by a fixed token count
 — it shifts with model and configuration.
+
+## Reference other artifacts; promote durable value — never commit the file
+
+**Do not duplicate content captured in another artifact.** Content that already lives in a durable
+artifact — a spec, plan, ADR, issue, commit, or committed diff — is referenced by path or URL,
+never restated in the save-point. The engine's per-section guidance ("Summarize; never transcribe"
+in the structure doc's file-roles section) is this rule applied locally; it holds across the whole
+save-point, on both paths. Uncommitted or half-finished edits remain the exception that same
+file-roles section owns: they have no commit to reference, so their state — which part is
+implemented and working, which part is not — is described in the save-point, the one place it
+exists.
+
+**Promote the content, never the file.** When a handoff carries durable value — a decision, a
+constraint, a finding worth keeping beyond this task — promote that substance into a committed
+artifact (a topic contract, an issue, a PR body) and reference it from there. The handoff file
+itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
+user-controlled removal — nothing expires, sweeps, or ages these files out silently.
 
 ## Produce the save-point
 
@@ -168,6 +204,10 @@ before ending the turn, always.
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring
+  rules — the Resumption brief leads with it, Suggested skills are selected for it, Remaining
+  actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
+  goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file by its **absolute**,
   forward-slash-normalized path — never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd — with the `Handoff origin:` line naming the repository
@@ -190,6 +230,10 @@ before ending the turn, always.
 - [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
+  the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
+  emphasis only") — never discarded; a goal-conflicting purpose flagged rather than obeyed. No
+  purpose given → nothing to tick
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
 - [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
   note re-arming EVERY surviving loop — one `/loop [<interval>] <original prompt>` line per loop,

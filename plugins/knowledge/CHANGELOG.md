@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.2]
+
+### Added
+
+- **`book-distill`: first eval suite (#2968).** Six cases pinning the Phase 1 setup shape, the
+  read-one-write-one interleave, the untrusted-source-text posture, filename slugification against
+  path traversal, the EPUB package-document/spine path, and the copyright caution that leaves the
+  rights decision with the user. Required because the skill gate demands evals for any skill whose
+  SKILL.md changes.
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `book-distill` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.13.1]
 
 ### Changed

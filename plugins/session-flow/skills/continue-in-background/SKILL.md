@@ -1,6 +1,6 @@
 ---
 description: "Delegate the task to a fresh background agent that continues it NOW — produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request — never self-elected."
-argument-hint: "[file|prompt] [topic] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3)"
+argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -42,12 +42,17 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic]` — both optional and positional, with the same
-semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token, otherwise
-auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted. Before the
+`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]` — all optional and positional, with the
+same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
+otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
+everything after the topic token is optional natural-language purpose text ("what will the next
+session be used for?") — no quoting, no new syntax, invocations without it parse exactly as
+before, and its emphasis-only tailoring rules are owned by the engine doc ("The purpose argument
+tailors emphasis only"). Parse purpose from `$ARGUMENTS` in place, never pre-compute. Before the
 resolved topic is embedded anywhere (filename, `--name` flag), sanitize it to `[a-z0-9-]` only —
 strip or replace every other character — so a crafted slug cannot smuggle quotes or extra flags
-into the launch command.
+into the launch command. Purpose text is never embedded in the launch command at all — it shapes
+the save-point's content, and the agent receives only the rails prompt.
 
 ## Produce the save-point
 
@@ -159,6 +164,11 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 
 - [ ] Explicit user intent for background delegation verified (hard gate) — absent intent →
   save-point + `/clear`-then-paste exit, no launch, reason stated
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring rules
+  — full path: brief lead, Suggested-skills selection, Remaining-actions order; prompt-only: the
+  inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
+  the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
+  launch command. No purpose given → nothing to tick
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; other uncommitted changes without the linked-worktree exception → no launch, reason

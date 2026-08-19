@@ -43,7 +43,7 @@ PARTIAL / REJECTED / OPEN.
 | B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED | #2935 |
 | C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
 | D | Two-axis review, spec lens, close-out review | C12–C16 | review:quality-gate/fanout | OPEN | #2937 |
-| E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | OPEN | #2949 |
+| E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
 | X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
@@ -99,6 +99,24 @@ consumer-configurable throughout.
   wrongly scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
 - **C20 ALREADY-PRESENT**: map body is a stable index not a mirror; Decisions-so-far is a
   pointer INDEX; Notes are links not recaps — recorded here, not restated in the skill docs.
+
+## Lane E (#2949)
+
+- **Rerouting recipe ADOPTED** (course "Rerouting" lesson) as a documented **re-decompose**
+  flow in `work-items:decompose` — a usage pattern of existing seam verbs, not a new
+  capability or skill: close unimplemented children not-planned with a superseding-direction
+  comment, keep implemented children untouched, re-interview/edit the spec, regenerate the
+  remaining slices through the normal draft→approve→publish steps, continue.
+  `/work-items:ship` routes to it when slices no longer fit the spec.
+- **Disposable-tickets / editable-spec doctrine ADOPTED** verbatim: slices are projections of
+  the spec at decomposition time; when the spec moves, stale projections are closed and
+  regenerated, never hand-patched.
+- **Reroute boundary ADOPTED**: post-ship wrongness is a new idea → new spec (new container or
+  topic), never a patch to the closed one — aligned with the archival-by-closure drift
+  doctrine (Lane A). Added beyond the course: small drift is an ordinary body edit, not a
+  reroute; claimed in-flight items are coordinated with, not closed from under their holder.
+- **Both spec homes covered**: the flow works against the topic Brief (no container) and the
+  tracker container body (Lane A's spec-on-tracker model).
 
 ## Decided at interview (2026-08-17, not per-lane)
 
