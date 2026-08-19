@@ -411,7 +411,7 @@ of it.
 - `bash scripts/check-shell-portability.sh origin/main`, `bash scripts/check-skill-portability.sh origin/main`, and `bash scripts/check-changed-skills.sh origin/main` all exit 0 — this phase writes the bulk of the new markdown, including shell snippets and path globs.
 - `npx markdownlint-cli2 plugins/code-tidying/skills/batch-simplify/context/repo-mode.md` reports 0 issues.
 
-### Phase 4: Doctrine reconciliation [TODO]
+### Phase 4: Doctrine reconciliation [DONE]
 
 Three places where shipping repo mode without an edit would leave the marketplace self-contradictory.
 
