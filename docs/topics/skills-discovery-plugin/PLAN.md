@@ -424,7 +424,17 @@ access to one phase.
 - **Sanity Check:** the double-count fixture asserts the reconciled total equals the max and not the
   sum; `jq -e '.tier' <json>` exits 0 and its value matches the sources actually present.
 
-### Phase 5: Churn cross-reference [TODO]
+### Phase 5: Churn cross-reference [DONE]
+
+**Completed 2026-08-18.** This phase existed only because plan review found acceptance criteria 11
+and 12 had no phase at all. Sanity-check evidence, proved against a real temp git repo rather than
+asserted: `--follow` recovers history a rename severs (followed commit count > plain count), and
+`authored_at` comes from the committer date even when the file's mtime is pushed 30 days into the
+future — the fresh-clone condition that makes mtime report the whole fleet as authored today. An
+untracked path returns `None`, and `jq '[.skills[]|select(.churn==null)]|length > 0'` confirms
+non-authored rows render blank rather than 0. Label guard passes: `grep -qi "wasted"` finds nothing
+in the rendered section. 48 unit tests green; `ruff` clean; `check-skill.sh --require-evals` PASS,
+0 errors 0 warnings.
 
 Added in plan review: acceptance criteria 11 and 12 had **no phase at all** in the pre-review draft.
 

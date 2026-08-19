@@ -553,5 +553,111 @@ class OtelSourceTest(unittest.TestCase):
         self.assertIsNone(events[0]["skill"])
 
 
+class ChurnPassthroughTest(unittest.TestCase):
+    """Churn is authoring effort, not use. Blank and zero are different facts."""
+
+    def _row(self, churn):
+        now = _utc(2026, 8, 18)
+        entry = _skill("a:one")
+        entry["frontmatter"] = {"description": "d"}
+        entry["plugin_enabled"] = True
+        if churn is not None:
+            entry["churn"] = churn
+        model = engine.classify(
+            denominator=[entry],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        return model["skills"][0]
+
+    def test_not_locally_authored_is_blank_never_zero(self):
+        row = self._row(None)
+        self.assertIsNone(row["churn"])
+
+    def test_locally_authored_carries_commits_and_authored_at(self):
+        row = self._row({"commits": 7, "authored_at": "2026-08-12T10:00:00+00:00"})
+        self.assertEqual(row["churn"]["commits"], 7)
+        self.assertEqual(row["churn"]["authored_at"], "2026-08-12T10:00:00+00:00")
+
+
+class ChurnGitReaderTest(unittest.TestCase):
+    """Proves the two git mechanics against a real repo, not by assertion.
+
+    Both were verified defects during design: filesystem mtime is CHECKOUT time
+    rather than authoring time, and without `--follow` a renamed file reports
+    only its post-rename history -- this repo demonstrably ports skills between
+    plugins.
+    """
+
+    def setUp(self):
+        import shutil
+        import subprocess
+        import tempfile
+
+        if not shutil.which("git"):
+            self.skipTest("git not available")
+        self.tmp = tempfile.mkdtemp()
+        self.run = lambda *a: subprocess.run(
+            a, cwd=self.tmp, check=True, capture_output=True, text=True
+        )
+        self.run("git", "init", "-q")
+        self.run("git", "config", "user.email", "t@example.com")
+        self.run("git", "config", "user.name", "t")
+        self.run("git", "config", "commit.gpgsign", "false")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _write(self, name, text):
+        import pathlib
+
+        pathlib.Path(self.tmp, name).write_text(text, encoding="utf-8")
+
+    def test_follow_survives_a_rename_and_plain_log_does_not(self):
+        self._write("old.md", "one")
+        self.run("git", "add", "old.md")
+        self.run("git", "commit", "-qm", "first")
+        self._write("old.md", "two")
+        self.run("git", "add", "old.md")
+        self.run("git", "commit", "-qm", "second")
+        self.run("git", "mv", "old.md", "new.md")
+        self.run("git", "commit", "-qm", "rename")
+
+        followed = engine.read_churn(self.tmp, "new.md")
+        plain = engine.read_churn(self.tmp, "new.md", follow=False)
+        self.assertGreater(
+            followed["commits"],
+            plain["commits"],
+            "--follow must recover history severed by the rename",
+        )
+
+    def test_authored_at_is_committer_date_not_filesystem_mtime(self):
+        import os
+        import time
+
+        self._write("a.md", "one")
+        self.run("git", "add", "a.md")
+        self.run("git", "commit", "-qm", "first")
+        # Touch the file far into the future, as a fresh clone's mtime would be.
+        future = time.time() + 86_400 * 30
+        os.utime(f"{self.tmp}/a.md", (future, future))
+
+        churn = engine.read_churn(self.tmp, "a.md")
+        authored = datetime.fromisoformat(churn["authored_at"])
+        self.assertLess(
+            authored.timestamp(),
+            future,
+            "authored_at must come from the committer date, not mtime",
+        )
+
+    def test_untracked_path_is_blank_not_zero(self):
+        self._write("untracked.md", "x")
+        self.assertIsNone(engine.read_churn(self.tmp, "untracked.md"))
+
+
 if __name__ == "__main__":
     unittest.main()

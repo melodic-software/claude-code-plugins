@@ -175,6 +175,40 @@ def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
     return events, horizon
 
 
+def read_churn(repo_root: str, rel_path: str, follow: bool = True) -> dict | None:
+    """Authoring churn for one file, from git history.
+
+    Two mechanics are deliberate, and both were verified defects during design:
+
+    - **`--follow`**, because a rename severs a path's history and this repo
+      demonstrably ports skills between plugins. Without it a ported skill
+      reports only the commits since its move.
+    - **committer date, never filesystem mtime.** In a fresh clone every file's
+      mtime is the checkout time, which would report the whole fleet as authored
+      today.
+
+    Returns ``None`` -- blank, not zero -- when the path has no history here. A
+    skill authored in another repo has no measurement; it has not been "touched
+    zero times".
+    """
+    import subprocess
+
+    args = ["git", "-C", repo_root, "log", "--format=%cI"]
+    if follow:
+        args.append("--follow")
+    args += ["--", rel_path]
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    dates = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not dates:
+        return None
+    return {"commits": len(dates), "authored_at": dates[0]}
+
+
 @dataclass(frozen=True)
 class ListingConfig:
     """Inputs to the skill-listing budget, all documented.
@@ -464,6 +498,9 @@ def classify(
                     "ambiguous-attribution" if seen[name] > 1 else "unambiguous"
                 ),
                 "reachability": reachability(entry),
+                # Blank, not zero: a skill authored elsewhere has no
+                # measurement, which is a different fact from never-touched.
+                "churn": entry.get("churn"),
                 "starvation": {
                     k: v
                     for k, v in starvation_by_name.get(name, {}).items()
@@ -574,6 +611,34 @@ def _render_markdown(model: dict) -> str:
             f"(bundled, name-only, and user-only skills spend no budget)",
             "",
         ]
+    authored = [s for s in model["skills"] if s.get("churn")]
+    if authored:
+        lines += ["## Authoring churn (cross-reference)", ""]
+        # The label is load-bearing. In a public marketplace, skills are
+        # authored FOR CONSUMERS, so the author's own non-use of a skill they
+        # wrote is the expected case -- not effort thrown away. Reading this
+        # quadrant as waste would invert what it means.
+        lines += [
+            "How much each skill was *authored* here, cross-referenced with how",
+            "much it is *used* here. These measure different things: in a",
+            "marketplace repo a skill is written for the people who install it,",
+            "so high authoring effort beside low local use is the normal case and",
+            "not effort thrown away. Read it as a prompt to check the skill is",
+            "reachable, not as a scrap heap.",
+            "",
+            "Skills authored in another repo show blank rather than zero — no",
+            "measurement is a different fact from never touched.",
+            "",
+        ]
+        for row in sorted(authored, key=lambda r: -r["churn"]["commits"])[:10]:
+            churn = row["churn"]
+            lines.append(
+                f"- `{row['qualified_name']}` — {churn['commits']} commits, "
+                f"last authored {churn['authored_at'][:10]}, "
+                f"observation: {row['observation']['value']}"
+            )
+        lines.append("")
+
     if model["withheld"]:
         lines += [
             "## Withheld",
