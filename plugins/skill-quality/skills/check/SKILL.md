@@ -224,7 +224,9 @@ and review against the invariant.
 - Check 24 (explicit invocation mode) FAILs a marketplace plugin skill (`plugins/*/skills/*`) whose
   frontmatter omits `disable-model-invocation`, and only WARNs anywhere else: the absent-key default
   is already `false`, so a consumer's own skill is informed by this fleet's convention rather than
-  broken by it. A non-boolean value FAILs everywhere. The rubric that owns the decision — the
+  broken by it. A non-boolean value FAILs everywhere: the check reads the bare scalar, so a quoted
+  `"false"` fails as the YAML string it is, while a trailing `# comment` naming the exception class
+  is fine. The rubric that owns the decision — the
   model-invoked default and the only three exception classes a `true` may claim — is
   [`docs/conventions/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
   Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class

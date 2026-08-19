@@ -2849,6 +2849,80 @@ else
   fail "non-boolean value should fail (rc=$rc): $out"
 fi
 
+# 24d-quoted. A QUOTED boolean is a YAML string, not the boolean the key takes —
+#      stripping the quotes before validating would let malformed invocation
+#      metadata ship while the check reported PASS.
+make_skill dmi-quoted-value '---
+name: dmi-quoted-value
+description: "Quote the mode. Use when: '"'"'quoting the mode'"'"'."
+disable-model-invocation: "false"
+---
+
+## Purpose
+
+A skill whose invocation mode is a quoted string.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-quoted-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'quoted string' <<<"$out"; then
+  pass "a quoted boolean fails as the YAML string it is"
+else
+  fail "quoted boolean should fail (rc=$rc): $out"
+fi
+
+# 24d-internal-space. Whitespace is trimmed at the ends only. Deleting it
+#      wholesale would splice a scalar broken by an internal space back into a
+#      passing boolean.
+make_skill dmi-split-value '---
+name: dmi-split-value
+description: "Split the mode. Use when: '"'"'splitting the mode'"'"'."
+disable-model-invocation: fa lse
+---
+
+## Purpose
+
+A skill whose invocation mode carries an internal space.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-split-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'expected the boolean true or false' <<<"$out"; then
+  pass "internal whitespace is not collapsed into a passing boolean"
+else
+  fail "internally-spaced value should fail (rc=$rc): $out"
+fi
+
+# 24d-comment. A trailing YAML comment is the sanctioned way to record which
+#      exception class a `true` claims, so it must not turn the value invalid.
+make_skill dmi-commented-value '---
+name: dmi-commented-value
+description: "Annotate the mode. Use when: '"'"'annotating the mode'"'"'."
+disable-model-invocation: true # class (i) — mutating fleet sync, manual timing
+---
+
+## Purpose
+
+A skill annotating its exception class inline.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-commented-value 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'hand-verify it against an exception class' <<<"$out"; then
+  pass "a trailing exception-class comment leaves the boolean valid"
+else
+  fail "commented boolean should stay valid (rc=$rc): $out"
+fi
+
 # 24e. A non-setup `true` is noted for hand-verification against the exception
 #      classes — never warned, because no static scan can clear it.
 make_skill dmi-true-nonsetup '---
