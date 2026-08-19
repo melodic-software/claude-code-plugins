@@ -17,6 +17,21 @@
   institutionalize dropping the re-arm). Both paths' `EXECUTION STOPS HERE` items now point at the
   rule.
 
+  **The ambiguity that let it happen is fixed at its source, in the STOP gate itself.** Ordering
+  alone treated the symptom: the deeper defect was that "the skill produces the save-point, THEN
+  STOPS" reads, to a reader under load, as "the save-point is the file" — making STOP the next act
+  once the file lands, in the single most emphatic section of the document. The engine says the
+  opposite ("A resume prompt is ALWAYS emitted. The only decision is whether to ALSO write a
+  durable handoff file"), so the prompt is the MANDATORY half of a save-point and the file the
+  optional one, and the observed failure delivered the optional half while dropping the required
+  one — leaving the operator a `/clear` they cannot resume from, worse than never running the skill
+  because the skill reported success. The hard-rule section now defines what STOP means and the one
+  thing it never means, the gate's emit box is marked as never satisfied by having written the
+  file, and its STOP box as reachable only once that box is genuinely ticked. The failure is
+  recorded in `context/gotchas.md` with its recovery (`find-handoff` rung 1), and eval 9
+  (`rails-prompt-is-the-final-text-not-replaced-by-the-file`) pins the behavior under the
+  high-occupancy condition none of the existing eight exercised.
+
   **Escalation ladder, recorded here on purpose:** this is the deliberately minimal fix — two
   fresh-context validators challenged a proposed deterministic Stop-hook enforcement as premature
   (single observed occurrence; the full path is already recoverable via `find-handoff` rung 1; the

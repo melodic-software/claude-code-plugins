@@ -56,14 +56,25 @@ save-point, THEN STOPS. It does NOT keep executing the underlying task in the cu
 defeats the purpose. STOP is the default and near-universal outcome — NEVER unlocked by the user
 having listed multiple steps, nor by the remaining work being "small".
 
+**What STOP means, and the one thing it never means.** STOP ends the UNDERLYING TASK. It never ends
+the response before the resume prompt is on screen, because emitting that prompt is not work that
+follows the save-point — it IS the save-point. The engine is explicit that the prompt is the
+mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only decision
+is whether to ALSO write a durable handoff file." So a turn that writes the file and stops has
+delivered the optional half and dropped the required one — the operator is left holding a `/clear`
+they cannot resume from, which is strictly worse than never having run the skill, since the skill
+reports success. This is an observed failure, not a hypothetical (`context/gotchas.md`). Until the
+rails prompt is in the response, the save-point does not exist and STOP has not been reached.
+
 **Mandatory STOP gate (walk every box):**
 
 - [ ] Path chosen (full vs prompt-only) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
-  resume prompt")
+  resume prompt") — the box that is never satisfied by having written the file
 - [ ] `/clear`-then-paste instruction surfaced to the user
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
-  session ends as far as the task is concerned
+  session ends as far as the task is concerned — reachable only once the box above is genuinely
+  ticked, never as the act that replaces it
 
 **NOT authorization to continue (these all STOP):**
 
