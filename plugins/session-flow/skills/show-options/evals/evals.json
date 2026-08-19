@@ -86,7 +86,7 @@
       ]
     },
     {
-      "id": 8,
+      "id": 7,
       "name": "downstream-relevant-skills-land-in-later-not-dropped",
       "prompt": "I'm just starting on this feature — nothing written yet. What should I run next?",
       "expected_output": "Skills that are in-domain but beyond the Next horizon — testing, review, and verification skills at the start of a feature — appear in the Later bucket as bare invocation names with a count, rather than being dropped for fitting no bucket. Later renders tier 2 only, so it costs about a line. Out-of-domain skills (songwriting, Kindle tooling) are still omitted.",
@@ -100,7 +100,7 @@
       ]
     },
     {
-      "id": 9,
+      "id": 8,
       "name": "installed-but-disabled-plugin-is-annotated",
       "prompt": "What are my options? (A plugin is present in the cache but not in enabledPlugins.)",
       "expected_output": "Skills from the installed-but-disabled plugin are named with an annotation such as (plugin not enabled), rather than being listed as runnable or silently dropped. The skill reconciles inventory's installed_plugins against enabled_plugins and says which set it used.",
@@ -114,7 +114,7 @@
       ]
     },
     {
-      "id": 7,
+      "id": 9,
       "name": "durable-state-outranks-a-thin-conversation",
       "prompt": "What should I run next? (The conversation was compacted a while ago and reads thin, but the branch has an approved plan on disk and an open PR.)",
       "expected_output": "The skill derives its buckets from the durable reads — the plan artifact, git state, the open PR — rather than from the sparse conversation, and routes to /session-flow:orient for that state instead of running a probe of its own.",

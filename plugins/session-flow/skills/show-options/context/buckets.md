@@ -3,7 +3,7 @@
 How `show-options` sorts the resolved catalog into five buckets and renders them in two tiers. The
 two rules in `SKILL.md` govern *presence*; everything here governs *order*, *grouping*, and *shape*.
 
-## Why four, and why not the obvious four
+## Why five, and why not the obvious four
 
 An earlier cut of this design used **Backfill / Now / Next / Standing**. Built out against a real
 ~140-skill catalog at a real moment (a pre-PR session), it measured:
@@ -25,9 +25,10 @@ buckets were structurally broken rather than merely large:
   made is upstream by construction, so "could still be run for a decision already made" selected the
   entire early catalog — 27 items, of which about two were genuinely useful.
 
-The current four keep the two that earned their place and replace the two that did not.
+The current five keep the two that earned their place, replace the two that did not, and add
+`Later` — the catch-all whose absence would have made the never-omit rule unsatisfiable.
 
-## The four
+## The five
 
 ### Now
 
