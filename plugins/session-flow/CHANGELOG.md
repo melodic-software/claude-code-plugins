@@ -1,5 +1,46 @@
 # Changelog — session-flow plugin
 
+## [0.26.1]
+
+### Fixed
+
+- **`handoff` — the rails resume prompt is now the mandated final text of the response.** Observed
+  failure (owner report, high context occupancy): the handoff file was written correctly but the
+  turn ended without ever emitting the copy/paste rails prompt, leaving the operator nothing to
+  paste after `/clear` — a turn-termination failure, not a content failure. The post-write
+  checklist previously implied ticks after the rails, so the response tail was checklist
+  bureaucracy ending on "**EXECUTION STOPS HERE**" — a salient stop cue reachable before the rails
+  were ever emitted. The output order is now fixed and stated as a hard rule: ticked checklist
+  first, then the rails prompt plus every below-the-rails `/loop` re-arm note as the last text of
+  the turn, with nothing after (the below-rail notes are included deliberately — the engine's
+  detection contract names them part of the recoverable unit, so a bare "rails last" mandate would
+  institutionalize dropping the re-arm). Both paths' `EXECUTION STOPS HERE` items now point at the
+  rule.
+
+  **The ambiguity that let it happen is fixed at its source, in the STOP gate itself.** Ordering
+  alone treated the symptom: the deeper defect was that "the skill produces the save-point, THEN
+  STOPS" reads, to a reader under load, as "the save-point is the file" — making STOP the next act
+  once the file lands, in the single most emphatic section of the document. The engine says the
+  opposite ("A resume prompt is ALWAYS emitted. The only decision is whether to ALSO write a
+  durable handoff file"), so the prompt is the MANDATORY half of a save-point and the file the
+  optional one, and the observed failure delivered the optional half while dropping the required
+  one — leaving the operator a `/clear` they cannot resume from, worse than never running the skill
+  because the skill reported success. The hard-rule section now defines what STOP means and the one
+  thing it never means, the gate's emit box is marked as never satisfied by having written the
+  file, and its STOP box as reachable only once that box is genuinely ticked. The failure is
+  recorded in `context/gotchas.md` with its recovery (`find-handoff` rung 1), and eval 12
+  (`rails-prompt-is-the-final-text-not-replaced-by-the-file`) pins the behavior under the
+  high-occupancy condition none of the existing eight exercised.
+
+  **Escalation ladder, recorded here on purpose:** this is the deliberately minimal fix — two
+  fresh-context validators challenged a proposed deterministic Stop-hook enforcement as premature
+  (single observed occurrence; the full path is already recoverable via `find-handoff` rung 1; the
+  false-positive cost of blocking a stop lands at exactly the degraded occupancy the skill runs
+  under). If the rails prompt goes missing again after this reorder, the agreed next step is a
+  lightweight Stop-hook validator: `last_assistant_message` regex for the detection-contract
+  signals, a PostToolUse skill-ran marker (never transcript parsing), one bounded block,
+  fail-open, plus the hook-budget README share and a sibling contract test.
+
 ## [0.26.0]
 
 ### Added
