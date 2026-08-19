@@ -5,6 +5,30 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.16]
+
+### Added
+
+- **The auto-compact configuration surfaces and their interplay with zones are now documented
+  (#2995).** `reference/reader-contract.md` said no auto-compaction threshold is documented and
+  stopped there, which left readers with the impression that the trigger is entirely opaque. The
+  *default* is unpublished, but the trigger is operator-tunable, and none of the surfaces that tune
+  it appeared anywhere in the plugin. The contract now names all three — `autoCompactWindow`
+  (`settings.json`, 100,000–1,000,000 tokens, no numeric default), `CLAUDE_CODE_AUTO_COMPACT_WINDOW`
+  (environment, highest precedence), and `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` — each
+  verified 2026-08-17 against two independent pools (the official settings reference and the shipped
+  binary's schema strings). Added with them: the **bands-below-the-trigger** rule and its rationale
+  (a firing means the boundary decision was reached too late), the explicit position that
+  auto-compact nonetheless stays *enabled* as a last-resort safety net because unattended sessions
+  have no human at the boundary, and the vendored Boris §64 rot figure recorded as a named
+  practitioner anchor — carrying its Opus 5 amendment — never as an adopted number. The README
+  points at the contract for all of it. Documentation only; no behavior change.
+- **The evidence-degraded marker's `trigger` field now has consumer guidance.** The field's values
+  were documented; what a consumer should *do* with them was not. The contract now states that
+  consumers deliberately do not differentiate on `trigger` (evidence degradation is
+  trigger-independent) and records the track-on-event condition under which that stance would be
+  revisited, with the recorded field as its observable.
+
 ## [0.7.15]
 
 ### Fixed
