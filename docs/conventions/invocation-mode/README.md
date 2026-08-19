@@ -121,7 +121,7 @@ setup skills are class (ii) by contract; the 141
 | `dometrain:sync` | (iii) maintainer-only | KEEP `true` |
 | `education:teach` | (i) deliberate mode-entry, persistent coaching state | KEEP `true` |
 | `firecrawl:update` | (iii) maintainer-only | KEEP `true` |
-| `planning:questionnaire` | none — no side effects, not setup, not maintainer-only | **FLIP → `false`** (filed as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969)) |
+| `planning:questionnaire` | none — no side effects, not setup, not maintainer-only | **FLIPPED → `false`** ([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969); the re-check for a latent rationale found none — see below) |
 | `playbooks:update` | (iii) maintainer-only | KEEP `true` |
 | `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` |
 
@@ -130,6 +130,29 @@ the enforcement criterion shipped alongside them as `skill-quality:check` **chec
 [#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), filed rather than
 edited in-lane. Fleet after that normalization (2026-08-19): 220 top-level skills = 161 `false` /
 0 missing key / 59 `true`.
+
+**The one flip, and the latent rationale it was re-checked against (2026-08-19, #2969).** The grade
+found no exception class for `planning:questionnaire`, so the flip was gated on first looking for a
+reason the grade could not see. The candidate was a trigger collision with `planning:interview` —
+both plausibly firing on "I need to ask…"-shaped requests. There is none: the two are separated by
+*who holds the knowledge*, and each description already routes to the other on that axis
+(`questionnaire` says to run `/planning:interview` when the user can answer themselves;
+`interview`'s phrases — "ask me questions first", "what do you need to know" — are about
+interrogating the user, while `questionnaire`'s phrases name the third-party holder who is asked in
+the user's place). Two costs of the `true` surfaced instead, both now paid: its trigger phrases were
+deliberately left unoptimized because a
+hidden skill's description is never matched against user text (planning CHANGELOG 0.30.1), and its
+own description advertises a hand-off from an interview branch that the invocation-reach invariant
+made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 `true` = 48 `*:setup`
+plus 10 non-setup.
+
+**One of those 10 is not graded above, and this is where that is recorded.**
+`session-flow:show-options` landed 2026-08-18, a day after the grade, so the table's population
+predates it and the ADR 0005 bound leaves it unswept rather than silently covered. Its `true` is
+therefore un-attributed to any exception class as of this writing — check 24 emits its
+hand-verify note for exactly this case. Grading it is filed as
+[#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); the other nine
+carry the verdicts in the table.
 
 ## Cross-references
 
