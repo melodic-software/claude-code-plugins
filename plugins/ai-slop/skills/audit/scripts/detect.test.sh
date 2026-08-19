@@ -13,6 +13,19 @@ DETECT="$SCRIPT_DIR/detect.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
+# Fixture CONFIG isolation, the same idea as the git isolation above and found
+# the same way: detect.sh resolves its config cascade from $HOME and from
+# CLAUDE_PROJECT_DIR (falling back to the CWD's git toplevel), so running this
+# suite inside a repo that ships `.claude/ai-slop.json` graded the fixtures
+# against THAT repo's taste. Measured: this marketplace disabling rule-em-dash
+# for its own house style turned nine unrelated cases red, each reporting
+# `disabled=1` for a rule the case never mentions. Both layers are pointed at
+# empty directories so a fixture asserts the SHIPPED defaults; the cascade cases
+# below set CLAUDE_PROJECT_DIR per-invocation and still override this.
+export HOME="$TEST_TMPDIR/home"
+export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
+mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
+
 FAILED=0
 CASE_NUM=0
 
@@ -132,6 +145,38 @@ cat >"$MIDEMOJI" <<EOF
 The reaction was ${CHECKMARK} from the whole team.
 EOF
 
+CURSOR="$TEST_TMPDIR/cursor.md"
+cat >"$CURSOR" <<'EOF'
+# Cursor-derived rules
+
+Great question! I hope this helps, and let me know if you need more.
+We did this in order to ship, due to the fact that the deadline slipped.
+It could potentially fail here and might possibly regress there.
+We leverage tools to facilitate work and utilize helpers for the rest.
+EOF
+
+CURSORNEG="$TEST_TMPDIR/cursorneg.md"
+cat >"$CURSORNEG" <<'EOF'
+# Benign neighbors of the Cursor-derived patterns
+
+Feel free to customize the config for your repo. The run may fail on old
+shells, and a question mark ends each prompt. Sort keys in ascending order to
+keep diffs stable.
+EOF
+
+# Prefix-match false positives: ordinary prose whose words merely BEGIN with a
+# listed phrase. Reported in review against rule-chatbot-artifacts and
+# reproduced before fixing — an IMPORTANT-tier finding on prose containing no
+# chat residue at all. The fix is the registry's whole-word flag; these cases
+# are what keeps it.
+WORDBOUND="$TEST_TMPDIR/wordbound.md"
+cat >"$WORDBOUND" <<'EOF'
+# Phrase prefixes inside ordinary words
+
+These are great questions for the reviewer to work through.
+The team found the smoking guns in yesterday's logs.
+EOF
+
 # --- Seed-rule cases -------------------------------------------------------------
 
 out="$(bash "$DETECT" "$SLOP" 2>&1)"
@@ -163,6 +208,39 @@ assert_contains "roster: rule-of-three density fires" "$out" "Finding: rule=ai-s
 
 out="$(bash "$DETECT" "$MIDEMOJI" 2>&1)"
 assert_not_contains "emoji negative: content-position emoji does not fire the formatting rule" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
+
+# --- Cursor-derived rules ----------------------------------------------------------
+
+out="$(bash "$DETECT" "$CURSOR" 2>&1)"
+assert_contains "cursor: chatbot-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-chatbot-artifacts"
+assert_contains "cursor: filler-phrases fires" "$out" "Finding: rule=ai-slop/audit/rule-filler-phrases"
+assert_contains "cursor: stacked-hedging fires" "$out" "Finding: rule=ai-slop/audit/rule-stacked-hedging"
+assert_contains "cursor: plain-word vocab additions fire the density rule" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
+
+out="$(bash "$DETECT" "$CURSORNEG" 2>&1)"
+assert_not_contains "cursor negative: benign near-miss phrasing stays quiet" "$out" "Finding:"
+
+out="$(bash "$DETECT" "$WORDBOUND" 2>&1)"
+assert_not_contains "word boundary: 'great questions' does not fire the chat-residue rule" "$out" "Finding:"
+# The true positives must survive the boundary flag — a rule silenced into
+# uselessness would also pass the assertion above.
+WORDBOUNDPOS="$TEST_TMPDIR/wordboundpos.md"
+cat >"$WORDBOUNDPOS" <<'EOF'
+# The real thing
+
+Great question! The retry budget is three attempts.
+Found the smoking gun in the connection pool.
+EOF
+out="$(bash "$DETECT" "$WORDBOUNDPOS" 2>&1)"
+assert_contains "word boundary: the exact phrases still fire" "$out" "rule=ai-slop/audit/rule-chatbot-artifacts findings=2"
+
+CURSOROUT="$TEST_TMPDIR/cursor-out.txt"
+bash "$DETECT" "$CURSOR" >"$CURSOROUT" 2>&1 || true
+bash "$SCRIPT_DIR/emit-findings.sh" --from "$CURSOROUT" --out "$TEST_TMPDIR/findings/cursor.md" --branch test-branch >/dev/null 2>&1
+cursor_row="$(LC_ALL=C grep -m1 'rule-chatbot-artifacts' "$TEST_TMPDIR/findings/cursor.md")"
+assert_contains "cursor: chatbot-artifacts emits at IMPORTANT (crosswalk mirror)" "$cursor_row" "IMPORTANT"
+filler_row="$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TEST_TMPDIR/findings/cursor.md")"
+assert_contains "cursor: filler-phrases emits at SUGGESTION (crosswalk mirror)" "$filler_row" "SUGGESTION"
 
 # --- Exemptions ------------------------------------------------------------------
 
@@ -378,6 +456,66 @@ else
     fail "emit: refuses non-detector input" "exit 3, no file" "exit $rc"
   fi
 fi
+
+# --- Roster agreement: every rule's tier is asserted -----------------------------
+#
+# emit-findings.sh's rule_tier() declares itself a MIRROR of the severity
+# crosswalk, and a mirror nothing compares drifts silently. Asserting two rules
+# (as this suite did) left thirteen unguarded, so a rule added to detect.sh
+# without a crosswalk row would emit SUGGESTION by fall-through and look
+# deliberate. Two properties are checked here:
+#   1. every slug detect.sh reports carries its expected tier through the emitter
+#   2. the roster ITSELF has not changed — a new rule fails until it is tabled
+# The expected set is written out rather than derived, so the test disagrees with
+# the code instead of restating it.
+
+EXPECTED_IMPORTANT="rule-knowledge-cutoff-disclaimer rule-llm-citation-artifacts rule-chatbot-artifacts"
+EXPECTED_SUGGESTION="rule-em-dash rule-emoji-formatting rule-curly-artifacts rule-significance-inflation rule-negative-parallelism rule-challenges-conclusion rule-utm-params rule-filler-phrases rule-stacked-hedging rule-ai-vocabulary rule-copulative-avoidance rule-rule-of-three"
+
+# The roster detect.sh actually ships, taken from its Summary rows on any run.
+ROSTER="$(bash "$DETECT" "$CLEAN" 2>&1 | LC_ALL=C sed -n 's|^Summary rule=ai-slop/audit/\([a-z-]*\) .*|\1|p' | sort)"
+EXPECTED_ROSTER="$(printf '%s %s' "$EXPECTED_IMPORTANT" "$EXPECTED_SUGGESTION" | tr ' ' '\n' | sort)"
+if [[ "$ROSTER" == "$EXPECTED_ROSTER" ]]; then
+  pass "roster agreement: detect.sh ships exactly the 15 tabled rules"
+else
+  fail "roster agreement: detect.sh ships exactly the 15 tabled rules" \
+    "the tabled set" "$(diff <(echo "$EXPECTED_ROSTER") <(echo "$ROSTER") | tr '\n' ' ')"
+fi
+
+# Synthetic detector output naming every slug: a fixture that fired all 15
+# organically would be a slop corpus this plugin then has to exempt from itself.
+TIERSRC="$TEST_TMPDIR/tier-src.txt"
+: >"$TIERSRC"
+for slug in $EXPECTED_IMPORTANT $EXPECTED_SUGGESTION; do
+  printf 'Finding: rule=ai-slop/audit/%s file=doc.md line=1 fired=synthetic excerpt=sample\n' "$slug" >>"$TIERSRC"
+  printf 'Summary rule=ai-slop/audit/%s findings=1 declined=0 disabled=0\n' "$slug" >>"$TIERSRC"
+done
+
+TIEROUT="$TEST_TMPDIR/findings/tiers.md"
+bash "$EMIT" --from "$TIERSRC" --out "$TIEROUT" --branch test-branch >/dev/null 2>&1
+tier_content="$(cat "$TIEROUT")"
+
+for slug in $EXPECTED_IMPORTANT; do
+  row="$(LC_ALL=C grep -m1 "ai-slop/audit/$slug " "$TIEROUT")"
+  case "$row" in
+  *"| IMPORTANT |"*) pass "tier mirror: $slug is IMPORTANT" ;;
+  *) fail "tier mirror: $slug is IMPORTANT" "IMPORTANT" "$row" ;;
+  esac
+done
+for slug in $EXPECTED_SUGGESTION; do
+  row="$(LC_ALL=C grep -m1 "ai-slop/audit/$slug " "$TIEROUT")"
+  case "$row" in
+  *"| SUGGESTION |"*) pass "tier mirror: $slug is SUGGESTION" ;;
+  *) fail "tier mirror: $slug is SUGGESTION" "SUGGESTION" "$row" ;;
+  esac
+done
+
+# F5 regression guard: both owner docs say this producer omits `tier:`.
+assert_not_contains "frontmatter: no uncomputed tier: field" "$tier_content" "tier:"
+assert_contains "action: filler-phrases carries its substitution, not the generic judgment string" \
+  "$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TIEROUT")" 'in order to'
+assert_contains "action: stacked-hedging names the one-hedge repair" \
+  "$(LC_ALL=C grep -m1 'rule-stacked-hedging' "$TIEROUT")" "states the real uncertainty"
 
 # --- Result ---------------------------------------------------------------------
 

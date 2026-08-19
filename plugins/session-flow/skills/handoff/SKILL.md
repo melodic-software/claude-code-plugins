@@ -61,14 +61,25 @@ save-point, THEN STOPS. It does NOT keep executing the underlying task in the cu
 defeats the purpose. STOP is the default and near-universal outcome — NEVER unlocked by the user
 having listed multiple steps, nor by the remaining work being "small".
 
+**What STOP means, and the one thing it never means.** STOP ends the UNDERLYING TASK. It never ends
+the response before the resume prompt is on screen, because emitting that prompt is not work that
+follows the save-point — it IS the save-point. The engine is explicit that the prompt is the
+mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only decision
+is whether to ALSO write a durable handoff file." So a turn that writes the file and stops has
+delivered the optional half and dropped the required one — the operator is left holding a `/clear`
+they cannot resume from, which is strictly worse than never having run the skill, since the skill
+reports success. This is an observed failure, not a hypothetical (`context/gotchas.md`). Until the
+rails prompt is in the response, the save-point does not exist and STOP has not been reached.
+
 **Mandatory STOP gate (walk every box):**
 
 - [ ] Path chosen (full vs prompt-only) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
-  resume prompt")
+  resume prompt") — the box that is never satisfied by having written the file
 - [ ] `/clear`-then-paste instruction surfaced to the user
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
-  session ends as far as the task is concerned
+  session ends as far as the task is concerned — reachable only once the box above is genuinely
+  ticked, never as the act that replaces it
 
 **NOT authorization to continue (these all STOP):**
 
@@ -162,6 +173,15 @@ Tick each item in the response so the user can verify the exit shape. Missing an
 incomplete. Known failure patterns live in `context/gotchas.md` — load on demand when a step feels
 ambiguous.
 
+**Output order is fixed: ticked checklist first, rails prompt last.** The rails resume prompt —
+the copy instruction, the two dashed rails, and every below-the-rails `/loop` re-arm note — is the
+FINAL text of the response, with nothing after it. This order exists because the rails prompt is
+the deliverable the operator copies, and a turn that ends on anything else has been observed to end
+*without the rails prompt at all* under heavy context: the save-point file exists, but the operator
+has nothing to paste after `/clear`. A response whose last text is not the rails block (plus its
+below-rail notes) is a FAILED handoff even when every box above is ticked — emit the rails block
+before ending the turn, always.
+
 **Full path:**
 
 - [ ] Position located + next stage named (fresh reads this turn)
@@ -196,7 +216,8 @@ ambiguous.
   the top rail; `/goal` first line if a goal is active; a below-the-rails note re-arming EVERY
   surviving loop — one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up
   message (engine doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE**
+- [ ] **EXECUTION STOPS HERE** — the rails prompt and its below-rail notes follow these ticks as
+  the response's final text (see "Output order is fixed" above)
 
 **Prompt-only path:**
 
@@ -218,7 +239,8 @@ ambiguous.
   note re-arming EVERY surviving loop — one `/loop [<interval>] <original prompt>` line per loop,
   each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE** — "small enough" means the prompt captures the work, NOT "small
-  enough to skip `/clear` and finish in-session"
+  enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
+  these ticks as the response's final text (see "Output order is fixed" above)
 
 ## What this skill does NOT do
 

@@ -1,8 +1,8 @@
 ---
-description: "Turn a decision the user cannot answer — because another person holds the knowledge — into a Markdown questionnaire handed off async. Interviews the user only about the send (who it goes to, what they need back), never about the subject the recipient holds, then writes a discovery questionnaire aimed at the gap. Use when: 'make a questionnaire for X', 'I need to ask my DBA/the client/legal about this', 'turn this into a doc someone else fills in', or when an interview branch defers to a person-arbiter; skip when the user can answer themselves (run /planning:interview) or when the answer is agent-lookupable."
+description: "Turn a decision the user cannot answer — because another person holds the knowledge — into a Markdown questionnaire handed off async. Interviews the user only about the send (who it goes to, what they need back), never about the subject the recipient holds, then writes a discovery questionnaire aimed at the gap. Use when: 'make a questionnaire for X', 'I need to ask my DBA/the client/legal about this', 'turn this into a doc someone else fills in', 'I don't know, that's the client's call', 'send this to someone else to answer', 'write up questions for our security team', or when an interview branch defers to a person-arbiter; skip when the user can answer themselves (run /planning:interview) or when the answer is agent-lookupable."
 argument-hint: "[topic]"
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   workflow-stage: contract
   summary: Turn a decision someone else must answer into an async questionnaire
@@ -22,7 +22,7 @@ This is the third routing bucket beside `/planning:interview`'s facts-vs-decisio
 
 **Interview the send, not the subject.** Interview the user only about the *send*, which they can always answer: who it goes to, and what they need back. Never quiz the user about the subject the recipient holds — that knowledge gap is exactly why the questionnaire exists. The questions in the document target the **gap** between what the recipient knows and what the user needs.
 
-**Route away when no one else holds the answer.** If it emerges that the user can answer the decision themselves (no third-party knowledge holder), do not produce a questionnaire for nobody — recommend `/planning:interview` and stop. Never invent a recipient to justify the artifact.
+**Route away when no one else holds the answer.** If it emerges that the user can answer the decision themselves (no third-party knowledge holder), do not produce a questionnaire for nobody — invoke `/planning:interview` via the Skill tool and stop this skill. Never invent a recipient to justify the artifact. The explicit hand-off matters now that this skill is model-invoked: the model can land here from a natural-language request, and bare `/name` prose would read as advice to the human and strand the decision unresolved.
 
 ## The loop
 

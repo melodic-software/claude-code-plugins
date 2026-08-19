@@ -1,7 +1,8 @@
 # claude-ops
 
 A Claude Code plugin for running Claude Code well over time — one cohesive
-capability across ten skills and a family of telemetry-emitter hooks.
+capability across eleven skills and a family of telemetry-emitter hooks — including diagnosing why
+most of an installed skill fleet never gets used.
 audit-install-state reports on the machine-scope `~/.claude` install directory
 itself, audit-performance captures slowness evidence at the moment a machine or
 session feels slow so the cause is diagnosed instead of nuked,
@@ -18,6 +19,7 @@ Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
+| `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill — the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest — Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
 | `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory — the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (entries labelled as an authored surface or a rolled-up bulk tree, with the complete per-file rows in a CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow — before restarting or deleting anything. One timed engine pass separates the three documented suspects: accumulated install-tree state (retention-sweep health including the silent unparsable-`settings.json` pause, plus a timed stat-walk whose duration approximates the product's own daily sweep cost), version regression (CLI version against a bundled known-performance-issues reference), and component bloat (fleet and process censuses, verdict routed to `/claude-ops:plugins audit`). Phase timings are first-class evidence; content reads are allowlisted to `settings.json` and `.last-cleanup` — `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates. |
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
