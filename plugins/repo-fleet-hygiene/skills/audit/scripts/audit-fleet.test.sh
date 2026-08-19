@@ -1895,7 +1895,7 @@ fi
 # the assertion reports a product defect that does not exist. Containers and CI images commonly run
 # as root, so the case is SKIPPED there with its reason named rather than emitting a false FAIL —
 # a check that silently reports the wrong verdict is what the liveness-assertion convention forbids.
-if [ "$(id -u)" -eq 0 ]; then
+if [[ "$(id -u)" -eq 0 ]]; then
   printf 'SKIP: unreadable discovery root — running as uid 0, which bypasses the permission bits this case asserts on\n'
 else
   unreadable_root="$TMP/unreadable-root"

@@ -99,8 +99,20 @@ signals — and revisit the manual-only posture second. Usage-metrics-driven sur
 (`~/.claude.json` `skillUsage`, undocumented internal state) stays deferred; rotation runs off a
 ledger the skill writes itself, which is what keeps that deferral honest rather than load-bearing.
 
-**Known follow-up.** Seven session-flow skills inline near-identical durable-state probe blocks. This
-skill deliberately adds no eighth copy — it routes to `orient` — but the seven-way extraction into a
-shared seam remains outstanding and is tracked separately. Extracting it for only two consumers was
-attempted and withdrawn: it would have left five divergent copies beside a new seam, which is two
-sources of truth for one probe and worse than the duplication it set out to fix.
+**The probe seam, and why the two-consumer version was withdrawn.** `show-options` adds no probe of
+its own — it routes to `orient` — and the duplication that decision sidestepped is resolved in the
+same change: `plugins/session-flow/reference/gather.md` now owns the block for all seven consumers
+(`continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`,
+`workflow`).
+
+The route worth recording is the one not taken. The first plan extracted the seam for **two**
+consumers, on the stated basis that `orient` and `workflow` were the only ones carrying the block.
+That was false — seven carry it — and extracting for two would have left five divergent copies
+beside a new seam: two sources of truth for one probe, worse than the duplication it set out to fix.
+The extraction was withdrawn on that finding and only re-taken once it covered every consumer.
+
+The per-consumer differences are preserved rather than normalised, because a uniform block would
+have silently changed behavior: `orient` reads `git log -8` where the save-point skills read `-5`,
+`retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state beyond the
+branch, and `workflow` takes no session id. The seam documents each divergence as deliberate so a
+later tidying pass does not "fix" them.
