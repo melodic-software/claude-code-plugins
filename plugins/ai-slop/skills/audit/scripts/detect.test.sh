@@ -164,6 +164,19 @@ shells, and a question mark ends each prompt. Sort keys in ascending order to
 keep diffs stable.
 EOF
 
+# Prefix-match false positives: ordinary prose whose words merely BEGIN with a
+# listed phrase. Reported in review against rule-chatbot-artifacts and
+# reproduced before fixing — an IMPORTANT-tier finding on prose containing no
+# chat residue at all. The fix is the registry's whole-word flag; these cases
+# are what keeps it.
+WORDBOUND="$TEST_TMPDIR/wordbound.md"
+cat >"$WORDBOUND" <<'EOF'
+# Phrase prefixes inside ordinary words
+
+These are great questions for the reviewer to work through.
+The team found the smoking guns in yesterday's logs.
+EOF
+
 # --- Seed-rule cases -------------------------------------------------------------
 
 out="$(bash "$DETECT" "$SLOP" 2>&1)"
@@ -206,6 +219,20 @@ assert_contains "cursor: plain-word vocab additions fire the density rule" "$out
 
 out="$(bash "$DETECT" "$CURSORNEG" 2>&1)"
 assert_not_contains "cursor negative: benign near-miss phrasing stays quiet" "$out" "Finding:"
+
+out="$(bash "$DETECT" "$WORDBOUND" 2>&1)"
+assert_not_contains "word boundary: 'great questions' does not fire the chat-residue rule" "$out" "Finding:"
+# The true positives must survive the boundary flag — a rule silenced into
+# uselessness would also pass the assertion above.
+WORDBOUNDPOS="$TEST_TMPDIR/wordboundpos.md"
+cat >"$WORDBOUNDPOS" <<'EOF'
+# The real thing
+
+Great question! The retry budget is three attempts.
+Found the smoking gun in the connection pool.
+EOF
+out="$(bash "$DETECT" "$WORDBOUNDPOS" 2>&1)"
+assert_contains "word boundary: the exact phrases still fire" "$out" "rule=ai-slop/audit/rule-chatbot-artifacts findings=2"
 
 CURSOROUT="$TEST_TMPDIR/cursor-out.txt"
 bash "$DETECT" "$CURSOR" >"$CURSOROUT" 2>&1 || true

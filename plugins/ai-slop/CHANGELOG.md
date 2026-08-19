@@ -41,6 +41,11 @@
   rule for its own house style turned nine unrelated cases red.
 - Relay expectations narrowed to what is true: `rule-utm-params` is the one relay-applicable rule;
   every other rule is `/ai-slop:audit fix` work.
+- **Phrase rules match on whole words.** Without it, "These are great questions for the reviewer"
+  fired `rule-chatbot-artifacts` at IMPORTANT tier on prose containing no chat residue, because
+  the phrase merely prefixed a longer word. The registry carries a per-rule whole-word flag (POSIX
+  `-w`, not GNU `\b`, so the cross-grep parity claim holds); it is off for the byte-class rules,
+  the wildcard-bearing EREs, and the two whose match legitimately abuts a word character.
 
 ## [0.1.0]
 

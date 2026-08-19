@@ -41,20 +41,32 @@ CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate"
 
 # --- Rule registry ---------------------------------------------------------------
-# Pattern rules: slug|fired label|case-insensitive(0/1)|ERE
+# Pattern rules: slug|fired label|case-insensitive(0/1)|whole-word(0/1)|ERE
+#
+# whole-word adds grep's POSIX -w: the match must be bounded by non-word
+# characters on both sides. Phrase rules need it — without it "great question"
+# fires on "These are great questions for the reviewer", reporting an
+# IMPORTANT-tier chat-residue finding on ordinary prose (reported in review,
+# reproduced, covered below). GNU's \b would express this inline but is not
+# POSIX, and this script's cross-grep parity claim rests on POSIX ERE only.
+#
+# It is OFF for rules whose match legitimately abuts a word character or is not
+# word-shaped at all: the byte-class rules (em dash, emoji, curly quotes),
+# the two EREs carrying `[^.]{0,80}` wildcards, the citation tokens (`[cite:`
+# is followed by digits), and `utm_[a-z]+=` (followed by its value).
 PATTERN_RULES=(
-  "rule-em-dash|zero-tolerance|0|${EM_DASH}"
-  "rule-emoji-formatting|formatting emoji|0|$(printf '\t')(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
-  "rule-curly-artifacts|unicode artifact|0|${CURLY_ERE}"
-  "rule-significance-inflation|phrase match|1|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
-  "rule-negative-parallelism|construction match|1|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
-  "rule-challenges-conclusion|formula match|1|(despite [^.]{0,80}(challenge|hurdle)|challenges (remain|ahead|persist)|faces (several|numerous|significant|ongoing) challenges)"
-  "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|(knowledge cutoff|as of my last (update|training)|i cannot browse|i do not have access to real|as an ai( language)? model)"
-  "rule-llm-citation-artifacts|citation residue|0|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
-  "rule-utm-params|tracking parameter|0|utm_[a-z]+="
-  "rule-chatbot-artifacts|chat-turn residue|1|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right|found the smoking gun)"
-  "rule-filler-phrases|filler phrase|1|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
-  "rule-stacked-hedging|stacked hedge|1|((could|may|might) potentially|(could|might) possibly)"
+  "rule-em-dash|zero-tolerance|0|0|${EM_DASH}"
+  "rule-emoji-formatting|formatting emoji|0|0|$(printf '\t')(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
+  "rule-curly-artifacts|unicode artifact|0|0|${CURLY_ERE}"
+  "rule-significance-inflation|phrase match|1|1|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
+  "rule-negative-parallelism|construction match|1|0|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
+  "rule-challenges-conclusion|formula match|1|0|(despite [^.]{0,80}(challenge|hurdle)|challenges (remain|ahead|persist)|faces (several|numerous|significant|ongoing) challenges)"
+  "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|1|(knowledge cutoff|as of my last (update|training)|i cannot browse|i do not have access to real|as an ai( language)? model)"
+  "rule-llm-citation-artifacts|citation residue|0|0|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
+  "rule-utm-params|tracking parameter|0|0|utm_[a-z]+="
+  "rule-chatbot-artifacts|chat-turn residue|1|1|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right|found the smoking gun)"
+  "rule-filler-phrases|filler phrase|1|1|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
+  "rule-stacked-hedging|stacked hedge|1|1|((could|may|might) potentially|(could|might) possibly)"
 )
 # Density rules: slug|threshold key|default threshold|ERE (vocab ERE is built at runtime).
 # A density rule needs BOTH density >= threshold AND at least DENSITY_MIN_HITS
@@ -407,7 +419,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
 
   # Pattern rules: one finding per matching prose line.
   for entry in "${PATTERN_RULES[@]}"; do
-    IFS='|' read -r slug label ci ere <<<"$entry"
+    IFS='|' read -r slug label ci word ere <<<"$entry"
     rule_disabled "$slug" && continue
     if [[ "$slug" == "rule-em-dash" && "${#EM_DASH_ALLOWED_GLOBS[@]}" -gt 0 ]] &&
       matches_glob "$file" "${EM_DASH_ALLOWED_GLOBS[@]}"; then
@@ -416,6 +428,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
     fi
     flags=(-E)
     [[ "$ci" == "1" ]] && flags+=(-i)
+    [[ "$word" == "1" ]] && flags+=(-w)
     while IFS=$'\t' read -r lineno text; do
       [[ -z "$lineno" ]] && continue
       excerpt="$(printf '%s' "$text" | truncate_excerpt | tr '|' '/')"
