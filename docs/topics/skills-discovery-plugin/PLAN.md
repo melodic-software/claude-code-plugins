@@ -341,7 +341,20 @@ NOT re-enumerate the fleet — it reads frontmatter only for skills inventory al
   `jq -r '.skills[]|select(.reachability.value=="misconfigured")|.reachability.remedy' <json> |
   grep -Eiv 'delete|remove'` matches every line (i.e. no misconfigured remedy suggests removal).
 
-### Phase 3: Starvation — budget arithmetic, then the inferential band [TODO]
+### Phase 3: Starvation — budget arithmetic, then the inferential band [DONE]
+
+**Completed 2026-08-18.** Sanity-check evidence: `listing_budget_chars(context_window_tokens=1M)`
+returns exactly **40000** — the regression pin against the derived-not-constant correction — and
+200k reproduces the familiar 8000. Against `tests/fixtures/fleet-overbudget.json`: overflow is
+positive and hand-checkable (81 chars over a 200-char budget), 6 competing / 2 exempt, and the
+exempt rows' summed `demand_chars` is **0** despite carrying full-length descriptions (the
+28%-of-fleet correction, in fixture form). The rendered band is labelled `inferential`; ranking is
+least-used-first (`band 1: cold:never-reached`, `band 2: cold:rarely-used`). The fits case states
+plainly that starvation is not the reason anything there goes unused. 31 unit tests green; `ruff`
+clean; `check-skill.sh --require-evals` PASS, 0 errors 0 warnings.
+
+**Note:** `SLASH_COMMAND_TOOL_CHAR_BUDGET` short-circuits the whole calculation and is covered by
+its own test, so an operator who has set it does not get a silently wrong budget.
 
 - **Certain half:** budget = `skillListingBudgetFraction` (default 0.01) × context window ×
   4 bytes/token, with `SLASH_COMMAND_TOOL_CHAR_BUDGET` overriding unconditionally. **Compute it —

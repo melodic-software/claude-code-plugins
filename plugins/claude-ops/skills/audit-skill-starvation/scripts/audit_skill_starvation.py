@@ -64,6 +64,121 @@ def is_usage_evidence(entry: dict) -> bool:
     return int(entry.get("usageCount", 0) or 0) > 0
 
 
+@dataclass(frozen=True)
+class ListingConfig:
+    """Inputs to the skill-listing budget, all documented.
+
+    `bytes_per_token` is the product's own hardcoded estimate; the budget is
+    computed in CHARACTERS, not tokens.
+    """
+
+    context_window_tokens: int = 200_000
+    budget_fraction: float = 0.01
+    max_desc_chars: int = 1536
+    bytes_per_token: int = 4
+    env_char_budget: int | None = None
+
+
+def listing_budget_chars(cfg: ListingConfig) -> int:
+    """Budget in characters -- DERIVED, never a constant.
+
+    The familiar "8,000" is this formula at a 200k-token window; a 1M-token
+    model gets ~40,000. Hardcoding 8,000 would be wrong for most current models,
+    and hardcoding it as a floor would be wrong too, because
+    `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides everything unconditionally.
+    """
+    if cfg.env_char_budget is not None:
+        return cfg.env_char_budget
+    return max(
+        1, int(cfg.context_window_tokens * cfg.budget_fraction * cfg.bytes_per_token)
+    )
+
+
+def _eligibility(entry: dict) -> str:
+    """Which skills actually contend for description budget.
+
+    Three exempt classes, and the third is easy to miss: a
+    `disable-model-invocation` skill keeps its description out of the model's
+    context entirely, so it spends none of the shared budget. Locally that is 59
+    of 213 skills -- counting them would inflate the overflow figure enough to
+    flip the headline verdict.
+    """
+    frontmatter = entry.get("frontmatter") or {}
+    if entry.get("source") == "bundled":
+        return "exempt-bundled"
+    if frontmatter.get("skill_override") == "name-only":
+        return "exempt-name-only"
+    if frontmatter.get("disable_model_invocation"):
+        return "exempt-user-only"
+    return "competing"
+
+
+def _demand_chars(entry: dict, cfg: ListingConfig) -> int:
+    frontmatter = entry.get("frontmatter") or {}
+    text = (frontmatter.get("description") or "") + (
+        frontmatter.get("when_to_use") or ""
+    )
+    return min(len(text), cfg.max_desc_chars)
+
+
+def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
+    """Budget arithmetic, split by confidence.
+
+    CERTAIN: whether the listing overflows and by how much -- pure arithmetic
+    over documented settings against summed description lengths.
+
+    INFERENTIAL: which particular skills lose their descriptions. That ordering
+    comes from an undocumented scorer pinned to one build, so it is rendered as
+    a ranked band and labelled, never as an exact cutoff.
+    """
+    budget = listing_budget_chars(cfg)
+
+    rows: list[dict] = []
+    demand = 0
+    for entry in denominator:
+        eligibility = _eligibility(entry)
+        chars = _demand_chars(entry, cfg) if eligibility == "competing" else 0
+        demand += chars
+        rows.append(
+            {
+                "qualified_name": entry["qualified_name"],
+                "eligibility": eligibility,
+                "demand_chars": chars,
+                "usage_score": entry.get("usage_score", 0),
+            }
+        )
+
+    overflow = max(0, demand - budget)
+    verdict = "overflowing" if overflow > 0 else "listing-fits"
+
+    competing = [r for r in rows if r["eligibility"] == "competing"]
+    # Least-used first: that is the order the product drops descriptions in, so
+    # rank 1 is the most likely to have already lost its description.
+    competing.sort(key=lambda r: (r["usage_score"], r["qualified_name"]))
+    for rank, row in enumerate(competing, start=1):
+        row["band"] = rank if overflow > 0 else None
+        row["verdict"] = "likely-starved" if overflow > 0 else "listing-fits"
+        row["confidence"] = "inferential" if overflow > 0 else "certain"
+    for row in rows:
+        if row["eligibility"] != "competing":
+            row["band"] = None
+            row["verdict"] = "not-assessable"
+            row["confidence"] = "certain"
+
+    return {
+        "budget_chars": budget,
+        "budget_basis": "env-override"
+        if cfg.env_char_budget is not None
+        else "fraction",
+        "demand_chars": demand,
+        "overflow_chars": overflow,
+        "verdict": verdict,
+        "competing_count": len(competing),
+        "exempt_count": len(rows) - len(competing),
+        "skills": rows,
+    }
+
+
 # Remedies are phrased as fixes on purpose. Several of these causes are SILENT
 # -- the skill looks fine, can never be selected, and nothing surfaces outside
 # --debug -- which makes them read exactly like disuse. Recommending removal for
@@ -183,8 +298,11 @@ def classify(
     config: Config,
     clock: datetime,
     horizons: dict[str, datetime],
+    listing_config: ListingConfig | None = None,
 ) -> dict:
     """Pure. Fleet + events + config + clock + horizons -> report model."""
+    listing = compute_listing(denominator, listing_config or ListingConfig())
+    starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
     # Narrowest horizon = the most recent start = the least we can see back to.
     observed_horizon = max(horizons.values()) if horizons else clock
     observable_days = (clock - observed_horizon).days
@@ -234,6 +352,11 @@ def classify(
                     "ambiguous-attribution" if seen[name] > 1 else "unambiguous"
                 ),
                 "reachability": reachability(entry),
+                "starvation": {
+                    k: v
+                    for k, v in starvation_by_name.get(name, {}).items()
+                    if k != "qualified_name"
+                },
                 "observation": {
                     "value": value,
                     "count": count,
@@ -247,6 +370,7 @@ def classify(
         "schema_version": SCHEMA_VERSION,
         "generated_at": clock.isoformat(),
         "observed_horizon": observed_horizon.isoformat(),
+        "listing": {k: v for k, v in listing.items() if k != "skills"},
         "sources": [
             {"source": name, "horizon_start": start.isoformat()}
             for name, start in sorted(horizons.items())
@@ -296,6 +420,41 @@ def _render_markdown(model: dict) -> str:
         f"- Withheld claims: {len(model['withheld'])}",
         "",
     ]
+    listing = model.get("listing", {})
+    if listing:
+        lines += ["## Listing budget", ""]
+        if listing["overflow_chars"] > 0:
+            # The certain half: documented settings vs summed description
+            # lengths. No undocumented constant is involved, so this is stated
+            # plainly rather than hedged.
+            lines += [
+                f"**Your skill listing is over budget by "
+                f"{listing['overflow_chars']:,} characters.** "
+                f"{listing['competing_count']} skills are competing for "
+                f"{listing['budget_chars']:,} characters of description budget, "
+                f"and descriptions are dropped least-invoked-first — so the "
+                f"skills below are running name-only, which is why the model "
+                f"stops matching requests to them.",
+                "",
+                "Which *particular* skills lost their descriptions is inferential:",
+                "the ordering comes from an undocumented scorer. Treat the ranking",
+                "as a likelihood band, not a cutoff line.",
+                "",
+            ]
+        else:
+            lines += [
+                f"Listing fits: {listing['demand_chars']:,} of "
+                f"{listing['budget_chars']:,} characters used by "
+                f"{listing['competing_count']} competing skills. No description "
+                f"is being dropped, so starvation is not the reason any skill "
+                f"here goes unused.",
+                "",
+            ]
+        lines += [
+            f"- Exempt from the contest: {listing['exempt_count']} "
+            f"(bundled, name-only, and user-only skills spend no budget)",
+            "",
+        ]
     if model["withheld"]:
         lines += [
             "## Withheld",
@@ -340,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     horizons = {k: _parse_ts(v) for k, v in bundle.get("horizons", {}).items()}
     events = [dict(e, ts=_parse_ts(e["ts"])) for e in bundle.get("events", [])]
     cfg = Config(**bundle.get("config", {}))
+    listing_cfg = ListingConfig(**bundle.get("listing_config", {}))
 
     model = classify(
         denominator=bundle["denominator"],
@@ -347,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
         config=cfg,
         clock=clock,
         horizons=horizons,
+        listing_config=listing_cfg,
     )
 
     if args.render == "json":

@@ -301,5 +301,166 @@ class ReachabilityFixtureTest(unittest.TestCase):
         self.assertEqual(counts.get("hidden"), 1)
 
 
+class BudgetArithmeticTest(unittest.TestCase):
+    """The CERTAIN half: does the listing overflow, and by how much.
+
+    Computed entirely from documented settings, so it needs no undocumented
+    constant and holds at every capability tier.
+    """
+
+    def test_budget_is_derived_not_a_constant_8000(self):
+        """A 1M-token context yields 40,000 chars, not 8,000.
+
+        The familiar 8,000 is that same formula at a 200k window. Hardcoding it
+        would be wrong for most current models -- this is the regression pin.
+        """
+        self.assertEqual(
+            engine.listing_budget_chars(
+                engine.ListingConfig(context_window_tokens=1_000_000)
+            ),
+            40_000,
+        )
+
+    def test_budget_at_200k_window_reproduces_the_familiar_8000(self):
+        self.assertEqual(
+            engine.listing_budget_chars(
+                engine.ListingConfig(context_window_tokens=200_000)
+            ),
+            8_000,
+        )
+
+    def test_env_override_short_circuits_unconditionally(self):
+        cfg = engine.ListingConfig(
+            context_window_tokens=1_000_000, env_char_budget=1234
+        )
+        self.assertEqual(engine.listing_budget_chars(cfg), 1234)
+
+    def test_per_skill_description_is_capped(self):
+        entry = {
+            "qualified_name": "a:one",
+            "frontmatter": {"description": "x" * 5000},
+            "plugin_enabled": True,
+        }
+        cfg = engine.ListingConfig(context_window_tokens=200_000, max_desc_chars=1536)
+        listing = engine.compute_listing([entry], cfg)
+        self.assertEqual(listing["demand_chars"], 1536)
+
+    def test_overflow_is_zero_when_demand_fits(self):
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 100},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        cfg = engine.ListingConfig(context_window_tokens=200_000)
+        listing = engine.compute_listing(entries, cfg)
+        self.assertEqual(listing["overflow_chars"], 0)
+        self.assertEqual(listing["verdict"], "listing-fits")
+
+    def test_overflow_is_positive_and_exact_when_demand_exceeds(self):
+        # 10 skills x 1000 chars = 10_000 demand against an 8_000 budget.
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        cfg = engine.ListingConfig(context_window_tokens=200_000)
+        listing = engine.compute_listing(entries, cfg)
+        self.assertEqual(listing["demand_chars"], 10_000)
+        self.assertEqual(listing["overflow_chars"], 2_000)
+        self.assertEqual(listing["verdict"], "overflowing")
+
+
+class ExemptionTest(unittest.TestCase):
+    """Three exempt classes spend zero budget and never enter the ranking.
+
+    `exempt-user-only` is the one plan review caught: a
+    `disable-model-invocation` skill keeps its description out of the model's
+    context entirely, so it spends none of the shared budget. Locally that is 59
+    of 213 skills -- 28% of the fleet -- and counting them inflates the overflow
+    figure enough to flip the headline verdict.
+    """
+
+    def _listing(self, frontmatter, source="plugin"):
+        entry = {
+            "qualified_name": "a:one",
+            "source": source,
+            "frontmatter": frontmatter,
+            "plugin_enabled": True,
+        }
+        return engine.compute_listing(
+            [entry], engine.ListingConfig(context_window_tokens=200_000)
+        )
+
+    def test_disable_model_invocation_contributes_zero(self):
+        listing = self._listing(
+            {"description": "x" * 1000, "disable_model_invocation": True}
+        )
+        self.assertEqual(listing["demand_chars"], 0)
+        self.assertEqual(listing["competing_count"], 0)
+
+    def test_bundled_prompt_skill_contributes_zero(self):
+        listing = self._listing({"description": "x" * 1000}, source="bundled")
+        self.assertEqual(listing["demand_chars"], 0)
+
+    def test_name_only_override_contributes_zero_and_frees_nothing(self):
+        listing = self._listing(
+            {"description": "x" * 1000, "skill_override": "name-only"}
+        )
+        self.assertEqual(listing["demand_chars"], 0)
+        # Freed bytes are NOT returned to the pool -- the budget is unchanged.
+        self.assertEqual(listing["budget_chars"], 8_000)
+
+    def test_exempt_classes_are_labelled_not_silently_dropped(self):
+        listing = self._listing(
+            {"description": "x" * 10, "disable_model_invocation": True}
+        )
+        self.assertEqual(listing["skills"][0]["eligibility"], "exempt-user-only")
+
+
+class InferentialBandTest(unittest.TestCase):
+    """Which skills lose descriptions is inferential and must say so."""
+
+    def test_band_is_labelled_inferential_and_ranked(self):
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+                "usage_score": i,
+            }
+            for i in range(10)
+        ]
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
+        self.assertTrue(all(s["confidence"] == "inferential" for s in competing))
+        bands = [s["band"] for s in competing]
+        self.assertEqual(sorted(bands), list(range(1, len(competing) + 1)))
+        # Lowest usage_score ranks first == most likely starved.
+        first = min(competing, key=lambda s: s["band"])
+        self.assertEqual(first["qualified_name"], "a:0")
+
+    def test_no_band_when_the_listing_fits(self):
+        entries = [
+            {
+                "qualified_name": "a:one",
+                "frontmatter": {"description": "x" * 10},
+                "plugin_enabled": True,
+            }
+        ]
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["skills"][0]["verdict"], "listing-fits")
+        self.assertIsNone(listing["skills"][0]["band"])
+
+
 if __name__ == "__main__":
     unittest.main()
