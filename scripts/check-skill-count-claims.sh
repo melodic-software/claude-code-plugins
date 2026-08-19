@@ -60,10 +60,21 @@
 #     that is a materially larger job than this one and is deliberately not
 #     attempted here.
 #
-# Nothing else was scoped out. Counts of agents, commands and hooks would be
-# class A too, and the grammar generalizes to them by swapping the noun -- but
-# no plugin makes such a claim today (checked across every README and manifest),
-# so the noun stays `skills` rather than shipping unexercised machinery.
+# SURFACES, not just classes: this gate reads FILES IN THE REPO. A count written
+# anywhere else is class A -- derivable from the tree -- and still unguarded,
+# because nothing here can see it. A pull-request description is the case that
+# actually bit: the PR that introduced this gate carried a hand-written
+# version-and-assertion table in its body, and that table went stale within the
+# hour when a merge with main renumbered two plugins. A reviewer caught it. So
+# when prose about this repo lives on GitHub rather than on disk -- a PR or issue
+# body, a release note, a wiki page -- derive its counts at write time or expect
+# them to drift, and do not read a green gate as covering them.
+#
+# Nothing else was scoped out WITHIN the files it reads. Counts of agents,
+# commands and hooks would be class A too, and the grammar generalizes to them by
+# swapping the noun -- but no plugin makes such a claim today (checked across
+# every README and manifest), so the noun stays `skills` rather than shipping
+# unexercised machinery.
 #
 # Direction is over-flag, not under-flag, within that closed set: a false
 # positive costs one line in scripts/skill-count-claim-exemptions.txt with the
