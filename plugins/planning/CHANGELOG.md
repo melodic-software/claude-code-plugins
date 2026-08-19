@@ -33,7 +33,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   which sat in tension with lane 4's asset-rush doctrine. That round is now scoped to what the plan
   covers, and substantive *what are we building* questions route to `/planning:interview` outside
   plan mode — on the register-write mechanics above and on the doctrine that plan mode primes the
-  run toward producing the asset while the job is still reaching shared understanding.
+  run toward producing the asset while the job is still reaching shared understanding. Exiting is
+  the user's move, stated symmetrically to how the section already handles entering: the skill
+  toggles no permission mode, so it asks the user to exit (`shift+tab`) and invokes the interview
+  once they have.
 
 ## [0.31.0]
 
