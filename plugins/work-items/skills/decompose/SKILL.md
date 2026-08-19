@@ -272,9 +272,13 @@ decomposition time; when the spec moves, stale projections are closed and regene
 edited spec, never hand-patched into meaning something the spec no longer says.
 
 1. **Close unimplemented children.** Enumerate the journey's remaining slices — via the seam
-   (`"$TRACKER" list-sub-items "<container-id>" --state all`) when a container exists, or the
-   topic PLAN.md's published-slice list when the spec lives only in the Brief — and close every
-   not-yet-started slice the new direction obsoletes. Closing is a provider-mechanic operation
+   (`"$TRACKER" list-sub-items "<container-id>" --state all`) when a container exists. When the
+   spec lives only in the Brief, no durable slice list exists outside the tracker (the publish
+   step records no slice IDs in PLAN.md), so reconstruct the set with a provider search (the
+   bound adapter's operations reference) for open items whose body cites the topic slug — the
+   `## Parent` provenance line every published slice carries — and confirm the reconstructed
+   set with the user before closing anything. Then close every not-yet-started slice the new
+   direction obsoletes. Closing is a provider-mechanic operation
    (the bound adapter's operations reference, with the provider's not-planned state reason where
    it has one — GitHub: `not planned`), each close carrying a one-line comment linking the
    superseding direction (the container, or the item/PR that records the new direction). Skip
@@ -295,8 +299,11 @@ edited spec, never hand-patched into meaning something the spec no longer says.
    a fresh decomposition), then publish via the seam — `create-item` with
    `--parent "<container-id>"` (when the container exists) and `--blocked-by` wiring the new
    native blocker edges. Replacement slices are born triaged like any others.
-5. **Continue.** The journey resumes on the updated frontier — `/work-items:ship` re-states
-   position and routes the next item.
+5. **Continue.** The journey resumes on the updated frontier. With a container,
+   `/work-items:ship` re-states position and routes the next item; a Brief-only journey
+   continues straight to the next unblocked slice (`/work-items:work`, or the Step 5 report's
+   frontier ordering) — `/work-items:ship` is a router over a container and has nothing to
+   stand on without one.
 
 **When NOT to reroute.** A spec that turns out wrong **after ship** is a new idea, not a routing
 error: open a new spec (a new container or a new topic), never patch the closed one — the
