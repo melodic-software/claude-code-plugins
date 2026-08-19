@@ -1,0 +1,53 @@
+{
+  "skill_name": "audit-skill-starvation",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fresh-install-withholds-verdicts",
+      "prompt": "I just set up Claude Code a couple of days ago and I have about 200 skills installed. Which ones am I not using?",
+      "expected_output": "Refuses to answer the question as asked. Reports the observed horizon (a few days), states that it is far below the exposure floor, and resolves every skill to not-observable with the declined claims listed in the withheld section. Explains that a store younger than the window cannot distinguish never-invoked from never-observed, so a 'you use 3 of 200' answer would be an artifact of install age rather than a finding.",
+      "files": [],
+      "expectations": [
+        "Output reports an observed horizon and compares it against the exposure floor before making any cold claim",
+        "Output resolves rows to not-observable rather than never-used or unused",
+        "Output surfaces the withheld section with a reason rather than silently omitting the declined claims",
+        "Output does not produce a ranked list of unused skills from a horizon that cannot support one"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "plugin-usage-is-not-skill-usage",
+      "prompt": "My ~/.claude.json says the guardrails plugin has usageCount 105 and context-guard has 98. Those are my most-used skills, right?",
+      "expected_output": "Corrects the premise: pluginUsage counts hook, agent, MCP, and LSP dispatch, not skill invocation, and those two plugins are hook-heavy infrastructure whose skills may never have been invoked at all. Also notes that pluginUsage rows are seeded at install with usageCount 0 beside a current lastUsedAt, so recency read off that field is meaningless unless the count is above zero.",
+      "files": [],
+      "expectations": [
+        "Output states that pluginUsage counts hook/agent/MCP/LSP dispatch rather than skill invocation",
+        "Output declines to present those numbers as skill usage",
+        "Output explains that lastUsedAt is seeded at install and is not evidence of use unless usageCount is greater than zero"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "starved-is-not-unwanted",
+      "prompt": "There are a bunch of skills I keep meaning to use and Claude never suggests them. Should I just delete them?",
+      "expected_output": "Explains the starvation loop before recommending anything: the skill listing is budgeted at a fraction of the context window, and on overflow Claude Code drops descriptions starting with the least-invoked skills, so a skill at zero usage loses the keywords that would let it be matched and stays at zero. Distinguishes starved-but-wanted from genuinely unwanted, and does not recommend deletion on the strength of low usage alone.",
+      "files": [],
+      "expectations": [
+        "Output explains the budget-and-drop mechanism rather than treating low usage as a preference signal",
+        "Output separates starved from genuinely unwanted",
+        "Output does not recommend deleting skills solely because they show no usage"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "routes-away-from-the-shipped-feature",
+      "prompt": "Just show me which skills are unused and how much context they cost me.",
+      "expected_output": "Routes to Claude Code's own /doctor and Stats tab, which already report unused skills against their context cost, and explains that this skill answers the adjacent question — why they are unused, and whether the listing budget is suppressing them — rather than duplicating that report.",
+      "files": [],
+      "expectations": [
+        "Output names Claude Code's own /doctor or Stats tab as the owner of the unused-vs-context-cost question",
+        "Output states what this skill adds instead of duplicating that report"
+      ]
+    }
+  ]
+}

@@ -244,7 +244,15 @@ boundary); `docs/conventions/plugin-data-report-keying/`; `docs/conventions/hook
 **TDD:** Red-Green-Refactor per phase. The pure classifier is the unit seam; `*.test.sh` covers the
 CLI surface. Tests ride each phase — there is no "testing phase".
 
-### Phase 1: Walking skeleton — end-to-end at T-baseline [TODO]
+### Phase 1: Walking skeleton — end-to-end at T-baseline [DONE]
+
+**Completed 2026-08-18.** Sanity-check evidence: engine exits 0 rendering JSON from
+`tests/fixtures/fleet-basic.json`; `jq -e '.observed_horizon'` passes; all 4 of 4 rows resolve
+`not-observable` (exact count, per the revised criterion — not "the bulk"); `withheld` is non-empty
+with reasons; `audit_skill_starvation.test.sh` passes 11 unit tests plus its end-to-end fixture
+assertion; `shellcheck` and `ruff` clean; and `check-skill.sh --require-evals` reports
+**PASS — 0 errors, 0 warnings** (the gate that would have blocked every later phase had evals been
+deferred). Deviations: none.
 
 The integration slice. Denominator → one source → three-field model → markdown, running for real.
 
