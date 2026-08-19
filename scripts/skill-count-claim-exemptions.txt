@@ -29,3 +29,4 @@
 # wrong number lands on that line next.
 
 plugins/claude-config/README.md|are required across three skills, not one  # dependency-sharing count, not a plugin-size count: the sentence names its three skills (audit, audit-permission-grants, audit-instructions) inline, so it is self-checking against its own list.
+plugins/claude-config/skills/setup/SKILL.md|the other three skills still run  # prerequisite-scope count, not a plugin-size count: "the other three" means the other three of the four JSON-parsing audit skills item 1 above names, so it counts a named subset rather than the plugin. Only visible to the gate once wrapped lines are joined, which is why it surfaced later than its sibling row above.

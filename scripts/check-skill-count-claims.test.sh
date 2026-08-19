@@ -106,6 +106,50 @@ make_skill epsilon a
 make_skill epsilon b
 readme epsilon 'A plugin bundling 5 skills for one job.'
 
+# zeta: a plugin whose LAST skill was removed, so skills/ is gone entirely, while
+# the README keeps its "One skill" line. Removal is the drift this gate most needs
+# to catch, and skipping a plugin with no skills/ directory reports it as success.
+mkdir -p "$TMP/plugins/zeta"
+readme zeta 'One skill, one job: being deleted.'
+
+# eta: a claim split by an ordinary markdown wrap. Reflowing a paragraph must not
+# be able to disable the gate for a claim it previously held.
+make_skill eta a
+make_skill eta b
+# The wrap must fall INSIDE the claim phrase, so neither line matches alone —
+# mirroring plugins/naming/README.md, where "One" ends one line and "skill, one
+# job" opens the next. A fixture whose second line still matches on its own would
+# pass even with line joining removed.
+readme eta \
+  'A Claude Code plugin for evaluating wrapped prose. Two' \
+  'skills, one concern: straddling a line break.'
+
+# theta: an all-caps claim. The cheap prefilter must not decide, ahead of the case
+# fold, which capitalizations the gate can see.
+make_skill theta a
+make_skill theta b
+readme theta '## IT SHIPS THREE SKILLS' 'Body text.'
+
+# iota: an ordinary correct claim with a blank line above it, and a heading above
+# that. Joining must not report the same claim twice — once at its own line and
+# again through the previous line's join — nor glue a heading to a claim.
+make_skill iota a
+make_skill iota b
+readme iota \
+  '# iota' \
+  '' \
+  'Two skills, one concern: not being counted twice.'
+
+# kappa: one sentence satisfying TWO grammars at once — the verb form only across
+# the join ("It ships" + "two skills"), the appositive form on the second line
+# alone ("two skills, one concern"). A duplicate guard that only re-tests the
+# form that matched reports this single claim at both line numbers.
+make_skill kappa a
+make_skill kappa b
+readme kappa \
+  'A Claude Code plugin for overlapping grammars. It ships' \
+  'two skills, one concern: matching two forms at once.'
+
 # --- assertions -----------------------------------------------------------
 
 out="$(run)"
@@ -159,6 +203,43 @@ else
   fail "epsilon should flag as 5 -> 2 in digits: $out"
 fi
 
+# 7b. A plugin whose skills/ directory is gone is still scanned, with a count of
+#     zero — the stale-count-by-removal case.
+if grep -qE 'MISMATCH.*zeta/README.md:1 .*one -> zero' <<<"$out"; then
+  pass "plugin with no skills/ directory is scanned as zero, not skipped"
+else
+  fail "zeta should flag as one -> zero: $out"
+fi
+
+# 7c. A claim split across a markdown wrap is found, and reported at the line the
+#     claim begins on.
+if grep -qE '^ok .*eta/README.md:1 ' <<<"$out"; then
+  pass "wrapped claim is found and anchored to its opening line"
+else
+  fail "eta's wrapped claim should verify at line 1: $out"
+fi
+
+# 7d. An all-caps claim survives the prefilter.
+if grep -qE 'MISMATCH.*theta/README.md:1 .*three -> two' <<<"$out"; then
+  pass "all-caps claim is not dropped by the prefilter"
+else
+  fail "theta's SKILLS claim should flag as three -> two: $out"
+fi
+
+# 7e. Line joining must not double-report a claim, nor glue a heading to one.
+if [[ "$(grep -c 'iota/README.md' <<<"$out")" -eq 1 ]]; then
+  pass "a claim adjacent to a blank line is reported exactly once"
+else
+  fail "iota's claim should appear exactly once: $out"
+fi
+
+# 7f. A sentence matching two grammars across a wrap is still ONE claim.
+if [[ "$(grep -c 'kappa/README.md' <<<"$out")" -eq 1 ]]; then
+  pass "a claim satisfying two forms across a wrap is reported once"
+else
+  fail "kappa's claim should appear exactly once: $out"
+fi
+
 # 8. --check fails while any mismatch stands.
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 1 ]]; then
@@ -195,7 +276,7 @@ else
 fi
 
 # 12. An exemption pointing at a deleted file fails with that reason named.
-printf 'plugins/zeta/README.md|anything\n' >"$EXEMPTIONS"
+printf 'plugins/omega/README.md|anything\n' >"$EXEMPTIONS"
 out="$(run --check)"
 if grep -q 'no longer exists' <<<"$out"; then
   pass "exemption for a missing file fails with that reason"
@@ -215,7 +296,8 @@ fi
 # 14. A clean tree passes, and says how many claims it verified -- a gate that
 #     found zero claims and one that verified twenty must not report alike.
 : >"$EXEMPTIONS"
-rm -rf "$TMP/plugins/beta" "$TMP/plugins/epsilon"
+rm -rf "$TMP/plugins/beta" "$TMP/plugins/epsilon" \
+  "$TMP/plugins/zeta" "$TMP/plugins/theta"
 out="$(run --check)"
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 0 ]] && grep -qE 'All [0-9]+ skill-count claim' <<<"$out"; then

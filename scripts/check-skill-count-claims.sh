@@ -162,8 +162,30 @@ claim_forms=(
 # enough to matter ("It ships **two skills**"), and a JSON manifest escapes its
 # em-dashes. Normalize both away before matching; neither can carry a digit, so
 # stripping them cannot invent or destroy a count.
+#
+# Pure bash, writing to a global rather than printing: this runs on every line of
+# every README, manifest, and SKILL.md in the fleet — around 100k lines — and a
+# `printf | tr | sed` pipeline inside a command substitution costs three
+# processes per call. That turned a sub-second gate into a multi-minute one when
+# the cheap prefilter moved below it.
+norm_out=""
 normalize_line() {
-  printf '%s' "$1" | tr -d '*`_' | sed 's/\\u2014/ -- /g; s/\\u2013/ -- /g'
+  local s="$1"
+  s="${s//[\*\`_]/}"
+  # Both spellings of a dash. A README carries the real UTF-8 character; a JSON
+  # manifest carries the six-character escape for the same codepoint, because
+  # plugin.json descriptions are JSON-encoded. A normalizer that handles one
+  # spelling is blind on the other file class, and this gate reads both.
+  #
+  # bs is built here rather than typed inline: an editor or formatter that
+  # normalizes escape sequences silently rewrites a literal backslash-u into the
+  # character it denotes, which is exactly how the manifest branch got lost once.
+  local bs=$'\134'
+  s="${s//${bs}u2014/ -- }"
+  s="${s//${bs}u2013/ -- }"
+  s="${s//'—'/ -- }"
+  s="${s//'–'/ -- }"
+  norm_out="$s"
 }
 
 # Prints the integer, or nothing at all for a token this gate does not recognize
@@ -261,12 +283,16 @@ mismatches=0
 exempted=0
 report=()
 
+# EVERY plugin is scanned, including one with no skills/ directory at all. That
+# case is not a nicety: removing a plugin's LAST skill removes the directory with
+# it, and skipping the plugin then means the retained "One skill, one job" line in
+# its README goes unchecked — the exact stale-count-by-removal this gate exists to
+# catch, reported as success. A missing or empty skills/ directory is a count of
+# zero, not a reason to look away.
 for plugin_dir in plugins/*/; do
-  [[ -d "${plugin_dir}skills" ]] || continue
   plugin="${plugin_dir%/}"
   plugin="${plugin##*/}"
   actual="$(skill_count "$plugin_dir")"
-  ((actual > 0)) || continue
 
   files=("${plugin_dir}README.md" "${plugin_dir}.claude-plugin/plugin.json")
   for skill_md in "${plugin_dir}"skills/*/SKILL.md; do
@@ -280,54 +306,134 @@ for plugin_dir in plugins/*/; do
     # read-and-write of one file (SC2094).
     file_lines=()
     mapfile -t file_lines <"$file"
-    lineno=0
-    for line in "${file_lines[@]}"; do
-      lineno=$((lineno + 1))
-      case "$line" in
-      *[Ss]kill*) ;;
-      *) continue ;;
+    for ((idx = 0; idx < ${#file_lines[@]}; idx++)); do
+      lineno=$((idx + 1))
+      line="${file_lines[idx]}"
+
+      # A claim can straddle a markdown wrap — `It ships` ending one line and
+      # `three skills:` opening the next — and matching physical lines alone
+      # would miss it. Worse, reflowing a paragraph could then disable the gate
+      # for a claim it used to hold, silently and permanently. So each line is
+      # tested alone AND joined with its successor.
+      #
+      # Joining stops at a block boundary. Gluing a line to a heading, a table
+      # row, or across a paragraph break can manufacture a claim that no
+      # sentence actually makes, and a fabricated hit costs a contributor the
+      # same argument as a real one.
+      next=""
+      if ((idx + 1 < ${#file_lines[@]})); then
+        next="${file_lines[idx + 1]}"
+      fi
+      next="${next#"${next%%[![:space:]]*}"}"
+      subjects=("$line")
+      case "$next" in
+      '' | '#'* | '|'* | '```'* | '~~~'* | '---'*) ;;
+      *) subjects+=("$line $next") ;;
       esac
-      # Lowercased before matching: a claim routinely opens a sentence ("Two
-      # skills, one concern"), and the patterns spell their number words in
-      # lower case. `[[ =~ ]]` has no case-insensitive flag, so folding the
-      # subject is the portable way to catch both.
-      norm="$(normalize_line "$line")"
-      norm="${norm,,}"
 
-      for form in "${claim_forms[@]}"; do
-        basis="${form%%:*}"
-        pattern="${form#*:}"
-        [[ "$norm" =~ $pattern ]] || continue
-        claimed_raw="${BASH_REMATCH[2]}"
-        claimed="$(to_int "$claimed_raw")"
-        # A number word outside the recognized range: no claim detected, which
-        # fails closed (silent) rather than open (a wrong comparison).
-        [[ -n "$claimed" ]] || continue
+      # The next line's own normalized text, used to reject a joined match that
+      # belongs entirely to that line. Without this the join DOUBLE-COUNTS every
+      # ordinary claim: the claim on line N is found once at index N alone and
+      # again at index N-1 through the join, inflating the fleet total and
+      # reporting each site twice.
+      next_norm=""
+      if ((${#subjects[@]} > 1)); then
+        normalize_line "$next"
+        next_norm="${norm_out,,}"
+      fi
 
-        expected="$actual"
-        [[ "$basis" == "minus-one" ]] && expected=$((actual - 1))
+      matched=0
+      for ((sub_idx = 0; sub_idx < ${#subjects[@]}; sub_idx++)); do
+        ((matched)) && break
+        subject="${subjects[sub_idx]}"
+        # Case-folded BEFORE the cheap prefilter, not after: `[Ss]kill` rejects
+        # an all-caps `SKILLS`, so prefiltering on the raw text would drop a
+        # heading or emphasized sentence before the fold could reach it —
+        # a prefilter that changes which claims are found is a hole, not an
+        # optimization. The patterns spell their number words in lower case and
+        # `[[ =~ ]]` has no case-insensitive flag, so folding the subject is the
+        # portable way to catch every capitalization.
+        lower="${subject,,}"
+        case "$lower" in
+        *skill*) ;;
+        *) continue ;;
+        esac
+        normalize_line "$subject"
+        norm="${norm_out,,}"
 
-        claims_found=$((claims_found + 1))
-        if ((claimed == expected)); then
-          # Deliberately NOT consulted when the claim is already right: an
-          # exemption is only "used" when it actually suppressed a mismatch, and
-          # marking it here would let a row survive the stale guard after the
-          # prose it covered was fixed.
-          report+=("ok|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
-        else
-          mark_if_exempt "$file" "$line"
-          if ((exempt_hit)); then
-            exempted=$((exempted + 1))
-            report+=("exempt|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
-          else
-            mismatches=$((mismatches + 1))
-            report+=("MISMATCH|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+        for form in "${claim_forms[@]}"; do
+          basis="${form%%:*}"
+          pattern="${form#*:}"
+          [[ "$norm" =~ $pattern ]] || continue
+          # Captured BEFORE the duplicate guard below runs its own `=~`: a second
+          # match attempt REPLACES BASH_REMATCH, and under `set -u` a failed one
+          # leaves it empty, so reading group 2 afterwards aborts the script.
+          claimed_raw="${BASH_REMATCH[2]}"
+          # On the JOINED subject only: if the next line matches this pattern on
+          # its OWN, the claim is that line's and index N+1 will report it at its
+          # own line number — so the joined hit is a duplicate, not a find. Only a
+          # claim that cannot be seen without the join belongs to this index.
+          #
+          # The test is pattern-vs-next-line, NOT containment of the matched
+          # extent: most forms open with a boundary group that captures the
+          # join's own space, so the extent never appears verbatim in the next
+          # line and a containment test silently passes everything through. That
+          # bug double-counted every wrapped-adjacent claim in the fleet.
+          #
+          # It tests EVERY form, not just this one. One sentence can satisfy two
+          # grammars at once — "It ships / two skills, one concern" matches the
+          # verb form only across the join and the appositive form on the second
+          # line alone — so checking the same form only would report that single
+          # claim twice, at two different line numbers.
+          if ((sub_idx > 0)); then
+            dup=0
+            for other in "${claim_forms[@]}"; do
+              [[ "$next_norm" =~ ${other#*:} ]] || continue
+              dup=1
+              break
+            done
+            ((dup)) && continue
           fi
-        fi
-        # One claim per line: the forms overlap by design (a line can satisfy
-        # both the appositive and the line-start form), and reporting the same
-        # site twice would double-count the fleet total.
-        break
+          claimed="$(to_int "$claimed_raw")"
+          # A number word outside the recognized range: no claim detected, which
+          # fails closed (silent) rather than open (a wrong comparison).
+          [[ -n "$claimed" ]] || continue
+
+          expected="$actual"
+          if [[ "$basis" == "minus-one" ]]; then
+            expected=$((actual - 1))
+            # A zero-skill plugin has no "all but this one" remainder; clamping
+            # keeps the remediation from advising a negative count.
+            ((expected < 0)) && expected=0
+          fi
+
+          claims_found=$((claims_found + 1))
+          matched=1
+          if ((claimed == expected)); then
+            # Deliberately NOT consulted when the claim is already right: an
+            # exemption is only "used" when it actually suppressed a mismatch, and
+            # marking it here would let a row survive the stale guard after the
+            # prose it covered was fixed.
+            report+=("ok|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+          else
+            # Exemption matching uses the SUBJECT, so a substring recorded for a
+            # wrapped claim can span the join the same way the match did.
+            mark_if_exempt "$file" "$subject"
+            if ((exempt_hit)); then
+              exempted=$((exempted + 1))
+              report+=("exempt|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+            else
+              mismatches=$((mismatches + 1))
+              report+=("MISMATCH|$file:$lineno|$plugin|$claimed_raw|$expected|$basis")
+            fi
+          fi
+          # One claim per line: the forms overlap by design (a line can satisfy
+          # both the appositive and the line-start form), and the line-alone and
+          # joined subjects overlap too. Reporting the same site twice would
+          # double-count the fleet total; `matched` above stops the subject loop
+          # for the same reason.
+          break
+        done
       done
     done
   done
