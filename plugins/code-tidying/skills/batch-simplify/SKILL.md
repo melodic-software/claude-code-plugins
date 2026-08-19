@@ -1,11 +1,11 @@
 ---
-description: "Batch-run simplification across all recently changed files, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', or after a multi-session sprint. Accepts a time window (`24h`, `7d`) or `branch` to diff the current branch vs the default branch; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup — use /simplify instead."
+description: "Batch-run simplification across changed files — or across an entire repository — grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', 'simplify the whole repo', or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup — use /simplify instead."
 user-invocable: true
-argument-hint: "[time-window | branch] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs — default: 48h)"
+argument-hint: "[time-window | branch | repo] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo — default: 48h)"
 shell: bash
 metadata:
   workflow-stage: review
-  summary: Batch-run simplification across all recently changed files by ecosystem
+  summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
 ---
 
 ## Pre-computed context
@@ -14,7 +14,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-Automate running simplification across recently changed code files, grouped so each pass has tight focus and ecosystem-appropriate context. Replaces the manual process of remembering to run `/simplify` after each task.
+Automate running simplification across changed code files — or every code file in the repository — grouped so each pass has tight focus and ecosystem-appropriate context. Replaces the manual process of remembering to run `/simplify` after each task.
 
 ## Emit checklist
 
@@ -22,7 +22,7 @@ For any batch run (Phases 1-8), copy `templates/checklist.md` into your project'
 
 ## Arguments
 
-`$ARGUMENTS` — optional scope for the git history scan. Two modes:
+`$ARGUMENTS` — optional scope for the file scan. Three modes:
 
 ### Mode 1: Time window (default)
 
@@ -40,7 +40,11 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 Match the whole argument, never a substring: an argument that merely *contains* "branch" — a path, a filename, a future scope value — is not a branch-mode request, and routing it there silently sweeps the wrong file set.
 
-**Detection heuristic** (after stripping the `docs` flag): empty remaining argument → default `48h` time window; matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; anything else → ask the user rather than guessing.
+**Detection heuristic** (after stripping the `docs` flag): empty remaining argument → default `48h` time window; matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode; anything else → ask the user rather than guessing.
+
+### Mode 3: Whole repository
+
+Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** `repo`. Sweeps every non-excluded file in the repository rather than a diff — including untracked files that are not ignored, so newly added work is swept too. Explicit entry only: it never auto-escalates from another mode, and it confirms the inventory with the user before Phase 4. `repo <path>` is deliberately not accepted; a trailing token falls through to the ask-the-user rule above. Repo-scale machinery — grouping, waves, concurrency, resume, delivery — lives in [context/repo-mode.md](context/repo-mode.md), loaded only when this mode fires.
 
 ### Flag: `docs`
 
@@ -81,6 +85,8 @@ Requires being on a non-default branch. If on the default branch, report the err
 { git log --since="${NORMALIZED_TIME_WINDOW} ago" --diff-filter=ACDMR --name-only --pretty=format:""; git diff --diff-filter=ACDMR --name-only HEAD; } | sort -u | grep -v '^$'
 ```
 
+**Repo mode** — the file universe is `git -C "$(git rev-parse --show-toplevel)" ls-files --cached --others --exclude-standard`, anchored to the repo root so a run started in a subdirectory still sweeps the whole tree. Refuse to start if any file in that universe carries tracked modifications, naming them; scope that check to the swept universe and exclude the working-notes location from both the check and the sweep — a whole-tree refusal would block the checklist this skill writes as its own first step, and would block every resume.
+
 ### Phase 2: Filter to code files
 
 Exclude non-code files. Keep only files that benefit from code simplification:
@@ -99,7 +105,7 @@ Exclude non-code files. Keep only files that benefit from code simplification:
 - **Agent & enforcement configuration** — `.claude/hooks/**`, `.claude/settings*.json`, `.claude/agents/**`, `.mcp.json`, `.github/workflows/**`, git-hook manager config (`lefthook.yml`, `.husky/**`, `.pre-commit-config.yaml`): never handed to an autonomous simplifier (same safety model as this plugin's tidy skill). If they changed in the window, list them as read-only deferred items instead
 - Data files (fixtures, datasets, exported records — anything that is content rather than logic)
 - Skill/agent definition prose (`SKILL.md`, agent markdown), `README.md`, `CLAUDE.md`
-- Generated or vendored code
+- Generated or vendored code, and any directory the consuming repo documents as externally managed or sync-generated — a local edit there is silently overwritten on the next sync, so it is a read-only deferred class rather than a sweep target ([context/repo-mode.md](context/repo-mode.md))
 
 **Append-only / historical-record protection** (applies even when the `docs` flag is set):
 
@@ -111,7 +117,7 @@ Exclude non-code files. Keep only files that benefit from code simplification:
 
 Check each file exists on disk — files may have been deleted or renamed since the commit. Drop any that don't exist.
 
-If no code files remain after filtering, report "No code files changed in {scope}" and exit (where scope is the time window or "branch vs default").
+If no code files remain after filtering, report "No code files changed in {scope}" and exit (where scope is the time window or "branch vs default"). When the scope was a diff, name repo mode in that same report — *"nothing changed in {scope}; `/code-tidying:batch-simplify repo` sweeps the whole repository instead"* — and stop. Offering is not entering: run repo mode only if the user asks for it.
 
 ### Phase 4: Group files
 
