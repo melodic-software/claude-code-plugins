@@ -14,12 +14,12 @@
 # about the repository -- "bundling fourteen skills", "the other thirteen skills
 # are zero-config" -- and nothing recomputes them when a skill is added. Adding
 # one skill silently falsifies every sentence that counted the old set, in files
-# nobody opens during that change. The measured record: a single PR
-# (melodic-software/claude-code-plugins#3011) went stale on six such counts, each
-# caught by a different human or automated reviewer rather than by anything
-# mechanical; session-flow's own CHANGELOG records an "other eleven skills" line
-# that had already been off by one BEFORE that PR touched it. A reviewer catch
-# is not a control -- it is a coin flip that happened to land right.
+# nobody opens during that change. The measured record: a single PR (#3011) went
+# stale on six such counts, each caught by a different human or automated
+# reviewer rather than by anything mechanical; session-flow's own CHANGELOG
+# records an "other eleven skills" line that had already been off by one BEFORE
+# that PR touched it. A reviewer catch is not a control -- it is a coin flip
+# that happened to land right.
 #
 # This is the numeric half of a defect the fleet already names on the prose
 # side: `/docs-hygiene:audit-noise`'s `enum-list` shape flags "tables/lists
@@ -53,8 +53,8 @@
 #     to define five. The denominator is the document's own structure, and which
 #     structure a given count refers to is not mechanically recoverable -- a
 #     prose count sits near headings, tables and lists that each have a different
-#     cardinality, and picking the wrong one flags correct prose. PR #3011 hit
-#     this class too (a "four buckets" line surviving the addition of a fifth),
+#     cardinality, and picking the wrong one flags correct prose. That same PR
+#     (#3011) hit this class too (a "four buckets" line surviving a fifth),
 #     so it is a real class, not a hypothetical. No script in this repo parses a
 #     document's structure to validate a claim the same document makes; building
 #     that is a materially larger job than this one and is deliberately not
