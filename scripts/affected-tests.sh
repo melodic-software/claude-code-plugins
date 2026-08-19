@@ -78,25 +78,30 @@
 # the visited set, and its worst case is selecting every suite — the safe
 # direction.
 #
-# ACROSS ecosystems it takes exactly one hop, and this asymmetry is load-bearing
-# rather than tidiness. Within a language, "B's text contains A's basename" is a
-# real dependency: shell sources shell, Node imports Node. Across languages it
-# usually is not — a .ps1 that happens to contain the characters "paths.js" is
-# not loading it — so chaining those coincidences compounds them. Measured
-# before this rule existed, with the corpus widened to four ecosystems and the
-# walk left uncapped: EVERY .js file in the repo selected the same 156 of 439
-# suites, and one selected 376, because the walk crossed js -> ps1 -> sh and
-# saturated on the hubs at the far end (Assert-CheckResult.ps1, hook-utils.sh).
-# An answer that is identical for every file in a language carries no
-# information about which file changed, which is the tool failing at its whole
-# job even though it fails in the "safe" direction.
+# ACROSS ecosystems each path may take exactly ONE language transition, and this
+# asymmetry is load-bearing rather than tidiness. Within a language, "B's text
+# contains A's basename" is a real dependency: shell sources shell, Node imports
+# Node. Across languages it usually is not — a .ps1 that happens to contain the
+# characters "paths.js" is not loading it — so chaining those coincidences
+# compounds them. Measured before this rule existed, with the corpus widened to
+# four ecosystems and the walk left uncapped: EVERY .js file in the repo selected
+# the same 156 of 439 suites, and one selected 376, because the walk crossed
+# js -> ps1 -> sh and saturated on the hubs at the far end
+# (Assert-CheckResult.ps1, hook-utils.sh). An answer identical for every file in
+# a language carries no information about which file changed, which is the tool
+# failing at its whole job even though it fails in the "safe" direction.
 #
-# So a cross-language match is still FOLLOWED — one hop, far enough to apply
-# R2/R3 and pick up the suite covering it, which is what keeps a .sh wrapper
-# around a .py helper working — but it does not become a launching point for
-# further walking. This costs nothing that was ever load-bearing: before the
-# corpus was widened, the reverse lookup was `-- '*.sh'`, so cross-language
-# edges did not exist at all and no shell-to-shell chain is shortened by this.
+# The budget is one TRANSITION per path, not one hop. A crossed-to file keeps
+# walking its OWN language freely; what it may not do is cross a second time.
+# The distinction matters and the weaker "one hop then stop" rule was wrong:
+# helper.py -> runner.sh -> command.sh -> command.test.sh is a real chain whose
+# second edge is shell-to-shell, and stopping dead at runner.sh dropped
+# command.test.sh — an under-selection, the direction this file calls unsafe. It
+# is the repeated re-crossing that saturates, not depth within one language.
+#
+# This costs nothing that was ever load-bearing: before the corpus was widened
+# the reverse lookup was `-- '*.sh'`, so cross-language edges did not exist at
+# all and no shell-to-shell chain is shortened by any of this.
 #
 # KNOWN LIMIT, in the safe direction: R3/R4 look the basename up with
 # `git grep -o -F`, which is an unanchored SUBSTRING search — not a token match
@@ -386,13 +391,18 @@ colocated_suites() {
   dir="${p%/*}"
   [[ "$dir" == "$p" ]] && dir="."
   base="${stem##*/}"
-  for candidate in \
-    "$stem.test.sh" \
-    "$stem.test.js" \
-    "$stem.test.mjs" \
-    "$stem.Tests.ps1" \
-    "$dir/test_$base.py" \
-    "$dir/test_${base//-/_}.py"; do
+  local -a candidates=(
+    "$stem.test.sh"
+    "$stem.test.js"
+    "$stem.test.mjs"
+    "$stem.Tests.ps1"
+    "$dir/test_$base.py"
+  )
+  # The hyphen fold is a SECOND candidate only when there is a hyphen to fold;
+  # otherwise it is character-for-character the previous entry and would emit
+  # the same path twice.
+  [[ "$base" == *-* ]] && candidates+=("$dir/test_${base//-/_}.py")
+  for candidate in ${candidates[@]+"${candidates[@]}"}; do
     [[ -f "$candidate" ]] && printf '%s\n' "$candidate"
   done
   return 0
@@ -407,16 +417,16 @@ select_for() {
   local -a frontier=()
   local -a next=()
   local p b sib copy line matched_path matched_name grep_rc
-  local origin_family matched_family
-  # PATTERN_ORIGIN maps a batched basename back to the ecosystem of the file
-  # that contributed it, and PATTERN_TERM records whether that file was itself
-  # reached across a language boundary (and so must not launch a further walk).
-  # When two files in DIFFERENT families contribute the same basename, the
-  # origin collapses to '*' and the pattern is treated as same-family against
-  # anything — the over-selecting direction, which is the safe one.
+  local origin_family matched_family hop_state
+  # PATTERN_ORIGIN maps a batched basename back to the ecosystem of the file that
+  # contributed it, and PATTERN_CROSSED records whether that file had already
+  # spent its one language transition. When two files in DIFFERENT families
+  # contribute the same basename, the origin collapses to '*' and the pattern is
+  # treated as same-family against anything — the over-selecting direction, which
+  # is the safe one.
   local -A PATTERN_ORIGIN=()
-  local -A PATTERN_TERM=()
-  local -A TERMINAL=()
+  local -A PATTERN_CROSSED=()
+  local -A CROSSED=()
   # The visited set is PER SEED, not shared across seeds. Sharing it made a
   # changed file that an earlier seed had already walked past look unvisited-
   # and-unmapped, which is the fail-open direction: the file would be reported
@@ -460,12 +470,13 @@ select_for() {
       origin_family="$(lang_family "$p")"
       if [[ -z "${PATTERN_ORIGIN[$b]:-}" ]]; then
         PATTERN_ORIGIN["$b"]="$origin_family"
-        PATTERN_TERM["$b"]="${TERMINAL[$p]:-0}"
+        PATTERN_CROSSED["$b"]="${CROSSED[$p]:-0}"
       else
         [[ "${PATTERN_ORIGIN[$b]}" == "$origin_family" ]] || PATTERN_ORIGIN["$b"]='*'
-        # Any non-terminal contributor wins: the walk continues. Over-selection
-        # is the safe direction, so a tie resolves toward more walking.
-        [[ "${TERMINAL[$p]:-0}" == "0" ]] && PATTERN_TERM["$b"]=0
+        # Any contributor that has NOT yet crossed wins: the walk keeps its
+        # budget. Over-selection is the safe direction, so a tie resolves toward
+        # more walking.
+        [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
     done
@@ -484,8 +495,13 @@ select_for() {
     # unsafe: a broken lookup reported a narrow selection, or "no suites
     # selected", at exit 0. Same reasoning as changed_from_diff below.
     grep_rc=0
+    # Every extension lang_family() names must appear here. If it classifies a
+    # path into a family but nothing ever greps that path's content, the file is
+    # silently under-covered while LOOKING supported — fail-open, and the reason
+    # .bash and .cjs are in this list despite the repo carrying none today.
     git grep --untracked -o -F -f "$WORK_DIR/patterns" \
-      -- '*.sh' '*.js' '*.mjs' '*.py' '*.ps1' '*.psm1' >"$WORK_DIR/hits" || grep_rc=$?
+      -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
+      >"$WORK_DIR/hits" || grep_rc=$?
     # Exit 1 is "no match" and is completely ordinary — most seeds reach a level
     # with no further dependents. Only above 1 is git itself failing.
     if [[ "$grep_rc" -gt 1 ]]; then
@@ -503,24 +519,33 @@ select_for() {
         # drives a .py helper is exactly the cross-language coverage this must
         # keep finding.
         add_suite "$matched_path" "references $matched_name" || true
-      elif [[ "${PATTERN_TERM[$matched_name]:-0}" == "1" ]]; then
-        # Reached across a language boundary already; it contributed its own
-        # suites via R2/R3 and stops here.
-        :
-      else
-        matched_family="$(lang_family "$matched_path")"
-        if [[ -n "${VISITED[$matched_path]:-}" ]]; then
-          :
-        else
-          if [[ "${PATTERN_ORIGIN[$matched_name]:-*}" == '*' ||
-            "$matched_family" == "${PATTERN_ORIGIN[$matched_name]:-*}" ]]; then
-            TERMINAL["$matched_path"]=0
-          else
-            TERMINAL["$matched_path"]=1
-          fi
-          next+=("$matched_path")
-        fi
+        continue
       fi
+      matched_family="$(lang_family "$matched_path")"
+      origin_family="${PATTERN_ORIGIN[$matched_name]:-*}"
+      if [[ "$origin_family" == '*' || "$matched_family" == "$origin_family" ]]; then
+        # Same-family edge: a real dependency, and it spends no budget.
+        hop_state="${PATTERN_CROSSED[$matched_name]:-0}"
+      elif [[ "${PATTERN_CROSSED[$matched_name]:-0}" == "1" ]]; then
+        # This would be a SECOND language transition for the chain reaching here.
+        continue
+      else
+        hop_state=1
+      fi
+      [[ -n "${VISITED[$matched_path]:-}" ]] && continue
+      # AGGREGATE, never assign. One path can be hit several times in a single
+      # round by different patterns — a shell wrapper naming both a shell helper
+      # and a JS file — and those hits can disagree about whether the chain
+      # reaching it has already crossed. A plain assignment let whichever hit
+      # `git grep` happened to emit last decide, so an unrelated cross-family
+      # mention could spend a path's budget and cut its own same-family walk
+      # short: order-dependent UNDER-selection, the direction this file calls
+      # unsafe. The path keeps the most permissive state any contributor gives
+      # it, matching how PATTERN_CROSSED already resolves its own ties.
+      if [[ "${CROSSED[$matched_path]:-1}" != "0" ]]; then
+        CROSSED["$matched_path"]="$hop_state"
+      fi
+      next+=("$matched_path")
     done <"$WORK_DIR/hits"
 
     frontier=(${next[@]+"${next[@]}"})

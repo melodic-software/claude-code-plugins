@@ -622,9 +622,9 @@ printf 'echo "runs Far.ps1"\n' >"$repo/eco/hop/far-runner.sh"
 suite_body far-runner >"$repo/eco/hop/far-runner.test.sh"
 run_sel "$repo" eco/hop/origin.js
 if ! has_line "$OUT" eco/hop/far-runner.test.sh; then
-  ok "a cross-language match does not chain into a second hop"
+  ok "a chain that already crossed languages cannot cross a second time"
 else
-  fail "cross-language walk chained past one hop (rc=$RC): $OUT"
+  fail "cross-language walk took a second transition (rc=$RC): $OUT"
 fi
 
 # --- --run refuses to guess a runner for another ecosystem -----------------
@@ -652,6 +652,66 @@ if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/disk-hygiene/lib/test_hook_telem
   ok "live: a .py beside its test_<stem>.py is no longer UNMAPPED"
 else
   fail "live python co-located selection (rc=$RC): $out"
+fi
+
+# --- crossing once does not stop the walk in the destination language ------
+# The cap is one language TRANSITION per path, not one hop. A weaker
+# "stop dead after crossing" rule looks equivalent and is not: helper.py ->
+# runner.sh -> command.sh -> command.test.sh is a real chain whose SECOND edge is
+# shell-to-shell, and stopping at runner.sh drops command.test.sh. That is an
+# under-selection, which this tool treats as the unsafe direction, so the
+# destination-language walk has to keep going.
+repo="$(mk_repo)"
+mkdir -p "$repo/eco/chain"
+printf 'def helper():\n    return 1\n' >"$repo/eco/chain/helper.py"
+# The shell wrapper that drives the Python helper: one crossing, py -> sh.
+printf 'echo "runs helper.py"\n' >"$repo/eco/chain/runner.sh"
+# A shell dependent of the wrapper: the SECOND edge, shell -> shell.
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these, not this shell
+printf 'source "$(dirname "$0")/runner.sh"\n' >"$repo/eco/chain/command.sh"
+suite_body command >"$repo/eco/chain/command.test.sh"
+
+run_sel "$repo" eco/chain/helper.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/chain/command.test.sh; then
+  ok "after crossing languages once, the same-family walk continues"
+else
+  fail "py -> sh -> sh chain lost its suite (rc=$RC): $OUT"
+fi
+
+# --- the crossing budget is aggregated per path, never assigned ------------
+# One path can be hit several times in a single round by different patterns, and
+# those hits can disagree about whether the chain reaching it has already
+# crossed. Assigning rather than aggregating let whichever hit `git grep` emitted
+# LAST decide, so an incidental cross-family mention could spend a path's budget
+# and block its own genuine crossing later — order-dependent under-selection.
+#
+# Reaching two families in ONE round takes a cross-family sync manifest, since
+# R5 seeds every copy alongside the source. zed.sh names the shell source first
+# and the JS copy second, so a last-write-wins bug resolves to "already crossed".
+repo2="$(mk_repo)"
+mkdir -p "$repo2/eco/agg" "$repo2/plugins/alpha/hooks"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '# Fixture sync manifest whose copies land in ANOTHER language.\n'
+  printf 'src="lib/mixed.sh"\n'
+  printf 'copies=(plugins/*/hooks/mixed.js)\n'
+} >"$repo2/scripts/sync-mixed.sh"
+printf 'mixed_helper() { echo mixed; }\n' >"$repo2/lib/mixed.sh"
+printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
+
+# Names the shell source FIRST, the JS copy SECOND — so the cross-family hit is
+# the one a last-write-wins bug would keep.
+printf 'source "lib/mixed.sh"\n# also mirrors mixed.js\n' >"$repo2/eco/agg/zed.sh"
+# A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
+# would block. Its suite is the assertion.
+printf 'import subprocess  # drives zed.sh\n' >"$repo2/eco/agg/zed_user.py"
+printf 'import zed_user\n' >"$repo2/eco/agg/test_zed_user.py"
+
+run_sel "$repo2" lib/mixed.sh
+if has_line "$OUT" eco/agg/test_zed_user.py; then
+  ok "a path's crossing budget survives an unrelated cross-family hit"
+else
+  fail "crossing budget was spent by an incidental hit (rc=$RC): $OUT"
 fi
 
 printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
