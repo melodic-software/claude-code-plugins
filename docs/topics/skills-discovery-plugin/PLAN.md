@@ -386,7 +386,26 @@ its own test, so an operator who has set it does not get a silently wrong budget
   guard on the derived-not-constant correction); `overflow_chars` sign matches each boundary
   fixture; any band output satisfies `grep -q "inferential"`.
 
-### Phase 4: Source ladder — T-local and T-full [TODO]
+### Phase 4: Source ladder — T-local and T-full [DONE]
+
+**Completed 2026-08-18.** Sanity-check evidence: the double-count case reconciles to **1, not 2** —
+the reconciled total equals the max and never the sum, with a sibling test proving two genuine
+same-instant events from ONE source still count 2. Tier resolution verified across all four states
+(`T-full` / `T-local` / `T-baseline` / `T-none`); `jq -e '.tier'` renders, and `tier_basis` names the
+sources present and the claims they support. `tier_supports` gates `invocation_trigger` to `T-full`
+and `windowed_count` away from `T-baseline` (native counters are lifetime-only). 43 unit tests
+green; `ruff` clean; `check-skill.sh --require-evals` PASS, 0 errors 0 warnings.
+
+Parsers: `parse_native` gates rows on `usageCount > 0` and takes `firstStartTime` as its horizon;
+`parse_jsonl` skips a malformed row rather than failing the report; `parse_otel` carries
+`invocation_trigger` and **flags `custom_skill` as redacted with a null skill** rather than
+attributing every third-party skill's usage to one fictional row.
+
+**Deviation (recorded):** the parsers are pure functions over already-read data, and the file/OTEL
+*reading* they consume (plus the `plugin_enabled` signal deferred from Phase 2) is wired in Phase 6
+alongside the report-path work, where `${CLAUDE_PLUGIN_DATA}` and the scope-resolution constraints
+are already being handled. This keeps every parsing rule unit-testable and confines environment
+access to one phase.
 
 - Add the `skill-usage.jsonl` collector (scope-resolved via `claude_ops::resolve_skill_usage_dir`,
   all three scopes) and the OTEL `claude_code.skill_activated` collector.

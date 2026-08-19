@@ -462,5 +462,96 @@ class InferentialBandTest(unittest.TestCase):
         self.assertIsNone(listing["skills"][0]["band"])
 
 
+class TierResolutionTest(unittest.TestCase):
+    """A claim renders only at a tier that supports it."""
+
+    def test_otel_present_is_full(self):
+        self.assertEqual(engine.resolve_tier({"otel", "jsonl", "native"}), "T-full")
+
+    def test_jsonl_without_otel_is_local(self):
+        self.assertEqual(engine.resolve_tier({"jsonl", "native"}), "T-local")
+
+    def test_native_only_is_baseline(self):
+        self.assertEqual(engine.resolve_tier({"native"}), "T-baseline")
+
+    def test_no_sources_is_none(self):
+        self.assertEqual(engine.resolve_tier(set()), "T-none")
+
+    def test_trigger_attribution_only_claimable_at_full(self):
+        self.assertTrue(engine.tier_supports("T-full", "invocation_trigger"))
+        self.assertFalse(engine.tier_supports("T-local", "invocation_trigger"))
+        self.assertFalse(engine.tier_supports("T-baseline", "invocation_trigger"))
+
+    def test_windowed_counts_are_not_claimable_at_baseline(self):
+        """Native usageCount is lifetime-since-install and never windowed."""
+        self.assertFalse(engine.tier_supports("T-baseline", "windowed_count"))
+        self.assertTrue(engine.tier_supports("T-local", "windowed_count"))
+
+
+class NativeSourceTest(unittest.TestCase):
+    def test_native_events_are_gated_on_usage_count(self):
+        now = _utc(2026, 8, 18)
+        stamp = int((now - timedelta(days=1)).timestamp() * 1000)
+        events, _ = engine.parse_native(
+            {
+                "real:skill": {"usageCount": 2, "lastUsedAt": stamp},
+                "seeded:skill": {"usageCount": 0, "lastUsedAt": stamp},
+            },
+            first_start=now - timedelta(days=10),
+        )
+        names = {e["skill"] for e in events}
+        self.assertIn("real:skill", names)
+        self.assertNotIn("seeded:skill", names)
+
+    def test_native_horizon_is_first_start(self):
+        now = _utc(2026, 8, 18)
+        first = now - timedelta(days=10)
+        _, horizon = engine.parse_native({}, first_start=first)
+        self.assertEqual(horizon, first)
+
+
+class JsonlSourceTest(unittest.TestCase):
+    def test_parses_rows_and_derives_horizon_from_earliest(self):
+        rows = [
+            '{"ts":"2026-08-17T03:30:04Z","event":"SkillUse","skill":"a:one","source":"tool"}',
+            '{"ts":"2026-08-18T04:24:12Z","event":"SkillUse","skill":"b:two","source":"expansion"}',
+        ]
+        events, horizon = engine.parse_jsonl(rows)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(horizon.isoformat(), "2026-08-17T03:30:04+00:00")
+
+    def test_malformed_row_is_skipped_not_fatal(self):
+        rows = ["not json at all", '{"ts":"2026-08-18T00:00:00Z","skill":"a:one"}']
+        events, _ = engine.parse_jsonl(rows)
+        self.assertEqual(len(events), 1)
+
+
+class OtelSourceTest(unittest.TestCase):
+    def test_carries_invocation_trigger(self):
+        records = [
+            {
+                "skill.name": "a:one",
+                "invocation_trigger": "claude-proactive",
+                "ts": "2026-08-18T00:00:00Z",
+            }
+        ]
+        events, _ = engine.parse_otel(records)
+        self.assertEqual(events[0]["invocation_trigger"], "claude-proactive")
+
+    def test_redacted_name_is_flagged_not_attributed(self):
+        """`custom_skill` is a placeholder, not a skill. Attributing it would
+        pile every third-party skill's usage onto one fictional row."""
+        records = [
+            {
+                "skill.name": "custom_skill",
+                "invocation_trigger": "user-slash",
+                "ts": "2026-08-18T00:00:00Z",
+            }
+        ]
+        events, _ = engine.parse_otel(records)
+        self.assertTrue(events[0]["redacted"])
+        self.assertIsNone(events[0]["skill"])
+
+
 if __name__ == "__main__":
     unittest.main()

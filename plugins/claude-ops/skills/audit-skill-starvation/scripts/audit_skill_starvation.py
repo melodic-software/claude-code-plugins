@@ -31,7 +31,7 @@ import json
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 MIN_PYTHON = (3, 11)
 
@@ -62,6 +62,117 @@ def is_usage_evidence(entry: dict) -> bool:
     count is the gate.
     """
     return int(entry.get("usageCount", 0) or 0) > 0
+
+
+# What each tier can actually answer. A claim is rendered only where it is
+# supported -- the alternative is a report whose confidence silently varies with
+# whichever sources happened to be present on the machine.
+TIER_CAPABILITIES = {
+    "T-full": {"invocation_trigger", "windowed_count", "per_repo", "lifetime_count"},
+    "T-local": {"windowed_count", "per_repo", "lifetime_count"},
+    # Native counters are lifetime-since-install and never windowed, so no
+    # windowed claim is honest at this tier.
+    "T-baseline": {"lifetime_count"},
+    "T-none": set(),
+}
+
+REDACTED_SKILL_NAME = "custom_skill"
+
+
+def resolve_tier(sources: set[str]) -> str:
+    """Richest tier the present sources can support."""
+    if "otel" in sources:
+        return "T-full"
+    if "jsonl" in sources:
+        return "T-local"
+    if "native" in sources:
+        return "T-baseline"
+    return "T-none"
+
+
+def tier_supports(tier: str, claim: str) -> bool:
+    return claim in TIER_CAPABILITIES.get(tier, set())
+
+
+def parse_native(
+    skill_usage: dict, first_start: datetime
+) -> tuple[list[dict], datetime]:
+    """Native `~/.claude.json` counters -> events.
+
+    Horizon is `firstStartTime`: these counters cannot see before the config
+    file existed. Rows are gated on `usageCount > 0` because `lastUsedAt` alone
+    is an install stamp, not evidence of use.
+    """
+    events: list[dict] = []
+    for name, entry in (skill_usage or {}).items():
+        if not is_usage_evidence(entry):
+            continue
+        stamp = entry.get("lastUsedAt")
+        if stamp is None:
+            continue
+        events.append(
+            {
+                "skill": name,
+                "ts": datetime.fromtimestamp(stamp / 1000, tz=UTC),
+                "source": "native",
+                "count": int(entry.get("usageCount", 0)),
+            }
+        )
+    return events, first_start
+
+
+def parse_jsonl(rows: list[str]) -> tuple[list[dict], datetime | None]:
+    """The plugin's own `skill-usage.jsonl` -> events.
+
+    A malformed row is skipped rather than fatal: this is an observability
+    store, and one bad line must not cost the whole report.
+    """
+    events: list[dict] = []
+    for raw in rows:
+        try:
+            record = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        if not record.get("skill") or not record.get("ts"):
+            continue
+        events.append(
+            {
+                "skill": record["skill"],
+                "ts": _parse_ts(record["ts"]),
+                "source": "jsonl",
+                "count": 1,
+                "emitter": record.get("source"),
+                "project_id": record.get("project_id"),
+            }
+        )
+    horizon = min((e["ts"] for e in events), default=None)
+    return events, horizon
+
+
+def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
+    """`claude_code.skill_activated` -> events, carrying invocation_trigger.
+
+    `custom_skill` is the redaction placeholder for user-defined and
+    third-party skills, not a skill name. Attributing it would pile every
+    third-party skill's usage onto one fictional row, so such events are flagged
+    and left unattributed.
+    """
+    events: list[dict] = []
+    for record in records:
+        name = record.get("skill.name")
+        redacted = name == REDACTED_SKILL_NAME
+        events.append(
+            {
+                "skill": None if redacted else name,
+                "redacted": redacted,
+                "ts": _parse_ts(record["ts"]),
+                "source": "otel",
+                "count": 1,
+                "invocation_trigger": record.get("invocation_trigger"),
+            }
+        )
+    horizon = min((e["ts"] for e in events), default=None)
+    return events, horizon
 
 
 @dataclass(frozen=True)
@@ -301,6 +412,7 @@ def classify(
     listing_config: ListingConfig | None = None,
 ) -> dict:
     """Pure. Fleet + events + config + clock + horizons -> report model."""
+    tier = resolve_tier(set(horizons))
     listing = compute_listing(denominator, listing_config or ListingConfig())
     starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
     # Narrowest horizon = the most recent start = the least we can see back to.
@@ -370,6 +482,11 @@ def classify(
         "schema_version": SCHEMA_VERSION,
         "generated_at": clock.isoformat(),
         "observed_horizon": observed_horizon.isoformat(),
+        "tier": tier,
+        "tier_basis": (
+            f"sources present: {', '.join(sorted(horizons)) or 'none'}; "
+            f"claims supported: {', '.join(sorted(TIER_CAPABILITIES[tier])) or 'none'}"
+        ),
         "listing": {k: v for k, v in listing.items() if k != "skills"},
         "sources": [
             {"source": name, "horizon_start": start.isoformat()}
@@ -416,6 +533,8 @@ def _render_markdown(model: dict) -> str:
         "",
         f"- Observed horizon: `{model['observed_horizon']}`",
         f"- Sources: {', '.join(s['source'] for s in model['sources']) or 'none'}",
+        f"- Capability tier: `{model.get('tier', 'T-none')}` "
+        f"({model.get('tier_basis', '')})",
         f"- Skills: {len(model['skills'])}",
         f"- Withheld claims: {len(model['withheld'])}",
         "",
