@@ -24,7 +24,7 @@ precisely where the operator needs it most, and it cannot tell that it is blind.
 
 | Rung | Source | Gate | Yields |
 |---|---|---|---|
-| 1 | `/claude-ops:inventory` | if that plugin is installed | Every installed skill across every marketplace, manual-only included |
+| 1 | `/claude-ops:inventory` | if that plugin is installed | Every **installed** skill across every marketplace, manual-only included — reconcile against the enabled set, below |
 | 2 | An operator-supplied catalog file | if the consuming project provides one | Whatever the project chose to publish |
 | 3 | The in-context listing | always available | Every *name*, minus manual-only skills |
 
@@ -37,6 +37,20 @@ that move on exactly those grounds.
 **Rung 1 supplies names only.** Verified against its output: entries are bare leaf names under a
 plugin key, with a version and a manifest flag — no descriptions, no `metadata.*`. That is why
 Ladder B exists rather than being folded into this one.
+
+**Read its output from stdout; never pass `--out` into the consuming project.** Inventory's own
+documented example writes `./claude-inventory.json` into the working directory. `show-options`
+advertises the Spotlight ledger as its only write, so leaving an untracked artifact in a consumer's
+repository just to render a menu would break that promise. If a temporary file is unavoidable in
+some environment, it belongs in a temp path that is cleaned up, never in the project tree.
+
+**Installed is not invocable — reconcile against the enabled set.** Inventory reports
+`installed_plugins` and `enabled_plugins` as distinct keys, and its own contract asks callers to
+"report the one the question is actually about, and say which you used". A plugin can sit in the
+cache while `enabledPlugins` does not load it, so its skills cannot run. Following rule 1, a skill
+from an installed-but-disabled plugin is **named with a `(plugin not enabled)` annotation**, never
+silently listed as runnable and never silently dropped — the same annotate-don't-omit treatment a
+`skillOverrides: "off"` skill gets. State which set the pool was built from.
 
 **Rung 2's shape.** The consuming project publishes a catalog at a documented path it declares; a
 marketplace that generates one already has the right artifact shape. In the source marketplace here,
