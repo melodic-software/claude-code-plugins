@@ -778,7 +778,7 @@ def _observation_value(
 
 def _render_markdown(model: dict) -> str:
     lines = [
-        "# Skill starvation report",
+        "# Skill visibility report",
         "",
         f"- Observed horizon: `{model['observed_horizon']}`",
         f"- Sources: {', '.join(s['source'] for s in model['sources']) or 'none'}",
