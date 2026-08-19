@@ -229,6 +229,7 @@ mkdir -p "$r/plugins/p1/skills/newbie"
 cat >"$r/plugins/p1/skills/newbie/SKILL.md" <<'EOF'
 ---
 description: "A new skill. Use when: 'testing the evals ratchet'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -258,6 +259,7 @@ mkdir -p "$r/plugins/p1/skills/legacy"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
 ---
 description: "A legacy skill. Use when: 'testing the evals ratchet'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -289,6 +291,7 @@ mkdir -p "$r/plugins/p1/skills/legacy/evals"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
 ---
 description: "A legacy skill. Use when: 'testing the evals ratchet'."
+disable-model-invocation: false
 ---
 
 ## Purpose

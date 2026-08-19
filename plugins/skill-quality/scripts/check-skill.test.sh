@@ -2314,6 +2314,7 @@ printf '{"name":"demo","version":"0.1.0"}\n' >"$TMP/plugins/demo/.claude-plugin/
 printf '%s' '---
 name: aliased-skill
 description: "Repeats its directory. Use when: '"'"'checking the plugin redundancy warning'"'"'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -2762,21 +2763,230 @@ else
   fail "fenced list should not fire the completion-criteria warn (rc=$rc): $out"
 fi
 
+# 24a. An explicit `disable-model-invocation: false` reports the fleet default
+#      and raises no missing-key finding.
+make_skill dmi-explicit-false '---
+name: dmi-explicit-false
+description: "State the mode. Use when: '"'"'stating the mode'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+A skill that states its invocation mode.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-explicit-false 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'invocation mode: model-invoked' <<<"$out" &&
+  ! grep -q 'no explicit disable-model-invocation key' <<<"$out"; then
+  pass "explicit disable-model-invocation: false reports the fleet default"
+else
+  fail "explicit false should report the model-invoked default (rc=$rc): $out"
+fi
+
+# 24b. Outside the marketplace plugin tree a missing key WARNs, never fails —
+#      the absent-key default is already false, so a consumer's own skill is
+#      informed, not broken, by this fleet's convention.
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
+  pass "missing key outside plugins/ warns without failing"
+else
+  fail "missing key outside plugins/ should warn, not fail (rc=$rc): $out"
+fi
+
+# 24c. Inside plugins/*/skills/* the same omission FAILs — the rubric is this
+#      fleet's convention and the fleet is normalized to it.
+PLUGIN_SKILLS="$TMP/plugins/demo/skills"
+mkdir -p "$PLUGIN_SKILLS/dmi-plugin-missing"
+printf '%s' '---
+name: dmi-plugin-missing
+description: "Omit the mode. Use when: '"'"'omitting the mode'"'"'."
+---
+
+## Purpose
+
+A plugin skill missing its invocation mode.
+
+## Gotchas
+
+None known.
+' >"$PLUGIN_SKILLS/dmi-plugin-missing/SKILL.md"
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$PLUGIN_SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" dmi-plugin-missing) 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
+  pass "missing key inside plugins/*/skills/* fails"
+else
+  fail "missing key inside plugins/ should fail (rc=$rc): $out"
+fi
+
+# 24d. A non-boolean value fails wherever it appears — the key is a boolean and
+#      a typo'd value would otherwise read as an unreviewed mode.
+make_skill dmi-bad-value '---
+name: dmi-bad-value
+description: "State a bad mode. Use when: '"'"'stating a bad mode'"'"'."
+disable-model-invocation: yes
+---
+
+## Purpose
+
+A skill whose invocation mode is not a boolean.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-bad-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "disable-model-invocation is 'yes'" <<<"$out"; then
+  pass "non-boolean disable-model-invocation fails"
+else
+  fail "non-boolean value should fail (rc=$rc): $out"
+fi
+
+# 24d-quoted. A QUOTED boolean is a YAML string, not the boolean the key takes —
+#      stripping the quotes before validating would let malformed invocation
+#      metadata ship while the check reported PASS.
+make_skill dmi-quoted-value '---
+name: dmi-quoted-value
+description: "Quote the mode. Use when: '"'"'quoting the mode'"'"'."
+disable-model-invocation: "false"
+---
+
+## Purpose
+
+A skill whose invocation mode is a quoted string.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-quoted-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'quoted string' <<<"$out"; then
+  pass "a quoted boolean fails as the YAML string it is"
+else
+  fail "quoted boolean should fail (rc=$rc): $out"
+fi
+
+# 24d-internal-space. Whitespace is trimmed at the ends only. Deleting it
+#      wholesale would splice a scalar broken by an internal space back into a
+#      passing boolean.
+make_skill dmi-split-value '---
+name: dmi-split-value
+description: "Split the mode. Use when: '"'"'splitting the mode'"'"'."
+disable-model-invocation: fa lse
+---
+
+## Purpose
+
+A skill whose invocation mode carries an internal space.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-split-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'expected the boolean true or false' <<<"$out"; then
+  pass "internal whitespace is not collapsed into a passing boolean"
+else
+  fail "internally-spaced value should fail (rc=$rc): $out"
+fi
+
+# 24d-comment. A trailing YAML comment is the sanctioned way to record which
+#      exception class a `true` claims, so it must not turn the value invalid.
+make_skill dmi-commented-value '---
+name: dmi-commented-value
+description: "Annotate the mode. Use when: '"'"'annotating the mode'"'"'."
+disable-model-invocation: true # class (i) — mutating fleet sync, manual timing
+---
+
+## Purpose
+
+A skill annotating its exception class inline.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-commented-value 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'hand-verify it against an exception class' <<<"$out"; then
+  pass "a trailing exception-class comment leaves the boolean valid"
+else
+  fail "commented boolean should stay valid (rc=$rc): $out"
+fi
+
+# 24e. A non-setup `true` is noted for hand-verification against the exception
+#      classes — never warned, because no static scan can clear it.
+make_skill dmi-true-nonsetup '---
+name: dmi-true-nonsetup
+description: "Hide from the model. Use when: '"'"'hiding from the model'"'"'."
+disable-model-invocation: true
+---
+
+## Purpose
+
+A user-invoked-only skill that is not a setup skill.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-true-nonsetup 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'hand-verify it against an exception class' <<<"$out" &&
+  ! grep -q 'WARN.*exception class' <<<"$out"; then
+  pass "non-setup true is noted for hand-verification, not warned"
+else
+  fail "non-setup true should emit a hand-verify note (rc=$rc): $out"
+fi
+
+# 24f. A `setup` skill's true is class (ii) by the setup contract — the one
+#      attribution a static scan can make on its own.
+make_skill setup '---
+name: setup
+description: "Install the thing. Use when: '"'"'installing the thing'"'"'."
+disable-model-invocation: true
+---
+
+## Purpose
+
+The setup skill.
+
+## Gotchas
+
+None known.
+'
+out="$(run setup 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'exception class (ii), setup contract' <<<"$out"; then
+  pass "setup skill's true is attributed to class (ii) deterministically"
+else
+  fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
+fi
+
 # Check 21 liveness. Its awk program must actually RUN, not merely exit 0.
 #
 # The regression this guards: the scanner used ERE interval expressions
-# (`^ {0,3}`, `[0-9]{1,9}`), which mawk 1.3.4 -- the default awk on Debian,
-# Ubuntu, and the ubuntu-24.04 CI runner -- rejects with "REcompile() - panic".
-# awk then aborted, emitted zero records, and every skill reported
-# `PASS -- 0 errors` with the check silently enforcing nothing. A dead gate that
-# reports green is the exact false-green class the liveness-assertion convention
-# forbids, and the canary workflow already names this failure mode for a
-# different script ("awk dialects differ between the runner's mawk and a
-# developer's gawk").
+# (`^ {0,3}`, `[0-9]{1,9}`), which mawk 1.3.4 -- the default awk on Debian and
+# Ubuntu -- rejects with "REcompile() - panic". awk then aborted, emitted zero
+# records, and every skill reported `PASS -- 0 errors` with the check silently
+# enforcing nothing. A dead gate that reports green is the exact false-green
+# class the liveness-assertion convention forbids, and the canary workflow
+# already names this failure mode for a different script ("awk dialects differ
+# between the runner's mawk and a developer's gawk").
 #
 # Asserting "no panic on stderr" alone would not catch a future scanner that
 # runs but matches nothing, so this asserts the POSITIVE: unguarded judgment
-# language must produce the warn.
+# language must produce the warn. The fixture's indented list and quote lines
+# exercise the parsing paths the intervals used to serve.
 make_skill cc-fresh-eyes-live '---
 name: cc-fresh-eyes-live
 description: "Grade a plan. Use when: '"'"'grading a plan'"'"'."

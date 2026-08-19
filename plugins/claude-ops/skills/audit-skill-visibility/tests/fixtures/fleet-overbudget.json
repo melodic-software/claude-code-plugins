@@ -1,0 +1,77 @@
+{
+  "_comment": "Phase 3 fixture: an overflowing listing, kept small enough to read. A 5,000-token context at the documented 0.01 fraction and 4 bytes/token yields a 200-character budget; six competing skills at ~50 chars each demand ~300, so the overflow is real and hand-checkable. The two exempt rows carry descriptions as long as the competing ones and must contribute ZERO — that is the 28%-of-fleet correction plan review caught, in fixture form.",
+  "now": "2026-08-18T00:00:00+00:00",
+  "horizons": { "native": "2025-08-18T00:00:00+00:00" },
+  "listing_config": {
+    "context_window_tokens": 5000,
+    "budget_fraction": 0.01,
+    "max_desc_chars": 1536,
+    "bytes_per_token": 4
+  },
+  "denominator": [
+    {
+      "qualified_name": "exempt:typed-only",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 0,
+      "frontmatter": {
+        "description": "Typed by hand; its description never enters model context.",
+        "disable_model_invocation": true
+      }
+    },
+    {
+      "qualified_name": "exempt:bundled-one",
+      "source": "bundled",
+      "plugin_enabled": true,
+      "usage_score": 0,
+      "frontmatter": {
+        "description": "Bundled prompt skill; exempt from the description contest."
+      }
+    },
+    {
+      "qualified_name": "cold:never-reached",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 0,
+      "_churn_note": "Locally authored and heavily worked, yet never invoked here — the quadrant the cross-reference exists to surface. In a marketplace repo this is the NORMAL case (authored for consumers), which is why the section is labelled against a waste reading.",
+      "churn": { "commits": 12, "authored_at": "2026-08-12T10:00:00+00:00" },
+      "frontmatter": { "description": "Never invoked, so ranked first to lose its text." }
+    },
+    {
+      "qualified_name": "cold:rarely-used",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 1,
+      "frontmatter": { "description": "Invoked once; still near the front of the queue." }
+    },
+    {
+      "qualified_name": "warm:occasional",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 5,
+      "frontmatter": { "description": "Used occasionally across recent sessions here." }
+    },
+    {
+      "qualified_name": "warm:regular",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 12,
+      "churn": { "commits": 3, "authored_at": "2026-07-01T09:00:00+00:00" },
+      "frontmatter": { "description": "Used regularly; keeps its description longest." }
+    },
+    {
+      "qualified_name": "hot:daily-driver",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 40,
+      "frontmatter": { "description": "The daily driver; last to lose anything at all." }
+    },
+    {
+      "qualified_name": "hot:most-used",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 99,
+      "frontmatter": { "description": "Most-invoked skill in the fleet by a distance." }
+    }
+  ]
+}

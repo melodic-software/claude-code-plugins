@@ -3,6 +3,53 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Added
+
+- **`/claude-ops:audit-skill-visibility` — audit whether the model can actually SEE each installed
+  skill.** That is the question behind "why does most of my fleet never get used?": a skill the model
+  cannot see can never be chosen, so unused is very often a visibility failure rather than a
+  preference. *Visibility* is Claude Code's own term here — `skillOverrides` is documented under
+  "Override skill visibility" — and this skill audits every way a skill loses it.
+  Claude Code budgets the model-visible skill listing at `skillListingBudgetFraction` of the
+  context window and, when it overflows, drops descriptions starting with the skills you invoke
+  least. A skill at zero usage therefore loses its description, loses the keywords a request would
+  match against, and stays at zero — "unused" is partly self-causing. The skill separates **starved**
+  from **genuinely unwanted** from **not observable**, across three independent fields
+  (`reachability`, `observation`, `starvation`) rather than one flat verdict, because those demand
+  opposite actions: only `model-reachable` with no observation is a starvation candidate, `user-only`
+  means you type it by design, and `misconfigured` is a fix that must never read as a removal.
+
+  Two properties are enforced rather than documented:
+  - **Cold verdicts are withheld when the data cannot support them.** A store younger than the window
+    being asked about cannot distinguish "never invoked" from "never observed"; reporting the second
+    as the first libels most of a fleet on any fresh install. Every window is clamped to a computed
+    `observed_horizon`, and declined claims appear in a first-class `withheld` section with reasons.
+  - **Sources are reconciled, never summed.** Native counters and `skill-usage.jsonl` record the same
+    invocation, so at a given instant the count is the max across sources — while two same-instant
+    events from ONE source still count twice, because those are two real invocations.
+
+  The listing-overflow figure is computed from documented settings alone (budget = fraction ×
+  context window × bytes-per-token, against summed description lengths), so it needs no undocumented
+  constant; which particular skills lose descriptions is a labelled likelihood band. Skills with
+  `disable-model-invocation`, bundled prompt skills, and `name-only` overrides spend no description
+  budget and are excluded from both the sum and the ranking.
+
+### Changed
+
+- **`clean` can prune `skill-usage.jsonl`, opt-in and on its own window.** Inert unless
+  `--skill-usage-scope` is passed, so a run without the flag behaves exactly as before — that is the
+  rollback path. Its window is `--keep-skill-usage-days` (default 365, far longer than the 30-day
+  hook-events window) because a starvation report wants long history and those rows carry skill
+  names and branches only. Scope and directory arrive as **flags, never environment**: a
+  skill-spawned `clean.sh` inherits no `CLAUDE_PLUGIN_OPTION_*`, and `CLAUDE_PLUGIN_DATA` in that
+  context was observed pointing at an unrelated plugin's data directory, so `data-dir` demands an
+  explicit `--skill-usage-dir` and traversal is refused outright.
+- **`lib/state-key.sh` added as a registered carrier** and enrolled in `scripts/sync-state-key.sh`,
+  so report paths carry a repo-identity and worktree discriminator instead of collapsing to one file
+  per machine.
+
 ## [0.32.9]
 
 ### Fixed

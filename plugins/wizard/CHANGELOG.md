@@ -3,6 +3,22 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Added
+
+- **`generate`: first eval suite (#2968).** Five cases pinning repo-first scoping, the names-only
+  read of a live `.env`, the human-approval gate before `chmod +x`, the off-limits library above the
+  `STAGES` marker, and `gh` absence degrading rather than failing. Required because the skill gate
+  demands evals for any skill whose SKILL.md changes.
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `generate` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.2.0]
 
 ### Removed
