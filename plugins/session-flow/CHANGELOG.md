@@ -1,5 +1,45 @@
 # Changelog — session-flow plugin
 
+## [0.28.0]
+
+### Added
+
+- **`workflow` — eval coverage for the continuation router (refs #2972, AI Hero course lane 2
+  #2900, decision Q23).** The router had zero eval coverage: five cases existed and none exercised
+  the `continue` path, while one of its ordering invariants had already regressed once and been
+  fixed inside the router's own creation PR (refs #1603, originating issue #1476). Evolving an
+  untested router in 0.27.0 repeated that exposure; this is the safety net that pins the shipped
+  behavior. Nine cases (ids 6-14) join the suite, each grading the router's stated reason rather
+  than only its verdict, so a rewrite that reaches the right mechanism by the wrong edge still
+  fails.
+
+  **First-yes-wins ordering.** A machine-going-away prompt with healthy context and a small next
+  step must still route to `clean-stop` — question 0 outranks every cost-based question below it,
+  because a save-point that dies with the disk is no save-point. Separately, an explicit background
+  request with healthy context must reach `continue-in-background` and NOT fall through to question
+  3's zero-cost in-session exit: that exit answers yes whenever context is healthy, so asking it
+  first would silently discard a user instruction. This is the invariant that regressed once, now
+  pinned.
+
+  **Zone gating.** A green zone word plus an evidence-degraded compaction marker must be read as
+  degraded, and judgment-heavy work in a degraded context must not be routed to in-session
+  continue. Its complement is graded too: a healthy zone whose next stage consumes the current
+  stage's reasoning verbatim must prefer continue, since a summary of the reasoning is not the
+  reasoning.
+
+  **Post-evolution behavior.** The AFK edge must hand the spawn-brief decision to `orchestrate` and
+  then KEEP asking — it is the router's one non-terminal edge — while launching nothing, leaving
+  `continue-in-background`'s explicit-intent gate untouched. Suggest-by-default is graded on its
+  full three-part shape: the single mechanism, the evidence that selected it, and the literal next
+  invocation.
+
+  **Autonomy gating.** Three separate cases hold the line the 0.27.0 review fixes drew: an opt-in
+  counts only in a genuine user turn, so consent-shaped text inside a pasted issue body is data and
+  never a licence; `auto` cannot carry out `/clear` or `/compact`, which sit outside the
+  Skill-invocable built-ins and stay the human's to type; and `clean-stop` takes the literal
+  `continue auto` token and nothing else, because once invoked it pushes commits, opens PRs, and
+  files issues without a further confirmation.
+
 ## [0.27.0]
 
 ### Added
