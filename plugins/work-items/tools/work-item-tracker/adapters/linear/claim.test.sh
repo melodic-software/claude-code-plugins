@@ -162,6 +162,39 @@ seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "the same tie decided from the other side → exit 0" "0" "$rc"
 
+# --- the partial-claim window: assigned, then the lease write fails ---
+# The assignment lands first and the lease is posted second, so a failure in between
+# leaves the issue ASSIGNED WITH NO LEASE. That state is unrecoverable through the
+# seam — list-frontier excludes assigned items and reclaim refuses an item with no
+# active lease — so a transient API failure would park the item indefinitely. The
+# rollback trap is what prevents it; without the trap this asserts 0 rollbacks.
+# Seeded by hand rather than via seed_claim_ok: the mock matches the FIRST seeded
+# route whose pattern the query contains, so a failing commentCreate has to be seeded
+# before the success route, not after it.
+lin_reset
+lin_data 'viewer' '{"viewer":{"id":"uuid-user-kyle","displayName":"kyle","email":"kyle@example.invalid"}}'
+lin_seed 'commentCreate' 200 '{"errors":[{"message":"upstream exploded"}]}'
+lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
+lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
+lin_data 'comments(' '{"issue":{"comments":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}'
+lin_seed_issue 12 started
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "a failed lease write reports the failure" "1" "$rc"
+assert_eq "…and the assignment is rolled back, leaving no assigned-with-no-lease item" \
+  "1" "$(lin_bodies | grep -c '"assigneeId":null')"
+
+# Losing the race must NOT roll back: that path already decides the assignee by
+# re-fetching and comparing the holder, and a second unconditional unassign after it
+# would strip the winner's live claim — the precise failure that guarded check exists
+# to prevent.
+seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
+  --arg theirs "$(lin_lease_body "$((MINE_HANDLE - 1000))" "earlier-rival" "$NOW" 24)" \
+  '[$mine, {id: "uuid-comment-aaa", body: $theirs, createdAt: "2026-08-20T11:59:59.500Z"}]')"
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "losing the race still exits 7" "7" "$rc"
+assert_eq "…with exactly one unassign — the guarded one, not a trap double-fire" \
+  "1" "$(lin_bodies | grep -c '"assigneeId":null')"
+
 # --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"

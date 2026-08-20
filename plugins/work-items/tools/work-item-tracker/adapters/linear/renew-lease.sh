@@ -41,7 +41,7 @@ wit_linear_require_scoped_id "$ID"
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 ISSUE_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
 
-ENTRIES="$(wit_linear_lease_comments "$ISSUE_UUID")"
+ENTRIES="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
 MATCH="$(jq -c --argjson h "$LEASE_COMMENT_ID" '[.[] | select(.handle == $h)][0] // empty' <<<"$ENTRIES")"
 if [[ -z "$MATCH" ]]; then
   # The handle addresses a lease on THIS item. A handle from another item is not a

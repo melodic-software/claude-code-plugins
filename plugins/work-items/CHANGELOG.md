@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1]
+
+### Fixed
+
+- **The Linear adapter reported a SUCCESSFUL claim when the lease write failed.** Found while
+  building a regression test for a reviewer's partial-claim finding — the test kept passing when
+  it should have gone red, and the reason was worse than the finding it was written for.
+
+  `wit_linear_post_comment` (like every `wit_linear_*` helper) signals failure by calling `exit`.
+  But `claim.sh` captured it as `POSTED="$(wit_linear_post_comment …)"`, and **an `exit` inside a
+  command substitution ends only the subshell**. With `set -uo pipefail` and no `-e`, the script
+  printed the API error to stderr and then carried on — deriving a handle from an empty response,
+  writing a lease marker, and emitting a normal success object with exit `0`. A caller had no way
+  to know the lease it was told it held did not exist.
+
+  The same swallow affected `wit_linear_lease_comments` at five more sites, where it inverts a
+  safety check rather than a report: a failed read of existing leases yields an empty result, the
+  "is anything already claimed here?" loop iterates over nothing, and the claim proceeds **as if
+  the item were free** — a double-claim produced by an API hiccup. All six sites now propagate the
+  helper's own exit status (`|| exit "$?"`), preserving its exit-code taxonomy.
+
+- **`claim.sh` could strand an item assigned with no lease.** The assignment lands before the
+  lease is posted, so a failure in between left an item that `list-frontier` excludes (assigned)
+  and `reclaim` refuses (no active lease) — unrecoverable through the seam, parked indefinitely by
+  a transient error. An EXIT-trap rollback now guards that window, mirroring the github adapter's
+  `_wit_claim_rollback`, and is disarmed at both settled outcomes. Disarming on the lost-race path
+  matters as much as arming it: that branch already decides the assignee by re-fetching and
+  comparing the holder, and a second unconditional unassign after it would strip the winner's live
+  claim. Three regression cases, each verified to fail with its guard removed.
+
 ## [0.39.0]
 
 ### Added

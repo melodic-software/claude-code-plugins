@@ -43,7 +43,7 @@ emit() {
   exit 0
 }
 
-ENTRIES="$(wit_linear_lease_comments "$ISSUE_UUID")"
+ENTRIES="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
 # The LATEST non-superseded lease is the active one — the same ordering arbitration uses.
 ACTIVE="$(jq -c '[.[] | select(.lease.superseded_at == null)] | last // empty' <<<"$ENTRIES")"
 [[ -n "$ACTIVE" ]] || emit false "no active lease"
@@ -73,7 +73,7 @@ fi
 # concurrent claimer may have renewed or superseded this lease meanwhile.
 revalidate() {
   local now active other
-  now="$(wit_linear_lease_comments "$ISSUE_UUID")"
+  now="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
   active="$(jq -c --argjson h "$HANDLE" '[.[] | select(.handle == $h)][0] // empty' <<<"$now")"
   [[ -n "$active" ]] || return 1
   [[ -z "$(jq -r '.lease.superseded_at // empty' <<<"$active")" ]] || return 1
