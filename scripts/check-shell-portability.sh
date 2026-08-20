@@ -16,6 +16,33 @@
 #   scripts/check-shell-portability.sh --all         audit every tracked .sh + skill .md
 #   scripts/check-shell-portability.sh --paths F...   scan exactly these files
 #
+# COST of `--all`, and why it is structural rather than environmental. Per-file
+# time grows superlinearly with file length, so a handful of the longest files
+# dominate the entire run while the great majority cost almost nothing. As a
+# dated observation rather than a standing claim -- the figures move with the
+# corpus, the shape does not -- on 2026-08-20 the single worst file took ~123s
+# where its own first 1200 lines took ~3s, and the full sweep took ~10 minutes.
+# This is why CI runs the changed-file mode and never `--all` (see ci.yml's
+# `shell-portability-lint`): a per-PR fleet sweep would be minutes of runner time
+# to re-prove files the PR did not touch.
+#
+# Two operational consequences, both of which have already cost real time:
+#
+#   - `--all` exceeds a 600s command timeout on a tree of this size. Run it
+#     detached and wait on it. It is NOT flaky, and re-running it unchanged does
+#     not help: a run that appears to "time out again" is the predicted outcome,
+#     not new information. Four attempts were spent before this was understood,
+#     each recorded as an environment problem.
+#   - Do NOT wait on it with `pgrep -f 'check-shell-portability'`. That pattern
+#     appears in the waiting shell's OWN command line, so the waiter matches
+#     itself and the condition never clears. Wait on the pid instead:
+#     `while kill -0 "$pid" 2>/dev/null; do sleep 15; done`.
+#
+# Relatedly, if you sweep files individually to find slow ones, key the loop on
+# every non-zero status and not only on the timeout status: a loop that reports
+# just `rc == 124` passes silently over any file that exits 1, so its silence
+# looks like a clean audit when it is really an unasked question.
+#
 # WHAT is detected is data, not logic: the construct list lives in
 # scripts/shell-portability-tokens.txt (override with
 # SHELL_PORTABILITY_TOKENS), one ERE pattern per active line, so a reviewer
