@@ -84,6 +84,23 @@ readonly WIT_GITEA_CURL_BIN="${WIT_GITEA_CURL:-curl}"
 # stated posture rather than leaving it implied.
 readonly WIT_GITEA_HOSTNAME_RE='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
 readonly WIT_GITEA_DEFAULT_HOST_SUFFIX=''
+
+# wit_gitea_host_under_pin <host> <suffix> — is <host> genuinely under the pin?
+#
+# A bare `*"$suffix"` glob is a plain "ends with", which is NOT a domain boundary:
+# a pin of `mycompany.com` is satisfied by `evilmycompany.com`, sending the credential
+# to an attacker host without tripping the loud allow_custom_domain opt-out. The pin is
+# consumer-supplied free text here (jira's equivalent is a hardcoded '.atlassian.net'
+# that carries the dot itself), and nothing tells a consumer the dot is load-bearing.
+#
+# So normalize to a dot-led pin, and accept the apex separately: under a pin of
+# `mycompany.com`, the host `mycompany.com` IS the pinned domain even though it does not
+# end in `.mycompany.com`. Rejecting it would break a legitimate single-host deployment.
+wit_gitea_host_under_pin() {
+  local host="$1" pin="$2"
+  [[ "$pin" == .* ]] || pin=".$pin"
+  [[ "$host" == *"$pin" || "$host" == "${pin#.}" ]]
+}
 # auth_env is dereferenced via ${!name}; an invalid identifier aborts bash, so it
 # must be a valid shell variable name.
 readonly WIT_GITEA_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
@@ -222,8 +239,8 @@ wit_need_gitea_config() {
   local bad=""
   if ! [[ "$WIT_GITEA_HOST" =~ $WIT_GITEA_HOSTNAME_RE ]]; then
     bad+=" host:'$WIT_GITEA_HOST'(not a bare hostname)"
-  elif [[ -n "$host_suffix" && "$allow_custom_domain" != "true" &&
-    "$WIT_GITEA_HOST" != *"$host_suffix" ]]; then
+  elif [[ -n "$host_suffix" && "$allow_custom_domain" != "true" ]] &&
+    ! wit_gitea_host_under_pin "$WIT_GITEA_HOST" "$host_suffix"; then
     bad+=" host:'$WIT_GITEA_HOST'(not under $host_suffix; set config.gitea.allow_custom_domain=true to allow)"
   fi
   [[ "$WIT_GITEA_AUTH_ENV" =~ $WIT_GITEA_ENV_NAME_RE ]] ||

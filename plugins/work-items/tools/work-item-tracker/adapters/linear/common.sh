@@ -86,6 +86,22 @@ readonly WIT_LINEAR_CURL_BIN="${WIT_LINEAR_CURL:-curl}"
 # stated posture rather than leaving it implied.
 readonly WIT_LINEAR_HOSTNAME_RE='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
 readonly WIT_LINEAR_DEFAULT_HOST_SUFFIX='.linear.app'
+
+# wit_linear_host_under_pin <host> <suffix> — is <host> genuinely under the pin?
+#
+# A bare `*"$suffix"` glob is a plain "ends with", which is NOT a domain boundary: a pin
+# of `mycompany.com` is satisfied by `evilmycompany.com`. The shipped default above
+# carries its own dot and is safe, but the pin is a consumer override seam, and a
+# dot-less override reopens the bypass.
+#
+# Normalize to a dot-led pin, and accept the apex separately: under a pin of
+# `mycompany.com`, the host `mycompany.com` IS the pinned domain even though it does not
+# end in `.mycompany.com`.
+wit_linear_host_under_pin() {
+  local host="$1" pin="$2"
+  [[ "$pin" == .* ]] || pin=".$pin"
+  [[ "$host" == *"$pin" || "$host" == "${pin#.}" ]]
+}
 # auth_env is dereferenced via ${!name}; an invalid identifier aborts bash, so it
 # must be a valid shell variable name.
 readonly WIT_LINEAR_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
@@ -239,8 +255,8 @@ wit_need_linear_config() {
   local bad=""
   if ! [[ "$WIT_LINEAR_HOST" =~ $WIT_LINEAR_HOSTNAME_RE ]]; then
     bad+=" host:'$WIT_LINEAR_HOST'(not a bare hostname)"
-  elif [[ -n "$host_suffix" && "$allow_custom_domain" != "true" &&
-    "$WIT_LINEAR_HOST" != *"$host_suffix" ]]; then
+  elif [[ -n "$host_suffix" && "$allow_custom_domain" != "true" ]] &&
+    ! wit_linear_host_under_pin "$WIT_LINEAR_HOST" "$host_suffix"; then
     bad+=" host:'$WIT_LINEAR_HOST'(not under $host_suffix; set config.linear.allow_custom_domain=true to allow)"
   fi
   [[ "$WIT_LINEAR_AUTH_ENV" =~ $WIT_LINEAR_ENV_NAME_RE ]] ||

@@ -84,6 +84,22 @@ readonly WIT_@@PROVIDER_UPPER@@_CURL_BIN="${WIT_@@PROVIDER_UPPER@@_CURL:-curl}"
 # stated posture rather than leaving it implied.
 readonly WIT_@@PROVIDER_UPPER@@_HOSTNAME_RE='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
 readonly WIT_@@PROVIDER_UPPER@@_DEFAULT_HOST_SUFFIX='@@HOST_SUFFIX@@'
+
+# wit_@@PROVIDER_FUNC@@_host_under_pin <host> <suffix> — is <host> genuinely under the pin?
+#
+# A bare `*"$suffix"` glob is a plain "ends with", which is NOT a domain boundary: a pin
+# of `mycompany.com` is satisfied by `evilmycompany.com`, sending the credential to an
+# attacker host without tripping the loud allow_custom_domain opt-out. The pin is
+# consumer-supplied free text, and nothing tells a consumer the leading dot is
+# load-bearing — so normalize it here rather than documenting a footgun.
+#
+# The apex is accepted separately: under a pin of `mycompany.com`, the host
+# `mycompany.com` IS the pinned domain even though it does not end in `.mycompany.com`.
+wit_@@PROVIDER_FUNC@@_host_under_pin() {
+  local host="$1" pin="$2"
+  [[ "$pin" == .* ]] || pin=".$pin"
+  [[ "$host" == *"$pin" || "$host" == "${pin#.}" ]]
+}
 # auth_env is dereferenced via ${!name}; an invalid identifier aborts bash, so it
 # must be a valid shell variable name.
 readonly WIT_@@PROVIDER_UPPER@@_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
@@ -200,8 +216,8 @@ wit_need_@@PROVIDER_FUNC@@_config() {
   local bad=""
   if ! [[ "$WIT_@@PROVIDER_UPPER@@_HOST" =~ $WIT_@@PROVIDER_UPPER@@_HOSTNAME_RE ]]; then
     bad+=" host:'$WIT_@@PROVIDER_UPPER@@_HOST'(not a bare hostname)"
-  elif [[ -n "$host_suffix" && "$allow_custom_domain" != "true" &&
-    "$WIT_@@PROVIDER_UPPER@@_HOST" != *"$host_suffix" ]]; then
+  elif [[ -n "$host_suffix" && "$allow_custom_domain" != "true" ]] &&
+    ! wit_@@PROVIDER_FUNC@@_host_under_pin "$WIT_@@PROVIDER_UPPER@@_HOST" "$host_suffix"; then
     bad+=" host:'$WIT_@@PROVIDER_UPPER@@_HOST'(not under $host_suffix; set config.@@CONFIG_KEY@@.allow_custom_domain=true to allow)"
   fi
   [[ "$WIT_@@PROVIDER_UPPER@@_AUTH_ENV" =~ $WIT_@@PROVIDER_UPPER@@_ENV_NAME_RE ]] ||

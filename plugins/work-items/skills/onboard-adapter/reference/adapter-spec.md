@@ -51,7 +51,7 @@ A self-hosted, forge-shaped provider with no lease support:
 |---|---|---|
 | `spec_version` | yes | Exactly `"1.0"`. |
 | `provider` | yes | `^[a-z][a-z0-9-]{0,31}$`. Becomes a directory name, a path segment, a shell function-name fragment, a jq key, and the prefix of every item ID this adapter emits. Constrained once here so nothing downstream has to escape it. **Permanent** — changing it later invalidates every persisted ID. |
-| `display_name` | yes | Free text for comments and docs. |
+| `display_name` | yes | `^[A-Za-z0-9][A-Za-z0-9 ._/+-]*$` — letters, digits, spaces and `. _ / + -`, starting alphanumeric. Human-readable, but not free text: it is substituted literally into generated shell, including a single-quoted `printf` format, a double-quoted `${VAR:?…}` expansion where `$(…)` would execute, and several `#` comment lines a newline would end. Constrained once here so nothing downstream has to escape it. An apostrophe (`Bob's Tracker`) is rejected — spell it `Bobs Tracker`. |
 
 ### `api`
 

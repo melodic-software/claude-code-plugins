@@ -227,6 +227,23 @@ fi
 assert_eq "wrong spec_version → exit 3" "3" "$(gen "$(with '.spec_version = "2.0"')")"
 assert_eq "missing display_name → exit 3" "3" "$(gen "$(with 'del(.display_name)')")"
 
+# display_name is substituted literally into generated shell in three distinct
+# contexts, so its charset is the guard — each case below is one of those contexts.
+# An apostrophe ends the single-quoted printf format in common.sh.tmpl; `$(…)` executes
+# inside the DOUBLE-quoted ${VAR:?…} in conformance-binding.sh.tmpl with no quote to
+# break at all; a newline ends a `#` comment line and makes the rest live shell.
+assert_eq "display_name with an apostrophe → exit 3" "3" \
+  "$(gen "$(with '.display_name = "Bobs'\'' Tracker"')")"
+assert_eq "display_name with command substitution → exit 3" "3" \
+  "$(gen "$(with '.display_name = "X$(id)"')")"
+assert_eq "display_name with a newline → exit 3" "3" \
+  "$(gen "$(with '.display_name = "Acme\nTracker"')")"
+assert_eq "display_name with a backtick → exit 3" "3" \
+  "$(gen "$(with '.display_name = "Acme `id`"')")"
+# Real names still pass — the guard must not be so tight it rejects the shipped ones.
+assert_eq "a slashed display_name still generates" "0" \
+  "$(gen "$(with '.display_name = "Gitea/Forgejo"')")"
+
 # The provider name becomes a directory, a path segment, a function-name fragment and
 # a jq key, so it is constrained once at the door.
 for bad in '"Acme"' '"1acme"' '"acme_tracker"' '"../escape"' '"acme/tracker"' '""'; do
