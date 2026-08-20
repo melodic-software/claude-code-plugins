@@ -38,6 +38,18 @@ SEAM_DIR="${WIT_SEAM_DIR:-$SCRIPT_DIR/../../../tools/work-item-tracker}"
 readonly EX_USAGE=2
 readonly EX_SPEC=3
 
+# The shebang the GENERATED scripts carry. It is substituted rather than written
+# literally in the templates for a reason that is not cosmetic: a template is not a
+# script, and a file that opens with a shebang is treated as one by tooling that
+# discovers scripts rather than being told about them. Left literal, the templates sat
+# in a contradiction between two repo gates — the exec-bit check flags a shebang file
+# recorded non-executable, and making them executable then fed them to the repo's
+# ShellCheck lane, which cannot parse a file full of @@PLACEHOLDER@@ tokens. Templates
+# carry no shebang, so neither gate claims them; the generated output gets one here,
+# and `emit` marks it executable. Two templates already opened with
+# `# shellcheck shell=bash` instead — this makes the whole set consistent.
+SHEBANG='#!/usr/bin/env bash'
+
 # The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
 # minus list-frontier (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
@@ -716,6 +728,7 @@ render() {
   local text
   text="$(cat "$file")"
   local -a keys=(
+    SHEBANG
     PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY SCHEMA_VERSION
     HOST_SUFFIX_DOC HOST_PIN_POSTURE HOST_SUFFIX BASE_PATH SCOPE_PATTERN
     SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV SAMPLE_ID

@@ -162,6 +162,27 @@ assert_eq "and the item is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(li
 UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate"))] | length' 2>/dev/null || echo 0)"
 assert_eq "and the rival's assignment is untouched" "0" "$UNASSIGNED"
 
+# Activity on a LATER page must still count. Linear returns comments oldest-first, so on
+# a long-running item the comments that prove the holder is alive are the ones a
+# first-page-only read never sees — and reclaiming then releases a live lease.
+lin_reset
+lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
+lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-note","createdAt":"2026-08-20T13:00:00.000Z"}}}'
+lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
+EXPIRED="$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
+RECENT_TALK="$(jq -cn --arg t "$NOW" '[{id: "uuid-c-late", body: "still on this", createdAt: $t}]')"
+# 1: initial lease read. 2-3: the activity check, whose recent comment is on page TWO.
+# 4: the revalidation read.
+lin_comments_page "$EXPIRED" false
+lin_comments_page '[]' true "cursor-1"
+lin_comments_page "$RECENT_TALK" false
+lin_comments_page "$EXPIRED" false
+lin_seed_issue 12 started
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "activity on a later page → exit 0" "0" "$rc"
+assert_eq "and the item is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
+assert_contains "reason names the activity" "$(jq -r '.reason' <<<"$(lin_out)")" "activity"
+
 # --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"

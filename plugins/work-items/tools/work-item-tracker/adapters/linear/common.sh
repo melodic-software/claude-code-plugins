@@ -687,6 +687,51 @@ wit_linear_resolve_viewer() {
 # timestamps, so two comments created in the same millisecond tie, and a tie with no
 # tiebreak would let two racers each believe they won. The comment UUID is arbitrary but
 # identical for both observers, which is all arbitration needs.
+# wit_linear_activity_since <issue-id> <epoch> — did anyone comment after <epoch>?
+# Exit 0 = yes (the holder is demonstrably still working), 1 = no.
+#
+# Paginates, and that is the whole point. The first-page-only query this replaced could
+# not see recent activity at all on a busy item: Linear returns a comments connection
+# oldest-first absent an explicit orderBy, so the NEWEST comments — exactly the ones
+# that prove a holder is alive — are on the LAST page. Past ~one page of comments the
+# check silently reported "no activity" and reclaim released a live lease.
+#
+# It cannot reuse wit_linear_lease_comments below: that one keeps only lease markers,
+# and this one wants precisely the opposite. The adapter's own renewal markers are
+# skipped here, or a lease would count its own heartbeat as activity and never expire.
+wit_linear_activity_since() {
+  local issue_id="$1" since="$2" cursor="" has_next="true" q page node body cepoch
+  q='query($id: String!, $first: Int!, $after: String) {
+    issue(id: $id) {
+      comments(first: $first, after: $after) {
+        nodes { body createdAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }'
+  while [[ "$has_next" == "true" ]]; do
+    wit_linear_gql "$q" \
+      "$(jq -cn --arg id "$issue_id" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$cursor" \
+        '{id: $id, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
+      "checking activity on $issue_id"
+    page="$(jq -c '.issue.comments // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
+    while IFS= read -r node; do
+      [[ -n "$node" ]] || continue
+      body="$(jq -r '.body // ""' <<<"$node")"
+      [[ "$body" != *"$WIT_LINEAR_LEASE_PREFIX"* ]] || continue
+      cepoch="$(wit_linear_epoch "$(jq -r '.createdAt' <<<"$node")")"
+      [[ -n "$cepoch" ]] || continue
+      if ((cepoch > since)); then
+        return 0
+      fi
+    done < <(jq -c '.nodes[]?' <<<"$page")
+    has_next="$(jq -r '.pageInfo.hasNextPage // false' <<<"$page")"
+    cursor="$(jq -r '.pageInfo.endCursor // ""' <<<"$page")"
+    [[ -n "$cursor" ]] || break
+  done
+  return 1
+}
+
 wit_linear_lease_comments() {
   local issue_id="$1" cursor="" has_next="true" all='[]' q page
   q='query($id: String!, $first: Int!, $after: String) {

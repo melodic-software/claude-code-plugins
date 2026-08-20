@@ -118,6 +118,17 @@ lin_comments() {
   done
 }
 
+# lin_comments_page <nodes-json> <has-next> [end-cursor] — seed ONE comments response
+# with an explicit pageInfo, so a test can model a MULTI-page connection. lin_comments
+# above always answers hasNextPage:false, which cannot express the case where the
+# interesting comment is not on the first page — the exact shape a first-page-only
+# reader gets wrong.
+lin_comments_page() {
+  local nodes="$1" has_next="$2" cursor="${3:-}"
+  lin_data 'comments(' "$(jq -cn --argjson n "$nodes" --argjson h "$has_next" --arg c "$cursor" \
+    '{issue: {comments: {nodes: $n, pageInfo: {hasNextPage: $h, endCursor: (if ($c | length) > 0 then $c else null end)}}}}')"
+}
+
 lin_requests() { cat "$LIN_FIX/requests" 2>/dev/null; }
 lin_bodies() { cat "$LIN_FIX/bodies" 2>/dev/null; }
 

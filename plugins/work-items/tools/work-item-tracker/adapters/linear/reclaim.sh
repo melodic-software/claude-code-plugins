@@ -61,21 +61,12 @@ wit_linear_lease_live "$LEASE" && emit false "lease is still live"
 RENEWED_EPOCH="$(wit_linear_epoch "$RENEWED_AT")"
 ACTIVITY="no"
 if [[ -n "$RENEWED_EPOCH" ]]; then
-  wit_linear_gql \
-    'query($id: String!) { issue(id: $id) { comments(first: 50) { nodes { body createdAt } } } }' \
-    "$(jq -cn --arg id "$ISSUE_UUID" '{id: $id}')" \
-    "checking activity on $ID"
-  while IFS= read -r node; do
-    [[ -n "$node" ]] || continue
-    body="$(jq -r '.body // ""' <<<"$node")"
-    [[ "$body" != *"$WIT_LINEAR_LEASE_PREFIX"* ]] || continue
-    cepoch="$(wit_linear_epoch "$(jq -r '.createdAt' <<<"$node")")"
-    [[ -n "$cepoch" ]] || continue
-    if ((cepoch > RENEWED_EPOCH)); then
-      ACTIVITY="yes"
-      break
-    fi
-  done < <(jq -c '.issue.comments.nodes[]?' <<<"$WIT_LINEAR_DATA")
+  # Paginating helper, not an inline first-page read: comments come back oldest-first,
+  # so on a long-running item the activity that proves the holder is alive sits on the
+  # LAST page. See wit_linear_activity_since in common.sh.
+  if wit_linear_activity_since "$ISSUE_UUID" "$RENEWED_EPOCH"; then
+    ACTIVITY="yes"
+  fi
 fi
 
 # Revalidate before EITHER mutation: the activity read above round-tripped, and a
