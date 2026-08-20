@@ -20,14 +20,23 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   doubled the reported overflow and fabricated the headline number. Resolution keys by plugin
   identity, and the report prints both counts so the collapse is auditable instead of trusted.
 
-  **Where the scopes disagree, the run does not pick and pretend.** Which scope loads is
-  undocumented, and the skew is real: 7 plugins here shipped different skill *sets* between scopes
-  and 19 skills different `description` text, so the choice moves the numbers. Such plugins are read
-  from the newest install, flagged `ambiguous`, and listed under a new **Fleet resolution** section
-  with both candidates named — the same withhold-rather-than-guess floor the cold usage verdicts
-  already hold. Exactly one case resolves `certain`: a marketplace whose source is a local
-  `directory` loads from that checkout, verified by a skill executing out of the marketplace
-  directory rather than either cached `installPath`.
+  **Multi-scope installs resolve by the documented precedence `local > project > user`** — the
+  record that loads is the highest-precedence *applicable* one, never the newest version installed.
+  The rule, including its explicit warning against the newest-version heuristic, lives in this same
+  plugin's `skills/plugins/context/scope-semantics.md`. Getting it wrong is not cosmetic: 7 plugins
+  here ship different skill *sets* between scopes and 19 skills different `description` text.
+  Superseded records are listed under a new **Fleet resolution** section so a pin being outranked is
+  visible rather than silently ignored.
+
+  **Records that cannot load here are excluded and reported.** `project` and `local` installs carry
+  the `projectPath` they belong to and load only in that project; counting another project's records
+  would inflate the fleet with skills the model can never see. The current project is taken from
+  `CLAUDE_PROJECT_DIR`, falling back to the working directory.
+
+  **A directory-source marketplace loads its checkout**, not either cached `installPath` — verified
+  by a skill executing out of the marketplace directory. The plugin root for those comes from the
+  catalog's declared `source`, because `plugins/<name>` is the common layout but not a rule: an entry
+  may declare `.` or any other directory, and assuming the layout would silently drop its skills.
 
 ## [0.33.2]
 

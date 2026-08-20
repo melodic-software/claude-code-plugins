@@ -96,14 +96,25 @@ marketplace. This resolves to one entry per plugin, and the report states both
 numbers so the collapse is auditable. Counting entries would inflate the fleet
 and, since the fleet is the denominator, roughly double the reported overflow.
 
-Where a plugin is installed in more than one scope, **which scope loads is not
-established** — it is undocumented, and the version skew is not cosmetic (7
-plugins here shipped different skill *sets* between scopes, and 19 skills
-different `description` text). So the run reads the newest install, flags it
-`ambiguous`, and lists the fork under **Fleet resolution** rather than
-presenting a guess as settled. One case does resolve `certain`: a marketplace
-whose source is a local `directory` loads from that checkout, verified by a
-skill executing out of the marketplace directory rather than either cache path.
+Where a plugin is installed at more than one scope, resolution follows the
+documented precedence **`local > project > user`** — the record that loads is
+the highest-precedence *applicable* one, **never the newest version installed**.
+That rule and its "not the newest" warning are stated in this plugin's own
+[`skills/plugins/context/scope-semantics.md`](../plugins/context/scope-semantics.md),
+which verified it against the official plugins-reference docs. Getting it wrong
+is not cosmetic: 7 plugins here ship different skill *sets* between scopes and
+19 skills different `description` text. Superseded records are listed under
+**Fleet resolution** so a pin being outranked is visible.
+
+Applicability matters as much as precedence: `project` and `local` records load
+**only** in the `projectPath` they name, so another project's records are
+excluded and reported rather than counted. Current project comes from
+`CLAUDE_PROJECT_DIR`, falling back to the working directory.
+
+A marketplace whose source is a local `directory` loads from that **checkout**,
+not from either cached `installPath` — verified by a skill executing out of the
+marketplace directory. For those, the plugin's root comes from the catalog's
+declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 `--render json` swaps the Markdown report for the machine-readable model, and
 `--now <RFC3339>` pins the clock the horizon is measured against.

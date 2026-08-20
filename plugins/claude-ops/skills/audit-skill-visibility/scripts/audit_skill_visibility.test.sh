@@ -49,3 +49,29 @@ if [[ "$TOTAL" != "$UNOBS" ]]; then
   exit 1
 fi
 echo "ok: fresh-install fixture withheld every cold verdict ($UNOBS/$TOTAL)"
+
+# Contract check: --installed resolves ONE entry per plugin, not one per install
+# scope. A manifest listing the same plugin at two scopes must not double the
+# fleet -- the fleet is the denominator the listing budget is measured against,
+# so a doubled fleet roughly doubles the reported overflow.
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WORK/cfg"
+printf -- '---\nname: one\ndescription: "does a thing"\n---\n' \
+  >"$WORK/repo/plugins/alpha/skills/one/SKILL.md"
+printf '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}\n' \
+  >"$WORK/repo/.claude-plugin/marketplace.json"
+printf '{"mkt":{"source":{"source":"directory","path":"%s"},"installLocation":"%s"}}\n' \
+  "$WORK/repo" "$WORK/repo" >"$WORK/cfg/known_marketplaces.json"
+printf '{"version":2,"plugins":{"alpha@mkt":[{"scope":"project","version":"1.0.0","installPath":"/nowhere","projectPath":"%s"},{"scope":"user","version":"2.0.0","installPath":"/nowhere-else"}]}}\n' \
+  "$WORK/repo" >"$WORK/cfg/installed_plugins.json"
+
+INST="$(CLAUDE_PROJECT_DIR="$WORK/repo" "$PYTHON" "$ENGINE" --installed "$WORK/cfg" --render json)"
+read -r ENTRIES PLUGINS SKILLS <<EOF
+$(printf '%s' "$INST" | "$PYTHON" -c 'import json,sys; m=json.load(sys.stdin); f=m["fleet"]; print(f["manifest_entries"], f["plugins_resolved"], len(m["skills"]))')
+EOF
+if [[ "$ENTRIES" != "2" || "$PLUGINS" != "1" || "$SKILLS" != "1" ]]; then
+  echo "FAIL: --installed gave entries=$ENTRIES plugins=$PLUGINS skills=$SKILLS; expected 2/1/1" >&2
+  exit 1
+fi
+echo "ok: --installed collapsed $ENTRIES install records to $PLUGINS plugin ($SKILLS skill)"
