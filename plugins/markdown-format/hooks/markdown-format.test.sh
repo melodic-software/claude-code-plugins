@@ -69,9 +69,13 @@ duplicate_line="$({
   awk '
     {
       sub(/\r$/, "")
-      if ($0 ~ /^#{1,6}[[:space:]]+/) {
+      # One hash plus five optional ones rather than `#{1,6}`: mawk 1.3.3
+      # implements no ERE intervals and matches the braces literally, so this
+      # duplicate-heading probe would stop recognizing headings and the assertion
+      # would pass vacuously. Same ATX bound (1-6 hashes), no interval.
+      if ($0 ~ /^##?#?#?#?#?[[:space:]]+/) {
         heading = $0
-        sub(/^#{1,6}[[:space:]]+/, "", heading)
+        sub(/^##?#?#?#?#?[[:space:]]+/, "", heading)
         if (seen[heading]++) { print NR; exit }
       }
     }
