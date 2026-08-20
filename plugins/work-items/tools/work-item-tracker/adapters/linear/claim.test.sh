@@ -108,6 +108,7 @@ assert_eq "ttl-0 lease is not live" "0" "$rc"
 #
 # Our comment is createdAt 12:00:00.500. Handles are epoch milliseconds, so the rival's
 # one-second-earlier comment has a strictly lower handle and wins.
+# portability-ok: GNU-first rung of a dual-dialect ladder; the BSD `-j -f` spelling is the `||` fallback
 MINE_S="$(date -u -d '2026-08-20T12:00:00Z' +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' '2026-08-20T12:00:00Z' +%s)"
 MINE_HANDLE="$((MINE_S * 1000 + 500))"
 

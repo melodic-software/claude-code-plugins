@@ -15,6 +15,8 @@ source "$D/mock.sh"
 
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LONG_AGO="1999-01-01T00:00:00Z"
+# portability-ok: GNU-first rung of a ladder whose fallback echoes the same literal — the GNU
+# form round-trips its own input here, so the BSD path needs no `date` call at all
 RECENT="$(date -u -d '1999-06-01T00:00:00Z' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '1999-06-01T00:00:00Z')"
 HANDLE=1787227200500
 

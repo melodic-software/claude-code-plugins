@@ -576,6 +576,9 @@ wit_linear_epoch() {
   *.*) ts="${ts%%.*}Z" ;;
   *) ;;
   esac
+  # portability-ok: GNU-first rung of a dual-dialect ladder — the BSD `-j -f` spelling follows,
+  # and an empty `printf` is the third rung. The `case` above normalizes the fractional form off
+  # the timestamp precisely so the BSD rung's exact-match `-f` format can parse it.
   date -u -d "$ts" +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null || printf ''
 }
 
