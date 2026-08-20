@@ -101,6 +101,20 @@
         "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported",
         "An inability to establish the hook's absence is treated the same way — unknown, not clean, no launch"
       ]
+    },
+    {
+      "id": 9,
+      "name": "position-panel-emitted-but-never-sent-to-the-agent",
+      "prompt": "/continue-in-background — phase 2 of 4 is wired and green, phase 3 is next. Clean tree. I'm heading out, keep it moving.",
+      "expected_output": "The response leads with the 'You are here' position panel (vertical rail, current phase marked, completeness line, three one-line blocks), then the rails resume prompt, then the launch report. The text handed to the launched agent is exactly what sits between the rails — no panel text travels with it.",
+      "files": [],
+      "expectations": [
+        "A 'You are here' position panel is emitted, and it leads the response — ahead of the rails resume prompt",
+        "The rail is vertical with one phase per line and the current phase marked in the gutter",
+        "The prompt passed to the launched agent is exactly the text between the dashed rails — no panel line is included in it",
+        "The rails prompt is still emitted on screen before the launch, so a refused or failed launch leaves a usable manual fallback",
+        "The reasoning treats the panel as being for the departing operator, not for the agent — the agent's payload is unchanged from a manual /clear-and-paste"
+      ]
     }
   ]
 }

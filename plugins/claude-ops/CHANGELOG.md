@@ -3,6 +3,77 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0]
+
+### Added
+
+- **`audit-skill-visibility` gains a pair co-occurrence reading (closes #3048).**
+  `scripts/skill-pair-cooccurrence.sh` answers a question the visibility audit does not: not *can*
+  the model see a skill, but does one skill's run actually coincide with another's — the case being
+  "skill X's instructions tell the model to invoke skill Y; does that happen?"
+
+  **Placement is a correction to the filing.** The item proposed `observability` as the natural
+  home; that plugin's own `context/read-routing.md` already assigns *interpretation* of skill-usage
+  data to `audit-skill-visibility` and keeps only the store, the pipeline, and retention. The
+  routing table was right and the guess was wrong.
+
+  **It is a proxy and refuses to be read as more.** The `SkillUse` record carries no caller
+  attribution — a PostToolUse hook on the Skill tool receives `tool_name`, `tool_input`, and
+  `tool_response`, and nothing in that payload names the skill whose instructions caused the call.
+  So the script observes only that both skills fired in the same `(project_id, branch)` group,
+  ordered by timestamp; a callee the user typed by hand counts identically to one the caller
+  produced. There is no session id either, so that group key merges two sessions on one branch and
+  splits one session across a branch switch. The caveat is printed in **both** renderers — prose
+  and `--json` — because a machine consumer stripping it is the same defect as a human not seeing
+  it.
+
+  It inherits this skill's refusal rather than routing around it: below the 30-day exposure floor
+  (the same constant `audit_skill_visibility.py` uses) or below a minimum denominator, it returns
+  `WITHHELD` with a reason instead of a small number. **The trap it exists to refuse is the empty
+  denominator** — if the caller never ran, "0% of its sessions also used the callee" is a claim
+  about a population that was never observed, not a rate of zero.
+
+  33 regression cases. The guards were checked by removing them and confirming the relevant cases
+  fail: dropping the empty-denominator branch and neutering the span-floor comparison each turn
+  green red. One case caught a real defect in the first draft — the header promised malformed rows
+  cost only themselves while `jq -s` failed the whole file on the first bad line; the read is now
+  `jq -Rn` with `fromjson?`.
+
+## [0.34.0]
+
+### Added
+
+- **`audit-skill-visibility --installed` audits the fleet that is actually installed**, resolved
+  from `~/.claude/plugins/installed_plugins.json` rather than from a directory that happens to sit
+  under the current working directory. `--plugins-root` measures a checkout; `--installed` measures
+  the install. Measured here the two differ and both are right: the repo held 221 skills, the
+  installed fleet 216 — three plugins present in the checkout were never installed.
+
+  **The manifest lists one entry per install SCOPE, not per plugin**, and that distinction is
+  load-bearing rather than cosmetic. On this machine 67 plugins carried 134 entries — a `project`
+  and a `user` install of the same marketplace, bound to the same `projectPath`. Because the fleet
+  is the denominator the listing budget is measured against, counting entries would have roughly
+  doubled the reported overflow and fabricated the headline number. Resolution keys by plugin
+  identity, and the report prints both counts so the collapse is auditable instead of trusted.
+
+  **Multi-scope installs resolve by the documented precedence `local > project > user`** — the
+  record that loads is the highest-precedence *applicable* one, never the newest version installed.
+  The rule, including its explicit warning against the newest-version heuristic, lives in this same
+  plugin's `skills/plugins/context/scope-semantics.md`. Getting it wrong is not cosmetic: 7 plugins
+  here ship different skill *sets* between scopes and 19 skills different `description` text.
+  Superseded records are listed under a new **Fleet resolution** section so a pin being outranked is
+  visible rather than silently ignored.
+
+  **Records that cannot load here are excluded and reported.** `project` and `local` installs carry
+  the `projectPath` they belong to and load only in that project; counting another project's records
+  would inflate the fleet with skills the model can never see. The current project is taken from
+  `CLAUDE_PROJECT_DIR`, falling back to the working directory.
+
+  **A directory-source marketplace loads its checkout**, not either cached `installPath` — verified
+  by a skill executing out of the marketplace directory. The plugin root for those comes from the
+  catalog's declared `source`, because `plugins/<name>` is the common layout but not a rule: an entry
+  may declare `.` or any other directory, and assuming the layout would silently drop its skills.
+
 ## [0.33.2]
 
 ### Fixed

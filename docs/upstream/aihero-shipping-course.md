@@ -44,10 +44,10 @@ PARTIAL / REJECTED / OPEN.
 | C | /implement + /tdd wiring, zero-assembly chain | C2, C9–C11 | planning:plan, tdd:principles, testing:write | PARTIAL (C2+C9 relocated to planning:plan; C10+C11 already-present; chain doc rejected-with-reasons) | #2936 |
 | D | Two-axis review, spec lens, discovery ladder, preflight | C12–C16 | review:quality-gate | PARTIAL (C12+C14 adopted-corrected; C13+C16 already-present; C15 partial) | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
-| F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
+| F | /goal vs tickets posture | — | planning:draft-goal-condition | ADOPTED (sixth route-away row: multi-window work routes to spec + decomposed items; advisory, no folklore token figures) | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
 | X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
-| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | undecided (session-flow / work-items / new) | OPEN | #2948 |
+| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`, marketplace-wide glossary deferred) | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
@@ -164,7 +164,14 @@ given, and one disposal venue does not exist.
   `rule-recomputed-expectation` "detects the decidable core — textually identical sides — not
   every recomputation shape," and a validator ran it over three canonical tautological tests for
   zero findings; the canonical Khorikov shape (compute `expected` with the production algorithm,
-  then assert) does not fire. The review code-lens criterion is filed as its own item.
+  then assert) does not fire. **The review code-lens criterion that closes the executable gap is
+  landed** in `plugins/review/agents/code-reviewer.md`'s Code quality checklist (`review` 0.24.0):
+  it asks what the expected value's independent source is, names the round-trip/identity case
+  alongside the canonical shape, and cedes the textually-identical-sides core to
+  `cant-fail-scan.sh` by name so the scanner and the lens cannot double-report. Placement went to
+  the agent definition rather than `quality-gate/context/criteria.md` because that file is a
+  routing doc — it resolves the project's standards index and carries no criteria of its own,
+  which is where its own "Baseline when the ladder yields nothing" step already points.
 - **C11 ALREADY-PRESENT + one-clause edit** — `test-doubles.md` has carried
   `## SDK-Style Interfaces Over Generic Fetchers` (the GOOD/BAD pair and "each mock returns one
   specific shape, no conditional logic in test setup") since `85aa8066`, predating the audit that
@@ -183,9 +190,25 @@ given, and one disposal venue does not exist.
   converting the inline mentions to citations would **strip the presence gates from the invocation
   sites** (a seam-phrasing violation — the gate belongs where the invocation is instructed); and
   only 2 of 7 mentions actually overlap. The acceptance criterion is served as it stands by
-  `implement/SKILL.md:186` + `:199` with gates intact. The genuine find is filed separately:
-  `session-flow`'s `pre-pr.md` already owns an ordered pre-PR sequence, in a **different** order,
-  declared unreorderable — a live SSOT conflict.
+  `implement/SKILL.md:186` + `:199` with gates intact. The genuine find — `session-flow`'s
+  `pre-pr.md` owning an ordered pre-PR sequence in a **different** order, declared unreorderable —
+  **is settled, not deferred.** `pre-pr.md`'s order is doctrine: outcome verification renders on
+  the code that ships, and steps 4–6 (simplify, review the simplify diff, re-test) mutate the diff
+  between review and verification, so a verdict rendered before them describes code that no longer
+  exists at PR time. The competing reading ("confirm it works before spending review effort") is
+  already served earlier — by `pre-pr.md` step 1 and by `implement`'s own build check and full test
+  pass. Decisive evidence that this was a one-surface correction rather than a coin flip:
+  `verification`'s **own** chaining table (`skills/confirm/SKILL.md:125,128`) already fires on
+  "review gate passes" → suggest `confirm`, then PR after CONFIRMED. The skill that renders the
+  verdict, the skill that lists the sequence, and the plugin that opens the PR all agreed;
+  `implement`'s handoff step was the lone dissenter. Landed: a new owner doc
+  `docs/conventions/pre-pr-ordering/` with a registry row in `PLUGIN-PHILOSOPHY.md` (the registry's
+  own trigger — "a new cross-plugin convention lands in an owner doc before a second plugin adopts
+  it" — had already fired); `pre-pr.md` cites the owner for the order and keeps ownership of what
+  each step does; its override-boundary paragraph corrected from "fixed plugin identity" to fleet
+  identity, since the seam it denied was being exercised by a sibling plugin at the handoff point;
+  and `implement/SKILL.md:186` + `:199` rewritten to review → verify → PR with every presence gate
+  intact.
 - **Issue premise recorded UNVERIFIED, not STALE.** The issue's "`/tdd:principles` exists but
   rarely gets invoked during implementation (known behavioral gap)" was initially judged STALE on
   the grounds that the invocation is already wired at 7 sites. That inverts the claim: wiring is a
@@ -195,7 +218,27 @@ given, and one disposal venue does not exist.
   `SkillUse` telemetry hook — and **not** to an evals item: `plugins/evals/README.md:24-26` states
   "No command in this plugin executes model-graded evals," so an evals filing would produce JSON
   no runner executes. Stated limit: that hook records no caller attribution, so an implement→tdd
-  co-occurrence reading is a proxy, not proof.
+  co-occurrence reading is a proxy, not proof. **Measured, and the premise stays UNVERIFIED — now
+  with an instrument rather than a hand-wave.** `plugins/claude-ops/skills/audit-skill-visibility/
+  scripts/skill-pair-cooccurrence.sh` (`claude-ops` 0.35.0) is the repeatable reading; placement
+  went to `audit-skill-visibility`, not `observability`, because `observability`'s own
+  `context/read-routing.md:32` already assigns interpretation of skill-usage data to
+  `audit-skill-visibility` and keeps only the store, the pipeline, and retention. Run against the
+  only store reachable from this environment (`.claude/observability/skill-usage.jsonl`,
+  17 events, 2026-08-17 → 2026-08-20, a 3-day span): **`implementation:implement` fired zero
+  times, so the denominator is empty and the verdict is WITHHELD, not 0%.** An empty denominator
+  is a population that was never observed, not a rate of zero — the script refuses that inversion
+  by construction and the refusal carries a regression test verified to fail without its guard.
+  **The schema-widening question is decided here rather than filed: do not widen the `SkillUse`
+  record.** Caller identity is not merely absent from the schema, it is absent from the hook's
+  *input* — a PostToolUse payload carries `tool_name`, `tool_input`, and `tool_response`, and
+  nothing in it names the invoking skill. Recovering it would mean reading the session transcript,
+  which turns a bounded telemetry hook into a conversation reader and crosses the boundary
+  `observability/context/privacy.md` guards. The better signal needs no change at all and already
+  ships: OTEL's `claude_code.skill_activated` carries `invocation_trigger`, separating `user-slash`
+  from `claude-proactive` — which is the axis this premise actually asks about (does the model
+  reach for `tdd:principles` unprompted), and `audit_skill_visibility.py` already gates it as
+  `T-full`-only.
 
 ## Lane D (#2937)
 

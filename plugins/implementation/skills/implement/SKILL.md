@@ -183,7 +183,7 @@ When all planned work is done:
    - No commented-out code
    - No TODO comments that should be actual work
 4. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)** — for changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
-5. **Hand off to the pre-PR sequence** — run `/verification:confirm` for outcome verification when the `verification` plugin is installed (otherwise self-verify the outcome against the plan/intent directly), then suggest the project's review/PR flow (`/review:quality-gate` and `/source-control:pull-request` when those plugins are installed; otherwise whatever the consuming setup provides — the user controls timing). Do not commit-and-push unilaterally — final staging and PR creation belong to that flow
+5. **Hand off to the pre-PR sequence** — hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: suggest the project's review flow first (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides — the user controls timing). Do not commit-and-push unilaterally — final staging and PR creation belong to that flow
 
 ## Skill chaining during execution
 
@@ -196,7 +196,7 @@ When all planned work is done:
 | Divergence detected (major) | Route back to the planning skill (`/planning:plan review` when installed) |
 | Technical question mid-implementation | `/discovery:research` (when installed), otherwise disciplined multi-source research |
 | HIGH/CRITICAL change at completion | Call the `advisor` tool — rubber-duck checkpoint before review |
-| All implementation complete, tests pass | `/verification:confirm` (when the `verification` plugin is installed; else self-verify against intent), then suggest the project's review/PR flow (`/review:quality-gate`, `/source-control:pull-request` when installed) |
+| All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order — review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm` (else self-verify against intent), then `/source-control:pull-request`, each when its plugin is installed |
 
 ## What This Skill Does NOT Do
 

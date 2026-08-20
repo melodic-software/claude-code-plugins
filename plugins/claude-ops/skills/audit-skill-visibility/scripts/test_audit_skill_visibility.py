@@ -6,7 +6,9 @@ the failure it prevents, because a fixture whose purpose is forgotten gets
 "fixed" by the next person who sees it fail.
 """
 
+import json
 import os
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -933,6 +935,335 @@ class CollectFleetTest(unittest.TestCase):
 
     def test_missing_root_is_empty_not_an_exception(self):
         self.assertEqual(engine.collect_fleet("/nonexistent/path/here"), [])
+
+
+class ResolveInstalledTest(unittest.TestCase):
+    """The manifest lists one entry per install SCOPE, not per plugin.
+
+    Measured on a real install: 67 plugins carried 134 entries. Since the
+    fleet is the denominator the listing budget is measured against, counting
+    entries roughly doubles the reported overflow — the same summation error
+    the usage sources already reconcile away.
+    """
+
+    @staticmethod
+    def _manifest(**plugins):
+        return {"version": 2, "plugins": plugins}
+
+    def test_two_scopes_of_one_plugin_resolve_to_one_entry(self):
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "lastUpdated": "2026-08-17",
+                    },
+                    {
+                        "scope": "user",
+                        "version": "1.2.0",
+                        "installPath": "/c/alpha/1.2.0",
+                        "lastUpdated": "2026-08-19",
+                    },
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {})
+        self.assertEqual(out["manifest_entries"], 2)
+        self.assertEqual(out["plugins_resolved"], 1)
+        self.assertEqual(len(out["plugins"]), 1)
+
+    def test_scope_precedence_beats_the_newest_version(self):
+        """`local > project > user`, NOT newest-installed.
+
+        The rule is documented in this plugin's own
+        `skills/plugins/context/scope-semantics.md`, which names the newest-
+        version heuristic as the wrong answer explicitly. An earlier revision
+        of this resolver shipped that exact heuristic; this pins the fix.
+        """
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "user",
+                        "version": "9.9.9",
+                        "installPath": "/c/alpha/9.9.9",
+                        "lastUpdated": "2026-08-19",
+                    },
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "projectPath": "/repo",
+                        "lastUpdated": "2026-08-01",
+                    },
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {}, current_project="/repo")
+        # The older project pin loads; the newer user install is superseded.
+        self.assertEqual(out["plugins"][0]["scope"], "project")
+        self.assertEqual(out["plugins"][0]["root"], "/c/alpha/1.0.0")
+        self.assertEqual(out["superseded"][0]["winner"]["version"], "1.0.0")
+
+    def test_local_outranks_project(self):
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/p",
+                        "projectPath": "/repo",
+                    },
+                    {
+                        "scope": "local",
+                        "version": "0.1.0",
+                        "installPath": "/c/l",
+                        "projectPath": "/repo",
+                    },
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {}, current_project="/repo")
+        self.assertEqual(out["plugins"][0]["scope"], "local")
+
+    def test_another_projects_install_cannot_load_here_and_is_excluded(self):
+        """A project-scope record for a different repo is real but inert.
+
+        Counting its skills would inflate the denominator the listing budget
+        is measured against with a fleet the model can never see.
+        """
+        manifest = self._manifest(
+            **{
+                "elsewhere@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/elsewhere",
+                        "projectPath": "/some/other/repo",
+                    }
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {}, current_project="/repo")
+        self.assertEqual(out["plugins"], [])
+        self.assertEqual(out["not_applicable"][0]["plugin"], "elsewhere")
+
+    def test_a_user_scope_install_applies_in_any_project(self):
+        manifest = self._manifest(
+            **{"u@mkt": [{"scope": "user", "version": "1.0.0", "installPath": "/c/u"}]}
+        )
+        out = engine.resolve_installed(manifest, {}, current_project="/anywhere")
+        self.assertEqual(len(out["plugins"]), 1)
+        self.assertEqual(out["not_applicable"], [])
+
+    def test_directory_source_honours_the_catalog_declared_path(self):
+        """`plugins/<name>` is the common layout, not a rule.
+
+        A catalog entry may declare `.` or any other directory; assuming the
+        conventional layout would silently drop that plugin's skills.
+        """
+        manifest = self._manifest(
+            **{
+                "solo@mkt": [
+                    {"scope": "user", "version": "1.0.0", "installPath": "/c/solo"}
+                ]
+            }
+        )
+        marketplaces = {
+            "mkt": {
+                "source": {"source": "directory", "path": "/repo"},
+                "installLocation": "/repo",
+                "_catalog": [{"name": "solo", "source": "."}],
+            }
+        }
+        out = engine.resolve_installed(manifest, marketplaces)
+        self.assertEqual(out["plugins"][0]["root"], os.path.normpath("/repo"))
+
+    def test_a_scope_fork_is_flagged_ambiguous_never_silently_picked(self):
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "lastUpdated": "2026-08-17",
+                    },
+                    {
+                        "scope": "user",
+                        "version": "1.2.0",
+                        "installPath": "/c/alpha/1.2.0",
+                        "lastUpdated": "2026-08-19",
+                    },
+                ]
+            }
+        )
+        # No current project, so the project-scope record does not apply and
+        # only the user install can load.
+        out = engine.resolve_installed(manifest, {})
+        self.assertEqual(out["plugins"][0]["scope"], "user")
+        self.assertEqual(out["plugins"][0]["root"], "/c/alpha/1.2.0")
+        self.assertEqual(out["superseded"], [])
+
+    def test_a_directory_source_marketplace_loads_the_checkout(self):
+        """A directory-source marketplace loads from the checkout.
+
+        Verified by a skill executing out of the marketplace directory rather
+        than either cached installPath. Neither cached version is what runs,
+        so no superseded pair is reported for it — naming two versions that
+        are both beside the point would mislead.
+        """
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "lastUpdated": "2026-08-17",
+                    },
+                    {
+                        "scope": "user",
+                        "version": "1.2.0",
+                        "installPath": "/c/alpha/1.2.0",
+                        "lastUpdated": "2026-08-19",
+                    },
+                ]
+            }
+        )
+        marketplaces = {
+            "mkt": {
+                "source": {"source": "directory", "path": "/repo"},
+                "installLocation": "/repo",
+            }
+        }
+        out = engine.resolve_installed(manifest, marketplaces, current_project="/repo")
+        row = out["plugins"][0]
+        self.assertEqual(row["scope"], "marketplace-directory")
+        self.assertEqual(row["root"], os.path.normpath("/repo/plugins/alpha"))
+        self.assertEqual(out["superseded"], [])
+
+    def test_a_single_scope_install_is_certain(self):
+        manifest = self._manifest(
+            **{
+                "solo@mkt": [
+                    {
+                        "scope": "user",
+                        "version": "2.0.0",
+                        "installPath": "/c/solo/2.0.0",
+                        "lastUpdated": "2026-08-19",
+                    }
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {})
+        self.assertEqual(out["plugins"][0]["scope"], "user")
+        self.assertEqual(out["superseded"], [])
+
+    def test_an_empty_or_malformed_manifest_yields_nothing_not_an_exception(self):
+        for blob in ({}, {"plugins": {}}, {"plugins": {"x@m": []}}):
+            out = engine.resolve_installed(blob, {})
+            self.assertEqual(out["plugins"], [])
+            self.assertEqual(out["plugins_resolved"], 0)
+
+
+class CollectInstalledTest(unittest.TestCase):
+    """The integration path `--installed` actually wires to.
+
+    `resolve_installed` is pure and unit-tested above; this covers the part
+    that touches disk — JSON loading and its failure handling, the catalog
+    read, and the resolved-root -> `collect_fleet_at` handoff.
+    """
+
+    @staticmethod
+    def _write(path, blob):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(blob, handle)
+
+    @staticmethod
+    def _skill(root, plugin, leaf, description):
+        d = os.path.join(root, plugin, "skills", leaf)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "SKILL.md"), "w", encoding="utf-8") as handle:
+            handle.write(f'---\nname: {leaf}\ndescription: "{description}"\n---\n')
+
+    def test_it_reads_a_real_tree_through_the_catalog_declared_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            checkout = os.path.join(tmp, "repo")
+            plugins_dir = os.path.join(tmp, "plugins-config")
+            self._skill(os.path.join(checkout, "plugins"), "alpha", "one", "does a")
+            self._write(
+                os.path.join(checkout, ".claude-plugin", "marketplace.json"),
+                {"plugins": [{"name": "alpha", "source": "./plugins/alpha"}]},
+            )
+            self._write(
+                os.path.join(plugins_dir, "known_marketplaces.json"),
+                {
+                    "mkt": {
+                        "source": {"source": "directory", "path": checkout},
+                        "installLocation": checkout,
+                    }
+                },
+            )
+            self._write(
+                os.path.join(plugins_dir, "installed_plugins.json"),
+                {
+                    "version": 2,
+                    "plugins": {
+                        "alpha@mkt": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": "/nowhere",
+                            }
+                        ]
+                    },
+                },
+            )
+            denominator, resolution = engine.collect_installed(plugins_dir)
+
+        self.assertEqual(resolution["plugins_resolved"], 1)
+        self.assertEqual(resolution["manifest_entries"], 1)
+        self.assertEqual([e["qualified_name"] for e in denominator], ["alpha:one"])
+        # Read through the catalog path, NOT the (bogus) cached installPath.
+        self.assertEqual(denominator[0]["frontmatter"]["description"], "does a")
+
+    def test_a_missing_or_unreadable_config_dir_is_empty_not_an_exception(self):
+        denominator, resolution = engine.collect_installed("/nonexistent/dir/here")
+        self.assertEqual(denominator, [])
+        self.assertEqual(resolution["plugins_resolved"], 0)
+
+    def test_another_projects_install_is_excluded_end_to_end(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plugins_dir = os.path.join(tmp, "cfg")
+            cache = os.path.join(tmp, "cache")
+            self._skill(cache, "beta", "two", "does b")
+            self._write(
+                os.path.join(plugins_dir, "installed_plugins.json"),
+                {
+                    "version": 2,
+                    "plugins": {
+                        "beta@mkt": [
+                            {
+                                "scope": "project",
+                                "version": "1.0.0",
+                                "installPath": os.path.join(cache, "beta"),
+                                "projectPath": "/some/other/repo",
+                            }
+                        ]
+                    },
+                },
+            )
+            denominator, resolution = engine.collect_installed(
+                plugins_dir, current_project=os.path.join(tmp, "mine")
+            )
+
+        self.assertEqual(denominator, [])
+        self.assertEqual(resolution["not_applicable"][0]["plugin"], "beta")
 
 
 if __name__ == "__main__":

@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -247,30 +248,279 @@ def collect_fleet(plugins_root: str) -> list[dict]:
     if not os.path.isdir(plugins_root):
         return entries
     for plugin in sorted(os.listdir(plugins_root)):
-        skills_dir = os.path.join(plugins_root, plugin, "skills")
-        if not os.path.isdir(skills_dir):
+        entries += collect_fleet_at(os.path.join(plugins_root, plugin), plugin)
+    return entries
+
+
+def collect_fleet_at(plugin_root: str, plugin: str) -> list[dict]:
+    """Walk ONE plugin directory into denominator entries.
+
+    Split out of `collect_fleet` because the installed manifest resolves each
+    plugin to its own root: the installs are scattered across versioned cache
+    paths rather than sitting side by side under a single parent, so there is
+    no one directory to walk for a real installation.
+    """
+    import os
+
+    entries: list[dict] = []
+    skills_dir = os.path.join(plugin_root, "skills")
+    if not os.path.isdir(skills_dir):
+        return entries
+    for leaf in sorted(os.listdir(skills_dir)):
+        path = os.path.join(skills_dir, leaf, "SKILL.md")
+        if not os.path.isfile(path):
             continue
-        for leaf in sorted(os.listdir(skills_dir)):
-            path = os.path.join(skills_dir, leaf, "SKILL.md")
-            if not os.path.isfile(path):
-                continue
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    frontmatter = parse_frontmatter(handle.read())
-            except OSError:
-                frontmatter = {"_malformed": True}
-            entries.append(
+        try:
+            with open(path, encoding="utf-8") as handle:
+                frontmatter = parse_frontmatter(handle.read())
+        except OSError:
+            frontmatter = {"_malformed": True}
+        entries.append(
+            {
+                "qualified_name": f"{plugin}:{leaf}",
+                "source": "plugin",
+                # Enablement is not knowable from the filesystem alone, and
+                # guessing it would libel a disabled plugin's skills.
+                "plugin_enabled": None,
+                "frontmatter": frontmatter,
+                "path": path,
+            }
+        )
+    return entries
+
+
+# Scope precedence, highest first. NOT a guess and NOT re-derived here: the
+# rule is stated in this same plugin's
+# `skills/plugins/context/scope-semantics.md`, which verified it against the
+# official plugins-reference docs -- "the record that actually loads for a
+# given directory is the one at the highest-precedence scope present, never
+# simply 'the newest version installed.'"
+SCOPE_PRECEDENCE = ("local", "project", "user")
+
+
+def _scope_rank(scope: str) -> int:
+    try:
+        return SCOPE_PRECEDENCE.index(scope)
+    except ValueError:
+        return len(SCOPE_PRECEDENCE)
+
+
+def _install_applies(entry: dict, current_project: str | None) -> bool:
+    """Can this install record load for the project being audited?
+
+    `user` scope always applies. `project` and `local` records carry the
+    `projectPath` they belong to and load ONLY there -- a project-scope record
+    for a different repository is real state, but it cannot load here, so
+    counting its skills would inflate the denominator with a fleet the model
+    can never see.
+    """
+    scope = entry.get("scope", "")
+    if scope not in ("project", "local"):
+        return True
+    if not current_project:
+        return False
+    return os.path.normpath(entry.get("projectPath") or "") == os.path.normpath(
+        current_project
+    )
+
+
+def _catalog_source(marketplace_entry: dict, plugin: str) -> str:
+    """Where a directory-source marketplace declares this plugin lives.
+
+    The catalog (`.claude-plugin/marketplace.json`) gives each plugin a
+    `source` path relative to the marketplace root. `plugins/<name>` is the
+    common layout but not a rule -- an entry may declare `.` or any other
+    directory -- so the declared value wins and the conventional layout is
+    only the fallback for a catalog that could not be read.
+    """
+    for row in marketplace_entry.get("_catalog") or []:
+        if isinstance(row, dict) and row.get("name") == plugin:
+            source = row.get("source")
+            if isinstance(source, str) and source:
+                return source
+            break
+    return os.path.join("plugins", plugin)
+
+
+def resolve_installed(
+    manifest: dict, marketplaces: dict, current_project: str | None = None
+) -> dict:
+    """Resolve an installed-plugin manifest into ONE entry per plugin identity.
+
+    Pure: takes the two parsed JSON blobs, touches no filesystem, so the
+    resolution rules are testable without a populated install.
+
+    The manifest lists one entry per (plugin, scope), NOT one per plugin. On
+    the machine this was written against, 67 plugins carried 134 entries -- a
+    `project` and a `user` install of the same marketplace, bound to the same
+    projectPath. Summing them would double the fleet, and because the fleet is
+    the denominator the listing budget is measured against, a doubled fleet
+    roughly doubles the reported overflow. That is the same class of error the
+    usage sources already guard against by reconciling rather than summing.
+
+    Where the scopes disagree, the winner is the highest-precedence
+    APPLICABLE record per `SCOPE_PRECEDENCE` (`local > project > user`) -- not
+    the newest version, which is the wrong answer `scope-semantics.md` names
+    explicitly. Applicability matters first: `project` and `local` records
+    load only in the `projectPath` they name, so a record owned by another
+    project is dropped into `not_applicable` rather than counted. Getting
+    either wrong moves real numbers -- measured on that same install, 7
+    plugins carried DIFFERENT skill sets between scopes and 19 skills carried
+    different `description` text.
+
+    Returns one row per plugin plus two report lists: `superseded` (the
+    outranked records, so a pin losing to a higher scope stays visible) and
+    `not_applicable` (records belonging to another project). Nothing is
+    withheld or hedged -- the rule decides.
+
+    A marketplace whose source is a local `directory` is the exception to
+    where the code comes from: it loads that CHECKOUT rather than either
+    cached `installPath`, verified by a skill executing out of the marketplace
+    directory. Its root comes from the catalog's declared `source`, its scope
+    reports as `marketplace-directory`, and it emits no `superseded` pair --
+    naming two cached versions when neither is running would mislead.
+    """
+    resolved: list[dict] = []
+    superseded: list[dict] = []
+    not_applicable: list[dict] = []
+    entry_count = 0
+    for key, installs in sorted((manifest.get("plugins") or {}).items()):
+        if not installs:
+            continue
+        entry_count += len(installs)
+        name, _, market = key.partition("@")
+        entry = (marketplaces or {}).get(market) or {}
+        location = entry.get("installLocation")
+
+        applicable = [e for e in installs if _install_applies(e, current_project)]
+        if not applicable:
+            # Every record is a project/local install belonging to a DIFFERENT
+            # project. Real state, but it cannot load here, so it is reported
+            # and excluded rather than counted into the denominator.
+            not_applicable.append(
                 {
-                    "qualified_name": f"{plugin}:{leaf}",
-                    "source": "plugin",
-                    # Enablement is not knowable from the filesystem alone, and
-                    # guessing it would libel a disabled plugin's skills.
-                    "plugin_enabled": None,
-                    "frontmatter": frontmatter,
-                    "path": path,
+                    "plugin": name,
+                    "marketplace": market,
+                    "scopes": sorted(
+                        {e.get("scope", "unknown") for e in installs},
+                    ),
                 }
             )
-    return entries
+            continue
+
+        winner = min(
+            applicable,
+            key=lambda e: (_scope_rank(e.get("scope", "")), e.get("scope", "")),
+        )
+        # A directory-source marketplace loads the CHECKOUT, so neither cached
+        # record is what runs and a "loads project X, superseding user Y" line
+        # would name two versions that are both beside the point.
+        from_directory = (entry.get("source") or {}).get(
+            "source"
+        ) == "directory" and bool(location)
+        losers = [e for e in applicable if e is not winner]
+        if losers and not from_directory:
+            superseded.append(
+                {
+                    "plugin": name,
+                    "marketplace": market,
+                    "winner": {
+                        "scope": winner.get("scope", "unknown"),
+                        "version": winner.get("version", ""),
+                    },
+                    "superseded": [
+                        {
+                            "scope": e.get("scope", "unknown"),
+                            "version": e.get("version", ""),
+                        }
+                        for e in losers
+                    ],
+                }
+            )
+
+        # A directory-source marketplace loads from the checkout rather than
+        # from the cached installPath, so the catalog -- not a hardcoded
+        # layout -- names where each plugin lives. `source` there is a path
+        # relative to installLocation; a plugin may legitimately declare `.`
+        # or a custom directory, so guessing `plugins/<name>` would silently
+        # miss it.
+        root = winner.get("installPath", "")
+        scope = winner.get("scope", "unknown")
+        version = winner.get("version", "")
+        if from_directory:
+            declared = _catalog_source(entry, name)
+            root = os.path.normpath(os.path.join(location, declared))
+            # The checkout is the code; the cached versions describe copies
+            # that are not being loaded, so neither is reported as running.
+            scope, version = "marketplace-directory", ""
+
+        resolved.append(
+            {
+                "plugin": name,
+                "marketplace": market,
+                "root": root,
+                "scope": scope,
+                "version": version,
+            }
+        )
+
+    return {
+        "plugins": resolved,
+        # Same plugin, several applicable scopes: resolved by the documented
+        # precedence rule, and the losing records are reported so the reader
+        # can see a project pin being outranked rather than wonder why a
+        # version they installed is not the one measured.
+        "superseded": superseded,
+        # Project/local records owned by another project. Excluded from the
+        # denominator because they cannot load here.
+        "not_applicable": not_applicable,
+        # Both numbers are reported so the collapse is auditable: a reader can
+        # see that N installs became M plugins rather than trusting that it did.
+        "manifest_entries": entry_count,
+        "plugins_resolved": len(resolved),
+    }
+
+
+def collect_installed(
+    plugins_dir: str, current_project: str | None = None
+) -> tuple[list[dict], dict]:
+    """Read the installed manifest + marketplace registry into a denominator.
+
+    Returns the denominator entries and the resolution report, so the caller
+    can surface superseded and inapplicable records rather than absorbing them.
+    """
+
+    def _load_json(path: str) -> dict:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                blob = json.load(handle)
+        except (OSError, ValueError):
+            return {}
+        return blob if isinstance(blob, dict) else {}
+
+    def _load(name: str) -> dict:
+        return _load_json(os.path.join(plugins_dir, name))
+
+    marketplaces = _load("known_marketplaces.json")
+    # Attach each directory-source marketplace's catalog so the resolver can
+    # honour the plugin's DECLARED source path instead of assuming a layout.
+    for entry in marketplaces.values():
+        if not isinstance(entry, dict):
+            continue
+        location = entry.get("installLocation")
+        if (entry.get("source") or {}).get("source") == "directory" and location:
+            catalog = _load_json(
+                os.path.join(location, ".claude-plugin", "marketplace.json")
+            )
+            entry["_catalog"] = catalog.get("plugins") or []
+
+    resolution = resolve_installed(
+        _load("installed_plugins.json"), marketplaces, current_project
+    )
+    denominator: list[dict] = []
+    for row in resolution["plugins"]:
+        denominator += collect_fleet_at(row["root"], row["plugin"])
+    return denominator, resolution
 
 
 def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
@@ -776,6 +1026,15 @@ def _observation_value(
     return "dormant", backed_by
 
 
+def _plural(count: int, noun: str) -> str:
+    """Regular-plural helper for counted nouns in the rendered report.
+
+    A report that says "1 plugins" undercuts the care the rest of it claims,
+    and every counted noun here is regular, so the -s rule is sufficient.
+    """
+    return noun if count == 1 else f"{noun}s"
+
+
 def _render_markdown(model: dict) -> str:
     lines = [
         "# Skill visibility report",
@@ -788,6 +1047,63 @@ def _render_markdown(model: dict) -> str:
         f"- Withheld claims: {len(model['withheld'])}",
         "",
     ]
+    fleet = model.get("fleet")
+    if fleet:
+        lines += [
+            "## Fleet resolution",
+            "",
+            f"Resolved **{fleet['plugins_resolved']} "
+            f"{_plural(fleet['plugins_resolved'], 'plugin')}** from "
+            f"{fleet['manifest_entries']} manifest entries — the manifest lists "
+            "one entry per install SCOPE, so counting entries would inflate the "
+            "fleet and, with it, the listing overflow below.",
+            "",
+        ]
+        superseded = fleet.get("superseded") or []
+        if superseded:
+            lines += [
+                f"**{len(superseded)} "
+                f"{_plural(len(superseded), 'plugin')} "
+                f"{'is' if len(superseded) == 1 else 'are'} installed at more "
+                "than one applicable scope.** Resolved by the documented "
+                "precedence `local > project > user` — the record that loads is "
+                "the highest-precedence one present, never the newest version "
+                "installed. The superseded records are listed so a pin that is "
+                "being outranked is visible rather than silently ignored.",
+                "",
+            ]
+            for row in superseded[:10]:
+                win = f"{row['winner']['scope']} {row['winner']['version']}".strip()
+                lost = ", ".join(
+                    f"{c['scope']} {c['version']}".strip() for c in row["superseded"]
+                )
+                lines += [f"- `{row['plugin']}` — loads **{win}**, superseding {lost}"]
+            if len(superseded) > 10:
+                lines += [f"- …and {len(superseded) - 10} more"]
+            lines += [""]
+
+        inapplicable = fleet.get("not_applicable") or []
+        if inapplicable:
+            lines += [
+                f"**{len(inapplicable)} "
+                f"{_plural(len(inapplicable), 'plugin')} excluded**: every "
+                "install record is project- or local-scope belonging to a "
+                "different project, so it cannot load here. Counting those "
+                "would inflate the fleet with skills the model can never see.",
+                "",
+            ]
+            for row in inapplicable[:10]:
+                lines += [f"- `{row['plugin']}` — {', '.join(row['scopes'])} elsewhere"]
+            if len(inapplicable) > 10:
+                lines += [f"- …and {len(inapplicable) - 10} more"]
+            lines += [""]
+
+        if not superseded and not inapplicable:
+            lines += [
+                "Every plugin resolved to a single applicable install.",
+                "",
+            ]
+
     listing = model.get("listing", {})
     if listing:
         lines += ["## Listing budget", ""]
@@ -895,6 +1211,15 @@ def main(argv: list[str] | None = None) -> int:
         help="plugins directory to enumerate (default: ./plugins)",
     )
     parser.add_argument(
+        "--installed",
+        nargs="?",
+        const="",
+        metavar="PLUGINS_DIR",
+        help="audit the INSTALLED fleet via the plugin manifest rather than a "
+        "plugins directory (default dir: ~/.claude/plugins). Resolves one "
+        "entry per plugin, never one per install scope",
+    )
+    parser.add_argument(
         "--claude-json",
         help="path to ~/.claude.json for the native counters",
     )
@@ -927,6 +1252,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    resolution: dict | None = None
     if args.fixture:
         bundle = _load_fixture(args.fixture)
         clock = _parse_ts(args.now) if args.now else _parse_ts(bundle["now"])
@@ -942,15 +1268,30 @@ def main(argv: list[str] | None = None) -> int:
         import os
 
         clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
-        plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
-        denominator = collect_fleet(plugins_root)
-        if not denominator:
-            print(
-                f"error: no skills found under {plugins_root!r}; "
-                "pass --plugins-root <path> to point at a plugins directory",
-                file=sys.stderr,
-            )
-            return 2
+        if args.installed is not None:
+            plugins_dir = args.installed or os.path.expanduser("~/.claude/plugins")
+            # CLAUDE_PROJECT_DIR is the project Claude Code itself resolved;
+            # cwd is the fallback. Project/local install records are matched
+            # against it, since those load only in their own project.
+            current_project = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+            denominator, resolution = collect_installed(plugins_dir, current_project)
+            if not denominator:
+                print(
+                    f"error: no installed skills resolved from {plugins_dir!r}; "
+                    "expected installed_plugins.json there",
+                    file=sys.stderr,
+                )
+                return 2
+        else:
+            plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
+            denominator = collect_fleet(plugins_root)
+            if not denominator:
+                print(
+                    f"error: no skills found under {plugins_root!r}; "
+                    "pass --plugins-root <path> to point at a plugins directory",
+                    file=sys.stderr,
+                )
+                return 2
 
         events, horizons = [], {}
         native_path = args.claude_json or os.path.expanduser("~/.claude.json")
@@ -982,6 +1323,15 @@ def main(argv: list[str] | None = None) -> int:
         horizons=horizons,
         listing_config=listing_cfg,
     )
+
+    if resolution is not None:
+        model["fleet"] = {
+            "mode": "installed",
+            "manifest_entries": resolution["manifest_entries"],
+            "plugins_resolved": resolution["plugins_resolved"],
+            "superseded": resolution["superseded"],
+            "not_applicable": resolution["not_applicable"],
+        }
 
     if args.write:
         import os

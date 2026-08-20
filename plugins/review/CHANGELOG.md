@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.0]
+## [0.25.0]
 
 ### Added
 
@@ -40,6 +40,38 @@ All notable changes to the `review` plugin are documented here. Format follows
   "blast-radius assessment" and operates a stage earlier. Negative routing is stated against that
   skill, against `/planning:devils-advocate`, and against
   `/docs-hygiene:rename-references audit blast`.
+
+## [0.24.0]
+
+### Added
+
+- **`code-reviewer` gains a tautological-expectation criterion (closes #3046).** The
+  anti-pattern was covered in prose — `tdd`'s `anti-patterns-khorikov.md` and `testing`'s
+  `write.md` checklist — and was *claimed* to be covered executably by `testing:audit`'s
+  `cant-fail-scan.sh`. That claim was false, and the scanner says so in its own header:
+  `testing/audit/rule-recomputed-expectation` "detects the decidable core — textually identical
+  sides — not every recomputation shape." A validator ran it over three canonical tautological
+  tests for **zero** findings, because the canonical Khorikov shape — compute `expected` with the
+  production algorithm in the arrange section, then assert against it — has non-identical sides.
+  Nothing judged the semantic shape.
+
+  The new Code-quality bullet asks the one question that decides it: **what is the expected
+  value's independent source?** A known-good literal, a hand-computed value, a worked example from
+  the spec, or a fixture — as against a re-derivation through the steps the code under test takes.
+  The round-trip/identity case (output compared against its own input) rides in the same criterion,
+  matching how `write.md:78` already pairs them.
+
+  **It cedes ground to the scanner by name rather than overlapping it**, per the plugin's existing
+  skip-what-tooling-enforces posture: where both sides are the same expression,
+  `cant-fail-scan.sh` fires and owns the finding; this criterion covers only what that rule leaves
+  undecided — sides that differ textually but share a derivation. Widening the detector past
+  textually-identical sides is explicitly *not* part of this: the general shape is undecidable.
+
+  Placement went to the agent definition rather than `quality-gate/context/criteria.md`, because
+  that file is a routing doc — it resolves the project's standards index and carries no criteria of
+  its own, and its own "Baseline when the ladder yields nothing" step already points at the agent
+  definitions for the universal checklist.
+
 
 ## [0.23.0]
 

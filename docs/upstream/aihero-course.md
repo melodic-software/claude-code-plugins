@@ -398,11 +398,14 @@ not re-verified.
 
 Course-dictionary and lesson vocabulary graded for entry into this project's ubiquitous
 language. Adoption decisions were made in-lane (register + two-validator audit pass); glossary
-materialization routes through `/domain-driven-design:curate-language`, whose
+materialization routed through `/domain-driven-design:curate-language`, whose
 convention-resolution ladder found no existing project glossary and more than one plausible
-home — creation is therefore a filed follow-on rather than an in-lane invention
-([#3000](https://github.com/melodic-software/claude-code-plugins/issues/3000)). ADOPTED terms
-are usable house vocabulary now; the rows are the record.
+home, so creation was deferred to a filed follow-on rather than invented in-lane
+([#3000](https://github.com/melodic-software/claude-code-plugins/issues/3000)). That is now
+**done**: the maintainer confirmed the placement and the ADOPTED terms live in
+[`docs/GLOSSARY.md`](../GLOSSARY.md), which also records the REJECT rows below as rejected
+synonyms mapped to the terms that own their concepts. The rows here remain the decision record —
+the glossary carries the vocabulary, this table carries why.
 
 | Term | Verdict | Basis |
 |---|---|---|

@@ -2972,45 +2972,44 @@ else
   fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
 fi
 
-# Check 21 liveness. Its awk program must actually RUN, not merely exit 0.
+# Portability guard: no ERE interval expressions in the checker's awk regexes.
 #
-# The regression this guards: the scanner used ERE interval expressions
-# (`^ {0,3}`, `[0-9]{1,9}`), which mawk 1.3.4 -- the default awk on Debian and
-# Ubuntu -- rejects with "REcompile() - panic". awk then aborted, emitted zero
-# records, and every skill reported `PASS -- 0 errors` with the check silently
-# enforcing nothing. A dead gate that reports green is the exact false-green
-# class the liveness-assertion convention forbids, and the canary workflow
-# already names this failure mode for a different script ("awk dialects differ
-# between the runner's mawk and a developer's gawk").
+# Every other assertion here is black-box, but this failure mode is invisible to
+# a black-box run on the CI runner: gawk compiles intervals happily, so a
+# reintroduced interval passes the whole suite on CI and only breaks for
+# consumers on mawk — silently, because mawk 1.3.4 panics out of the awk program
+# before it emits a record and mawk 1.3.3 matches the braces as literal text.
+# Either way the affected check reports a clean run over a file it never
+# scanned, which is the worst shape a gate can fail in. A source-level assertion
+# is the only form that fires on a gawk runner, so it is deliberately
+# implementation-aware.
 #
-# Asserting "no panic on stderr" alone would not catch a future scanner that
-# runs but matches nothing, so this asserts the POSITIVE: unguarded judgment
-# language must produce the warn. The fixture's indented list and quote lines
-# exercise the parsing paths the intervals used to serve.
-make_skill cc-fresh-eyes-live '---
-name: cc-fresh-eyes-live
-description: "Grade a plan. Use when: '"'"'grading a plan'"'"'."
----
-
-## Review
-
-   - a list item indented three spaces, which the scanner must parse
-   > a quoted line the scanner must strip
-
-Run the outcome gate before handing back.
-
-## Gotchas
-
-None known.
-'
-out="$(run cc-fresh-eyes-live 2>&1)"
-rc=$?
-if grep -q 'REcompile() - panic' <<<"$out"; then
-  fail "check 21 awk program panicked -- interval expressions are back (rc=$rc): $out"
-elif [[ $rc -eq 0 ]] && grep -q 'same-context judgment language' <<<"$out"; then
-  pass "check 21 is live: unguarded judgment language warns under this awk"
+# All three interval forms are rejected, {n} included: mawk panics on an
+# exact-count interval before a group (a{3}(b)) exactly as it does on the
+# a{0,3}(b) that motivated this guard, so a comma-only pattern would leave the
+# same silent-failure class open.
+#
+# Scoped to what awk actually compiles, because Bash is not mawk and its own
+# [[ =~ ]] regexes may use intervals freely — check-skill.sh dates a frontmatter
+# synced: value with one, and rejecting it would be a false positive on correct
+# code. Two surfaces reach awk:
+# slash-delimited regex literals inside the embedded programs, and the judge
+# regex handed across with -v.
+INTERVAL_RE='\{[0-9]+(,[0-9]*)?\}'
+interval_hits="$(
+  {
+    # Regex literals in the embedded awk programs, comment lines exempt (the
+    # rule is documented in prose that necessarily names the forbidden syntax).
+    grep -nE "/[^/]*${INTERVAL_RE}[^/]*/" "$SUT" | grep -vE '^[0-9]+:[[:space:]]*#'
+    # The judge regex is a POSIX ERE that awk compiles, even though it is
+    # written as a shell string and never appears between slashes.
+    grep -nE "^[[:space:]]*FRESH_EYES_JUDGE_RE=.*${INTERVAL_RE}" "$SUT"
+  } 2>/dev/null
+)"
+if [[ -n "$interval_hits" ]]; then
+  fail "awk regexes must contain no ERE interval expressions (mawk-portability): ${interval_hits//$'\n'/ | }"
 else
-  fail "check 21 emitted no finding for unguarded judgment language -- the scanner may be inert (rc=$rc): $out"
+  pass "awk regexes are free of ERE interval expressions (mawk-portable)"
 fi
 
 if [[ $fails -ne 0 ]]; then

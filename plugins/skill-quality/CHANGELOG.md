@@ -3,32 +3,42 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2]
+
+### Changed
+
+- **`check-skill` replays a failed script test's output instead of discarding it.** Check 7 ran each
+  `scripts/*.test.sh` with stdout and stderr sent to `/dev/null` and reported only
+  `script test failed: <name>`. That is undiagnosable wherever the failure cannot be reproduced by
+  hand — a gate whose one CI-visible signal is its own name sends the reader guessing at
+  environment differences instead of reading the case that broke. Found the hard way: a generator
+  test that passed locally under a fresh clone, the PR merge result, a minimal environment, four
+  working directories, and with and without the optional lint tools, while failing only in CI. With
+  the output replayed, the cause was one line — an older ShellCheck rejecting `--rcfile` and exiting
+  3 ("invoked with bad syntax"), which the test was reading as a lint failure. Success stays silent:
+  the reason to suppress was log noise, and that reason does not apply to the run that just went red.
+
 ## [0.17.1]
 
 ### Fixed
 
-- **Check 21 was a dead gate reporting green.** Its awk program used ERE interval
-  expressions (`^ {0,3}` at three sites, `[0-9]{1,9}` at one). mawk 1.3.4 — the
-  default `awk` on Debian and Ubuntu — rejects them with `REcompile() - panic`, so
-  awk aborted, emitted zero records, and every skill reported `PASS — 0 errors`
-  while the fresh-eyes declaration check enforced nothing at all. The four
-  expressions become POSIX-safe equivalents (`^ ? ? ?`, `[0-9][0-9]*`), verified
-  to behave identically under both mawk and gawk.
-
-  This is the false-green class [`docs/conventions/liveness-assertion/`](../../docs/conventions/liveness-assertion/README.md)
-  forbids, and the repository had already named the exact failure mode for a
-  different script: `.github/workflows/silent-revert-canary.yml` warns that "awk
-  dialects differ between the runner's mawk and a developer's gawk" and that the
-  result is "a false GREEN". The lesson had never been applied here.
-
-### Added
-
-- A liveness regression test for check 21. It asserts the **positive** — that
-  unguarded judgment language produces the warn — because asserting only that no
-  panic reaches stderr would not catch a future scanner that runs but matches
-  nothing. Reviving the check surfaced findings that had been invisible:
-  `discovery:explore` moved from 2 warnings to 5 and `discovery:research` from 2 to
-  8. Those are pre-existing and left unfixed; the check reports them now.
+- **`check`: Check 21 no longer silently passes under mawk (#3005).** The fresh-eyes scanner's
+  embedded awk program used ERE interval expressions, two of them immediately followed by a group
+  (`^ {0,3}(...)`). mawk 1.3.4 panics on that construct — `REcompile() - panic: values still on
+  machine stack` — and dies before emitting a single record, so on a stock Debian/Ubuntu box every
+  malformed `fresh-eyes-exempt` directive PASSed and the whole check reported a clean run over a
+  file it never scanned. mawk 1.3.3, which does not implement intervals at all, degrades the same
+  way for the same regexes by matching the braces as literal text. The scanner is now written
+  interval-free throughout — the three-space indent cap as three optional spaces, the ordered-marker
+  digit cap as one digit plus eight optional ones — preserving the exact CommonMark bounds it
+  already enforced. This is the portability shape Check 23 was written to in `#2963`; gawk behavior
+  is unchanged, and `check-skill.test.sh` gains 21 passing assertions on mawk with no regressions.
+  A source-level guard assertion now fails the suite if an interval returns to any awk-consumed
+  regex — the embedded programs' regex literals and the judge regex passed with `-v` — in `{n}`,
+  `{n,}` or `{n,m}` form, since mawk panics on an exact-count interval before a group exactly as it
+  does on a bounded one. It is scoped to awk rather than the whole file because Bash's own `[[ =~ ]]`
+  regexes may use intervals freely, and it is deliberately source-level rather than behavioral
+  because a gawk CI runner cannot observe this class of break any other way.
 
 ## [0.17.0]
 

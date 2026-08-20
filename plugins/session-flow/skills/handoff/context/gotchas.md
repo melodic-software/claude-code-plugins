@@ -22,6 +22,15 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   `/loop` re-arm notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
   when it happens anyway: `/session-flow:find-handoff` rung 1 globs the handoffs dir and needs no
   transcript.
+- **The panel eating the prompt** — the position panel is emitted before the rails block, so it is
+  text standing between the start of the response and the one thing the operator has to have. Under
+  the same heavy context that produces the failure above, a panel that grows — every unit of a long
+  rail spelled out, blocks wrapping into paragraphs, a divergence explained rather than named — is a
+  turn that runs out of room before the rails. The rules that hold it small are load-bearing, not
+  cosmetic: one line per unit, one line per block, elide above 8 units, 16 lines total. And when
+  anything about the panel is uncertain, the answer is an abbreviated panel or a single line saying
+  the units would not resolve — never a delayed or dropped rails prompt (engine doc, "The panel
+  NEVER gates the rails prompt").
 - **Prompt-only when durability is required** — prompt-only fits small, self-contained follow-ups;
   when a plan artifact, dead-ends, or load-bearing decisions back the work, write the durable
   handoff file. Any doubt → full handoff.
