@@ -209,6 +209,15 @@ The binding (`.work-item-tracker.json`) and any consumer-local adapters live in 
 (the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
 which is read-only and replaced on plugin update — no seam state is written there.
 
+**`WIT_SEAM_LIB_DIR`** — the dispatcher exports its own `lib/` path before invoking any adapter verb
+(each verb runs as a fresh `bash <verb>.sh`, so only exported vars cross). A consumer-local or
+generated adapter sits in the consuming repo while the engine dispatching it lives in the plugin, so
+that adapter's own `../../lib` points at a seam copy the consumer never vendored; sourcing
+`${WIT_SEAM_LIB_DIR}` instead resolves the libs of the engine actually dispatching it — the same
+engine its manifest handshook against a step earlier. A consumer-local adapter therefore does NOT
+require vendoring the seam. Bundled adapters resolve relatively and ignore it; an adapter run
+directly (outside the dispatcher) falls back to its own relative path.
+
 ## JSON output contract
 
 - Every emitted JSON object (including every JSON Lines line, if streamed) carries
@@ -394,6 +403,21 @@ label-agnostic and simply never surfaces items that are assigned or blocked.
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
+
+Each `limits` value is a non-negative integer **or `null`**, and the three cases are
+distinct:
+
+| Value | Meaning |
+|---|---|
+| `n > 0` | the provider enforces this ceiling; hitting it is exit `7` with the ceiling named |
+| `0` | the underlying capability is unsupported — read it together with the `verbs`/`features` entry that says so |
+| `null` | the capability is supported and the provider enforces **no** ceiling |
+
+`null` exists because `0` cannot say "unbounded" without also reading as "none allowed",
+and a caller branching on the number would then see a ceiling that does not exist. A
+provider with no documented ceiling declares `null` rather than inventing a plausible
+number (Gitea's issue dependencies are the worked case: it rejects only duplicate and
+circular edges, and caps nothing).
 
 ### Contract-version handshake
 
@@ -582,6 +606,80 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   governs visibility. There is no lease/claim machinery (writes are off), so `features.leases`
   and `features.sub_items` are `false`.
 
+## linear adapter
+
+Linear, over its single GraphQL endpoint (`https://api.linear.app/graphql`). Full verb
+parity with the github adapter: reads, writes, the claim/renew/reclaim lease protocol,
+native sub-items, and dependency edges. Auth is a **personal API key** sent as the bare
+`Authorization` value (no scheme word) — the headless-appropriate credential, since OAuth
+needs an interactive grant no cloud agent can complete. Host is pinned to `.linear.app`.
+
+Binding subtree `config.linear`: `host`, `scopes[]` (non-empty, each
+`<workspace>/<TEAMKEY>`), `auth_env`. Optional: `done_state_types`, `page_size`,
+`host_suffix`, `allow_custom_domain`. All scope entries must share one workspace — an API
+key reaches exactly one.
+
+**Its one documented deviation from the lease protocol.** The contract's step 2 detects a
+race by re-reading the assignees; that depends on GitHub's assignee **list**, where both
+racers' assignments coexist. Linear's `Issue.assignee` is a **single field**: the second
+writer overwrites the first and then re-reads only itself, so a step-2 check would report
+"no race" to both racers. Arbitration therefore rests on the lease **comment ordering**
+(the contract's own same-login tiebreak, promoted to primary here). Since Linear comment
+ids are unordered UUIDs, the adapter mints its `lease_comment_id` from the comment's
+`createdAt` in epoch milliseconds — the local-markdown precedent for a provider without
+usable external ids — and breaks same-millisecond ties on the comment UUID so the ordering
+stays total.
+
+Other divergences, each verified against Linear's published GraphQL schema: a GraphQL
+error arrives with **HTTP 200**, so the transport inspects `errors` before any caller sees
+`data`; state is classified on `WorkflowState.type` (stable) and never on `.name`
+(renameable per team); `inverseRelations` — not `relations` — is the blocked-by direction;
+`create-item` takes label **IDs**, resolved from names against the team's label set; and
+the seam id is `team-key + number`, never the UUID.
+
+Offline coverage is the adapter's own `*.test.sh` with a mocked transport
+(`WIT_LINEAR_CURL`), including the race, the same-millisecond tiebreak decided from both
+sides, and reclaim's revalidation window. A live conformance pass is **deferred and
+recorded** — no Linear workspace was reachable when it was built, and no test has run two
+genuinely concurrent sessions.
+
+## gitea adapter
+
+Gitea / Forgejo, self-hosted, over the `/api/v1` REST surface. The first adapter produced by
+`/work-items:onboard-adapter` rather than hand-written; its security skeleton is the generator's
+template, so it carries the same guards as the `jira` adapter by construction.
+
+Binding subtree `config.gitea`: `host` (bare hostname), `scopes[]` (non-empty, each `owner/repo`
+— the declared read scope **and** the authorization boundary), `auth_env` (the env-var NAME
+holding the API token, never the token). Optional: `page_size` (default 50), `host_suffix` (the
+consumer's own egress pin — Gitea is self-hosted, so there is no vendor domain to pin against by
+default), `allow_custom_domain`.
+
+Supported: `create-item`, `get-item`, `link-blocks`, `list-items`, `capabilities`.
+Capability-gated to exit `6`: the three lease verbs and both sub-item verbs. Gitea's issue has no
+parent link, so `sub_items` is structurally false; leases are declared false because whether
+concurrent assignment is arbitrated cannot be settled without a live instance, and an emulated
+lease over last-write-wins loses races silently.
+
+Provider divergences that shaped it — each verified against the Gitea source rather than assumed
+from GitHub's API, and all documented in `adapters/gitea/README.md`:
+
+- A pull request **is** an issue (`pull_request` populated); `list-items` drops them.
+- `create-item` takes label **IDs**, not names; the adapter resolves names first and refuses an
+  unknown one rather than dropping it.
+- `blocked_by_count` costs one extra request per item — the issue carries no dependency data and
+  there is no bulk endpoint.
+- `POST /issues/{index}/dependencies` makes the **URL** issue depend on the **body** issue; the
+  sibling `/blocks` endpoint is the same edge inverted.
+- `limits.dependencies_per_type` is `null`: Gitea rejects only duplicate and circular edges and
+  enforces no ceiling.
+
+Offline coverage is the adapter's own `*.test.sh` with a mocked transport (`WIT_GITEA_CURL`),
+including a manifest-versus-filesystem check. A live conformance pass is **deferred and
+recorded** — no Gitea or Forgejo instance was reachable when it was built; the binding at
+`conformance/bindings/gitea.sh` is ready and refuses to run without an explicitly named
+throwaway target.
+
 ## Conformance
 
 `conformance/run-conformance.sh --binding <name>` runs the SAME abstract suite over any
@@ -589,7 +687,19 @@ adapter through the core CLI only: every verb, valid + invalid input, exit-code 
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
 capability-gated skips (declared-unsupported verbs asserted to exit `6`). Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
-and teardown. The GitHub binding targets a throwaway sandbox repo and is on-demand; it is
+and teardown.
+
+Bindings resolve the **same two-root way adapters do** ("Adapter resolution"), first match
+wins: `WIT_CONFORMANCE_BINDINGS_DIR` (a single explicit bindings root, no search — the
+sibling of `WIT_ADAPTERS_DIR`), then consumer-local
+`<repo root>/tools/work-item-tracker/conformance/bindings/<name>.sh`, then this copy's
+bundled `bindings/`. A consumer-local or generated adapter lands in the consuming repo, and
+the plugin directory is read-only and replaced on plugin update — so without the
+consumer-local leg such an adapter could never be conformance-verified in place. `<name>` is
+constrained to `^[a-z][a-z0-9-]*$` before it is interpolated into a path, so a traversing
+name cannot escape the searched roots.
+
+The GitHub binding targets a throwaway sandbox repo and is on-demand; it is
 never pointed at a coordination repo. The `local-markdown` and `jira` bindings run offline
 in CI: local-markdown against a temp store, and jira because its consume-only manifest means
 every suite-exercised path is pre-network (capabilities cats the manifest, write verbs +
@@ -598,3 +708,11 @@ every suite-exercised path is pre-network (capabilities cats the manifest, write
 touch no network tool. The jira read verbs are covered offline by the adapter's own
 `*.test.sh` with a mocked curl; a live-Jira conformance pass is deferred to the work-laptop
 pass that settles the exact `statusCategory` "done" key and blocker link type.
+
+The `gitea` and `linear` bindings are **on-demand like GitHub's**, not offline like jira's:
+both manifests declare `create-item` true, so the suite seeds a real item and every case after
+it is a live call. Each requires its own `WIT_CONFORMANCE_<PROVIDER>_HOST` and
+`WIT_CONFORMANCE_<PROVIDER>_SCOPE` and refuses to run without both, so a destructive suite can
+never fall back to a default target. Their `bindings/<provider>.test.sh` files therefore assert
+the binding's shape and those refusals rather than running the suite; both live passes are
+recorded as deferred in the adapter sections above.

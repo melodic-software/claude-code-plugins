@@ -3,6 +3,184 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.2]
+
+### Fixed
+
+- **The 0.39.1 rollback trap cleared the assignee unconditionally, which could strip a concurrent
+  winner's live claim.** The guard added one version ago fixed the assigned-with-no-lease strand,
+  but reintroduced — from the rollback path — the exact bug `reclaim.sh` was fixed for earlier in
+  this same effort.
+
+  The trap stays armed across the update-comment write and the arbitration read, and 0.39.1's own
+  `|| exit "$?"` additions *widened* that window by making both of them exit on failure. Linear's
+  `assignee` is a SINGLE field, so a concurrent session can legitimately win the claim inside the
+  window — posting its own lease and overwriting the assignee — and a blind clear on the way out
+  then strips that live claim while the winner's lease stays untouched. The item silently returns
+  to the frontier while someone is working it.
+
+  The rollback now re-fetches the issue and clears only if the assignee is still this session,
+  the same compare the LOSER branch already applies before its own unassign. One regression case,
+  verified to fail with the compare removed.
+
+## [0.39.1]
+
+### Fixed
+
+- **The Linear adapter reported a SUCCESSFUL claim when the lease write failed.** Found while
+  building a regression test for a reviewer's partial-claim finding — the test kept passing when
+  it should have gone red, and the reason was worse than the finding it was written for.
+
+  `wit_linear_post_comment` (like every `wit_linear_*` helper) signals failure by calling `exit`.
+  But `claim.sh` captured it as `POSTED="$(wit_linear_post_comment …)"`, and **an `exit` inside a
+  command substitution ends only the subshell**. With `set -uo pipefail` and no `-e`, the script
+  printed the API error to stderr and then carried on — deriving a handle from an empty response,
+  writing a lease marker, and emitting a normal success object with exit `0`. A caller had no way
+  to know the lease it was told it held did not exist.
+
+  The same swallow affected `wit_linear_lease_comments` at five more sites, where it inverts a
+  safety check rather than a report: a failed read of existing leases yields an empty result, the
+  "is anything already claimed here?" loop iterates over nothing, and the claim proceeds **as if
+  the item were free** — a double-claim produced by an API hiccup. All six sites now propagate the
+  helper's own exit status (`|| exit "$?"`), preserving its exit-code taxonomy.
+
+- **`claim.sh` could strand an item assigned with no lease.** The assignment lands before the
+  lease is posted, so a failure in between left an item that `list-frontier` excludes (assigned)
+  and `reclaim` refuses (no active lease) — unrecoverable through the seam, parked indefinitely by
+  a transient error. An EXIT-trap rollback now guards that window, mirroring the github adapter's
+  `_wit_claim_rollback`, and is disarmed at both settled outcomes. Disarming on the lost-race path
+  matters as much as arming it: that branch already decides the assignee by re-fetching and
+  comparing the holder, and a second unconditional unassign after it would strip the winner's live
+  claim. Three regression cases, each verified to fail with its guard removed.
+
+## [0.39.0]
+
+### Added
+
+- **A bundled `linear` adapter with full verb parity (#2946).** Reads, writes, the
+  claim/renew/reclaim lease protocol, native sub-items, and dependency edges — so unlike `gitea`
+  it *is* a coordination surface and `/work-items:work` can claim on it. Issue numbering lives
+  outside the repository, so GitHub's shared PR/issue numbering never bites.
+- **The headless auth posture is settled explicitly, as the item asked.** A **personal API key**,
+  sent as the bare `Authorization` value and referenced by env-var name only. OAuth needs an
+  interactive grant no unattended session can complete, so it is not the credential for a cloud
+  agent. Host pinned to `.linear.app`; credential hygiene is the generated skeleton's, which
+  matches or exceeds the jira adapter's guards.
+- **Per-instance semantics are config, not constants.** `done_state_types` decides which
+  `WorkflowState.type` values count as closed (default `completed`/`canceled`/`duplicate`) — the
+  same override seam jira has for its `statusCategory` keys, so the adapter is independent of the
+  classification rather than betting on it.
+
+### Changed
+
+- **The Linear lease documents one deviation from the contract's claim sequence, and says why.**
+  The contract detects a race at step 2 by re-reading the assignees; that depends on GitHub's
+  assignee **list**, where both racers' assignments coexist. Linear's `Issue.assignee` is a
+  **single field** — the second writer overwrites the first and then re-reads only itself, so a
+  step-2 check would report "no race" to *both* racers. Arbitration therefore rests on the lease
+  **comment ordering**, which the contract already specifies as the same-login tiebreak. Because
+  Linear's comment ids are unordered UUIDs, `lease_comment_id` is minted from the comment's
+  `createdAt` in epoch milliseconds (the local-markdown precedent), with same-millisecond ties
+  broken on the comment UUID so the ordering stays **total** — without that, two racers in one
+  millisecond would each read themselves as earliest and both would claim. A test asserts the tie
+  is decided identically from both sides.
+- **A GraphQL error arrives with HTTP 200**, so the transport inspects `errors` before any caller
+  sees `data`. A status-code-only check would wave a failed mutation through and let the verb emit
+  a malformed record.
+- **`api.auth_scheme` in the adapter spec gained `raw`** — the bare `Authorization` value with no
+  scheme word, which is what Linear's personal API keys take. Modelled as its own scheme rather
+  than an empty prefix, so a generated header cannot come out with a stray leading space.
+
+### Fixed
+
+- **Timestamp parsing no longer depends on fractional seconds being present.** Linear returns
+  `createdAt` with milliseconds while this adapter's own lease markers write whole seconds, so both
+  forms reach the same helper; stripping the fraction by assuming a `.` corrupted the whole-second
+  form instead. That is how reclaim's activity check silently saw no activity at all, and would
+  have released a lease whose holder was demonstrably still working.
+
+## [0.38.0]
+
+### Added
+
+- **A bundled `gitea` adapter for Gitea / Forgejo (#2952)** — the first adapter GENERATED by
+  `/work-items:onboard-adapter` rather than hand-written, which was the point: it is the dogfood
+  that tests the generator. Reads and creates issues and writes blocked-by dependency edges;
+  `claim`/`renew-lease`/`reclaim`/`add-sub-item`/`list-sub-items` are capability-gated to exit `6`.
+  Self-hostable and free, so it serves the no-paid-tool case for solo developers.
+- **Honest gating over convenient gating.** `sub_items` is false because Gitea's issue has no
+  parent field at all. `leases` is false because whether Gitea arbitrates concurrent assignment
+  cannot be settled without a live instance and two identities — and an emulated lease over
+  last-write-wins loses races silently, which is worse than not having one. Both are recorded on
+  the adapter with what would settle them.
+- **Provider divergences verified against the Gitea source, not assumed from GitHub's API.** A
+  pull request IS an issue and is dropped from `list-items`; `create-item` takes label **IDs**, not
+  names, and refuses an unknown name rather than dropping it; `blocked_by_count` costs one request
+  per item because the issue carries no dependency data; `POST /issues/{index}/dependencies` makes
+  the URL issue depend on the BODY issue, and using the sibling `/blocks` endpoint would invert
+  every edge. Each is documented in `adapters/gitea/README.md` with the file it was read from.
+- **`limits` values may now be `null`** — "supported, and the provider enforces no ceiling",
+  distinct from `0` ("the capability is unsupported"). Gitea's issue dependencies are the case that
+  forced it: Gitea rejects only duplicate and circular edges and caps nothing, and without `null` a
+  ceiling-free provider had to invent a plausible number that callers would then branch on.
+- **Generated adapters now ship a `capabilities.test.sh`** whose load-bearing case is that the
+  manifest AGREES WITH THE FILESYSTEM — a verb declared `true` with no script behind it, or a
+  script left behind for a verb since set to `false`, appears in no other test.
+
+### Fixed
+
+- **A substitution value carrying a placeholder no longer reaches generated output verbatim.** The
+  self-hosted host-pin sentence rendered as "@@DISPLAY\_NAME@@ is self-hosted" because the
+  generator's renderer walks its key list once and never revisits a value inserted by a later key.
+  Values now interpolate directly, and a regression case greps every generated file, under both
+  host postures, for a surviving placeholder.
+
+## [0.37.0]
+
+### Added
+
+- **`/work-items:onboard-adapter` — the tail half of the hybrid adapter model (#2950).**
+  Bundled adapters cover the majors; this skill covers everything else, walking a consumer from
+  "my tracker is not supported" to an adapter that lives in **their** repo. Four steps: interview
+  to lock the provider's shape into an adapter spec, explore the consumer's real instance for the
+  per-instance facts only it can settle, generate, verify. The deterministic half is
+  `scripts/generate-adapter.sh`; the judgement — which verbs the provider can honestly support,
+  what its fields mean, what a live instance actually returns — stays outside the script, and the
+  spec file is the whole handoff between them.
+- **The generated security skeleton carries the bundled `jira` adapter's guards, and proves
+  them.** Credential read from the env var *named by* the binding and passed to curl through a
+  stdin config so it never reaches `argv`; host validated as a bare hostname; HTTPS enforced by
+  curl itself; redirects not followed, so the `Authorization` header cannot be replayed to
+  another host; values reaching request paths matched against an anchored allowlist. The
+  generated `common.test.sh` is real and passing from the moment of generation — 58 cases,
+  including that the credential is absent from argv and present in the stdin config.
+- **The generator refuses an incoherent spec rather than emitting a manifest that lies.** The
+  capabilities manifest is what the core routes on, so a verb declared without the feature it
+  needs, a ceiling on a capability declared absent, or an unanchored scope pattern is a refusal
+  with the field named. Manifest `schema_version` is stamped from the **seam's** contract version
+  (`lib/json.sh`), never from the spec — an adapter that versioned itself could be born already
+  skewed from the engine that will dispatch it.
+- **Unwritten verb scaffolds exit `1`, not `6`.** Exit `6` means "the provider cannot do this and
+  the manifest says so" — a permanent, honest degradation. Declaring an unfinished scaffold `6`
+  would launder unfinished work as a provider limitation and let conformance pass over a verb
+  that does nothing.
+
+### Fixed
+
+- **A consumer-local adapter no longer requires vendoring the seam.** The dispatcher now exports
+  `WIT_SEAM_LIB_DIR` before invoking any adapter verb, naming the `lib/` of the engine actually
+  dispatching — and the engine whose contract version the manifest just handshook against.
+  Previously a consumer-local adapter's own `../../lib` pointed at a seam copy the consumer never
+  vendored, so the only working consumer-local adapter was one in a repo that had vendored the
+  whole seam. Bundled adapters resolve relatively and are unaffected.
+- **A generated conformance binding is now reachable by the runner.** `run-conformance.sh`
+  resolves `bindings/<name>.sh` the same two-root way adapters resolve — `WIT_CONFORMANCE_BINDINGS_DIR`,
+  then consumer-local, then plugin-bundled. Without the consumer-local leg a generated adapter
+  could never be conformance-verified in place, since the plugin directory it would have had to
+  write its binding into is read-only and replaced on plugin update. The binding name is also
+  constrained to `^[a-z][a-z0-9-]*$` before it is interpolated into a path, so a traversing name
+  cannot escape the searched roots and source an arbitrary file.
+
 ## [0.36.3]
 
 ### Fixed

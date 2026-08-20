@@ -504,6 +504,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 | Windows path emission across the Git Bash → native boundary | [`docs/conventions/windows-path-emit/`](conventions/windows-path-emit/README.md) |
+| Pre-PR step order (where outcome verification sits) | [`docs/conventions/pre-pr-ordering/`](conventions/pre-pr-ordering/README.md) |
 
 ## Cross-platform contract
 

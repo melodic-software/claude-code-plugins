@@ -168,7 +168,7 @@ a user as documented.
 
 | Question | Owner |
 |---|---|
-| Why is my fleet unused — starved, unwanted, or unobserved? | **this skill** |
+| Why is my fleet unused — starved, unwanted, or unobserved? Does skill B get invoked where skill A ran? | **this skill** — the second via `scripts/skill-pair-cooccurrence.sh`, co-occurrence and never attribution ([reference/pair-cooccurrence.md](reference/pair-cooccurrence.md)) |
 | Which skills are unused vs their context cost, right now? | Claude Code's own `/doctor` and Stats tab |
 | Is a repo's authored listing over budget? | `skill-quality`'s `check-listing-budget.sh` |
 | What is installed and invocable? | `/claude-ops:inventory` |

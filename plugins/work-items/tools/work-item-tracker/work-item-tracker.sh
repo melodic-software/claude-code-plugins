@@ -121,6 +121,16 @@ main() {
 
   [[ "$WIT_PROVIDER" == "github" ]] && check_gh_version
 
+  # Tell the adapter where THIS engine's lib/ is. Adapters resolve consumer-local
+  # first, so a consumer-local or generated adapter sits in the consuming repo
+  # while the engine it is dispatched by lives in the read-only plugin directory —
+  # its own `../../lib` then points at a seam copy the consumer never vendored.
+  # Exporting the engine's own lib dir (each verb runs as a fresh `bash <verb>.sh`,
+  # so only exported vars cross) lets such an adapter source the seam libs of the
+  # engine actually dispatching it, which is also the engine its manifest just
+  # handshook against. Bundled adapters resolve relatively and ignore this.
+  export WIT_SEAM_LIB_DIR="$SCRIPT_DIR/lib"
+
   local adapter_verb="$verb"
   case "$verb" in
   create-item | get-item | claim | renew-lease | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;

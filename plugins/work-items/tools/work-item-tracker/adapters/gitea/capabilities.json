@@ -1,0 +1,28 @@
+{
+  "features": {
+    "cross_repo_edges": true,
+    "labels": true,
+    "leases": false,
+    "sub_items": false
+  },
+  "limits": {
+    "dependencies_per_type": null,
+    "list_items_max": 1000,
+    "sub_item_depth": 0,
+    "sub_items_per_parent": 0
+  },
+  "provider": "gitea",
+  "schema_version": "1.0",
+  "verbs": {
+    "add-sub-item": false,
+    "capabilities": true,
+    "claim": false,
+    "create-item": true,
+    "get-item": true,
+    "link-blocks": true,
+    "list-items": true,
+    "list-sub-items": false,
+    "reclaim": false,
+    "renew-lease": false
+  }
+}
