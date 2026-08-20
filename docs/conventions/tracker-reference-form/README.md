@@ -39,9 +39,13 @@ Only to an allowlist of code extensions — at the pinned version: `.cs`, `.ts`,
 allowlist and pass. Do not read those as evidence the rule is lax — read them as evidence the rule
 is scoped. A skill's `SKILL.md` is likewise outside it.
 
-One path is excluded by configuration rather than by extension: `code-tidying`'s
-`audit-comment-residue` scripts, because that skill is itself a comment linter and its fixtures must
-contain the banned markers as test corpus.
+Two paths are excluded by configuration rather than by extension — `code-tidying`'s
+`audit-comment-residue` **`scripts/**` and `evals/**`** — because that skill is itself a comment
+linter, so its fixtures and shape library must contain the banned markers as test corpus. Both
+exclusions are load-bearing and the pair is observable: `evals/fixtures/residue-snippet.py` carries
+a scanned extension and a rejected form, and passes only because the `evals` tree is excluded.
+Naming just one of the two would make this doc contradict the policy it describes. The authoritative
+list is the `exclude:` input in [`ci.yml`](../../../.github/workflows/ci.yml).
 
 ## What this convention is not
 

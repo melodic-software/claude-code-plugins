@@ -16,6 +16,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   missing. The section says to read `mergeStateStatus` before reasoning about a
   short check list, and names the misdiagnosis (trigger or App-token problem)
   that this repository has already spent time on once. Documentation only.
+- **The load condition for `stuck-checks.md` now admits the conflicting case.**
+  `runbook-cycle.md` gated the file on a non-empty `checks.stuck`, which is
+  empty by construction in the scenario above, so the new guidance would never
+  have been read when it applies. The gate now also fires on
+  `branch_freshness.state == "conflicting"`, and `SKILL.md`'s one-line
+  description covers both directions rather than the UNSTABLE signal alone.
 
 ## [0.54.12]
 

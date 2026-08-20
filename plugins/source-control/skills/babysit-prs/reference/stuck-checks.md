@@ -47,6 +47,12 @@ distinguished by the merge state, not by the check list. Everything above concer
 PRESENT and never settle, detected only under `UNSTABLE`. This section is the opposite: checks that
 never appear at all, under `DIRTY`.
 
+**Its queue signal is therefore not `checks.stuck`, which is empty here by construction.** A
+conflicted PR surfaces as `branch_freshness.state == "conflicting"` (`DIRTY` or `CONFLICTING`, per
+`compute_branch_freshness` in [`../scripts/babysit_delta.py`](../scripts/babysit_delta.py)), and
+that state is this section's entry condition — [`runbook-cycle.md`](runbook-cycle.md) names it
+alongside the non-empty-`checks.stuck` trigger for loading this file.
+
 A `pull_request` workflow runs against a merge ref GitHub computes by merging the head into the
 base. When the PR is conflicted there is no such ref to compute, so those workflows are never
 scheduled — they are **absent**, not queued, not pending, not failing. Nothing in `checks.stuck`
