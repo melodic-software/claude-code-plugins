@@ -6,7 +6,7 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-The tracker's capabilities are split across six focused skills (plus a setup
+The tracker's capabilities are split across seven focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
 about work items, tickets, issues, tracked work, or what to do next):
 
@@ -18,6 +18,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 /work-items:decompose                  # break the topic's PLAN.md into tickets
 /work-items:ship                       # macro map over a spec container: status, shape, next step
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
+/work-items:onboard-adapter gitea      # generate an adapter for an unbundled tracker
 ```
 
 ## Skills
@@ -30,6 +31,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
 | `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step — thin by design, mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
+| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model — bundled adapters cover the majors. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows — inferring candidate items from the repo and interviewing per item — is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
 
 ## Naming
@@ -99,7 +101,8 @@ enough that one skill no longer predicts its contents.
   gitignored `.work-item-tracker.local.json` overlay beside it). A repo
   may add or shadow an adapter consumer-local at
   `<repo root>/tools/work-item-tracker/adapters/<provider>/` (the root being
-  `${CLAUDE_PROJECT_DIR}`, else the git toplevel). The seam's
+  `${CLAUDE_PROJECT_DIR}`, else the git toplevel) — `/work-items:onboard-adapter`
+  generates one, and no vendored copy of the seam is needed for it to run. The seam's
   contract and per-adapter mechanics are documented in
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`

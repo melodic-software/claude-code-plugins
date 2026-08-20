@@ -10,6 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../work-item-tracker.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
+# shellcheck source=../lib/binding.sh
+source "$SCRIPT_DIR/../lib/binding.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "usage: run-conformance.sh --binding <name>  (runs the abstract seam conformance suite through the core CLI against the named adapter binding under bindings/<name>.sh)"
@@ -40,9 +42,43 @@ done
 if [[ -z "$binding_name" ]]; then
   usage_error
 fi
-BINDING_FILE_SH="$SCRIPT_DIR/bindings/$binding_name.sh"
+# The name becomes a path segment under a bindings root. Constrain it to the
+# adapter-name charset BEFORE it is interpolated, so `--binding ../../x` cannot
+# escape the searched roots and source an arbitrary file. Allowlisting is the
+# same posture the adapters use on binding-supplied keys.
+if ! [[ "$binding_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  echo "run-conformance: invalid binding name '$binding_name' (expected ^[a-z][a-z0-9-]*\$)" >&2
+  exit 2
+fi
+# Conformance bindings resolve the SAME two-root way adapters do (CONTRACT.md
+# "Adapter resolution"), and for the same reason: a consumer-local or generated
+# adapter lands in the consuming repo, and the plugin directory it would
+# otherwise need to write its binding into is read-only and replaced on plugin
+# update. First existing match wins:
+#   1. WIT_CONFORMANCE_BINDINGS_DIR — a single explicit bindings root, no search
+#      (the sibling of WIT_ADAPTERS_DIR; tests).
+#   2. Consumer-local — <repo root>/tools/work-item-tracker/conformance/bindings.
+#   3. Plugin-bundled fallback — this copy's own bindings/ (the shipped set).
+# When none exists the bundled path is named in the one not-found error.
+resolve_binding_file() {
+  local name="$1" root
+  if [[ -n "${WIT_CONFORMANCE_BINDINGS_DIR:-}" ]]; then
+    printf '%s\n' "$WIT_CONFORMANCE_BINDINGS_DIR/$name.sh"
+    return 0
+  fi
+  if root="$(wit_project_root)"; then
+    local local_file="$root/tools/work-item-tracker/conformance/bindings/$name.sh"
+    if [[ -f "$local_file" ]]; then
+      printf '%s\n' "$local_file"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$SCRIPT_DIR/bindings/$name.sh"
+}
+
+BINDING_FILE_SH="$(resolve_binding_file "$binding_name")"
 [[ -f "$BINDING_FILE_SH" ]] || {
-  echo "run-conformance: no binding at $BINDING_FILE_SH" >&2
+  echo "run-conformance: no binding for '$binding_name' (searched consumer-local then plugin-bundled) — last tried $BINDING_FILE_SH" >&2
   exit 2
 }
 

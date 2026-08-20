@@ -3,6 +3,52 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0]
+
+### Added
+
+- **`/work-items:onboard-adapter` — the tail half of the hybrid adapter model (#2950).**
+  Bundled adapters cover the majors; this skill covers everything else, walking a consumer from
+  "my tracker is not supported" to an adapter that lives in **their** repo. Four steps: interview
+  to lock the provider's shape into an adapter spec, explore the consumer's real instance for the
+  per-instance facts only it can settle, generate, verify. The deterministic half is
+  `scripts/generate-adapter.sh`; the judgement — which verbs the provider can honestly support,
+  what its fields mean, what a live instance actually returns — stays outside the script, and the
+  spec file is the whole handoff between them.
+- **The generated security skeleton carries the bundled `jira` adapter's guards, and proves
+  them.** Credential read from the env var *named by* the binding and passed to curl through a
+  stdin config so it never reaches `argv`; host validated as a bare hostname; HTTPS enforced by
+  curl itself; redirects not followed, so the `Authorization` header cannot be replayed to
+  another host; values reaching request paths matched against an anchored allowlist. The
+  generated `common.test.sh` is real and passing from the moment of generation — 58 cases,
+  including that the credential is absent from argv and present in the stdin config.
+- **The generator refuses an incoherent spec rather than emitting a manifest that lies.** The
+  capabilities manifest is what the core routes on, so a verb declared without the feature it
+  needs, a ceiling on a capability declared absent, or an unanchored scope pattern is a refusal
+  with the field named. Manifest `schema_version` is stamped from the **seam's** contract version
+  (`lib/json.sh`), never from the spec — an adapter that versioned itself could be born already
+  skewed from the engine that will dispatch it.
+- **Unwritten verb scaffolds exit `1`, not `6`.** Exit `6` means "the provider cannot do this and
+  the manifest says so" — a permanent, honest degradation. Declaring an unfinished scaffold `6`
+  would launder unfinished work as a provider limitation and let conformance pass over a verb
+  that does nothing.
+
+### Fixed
+
+- **A consumer-local adapter no longer requires vendoring the seam.** The dispatcher now exports
+  `WIT_SEAM_LIB_DIR` before invoking any adapter verb, naming the `lib/` of the engine actually
+  dispatching — and the engine whose contract version the manifest just handshook against.
+  Previously a consumer-local adapter's own `../../lib` pointed at a seam copy the consumer never
+  vendored, so the only working consumer-local adapter was one in a repo that had vendored the
+  whole seam. Bundled adapters resolve relatively and are unaffected.
+- **A generated conformance binding is now reachable by the runner.** `run-conformance.sh`
+  resolves `bindings/<name>.sh` the same two-root way adapters resolve — `WIT_CONFORMANCE_BINDINGS_DIR`,
+  then consumer-local, then plugin-bundled. Without the consumer-local leg a generated adapter
+  could never be conformance-verified in place, since the plugin directory it would have had to
+  write its binding into is read-only and replaced on plugin update. The binding name is also
+  constrained to `^[a-z][a-z0-9-]*$` before it is interpolated into a path, so a traversing name
+  cannot escape the searched roots and source an arbitrary file.
+
 ## [0.36.3]
 
 ### Fixed

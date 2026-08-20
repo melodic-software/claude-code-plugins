@@ -209,6 +209,15 @@ The binding (`.work-item-tracker.json`) and any consumer-local adapters live in 
 (the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
 which is read-only and replaced on plugin update — no seam state is written there.
 
+**`WIT_SEAM_LIB_DIR`** — the dispatcher exports its own `lib/` path before invoking any adapter verb
+(each verb runs as a fresh `bash <verb>.sh`, so only exported vars cross). A consumer-local or
+generated adapter sits in the consuming repo while the engine dispatching it lives in the plugin, so
+that adapter's own `../../lib` points at a seam copy the consumer never vendored; sourcing
+`${WIT_SEAM_LIB_DIR}` instead resolves the libs of the engine actually dispatching it — the same
+engine its manifest handshook against a step earlier. A consumer-local adapter therefore does NOT
+require vendoring the seam. Bundled adapters resolve relatively and ignore it; an adapter run
+directly (outside the dispatcher) falls back to its own relative path.
+
 ## JSON output contract
 
 - Every emitted JSON object (including every JSON Lines line, if streamed) carries
@@ -589,7 +598,19 @@ adapter through the core CLI only: every verb, valid + invalid input, exit-code 
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
 capability-gated skips (declared-unsupported verbs asserted to exit `6`). Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
-and teardown. The GitHub binding targets a throwaway sandbox repo and is on-demand; it is
+and teardown.
+
+Bindings resolve the **same two-root way adapters do** ("Adapter resolution"), first match
+wins: `WIT_CONFORMANCE_BINDINGS_DIR` (a single explicit bindings root, no search — the
+sibling of `WIT_ADAPTERS_DIR`), then consumer-local
+`<repo root>/tools/work-item-tracker/conformance/bindings/<name>.sh`, then this copy's
+bundled `bindings/`. A consumer-local or generated adapter lands in the consuming repo, and
+the plugin directory is read-only and replaced on plugin update — so without the
+consumer-local leg such an adapter could never be conformance-verified in place. `<name>` is
+constrained to `^[a-z][a-z0-9-]*$` before it is interpolated into a path, so a traversing
+name cannot escape the searched roots.
+
+The GitHub binding targets a throwaway sandbox repo and is on-demand; it is
 never pointed at a coordination repo. The `local-markdown` and `jira` bindings run offline
 in CI: local-markdown against a temp store, and jira because its consume-only manifest means
 every suite-exercised path is pre-network (capabilities cats the manifest, write verbs +
