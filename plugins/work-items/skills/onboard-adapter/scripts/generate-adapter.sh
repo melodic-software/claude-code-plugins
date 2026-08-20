@@ -441,12 +441,16 @@ basic)
   # conformance binding must take the identity from the environment — so they cannot
   # share one key, and collapsing them emitted `$au` into the test's single-quoted JSON.
   SAMPLE_AUTH_EXTRA=',"auth_user":"ci@example.invalid"'
+  # shellcheck disable=SC2016  # $au is a jq variable bound by --arg in the generated
+  # binding, not a shell expansion — it must survive into the emitted file unexpanded.
   CONFORMANCE_AUTH_EXTRA=',"auth_user":$au'
   # No apostrophe in this message: bash parses quotes inside ${VAR:?word}, so a lone
   # one opens a quoted region and the generated file stops parsing.
   AUTH_CONFORMANCE_REQUIRE="  local auth_user
   auth_user=\"\${WIT_CONFORMANCE_${PROVIDER_UPPER}_AUTH_USER:?set WIT_CONFORMANCE_${PROVIDER_UPPER}_AUTH_USER to the throwaway account identity for HTTP Basic; the token half stays in the credential env var}\"
 "
+  # shellcheck disable=SC2016  # emitted verbatim as the generated binding's own jq
+  # invocation; $auth_user is that file's local, expanded when IT runs, not here.
   AUTH_CONFORMANCE_JQARG=' --arg au "$auth_user"'
   SAMPLE_AUTH_EXTRA_DOC=",
       \"auth_user\": \"you@example.com\""
@@ -745,6 +749,10 @@ quote_safe() {
     [[ "$2" != *\'* ]] ||
       die_spec "$1 must not contain a single quote — it is rendered inside a single-quoted shell string, and a quote there ends the string and makes the rest executable (value: $2)"
     ;;
+  # A key that reaches no single-quoted context needs no check here. Spelled out
+  # rather than left implicit: the repo's add-default-case rule is on precisely so a
+  # silent fallthrough is never mistaken for a considered one.
+  *) ;;
   esac
 }
 

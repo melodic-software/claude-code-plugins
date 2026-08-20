@@ -234,10 +234,15 @@ assert_eq "missing display_name → exit 3" "3" "$(gen "$(with 'del(.display_nam
 # break at all; a newline ends a `#` comment line and makes the rest live shell.
 assert_eq "display_name with an apostrophe → exit 3" "3" \
   "$(gen "$(with '.display_name = "Bobs'\'' Tracker"')")"
+# shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED — an
+# expanded $(id) would test the guard against this shell's output instead of against
+# the command-substitution syntax, which is the whole point of the case.
 assert_eq "display_name with command substitution → exit 3" "3" \
   "$(gen "$(with '.display_name = "X$(id)"')")"
 assert_eq "display_name with a newline → exit 3" "3" \
   "$(gen "$(with '.display_name = "Acme\nTracker"')")"
+# shellcheck disable=SC2016  # same reason as the case above: the backticks are the
+# payload under test and must arrive at the generator as literal text.
 assert_eq "display_name with a backtick → exit 3" "3" \
   "$(gen "$(with '.display_name = "Acme `id`"')")"
 # Real names still pass — the guard must not be so tight it rejects the shipped ones.
