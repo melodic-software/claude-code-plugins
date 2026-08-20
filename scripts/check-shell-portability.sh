@@ -35,8 +35,21 @@
 #     each recorded as an environment problem.
 #   - Do NOT wait on it with `pgrep -f 'check-shell-portability'`. That pattern
 #     appears in the waiting shell's OWN command line, so the waiter matches
-#     itself and the condition never clears. Wait on the pid instead:
-#     `while kill -0 "$pid" 2>/dev/null; do sleep 15; done`.
+#     itself and the condition never clears. Wait on the pid instead.
+#   - But waiting is not checking, and a pid wait alone is fail-open. A
+#     `while kill -0 "$pid" 2>/dev/null; do sleep 15; done` loop reports only
+#     WHEN the run ended, never how: the loop's own status is the last `sleep`'s,
+#     so it is 0 whether the audit exited 0, 1 (violation) or 2 (usage error).
+#     Measured: a child exiting 3 leaves that loop reporting 0. Reading it as
+#     "clean" is exactly the fail-open the next paragraph warns about.
+#       - If the run IS a child of your shell, `wait "$pid"` yields its real
+#         status (measured: 3 for that same child). Use it, and check it.
+#       - If it is NOT a child -- started in an earlier shell, or via `setsid`
+#         -- `wait` cannot help: it fails with "pid N is not a child of this
+#         shell" and returns 127, which is indistinguishable from a real failure
+#         if taken at face value. The status is then simply unavailable, so the
+#         outcome must be read from the run's own output, and the absence of a
+#         success line must be treated as unknown rather than as pass.
 #
 # Relatedly, if you sweep files individually to find slow ones, key the loop on
 # every non-zero status and not only on the timeout status: a loop that reports
