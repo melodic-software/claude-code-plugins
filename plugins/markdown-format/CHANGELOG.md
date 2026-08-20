@@ -3,6 +3,18 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.22]
+
+### Fixed
+
+- **The duplicate-heading probe in `markdown-format.test.sh` no longer depends on ERE intervals.**
+  Its awk heading match used `#{1,6}`, which mawk 1.3.3 does not implement — it matches the braces
+  as literal text, so the probe would stop recognizing headings and the MD024 assertion would pass
+  vacuously rather than fail loudly. Rewritten as one hash plus five optional ones: same ATX bound
+  (1–6 hashes, 7 rejected), verified in both directions under mawk 1.3.4. Not broken on any mawk
+  shipping today — this closes the latent 1.3.3 case found while fixing the same class in
+  `skill-quality`'s check 21 (#3005).
+
 ## [0.11.21]
 
 ### Changed

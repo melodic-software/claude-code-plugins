@@ -192,7 +192,11 @@ rendered_lines() {
         }
         next
       }
-      if (match($0, /^ {0,3}`+/) || match($0, /^ {0,3}~+/)) {
+      # Three optional spaces rather than ` {0,3}`: mawk 1.3.3 implements no ERE
+      # intervals and matches the braces literally, so the fence would stop being
+      # recognized and this scanner would segment every changelog it reads
+      # wrongly. Same CommonMark bound (up to three leading spaces), no interval.
+      if (match($0, /^ ? ? ?`+/) || match($0, /^ ? ? ?~+/)) {
         seg = substr($0, RSTART, RLENGTH)
         sub(/^ +/, "", seg)
         mchar = substr(seg, 1, 1)
