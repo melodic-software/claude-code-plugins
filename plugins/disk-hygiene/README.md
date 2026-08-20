@@ -337,7 +337,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `disk_hygiene_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` | Allow the clean skill’s execution tiers; false = audit-only mode |
+| `disk_hygiene_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` | Allow the clean skill's execution tiers; false = audit-only mode |
 
 ### How to set these
 
