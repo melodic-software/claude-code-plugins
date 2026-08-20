@@ -141,6 +141,18 @@ for whole files. Each takes an optional reason: \`<!-- ai-slop-ignore: why -->\`
 After the mentions, an em dash ${EM} must still be flagged.
 EOF
 
+# A backticked mention of one marker form must not veto a real marker of another
+# form on the same line. The guard mirrors the line-marker pattern exactly rather
+# than matching any string starting with the marker prefix: when it matched the
+# prefix, this line's genuine suppression was rejected and the operator's own
+# marker was quoted back in the excerpt (reported by review, reproduced here).
+MIXEDMARK="$TEST_TMPDIR/mixedmark.md"
+cat >"$MIXEDMARK" <<EOF
+# Mentions one form, uses another
+
+Open a block with \`<!-- ai-slop-ignore-start -->\`, em dash ${EM} here. <!-- ai-slop-ignore -->
+EOF
+
 MIDFILEMARK="$TEST_TMPDIR/midfilemark.md"
 cat >"$MIDFILEMARK" <<EOF
 # Content first
@@ -278,6 +290,10 @@ assert_contains "file marker: counted as declined file" "$out" "(1 files decline
 out="$(bash "$DETECT" "$DOCMARKS" 2>&1)"
 assert_contains "marker mentions: backticked docs do not exempt the file" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 assert_contains "marker mentions: no decline from prose mentions" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 declined=0"
+
+out="$(bash "$DETECT" "$MIXEDMARK" 2>&1)"
+assert_not_contains "mixed marker line: a mention of another form does not veto a real marker" "$out" "Finding:"
+assert_contains "mixed marker line: the real line marker still declines" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1"
 
 out="$(bash "$DETECT" "$MIDFILEMARK" 2>&1)"
 assert_not_contains "mid-file file marker: whole file exempt, nothing scanned" "$out" "Finding:"

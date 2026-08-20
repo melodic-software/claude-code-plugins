@@ -315,6 +315,13 @@ matches_glob() {
 # carrying one never opened the block, so the whole block was scanned. The `-end`
 # form takes one for the same reason in the dangerous direction — an unmatched
 # `-end` leaves `ignored` set and silently swallows the rest of the file.
+#
+# The backtick guard mirrors the line-marker pattern exactly rather than matching
+# any string starting with the marker prefix. A prefix match would let a
+# backticked mention of `-start`, `-end`, or `-file` veto a genuine line marker
+# sharing that line, rejecting the suppression and quoting the operator's own
+# marker back inside the excerpt — the same failure this parser exists to avoid,
+# in a new shape. Covered by the mixed-marker case in detect.test.sh.
 extract_prose() {
   # Fences per CommonMark: openers may be indented up to three spaces (matched
   # with [ ]? repetition — mawk has no {n,m} intervals), and a fence closes
@@ -334,7 +341,7 @@ extract_prose() {
     /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/ { ignored = 1; next }
     /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/ { ignored = 0; next }
     ignored { print "DECLINE\tblock"; next }
-    /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore/ { print "DECLINE\tline"; next }
+    /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore(:[^>]*)? -->/ { print "DECLINE\tline"; next }
     {
       line = $0
       gsub(/`[^`]*`/, "", line)   # inline code spans

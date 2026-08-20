@@ -17,10 +17,15 @@ the line and block forms did not, and each failed differently and without saying
   `rule-knowledge-cutoff-disclaimer` false-positive class. Both instructions were unfollowable for
   a single line or a block; they are now true of the code.
 - The backtick guard that stops a document *describing* the markers from exempting itself
-  generalized alongside them, so a backticked mention carrying a reason is still a mention.
-- **Four new detector cases** (86 → 90) covering a reasoned line marker, a reasoned block, the
-  `-end` close, and the declined counts — plus the marker-documentation fixture extended with a
-  reasoned mention.
+  generalized alongside them, so a backticked mention carrying a reason is still a mention. The
+  guard **mirrors the line-marker pattern exactly** rather than matching any string starting with
+  the marker prefix. Matching the prefix would let a backticked mention of `-start`, `-end`, or
+  `-file` veto a genuine line marker sharing that line — reintroducing, in a new shape, the same
+  failure this release removes: the suppression is rejected and the operator's own marker text is
+  quoted back inside the excerpt.
+- **Six new detector cases** (86 → 92) covering a reasoned line marker, a reasoned block, the
+  `-end` close, the declined counts, and a line that mentions one marker form while using another
+  — plus the marker-documentation fixture extended with a reasoned mention.
 - Calibration record: the knowledge-cutoff false-positive class measured on the 1214-file dogfood
   corpus. All 8 findings fall in the recorded class, none was genuine assistant-frame residue.
 
