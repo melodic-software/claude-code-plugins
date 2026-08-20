@@ -21,7 +21,7 @@
     "disk_hygiene_enabled": {
       "type": "boolean",
       "title": "disk-hygiene execution guard",
-      "description": "Allow the clean skill\u2019s execution tiers; false = audit-only mode",
+      "description": "Allow the clean skill's execution tiers; false = audit-only mode",
       "default": true
     }
   }
