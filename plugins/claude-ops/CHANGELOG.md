@@ -3,6 +3,32 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **`audit-skill-visibility --installed` audits the fleet that is actually installed**, resolved
+  from `~/.claude/plugins/installed_plugins.json` rather than from a directory that happens to sit
+  under the current working directory. `--plugins-root` measures a checkout; `--installed` measures
+  the install. Measured here the two differ and both are right: the repo held 221 skills, the
+  installed fleet 216 — three plugins present in the checkout were never installed.
+
+  **The manifest lists one entry per install SCOPE, not per plugin**, and that distinction is
+  load-bearing rather than cosmetic. On this machine 67 plugins carried 134 entries — a `project`
+  and a `user` install of the same marketplace, bound to the same `projectPath`. Because the fleet
+  is the denominator the listing budget is measured against, counting entries would have roughly
+  doubled the reported overflow and fabricated the headline number. Resolution keys by plugin
+  identity, and the report prints both counts so the collapse is auditable instead of trusted.
+
+  **Where the scopes disagree, the run does not pick and pretend.** Which scope loads is
+  undocumented, and the skew is real: 7 plugins here shipped different skill *sets* between scopes
+  and 19 skills different `description` text, so the choice moves the numbers. Such plugins are read
+  from the newest install, flagged `ambiguous`, and listed under a new **Fleet resolution** section
+  with both candidates named — the same withhold-rather-than-guess floor the cold usage verdicts
+  already hold. Exactly one case resolves `certain`: a marketplace whose source is a local
+  `directory` loads from that checkout, verified by a skill executing out of the marketplace
+  directory rather than either cached `installPath`.
+
 ## [0.33.2]
 
 ### Fixed

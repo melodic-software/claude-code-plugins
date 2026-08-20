@@ -247,30 +247,180 @@ def collect_fleet(plugins_root: str) -> list[dict]:
     if not os.path.isdir(plugins_root):
         return entries
     for plugin in sorted(os.listdir(plugins_root)):
-        skills_dir = os.path.join(plugins_root, plugin, "skills")
-        if not os.path.isdir(skills_dir):
+        entries += collect_fleet_at(os.path.join(plugins_root, plugin), plugin)
+    return entries
+
+
+def collect_fleet_at(plugin_root: str, plugin: str) -> list[dict]:
+    """Walk ONE plugin directory into denominator entries.
+
+    Split out of `collect_fleet` because the installed manifest resolves each
+    plugin to its own root: the installs are scattered across versioned cache
+    paths rather than sitting side by side under a single parent, so there is
+    no one directory to walk for a real installation.
+    """
+    import os
+
+    entries: list[dict] = []
+    skills_dir = os.path.join(plugin_root, "skills")
+    if not os.path.isdir(skills_dir):
+        return entries
+    for leaf in sorted(os.listdir(skills_dir)):
+        path = os.path.join(skills_dir, leaf, "SKILL.md")
+        if not os.path.isfile(path):
             continue
-        for leaf in sorted(os.listdir(skills_dir)):
-            path = os.path.join(skills_dir, leaf, "SKILL.md")
-            if not os.path.isfile(path):
-                continue
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    frontmatter = parse_frontmatter(handle.read())
-            except OSError:
-                frontmatter = {"_malformed": True}
-            entries.append(
+        try:
+            with open(path, encoding="utf-8") as handle:
+                frontmatter = parse_frontmatter(handle.read())
+        except OSError:
+            frontmatter = {"_malformed": True}
+        entries.append(
+            {
+                "qualified_name": f"{plugin}:{leaf}",
+                "source": "plugin",
+                # Enablement is not knowable from the filesystem alone, and
+                # guessing it would libel a disabled plugin's skills.
+                "plugin_enabled": None,
+                "frontmatter": frontmatter,
+                "path": path,
+            }
+        )
+    return entries
+
+
+def resolve_installed(manifest: dict, marketplaces: dict) -> dict:
+    """Resolve an installed-plugin manifest into ONE entry per plugin identity.
+
+    Pure: takes the two parsed JSON blobs, touches no filesystem, so the
+    resolution rules are testable without a populated install.
+
+    The manifest lists one entry per (plugin, scope), NOT one per plugin. On
+    the machine this was written against, 67 plugins carried 134 entries -- a
+    `project` and a `user` install of the same marketplace, bound to the same
+    projectPath. Summing them would double the fleet, and because the fleet is
+    the denominator the listing budget is measured against, a doubled fleet
+    roughly doubles the reported overflow. That is the same class of error the
+    usage sources already guard against by reconciling rather than summing.
+
+    Where the scopes disagree the honest answer is not to pick. Measured on
+    that same install: 7 plugins carried DIFFERENT skill sets between scopes
+    and 19 skills carried different `description` text, so the choice moves
+    real numbers. One case resolves cleanly and is marked `certain`: a
+    marketplace whose source is a local `directory` loads from that directory,
+    verified by a skill executing out of the marketplace checkout rather than
+    either cache path. Everything else is reported `ambiguous` with both
+    candidates named, so the reader sees the fork instead of inheriting a
+    silent guess.
+    """
+    import os
+
+    resolved: list[dict] = []
+    conflicts: list[dict] = []
+    entry_count = 0
+    for key, installs in sorted((manifest.get("plugins") or {}).items()):
+        if not installs:
+            continue
+        entry_count += len(installs)
+        name, _, market = key.partition("@")
+        entry = (marketplaces or {}).get(market) or {}
+        source = entry.get("source") or {}
+        location = entry.get("installLocation")
+
+        if source.get("source") == "directory" and location:
+            # Verified branch: a directory-source marketplace loads from the
+            # checkout, so the cached installPaths are not what runs.
+            resolved.append(
                 {
-                    "qualified_name": f"{plugin}:{leaf}",
-                    "source": "plugin",
-                    # Enablement is not knowable from the filesystem alone, and
-                    # guessing it would libel a disabled plugin's skills.
-                    "plugin_enabled": None,
-                    "frontmatter": frontmatter,
-                    "path": path,
+                    "plugin": name,
+                    "marketplace": market,
+                    "root": os.path.join(location, "plugins", name),
+                    "scope": "marketplace-directory",
+                    "confidence": "certain",
                 }
             )
-    return entries
+            continue
+
+        if len(installs) == 1:
+            resolved.append(
+                {
+                    "plugin": name,
+                    "marketplace": market,
+                    "root": installs[0].get("installPath", ""),
+                    "scope": installs[0].get("scope", "unknown"),
+                    "confidence": "certain",
+                }
+            )
+            continue
+
+        # Deterministic pick so a run is reproducible, but never presented as
+        # settled: precedence between scopes is NOT established here, and this
+        # module refuses to invent it. Newest lastUpdated wins the tie only so
+        # that two runs agree with each other.
+        ordered = sorted(
+            installs,
+            key=lambda e: (e.get("lastUpdated") or "", e.get("version") or ""),
+            reverse=True,
+        )
+        conflicts.append(
+            {
+                "plugin": name,
+                "marketplace": market,
+                "candidates": [
+                    {
+                        "scope": e.get("scope", "unknown"),
+                        "version": e.get("version", ""),
+                        "root": e.get("installPath", ""),
+                    }
+                    for e in ordered
+                ],
+            }
+        )
+        resolved.append(
+            {
+                "plugin": name,
+                "marketplace": market,
+                "root": ordered[0].get("installPath", ""),
+                "scope": ordered[0].get("scope", "unknown"),
+                "confidence": "ambiguous",
+            }
+        )
+
+    return {
+        "plugins": resolved,
+        "scope_conflicts": conflicts,
+        # Both numbers are reported so the collapse is auditable: a reader can
+        # see that N installs became M plugins rather than trusting that it did.
+        "manifest_entries": entry_count,
+        "plugins_resolved": len(resolved),
+    }
+
+
+def collect_installed(plugins_dir: str) -> tuple[list[dict], dict]:
+    """Read the installed manifest + marketplace registry into a denominator.
+
+    Returns the denominator entries and the resolution report, so the caller
+    can surface unresolved scope forks rather than absorbing them.
+    """
+    import os
+
+    def _load(name: str) -> dict:
+        try:
+            with open(os.path.join(plugins_dir, name), encoding="utf-8") as handle:
+                blob = json.load(handle)
+        except (OSError, ValueError):
+            return {}
+        return blob if isinstance(blob, dict) else {}
+
+    resolution = resolve_installed(
+        _load("installed_plugins.json"), _load("known_marketplaces.json")
+    )
+    denominator: list[dict] = []
+    for row in resolution["plugins"]:
+        for item in collect_fleet_at(row["root"], row["plugin"]):
+            item["install_scope"] = row["scope"]
+            item["install_confidence"] = row["confidence"]
+            denominator.append(item)
+    return denominator, resolution
 
 
 def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
@@ -776,6 +926,15 @@ def _observation_value(
     return "dormant", backed_by
 
 
+def _plural(count: int, noun: str) -> str:
+    """Regular-plural helper for counted nouns in the rendered report.
+
+    A report that says "1 plugins" undercuts the care the rest of it claims,
+    and every counted noun here is regular, so the -s rule is sufficient.
+    """
+    return noun if count == 1 else f"{noun}s"
+
+
 def _render_markdown(model: dict) -> str:
     lines = [
         "# Skill visibility report",
@@ -788,6 +947,47 @@ def _render_markdown(model: dict) -> str:
         f"- Withheld claims: {len(model['withheld'])}",
         "",
     ]
+    fleet = model.get("fleet")
+    if fleet:
+        lines += [
+            "## Fleet resolution",
+            "",
+            f"Resolved **{fleet['plugins_resolved']} "
+            f"{_plural(fleet['plugins_resolved'], 'plugin')}** from "
+            f"{fleet['manifest_entries']} manifest entries — the manifest lists "
+            "one entry per install SCOPE, so counting entries would inflate the "
+            "fleet and, with it, the listing overflow below.",
+            "",
+        ]
+        conflicts = fleet.get("scope_conflicts") or []
+        if conflicts:
+            lines += [
+                f"**{len(conflicts)} "
+                f"{_plural(len(conflicts), 'plugin')} "
+                f"{'is' if len(conflicts) == 1 else 'are'} installed in more "
+                "than one scope and this run could not establish which one "
+                "loads.** Scope "
+                "precedence is not documented and was not verifiable here, so "
+                "the newest install is read and flagged rather than presented as "
+                "settled. Where the scopes ship different skills or different "
+                "descriptions, the numbers below inherit that choice.",
+                "",
+            ]
+            for row in conflicts[:10]:
+                versions = ", ".join(
+                    f"{c['scope']} {c['version']}".strip() for c in row["candidates"]
+                )
+                lines += [f"- `{row['plugin']}` — {versions}"]
+            if len(conflicts) > 10:
+                lines += [f"- …and {len(conflicts) - 10} more"]
+            lines += [""]
+        else:
+            lines += [
+                "No scope conflicts: every plugin resolved to a single "
+                "unambiguous root.",
+                "",
+            ]
+
     listing = model.get("listing", {})
     if listing:
         lines += ["## Listing budget", ""]
@@ -895,6 +1095,15 @@ def main(argv: list[str] | None = None) -> int:
         help="plugins directory to enumerate (default: ./plugins)",
     )
     parser.add_argument(
+        "--installed",
+        nargs="?",
+        const="",
+        metavar="PLUGINS_DIR",
+        help="audit the INSTALLED fleet via the plugin manifest rather than a "
+        "plugins directory (default dir: ~/.claude/plugins). Resolves one "
+        "entry per plugin, never one per install scope",
+    )
+    parser.add_argument(
         "--claude-json",
         help="path to ~/.claude.json for the native counters",
     )
@@ -927,6 +1136,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    resolution: dict | None = None
     if args.fixture:
         bundle = _load_fixture(args.fixture)
         clock = _parse_ts(args.now) if args.now else _parse_ts(bundle["now"])
@@ -942,15 +1152,26 @@ def main(argv: list[str] | None = None) -> int:
         import os
 
         clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
-        plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
-        denominator = collect_fleet(plugins_root)
-        if not denominator:
-            print(
-                f"error: no skills found under {plugins_root!r}; "
-                "pass --plugins-root <path> to point at a plugins directory",
-                file=sys.stderr,
-            )
-            return 2
+        if args.installed is not None:
+            plugins_dir = args.installed or os.path.expanduser("~/.claude/plugins")
+            denominator, resolution = collect_installed(plugins_dir)
+            if not denominator:
+                print(
+                    f"error: no installed skills resolved from {plugins_dir!r}; "
+                    "expected installed_plugins.json there",
+                    file=sys.stderr,
+                )
+                return 2
+        else:
+            plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
+            denominator = collect_fleet(plugins_root)
+            if not denominator:
+                print(
+                    f"error: no skills found under {plugins_root!r}; "
+                    "pass --plugins-root <path> to point at a plugins directory",
+                    file=sys.stderr,
+                )
+                return 2
 
         events, horizons = [], {}
         native_path = args.claude_json or os.path.expanduser("~/.claude.json")
@@ -982,6 +1203,14 @@ def main(argv: list[str] | None = None) -> int:
         horizons=horizons,
         listing_config=listing_cfg,
     )
+
+    if resolution is not None:
+        model["fleet"] = {
+            "mode": "installed",
+            "manifest_entries": resolution["manifest_entries"],
+            "plugins_resolved": resolution["plugins_resolved"],
+            "scope_conflicts": resolution["scope_conflicts"],
+        }
 
     if args.write:
         import os

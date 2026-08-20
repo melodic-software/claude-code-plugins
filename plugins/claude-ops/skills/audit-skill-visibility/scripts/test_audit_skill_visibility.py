@@ -935,5 +935,130 @@ class CollectFleetTest(unittest.TestCase):
         self.assertEqual(engine.collect_fleet("/nonexistent/path/here"), [])
 
 
+class ResolveInstalledTest(unittest.TestCase):
+    """The manifest lists one entry per install SCOPE, not per plugin.
+
+    Measured on a real install: 67 plugins carried 134 entries. Since the
+    fleet is the denominator the listing budget is measured against, counting
+    entries roughly doubles the reported overflow — the same summation error
+    the usage sources already reconcile away.
+    """
+
+    @staticmethod
+    def _manifest(**plugins):
+        return {"version": 2, "plugins": plugins}
+
+    def test_two_scopes_of_one_plugin_resolve_to_one_entry(self):
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "lastUpdated": "2026-08-17",
+                    },
+                    {
+                        "scope": "user",
+                        "version": "1.2.0",
+                        "installPath": "/c/alpha/1.2.0",
+                        "lastUpdated": "2026-08-19",
+                    },
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {})
+        self.assertEqual(out["manifest_entries"], 2)
+        self.assertEqual(out["plugins_resolved"], 1)
+        self.assertEqual(len(out["plugins"]), 1)
+
+    def test_a_scope_fork_is_flagged_ambiguous_never_silently_picked(self):
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "lastUpdated": "2026-08-17",
+                    },
+                    {
+                        "scope": "user",
+                        "version": "1.2.0",
+                        "installPath": "/c/alpha/1.2.0",
+                        "lastUpdated": "2026-08-19",
+                    },
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {})
+        self.assertEqual(out["plugins"][0]["confidence"], "ambiguous")
+        self.assertEqual(len(out["scope_conflicts"]), 1)
+        # Deterministic so two runs agree, but never reported as settled.
+        self.assertEqual(out["plugins"][0]["root"], "/c/alpha/1.2.0")
+
+    def test_a_directory_source_marketplace_resolves_certain(self):
+        """The one branch precedence IS established for.
+
+        A directory-source marketplace loads from the checkout, not from
+        either cached installPath — verified by a skill executing out of the
+        marketplace directory. So this branch is `certain` and produces no
+        conflict even though both scopes are present.
+        """
+        manifest = self._manifest(
+            **{
+                "alpha@mkt": [
+                    {
+                        "scope": "project",
+                        "version": "1.0.0",
+                        "installPath": "/c/alpha/1.0.0",
+                        "lastUpdated": "2026-08-17",
+                    },
+                    {
+                        "scope": "user",
+                        "version": "1.2.0",
+                        "installPath": "/c/alpha/1.2.0",
+                        "lastUpdated": "2026-08-19",
+                    },
+                ]
+            }
+        )
+        marketplaces = {
+            "mkt": {
+                "source": {"source": "directory", "path": "/repo"},
+                "installLocation": "/repo",
+            }
+        }
+        out = engine.resolve_installed(manifest, marketplaces)
+        row = out["plugins"][0]
+        self.assertEqual(row["confidence"], "certain")
+        self.assertEqual(row["scope"], "marketplace-directory")
+        self.assertEqual(row["root"], os.path.join("/repo", "plugins", "alpha"))
+        self.assertEqual(out["scope_conflicts"], [])
+
+    def test_a_single_scope_install_is_certain(self):
+        manifest = self._manifest(
+            **{
+                "solo@mkt": [
+                    {
+                        "scope": "user",
+                        "version": "2.0.0",
+                        "installPath": "/c/solo/2.0.0",
+                        "lastUpdated": "2026-08-19",
+                    }
+                ]
+            }
+        )
+        out = engine.resolve_installed(manifest, {})
+        self.assertEqual(out["plugins"][0]["confidence"], "certain")
+        self.assertEqual(out["scope_conflicts"], [])
+
+    def test_an_empty_or_malformed_manifest_yields_nothing_not_an_exception(self):
+        for blob in ({}, {"plugins": {}}, {"plugins": {"x@m": []}}):
+            out = engine.resolve_installed(blob, {})
+            self.assertEqual(out["plugins"], [])
+            self.assertEqual(out["plugins_resolved"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
