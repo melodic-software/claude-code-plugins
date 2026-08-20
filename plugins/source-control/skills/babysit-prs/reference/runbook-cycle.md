@@ -34,8 +34,10 @@ instead of this runbook.
 4. Decide per PR from the snapshot's `classification`, `needs_worker`, `recommended_cadence`, and
    `material_findings`: delegate a worker (only when `needs_worker` is true), act locally, report,
    back off, or escalate. Load [freshness.md](freshness.md) only when a branch is behind,
-   [stuck-checks.md](stuck-checks.md) only when a PR's `checks.stuck` is non-empty (escalate the
-   routing, never auto-fix), [feedback.md](feedback.md) and [review-trigger.md](review-trigger.md)
+   [stuck-checks.md](stuck-checks.md) when a PR's `checks.stuck` is non-empty (escalate the
+   routing, never auto-fix) **or** when `branch_freshness.state == "conflicting"` — that file also
+   covers the inverse case, where a conflicted PR's `pull_request` lanes are never scheduled and the
+   check list is short rather than stuck, [feedback.md](feedback.md) and [review-trigger.md](review-trigger.md)
    only for feedback or review gates, the fan-out gate in [orchestration.md](orchestration.md) only
    before assigning workers, and [cadence.md](cadence.md) only before interpreting a cadence state.
 

@@ -415,7 +415,7 @@ Failure patterns observed in real babysit sessions:
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
 - [reference/freshness.md](reference/freshness.md) — guarded refresh for behind-base branches,
   BLOCKED compare fallback, async-update terminality.
-- [reference/stuck-checks.md](reference/stuck-checks.md) — the `checks.stuck` signal (checks holding `mergeStateStatus` at UNSTABLE without completing) and its escalation routing; report, never auto-fix.
+- [reference/stuck-checks.md](reference/stuck-checks.md) — the `checks.stuck` signal (checks holding `mergeStateStatus` at UNSTABLE without completing) and its escalation routing; report, never auto-fix. Also the inverse under `DIRTY`: checks never scheduled at all, where the list is short rather than stuck.
 - [reference/review-trigger.md](reference/review-trigger.md) — generalized AI-review trigger +
   gate semantics; dormant when unconfigured.
 - [reference/autopilot.md](reference/autopilot.md) — the autopilot tier's per-PR steps, its
