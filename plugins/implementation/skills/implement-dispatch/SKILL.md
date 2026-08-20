@@ -60,7 +60,16 @@ Because the orchestrator stays on the default branch, **every source-touching op
 
 ## Divergence in non-interactive runs
 
-In a session with no human to escalate to, stop-and-escalate on Moderate divergence deadlocks the run. There: pick the CONSERVATIVE option — the one truest to the plan's intent with the smallest blast radius — log it to a `DEVIATIONS.md` beside the plan artifact at deviation time (what was planned, what was done instead, why, blast radius), and keep going; the deviation log is the escalation, reviewed at PR time. Major divergence (fundamental assumption wrong) still STOPS even autonomously — park the run with a handoff note rather than improvising a new design. Interactive sessions keep the `/implementation:implement` "Step 3: Divergence Detection" escalation ladder unchanged.
+In a session with no human to escalate to, stop-and-escalate on Moderate divergence deadlocks the run. There: pick the CONSERVATIVE option — the one truest to the plan's intent with the smallest blast radius — log it to a `DEVIATIONS.md` beside the plan artifact at deviation time (what was planned, what was done instead, why, blast radius), and keep going; the deviation log is the escalation, reviewed at PR time.
+
+**The log is append-only, and each entry carries its evidence and its outcome.** Nobody watched this run, so the log is the only record of it, and a reader who cannot check an entry has to take it on trust:
+
+- **Append; never edit or delete.** A call that later proves wrong gets a NEW entry superseding the old one, naming what it supersedes. Rewriting history hides the reversal, which is the part a PR reviewer most needs to see.
+- **Evidence is a pointer, not prose** — a commit SHA, a `file:line`, a test name, an artifact path. Prefer evidence a committed script produced over a hand-made one-off, so the reviewer can re-run it rather than believe it.
+- **Carry the outcome, not just the choice.** An entry whose result is still unknown says so (`unverified`) rather than reading as settled; an entry claiming a result names the check that produced it. State which work is unverified rather than omitting the distinction — the same grounding rule the loop lanes apply to their cycle reports.
+- **One entry is one decision.** If it does not fit on a line or two, the decision is not crisp yet — split it, or say plainly that it is still open.
+
+An entry whose evidence does not resolve, or whose result was never verified, is the PR review catching a gap. That is the log working. Major divergence (fundamental assumption wrong) still STOPS even autonomously — park the run with a handoff note rather than improvising a new design. Interactive sessions keep the `/implementation:implement` "Step 3: Divergence Detection" escalation ladder unchanged.
 
 ## Phase boundaries
 

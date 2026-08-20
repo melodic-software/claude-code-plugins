@@ -112,6 +112,96 @@ thing to evaluate is the native `workflows/` slot — deterministic control flow
 exactly what it is for — not a skill. Re-running this decision as "should we add an `arena` skill"
 would be re-asking the question that already has an answer.
 
+### Why `bro` ships nothing at all
+
+Upstream's `bro` is seven lines, two of them body: "Restate your last message. Stop using jargon and
+speak coherently. State it more simply and concisely, like one human talking to another." No
+mechanism, no procedure, no output contract.
+
+It is the only lane in this port where the honest answer is that the file contains nothing this
+marketplace lacks. The capability ships **twice**, on two different axes:
+`education:explain` is the altitude drop, and its **empty argument already resolves to the previous
+assistant response** by anaphora, with 'rephrase that' and 'explain simply' already among its
+triggers; `discipline:wait-what` is the interjection-fired re-pitch. The brevity pressure that is
+`bro`'s only distinguishing note — "more simply *and* concisely", where `explain` adds an analogy and
+a handoff line — ships a third time as `discipline:tighten-your-output`. The routing between them is
+already stated by name in `adhd:clarify`'s own description.
+
+`wait-what` is in substance this fleet's `bro`, down to the naming shape: a user-typed interjection
+whose typed phrase IS the mechanism. That is why it holds an individually argued entry on the
+naming grammar's **closed** exception list. Shipping `bro` would require a second entry on that list
+carrying the same argument, against a rule that states "a name class is never blanket-sanctioned".
+
+Recorded at this length only so a later reader can see the file was read rather than skipped for
+being short. Nothing was absorbed, and nothing is lost.
+
+### Why `show-me-your-work` ships neither a skill nor a convention
+
+Upstream keeps a reviewable **decision trail** for long or unattended work: one append-only TSV,
+`ts | phase | decision | why | evidence | result`, local by default and committed when a reviewer
+needs it, plus a `log.sh` helper, a self-audit of the log against the transcript, a mandatory
+cross-model review, and a standing "Attention" section on every reply.
+
+The lane opened proposing to absorb this into `session-flow:running-retro`. An adversarial audit
+destroyed that premise correctly: `running-retro`'s ledger is **defect-shaped**
+(`| # | Category | Finding | Evidence | Suggested route | New / carried |`, over five categories
+that are all session-process problems), written by a **transcript-parsing subagent** after the fact,
+in a file whose cumulative-chain identity lives in YAML frontmatter a TSV cannot carry — and the
+skill "does not run builds, tests, or a code review", so it cannot produce a `result` cell at all.
+Upstream's is decision-shaped, written by the **acting agent at decision time**. Two artifacts, not
+one. Two further blockers: `session-flow/reference/topic-docs.md` states "session-flow never writes
+the contract tier", and `docs/conventions/topic-docs/README.md` records `history.md`
+("append-only decision log") as **deliberately absent** already.
+
+The audit then argued the opposite verdict — ship a capture format that the fleet's **eight**
+existing audit-trail surfaces route into — on the grounds that this marketplace built the *recovery*
+half (`discovery:trace-intent`, whose own entry above notes that the prior art is all about capture
+and none about recovery) and left capture unbuilt. **That count was checked surface by surface and
+does not hold.** Only one is a decision trail:
+
+| Surface | Is it a decision trail? |
+|---|---|
+| `implementation:implement-dispatch` `DEVIATIONS.md` | **Yes.** What was planned, what was done instead, why, blast radius — written by the acting agent at deviation time, "the deviation log is the escalation, reviewed at PR time" |
+| `session-flow:handoff` §8 "Decisions already settled" / §9 "Approaches tried and abandoned" | Related, different shape. Same content, but synthesized once at pause time for the next session, not appended at decision time |
+| `code-tidying:tidy`'s PR follow-up comment | No. A change inventory — tidying type, file, line range, LOC delta. No decision, no why, no result |
+| `work-items:work-loop` `loop-state@2` | No. Counters and durable loop state |
+| `work-items:work-loop` escalation record | No. A notification artifact on the governed `loop-lane/escalation-record@1` schema, wired to a `PostToolUse` hook seam; reshaping it would break that contract |
+| `work-items:attend-queue` lane telemetry | No. One sentinel status comment per lane instance, **edited in place** rather than appended |
+| `autonomy` transition telemetry | No. OTel spans, and its own contract says "the runner adds **no parallel schema**" |
+| `autonomy` return-accounting | No. Its first line reads "capturing RETURN — **not activity**", and it forbids the agent from estimating either of its two fields |
+
+One genuine adopter — two if `handoff` counts, and those two disagree about the thing a shared
+format would have to fix: append-at-decision-time versus synthesize-at-pause-time. That is the same
+condition that killed `arena` above, and the playbook names the result: extraction without a second
+consumer is speculative generality. A marketplace convention with one adopter would be a shallow
+module wearing an owner doc's clothes.
+
+**So the trail's substance was absorbed into its one real consumer.** `implement-dispatch`'s
+`DEVIATIONS.md` gains the append-only-and-supersede rule, evidence-as-a-pointer with the
+committed-script preference, an explicit outcome that says `unverified` rather than reading as
+settled, and the one-entry-is-one-decision crispness rule. **Taken separately, and the highest-value
+single item in the file: the formula-injection guard.** Upstream's `log.sh` prefixes any cell opening
+with `=`, `+`, `-`, or `@` so a spreadsheet cannot execute it. That guard was absent fleet-wide, and
+looking for somewhere to apply it found a live exposure rather than a hypothetical one —
+`claude-ops:audit-install-state` wrote scanned `relpath` values raw through `csv.writer` into an
+artifact the skill tells the reader to open file by file, and a plugin, project, or worktree
+directory under `~/.claude` may be named anything. Fixed, with a discriminating test.
+
+**Rejected:** the mandatory different-model-family review of the trail — the same unconditional
+cross-vendor demand rejected for `arena`, against ~15 sites that all state it presence-gated with a
+named fallback. **Rejected:** the standing "Attention section on every reply" — a session-wide
+output posture is a declared species here with exactly one member (`adhd:shape`), and a second needs
+its own argument plus the observed-stumble evidence the instruction-economy rule demands.
+**Rejected as a duplicate:** the log-versus-transcript self-audit, whose discipline already ships
+verbatim in two lanes ("Ground every claim in the cycle report against a tool result from this
+cycle, and say which work is unverified rather than omitting the distinction" —
+`work-items:work-loop` and `source-control:babysit-loop`); the absorb cites that rule rather than
+restating it a third time.
+
+**Recheck trigger:** a second surface starts appending decisions at decision time — not a status
+comment, not counters, not telemetry. At two genuine consumers that agree on shape, re-evaluate an
+owner doc under `docs/conventions/`; the classification table above is the baseline to diff against.
+
 ### What `code-tidying`'s docs-prose lane deliberately did not gain
 
 `plugins/code-tidying/skills/tidy/lanes/docs-prose.md` already mutates `docs/**.md` and `README.md`

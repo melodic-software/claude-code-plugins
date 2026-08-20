@@ -72,7 +72,6 @@ All notable changes to the `review` plugin are documented here. Format follows
   its own, and its own "Baseline when the ladder yields nothing" step already points at the agent
   definitions for the universal checklist.
 
-
 ## [0.23.0]
 
 ### Added
