@@ -675,6 +675,32 @@ EOF
 # value. Pure bash parameter expansion, so a value is inserted LITERALLY: there is no
 # regex, no delimiter to collide with, and nothing a value can do to change which key
 # is being replaced. Longest keys first so no key is a prefix of another's match.
+# Keys whose value lands inside a SINGLE-QUOTED context in at least one template
+# (`readonly …='@@SCOPE_PATTERN@@'`, `jq '.config.@@CONFIG_KEY@@…'`, and so on).
+# Derived by grepping the template set for `'…@@KEY@@…'`; re-derive it when a
+# template adds a quoted substitution.
+QUOTED_CONTEXT_KEYS=" CONFIG_KEY DISPLAY_NAME HOST_SUFFIX PROVIDER PROVIDER_FUNC \
+PROVIDER_UPPER SAMPLE_AUTH_EXTRA SAMPLE_HOST SAMPLE_SCOPE SCOPE_PATTERN USAGE_ARGS VERB "
+
+# A single quote is the ONE character that can end such a context; everything after it
+# is live shell in the generated file. Most of these keys are already constrained to a
+# safe character class upstream, but `scope_pattern` and `sample_scope` are deliberately
+# permissive (they carry a regex and a matching sample), and a future template may quote
+# a key nobody re-audited. So the refusal lives here, at the single choke point every
+# value passes through, rather than in one validator per key.
+#
+# Refuse rather than escape — the doctrine `common.sh.tmpl` states at its own scope
+# guard: "an escaping bug is silent, a rejection is loud." No legitimate provider scope,
+# host, or identifier contains a single quote.
+quote_safe() {
+  case "$QUOTED_CONTEXT_KEYS" in
+  *" $1 "*)
+    [[ "$2" != *\'* ]] ||
+      die_spec "$1 must not contain a single quote — it is rendered inside a single-quoted shell string, and a quote there ends the string and makes the rest executable (value: $2)"
+    ;;
+  esac
+}
+
 render() {
   local file="$1"
   shift
@@ -694,10 +720,12 @@ render() {
     k="$1"
     v="$2"
     shift 2
+    quote_safe "$k" "$v"
     text="${text//@@$k@@/$v}"
   done
   for k in "${keys[@]}"; do
     v="${!k-}"
+    quote_safe "$k" "$v"
     text="${text//@@$k@@/$v}"
   done
   printf '%s\n' "$text"
