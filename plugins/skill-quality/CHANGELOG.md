@@ -3,6 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Fixed
+
+- **`check`: Check 21 no longer silently passes under mawk (#3005).** The fresh-eyes scanner's
+  embedded awk program used ERE interval expressions, two of them immediately followed by a group
+  (`^ {0,3}(...)`). mawk 1.3.4 panics on that construct — `REcompile() - panic: values still on
+  machine stack` — and dies before emitting a single record, so on a stock Debian/Ubuntu box every
+  malformed `fresh-eyes-exempt` directive PASSed and the whole check reported a clean run over a
+  file it never scanned. mawk 1.3.3, which does not implement intervals at all, degrades the same
+  way for the same regexes by matching the braces as literal text. The scanner is now written
+  interval-free throughout — the three-space indent cap as three optional spaces, the ordered-marker
+  digit cap as one digit plus eight optional ones — preserving the exact CommonMark bounds it
+  already enforced. This is the portability shape Check 23 was written to in `#2963`; gawk behavior
+  is unchanged, and `check-skill.test.sh` gains 21 passing assertions on mawk with no regressions.
+  A source-level guard assertion now fails the suite if any interval expression returns, because a
+  gawk CI runner cannot observe this class of break any other way.
+
 ## [0.17.0]
 
 ### Added

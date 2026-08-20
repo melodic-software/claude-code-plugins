@@ -2972,6 +2972,25 @@ else
   fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
 fi
 
+# Portability guard: no ERE interval expressions in the checker source.
+#
+# Every other assertion here is black-box, but this failure mode is invisible to
+# a black-box run on the CI runner: gawk compiles intervals happily, so a
+# reintroduced {n,m} passes the whole suite on CI and only breaks for consumers
+# on mawk — silently, because mawk 1.3.4 panics out of the awk program before it
+# emits a record and mawk 1.3.3 matches the braces as literal text. Either way
+# the affected check reports a clean run over a file it never scanned, which is
+# the worst shape a gate can fail in. A source-level assertion is the only form
+# that fires on a gawk runner, so it is deliberately implementation-aware.
+#
+# Comment lines are exempt: the rule itself is documented in prose that names the
+# forbidden syntax.
+if interval_hits="$(grep -nE '^[[:space:]]*[^#[:space:]].*\{[0-9]+,[0-9]*\}' "$SUT")"; then
+  fail "checker source must contain no ERE interval expressions (mawk-portability): ${interval_hits//$'\n'/ | }"
+else
+  pass "checker source is free of ERE interval expressions (mawk-portable)"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
