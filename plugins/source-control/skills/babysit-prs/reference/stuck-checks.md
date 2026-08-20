@@ -40,6 +40,35 @@ no start time to age against — and so is detected structurally, not by age. A 
 inception time is unknown (a QUEUED `CheckRun` gh reports without `startedAt`) is left unflagged for
 the age-gated classes rather than reported on an unprovable age.
 
+## Not Stuck — Never Scheduled
+
+A different failure with the same surface complaint ("CI is not finishing"), and the two are
+distinguished by the merge state, not by the check list. Everything above concerns checks that are
+PRESENT and never settle, detected only under `UNSTABLE`. This section is the opposite: checks that
+never appear at all, under `DIRTY`.
+
+A `pull_request` workflow runs against a merge ref GitHub computes by merging the head into the
+base. When the PR is conflicted there is no such ref to compute, so those workflows are never
+scheduled — they are **absent**, not queued, not pending, not failing. Nothing in `checks.stuck`
+reports them, because a check that was never created has no record to classify.
+
+What makes this actively misleading is that `pull_request_target` workflows run against the base
+commit and are therefore unaffected, as are external apps posting commit statuses. A conflicted PR
+in this repository still runs its `pull_request_target` lanes — `do-not-merge` and
+`pr-issue-linkage` — while `ci.yml`, which carries the great majority of the gates, does not
+schedule at all. The result is a short all-green check list with no failures anywhere: a PR that
+reads as "passing" or "not started yet" while nearly every gate is simply missing. Resolving the
+conflict makes the absent lanes appear and the count jumps by an order of magnitude.
+
+So read `mergeStateStatus` BEFORE reasoning about a check list that looks too short. `DIRTY`
+explains the absence completely, and the remedy is to merge the base branch or rebase, not to
+investigate CI. Diagnosing the missing lanes as a trigger, permissions, or App-token problem is
+time spent on a mechanism that is not involved; that misdiagnosis has already been made here once.
+
+The event split is a repo fact, not a constant: derive it by reading the `on:` blocks under
+`.github/workflows/` rather than trusting any count written down, since a lane added tomorrow
+changes which side it lands on.
+
 ## Before Acting — Confirm Required-Green
 
 `UNSTABLE` alone does not prove the required gates are green for THIS decision. Re-confirm against

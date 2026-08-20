@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.13]
+
+### Added
+
+- **`babysit-prs` `stuck-checks.md` now covers checks that never SCHEDULE, not
+  only checks that never settle.** A conflicted PR has no computable merge ref,
+  so `pull_request` workflows are never created — absent rather than pending or
+  failing, and therefore invisible to `checks.stuck`. Because
+  `pull_request_target` lanes run against the base and still pass, the PR
+  presents a short all-green list with no failures while most gates are simply
+  missing. The section says to read `mergeStateStatus` before reasoning about a
+  short check list, and names the misdiagnosis (trigger or App-token problem)
+  that this repository has already spent time on once. Documentation only.
+
 ## [0.54.12]
 
 ### Changed
