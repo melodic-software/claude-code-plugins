@@ -1,0 +1,45 @@
+{
+  "spec_version": "1.0",
+  "provider": "linear",
+  "display_name": "Linear",
+  "api": {
+    "base_path": "/graphql",
+    "host_suffix": ".linear.app",
+    "auth_scheme": "raw",
+    "scope_pattern": "^[a-z0-9][a-z0-9-]*/[A-Z][A-Z0-9]*$",
+    "sample_scope": "acme/ENG",
+    "sample_host": "api.linear.app",
+    "sample_id": "linear:acme/ENG#12",
+    "auth_env_example": "WIT_LINEAR_API_KEY"
+  },
+  "verbs": {
+    "create-item": true,
+    "get-item": true,
+    "claim": true,
+    "renew-lease": true,
+    "reclaim": true,
+    "link-blocks": true,
+    "add-sub-item": true,
+    "list-items": true,
+    "list-sub-items": true,
+    "capabilities": true
+  },
+  "features": {
+    "cross_repo_edges": true,
+    "sub_items": true,
+    "leases": true,
+    "labels": true
+  },
+  "limits": {
+    "sub_items_per_parent": null,
+    "sub_item_depth": null,
+    "dependencies_per_type": null,
+    "list_items_max": 1000
+  },
+  "deferrals": [
+    "**Live conformance has not been run.** No Linear workspace is reachable from the environment this adapter was built in. Every verb is covered offline by a mocked-transport suite, and `conformance/bindings/linear.sh` is written and refuses to run without an explicitly named throwaway workspace — but the abstract suite has never executed against Linear itself.",
+    "**Lease race arbitration is implemented but unraced.** Linear's `Issue.assignee` is a SINGLE field, not GitHub's assignee list, so the github protocol's step 2 (re-read assignees, back off if another login is present) cannot detect a race: the second writer overwrites the first and then sees only itself. This adapter therefore rests arbitration on the lease COMMENT ordering, which is durable and observable by both racers. That is a real mechanism rather than an emulated one, but it has not been exercised by two concurrent live sessions.",
+    "**The lease handle is a millisecond timestamp, not a provider id.** Linear comment ids are UUIDs — unordered — and the contract requires an ordered numeric `lease_comment_id`. The adapter follows the local-markdown precedent and embeds its own handle in the marker JSON, derived from the comment's `createdAt` epoch milliseconds. Ordering is therefore exact to the millisecond; two lease comments created in the same millisecond on one issue would tie, and the adapter breaks that tie on the comment UUID so arbitration stays deterministic. A live pass should confirm Linear's `createdAt` resolution.",
+    "**Workflow-state classification is defaulted, not observed.** `WorkflowState.type` is one of `triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`. The adapter treats `completed`, `canceled`, and `duplicate` as closed, and that set is overridable via `config.linear.done_state_types` — the same override seam the jira adapter uses for the equivalent Jira fact, so the adapter is independent of it rather than betting on it."
+  ]
+}

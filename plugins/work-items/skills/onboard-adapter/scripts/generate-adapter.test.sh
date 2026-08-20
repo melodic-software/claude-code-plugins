@@ -239,7 +239,7 @@ assert_eq "host_suffix without a leading dot → exit 3" "3" "$(gen "$(with '.ap
 assert_eq "host_suffix may be empty (self-hosted)" "0" \
   "$(gen "$(with '.api.host_suffix = "" | .api.sample_host = "git.example.com"')")"
 assert_eq "unknown auth_scheme → exit 3" "3" "$(gen "$(with '.api.auth_scheme = "oauth"')")"
-for scheme in bearer token basic; do
+for scheme in bearer token basic raw; do
   assert_eq "auth_scheme $scheme accepted" "0" "$(gen "$(with ".api.auth_scheme = \"$scheme\"")")"
 done
 

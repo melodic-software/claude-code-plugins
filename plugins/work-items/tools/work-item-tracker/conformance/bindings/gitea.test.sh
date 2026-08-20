@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
+# shellcheck disable=SC2030,SC2031  # each guard case runs in its own ( ) so its env changes stay local — that isolation is the point, not an accident
 # gitea.sh is a sourceable conformance binding — assert it sources cleanly, exposes the
 # cb_setup/cb_teardown contract, and refuses to run without an explicitly named
 # throwaway target, all without touching the network.

@@ -606,6 +606,43 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   governs visibility. There is no lease/claim machinery (writes are off), so `features.leases`
   and `features.sub_items` are `false`.
 
+## linear adapter
+
+Linear, over its single GraphQL endpoint (`https://api.linear.app/graphql`). Full verb
+parity with the github adapter: reads, writes, the claim/renew/reclaim lease protocol,
+native sub-items, and dependency edges. Auth is a **personal API key** sent as the bare
+`Authorization` value (no scheme word) — the headless-appropriate credential, since OAuth
+needs an interactive grant no cloud agent can complete. Host is pinned to `.linear.app`.
+
+Binding subtree `config.linear`: `host`, `scopes[]` (non-empty, each
+`<workspace>/<TEAMKEY>`), `auth_env`. Optional: `done_state_types`, `page_size`,
+`host_suffix`, `allow_custom_domain`. All scope entries must share one workspace — an API
+key reaches exactly one.
+
+**Its one documented deviation from the lease protocol.** The contract's step 2 detects a
+race by re-reading the assignees; that depends on GitHub's assignee **list**, where both
+racers' assignments coexist. Linear's `Issue.assignee` is a **single field**: the second
+writer overwrites the first and then re-reads only itself, so a step-2 check would report
+"no race" to both racers. Arbitration therefore rests on the lease **comment ordering**
+(the contract's own same-login tiebreak, promoted to primary here). Since Linear comment
+ids are unordered UUIDs, the adapter mints its `lease_comment_id` from the comment's
+`createdAt` in epoch milliseconds — the local-markdown precedent for a provider without
+usable external ids — and breaks same-millisecond ties on the comment UUID so the ordering
+stays total.
+
+Other divergences, each verified against Linear's published GraphQL schema: a GraphQL
+error arrives with **HTTP 200**, so the transport inspects `errors` before any caller sees
+`data`; state is classified on `WorkflowState.type` (stable) and never on `.name`
+(renameable per team); `inverseRelations` — not `relations` — is the blocked-by direction;
+`create-item` takes label **IDs**, resolved from names against the team's label set; and
+the seam id is `team-key + number`, never the UUID.
+
+Offline coverage is the adapter's own `*.test.sh` with a mocked transport
+(`WIT_LINEAR_CURL`), including the race, the same-millisecond tiebreak decided from both
+sides, and reclaim's revalidation window. A live conformance pass is **deferred and
+recorded** — no Linear workspace was reachable when it was built, and no test has run two
+genuinely concurrent sessions.
+
 ## gitea adapter
 
 Gitea / Forgejo, self-hosted, over the `/api/v1` REST surface. The first adapter produced by
@@ -672,9 +709,10 @@ touch no network tool. The jira read verbs are covered offline by the adapter's 
 `*.test.sh` with a mocked curl; a live-Jira conformance pass is deferred to the work-laptop
 pass that settles the exact `statusCategory` "done" key and blocker link type.
 
-The `gitea` binding is **on-demand like GitHub's**, not offline like jira's: the gitea manifest
-declares `create-item` true, so the suite seeds a real item and every case after it is a live
-call. It requires `WIT_CONFORMANCE_GITEA_HOST` and `WIT_CONFORMANCE_GITEA_SCOPE` and refuses to
-run without both, so a destructive suite can never fall back to a default target. Its
-`bindings/gitea.test.sh` therefore asserts the binding's shape and those refusals rather than
-running the suite; the gitea live pass is recorded as deferred in "gitea adapter" above.
+The `gitea` and `linear` bindings are **on-demand like GitHub's**, not offline like jira's:
+both manifests declare `create-item` true, so the suite seeds a real item and every case after
+it is a live call. Each requires its own `WIT_CONFORMANCE_<PROVIDER>_HOST` and
+`WIT_CONFORMANCE_<PROVIDER>_SCOPE` and refuses to run without both, so a destructive suite can
+never fall back to a default target. Their `bindings/<provider>.test.sh` files therefore assert
+the binding's shape and those refusals rather than running the suite; both live passes are
+recorded as deferred in the adapter sections above.

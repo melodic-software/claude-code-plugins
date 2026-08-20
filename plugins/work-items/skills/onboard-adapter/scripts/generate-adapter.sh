@@ -150,8 +150,8 @@ fi
 
 AUTH_SCHEME="$(jq -r '.api.auth_scheme // ""' <<<"$SPEC_JSON")"
 case "$AUTH_SCHEME" in
-bearer | token | basic) ;;
-*) die_spec "api.auth_scheme must be one of: bearer, token, basic (found: ${AUTH_SCHEME:-none})" ;;
+bearer | token | basic | raw) ;;
+*) die_spec "api.auth_scheme must be one of: bearer, token, basic, raw (found: ${AUTH_SCHEME:-none})" ;;
 esac
 
 SCOPE_PATTERN="$(jq -r '.api.scope_pattern // "^[A-Za-z0-9][A-Za-z0-9._/-]*$"' <<<"$SPEC_JSON")"
@@ -358,6 +358,24 @@ SAMPLE_AUTH_EXTRA_DOC=""
 AUTH_DOC_ROW=""
 
 case "$AUTH_SCHEME" in
+raw)
+  # Some providers take the credential as the bare Authorization value with no scheme
+  # word at all — Linear's personal API keys are the case that added this. Modelled as
+  # its own scheme rather than as an empty prefix, so the generated header cannot come
+  # out with a stray leading space.
+  AUTH_DESCRIPTION="a $DISPLAY_NAME API key sent as the bare \`Authorization\` value, with no scheme word"
+  AUTH_HEADER_EXPECT="\"Authorization: \$SECRET\""
+  AUTH_HELPERS="
+# wit_${PROVIDER_FUNC}_auth_header — the Authorization header line. Built here and fed
+# to curl through the stdin config, so the credential never reaches argv. This provider
+# takes the key as the bare header value: no scheme word, and no leading space.
+wit_${PROVIDER_FUNC}_auth_header() {
+  local token
+  token=\"\$(wit_${PROVIDER_FUNC}_token)\" || exit \"\$?\"
+  printf 'Authorization: %s' \"\$token\"
+}
+"
+  ;;
 bearer | token)
   scheme_word="Bearer"
   [[ "$AUTH_SCHEME" == "token" ]] && scheme_word="token"

@@ -49,7 +49,7 @@ directory or any machine-local state.
 `check` binding probe validates it read-only. The tracker seam runs against exactly one provider per
 repo, declared in the tracked `.work-item-tracker.json` at the project root (resolved as `BINDING`
 above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
-(exit 3). The seam **ships with this plugin** and bundles the `github`, `local-markdown`, `jira`, and `gitea`
+(exit 3). The seam **ships with this plugin** and bundles the `github`, `local-markdown`, `jira`, `gitea`, and `linear`
 adapters — installing the plugin is enough; a repo only declares which one it uses. Binding shape, discovery, and
 adapter resolution are the seam contract's
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
@@ -74,6 +74,8 @@ when this pass must stop instead of guessing.
      **never** a coordination surface. Needs `config.storage_dir`.
    - **`jira`** — read/resolve-only against a Jira Cloud project set. Consume-only, so it does not
      enable `/work-items:work` or `track start`.
+   - **`linear`** — full verb parity with `github`, so it **is** a coordination surface. Personal
+     API key (the headless-appropriate credential); issue numbering lives outside the repo.
    - **`gitea`** — Gitea / Forgejo, self-hostable and free. Issues and dependency edges, but **no
      leases and no sub-items**, so `/work-items:work` cannot claim on it.
    - **another provider** — put its adapter consumer-local under
@@ -86,7 +88,7 @@ when this pass must stop instead of guessing.
    and probe that it resolves in-env at bind time.
    - **Secrets never go in this file** — it is tracked in git. A provider that needs an API token
      references it by env-var name / the repo's secret-store convention from inside its adapter, never
-     as a literal here. `github` needs none (ambient `gh`); `jira` and `gitea` reference theirs by
+     as a literal here. `github` needs none (ambient `gh`); `jira`, `gitea`, and `linear` reference theirs by
      `auth_env` name.
 4. **Write the binding.** Re-read `.work-item-tracker.json` from disk immediately before writing and
    merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any
@@ -125,7 +127,7 @@ check.
    bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
    to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
    parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
-   adapter (`github`, `local-markdown`, `jira`, `gitea`) or a consumer-local one at
+   adapter (`github`, `local-markdown`, `jira`, `gitea`, `linear`) or a consumer-local one at
    `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`; `config.lease_ttl_hours` is
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an

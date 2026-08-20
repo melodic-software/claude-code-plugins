@@ -3,6 +3,52 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.0]
+
+### Added
+
+- **A bundled `linear` adapter with full verb parity (#2946).** Reads, writes, the
+  claim/renew/reclaim lease protocol, native sub-items, and dependency edges — so unlike `gitea`
+  it *is* a coordination surface and `/work-items:work` can claim on it. Issue numbering lives
+  outside the repository, so GitHub's shared PR/issue numbering never bites.
+- **The headless auth posture is settled explicitly, as the item asked.** A **personal API key**,
+  sent as the bare `Authorization` value and referenced by env-var name only. OAuth needs an
+  interactive grant no unattended session can complete, so it is not the credential for a cloud
+  agent. Host pinned to `.linear.app`; credential hygiene is the generated skeleton's, which
+  matches or exceeds the jira adapter's guards.
+- **Per-instance semantics are config, not constants.** `done_state_types` decides which
+  `WorkflowState.type` values count as closed (default `completed`/`canceled`/`duplicate`) — the
+  same override seam jira has for its `statusCategory` keys, so the adapter is independent of the
+  classification rather than betting on it.
+
+### Changed
+
+- **The Linear lease documents one deviation from the contract's claim sequence, and says why.**
+  The contract detects a race at step 2 by re-reading the assignees; that depends on GitHub's
+  assignee **list**, where both racers' assignments coexist. Linear's `Issue.assignee` is a
+  **single field** — the second writer overwrites the first and then re-reads only itself, so a
+  step-2 check would report "no race" to *both* racers. Arbitration therefore rests on the lease
+  **comment ordering**, which the contract already specifies as the same-login tiebreak. Because
+  Linear's comment ids are unordered UUIDs, `lease_comment_id` is minted from the comment's
+  `createdAt` in epoch milliseconds (the local-markdown precedent), with same-millisecond ties
+  broken on the comment UUID so the ordering stays **total** — without that, two racers in one
+  millisecond would each read themselves as earliest and both would claim. A test asserts the tie
+  is decided identically from both sides.
+- **A GraphQL error arrives with HTTP 200**, so the transport inspects `errors` before any caller
+  sees `data`. A status-code-only check would wave a failed mutation through and let the verb emit
+  a malformed record.
+- **`api.auth_scheme` in the adapter spec gained `raw`** — the bare `Authorization` value with no
+  scheme word, which is what Linear's personal API keys take. Modelled as its own scheme rather
+  than an empty prefix, so a generated header cannot come out with a stray leading space.
+
+### Fixed
+
+- **Timestamp parsing no longer depends on fractional seconds being present.** Linear returns
+  `createdAt` with milliseconds while this adapter's own lease markers write whole seconds, so both
+  forms reach the same helper; stripping the fraction by assuming a `.` corrupted the whole-second
+  form instead. That is how reclaim's activity check silently saw no activity at all, and would
+  have released a lease whose holder was demonstrably still working.
+
 ## [0.38.0]
 
 ### Added

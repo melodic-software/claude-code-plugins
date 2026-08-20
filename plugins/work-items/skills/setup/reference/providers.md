@@ -64,6 +64,29 @@ the token is referenced by env-var name only, never stored. Optional `page_size`
 `allow_custom_domain`. See `adapters/gitea/README.md` for its provider notes and recorded
 deferrals — **including that no live-instance conformance pass has been run**.
 
+## `linear`
+
+Linear, over its GraphQL API. **Full verb parity with `github`** — reads, writes, the
+claim/renew/reclaim lease protocol, native sub-items, and dependency edges — so unlike
+`gitea` it *is* a coordination surface: `/work-items:work` can claim on it.
+
+Issue numbering lives outside the repository, so GitHub's shared PR/issue numbering never
+bites. Free tier is generous enough for solo use.
+
+Auth is a **personal API key**, referenced by env-var name only. That is the deliberate
+posture for headless and cloud agents: OAuth needs an interactive grant no unattended
+session can complete. The host is pinned to `.linear.app`.
+
+Requires `config.linear` (`host`, non-empty `scopes[]` of `<workspace>/<TEAMKEY>`,
+`auth_env`) and `curl`. Optional `done_state_types`, `page_size`, `host_suffix`,
+`allow_custom_domain`. All scopes must share one workspace — an API key reaches exactly
+one.
+
+See `adapters/linear/README.md` for its provider notes, its **documented deviation from
+the lease protocol** (Linear's single assignee field forces comment-ordering
+arbitration), and its recorded deferrals — **including that no live-workspace conformance
+pass has been run**.
+
 ## Another provider
 
 Supply the adapter consumer-local at
@@ -84,6 +107,7 @@ than starting from a blank file.
 | `storage_dir` | `local-markdown` | The item-store directory. |
 | `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var NAME holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults. |
 | `gitea` | `gitea` | `host` (bare hostname), non-empty `scopes[]` (each `owner/repo` — the declared read scope **and** the authorization boundary), `auth_env`. Optional `page_size` (default 50 — lower it if the instance sets `api.MAX_RESPONSE_ITEMS` below that), `host_suffix` (your own egress pin; Gitea is self-hosted, so there is no vendor-domain default), `allow_custom_domain`. |
+| `linear` | `linear` | `host` (`api.linear.app`), non-empty `scopes[]` (each `<workspace>/<TEAMKEY>`, all sharing one workspace), `auth_env`. Optional `done_state_types` (which `WorkflowState.type` values count as closed; default `completed`/`canceled`/`duplicate`), `page_size`, `host_suffix`, `allow_custom_domain`. |
 
 For any token: interview for the env-var **name**, and probe that the token resolves in-env at bind
 time — never store it. Per the operator secret-binding classification, a token's durable home is
