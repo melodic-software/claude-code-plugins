@@ -3,6 +3,15 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.17]
+
+### Fixed
+
+- The `disk_hygiene_enabled` row in the README's options table used a curly
+  apostrophe in "clean skill's". It was the only genuine punctuation residue
+  found across the marketplace's 1214 tracked markdown files, so it is repaired
+  rather than exempted.
+
 ## [0.20.16]
 
 ### Changed
