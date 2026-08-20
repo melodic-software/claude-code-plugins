@@ -2990,8 +2990,9 @@ fi
 # same silent-failure class open.
 #
 # Scoped to what awk actually compiles, because Bash is not mawk and its own
-# [[ =~ ]] regexes may use intervals freely — the frontmatter date check below
-# does, and rejecting it would be a false positive. Two surfaces reach awk:
+# [[ =~ ]] regexes may use intervals freely — check-skill.sh dates a frontmatter
+# synced: value with one, and rejecting it would be a false positive on correct
+# code. Two surfaces reach awk:
 # slash-delimited regex literals inside the embedded programs, and the judge
 # regex handed across with -v.
 INTERVAL_RE='\{[0-9]+(,[0-9]*)?\}'
