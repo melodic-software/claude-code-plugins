@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.0]
+## [0.33.0]
 
 ### Added
 
@@ -37,6 +37,24 @@ All notable changes to the `planning` plugin are documented here. Format follows
   the user's move, stated symmetrically to how the section already handles entering: the skill
   toggles no permission mode, so it asks the user to exit (`shift+tab`) and invokes the interview
   once they have.
+
+## [0.32.0]
+
+### Added
+
+- **`plan` names its test boundaries (#2936).** The Test strategy element — and its template
+  placeholder — now asks for the public interfaces the tests will drive, each marked existing or
+  newly introduced, with a preference for driving an existing interface over introducing one for
+  testability alone. Naming them is what lets the Step 5 approval settle them, so implementation
+  writes no test against a boundary the plan never named. Upstream's version of this is a hard
+  consent gate ("no test is written at an unconfirmed seam"); it is softened deliberately, because
+  an unattended run cannot obtain confirmation — there, a boundary implementation picks that the
+  plan did not name is a deviation logged for PR-time review (`DEVIATIONS.md` beside `PLAN.md`),
+  not a blocking stop. Two placements were rejected on validation: the word `seam` (fleet-registered
+  vocabulary in `docs/conventions/seam-phrasing/`, with a second controlled-vocabulary sense in
+  `architecture:improve` that forbids substitution) and `implementation:phase-verifier` (it grades
+  binary criteria against a final diff and is told to refuse to guess its inputs — a
+  stated-before-the-first-test ordering claim is not observable there).
 
 ## [0.31.0]
 

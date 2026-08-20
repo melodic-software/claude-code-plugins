@@ -3,6 +3,23 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.3]
+
+### Fixed
+
+- **The container close-out routes name real machinery (#3027).** `decompose`'s ship ritual and both
+  of `ship`'s all-sub-items-closed rows pointed at "the review plugin's spec-fidelity machinery" for
+  the cumulative review of a shipped container — a route that landed on nothing container-scoped
+  even after `review` 0.22.0 shipped the branch-scoped `spec` lens. Both now name
+  `/review:quality-gate close-out --container <container-id>` (`review` ≥ 0.23.0), presence-gated as
+  before, with the manual pass against the Brief's acceptance criteria as the fallback.
+- **The division of labor is stated where it was previously implied.** The review produces the
+  verdict; the **ship ritual owns the close** — so a `missing` or `wrong` finding against a stated
+  acceptance criterion keeps the container open and becomes a new item or a re-decompose, rather
+  than a reviewer closing anything. `ship`'s row additionally says to state the execution shape when
+  routing, because the close-out mode derives its cumulative basis from it: the integration PR's
+  range for `integration branch → single PR`, the set of per-item squash commits for `per-item PRs`.
+
 ## [0.36.2]
 
 ### Fixed
