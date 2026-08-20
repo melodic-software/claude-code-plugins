@@ -3,6 +3,41 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **`audit-skill-visibility --installed` audits the fleet that is actually installed**, resolved
+  from `~/.claude/plugins/installed_plugins.json` rather than from a directory that happens to sit
+  under the current working directory. `--plugins-root` measures a checkout; `--installed` measures
+  the install. Measured here the two differ and both are right: the repo held 221 skills, the
+  installed fleet 216 — three plugins present in the checkout were never installed.
+
+  **The manifest lists one entry per install SCOPE, not per plugin**, and that distinction is
+  load-bearing rather than cosmetic. On this machine 67 plugins carried 134 entries — a `project`
+  and a `user` install of the same marketplace, bound to the same `projectPath`. Because the fleet
+  is the denominator the listing budget is measured against, counting entries would have roughly
+  doubled the reported overflow and fabricated the headline number. Resolution keys by plugin
+  identity, and the report prints both counts so the collapse is auditable instead of trusted.
+
+  **Multi-scope installs resolve by the documented precedence `local > project > user`** — the
+  record that loads is the highest-precedence *applicable* one, never the newest version installed.
+  The rule, including its explicit warning against the newest-version heuristic, lives in this same
+  plugin's `skills/plugins/context/scope-semantics.md`. Getting it wrong is not cosmetic: 7 plugins
+  here ship different skill *sets* between scopes and 19 skills different `description` text.
+  Superseded records are listed under a new **Fleet resolution** section so a pin being outranked is
+  visible rather than silently ignored.
+
+  **Records that cannot load here are excluded and reported.** `project` and `local` installs carry
+  the `projectPath` they belong to and load only in that project; counting another project's records
+  would inflate the fleet with skills the model can never see. The current project is taken from
+  `CLAUDE_PROJECT_DIR`, falling back to the working directory.
+
+  **A directory-source marketplace loads its checkout**, not either cached `installPath` — verified
+  by a skill executing out of the marketplace directory. The plugin root for those comes from the
+  catalog's declared `source`, because `plugins/<name>` is the common layout but not a rule: an entry
+  may declare `.` or any other directory, and assuming the layout would silently drop its skills.
+
 ## [0.33.2]
 
 ### Fixed
