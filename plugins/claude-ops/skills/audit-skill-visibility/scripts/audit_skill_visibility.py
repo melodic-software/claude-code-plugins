@@ -358,15 +358,27 @@ def resolve_installed(
     roughly doubles the reported overflow. That is the same class of error the
     usage sources already guard against by reconciling rather than summing.
 
-    Where the scopes disagree the honest answer is not to pick. Measured on
-    that same install: 7 plugins carried DIFFERENT skill sets between scopes
-    and 19 skills carried different `description` text, so the choice moves
-    real numbers. One case resolves cleanly and is marked `certain`: a
-    marketplace whose source is a local `directory` loads from that directory,
-    verified by a skill executing out of the marketplace checkout rather than
-    either cache path. Everything else is reported `ambiguous` with both
-    candidates named, so the reader sees the fork instead of inheriting a
-    silent guess.
+    Where the scopes disagree, the winner is the highest-precedence
+    APPLICABLE record per `SCOPE_PRECEDENCE` (`local > project > user`) -- not
+    the newest version, which is the wrong answer `scope-semantics.md` names
+    explicitly. Applicability matters first: `project` and `local` records
+    load only in the `projectPath` they name, so a record owned by another
+    project is dropped into `not_applicable` rather than counted. Getting
+    either wrong moves real numbers -- measured on that same install, 7
+    plugins carried DIFFERENT skill sets between scopes and 19 skills carried
+    different `description` text.
+
+    Returns one row per plugin plus two report lists: `superseded` (the
+    outranked records, so a pin losing to a higher scope stays visible) and
+    `not_applicable` (records belonging to another project). Nothing is
+    withheld or hedged -- the rule decides.
+
+    A marketplace whose source is a local `directory` is the exception to
+    where the code comes from: it loads that CHECKOUT rather than either
+    cached `installPath`, verified by a skill executing out of the marketplace
+    directory. Its root comes from the catalog's declared `source`, its scope
+    reports as `marketplace-directory`, and it emits no `superseded` pair --
+    naming two cached versions when neither is running would mislead.
     """
     resolved: list[dict] = []
     superseded: list[dict] = []
