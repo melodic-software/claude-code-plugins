@@ -3,6 +3,42 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **`audit-skill-visibility` gains a pair co-occurrence reading (closes #3048).**
+  `scripts/skill-pair-cooccurrence.sh` answers a question the visibility audit does not: not *can*
+  the model see a skill, but does one skill's run actually coincide with another's — the case being
+  "skill X's instructions tell the model to invoke skill Y; does that happen?"
+
+  **Placement is a correction to the filing.** The item proposed `observability` as the natural
+  home; that plugin's own `context/read-routing.md` already assigns *interpretation* of skill-usage
+  data to `audit-skill-visibility` and keeps only the store, the pipeline, and retention. The
+  routing table was right and the guess was wrong.
+
+  **It is a proxy and refuses to be read as more.** The `SkillUse` record carries no caller
+  attribution — a PostToolUse hook on the Skill tool receives `tool_name`, `tool_input`, and
+  `tool_response`, and nothing in that payload names the skill whose instructions caused the call.
+  So the script observes only that both skills fired in the same `(project_id, branch)` group,
+  ordered by timestamp; a callee the user typed by hand counts identically to one the caller
+  produced. There is no session id either, so that group key merges two sessions on one branch and
+  splits one session across a branch switch. The caveat is printed in **both** renderers — prose
+  and `--json` — because a machine consumer stripping it is the same defect as a human not seeing
+  it.
+
+  It inherits this skill's refusal rather than routing around it: below the 30-day exposure floor
+  (the same constant `audit_skill_visibility.py` uses) or below a minimum denominator, it returns
+  `WITHHELD` with a reason instead of a small number. **The trap it exists to refuse is the empty
+  denominator** — if the caller never ran, "0% of its sessions also used the callee" is a claim
+  about a population that was never observed, not a rate of zero.
+
+  33 regression cases. The guards were checked by removing them and confirming the relevant cases
+  fail: dropping the empty-denominator branch and neutering the span-floor comparison each turn
+  green red. One case caught a real defect in the first draft — the header promised malformed rows
+  cost only themselves while `jq -s` failed the whole file on the first bad line; the read is now
+  `jq -Rn` with `fromjson?`.
+
 ## [0.33.2]
 
 ### Fixed

@@ -39,6 +39,7 @@ You are a senior code reviewer. Your job is to catch issues that automated tooli
 - Deep nesting where guard clauses and early returns would simplify
 - Mutable state where immutability is the surrounding idiom
 - Tests asserting implementation details instead of observable behavior
+- Tautological expectations in changed or added tests — an expected value re-derived through the same steps the code under test takes, rather than independently sourced (a known-good literal, a hand-computed value, a worked example from the spec, or a fixture). The canonical shape computes `expected` with the production algorithm in the arrange section and asserts against it; the adjacent case is a round-trip or identity check comparing output against its own input. Both hold for every implementation, so the assertion cannot fail — the oracle is the defect. **Where `testing:audit`'s `cant-fail-scan.sh` fires, it owns the finding:** its `testing/audit/rule-recomputed-expectation` decides only the textually-identical-sides core, so when both sides are the same expression, report nothing here. This criterion covers what that leaves undecided — sides that differ textually but share a derivation. Ask what the expected value's independent source is; if the answer is the code under test, that is the finding.
 
 **Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3) — match these named smells against the diff as advisory heuristics. The project's documented standards override the baseline wherever they endorse a flagged pattern, and skip anything tooling already enforces:
 

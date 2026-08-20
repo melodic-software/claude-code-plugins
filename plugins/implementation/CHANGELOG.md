@@ -3,6 +3,31 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Changed
+
+- **`implement`'s completion handoff stops prescribing its own pre-PR order (closes #3047).**
+  Step 5 is titled *"Hand off to the pre-PR sequence"* and then prescribed an order that sequence
+  forbids: `/verification:confirm` first, review after. `session-flow`'s `pre-pr.md` puts review at
+  step 2 and outcome verification at step 7, with the simplify pass (4–6) between them — so under
+  this skill's order, `confirm` rendered its verdict on pre-simplify code and the simplify edits
+  shipped unverified.
+
+  Both sites (step 5 and the chaining table's completion row) now read **review → verify → PR**,
+  with every presence gate intact: `/review:quality-gate`, then `/verification:confirm` once the
+  diff is final, then `/source-control:pull-request`, each gated on its plugin being installed and
+  each keeping its stated fallback. Step 5 also now points at
+  `/session-flow:workflow pre-pr` (gated) for the sequence itself, so the handoff names its
+  destination instead of paraphrasing it.
+
+  This was a one-surface correction, not a coin flip between two doctrines. The `verification`
+  plugin's **own** chaining table already fired on "review gate passes (no blocking findings)" →
+  suggest `/verification:confirm`, and suggested the PR flow only after a CONFIRMED verdict. The
+  skill that renders the verdict, the skill that lists the sequence, and the plugin that opens the
+  PR all agreed; this handoff step was the lone dissenter. The order now has an owner doc,
+  `docs/conventions/pre-pr-ordering/`, which both surfaces cite.
+
 ## [0.13.2]
 
 ### Changed

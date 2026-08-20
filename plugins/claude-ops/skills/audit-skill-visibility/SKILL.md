@@ -109,6 +109,40 @@ this catalogue is assembled from scattered documentation plus strings in the
 shipped binary, and every row says so in its `provenance`. Do not present it to
 a user as documented.
 
+## Pair co-occurrence — does skill B get invoked where skill A ran?
+
+A different question from visibility, on the same store: not *can* the model see
+a skill, but does one skill's run actually coincide with another's. The case it
+was written for is "skill X's instructions tell the model to invoke skill Y —
+does that happen?"
+
+```bash
+scripts/skill-pair-cooccurrence.sh --pair implementation:implement,tdd:principles
+scripts/skill-pair-cooccurrence.sh --pair a:b,c:d --json      # machine-readable
+```
+
+**It is a proxy, and it says so in its own output — do not strip that.** The
+`SkillUse` record carries no caller attribution: a PostToolUse hook on the Skill
+tool receives `tool_name`, `tool_input`, and `tool_response`, and nothing in that
+payload names the skill whose instructions caused the call. So the script cannot
+see "Y was invoked BY X" — only that both fired in the same
+`(project_id, branch)` group, ordered by timestamp. A Y the user typed by hand
+counts identically to one X produced. There is no session id either, so the group
+key merges two sessions on one branch and splits one session across a branch
+switch.
+
+It inherits this skill's refusal rather than working around it: below the 30-day
+exposure floor, or below a minimum denominator, it returns `WITHHELD` with a
+reason instead of a small number. **An empty denominator is the trap it exists to
+refuse** — if the caller never ran, "0% of its sessions also used the callee" is a
+claim about a population that was never observed, not a rate of zero.
+
+The nearest thing to real attribution needs no schema change and is already
+shipping: OTEL's `claude_code.skill_activated` carries `invocation_trigger`,
+separating `user-slash` from `claude-proactive`. That is the axis a
+"does the model reach for it unprompted" question actually wants, and this
+skill's tier model already gates it as `T-full`-only.
+
 ## Counting rules that are not obvious
 
 - **Never sum sources.** Native counters and the JSONL store both record the
