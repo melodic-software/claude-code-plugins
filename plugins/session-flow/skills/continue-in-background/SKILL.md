@@ -66,8 +66,15 @@ directive to the handoff file; prompt-only: the remaining-work bullets travel in
 
 ## Delivery: background-agent launch
 
-The rails prompt from the engine doc is still emitted FIRST (transparency + manual fallback),
-then:
+**Output order: position panel, then the rails prompt, then the launch report.** The panel (engine
+doc, "Emit the position panel") leads — the operator is walking away while an agent keeps working,
+so the one thing they should not have to reconstruct is where the work stood when they left. It is
+screen output only: **the launched agent receives exactly the text between the rails and never a
+line of the panel**, which keeps the payload identical to what a manual `/clear`-and-paste would
+produce.
+
+The rails prompt from the engine doc is still emitted before the launch (transparency + manual
+fallback), then:
 
 1. **Dirty-tree gate.** First establish there is a tree to inspect, with
    `git rev-parse --is-inside-work-tree` in the consuming project. Exactly two results are
@@ -164,6 +171,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 
 - [ ] Explicit user intent for background delegation verified (hard gate) — absent intent →
   save-point + `/clear`-then-paste exit, no launch, reason stated
+- [ ] Position panel emitted per the engine doc ("Emit the position panel"), ahead of the rails
+  prompt, OR an explicit line saying the units would not resolve — and none of its text included in
+  the prompt handed to the launched agent
 - [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring rules
   — full path: brief lead, Suggested-skills selection, Remaining-actions order; prompt-only: the
   inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly

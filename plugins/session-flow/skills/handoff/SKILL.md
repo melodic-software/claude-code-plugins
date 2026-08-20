@@ -173,7 +173,10 @@ Tick each item in the response so the user can verify the exit shape. Missing an
 incomplete. Known failure patterns live in `context/gotchas.md` — load on demand when a step feels
 ambiguous.
 
-**Output order is fixed: ticked checklist first, rails prompt last.** The rails resume prompt —
+**Output order is fixed: position panel first, ticked checklist next, rails prompt last.** The panel
+is what the operator actually reads (engine doc, "Emit the position panel"), so it leads; the
+checklist is this skill's own audit trail and follows it; and the rails prompt closes the response.
+The rails resume prompt —
 the copy instruction, the two dashed rails, and every below-the-rails `/loop` re-arm note — is the
 FINAL text of the response, with nothing after it. This order exists because the rails prompt is
 the deliverable the operator copies, and a turn that ends on anything else has been observed to end
@@ -185,6 +188,9 @@ before ending the turn, always.
 **Full path:**
 
 - [ ] Position located + next stage named (fresh reads this turn)
+- [ ] Position panel emitted per the engine doc ("Emit the position panel") — vertical rail with the
+  current unit marked, completeness line, and the three one-line blocks — OR an explicit line saying
+  the units would not resolve. Never a rail whose units were invented to fill it
 - [ ] Handoff file written to the handoff location (self-ignore guard verified first) with
   frontmatter per the engine's structure doc (`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`)
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
@@ -222,6 +228,11 @@ before ending the turn, always.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] Position panel emitted per the engine doc ("Emit the position panel"), OR an explicit line
+  saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
+  operator sees where the work stands — the path where skipping it costs the most. Unit ladder rung
+  4 (`TaskList`) is skipped here unless `prompt` was FORCED, in which case the one `TaskList` call
+  is made rather than the list being guessed from the conversation
 - [ ] The verbatim goal sits between the rails above the remaining-work bullets — below an active
   `/goal` first line, which it never displaces — and when the goal has recorded amendments, the
   original dated quote travels with EVERY dated amendment line, never collapsed to a single line;
@@ -254,3 +265,7 @@ before ending the turn, always.
   NOT relax this
 - **Does not replace a contract or plan** — it captures in-flight state at any point
 - **Does not summarize the whole conversation** — task-relevant state only
+- **Does not orient from durable state** — the position panel restates what this turn already
+  established for the save-point. It runs no `gh` query, re-reads no ledger, and inspects no
+  off-thread work; a full situation report from durable + off-thread state is
+  `/session-flow:orient`, and the panel points there rather than growing into it

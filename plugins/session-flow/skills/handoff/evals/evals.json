@@ -162,6 +162,50 @@
         "The reasoning treats STOP as ending the underlying refactor, not as licence to end the response once the file is written",
         "The heavy context / zone warning is not treated as a reason to shorten or skip the prompt — it is the condition the save-point exists for"
       ]
+    },
+    {
+      "id": 13,
+      "name": "position-panel-vertical-rail-marks-current-unit",
+      "prompt": "We're on phase 3 of the 5-phase plan in docs/plan.md — phases 1 and 2 are done, phase 3 is half-wired. Context is heavy, the user says to checkpoint here. Handoff.",
+      "expected_output": "The response opens with a 'You are here' position panel: a VERTICAL rail with one phase per line, the current phase marked in the gutter, a completeness line, and three one-line blocks (done this session / where we are / up next). The ticked checklist follows it, and the rails resume prompt is still the final text.",
+      "files": [],
+      "expectations": [
+        "A 'You are here' position panel is emitted, and it leads the response — before the ticked enforcement checklist",
+        "The rail is vertical with exactly one phase per line, NOT a horizontal arrow-chained row that wraps",
+        "The current phase is marked in the gutter and labelled as the current position; earlier phases read as complete and later ones as pending",
+        "The panel carries a completeness read (how many of the five phases are done) and the three one-line blocks: what was done this session, where we are, what is next",
+        "The rail's phases come from the plan artifact read this turn — the panel restates established state rather than discovering new state, and runs no durable-state sweep of its own",
+        "The rails resume prompt is still the FINAL text of the response — the panel is emitted in addition to it, never instead of or after it"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "position-panel-elides-long-unit-list",
+      "prompt": "/session-flow:handoff — we're working the sub-issue chain under epic #400, which has 14 sub-issues. #400.1 through #400.6 are closed, #400.7 is in progress, the rest are open. Pausing here.",
+      "expected_output": "The panel's rail elides rather than printing all fourteen sub-issues: the first couple, the current one with a neighbour either side, the last one, and a '… N more' line standing in for each dropped run. The unit kind (sub-issues of #400) is named so the operator knows what the rail is counting.",
+      "files": [],
+      "expectations": [
+        "The rail does NOT print all fourteen sub-issues as fourteen lines — the middle is elided",
+        "The elision keeps the ends of the chain and the current position, with a '… N more' style line standing in for each dropped run",
+        "The current sub-issue (#400.7) is present and marked as the current position",
+        "The unit kind is named — the operator can tell the rail is counting sub-issues of epic #400, not phases or tasks",
+        "The completeness line reports progress across the full fourteen, not just the units the rail happened to print"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "position-panel-prose-fallback-invents-no-units",
+      "prompt": "/session-flow:handoff prompt — no plan, no phases, no tracker. I just poked at two config files to see what broke and I want to stop for now.",
+      "expected_output": "Prompt-only, so no file is written. The panel degrades to the three prose blocks with NO rail, saying plainly that the work has no delineated units — it does not manufacture phases in order to draw one. The self-contained rails prompt is still the final text.",
+      "files": [],
+      "expectations": [
+        "No rail is drawn, and no phases, stages, or tasks are invented to populate one",
+        "The panel says plainly that the work has no delineated units, rather than silently omitting the rail",
+        "The three blocks — done this session, where we are, up next — are still present as prose",
+        "No durable handoff file is written; the remaining-work bullets travel inline between the rails",
+        "The reasoning treats the panel as most valuable here, not least: prompt-only writes no file, so the panel is the only place the operator sees where the work stands",
+        "The self-contained rails resume prompt is still the FINAL text of the response"
+      ]
     }
   ]
 }
