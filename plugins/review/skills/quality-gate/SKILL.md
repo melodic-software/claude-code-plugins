@@ -1,9 +1,9 @@
 ---
-description: "Single-lens review checkpoint between 'code works' and 'code is ready' — routes to self, code, architecture, security, spec, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', 'security review', or 'does this match the spec/issue/plan', or after implementation completes."
-argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate spec [--spec <path|id>], /review:quality-gate slice <name>)"
+description: "Single-lens review checkpoint between 'code works' and 'code is ready' — routes to self, code, architecture, security, spec, close-out, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', 'security review', 'does this match the spec/issue/plan', or 'close-out review' / 'review the container' for a shipped spec container, or after implementation completes."
+argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate spec [--spec <path|id>], /review:quality-gate close-out [--container <id>] [--dry-run], /review:quality-gate slice <name>)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
+allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -24,7 +24,10 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 
 ## Shared inputs
 
-- **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`, then `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
+- **Review diff base** — **mode-scoped override first:** `close-out` does not use this base at all.
+  A spec container is not a branch, so that mode derives a container-scoped basis of its own, per
+  execution shape ([context/close-out.md](context/close-out.md) "Why it needs its own diff basis").
+  Every other mode uses the base below. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`, then `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Criteria resolution** — review criteria resolve through the standards index per the plugin binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) (its "Resolution ladder" section owns the procedure), detailed in [context/criteria.md](context/criteria.md).
 - **Findings location** — resolve through the plugin binding, [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md), which owns the resolution ladder, its non-interactive collapse, the `<branch-slug>` and `<UTC-timestamp>` spec, and the self-ignore guard. **Resolve the home; never assume its shape** — the ladder's rungs do not all compose a `reviews/<branch-slug>` segment. Durable findings are `<UTC-timestamp>-<mode>.md` in the resolved directory. Write repo-relative paths only — never absolute machine paths.
@@ -40,6 +43,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 | "architecture review", new modules, cross-cutting structure | **architecture** | [context/architecture.md](context/architecture.md) |
 | "security review", auth/input handling, API endpoints | **security** | [context/security.md](context/security.md) |
 | "does this match the spec/issue/plan", "did we build what was asked", scope-creep check, `spec [--spec <path\|id>]` | **spec** | [context/spec.md](context/spec.md) |
+| "close-out review", "review the container", "did the whole spec ship", a spec container whose last sub-item just closed, `close-out [--container <id>] [--dry-run]` | **close-out** | [context/close-out.md](context/close-out.md) |
 | "review the PR", a PR exists for the branch | **pr** | [context/pr.md](context/pr.md) |
 | "review criteria", "what should I check" | **criteria** | [context/criteria.md](context/criteria.md) |
 | `slice <name>`, "review testing", "review concurrency" | **slice** | [context/per-slice.md](context/per-slice.md) |
@@ -50,9 +54,12 @@ Ambiguous → present the modes and ask. **Read the matching context file before
 ## Step 0.5: Pre-flight gate (diff-consuming modes only)
 
 **Mode-scoped by design.** `criteria` is a reference mode — it loads criteria rather than reviewing
-a change, and legitimately runs against a clean tree — so it is **exempt** and never gated. Every
-other mode consumes the review diff, so for those: resolve the review diff base ("Shared inputs")
-and confirm it yields a non-empty diff BEFORE dispatching any reviewer.
+a change, and legitimately runs against a clean tree — so it is **exempt** and never gated.
+`close-out` is gated, but **on its own basis, not this one**: it runs the same two checks below
+against the container-scoped basis it derives, plus a rollup check that the container is actually
+finished ([context/close-out.md](context/close-out.md) "Step 4"). Every remaining mode consumes the
+branch review diff, so for those: resolve the review diff base ("Shared inputs") and confirm it
+yields a non-empty diff BEFORE dispatching any reviewer.
 
 - **Unresolvable base** — an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
   after a fetch (do NOT silently substitute a different base — that reviews the wrong diff), or no
@@ -69,14 +76,15 @@ surfaces receive only the merge-base diff, which cannot show an unstaged file. R
 files in place; still never `git add` them.
 
 Either outcome dispatches ZERO reviewers: a lens run against an empty or wrong change set produces
-noise, not a verdict. `spec` mode adds one gate of its own on top of this one — an explicitly
-passed `--spec` ref that does not resolve is also a STOP ([context/spec.md](context/spec.md)
-"Rung 1").
+noise, not a verdict. Two modes add a gate of their own on top of this one: an explicitly passed
+`--spec` ref that does not resolve is a STOP ([context/spec.md](context/spec.md) "Rung 1"), and so
+is an explicitly passed `--container` ref that does not resolve
+([context/close-out.md](context/close-out.md) "Step 1").
 
 ## Step 1: Gather context
 
 1. **What changed?** — pre-computed facts above + the review diff base
-2. **What was the goal?** — the original task, approved plan, or user intent from conversation. In every mode but `spec` this is background for judging the change; making the goal the thing under judgment is `spec` mode, which owns the spec-source discovery ladder and the fidelity finding classes
+2. **What was the goal?** — the original task, approved plan, or user intent from conversation. In every mode but `spec` and `close-out` this is background for judging the change; making the goal the thing under judgment is `spec` mode, which owns the spec-source discovery ladder and the fidelity finding classes — `close-out` is that same lens at container scale, reusing both and resolving its spec from the container instead of the branch
 3. **What conventions apply?** — resolve the project's standards for the changed surfaces through the standards index per the Shared-inputs criteria-resolution binding, so every review mode grounds in the same rows plan formulation loaded
 
 ## Step 2: Execute the review

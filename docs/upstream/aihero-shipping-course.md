@@ -41,7 +41,7 @@ PARTIAL / REJECTED / OPEN.
 |---|---|---|---|---|---|
 | A | Spec lifecycle: /to-spec, spec-on-tracker, archive-your-specs | C1–C4 | planning:prd/plan + work-items:decompose | PARTIAL (C4 adopted gate-added; C3 partial; C1 already-present; C2 routed to #2936) | #2934 |
 | B | /to-tickets deltas | C5–C8, C17 | work-items:decompose | ADOPTED | #2935 |
-| C | /implement + /tdd wiring, zero-assembly chain | C9–C11 | implementation:implement, tdd:principles, testing:write | OPEN | #2936 |
+| C | /implement + /tdd wiring, zero-assembly chain | C2, C9–C11 | planning:plan, tdd:principles, testing:write | PARTIAL (C2+C9 relocated to planning:plan; C10+C11 already-present; chain doc rejected-with-reasons) | #2936 |
 | D | Two-axis review, spec lens, discovery ladder, preflight | C12–C16 | review:quality-gate | PARTIAL (C12+C14 adopted-corrected; C13+C16 already-present; C15 partial) | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
@@ -53,6 +53,45 @@ Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): bindi
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
 multi-provider topology (#2945), Linear adapter (#2946), adapter-onboarding skill (#2950),
 Jira write (#2951), Gitea/Forgejo adapter (#2952), provenance/map fixes (#2947).
+
+## Candidate index (C1–C23)
+
+Every lane verdict above and below cites a candidate by id. The definitions were originally
+drafted into the topic's **memory** slice (`.work/`, self-ignored, never committed) — which meant
+each verdict pointed at an artifact that dies with the working tree. They are graduated here, one
+line each, so the ids stay resolvable after the topic slice is gone. Upstream line references are
+against `mattpocock/skills@068b6e0` (see "Source basis" above) and are a snapshot, not a live
+pointer.
+
+| Id | Candidate | Upstream source | Lane |
+|---|---|---|---|
+| C1 | No-interview pure-synthesis spec mode — "Do NOT interview the user; just synthesize what you already know" | `to-spec:7` | A |
+| C2 | Sketch the test seams before writing the spec, prefer existing seams, confirm them with the user ("the ideal number is one" excluded) | `to-spec:15-17` | A → C |
+| C3 | Spec template sections, notably **Testing Decisions** as a first-class section with prior-art test pointers, and implementation content framed as decisions-made | `to-spec:21-75` | A |
+| C4 | The spec is published to the tracker, born ready-for-agent (upstream has no approval gate on the publish — that part excluded) | `to-spec:19` | A |
+| C5 | Prefactor look-ahead at decomposition time; prefactor slices become blockers of what they unblock | `to-tickets:23,34` | B |
+| C6 | Each slice sized to fit a single fresh context window | `to-tickets:33` | B |
+| C7 | Integration-branch fallback for wide refactors — green is promised only at the final integrate-and-verify item | `to-tickets:40` | B |
+| C8 | "Work the frontier" phrasing for the report step | `to-tickets:65` | B |
+| C9 | Pre-agreed-seam gate — "No test is written at an unconfirmed seam," plus the canned "what's the public interface, and which seams should we test?" question | `tdd:22-24` | C |
+| C10 | Tautological-test anti-pattern — an assertion that recomputes the expected value the way the code does passes by construction; expected values must come from an independent source of truth | `tdd:31`, `tests.md:63-77` | C |
+| C11 | SDK-style mockable boundary interfaces — per-operation functions over one generic fetcher, so each mock returns one shape with no conditional logic in test setup | `mocking.md:37-59` | C |
+| C12 | Spec axis as a first-class review lens — missing/partial requirements, unrequested behavior, implemented-but-wrong, each finding quoting its spec line | `code-review:6-11,66-72` | D |
+| C13 | Never-merge-never-rerank two-axis doctrine — present axes separately, no single winner across axes | `code-review:74-87` | D |
+| C14 | Spec-source discovery ladder — issue refs in commits → user-passed path → spec file matching the branch → ask → skip with a note | `code-review:27-32` | D |
+| C15 | Fail-fast preflight before spawning reviewers — a bad ref or empty diff fails there, not inside two parallel sub-agents | `code-review:23` | D |
+| C16 | Baseline-suppression rules — a documented repo standard overrides the conflicting baseline smell; skip anything tooling already enforces | `code-review:38-41` | D |
+| C17 | PR-variant agent brief — "current behavior" describes the state of the diff, and the brief says what is left to do to existing code | `AGENT-BRIEF.md:148-183` | B |
+| C18 | "Refer by name" narration — human-facing text names tickets by title, never bare ids | `wayfinder:15-17` | W |
+| C19 | Out-of-scope map section semantics — scope not sharpness lands it there; out-of-scope fog never graduates; a wrongly scoped existing ticket is closed with one linking line | `wayfinder:95-101` | W |
+| C20 | Map-as-index doctrine — a decision lives in exactly one place, its ticket; the map gists and links, never restates | `wayfinder:23` | W |
+| C21 | One-skill-per-call phrasing — a step needing two skills is two calls, not one call naming two | `.agents/invocation.md` (post-#878) | X |
+| C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; say "tell the user to run /X" | skills-repo PR #880 | X |
+| C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `.agents/` trigger text | X |
+
+No "archive-your-specs" wording exists upstream in the skills repo — the nearest is
+`.scratch/<feature-slug>/spec.md` persistence in `issue-tracker-local.md:8`. That doctrine lives
+in the course only, and is adjudicated in Lane A.
 
 ## Lane A (#2934)
 
@@ -90,6 +129,73 @@ consumer-configurable throughout.
 - **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch.
 - **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
 - **C17 ADOPTED**: PR-variant brief in `plugins/work-items/reference/agent-brief.md` (current-behavior-of-the-diff, finish-what-exists). Does not replace the bug/feature template.
+
+## Lane C (#2936)
+
+Design locked 2026-08-19 after adversarial validation (two fresh-context validators, rationale
+withheld). **All five** initial answers were challenged: two proposed ADOPT verdicts turned out
+to be already shipped, one proposed enforcement site structurally cannot host the rule it was
+given, and one disposal venue does not exist.
+
+- **C2 + C9 PARTIAL, relocated** — the pre-agreed-boundary discipline lands in
+  `plugins/planning/skills/plan/SKILL.md`'s existing **Test strategy** element (the one that
+  already invokes `/tdd:principles`) and its template placeholder, in that section's own
+  vocabulary: the plan names the public interfaces the tests will drive, each marked existing or
+  newly-introduced, and Step 5's approval is what settles them. Two corrections over the course's
+  version. (1) **Not phrased as "seams."** `seam` is fleet-registered vocabulary —
+  `docs/conventions/seam-phrasing/` owns it for presence-gated cross-plugin references, and
+  `architecture:improve` enforces its own sense as controlled vocabulary that explicitly forbids
+  substitution; a third sense landing in `planning` would overload a registered term. (2) **Not
+  hosted by `implementation:phase-verifier`**, the site originally proposed: that agent grades
+  binary acceptance criteria against a final diff and is told to *"Refuse to guess"* its inputs,
+  while "boundaries stated *before* the first test" is a temporal-ordering claim no final-diff
+  grader can observe — wiring it there manufactures INCONCLUSIVE-and-escalate loops. Upstream's
+  hard consent gate ("no test is written at an unconfirmed seam") is therefore **softened
+  deliberately**: an unattended run cannot obtain confirmation, so a boundary implementation picks
+  that the plan never named becomes a `DEVIATIONS.md` entry reviewed at PR time — this repo's
+  existing unattended-assumption mechanism — rather than a blocking stop. The "ideal number of
+  seams is one" absolutism stays REJECTED (Lane A's folklore-figure posture).
+- **C10 ALREADY-PRESENT (prose)** — the tautological-test anti-pattern is carried at
+  `plugins/tdd/skills/principles/reference/anti-patterns-khorikov.md:96,270` and, in checklist
+  form, at `plugins/testing/skills/write/context/write.md:78` ("expected values are independently
+  sourced … never recomputed the same way the code under test computes them"). No change.
+  **Correction to an overstatement made while drafting this lane: the coverage is prose-only, not
+  executable.** `testing/audit`'s `cant-fail-scan.sh` concedes in its own header that
+  `rule-recomputed-expectation` "detects the decidable core — textually identical sides — not
+  every recomputation shape," and a validator ran it over three canonical tautological tests for
+  zero findings; the canonical Khorikov shape (compute `expected` with the production algorithm,
+  then assert) does not fire. The review code-lens criterion is filed as its own item.
+- **C11 ALREADY-PRESENT + one-clause edit** — `test-doubles.md` has carried
+  `## SDK-Style Interfaces Over Generic Fetchers` (the GOOD/BAD pair and "each mock returns one
+  specific shape, no conditional logic in test setup") since `85aa8066`, predating the audit that
+  proposed it; adding it would have produced a duplicate section. Landed instead: the missing
+  **subordination** clause — the shape rule never widens what gets mocked, and "mock only
+  unmanaged dependencies" still decides whether a boundary is mocked at all.
+- **Zero-assembly chain doc REJECTED with reasons** (not deferred). The proposal was to write the
+  default chain canonically into `plugins/implementation/README.md` and convert `implement`'s
+  scattered mentions into citations of it. Withdrawn on five defects, the decisive one being that
+  the chain as drafted was **factually wrong**: the fresh-context phase verifier fires at *every
+  phase boundary* (a loop) while confirm → quality-gate → pull-request fires *once at completion*,
+  and that verifier is dispatched by `implementation:implement-dispatch`, not `implement` —
+  writing it down canonically would have laundered the error into an SSOT. Also: READMEs are
+  human-facing and graded on a different bar by docs hygiene; `PLUGIN-PHILOSOPHY.md:474-476`
+  routes a cross-plugin concern to a `docs/conventions/` owner doc rather than a plugin README;
+  converting the inline mentions to citations would **strip the presence gates from the invocation
+  sites** (a seam-phrasing violation — the gate belongs where the invocation is instructed); and
+  only 2 of 7 mentions actually overlap. The acceptance criterion is served as it stands by
+  `implement/SKILL.md:186` + `:199` with gates intact. The genuine find is filed separately:
+  `session-flow`'s `pre-pr.md` already owns an ordered pre-PR sequence, in a **different** order,
+  declared unreorderable — a live SSOT conflict.
+- **Issue premise recorded UNVERIFIED, not STALE.** The issue's "`/tdd:principles` exists but
+  rarely gets invoked during implementation (known behavioral gap)" was initially judged STALE on
+  the grounds that the invocation is already wired at 7 sites. That inverts the claim: wiring is a
+  property of text, invocation is runtime behavior, and seven wired sites *plus* rare invocation
+  are jointly evidence that wiring is not the lever. Wiring confirmed at 7 sites; the behavioral
+  claim stays unmeasured. Measurement routes to the instrument that exists — `claude-ops`'s
+  `SkillUse` telemetry hook — and **not** to an evals item: `plugins/evals/README.md:24-26` states
+  "No command in this plugin executes model-graded evals," so an evals filing would produce JSON
+  no runner executes. Stated limit: that hook records no caller attribution, so an implement→tdd
+  co-occurrence reading is a proxy, not proof.
 
 ## Lane D (#2937)
 

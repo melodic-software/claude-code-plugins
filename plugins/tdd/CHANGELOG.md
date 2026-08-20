@@ -3,6 +3,17 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- **SDK-style boundary interfaces are stated as subordinate to "mock only unmanaged dependencies"**
+  (`test-doubles.md`, #2936). The section sat immediately below the five Khorikov mocking best
+  practices but never declared a precedence relation to the first of them, leaving it readable as
+  license to introduce an interface per external operation wherever one is convenient. It shapes a
+  boundary already decided to be mocked; it never widens what gets mocked, and no interface is
+  introduced for an in-process dependency to satisfy the shape.
+
 ## [0.4.0]
 
 ### Added

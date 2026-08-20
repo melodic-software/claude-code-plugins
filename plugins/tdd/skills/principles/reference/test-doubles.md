@@ -125,6 +125,8 @@ When a single double serves both roles (provides canned answers AND is verified)
 
 > Editorial synthesis, not from either source book.
 
+**Subordinate to best practice 1 above.** This shapes a boundary you have already decided to mock; it never widens what gets mocked. "Mock only unmanaged dependencies" still decides *whether* a boundary is mocked at all, and no interface is introduced for an in-process dependency to satisfy this shape.
+
 At system boundaries, prefer specific functions per external operation over one generic function with conditional logic:
 
 ```typescript
