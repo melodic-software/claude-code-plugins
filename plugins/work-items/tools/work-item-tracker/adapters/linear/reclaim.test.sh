@@ -138,6 +138,30 @@ assert_eq "a lease renewed under us → exit 0" "0" "$rc"
 assert_eq "and is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 assert_contains "reason names the change" "$(jq -r '.reason' <<<"$(lin_out)")" "changed"
 
+# A concurrent claimer does NOT renew this lease — it posts its own, under a different
+# handle, and wins its own arbitration without ever touching this expired one. So the
+# handle-keyed re-read above still finds our lease present, un-superseded and expired,
+# and every check on it passes. Only looking for a live lease we do not hold catches it.
+# Left uncaught, reclaim supersedes and then unassigns the rival mid-work.
+RIVAL_HANDLE=1787227200999
+lin_reset
+lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
+lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-note","createdAt":"2026-08-20T13:00:00.000Z"}}}'
+lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
+MINE_EXPIRED="$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
+RIVAL_LIVE="$(jq -cn --arg b "$(lin_lease_body "$RIVAL_HANDLE" rival "$NOW" 24)" \
+  '[{id: "uuid-comment-rival", body: $b, createdAt: "2026-08-20T12:30:00.000Z"}]')"
+BOTH="$(jq -cn --argjson a "$MINE_EXPIRED" --argjson b "$RIVAL_LIVE" '$a + $b')"
+lin_comments "$MINE_EXPIRED" '[]' "$BOTH"
+# The re-fetched issue shows the rival holding the assignment, not the original holder.
+lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
+  '{issues: {nodes: [($i | .assignee = {displayName: "rival", email: "r@example.invalid"})]}}')"
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "a rival lease taken during the window → exit 0" "0" "$rc"
+assert_eq "and the item is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
+UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate"))] | length' 2>/dev/null || echo 0)"
+assert_eq "and the rival's assignment is untouched" "0" "$UNASSIGNED"
+
 # --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"
