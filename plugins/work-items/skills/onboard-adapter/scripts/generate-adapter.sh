@@ -137,6 +137,15 @@ CONFIG_KEY="$PROVIDER_FUNC"
 
 DISPLAY_NAME="$(sget '.display_name')"
 [[ -n "$DISPLAY_NAME" ]] || die_spec "display_name is required"
+# Constrained here, with its neighbours, for the reason render() states: values are
+# substituted LITERALLY and nothing downstream escapes them. display_name is the one
+# free-prose key that reaches all three dangerous context classes in the templates —
+# a single-quoted printf format (`common.sh.tmpl`), a DOUBLE-quoted `${VAR:?…}` where
+# `$(…)` still expands with no quote to break (`conformance-binding.sh.tmpl`), and
+# several `#` comment lines a newline would end. One anchored charset closes all three;
+# a per-context escape would have to be right in every template forever.
+[[ "$DISPLAY_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._/+-]*$ ]] ||
+  die_spec "display_name must be letters, digits, spaces, and . _ / + - only, starting alphanumeric (found: $DISPLAY_NAME) — it is substituted literally into generated shell, including a double-quoted expansion where \$(…) would execute"
 
 BASE_PATH="$(jq -r '.api.base_path // ""' <<<"$SPEC_JSON")"
 [[ "$BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)*$ ]] ||
