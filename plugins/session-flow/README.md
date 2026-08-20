@@ -57,6 +57,14 @@ skill always STOPS after emitting the save-point — continuing would defeat the
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
 
+The response opens with a **"You are here" position panel** for the operator — a vertical rail with
+one line per unit of whatever the work is divided into (workflow stages, plan phases, a sub-issue
+chain, tasks, or completion criteria), the current position marked, a completeness read, and three
+one-line blocks: what was done this session, where we are, what is next. It restates what the
+save-point already established rather than sweeping durable state — that is `orient` — and it never
+delays or displaces the rails prompt. Work with no delineated units gets the prose blocks and no
+rail; units are never invented to fill one.
+
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
 /session-flow:handoff prompt          # force prompt-only

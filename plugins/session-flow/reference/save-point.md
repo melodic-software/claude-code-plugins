@@ -62,9 +62,9 @@ a wrongly-written one costs nothing. An explicit method argument overrides auto-
 ## Redaction pass — mandatory on BOTH paths
 
 Before writing the handoff file or emitting the resume prompt, sweep everything outbound — body
-sections, TaskList snapshot, frontmatter, and the prompt between the rails — for secrets, API keys,
-tokens, credentials, connection strings, and PII, and redact each hit with a shape marker
-(`<REDACTED: API key>`), never the value. Save-point output outlives the session: it sits on disk
+sections, TaskList snapshot, frontmatter, the position panel, and the prompt between the rails — for
+secrets, API keys, tokens, credentials, connection strings, and PII, and redact each hit with a
+shape marker (`<REDACTED: API key>`), never the value. Save-point output outlives the session: it sits on disk
 uncommitted-but-readable, travels to other sessions and machines, and gets read in contexts the
 current conversation never anticipated. A value acceptable to see in-session is not acceptable to
 persist. This pass gates the write — no artifact or prompt is emitted before it runs.
@@ -184,6 +184,95 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 When the target file already exists on disk (extending an earlier turn's write), re-read it from
 disk immediately before writing and append to it — never rewrite the whole file from the in-context
 copy, which goes stale the moment disk moved on without this conversation seeing it.
+
+## Emit the position panel
+
+A save-point is written for the NEXT session, but a human reads the turn that produces it — and at
+that moment they are deciding two things the save-point never tells them: whether this is a sane
+place to stop, and whether the work is still pointed where they wanted it. Everything needed to
+answer both was already established by "Locate the position first" and the sections above; without
+this step it is all filed into the handoff document, whose stated reader is a session with no prior
+context, and on prompt-only it is written down nowhere at all. The panel renders that state for the
+operator.
+
+**It restates; it never discovers.** Every line comes from what this turn already established. A
+fact not good enough for the file is not good enough here, and the panel never triggers a read the
+save-point did not already need. That is what separates it from `/session-flow:orient`, which sweeps
+durable and off-thread state on demand; this is the free exit-side view.
+
+**Shape — a vertical rail, one unit per line:**
+
+```text
+**You are here**
+
+  [x] Phase 1 — discovery
+  [x] Phase 2 — engine
+▸ [~] Phase 3 — wiring          you are here
+  [ ] Phase 4 — evals
+  [ ] Phase 5 — docs
+
+3 of 5 phases complete · completion criteria 4/7 met (2 UNVERIFIED)
+
+Done this session — retry wrapper landed and green (a1b2c3d); OrderWriter stub does not compile yet.
+Where we are — mid Phase 3, blocked on that stub.
+Up next — finish the cancellation pass-through, then Phase 3 edge-case tests (§11 owns the rest).
+```
+
+**Every line stands alone — nothing wraps.** One unit per line, and each of the three blocks is a
+single line. When a line runs long, tighten the wording; never continue it onto an indented second
+line. That is the whole reason the rail is vertical rather than a `→`-chained row: a horizontal rail
+wraps at whatever width the terminal happens to be, and the wrap orphans the position marker from
+the unit it marks — destroying the one thing the panel exists to show.
+
+Status glyphs are the ones [`structure.md`](structure.md) already uses for the TaskList snapshot
+(`[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked), so a reader who has seen a
+handoff file needs no legend. The `▸` gutter marker and the trailing `you are here` label are the
+only additions.
+
+**Above 8 units the middle elides; the panel never scrolls.** Keep the first two units, the current
+unit with one neighbour either side, and the last one, replacing each dropped run with a `… N more`
+line. A map keeps its ends and its "you are here" and drops the middle — that is what makes it
+readable at a glance, and a rail long enough to scroll is one the operator will not read.
+
+The whole panel is capped at 16 lines, blocks included.
+
+### Resolving the units
+
+Units are whatever THIS work is actually divided into, which is why the panel reads differently on
+different tasks. Take the FIRST that applies, and name the unit kind in the rail so the operator
+knows what they are looking at:
+
+1. Workflow-checklist stages — the stage ledger at `<memory_dir>/<slug>/` the sibling `workflow`
+   skill maintains.
+2. Phases named by a backing plan, spec, or PRD — the artifact "Locate the position first" already
+   read this turn.
+3. An issue chain — the parent work-item and its sub-issues.
+4. Live `TaskList` items — already fetched for [`structure.md`](structure.md)'s
+   `Environment to re-establish`, so this costs nothing extra.
+5. Completion criteria, as the units of last resort.
+6. **None of the above — emit no rail.** Give the three blocks as prose and say plainly that the
+   work has no delineated units. **Never invent phases to have something to draw.** A fabricated
+   rail reads as a plan that exists, and the operator will resume against it.
+
+### Rules the panel inherits
+
+- **Claim provenance** ("Claim provenance — mandatory on BOTH paths") governs it. An inherited
+  status carries its `UNVERIFIED (<source>)` marker, and the completeness line says how many of its
+  marks are unverified — a bare count reads as measured when it is partly remembered.
+- **Redaction** ("Redaction pass — mandatory on BOTH paths") sweeps it with everything else
+  outbound. The panel is screen output, and screen output is copied, pasted, and screenshotted.
+- **Divergence is surfaced, not resolved.** Where the rail and the durable record disagree, say so
+  in one line and point at `/session-flow:reanchor`; do not pick a side inside the panel.
+
+### The panel NEVER gates the rails prompt
+
+If the units will not resolve, a count cannot be grounded, or anything else about the panel is
+uncertain, emit an abbreviated panel — or none, saying so in a line — and continue immediately to
+the rest of the response. The panel is a courtesy; the rails prompt is the deliverable, and the one
+observed failure mode of this whole engine is a turn that ends before that prompt reaches the screen
+(the citing skill's gotchas). Nothing added here may become a new reason to reach that ending.
+
+Where the panel sits in the response belongs to the citing skill, which owns its own output order.
 
 ## Emit the copy/paste resume prompt
 
@@ -403,6 +492,12 @@ and (3) the `Prior session: <UUID>` line, which — together with the `type: han
 ([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
 required key.
+
+**The position panel sits outside this contract.** It is emitted above every keyed signal and
+outside the copy region, carries no rails, no directive, and no `Prior session:` line, and a
+consumer that ignores it entirely recovers exactly what it recovered before. Adding it is therefore
+not a contract change and needs no `find-handoff` edit — stated explicitly because everything else
+in this section treats a shape change as a knowing break.
 
 **Signal 1 carries a rooted path now, and a consumer must still accept the rootless form.** Every
 handoff emitted before this rule shipped states a repo-relative path, and those files and
