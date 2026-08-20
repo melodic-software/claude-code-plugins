@@ -3,6 +3,41 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Added
+
+- **The interview can stop grilling and go build one (#2998).** Some questions are ungrillable: the
+  user has to see a thing and react to it before they know what they think, and another round of
+  framing will not produce the answer. `interview` now carries that escape. "Mid-interview
+  composition" routes a look-and-feel question to `/prototype:explore-directions` and a
+  logic/state/data-shape question to `/prototype:pressure-test` (invoked via the Skill tool when
+  installed), then returns and answers it in one line; the categorization taxonomy in
+  `context/loop.md` gains a **Needs-an-artifact** arm beside resolvable / blocked / defer, marked
+  explicitly as a route rather than a deferral. The prototype is the instrument that produces the
+  answer, not a deliverable. The detour honors the prototype skills' own model-initiated entry gate:
+  confirm the spike's scope and checkpoint the interview before handing off, which the ask-time
+  register write and the per-lock-in ledger/Brief persistence already supply. Adopted from the grilling-family upstream at the course lane 5 audit,
+  where both validators grep-confirmed the route existed in our fleet only downstream, in
+  `wayfind` / `plan` / `brainstorm`.
+
+### Changed
+
+- **Leave plan mode off while interviewing (#2998).** New `interview` gotcha covering a mechanical
+  edge beyond upstream's taste point: the ask-time open-question register is a disk write (the
+  ledger's `## Open-question register` section), and plan mode's read-only enforcement blocks it,
+  so a round asked under plan mode leaves nothing on disk holding it — the exact failure the
+  register exists to prevent, reintroduced by the permission mode.
+- **`plan`'s plan-mode round is a scoping confirm, not a substitute for the interview (#2998).**
+  "Plan Mode Integration" previously licensed open-ended clarifying questions inside plan mode,
+  which sat in tension with lane 4's asset-rush doctrine. That round is now scoped to what the plan
+  covers, and substantive *what are we building* questions route to `/planning:interview` outside
+  plan mode — on the register-write mechanics above and on the doctrine that plan mode primes the
+  run toward producing the asset while the job is still reaching shared understanding. Exiting is
+  the user's move, stated symmetrically to how the section already handles entering: the skill
+  toggles no permission mode, so it asks the user to exit (`shift+tab`) and invokes the interview
+  once they have.
+
 ## [0.32.0]
 
 ### Added
