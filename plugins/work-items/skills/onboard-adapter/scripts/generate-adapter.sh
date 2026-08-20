@@ -354,6 +354,12 @@ SAMPLE_ID="$(jq -r --arg d "$default_sample_id" '.api.sample_id // $d' <<<"$SPEC
   die_spec "api.sample_id '$SAMPLE_ID' is not a well-formed id (<provider>:<owner>/<repo>#<n>) — set api.sample_id explicitly when neither host nor scope yields one"
 [[ "${BASH_REMATCH[1]}" == "$PROVIDER" ]] ||
   die_spec "api.sample_id '$SAMPLE_ID' names provider '${BASH_REMATCH[1]}', not '$PROVIDER'"
+# The generated test asserts the parsed number, so it has to come from the sample id
+# rather than a constant. It was hardcoded `12`, which both shipped specs happen to use
+# — so any consumer whose sample_id ends in anything else got a FAILING test the moment
+# their adapter was generated, against a template that promises the opposite ("every
+# case here is real and passes the moment the adapter is generated").
+SAMPLE_ID_NUMBER="${SAMPLE_ID##*#}"
 
 # These are substitution VALUES, so they interpolate $DISPLAY_NAME directly rather than
 # carrying an @@…@@ placeholder: render() walks its key list once, and a placeholder
@@ -377,6 +383,11 @@ AUTH_EXPORT_EXTRA=""
 SAMPLE_AUTH_EXTRA=""
 SAMPLE_AUTH_EXTRA_DOC=""
 AUTH_DOC_ROW=""
+# Extra conformance-binding wiring for schemes that need a config value beyond host,
+# scope, and the credential env var. Empty for every scheme that does not.
+AUTH_CONFORMANCE_REQUIRE=""
+AUTH_CONFORMANCE_JQARG=""
+CONFORMANCE_AUTH_EXTRA=""
 
 case "$AUTH_SCHEME" in
 raw)
@@ -421,7 +432,22 @@ basic)
   AUTH_CONFIG_READ="  WIT_${PROVIDER_UPPER}_AUTH_USER=\"\$(jq -r '.config.$CONFIG_KEY.auth_user // empty' <<<\"\$ejson\")\""
   AUTH_CONFIG_REQUIRE="  [[ -n \"\$WIT_${PROVIDER_UPPER}_AUTH_USER\" ]] || missing+=\" config.$CONFIG_KEY.auth_user\""
   AUTH_EXPORT_EXTRA=" WIT_${PROVIDER_UPPER}_AUTH_USER"
+  # The conformance binding takes the account identity from the environment, the same
+  # way it takes host and scope. Baked as a literal placeholder it would authenticate
+  # as `ci@example.invalid` against a real throwaway instance and 401 with nothing in
+  # the generated file saying why — the one required value with no way to supply it.
+  # Two different consumers, two different values. The offline test fixture wants a
+  # literal (its binding is a temp file that never reaches a real instance), while the
+  # conformance binding must take the identity from the environment — so they cannot
+  # share one key, and collapsing them emitted `$au` into the test's single-quoted JSON.
   SAMPLE_AUTH_EXTRA=',"auth_user":"ci@example.invalid"'
+  CONFORMANCE_AUTH_EXTRA=',"auth_user":$au'
+  # No apostrophe in this message: bash parses quotes inside ${VAR:?word}, so a lone
+  # one opens a quoted region and the generated file stops parsing.
+  AUTH_CONFORMANCE_REQUIRE="  local auth_user
+  auth_user=\"\${WIT_CONFORMANCE_${PROVIDER_UPPER}_AUTH_USER:?set WIT_CONFORMANCE_${PROVIDER_UPPER}_AUTH_USER to the throwaway account identity for HTTP Basic; the token half stays in the credential env var}\"
+"
+  AUTH_CONFORMANCE_JQARG=' --arg au "$auth_user"'
   SAMPLE_AUTH_EXTRA_DOC=",
       \"auth_user\": \"you@example.com\""
   AUTH_DOC_ROW="
@@ -731,7 +757,9 @@ render() {
     SHEBANG
     PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY SCHEMA_VERSION
     HOST_SUFFIX_DOC HOST_PIN_POSTURE HOST_SUFFIX BASE_PATH SCOPE_PATTERN
-    SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV SAMPLE_ID
+    SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV
+    SAMPLE_ID_NUMBER SAMPLE_ID
+    AUTH_CONFORMANCE_REQUIRE AUTH_CONFORMANCE_JQARG CONFORMANCE_AUTH_EXTRA
     AUTH_DESCRIPTION AUTH_CONFIG_READ AUTH_CONFIG_REQUIRE AUTH_EXPORT_EXTRA
     AUTH_HEADER_EXPECT AUTH_HELPERS AUTH_DOC_ROW PROVIDER
   )

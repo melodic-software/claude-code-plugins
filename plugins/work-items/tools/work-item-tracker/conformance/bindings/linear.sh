@@ -11,7 +11,7 @@
 # The target is REQUIRED and has no default: conformance creates, claims, and closes
 # items, so it must never be pointed at a coordination instance. Set:
 #   WIT_CONFORMANCE_LINEAR_HOST   throwaway Linear host
-#   WIT_CONFORMANCE_LINEAR_SCOPE  throwaway scope (e.g. owner/repo)
+#   WIT_CONFORMANCE_LINEAR_SCOPE  throwaway scope, <workspace>/<TEAMKEY> (e.g. acme/ENG)
 #   WIT_LINEAR_API_KEY                            credential for that instance
 # Until those name a disposable target, this binding refuses to run.
 

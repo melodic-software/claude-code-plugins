@@ -107,7 +107,15 @@ if [[ -n "$LABELS" ]]; then
   wit_gitea_require_ok "listing labels in $REPO"
   ALL_LABELS="$WIT_GITEA_BODY"
   PAGE=2
+  LABELS_TRUNCATED=0
   while (($(jq 'length' <<<"$WIT_GITEA_BODY") == WIT_GITEA_PAGE_SIZE)); do
+    # Bounded like every other paginated loop in this adapter: a server that keeps
+    # answering a full page would otherwise spin forever with ALL_LABELS growing
+    # without limit.
+    if ((PAGE * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)); then
+      LABELS_TRUNCATED=1
+      break
+    fi
     wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
     wit_gitea_require_ok "listing labels in $REPO (page $PAGE)"
     ALL_LABELS="$(jq -c --argjson acc "$ALL_LABELS" '$acc + .' <<<"$WIT_GITEA_BODY")"
@@ -116,8 +124,17 @@ if [[ -n "$LABELS" ]]; then
   MISSING="$(jq -rc --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]' <<<'null')"
   if [[ "$MISSING" != "[]" ]]; then
-    printf 'create-item.sh: label(s) not found in %s: %s — create them first, or drop them from --labels\n' \
-      "$REPO" "$MISSING" >&2
+    # The ceiling changes what "not found" is allowed to mean. Unlike list-items, where
+    # truncation just returns fewer items, stopping early here makes an unseen label
+    # indistinguishable from a nonexistent one — and telling someone to create a label
+    # that already exists sends them to do the wrong thing. Say which case this is.
+    if ((LABELS_TRUNCATED)); then
+      printf 'create-item.sh: label(s) not found in the first %s labels of %s: %s — the label list was truncated at the declared ceiling, so these may exist beyond it; narrow --labels or raise the ceiling rather than re-creating them\n' \
+        "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" "$MISSING" >&2
+    else
+      printf 'create-item.sh: label(s) not found in %s: %s — create them first, or drop them from --labels\n' \
+        "$REPO" "$MISSING" >&2
+    fi
     exit "$EX_NOT_FOUND"
   fi
   LABEL_IDS="$(jq -c --arg names "$LABELS" --argjson all "$ALL_LABELS" \

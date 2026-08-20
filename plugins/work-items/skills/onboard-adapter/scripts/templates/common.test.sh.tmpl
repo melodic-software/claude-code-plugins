@@ -61,7 +61,7 @@ else
 fi
 if wit_require_@@PROVIDER_FUNC@@_id "@@SAMPLE_ID@@"; then
   pass "accepts a @@PROVIDER@@ id and sets the WIT_ID_* globals"
-  assert_eq "id number" "12" "$WIT_ID_NUMBER"
+  assert_eq "id number" "@@SAMPLE_ID_NUMBER@@" "$WIT_ID_NUMBER"
 else
   fail "accepts a @@PROVIDER@@ id" "accept" "rejected"
 fi

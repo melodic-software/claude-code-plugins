@@ -11,7 +11,8 @@
 # The target is REQUIRED and has no default: conformance creates, claims, and closes
 # items, so it must never be pointed at a coordination instance. Set:
 #   WIT_CONFORMANCE_@@PROVIDER_UPPER@@_HOST   throwaway @@DISPLAY_NAME@@ host
-#   WIT_CONFORMANCE_@@PROVIDER_UPPER@@_SCOPE  throwaway scope (e.g. owner/repo)
+#   WIT_CONFORMANCE_@@PROVIDER_UPPER@@_SCOPE  throwaway scope, in this provider's own
+#                                             shape (e.g. @@SAMPLE_SCOPE@@)
 #   @@SAMPLE_ENV@@                            credential for that instance
 # Until those name a disposable target, this binding refuses to run.
 
@@ -32,12 +33,12 @@ cb_setup() {
   local host scope
   host="${WIT_CONFORMANCE_@@PROVIDER_UPPER@@_HOST:?set WIT_CONFORMANCE_@@PROVIDER_UPPER@@_HOST to a throwaway @@DISPLAY_NAME@@ host; NEVER a coordination instance}"
   scope="${WIT_CONFORMANCE_@@PROVIDER_UPPER@@_SCOPE:?set WIT_CONFORMANCE_@@PROVIDER_UPPER@@_SCOPE to a throwaway scope; NEVER a coordination scope}"
-  CB_REPO="$scope"
+@@AUTH_CONFORMANCE_REQUIRE@@  CB_REPO="$scope"
   CB_BINDING_TMP="$(mktemp)"
-  jq -cn --arg h "$host" --arg s "$scope" \
+  jq -cn --arg h "$host" --arg s "$scope"@@AUTH_CONFORMANCE_JQARG@@ \
     '{schema_version:"1.0", provider:"@@PROVIDER@@",
       config:{lease_ttl_hours:24,
-        "@@CONFIG_KEY@@":{host:$h, scopes:[$s], auth_env:"@@SAMPLE_ENV@@"@@SAMPLE_AUTH_EXTRA@@}}}' \
+        "@@CONFIG_KEY@@":{host:$h, scopes:[$s], auth_env:"@@SAMPLE_ENV@@"@@CONFORMANCE_AUTH_EXTRA@@}}}' \
     >"$CB_BINDING_TMP"
   export WORK_ITEM_TRACKER_BINDING="$CB_BINDING_TMP"
   _cb_clean_at_start

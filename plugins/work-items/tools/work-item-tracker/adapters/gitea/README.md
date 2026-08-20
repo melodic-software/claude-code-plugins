@@ -62,14 +62,14 @@ adapter's guards:
 
 | Verb | Declared | Status |
 |---|---|---|
-| `create-item` | `true` | scaffold — provider mapping to write |
-| `get-item` | `true` | scaffold — provider mapping to write |
+| `create-item` | `true` | implemented, tested |
+| `get-item` | `true` | implemented, tested |
 | `claim` | `false` | exit `6` at the capability gate |
 | `renew-lease` | `false` | exit `6` at the capability gate |
 | `reclaim` | `false` | exit `6` at the capability gate |
-| `link-blocks` | `true` | scaffold — provider mapping to write |
+| `link-blocks` | `true` | implemented, tested |
 | `add-sub-item` | `false` | exit `6` at the capability gate |
-| `list-items` | `true` | scaffold — provider mapping to write |
+| `list-items` | `true` | implemented, tested |
 | `list-sub-items` | `false` | exit `6` at the capability gate |
 | `capabilities` | `true` | generated, complete |
 
