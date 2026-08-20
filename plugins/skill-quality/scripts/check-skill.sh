@@ -1030,11 +1030,21 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # Start of file counts as a paragraph break, so an indented block opening on
     # line one is recognized as one.
     BEGIN { fe_blank = 1; cm_in_comment = 0 }
+    # NO ERE INTERVALS IN THIS PROGRAM. The three-space indent cap is written as
+    # three optional spaces (" ? ? ?") and the ordered-marker digit cap as one
+    # digit plus eight optional ones, never as {0,3} / {1,9}. Two mawk failures
+    # motivate the rule, and both are silent: mawk 1.3.4 PANICS ("REcompile() -
+    # panic: values still on machine stack") when an interval is immediately
+    # followed by a group, killing the program before it emits a record, so every
+    # malformed directive PASSes; mawk 1.3.3 does not implement intervals at all
+    # and matches them as literal characters, so the same scan quietly never
+    # fires. Both leave check 21 reporting a clean run over a file it never read.
+    # Same portability intent as the [[:space:]] note above, one layer deeper.
     # Blockquote nesting depth of a raw line: the number of leading `>` markers,
     # each optionally followed by one space, under the three-space indent cap.
     function fe_depth_of(s,   d) {
       d = 0
-      while (match(s, /^ {0,3}> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
+      while (match(s, /^ ? ? ?> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
       return d
     }
     { sub(/\r$/, "") }
@@ -1087,8 +1097,8 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       if (!fe_fence || fe_open_pre) {
         do {
           fe_pre = $0
-          sub(/^ {0,3}> ?/, "", $0)
-          sub(/^ {0,3}([-*+]|[0-9]{1,9}[.)])[ \t]+/, "", $0)
+          sub(/^ ? ? ?> ?/, "", $0)
+          sub(/^ ? ? ?([-*+]|[0-9][0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[.)])[ \t]+/, "", $0)
         } while ($0 != fe_pre)
       }
       fe_stripped = ($0 != fe_raw)
@@ -1099,7 +1109,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # it does when it cannot tell are stated once in the Parsing contract section
     # of skills/check/reference/fresh-eyes-declarations.md — that doc is the claim
     # this code implements; do not restate it here.
-    /^ {0,3}(```+|~~~+)/ {
+    /^ ? ? ?(```+|~~~+)/ {
       fe_run = $0
       sub(/^ */, "", fe_run)
       fe_char = substr(fe_run, 1, 1)

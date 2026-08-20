@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.29.0]
+## [0.30.0]
 
 ### Changed
 
@@ -26,6 +26,58 @@
   identity**: a sibling prescribing a different order at a handoff is a defect against that
   convention, not a permitted local variation. Consumer gates, commands, and review criteria are
   honored exactly as before.
+
+## [0.29.0]
+
+### Added
+
+- **Save-point engine — a "You are here" position panel for the operator.** Both save-point skills
+  produced exactly two things a human could see: a ticked enforcement checklist, which is the
+  skill's own audit trail, and the rails resume prompt, which is a block to copy. Everything that
+  answers "what did we do, where are we, what is next" was computed and then filed into the handoff
+  document — whose stated reader is a session with no prior context (`reference/structure.md`) — so
+  the operator never read it. On the prompt-only path there is no file at all, and the recap existed
+  nowhere. At the moment the human is deciding whether this is a sane place to stop and whether the
+  work is still pointed where they wanted it, the skill showed them a compliance checklist.
+
+  **The panel renders state that was already established.** A new engine section, "Emit the position
+  panel", owns it once for both citing skills: a vertical rail with one line per unit, the current
+  position marked in the gutter, a completeness read, and three one-line blocks (done this session /
+  where we are / up next). It restates what "Locate the position first" and the sections above
+  already produced — it triggers no read the save-point did not already need, which is the line
+  between it and `orient`'s on-demand durable + off-thread sweep.
+
+  **The count is of completed units only.** An in-progress unit counts against the total, never
+  toward it — rounding the current unit up reports work as landed while the operator is looking at
+  the line saying it is not, and it is the one arithmetic a progress read is most tempted into.
+
+  **Units are resolved from the work, not assumed.** A first-match ladder takes workflow-checklist
+  stages, then plan/spec/PRD phases, then an issue chain, then live `TaskList` items (full path
+  only, where they are already fetched; prompt-only skips that rung, since "no non-trivial task
+  list to reconstitute" is one of the criteria that selects prompt-only, and makes the one call
+  when that path was forced), then
+  completion criteria — so the panel reads differently on differently-shaped work. Work with none of
+  those gets the three prose blocks and explicitly no rail: inventing phases to have something to
+  draw produces a map of a plan that does not exist, which the operator would then resume against.
+
+  **The rail is vertical because a horizontal one wraps.** One unit per line, one line per block,
+  never a continuation line. A `→`-chained row wraps at whatever width the terminal happens to be,
+  and the wrap orphans the position marker from the unit it marks — destroying the single thing the
+  panel exists to show. Above 8 units the middle elides to a `… N more` line, keeping the ends and
+  the current position; the whole panel is capped at 16 lines.
+
+  **It cannot become a reason to lose the rails prompt.** The one observed failure of this engine is
+  a turn that ends before the prompt reaches the screen, and the panel is new text standing between
+  the start of the response and that prompt. So the caps are load-bearing, an uncertain panel
+  degrades to one abbreviated line rather than growing, and the engine states outright that the
+  panel never gates the rails. `handoff` fixes its order as panel → checklist → rails, keeping the
+  rails-last rule intact; `continue-in-background` emits panel → rails → launch and passes the agent
+  exactly the text between the rails, never a line of the panel.
+
+  Not a detection-contract change: the panel sits above every keyed signal and outside the copy
+  region, so `find-handoff` recovers exactly what it recovered before and needs no edit. Four evals
+  join the two suites, grading the shape — vertical rail, elision above 8 units, prose fallback with
+  no invented units, and the agent payload staying panel-free — rather than mere presence.
 
 ## [0.28.0]
 

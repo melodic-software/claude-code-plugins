@@ -220,7 +220,7 @@ given, and one disposal venue does not exist.
   no runner executes. Stated limit: that hook records no caller attribution, so an implement→tdd
   co-occurrence reading is a proxy, not proof. **Measured, and the premise stays UNVERIFIED — now
   with an instrument rather than a hand-wave.** `plugins/claude-ops/skills/audit-skill-visibility/
-  scripts/skill-pair-cooccurrence.sh` (`claude-ops` 0.34.0) is the repeatable reading; placement
+  scripts/skill-pair-cooccurrence.sh` (`claude-ops` 0.35.0) is the repeatable reading; placement
   went to `audit-skill-visibility`, not `observability`, because `observability`'s own
   `context/read-routing.md:32` already assigns interpretation of skill-usage data to
   `audit-skill-visibility` and keeps only the store, the pipeline, and retention. Run against the

@@ -56,5 +56,7 @@ overlay; later layers refine earlier ones per key):
 
 In-file opt-outs: `<!-- ai-slop-ignore -->` on a line exempts that line;
 `<!-- ai-slop-ignore-start -->` and `<!-- ai-slop-ignore-end -->` fence a block;
-`<!-- ai-slop-ignore-file -->` (with an optional `: reason`) exempts the whole file.
+`<!-- ai-slop-ignore-file -->` exempts the whole file. Every form takes an
+optional `: reason` (`<!-- ai-slop-ignore: quotes the tell it documents -->`),
+which the fix flow's suppression outcome expects; a reason may not contain `>`.
 Exempted candidates are counted as declined, never silently dropped.

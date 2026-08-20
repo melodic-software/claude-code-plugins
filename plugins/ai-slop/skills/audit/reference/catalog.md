@@ -58,7 +58,12 @@ defaults. Outcomes:
   normal-prose occurrence (one triad in a 201-word document hit 5.0/1000 words).
 - `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
   knowledge cutoffs (documentation discussing models). Remedy is the in-file marker or config
-  exclusion, recorded here rather than weakening the rule.
+  exclusion, recorded here rather than weakening the rule. **Measured on the 1214-file dogfood
+  corpus (2026-08-19): all 8 findings fall in that class** — model-spec sentences quoting a
+  cutoff date, prose arguing that cutoffs are upstream-owned, and the crosswalk row naming this
+  rule. Zero were genuine assistant-frame residue. The class is therefore the rule's whole yield
+  on a corpus that documents models, which is the corpus type most likely to trip it; it is not
+  evidence the rule is wrong, because the tell it targets is absent here rather than missed.
 - `rule-em-dash` fired 32,323 times on the calibration corpus; that is the corpus's deliberate
   house style, handled by that repo's own config when dogfooding, and confirms the shipped
   default must stay neutral (zero-tolerance) rather than inherit any one repo's taste.
