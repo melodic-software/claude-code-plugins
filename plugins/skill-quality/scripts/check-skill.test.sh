@@ -2972,23 +2972,43 @@ else
   fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
 fi
 
-# Portability guard: no ERE interval expressions in the checker source.
+# Portability guard: no ERE interval expressions in the checker's awk regexes.
 #
 # Every other assertion here is black-box, but this failure mode is invisible to
 # a black-box run on the CI runner: gawk compiles intervals happily, so a
-# reintroduced {n,m} passes the whole suite on CI and only breaks for consumers
-# on mawk — silently, because mawk 1.3.4 panics out of the awk program before it
-# emits a record and mawk 1.3.3 matches the braces as literal text. Either way
-# the affected check reports a clean run over a file it never scanned, which is
-# the worst shape a gate can fail in. A source-level assertion is the only form
-# that fires on a gawk runner, so it is deliberately implementation-aware.
+# reintroduced interval passes the whole suite on CI and only breaks for
+# consumers on mawk — silently, because mawk 1.3.4 panics out of the awk program
+# before it emits a record and mawk 1.3.3 matches the braces as literal text.
+# Either way the affected check reports a clean run over a file it never
+# scanned, which is the worst shape a gate can fail in. A source-level assertion
+# is the only form that fires on a gawk runner, so it is deliberately
+# implementation-aware.
 #
-# Comment lines are exempt: the rule itself is documented in prose that names the
-# forbidden syntax.
-if interval_hits="$(grep -nE '^[[:space:]]*[^#[:space:]].*\{[0-9]+,[0-9]*\}' "$SUT")"; then
-  fail "checker source must contain no ERE interval expressions (mawk-portability): ${interval_hits//$'\n'/ | }"
+# All three interval forms are rejected, {n} included: mawk panics on an
+# exact-count interval before a group (a{3}(b)) exactly as it does on the
+# a{0,3}(b) that motivated this guard, so a comma-only pattern would leave the
+# same silent-failure class open.
+#
+# Scoped to what awk actually compiles, because Bash is not mawk and its own
+# [[ =~ ]] regexes may use intervals freely — the frontmatter date check below
+# does, and rejecting it would be a false positive. Two surfaces reach awk:
+# slash-delimited regex literals inside the embedded programs, and the judge
+# regex handed across with -v.
+INTERVAL_RE='\{[0-9]+(,[0-9]*)?\}'
+interval_hits="$(
+  {
+    # Regex literals in the embedded awk programs, comment lines exempt (the
+    # rule is documented in prose that necessarily names the forbidden syntax).
+    grep -nE "/[^/]*${INTERVAL_RE}[^/]*/" "$SUT" | grep -vE '^[0-9]+:[[:space:]]*#'
+    # The judge regex is a POSIX ERE that awk compiles, even though it is
+    # written as a shell string and never appears between slashes.
+    grep -nE "^[[:space:]]*FRESH_EYES_JUDGE_RE=.*${INTERVAL_RE}" "$SUT"
+  } 2>/dev/null
+)"
+if [[ -n "$interval_hits" ]]; then
+  fail "awk regexes must contain no ERE interval expressions (mawk-portability): ${interval_hits//$'\n'/ | }"
 else
-  pass "checker source is free of ERE interval expressions (mawk-portable)"
+  pass "awk regexes are free of ERE interval expressions (mawk-portable)"
 fi
 
 if [[ $fails -ne 0 ]]; then

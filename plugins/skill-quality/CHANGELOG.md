@@ -18,8 +18,12 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   digit cap as one digit plus eight optional ones — preserving the exact CommonMark bounds it
   already enforced. This is the portability shape Check 23 was written to in `#2963`; gawk behavior
   is unchanged, and `check-skill.test.sh` gains 21 passing assertions on mawk with no regressions.
-  A source-level guard assertion now fails the suite if any interval expression returns, because a
-  gawk CI runner cannot observe this class of break any other way.
+  A source-level guard assertion now fails the suite if an interval returns to any awk-consumed
+  regex — the embedded programs' regex literals and the judge regex passed with `-v` — in `{n}`,
+  `{n,}` or `{n,m}` form, since mawk panics on an exact-count interval before a group exactly as it
+  does on a bounded one. It is scoped to awk rather than the whole file because Bash's own `[[ =~ ]]`
+  regexes may use intervals freely, and it is deliberately source-level rather than behavioral
+  because a gawk CI runner cannot observe this class of break any other way.
 
 ## [0.17.0]
 
