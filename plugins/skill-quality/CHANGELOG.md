@@ -3,6 +3,21 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Changed
+
+- **`check-skill` replays a failed script test's output instead of discarding it.** Check 7 ran each
+  `scripts/*.test.sh` with stdout and stderr sent to `/dev/null` and reported only
+  `script test failed: <name>`. That is undiagnosable wherever the failure cannot be reproduced by
+  hand — a gate whose one CI-visible signal is its own name sends the reader guessing at
+  environment differences instead of reading the case that broke. Found the hard way: a generator
+  test that passed locally under a fresh clone, the PR merge result, a minimal environment, four
+  working directories, and with and without the optional lint tools, while failing only in CI. With
+  the output replayed, the cause was one line — an older ShellCheck rejecting `--rcfile` and exiting
+  3 ("invoked with bad syntax"), which the test was reading as a lint failure. Success stays silent:
+  the reason to suppress was log noise, and that reason does not apply to the run that just went red.
+
 ## [0.17.0]
 
 ### Added

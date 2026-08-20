@@ -421,11 +421,23 @@ for v in create-item get-item claim renew-lease reclaim link-blocks add-sub-item
   if [[ -f "$FULL_A/$v.sh" ]]; then pass "full surface emits $v.sh"; else fail "full surface emits $v.sh" "present" "missing"; fi
 done
 
-if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck --rcfile="$SCRIPT_DIR/../../../../../.shellcheckrc" "$FULL_A"/*.sh "$FULL_B" >/dev/null 2>&1
-  assert_eq "generated shell is ShellCheck-clean" "0" "$?"
-else
+SC_RC="$SCRIPT_DIR/../../../../../.shellcheckrc"
+# `--rcfile` landed in ShellCheck 0.10.0, and the repo's rc file declares itself
+# 0.11.0+. An older ShellCheck rejects the flag outright and exits 3 — "invoked with
+# bad syntax", NOT "issues found" (that is 1) — so asserting on the exit status alone
+# reads a version mismatch as a lint failure. That is exactly what happened here: the
+# case passed under every local condition and failed only on a CI runner whose job
+# installs no tooling and therefore gets the distro's older ShellCheck.
+#
+# Probe the flag rather than the version string: the question is whether THIS binary
+# accepts it, which is what a version number is only a proxy for.
+if ! command -v shellcheck >/dev/null 2>&1; then
   printf 'SKIP: shellcheck not available — generated-shell lint case not run\n' >&2
+elif ! shellcheck --rcfile="$SC_RC" /dev/null >/dev/null 2>&1; then
+  printf 'SKIP: shellcheck too old for --rcfile (needs 0.10.0+) — generated-shell lint case not run\n' >&2
+else
+  shellcheck --rcfile="$SC_RC" "$FULL_A"/*.sh "$FULL_B" >/dev/null 2>&1
+  assert_eq "generated shell is ShellCheck-clean" "0" "$?"
 fi
 
 if command -v shfmt >/dev/null 2>&1; then
