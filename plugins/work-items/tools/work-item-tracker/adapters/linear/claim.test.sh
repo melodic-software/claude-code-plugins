@@ -183,6 +183,28 @@ assert_eq "a failed lease write reports the failure" "1" "$rc"
 assert_eq "…and the assignment is rolled back, leaving no assigned-with-no-lease item" \
   "1" "$(lin_bodies | grep -c '"assigneeId":null')"
 
+# The rollback must not fire blind. The trap stays armed across the update-comment
+# write and the arbitration read, both of which exit on failure — so a concurrent
+# session can legitimately win the claim inside that window, posting its own lease and
+# overwriting Linear's SINGLE assignee field. Clearing unconditionally on our way out
+# would strip that live claim: the same defect reclaim.sh was fixed for, reintroduced
+# from the rollback path.
+lin_reset
+lin_data 'viewer' '{"viewer":{"id":"uuid-user-kyle","displayName":"kyle","email":"kyle@example.invalid"}}'
+lin_seed 'commentUpdate' 200 '{"errors":[{"message":"rate limited"}]}'
+lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-mine","createdAt":"2026-08-20T12:00:00.500Z"}}}'
+lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
+lin_data 'comments(' '{"issue":{"comments":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}'
+# The issue re-read the rollback performs reports a DIFFERENT assignee — the concurrent
+# winner — so the compare must decline to clear it.
+lin_data 'issues(filter:' "$(jq -cn --argjson i \
+  "$(jq -c '.assignee = {displayName: "other-session", email: "other@example.invalid"}' <<<"$(lin_issue_json 12 started)")" \
+  '{issues: {nodes: [$i]}}')"
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "a failure after the lease post still reports the failure" "1" "$rc"
+assert_eq "…and the rollback leaves a concurrent winner's assignment alone" \
+  "0" "$(lin_bodies | grep -c '"assigneeId":null')"
+
 # Losing the race must NOT roll back: that path already decides the assignee by
 # re-fetching and comparing the holder, and a second unconditional unassign after it
 # would strip the winner's live claim — the precise failure that guarded check exists

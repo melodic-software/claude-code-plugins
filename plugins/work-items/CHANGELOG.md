@@ -3,6 +3,26 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.2]
+
+### Fixed
+
+- **The 0.39.1 rollback trap cleared the assignee unconditionally, which could strip a concurrent
+  winner's live claim.** The guard added one version ago fixed the assigned-with-no-lease strand,
+  but reintroduced — from the rollback path — the exact bug `reclaim.sh` was fixed for earlier in
+  this same effort.
+
+  The trap stays armed across the update-comment write and the arbitration read, and 0.39.1's own
+  `|| exit "$?"` additions *widened* that window by making both of them exit on failure. Linear's
+  `assignee` is a SINGLE field, so a concurrent session can legitimately win the claim inside the
+  window — posting its own lease and overwriting the assignee — and a blind clear on the way out
+  then strips that live claim while the winner's lease stays untouched. The item silently returns
+  to the frontier while someone is working it.
+
+  The rollback now re-fetches the issue and clears only if the assignee is still this session,
+  the same compare the LOSER branch already applies before its own unassign. One regression case,
+  verified to fail with the compare removed.
+
 ## [0.39.1]
 
 ### Fixed

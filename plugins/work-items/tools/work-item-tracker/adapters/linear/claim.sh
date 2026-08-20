@@ -100,12 +100,25 @@ wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 # `exit` directly rather than returning, and an explicit `exit` inside a function does
 # not run the caller's ERR trap — only its EXIT trap.
 #
-# The unassign itself runs in a SUBSHELL, because that same `exit` would otherwise fire
-# from inside the trap: `|| true` does not contain an exit, only a subshell boundary
-# does. Without it a failing rollback would abort the trap and overwrite the script's
-# exit status, reporting a different failure than the one that actually happened.
+# The rollback CLEARS ONLY IF THE ASSIGNEE IS STILL US. An unconditional clear would
+# reintroduce, from the rollback path, precisely the bug reclaim.sh was fixed for: this
+# trap stays armed across the update-comment write and the arbitration read below, both
+# of which exit on failure, and Linear's `assignee` is a SINGLE field (see the header).
+# So a concurrent session can legitimately win the claim inside that window — posting
+# its own lease and overwriting the assignee — and a blind clear would then strip that
+# live claim on our way out. Same re-fetch-and-compare the LOSER branch applies before
+# its own unassign.
+#
+# The whole body runs in ONE SUBSHELL, because every helper's failure path calls `exit`
+# and `|| true` does not contain an exit — only a subshell boundary does. Without it a
+# failing rollback would abort the trap and overwrite the script's exit status,
+# reporting a different failure than the one that actually happened.
 _wit_linear_claim_rollback() {
-  (wit_linear_set_assignee "$ISSUE_UUID" "") >/dev/null 2>&1 || true
+  (
+    wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
+    [[ "$(jq -r '.assignee.displayName // .assignee.email // ""' <<<"$WIT_LINEAR_ISSUE")" == "$HOLDER" ]] || exit 0
+    wit_linear_set_assignee "$ISSUE_UUID" ""
+  ) >/dev/null 2>&1 || true
 }
 trap _wit_linear_claim_rollback EXIT
 
