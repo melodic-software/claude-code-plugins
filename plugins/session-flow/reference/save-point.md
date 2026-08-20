@@ -62,12 +62,12 @@ a wrongly-written one costs nothing. An explicit method argument overrides auto-
 ## Redaction pass — mandatory on BOTH paths
 
 Before writing the handoff file or emitting the resume prompt, sweep everything outbound — body
-sections, TaskList snapshot, frontmatter, the position panel, and the prompt between the rails — for
-secrets, API keys, tokens, credentials, connection strings, and PII, and redact each hit with a
-shape marker (`<REDACTED: API key>`), never the value. Save-point output outlives the session: it sits on disk
-uncommitted-but-readable, travels to other sessions and machines, and gets read in contexts the
-current conversation never anticipated. A value acceptable to see in-session is not acceptable to
-persist. This pass gates the write — no artifact or prompt is emitted before it runs.
+sections, TaskList snapshot, frontmatter, the position panel, and the prompt between the rails —
+for secrets, API keys, tokens, credentials, connection strings, and PII, and redact each hit with
+a shape marker (`<REDACTED: API key>`), never the value. Save-point output outlives the session: it
+sits on disk uncommitted-but-readable, travels to other sessions and machines, and gets read in
+contexts the current conversation never anticipated. A value acceptable to see in-session is not
+acceptable to persist. This pass gates the write — no artifact or prompt is emitted before it runs.
 
 **Git remote URLs are a named vector on that list, and they take a different treatment.** A remote
 embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it reads as
