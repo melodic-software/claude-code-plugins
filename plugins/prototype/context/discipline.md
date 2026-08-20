@@ -30,7 +30,8 @@ checkpointing your current work first (`/session-flow:handoff` when installed).
    delete fast.
 5. **Surface the state.** After every action (logic) or variant switch (UI), show the full
    relevant state so the user sees what changed.
-6. **Delete or absorb when done.** The answer is the only thing worth keeping.
+6. **Delete or absorb when done.** The answer is the only thing worth keeping — and the answer is
+   larger than the winner (see [When done](#when-done)).
 
 One substrate-scoped exception to rules 3 and 6: when `/prototype:explore-directions` offers
 the bundled `design` skill's canvas — an explicit, user-chosen alternative to the throwaway
@@ -45,6 +46,14 @@ Capture what the prototype taught somewhere durable — wherever your project ke
 decisions (a decision note, commit message, ADR, or issue tracker). If the user is present, a
 quick conversation captures the verdict; if not, leave a placeholder `NOTES.md` next to the
 prototype so the answer gets filled in before deletion. Then delete the throwaway code.
+
+**Record the directions that lost, not only the one that won.** Name each direction that was tried
+and the reason it lost — a losing direction is the cheapest possible answer to "why not just do it
+this way?", and it is the only part of the exercise a future reader cannot reconstruct from the
+shipped result. When the verdict is a graft rather than a single winner — "this layout, but that
+one's navigation" — say which piece came from where, and what was in the discarded parts that the
+graft deliberately left behind. The deletion in the next step is irreversible: whatever is not
+written here is gone, and the question gets re-litigated from scratch the next time it comes up.
 
 ## What a prototype does NOT do
 

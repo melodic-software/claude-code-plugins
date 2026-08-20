@@ -3,6 +3,26 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **`name-it-better tournament`: the scoring criteria are settled before the candidates return.**
+  Absorbed from an upstream skill this marketplace decided not to ship
+  (`docs/upstream/cursor-pstack.md`, the `arena` row). Upstream's version of this idea is a *secret*
+  rubric, which was rejected outright: this skill's criteria are deliberately the consuming
+  project's own declared standards, which are public by construction, so withholding them would
+  fight that design rather than improve it. What was taken is the anti-retrofit property without the
+  secrecy — the mode now fixes *when* the rubric is settled, not who may see it. Which resolved
+  criteria decide a given name, and how they rank against each other, is a judgement made in this
+  skill, and it must be made and written down while the pool is still unknown. Criteria fixed after
+  the candidates land get shaped by the candidates, and a rubric that already fits the pool cannot
+  eliminate anything — the independent judges then score against a standard the pool itself
+  authored. The existing "does not copy or invent criteria" rule is unchanged and explicitly
+  reasserted for the mid-bracket case: a criterion discovered missing still routes upstream to the
+  source of truth, and adding it means re-scoring the round it changes rather than applying it from
+  that point on.
+
 ## [0.4.1]
 
 ### Changed
