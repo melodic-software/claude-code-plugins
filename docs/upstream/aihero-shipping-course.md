@@ -44,10 +44,10 @@ PARTIAL / REJECTED / OPEN.
 | C | /implement + /tdd wiring, zero-assembly chain | C2, C9–C11 | planning:plan, tdd:principles, testing:write | PARTIAL (C2+C9 relocated to planning:plan; C10+C11 already-present; chain doc rejected-with-reasons) | #2936 |
 | D | Two-axis review, spec lens, discovery ladder, preflight | C12–C16 | review:quality-gate | PARTIAL (C12+C14 adopted-corrected; C13+C16 already-present; C15 partial) | #2937 |
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
-| F | /goal vs tickets posture | — | planning:draft-goal-condition | OPEN | #2938 |
+| F | /goal vs tickets posture | — | planning:draft-goal-condition | ADOPTED (sixth route-away row: multi-window work routes to spec + decomposed items; advisory, no folklore token figures) | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
 | X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
-| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | undecided (session-flow / work-items / new) | OPEN | #2948 |
+| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`, marketplace-wide glossary deferred) | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
