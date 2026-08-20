@@ -1,5 +1,5 @@
 ---
-description: "Write agent-consumed markdown well at the moment of writing — CLAUDE.md or AGENTS.md content, .claude/rules files, agent-loaded reference/context docs, navigation-pointer lines, and doc-plus-pointer extractions. Use when: 'add this to CLAUDE.md', 'write a rule for X', 'write this up for the agent', 'add a pointer to the docs', 'move this section into its own doc', 'draft an AGENTS.md section', or any drafting or editing of a markdown file an agent will load. NOT for: creating or editing a SKILL.md (playbooks:skill-authoring and skill-quality:check own that), auditing existing docs (the docs-hygiene audit skills own that), or human-facing docs such as end-user READMEs and changelogs."
+description: "Write agent-consumed markdown well at the moment of writing — CLAUDE.md or AGENTS.md content, .claude/rules files, agent-loaded reference/context docs, navigation-pointer lines, and doc-plus-pointer extractions. Use when: 'add this to CLAUDE.md', 'write a rule for X', 'write this up for the agent', 'add a pointer to the docs', 'move this section into its own doc', 'draft an AGENTS.md section', or any drafting or editing of a markdown file an agent will load. NOT for: creating or editing a SKILL.md (playbooks:skill-authoring and skill-quality:check own that), auditing existing docs (the docs-hygiene audit skills own that), or human-facing docs such as end-user READMEs, RFCs, release notes and changelogs — those route to docs-hygiene:write-for-humans, the sibling that fires at the same moment for the other reader."
 argument-hint: "[<file or section being written>]"
 user-invocable: true
 disable-model-invocation: false
@@ -110,6 +110,7 @@ the positive alternative in the same sentence.
 - **Does not audit existing docs** — the audit siblings own read-only findings; this skill fires
   at the writing moment only.
 - **Does not write human-facing docs** — end-user READMEs, changelogs, and marketing prose have
-  a different reader and different rules.
+  a different reader and different rules. Those are the sibling `docs-hygiene:write-for-humans`,
+  which fires at this same moment and resolves the consuming project's own style guide first.
 - **Does not enforce via hooks** — trigger reliability is carried by this skill's description
   and its eval suite, deliberately not by a forcing hook.
