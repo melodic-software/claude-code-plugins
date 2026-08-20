@@ -9,7 +9,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   category: work-items
-  summary: "Generate a consumer-owned work-item-tracker adapter for an unbundled provider, then verify it."
+  # No `summary`: cheatsheet-only key, and this skill is excluded there as infra setup.
 ---
 
 ## Purpose
