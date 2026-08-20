@@ -94,7 +94,7 @@ enough that one skill no longer predicts its contents.
   correctness: when it is missing, stop and surface that remediation instead
   of improvising a parse.
 - **The work-item-tracker seam.** The plugin **ships** the seam (dispatcher,
-  `lib/`, and the `github`, `local-markdown`, and `jira` adapters) under
+  `lib/`, and the `github`, `local-markdown`, `jira`, and `gitea` adapters) under
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares
   its active provider in `.work-item-tracker.json` at the repo root (run
   `/work-items:setup`; per-user lease TTL / jira auth identity may ride a

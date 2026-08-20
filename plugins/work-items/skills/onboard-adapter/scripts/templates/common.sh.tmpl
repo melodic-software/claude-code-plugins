@@ -37,17 +37,23 @@ wit_@@PROVIDER_FUNC@@_require_seam_lib() {
   exit 3
 }
 
+# The `shellcheck source=` hints name the RELATIVE seam path rather than /dev/null:
+# where a vendored or bundled seam sits there, ShellCheck follows it and every
+# WIT_ID_* / WIT_SCHEMA_VERSION reference in this adapter's verb scripts resolves.
+# Where it does not (a consumer-local adapter beside no vendored seam), ShellCheck
+# resolves. Where it does not, SC1091 is disabled so the absence is quiet rather than
+# an info per source line — the runtime check above is what actually enforces presence.
 wit_@@PROVIDER_FUNC@@_require_seam_lib "$WIT_@@PROVIDER_UPPER@@_SEAM_LIB/id.sh"
-# shellcheck source=/dev/null
+# shellcheck source=../../lib/id.sh disable=SC1091
 source "$WIT_@@PROVIDER_UPPER@@_SEAM_LIB/id.sh"
 wit_@@PROVIDER_FUNC@@_require_seam_lib "$WIT_@@PROVIDER_UPPER@@_SEAM_LIB/json.sh"
-# shellcheck source=/dev/null
+# shellcheck source=../../lib/json.sh disable=SC1091
 source "$WIT_@@PROVIDER_UPPER@@_SEAM_LIB/json.sh"
 # binding.sh is sourced, not inherited: the dispatcher runs each verb as a fresh
 # `bash <verb>.sh` subprocess, so only exported env vars cross — not wit_find_binding.
 # The adapter re-locates the binding itself to read its own config subtree.
 wit_@@PROVIDER_FUNC@@_require_seam_lib "$WIT_@@PROVIDER_UPPER@@_SEAM_LIB/binding.sh"
-# shellcheck source=/dev/null
+# shellcheck source=../../lib/binding.sh disable=SC1091
 source "$WIT_@@PROVIDER_UPPER@@_SEAM_LIB/binding.sh"
 
 readonly EX_INTERNAL=1

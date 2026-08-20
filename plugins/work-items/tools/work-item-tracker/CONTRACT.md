@@ -404,6 +404,21 @@ label-agnostic and simply never surfaces items that are assigned or blocked.
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
 
+Each `limits` value is a non-negative integer **or `null`**, and the three cases are
+distinct:
+
+| Value | Meaning |
+|---|---|
+| `n > 0` | the provider enforces this ceiling; hitting it is exit `7` with the ceiling named |
+| `0` | the underlying capability is unsupported — read it together with the `verbs`/`features` entry that says so |
+| `null` | the capability is supported and the provider enforces **no** ceiling |
+
+`null` exists because `0` cannot say "unbounded" without also reading as "none allowed",
+and a caller branching on the number would then see a ceiling that does not exist. A
+provider with no documented ceiling declares `null` rather than inventing a plausible
+number (Gitea's issue dependencies are the worked case: it rejects only duplicate and
+circular edges, and caps nothing).
+
 ### Contract-version handshake
 
 Adapters resolve consumer-local first ("Adapter resolution"), so a consumer-owned,
@@ -591,6 +606,43 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   governs visibility. There is no lease/claim machinery (writes are off), so `features.leases`
   and `features.sub_items` are `false`.
 
+## gitea adapter
+
+Gitea / Forgejo, self-hosted, over the `/api/v1` REST surface. The first adapter produced by
+`/work-items:onboard-adapter` rather than hand-written; its security skeleton is the generator's
+template, so it carries the same guards as the `jira` adapter by construction.
+
+Binding subtree `config.gitea`: `host` (bare hostname), `scopes[]` (non-empty, each `owner/repo`
+— the declared read scope **and** the authorization boundary), `auth_env` (the env-var NAME
+holding the API token, never the token). Optional: `page_size` (default 50), `host_suffix` (the
+consumer's own egress pin — Gitea is self-hosted, so there is no vendor domain to pin against by
+default), `allow_custom_domain`.
+
+Supported: `create-item`, `get-item`, `link-blocks`, `list-items`, `capabilities`.
+Capability-gated to exit `6`: the three lease verbs and both sub-item verbs. Gitea's issue has no
+parent link, so `sub_items` is structurally false; leases are declared false because whether
+concurrent assignment is arbitrated cannot be settled without a live instance, and an emulated
+lease over last-write-wins loses races silently.
+
+Provider divergences that shaped it — each verified against the Gitea source rather than assumed
+from GitHub's API, and all documented in `adapters/gitea/README.md`:
+
+- A pull request **is** an issue (`pull_request` populated); `list-items` drops them.
+- `create-item` takes label **IDs**, not names; the adapter resolves names first and refuses an
+  unknown one rather than dropping it.
+- `blocked_by_count` costs one extra request per item — the issue carries no dependency data and
+  there is no bulk endpoint.
+- `POST /issues/{index}/dependencies` makes the **URL** issue depend on the **body** issue; the
+  sibling `/blocks` endpoint is the same edge inverted.
+- `limits.dependencies_per_type` is `null`: Gitea rejects only duplicate and circular edges and
+  enforces no ceiling.
+
+Offline coverage is the adapter's own `*.test.sh` with a mocked transport (`WIT_GITEA_CURL`),
+including a manifest-versus-filesystem check. A live conformance pass is **deferred and
+recorded** — no Gitea or Forgejo instance was reachable when it was built; the binding at
+`conformance/bindings/gitea.sh` is ready and refuses to run without an explicitly named
+throwaway target.
+
 ## Conformance
 
 `conformance/run-conformance.sh --binding <name>` runs the SAME abstract suite over any
@@ -619,3 +671,10 @@ every suite-exercised path is pre-network (capabilities cats the manifest, write
 touch no network tool. The jira read verbs are covered offline by the adapter's own
 `*.test.sh` with a mocked curl; a live-Jira conformance pass is deferred to the work-laptop
 pass that settles the exact `statusCategory` "done" key and blocker link type.
+
+The `gitea` binding is **on-demand like GitHub's**, not offline like jira's: the gitea manifest
+declares `create-item` true, so the suite seeds a real item and every case after it is a live
+call. It requires `WIT_CONFORMANCE_GITEA_HOST` and `WIT_CONFORMANCE_GITEA_SCOPE` and refuses to
+run without both, so a destructive suite can never fall back to a default target. Its
+`bindings/gitea.test.sh` therefore asserts the binding's shape and those refusals rather than
+running the suite; the gitea live pass is recorded as deferred in "gitea adapter" above.

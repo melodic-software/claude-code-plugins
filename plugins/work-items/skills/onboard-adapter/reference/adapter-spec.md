@@ -89,9 +89,22 @@ flipping the manifest.
 required.
 
 `limits`: `sub_items_per_parent`, `sub_item_depth`, `dependencies_per_type`,
-`list_items_max` — all non-negative integers, all required. `list_items_max` is the page
-size `list-items` must request; a client default here is how a frontier ends up lying
-about what is available.
+`list_items_max` — all required. Each is a non-negative integer **or `null`**, and the
+three values are distinct (`CONTRACT.md` "Capabilities manifest"):
+
+- `n > 0` — the provider enforces this ceiling; hitting it is exit `7` with the ceiling
+  named.
+- `0` — the underlying capability is unsupported, matching the `verbs`/`features` entry
+  that says so.
+- `null` — supported, and the provider enforces **no** ceiling.
+
+Reach for `null` rather than inventing a plausible number: `0` cannot say "unbounded"
+without also reading as "none allowed", and a caller branching on the number would then
+see a ceiling that does not exist. Gitea's issue dependencies are the worked case — it
+rejects only duplicate and circular edges and caps nothing.
+
+`list_items_max` is the total `list-items` must page up to; a client default here is how
+a frontier ends up lying about what is available.
 
 ### `deferrals`
 

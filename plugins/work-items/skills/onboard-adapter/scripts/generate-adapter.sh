@@ -200,9 +200,16 @@ for k in "${FEATURE_KEYS[@]}"; do
   got="$(jq -r --arg k "$k" '.features[$k] | type' <<<"$SPEC_JSON" 2>/dev/null)"
   [[ "$got" == "boolean" ]] || die_spec "features[\"$k\"] must be present and boolean (found: ${got:-absent})"
 done
+# A limit is a non-negative integer or null (CONTRACT.md "Capabilities manifest").
+# The three values are distinct: n>0 is an enforced ceiling, 0 says the capability is
+# unsupported, null says it is supported and unbounded. Presence is checked separately
+# from the value, because jq's `//` would collapse an intentional null into "absent".
 for k in "${LIMIT_KEYS[@]}"; do
-  got="$(jq -r --arg k "$k" '.limits[$k] | if type == "number" and . >= 0 and (floor == .) then "ok" else "bad" end' <<<"$SPEC_JSON" 2>/dev/null)"
-  [[ "$got" == "ok" ]] || die_spec "limits[\"$k\"] must be a non-negative integer"
+  [[ "$(jq -r --arg k "$k" '.limits | has($k)' <<<"$SPEC_JSON" 2>/dev/null)" == "true" ]] ||
+    die_spec "limits[\"$k\"] must be present (a non-negative integer, or null for no provider-enforced ceiling)"
+  got="$(jq -r --arg k "$k" '.limits[$k] | if . == null then "ok" elif (type == "number" and . >= 0 and (floor == .)) then "ok" else "bad" end' <<<"$SPEC_JSON" 2>/dev/null)"
+  [[ "$got" == "ok" ]] ||
+    die_spec "limits[\"$k\"] must be a non-negative integer, or null for no provider-enforced ceiling"
 done
 
 [[ "$(jq -r '(.deferrals // []) | if type == "array" and (all(type == "string")) then "ok" else "bad" end' <<<"$SPEC_JSON")" == "ok" ]] ||
@@ -245,26 +252,32 @@ check_coherence() {
       bad+=$'\n'"  verbs[\"$v\"]=true but features.sub_items=false"
     fi
   done
+  # Limits are checked against 0 only. `null` means "supported, no provider-enforced
+  # ceiling" and is compatible with the capability being ON — it is what a provider
+  # that caps nothing declares instead of inventing a plausible number.
   if [[ "$(ft sub_items)" != "true" && "$(lm sub_items_per_parent)" != "0" ]]; then
-    bad+=$'\n'"  features.sub_items=false but limits.sub_items_per_parent=$(lm sub_items_per_parent) (a ceiling on something declared unsupported)"
+    bad+=$'\n'"  features.sub_items=false but limits.sub_items_per_parent=$(lm sub_items_per_parent) (a ceiling on something declared unsupported; use 0)"
   fi
   if [[ "$(ft sub_items)" == "true" && "$(lm sub_items_per_parent)" == "0" ]]; then
-    bad+=$'\n'"  features.sub_items=true but limits.sub_items_per_parent=0 (no container could hold a child)"
+    bad+=$'\n'"  features.sub_items=true but limits.sub_items_per_parent=0 (no container could hold a child; use null for no ceiling)"
   fi
 
   # list-items is what the core derives list-frontier from; without it the seam can
   # enumerate nothing, and its declared ceiling must be a real one.
   if [[ "$(vb list-items)" == "true" && "$(lm list_items_max)" == "0" ]]; then
-    bad+=$'\n'"  verbs[\"list-items\"]=true but limits.list_items_max=0 (pagination must have a real ceiling)"
+    bad+=$'\n'"  verbs[\"list-items\"]=true but limits.list_items_max=0 (pagination must have a real ceiling; use null only if the provider truly returns everything)"
   fi
   if [[ "$(vb list-items)" != "true" && "$(lm list_items_max)" != "0" ]]; then
-    bad+=$'\n'"  verbs[\"list-items\"]=false but limits.list_items_max=$(lm list_items_max)"
+    bad+=$'\n'"  verbs[\"list-items\"]=false but limits.list_items_max=$(lm list_items_max) (use 0)"
   fi
 
   # link-blocks is how blocked_by edges are written; without cross_repo_edges the
   # ceiling on dependencies is still meaningful, so only the verb/limit pair is checked.
   if [[ "$(vb link-blocks)" == "true" && "$(lm dependencies_per_type)" == "0" ]]; then
-    bad+=$'\n'"  verbs[\"link-blocks\"]=true but limits.dependencies_per_type=0"
+    bad+=$'\n'"  verbs[\"link-blocks\"]=true but limits.dependencies_per_type=0 (use null when the provider enforces no ceiling)"
+  fi
+  if [[ "$(vb link-blocks)" != "true" && "$(lm dependencies_per_type)" != "0" ]]; then
+    bad+=$'\n'"  verbs[\"link-blocks\"]=false but limits.dependencies_per_type=$(lm dependencies_per_type) (use 0)"
   fi
 
   if [[ -n "$bad" ]]; then
@@ -321,12 +334,16 @@ SAMPLE_ID="$(jq -r --arg d "$default_sample_id" '.api.sample_id // $d' <<<"$SPEC
 [[ "${BASH_REMATCH[1]}" == "$PROVIDER" ]] ||
   die_spec "api.sample_id '$SAMPLE_ID' names provider '${BASH_REMATCH[1]}', not '$PROVIDER'"
 
+# These are substitution VALUES, so they interpolate $DISPLAY_NAME directly rather than
+# carrying an @@…@@ placeholder: render() walks its key list once, and a placeholder
+# inserted by a later key is never revisited — it would reach the generated file
+# verbatim.
 if [[ -n "$HOST_SUFFIX" ]]; then
   HOST_SUFFIX_DOC="\`$HOST_SUFFIX\` (the provider's own domain)"
   HOST_PIN_POSTURE="pinned in code to \`$HOST_SUFFIX\`. A binding naming a host outside it is refused unless \`allow_custom_domain\` is set."
 else
-  HOST_SUFFIX_DOC="none — @@DISPLAY_NAME@@ is self-hosted, so there is no vendor domain to pin against"
-  HOST_PIN_POSTURE="**no code-level pin.** @@DISPLAY_NAME@@ is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
+  HOST_SUFFIX_DOC="none — $DISPLAY_NAME is self-hosted, so there is no vendor domain to pin against"
+  HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
 fi
 
 # --- auth scheme rendering ---
@@ -706,6 +723,7 @@ emit "$ADAPTER_DIR/capabilities.json" "$MANIFEST"
 emit "$ADAPTER_DIR/common.sh" "$(render "$TEMPLATE_DIR/common.sh.tmpl")"
 emit "$ADAPTER_DIR/common.test.sh" "$(render "$TEMPLATE_DIR/common.test.sh.tmpl")" exec
 emit "$ADAPTER_DIR/capabilities.sh" "$(render "$TEMPLATE_DIR/capabilities.sh.tmpl")" exec
+emit "$ADAPTER_DIR/capabilities.test.sh" "$(render "$TEMPLATE_DIR/capabilities.test.sh.tmpl")" exec
 
 for v in "${ADAPTER_VERBS[@]}"; do
   [[ "$v" == "capabilities" ]] && continue

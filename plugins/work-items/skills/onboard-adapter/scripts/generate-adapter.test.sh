@@ -118,7 +118,7 @@ HAPPY_ROOT="$(last_root)"
 A="$HAPPY_ROOT/tools/work-item-tracker/adapters/acmetracker"
 B="$HAPPY_ROOT/tools/work-item-tracker/conformance/bindings"
 
-for f in capabilities.json capabilities.sh common.sh common.test.sh README.md \
+for f in capabilities.json capabilities.sh capabilities.test.sh common.sh common.test.sh README.md \
   create-item.sh get-item.sh list-items.sh; do
   if [[ -f "$A/$f" ]]; then pass "generated $f"; else fail "generated $f" "present" "missing"; fi
 done
@@ -140,6 +140,37 @@ for f in claim.sh renew-lease.sh reclaim.sh link-blocks.sh add-sub-item.sh list-
     pass "declared-false verb $f not generated"
   fi
 done
+
+# NO generated file may still contain a placeholder. render() walks its key list once,
+# so a value that itself carried an @@…@@ token would never be revisited and would reach
+# the output verbatim — which is exactly how the self-hosted host-pin sentence once
+# shipped reading "@@DISPLAY_NAME@@ is self-hosted". Checked across every generated
+# file and both host postures, because the leak is per-value, not per-template.
+assert_unrendered() {
+  local label="$1" dir="$2" binding="$3" leaked=""
+  local f
+  for f in "$dir"/* "$binding"; do
+    [[ -f "$f" ]] || continue
+    grep -q '@@' "$f" && leaked+=" $(basename "$f")"
+  done
+  if [[ -z "$leaked" ]]; then
+    pass "$label"
+  else
+    fail "$label" "no @@placeholder@@ left" "leaked in:$leaked"
+  fi
+}
+assert_unrendered "no placeholder survives rendering (vendor-suffix)" "$A" "$B/acmetracker.sh"
+
+rc="$(gen "$(with '.api.host_suffix = "" | .api.sample_host = "git.example.com"')")"
+assert_eq "self-hosted spec generates" "0" "$rc"
+SELF_ROOT="$(last_root)"
+assert_unrendered "no placeholder survives rendering (self-hosted)" \
+  "$SELF_ROOT/tools/work-item-tracker/adapters/acmetracker" \
+  "$SELF_ROOT/tools/work-item-tracker/conformance/bindings/acmetracker.sh"
+# The self-hosted README must say the pin is absent, in the provider's own name.
+assert_contains "self-hosted README names the provider in the pin posture" \
+  "$(cat "$SELF_ROOT/tools/work-item-tracker/adapters/acmetracker/README.md")" \
+  "Acme Tracker is self-hosted"
 
 # The manifest carries exactly the spec's declarations, plus the seam's version.
 assert_eq "manifest provider" "acmetracker" "$(jq -r '.provider' "$A/capabilities.json")"
@@ -254,6 +285,21 @@ assert_eq "missing feature key → exit 3" "3" "$(gen "$(with 'del(.features.lea
 assert_eq "missing limit key → exit 3" "3" "$(gen "$(with 'del(.limits.list_items_max)')")"
 assert_eq "negative limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = -1')")"
 assert_eq "fractional limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = 1.5')")"
+assert_eq "non-numeric limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = "lots"')")"
+
+# `null` is a THIRD limit value, distinct from 0: the capability is supported and the
+# provider enforces no ceiling. Without it, a ceiling-free provider has to invent a
+# plausible number, and a caller branching on it sees a ceiling that does not exist.
+# (Gitea's issue dependencies are the worked case — it rejects only duplicate and
+# circular edges and caps nothing.)
+assert_eq "null limit on a supported capability is accepted" "0" \
+  "$(gen "$(with '.verbs["link-blocks"] = true | .limits.dependencies_per_type = null')")"
+assert_eq "null limit survives into the manifest" "null" \
+  "$(jq -r '.limits.dependencies_per_type' "$(last_root)/tools/work-item-tracker/adapters/acmetracker/capabilities.json")"
+assert_eq "0 on a supported capability is still refused" "3" \
+  "$(gen "$(with '.verbs["link-blocks"] = true | .limits.dependencies_per_type = 0')")"
+assert_eq "a ceiling on an unsupported capability is refused" "3" \
+  "$(gen "$(with '.verbs["link-blocks"] = false | .limits.dependencies_per_type = null')")"
 assert_eq "deferrals not an array of strings → exit 3" "3" "$(gen "$(with '.deferrals = [1,2]')")"
 
 # --- coherence: the manifest is a promise the core routes on ---
@@ -302,6 +348,32 @@ run_generated_suite() {
     bash "$adapter/common.test.sh" >/dev/null 2>&1
   assert_eq "$label" "0" "$?"
 }
+
+# The generated capabilities suite proves the manifest agrees with the FILESYSTEM — a
+# verb declared true with no script behind it, or a script left behind for a verb since
+# set to false, shows up in no other test.
+run_capabilities_suite() {
+  local label="$1" spec="$2"
+  local rc adapter
+  rc="$(gen "$spec")"
+  if [[ "$rc" != "0" ]]; then
+    fail "$label (generation)" "0" "$rc"
+    return
+  fi
+  adapter="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
+  WIT_SEAM_TESTS_DIR="$SEAM/tests" bash "$adapter/capabilities.test.sh" >/dev/null 2>&1
+  assert_eq "$label" "0" "$?"
+}
+run_capabilities_suite "generated capabilities suite passes" "$BASE_SPEC"
+
+# And it CATCHES the disagreement it exists for: flipping a verb to false in the
+# manifest while its script is still on disk must fail the suite.
+rc="$(gen "$BASE_SPEC")"
+DRIFT_A="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
+jq -c '.verbs["get-item"] = false' "$DRIFT_A/capabilities.json" >"$DRIFT_A/capabilities.json.tmp"
+mv "$DRIFT_A/capabilities.json.tmp" "$DRIFT_A/capabilities.json"
+WIT_SEAM_TESTS_DIR="$SEAM/tests" bash "$DRIFT_A/capabilities.test.sh" >/dev/null 2>&1
+assert_eq "capabilities suite catches a manifest/filesystem disagreement" "1" "$?"
 
 run_generated_suite "generated guards pass (bearer, vendor-suffix)" "$BASE_SPEC"
 run_generated_suite "generated guards pass (token, self-hosted)" \

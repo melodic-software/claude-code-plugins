@@ -49,7 +49,7 @@ directory or any machine-local state.
 `check` binding probe validates it read-only. The tracker seam runs against exactly one provider per
 repo, declared in the tracked `.work-item-tracker.json` at the project root (resolved as `BINDING`
 above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
-(exit 3). The seam **ships with this plugin** and bundles the `github`, `local-markdown`, and `jira`
+(exit 3). The seam **ships with this plugin** and bundles the `github`, `local-markdown`, `jira`, and `gitea`
 adapters — installing the plugin is enough; a repo only declares which one it uses. Binding shape, discovery, and
 adapter resolution are the seam contract's
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
@@ -63,46 +63,31 @@ when this pass must stop instead of guessing.
 1. **Read the current binding first.** If `.work-item-tracker.json` exists, load it and report the
    bound `provider` and `config`. RECOMMENDED: keep it — re-bind only to switch providers or fix
    config. If it is absent, say so and continue to the interview.
-2. **Choose the provider**, recommendation first:
-   - **`github`** (RECOMMENDED) — coordination over GitHub Issues via the ambient `gh` CLI; needs no
-     provider config beyond the lease TTL. Confirm `gh` is installed — the seam hard-errors at call
-     time when `gh` ≥ 2.94 is absent — and then confirm the checkout itself resolves:
-     `gh repo view --json owner,name`, the same derivation the adapter's repo-scope resolution makes
-     for every repo-scoped verb. Report the `owner/repo` it returns. That one call is the operative
-     test and subsumes authentication: it fails unauthenticated even against a public repository, so
-     succeeding proves `gh` is authenticated for the host this checkout uses. `gh auth status` is
-     not the test: it is an account fact, not a
-     repository one — a local-only or non-GitHub checkout passes it and still has no repository for
-     the seam to address — and it tests every account on every known host, exiting 1 if any has an
-     issue (`gh auth status --help`), so an unrelated stale credential would condemn a good
-     checkout. Run it to explain a failure, never to gate the choice.
-   - **`local-markdown`** — the offline reference provider (one markdown file per item); never a
-     coordination surface. The store is working-tree files, so items/leases/ids are branch- and
-     worktree-confined — multi-session work needs a tracker-published spec on a coordination
-     provider. Requires `config.storage_dir` (no baked default; e.g. `.work-items`). See CONTRACT.md
-     "local-markdown adapter" and `adapters/local-markdown/README.md`.
-   - **`jira`** — read/resolve-only against a Jira Cloud project set (consume-only: no ticket
-     creation/claim/mutation; write verbs exit `6`). Requires `config.jira` (`site`, non-empty
-     `project_keys[]`, `auth_email`, `auth_env`) and `curl`; the API token is referenced by env-var
-     name only, never stored. Binding shape and the deferred live-instance facts are the seam
-     contract's "jira adapter". Selecting it does not enable `/work-items:work` or `track start`
-     (both need writes) — an accepted gap.
-   - **another provider** — supply its adapter consumer-local at
-     `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/` (the seam resolves
-     consumer-local adapters ahead of the bundled set, so a repo can add an unshipped provider or
-     shadow a bundled one without forking the plugin); set `provider` to its name here.
-3. **Settle the config — all non-secret:**
-   - `lease_ttl_hours` (REQUIRED, every provider) — claim-lease lifetime in hours. RECOMMENDED `24`.
-   - `storage_dir` (REQUIRED for `local-markdown` only) — the item-store directory.
-   - `jira` (REQUIRED for `jira` only) — an object with `site` (Cloud host), non-empty
-     `project_keys[]`, `auth_email`, and `auth_env` (the env-var NAME holding the API token);
-     optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance
-     defaults. Interview for these; probe that the token resolves in-env at bind time (never store
-     it). Per the operator secret-binding classification, the token's durable home is the OS-native
-     credential store, with the env var as the CI/headless fallback — never a plaintext file.
+2. **Choose the provider**, recommendation first. One line each below; the selection detail —
+   how to verify a `github` bind, what each provider can and cannot do, and every config key —
+   is `reference/providers.md`. Read it before recommending, and cite it when explaining a
+   capability gap.
+   - **`github`** (RECOMMENDED) — full-parity coordination over GitHub Issues via the ambient `gh`
+     CLI. `gh repo view --json owner,name` is the operative bind-time test (`gh auth status` is
+     not — see the reference).
+   - **`local-markdown`** — the offline reference provider; branch- and worktree-confined, so
+     **never** a coordination surface. Needs `config.storage_dir`.
+   - **`jira`** — read/resolve-only against a Jira Cloud project set. Consume-only, so it does not
+     enable `/work-items:work` or `track start`.
+   - **`gitea`** — Gitea / Forgejo, self-hostable and free. Issues and dependency edges, but **no
+     leases and no sub-items**, so `/work-items:work` cannot claim on it.
+   - **another provider** — put its adapter consumer-local under
+     `<repo root>/tools/work-item-tracker/adapters/<provider>/`; the seam resolves those ahead of
+     the bundled set, so no fork is needed. `/work-items:onboard-adapter` (if installed) generates
+     one rather than starting from a blank file.
+3. **Settle the config — all non-secret.** `lease_ttl_hours` (REQUIRED for every provider;
+   RECOMMENDED `24`) plus that provider's own subtree — the per-provider key table is in
+   `reference/providers.md`. Interview for each value; for any token, ask for the env-var **NAME**
+   and probe that it resolves in-env at bind time.
    - **Secrets never go in this file** — it is tracked in git. A provider that needs an API token
      references it by env-var name / the repo's secret-store convention from inside its adapter, never
-     as a literal here. `github` needs none (ambient `gh`); `jira` references its token by `auth_env` name.
+     as a literal here. `github` needs none (ambient `gh`); `jira` and `gitea` reference theirs by
+     `auth_env` name.
 4. **Write the binding.** Re-read `.work-item-tracker.json` from disk immediately before writing and
    merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any
    other keys. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and — unless one
@@ -140,7 +125,7 @@ check.
    bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
    to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
    parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
-   adapter (`github`, `local-markdown`, `jira`) or a consumer-local one at
+   adapter (`github`, `local-markdown`, `jira`, `gitea`) or a consumer-local one at
    `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`; `config.lease_ttl_hours` is
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
