@@ -167,6 +167,21 @@ assert_eq "allow_custom_domain=true is the opt-out" "0" \
 assert_eq "a host matching the pin is accepted" "0" \
   "$(config_rc "$(jq -c '.host = "instance.pinned.example"' <<<"$PINNED")")"
 
+# The pin is a DOMAIN boundary, not a string suffix. The shipped default carries its own
+# dot and is safe, but the pin is a consumer override seam and a dot-less override must
+# not let `evilmycompany.com` satisfy `mycompany.com`. Linear is hand-built, so it does
+# not inherit the template scaffold's copy of these cases.
+DOTLESS="$(jq -c '.host_suffix = "mycompany.com"' <<<"$GOOD")"
+assert_eq "dot-less pin still denies suffix confusion" "3" \
+  "$(config_rc "$(jq -c '.host = "evilmycompany.com"' <<<"$DOTLESS")")"
+assert_eq "and denies a hyphenated lookalike" "3" \
+  "$(config_rc "$(jq -c '.host = "attacker-mycompany.com"' <<<"$DOTLESS")")"
+assert_eq "a real subdomain under a dot-less pin is accepted" "0" \
+  "$(config_rc "$(jq -c '.host = "api.mycompany.com"' <<<"$DOTLESS")")"
+# The apex IS the pinned domain: rejecting it would break a single-host deployment.
+assert_eq "the apex itself is accepted" "0" \
+  "$(config_rc "$(jq -c '.host = "mycompany.com"' <<<"$DOTLESS")")"
+
 # auth_env is dereferenced via ${!name}: an invalid identifier would abort bash on
 # first read, so it is refused here with a message instead.
 for bad_env in "FOO-BAR" "1FOO" "FOO BAR" "FOO;id" ""; do

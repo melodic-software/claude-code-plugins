@@ -565,11 +565,19 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # env -u: this gate may run inside git-hook chains where git exports
     # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
     # the real repo. Strip before exec.
-    if env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      bash "$test_sh" >/dev/null 2>&1; then
+    # Output is captured rather than discarded so a FAILURE can be replayed. A test
+    # that only ever reports "it failed" is undiagnosable wherever it cannot be
+    # reproduced by hand — a gate whose one CI-visible signal is its own name sends
+    # the reader guessing at environment differences instead of reading the case that
+    # broke. Success stays silent: the reason to suppress was log noise, and that
+    # reason does not apply to the run that just went red.
+    test_out=""
+    if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      bash "$test_sh" 2>&1)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
+      printf '%s\n' "$test_out" >&2
     fi
   done < <(find "$SKILL_DIR/scripts" -name '*.test.sh' -type f 2>/dev/null | sort)
 fi
