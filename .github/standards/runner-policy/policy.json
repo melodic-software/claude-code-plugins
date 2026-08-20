@@ -284,6 +284,24 @@
         "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@a7742cb347f18650eebcfb66e608185f66ea5758": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "manifest", "standards-ref", "dry-run", "targets"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@d26c750691b5498fab529d115b63f84aa7aecebe": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "manifest", "standards-ref", "dry-run", "targets"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/zizmor.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["paths"],
@@ -619,6 +637,40 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/standards-sync-stuck-automerge-alert.yml@01c3295629ab9dea9a602ddb9e2217c83f014a10": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "manifest",
+        "standards-ref",
+        "threshold-hours",
+        "tracking-issue-repository",
+        "test-mode",
+        "test-synthetic-candidates"
+      ],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync-stuck-automerge-alert.yml@a7742cb347f18650eebcfb66e608185f66ea5758": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "manifest",
+        "standards-ref",
+        "threshold-hours",
+        "tracking-issue-repository",
+        "test-mode",
+        "test-synthetic-candidates"
+      ],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync-stuck-automerge-alert.yml@d26c750691b5498fab529d115b63f84aa7aecebe": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": [
