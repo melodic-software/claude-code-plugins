@@ -230,7 +230,9 @@ before ending the turn, always.
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), OR an explicit line
   saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
-  operator sees where the work stands — the path where skipping it costs the most
+  operator sees where the work stands — the path where skipping it costs the most. Unit ladder rung
+  4 (`TaskList`) is skipped here unless `prompt` was FORCED, in which case the one `TaskList` call
+  is made rather than the list being guessed from the conversation
 - [ ] The verbatim goal sits between the rails above the remaining-work bullets — below an active
   `/goal` first line, which it never displaces — and when the goal has recorded amendments, the
   original dated quote travels with EVERY dated amendment line, never collapsed to a single line;

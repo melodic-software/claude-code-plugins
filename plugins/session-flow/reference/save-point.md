@@ -200,6 +200,12 @@ fact not good enough for the file is not good enough here, and the panel never t
 save-point did not already need. That is what separates it from `/session-flow:orient`, which sweeps
 durable and off-thread state on demand; this is the free exit-side view.
 
+**One call is exempt, and only one:** the `TaskList` fetch a FORCED prompt-only save-point never
+made (unit ladder, rung 4). It reads the session's own task ledger rather than the world outside
+the conversation, so it cannot turn the panel into an orientation sweep — which is the thing this
+rule exists to prevent. Nothing else is exempt: no `gh`, no ledger re-read, no artifact this turn
+has not already opened.
+
 **Shape — a vertical rail, one unit per line:**
 
 ```text
@@ -211,7 +217,7 @@ durable and off-thread state on demand; this is the free exit-side view.
   [ ] Phase 4 — evals
   [ ] Phase 5 — docs
 
-3 of 5 phases complete · completion criteria 4/7 met (2 UNVERIFIED)
+2 of 5 phases complete · completion criteria 4/7 met (2 UNVERIFIED)
 
 Done this session — retry wrapper landed and green (a1b2c3d); OrderWriter stub does not compile yet.
 Where we are — mid Phase 3, blocked on that stub.
@@ -236,6 +242,12 @@ readable at a glance, and a rail long enough to scroll is one the operator will 
 
 The whole panel is capped at 16 lines, blocks included.
 
+**The count is of COMPLETED units, and an in-progress unit is not one.** The example above reads
+`2 of 5` with a `[~]` third phase for exactly that reason: `[~]`, `[ ]`, and `[!]` all count against
+the total, and only `[x]` counts toward it. Rounding the current unit up is the one arithmetic a
+progress read is most tempted into and least allowed — it reports work as landed while the operator
+is looking at the line that says it is not.
+
 ### Resolving the units
 
 Units are whatever THIS work is actually divided into, which is why the panel reads differently on
@@ -247,8 +259,14 @@ knows what they are looking at:
 2. Phases named by a backing plan, spec, or PRD — the artifact "Locate the position first" already
    read this turn.
 3. An issue chain — the parent work-item and its sub-issues.
-4. Live `TaskList` items — already fetched for [`structure.md`](structure.md)'s
-   `Environment to re-establish`, so this costs nothing extra.
+4. Live `TaskList` items — **full path only, where they are already fetched** for
+   [`structure.md`](structure.md)'s `Environment to re-establish`, so the panel spends nothing on
+   them. Prompt-only walks no body sections and so makes no such call: skip this rung there and
+   fall through to 5. That costs almost nothing, because "no non-trivial task list to reconstitute"
+   is one of the criteria that selects prompt-only in the first place ("Choosing the path") — a
+   session with a task list worth drawing was supposed to be on the full path. When prompt-only was
+   FORCED by the explicit `prompt` argument, so that criterion was never tested, make the one
+   `TaskList` call rather than guessing from the conversation.
 5. Completion criteria, as the units of last resort.
 6. **None of the above — emit no rail.** Give the three blocks as prose and say plainly that the
    work has no delineated units. **Never invent phases to have something to draw.** A fabricated

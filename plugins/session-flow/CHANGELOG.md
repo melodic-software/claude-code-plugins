@@ -20,8 +20,15 @@
   already produced — it triggers no read the save-point did not already need, which is the line
   between it and `orient`'s on-demand durable + off-thread sweep.
 
+  **The count is of completed units only.** An in-progress unit counts against the total, never
+  toward it — rounding the current unit up reports work as landed while the operator is looking at
+  the line saying it is not, and it is the one arithmetic a progress read is most tempted into.
+
   **Units are resolved from the work, not assumed.** A first-match ladder takes workflow-checklist
-  stages, then plan/spec/PRD phases, then an issue chain, then live `TaskList` items, then
+  stages, then plan/spec/PRD phases, then an issue chain, then live `TaskList` items (full path
+  only, where they are already fetched; prompt-only skips that rung, since "no non-trivial task
+  list to reconstitute" is one of the criteria that selects prompt-only, and makes the one call
+  when that path was forced), then
   completion criteria — so the panel reads differently on differently-shaped work. Work with none of
   those gets the three prose blocks and explicitly no rail: inventing phases to have something to
   draw produces a map of a plan that does not exist, which the operator would then resume against.
