@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # PostToolUse hook: auto-format and lint Markdown via markdownlint-cli2.
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
+# hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc) — Edit() is the
+# permission-rule form that covers Write as well; a Write(path) rule is never
+# matched (https://docs.claude.com/en/docs/claude-code/permissions, fetched
+# 2026-08-21). The in-script extension check stays: the if filter is one rule
+# per handler and fails open on an unparsable payload, so a non-Markdown path
+# can still reach this script.
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
@@ -43,8 +49,9 @@ emit_tel() {
 INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not process anyway (the Write|Edit matcher is broader than the
-# Markdown filter).
+# hook would not process anyway. hooks.json already gates launch with
+# if: Edit(*.md)/Edit(*.mdc); this check remains because that filter is one
+# rule per handler and fails open on an unparsable payload.
 RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
 case "$RAW_FILE" in
 *.md | *.mdc) ;;
