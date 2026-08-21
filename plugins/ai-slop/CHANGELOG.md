@@ -14,6 +14,17 @@ name a committed fixture instead.
   `triads.md` (rule-of-three at 3 hits in 69 words) and `knowledge-cutoff-prose.md` (the recorded
   false-positive class). Every case's `expected_output` now names the rules, lines and fired
   thresholds the detector actually emits, measured rather than asserted.
+- **Every fixture-backed case stages its target before auditing it**: `git init` a temp directory,
+  copy the fixture in as `docs/<name>.md`, commit it, and point the invocation at that copy. A case
+  that named the fixture directly was self-corrupting in two ways. The `fix` cases (2, 6, 7) rewrite
+  each flagged line in place, so the first run remediated the committed fixture and the second run
+  graded already-fixed input, where the declared findings no longer fire. And the persistence
+  expectations (cases 2, 4, 5) grade a branch conditioned on the audit having "examined tracked
+  files" — an installed plugin's fixture is not tracked in the consuming repo, so the branch was
+  unreachable and case 4's contract-fetch refusal passed for the wrong reason: nothing was written
+  because nothing was owed, not because the fetch failed. Staging fixes both at once: the rewrite
+  lands on a throwaway copy, and the copy is tracked, so persistence is genuinely owed. The staged
+  copies were re-measured — identical rules, lines and densities at the new path.
 - **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
   That decision holds for the *unit* suite, whose fixtures are still built inline in a tmpdir. It
   does not survive contact with the eval suite: an eval case is graded against a deterministic

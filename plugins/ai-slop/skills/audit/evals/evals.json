@@ -4,27 +4,27 @@
     {
       "id": 1,
       "name": "bare-invocation-read-only",
-      "prompt": "/ai-slop:audit evals/fixtures/report-only.md (path relative to the skill directory)",
-      "expected_output": "A findings report for the fixture — four findings across four rules (rule-filler-phrases on line 3, rule-significance-inflation on line 6, rule-em-dash and rule-chatbot-artifacts both on line 8), each with its file:line location and fired condition, plus the Summary rows — with no file modified. The fix flow is offered but not run.",
+      "prompt": "/ai-slop:audit docs/report-only.md — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/report-only.md` (path relative to the skill directory) in as `docs/report-only.md`, and commit it, so the audit target is a tracked, disposable copy rather than the fixture under the skill directory.",
+      "expected_output": "A findings report for the staged copy `docs/report-only.md` — four findings across four rules (rule-filler-phrases on line 3, rule-significance-inflation on line 6, rule-em-dash and rule-chatbot-artifacts both on line 8), each with its file:line location and fired condition, plus the Summary rows — with no file modified. The fix flow is offered but not run.",
       "files": ["evals/fixtures/report-only.md"],
       "expectations": [
-        "Runs detect.sh on the target and reports findings with file:line locations and the fired condition per finding",
+        "Runs detect.sh on the staged copy and reports findings with file:line locations and the fired condition per finding",
         "Reports all four rules the fixture trips rather than a subset — filler phrase, significance inflation, em dash, and chat-turn residue",
-        "Does NOT edit the fixture or any other file on bare invocation",
+        "Does NOT edit the staged copy, the committed fixture, or any other file on bare invocation",
         "Mentions the fix action as the explicit follow-up rather than applying rewrites"
       ]
     },
     {
       "id": 2,
       "name": "fix-runs-semantic-guard",
-      "prompt": "/ai-slop:audit fix evals/fixtures/fix-guarded-rewrite.md (path relative to the skill directory)",
-      "expected_output": "The fixture's four findings — two em dashes (lines 3 and 7) and two filler phrases ('It is worth noting that' on line 3, 'Due to the fact that' on line 4) — are rewritten in one per-file pass, the before/after pair is verified by a fresh-context semantic-diff subagent that reverts semantic loss or ambiguity, then the detector re-runs and the findings file is re-emitted so no stale findings survive.",
+      "prompt": "/ai-slop:audit fix docs/fix-guarded-rewrite.md — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/fix-guarded-rewrite.md` (path relative to the skill directory) in as `docs/fix-guarded-rewrite.md`, and commit it, so the rewrites land on a tracked, disposable copy and the committed fixture stays byte-identical.",
+      "expected_output": "The staged copy's four findings — two em dashes (lines 3 and 7) and two filler phrases ('It is worth noting that' on line 3, 'Due to the fact that' on line 4) — are rewritten in one per-file pass, the before/after pair is verified by a fresh-context semantic-diff subagent that reverts semantic loss or ambiguity, then the detector re-runs over the rewritten copy and the findings file is re-emitted (the target is tracked, so persistence is owed) so no stale findings survive.",
       "files": ["evals/fixtures/fix-guarded-rewrite.md"],
       "expectations": [
-        "Applies rewrites only because fix was explicitly requested",
+        "Applies rewrites only because fix was explicitly requested, and only to the staged copy — `evals/fixtures/fix-guarded-rewrite.md` under the skill directory is byte-identical after the run",
         "Verifies the rewritten file with a fresh-context semantic-diff subagent and reverts flagged hunks",
         "Preserves every claim the fixture makes — that the cache invalidates on write, that the reader never sees a stale entry, that writes are rare, and that the policy is least-recently-used",
-        "Re-runs the detector and re-emits the findings file after the last fixed file"
+        "Re-runs the detector and re-emits the findings file after the last fixed file, because the audited target is tracked in the scratch repo"
       ]
     },
     {
@@ -43,62 +43,66 @@
     {
       "id": 4,
       "name": "persist-refuses-without-contract",
-      "prompt": "/ai-slop:audit evals/fixtures/report-only.md (path relative to the skill directory), with the detector-findings contract URL unreachable",
-      "expected_output": "The audit report is delivered with the fixture's four findings intact, but no findings file is written: the skill reports that the producer contract could not be fetched and refuses to invent a destination, per persist-findings.md.",
+      "prompt": "/ai-slop:audit docs/report-only.md, with the detector-findings contract URL unreachable — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/report-only.md` (path relative to the skill directory) in as `docs/report-only.md`, and commit it, so the audit examines a tracked file and a findings file is owed.",
+      "expected_output": "The audit report is delivered with the staged copy's four findings intact, but no findings file is written: the target is tracked, so persistence is owed, and the skill reports that the producer contract could not be fetched and refuses to invent a destination, per persist-findings.md.",
       "files": ["evals/fixtures/report-only.md"],
       "expectations": [
         "Delivers the human-facing findings report regardless",
         "Does NOT write a findings file when the contract fetch fails",
-        "States that persistence was refused because the contract was unreachable, rather than silently skipping it"
+        "States that persistence was refused because the contract was unreachable, rather than silently skipping it",
+        "Attributes the refusal to the failed contract fetch and not to the target sitting outside tracked space — the staged copy is committed, so the persistence branch is genuinely reached"
       ]
     },
     {
       "id": 5,
       "name": "rubric-findings-reach-the-report-not-the-findings-file",
-      "prompt": "/ai-slop:audit evals/fixtures/rubric-boundary.md (path relative to the skill directory)",
-      "expected_output": "Both layers report: the em dash on line 7 appears as the fixture's single script finding, and the promotional register on lines 3-5 ('a breathtaking, must-visit surface sitting right in the heart of the platform') as a rubric finding citing its catalog entry. The persisted findings file carries that one script finding ONLY — the rubric verdict never enters it, because a rubric tell has no crosswalk row to look a tier up from.",
+      "prompt": "/ai-slop:audit docs/rubric-boundary.md — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/rubric-boundary.md` (path relative to the skill directory) in as `docs/rubric-boundary.md`, and commit it, so the audit target is tracked and a findings file is owed.",
+      "expected_output": "Both layers report on the staged copy: the em dash on line 7 appears as its single script finding, and the promotional register on lines 3-5 ('a breathtaking, must-visit surface sitting right in the heart of the platform') as a rubric finding citing its catalog entry. The target is tracked, so a findings file IS written, and it carries that one script finding ONLY — the rubric verdict never enters it, because a rubric tell has no crosswalk row to look a tier up from.",
       "files": ["evals/fixtures/rubric-boundary.md"],
       "expectations": [
         "Reports the promotional-register tell as a rubric finding, quoting the offending text and naming the catalog entry it comes from",
         "Does NOT report the promotional wording as a script finding — the fixture's promotional words sit outside the mechanical vocabulary, so the detector's only finding is the em dash",
-        "Does NOT place any rubric finding in the persisted findings file — only the script finding appears there",
+        "Writes the findings file (the staged copy is tracked) and places NO rubric finding in it — only the em-dash script finding appears there",
         "States the V1 boundary explicitly rather than silently omitting the rubric verdict from the file"
       ]
     },
     {
       "id": 6,
       "name": "fix-never-swaps-one-tell-for-another",
-      "prompt": "/ai-slop:audit fix evals/fixtures/em-dash-substitution.md (path relative to the skill directory)",
-      "expected_output": "The fixture's single finding — the em dash on line 5, in 'The parser accepts empty input — a change from 0.3.' — is resolved into a comma, a period, or a restructured sentence. It is NOT replaced with a parenthesis, an en dash, or a spaced hyphen: rewrite-guide.md's substitution guardrail names those as the same interruption wearing a different mark.",
+      "prompt": "/ai-slop:audit fix docs/em-dash-substitution.md — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/em-dash-substitution.md` (path relative to the skill directory) in as `docs/em-dash-substitution.md`, and commit it, so the rewrite lands on a tracked, disposable copy and the committed fixture stays byte-identical.",
+      "expected_output": "The staged copy's single finding — the em dash on line 5, in 'The parser accepts empty input — a change from 0.3.' — is resolved into a comma, a period, or a restructured sentence. It is NOT replaced with a parenthesis, an en dash, or a spaced hyphen: rewrite-guide.md's substitution guardrail names those as the same interruption wearing a different mark.",
       "files": ["evals/fixtures/em-dash-substitution.md"],
       "expectations": [
         "Reads reference/rewrite-guide.md before applying the rewrite, per the fix flow's first step",
         "The rewritten line contains no em dash, en dash, parenthesis, or spaced hyphen standing in for the original punctuation",
-        "Preserves the sentence's claim — the version fact survives the rewrite"
+        "Preserves the sentence's claim — the version fact survives the rewrite",
+        "Rewrites only the staged copy — `evals/fixtures/em-dash-substitution.md` under the skill directory is byte-identical after the run"
       ]
     },
     {
       "id": 7,
       "name": "triads-collapse-toward-the-strongest-item",
-      "prompt": "/ai-slop:audit fix evals/fixtures/triads.md (path relative to the skill directory)",
-      "expected_output": "The fixture trips rule-rule-of-three as one density finding (3 hits in 69 words, 43.5/1000 against a 3.0 threshold), and all three triads reach the fix flow together. The two rhetorical triads — 'fast, simple, and reliable' and 'clean, tight, and portable' — collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The cascade enumeration 'user, team, and local' is KEPT intact, with that judgment stated: dropping one names a resolution order that does not exist.",
+      "prompt": "/ai-slop:audit fix docs/triads.md — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/triads.md` (path relative to the skill directory) in as `docs/triads.md`, and commit it, so the rewrites land on a tracked, disposable copy and the committed fixture stays byte-identical.",
+      "expected_output": "The staged copy trips rule-rule-of-three as one density finding (3 hits in 69 words, 43.5/1000 against a 3.0 threshold), and all three triads reach the fix flow together. The two rhetorical triads — 'fast, simple, and reliable' and 'clean, tight, and portable' — collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The cascade enumeration 'user, team, and local' is KEPT intact, with that judgment stated: dropping one names a resolution order that does not exist.",
       "files": ["evals/fixtures/triads.md"],
       "expectations": [
         "Collapses the two rhetorical triads toward one item rather than preserving all three in a reworded form",
         "Keeps the 'user, team, and local' triad because each element is load-bearing, and says why it was kept",
-        "Does not treat every three-item enumeration as a tell — enumerating three actual things is not slop"
+        "Does not treat every three-item enumeration as a tell — enumerating three actual things is not slop",
+        "Rewrites only the staged copy — `evals/fixtures/triads.md` under the skill directory is byte-identical after the run"
       ]
     },
     {
       "id": 8,
       "name": "known-false-positive-routes-to-config-not-a-rewrite",
-      "prompt": "/ai-slop:audit evals/fixtures/knowledge-cutoff-prose.md (path relative to the skill directory)",
-      "expected_output": "The three rule-knowledge-cutoff-disclaimer findings (lines 1, 3 and 5) are reported, and the recommended remedy is the in-file marker or a config exclusion — not a rewrite. The fixture is documentation ABOUT knowledge cutoffs, so the rule fires on prose describing the concept rather than disclaiming on the document's own behalf. This is the false-positive class the catalog's calibration record names for that rule, and the recorded answer is an exemption with a stated reason rather than weakening the rule.",
+      "prompt": "/ai-slop:audit docs/knowledge-cutoff-prose.md — run it inside a scratch git repo staged first: `git init` a temp directory, copy `evals/fixtures/knowledge-cutoff-prose.md` (path relative to the skill directory) in as `docs/knowledge-cutoff-prose.md`, and commit it, so the audit target is a tracked, disposable copy rather than the fixture under the skill directory.",
+      "expected_output": "The staged copy's three rule-knowledge-cutoff-disclaimer findings (lines 1, 3 and 5) are reported, and the recommended remedy is the in-file marker or a config exclusion — not a rewrite. The fixture is documentation ABOUT knowledge cutoffs, so the rule fires on prose describing the concept rather than disclaiming on the document's own behalf. This is the false-positive class the catalog's calibration record names for that rule, and the recorded answer is an exemption with a stated reason rather than weakening the rule.",
       "files": ["evals/fixtures/knowledge-cutoff-prose.md"],
       "expectations": [
         "Recognizes prose ABOUT knowledge cutoffs as the recorded false-positive class rather than deleting the sentences",
         "Recommends the in-file ignore marker or a config exclusion, citing the calibration record",
-        "Does NOT propose weakening or disabling the shipped rule to make this corpus pass"
+        "Does NOT propose weakening or disabling the shipped rule to make this corpus pass",
+        "Recommends the exemption without editing anything — neither the staged copy nor the committed fixture is rewritten on a bare audit"
       ]
     },
     {
