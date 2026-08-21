@@ -185,6 +185,44 @@
         "Exit 2 (ungradeable) is treated as a halt, never as a pass; on the Step 4 run a missing question means the Brief is fixed, not the register row retired",
         "A general session writing no Brief runs only the ledger-only form, and a run that asked no question skips the gate rather than failing it"
       ]
+    },
+    {
+      "id": 15,
+      "name": "lock-halts-on-planted-open-decision",
+      "prompt": "/planning:interview lock the brief for the workspace-deletion endpoint. Treat evals/fixtures/lock-stop-on-gap/task-context.md as everything I have already told you, and evals/fixtures/lock-stop-on-gap/codebase-survey.md as the Step 1 survey result (both relative to the skill directory).",
+      "expected_output": "`lock` synthesizes the parts the survey answers (soft-delete column, membership cascade, 202-and-enqueue teardown, owner-only authorization) without asking, and then HALTS on the one decision the survey demonstrably cannot close — the disposition of export artifacts a deleted workspace already produced (purge on teardown vs retain for a grace window). It names that gap to the user and offers the STOP-on-gap choice (answer it now, capture it as an explicit assumption with a revisit trigger, or switch to relentless `me` mode); it does not pick a disposition, does not write a Brief carrying one, and does not bury it as a captured assumption. Because a question now exists, a register row exists and the Step 3 gate applies.",
+      "files": [
+        "evals/fixtures/lock-stop-on-gap/task-context.md",
+        "evals/fixtures/lock-stop-on-gap/codebase-survey.md"
+      ],
+      "expectations": [
+        "The export-artifact disposition is classified as a DECISION, not a fact: the output cites the survey's negative findings (no retention key in config, no bucket lifecycle rule, no ADR, the 24h scratch-file sweep named as non-transferable) rather than treating any of them as an answer",
+        "The run HALTS on that gap — no `## Brief` is written that carries a chosen disposition (neither purge-on-teardown nor a retention window), and no `### Captured assumptions` row records one as settled",
+        "The gap is SURFACED with a choice, not narrated in passing: name the gap and offer to ask it, capture it as an explicit assumption with a revisit trigger, or switch to relentless `me` mode",
+        "The decisions the survey DOES close are synthesized without a question (soft-delete column, membership cascade, `export_runs` rows following that same cascade, 202-and-enqueue teardown, owner-only 403) — the halt is scoped to the one open decision, the disposition of the object-storage artifacts themselves, and is not a refusal to lock anything",
+        "`lock`'s exemption from the Step 3 confirmation gate is not read as an exemption from STOP-on-gap: invoking `lock` confirms the contract, it does not license guessing a value to fill a gap",
+        "Because a question now exists, the open-question register exists and the Step 3 ledger gate applies — the no-question carve-out is not claimed for this run"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "auto-residue-asked-or-user-reserved-never-assumed",
+      "prompt": "/planning:interview add idempotency keys to POST /charges in the payments service. Treat evals/fixtures/auto-guard-residue/task-context.md as the task as stated, and evals/fixtures/auto-guard-residue/codebase-survey.md as the Step 1 survey result (both relative to the skill directory).",
+      "expected_output": "This is an `auto` invocation on a narrow topic, so Step 1.5 runs and lands on Mixed: the four survey-closed decisions (header `Idempotency-Key`, the `idempotency_records` store, the 24h sweep window, the `problemDetails()` envelope) are resolved from the codebase and stated as findings, and the one residue — what to do when a seen key arrives with a mismatched body — is not synthesized. Attended, that residue is ASKED as a one-question residue round leading with a recommendation and its basis. If the CALLER declared the run unattended, the same residue instead becomes a `blocked` register row plus a Brief `### Deferred questions` entry led by its `Q<N>` id and tagged `arbiter: USER-RESERVED`, named as a blocker in the output. Both outcomes pass; silently capturing a disposition as an assumption is the failure this guard exists to prevent.",
+      "files": [
+        "evals/fixtures/auto-guard-residue/task-context.md",
+        "evals/fixtures/auto-guard-residue/codebase-survey.md"
+      ],
+      "expectations": [
+        "Routes through Step 1.5 auto-detect and lands on the Mixed outcome — one residue amid otherwise-clear intent — rather than synthesizing everything, and rather than re-opening as questions the four decisions the survey already closes",
+        "The residue is identified as the mismatched-body replay semantics (replay the stored response vs reject with a conflict), and is justified as the user's: real tradeoffs both ways, no codebase answer, and it moves the Brief's acceptance criteria",
+        "The unused `request_fingerprint` column is treated as evidence the question was anticipated and never answered — NOT as a codebase answer licensing the reject-on-mismatch branch",
+        "ATTENDED, the residue is ASKED: a one-question residue round carrying a recommendation and its 2-3 sentence basis, with the run declining to synthesize past it",
+        "UNATTENDED — and only when the CALLER declared it, never because the skill claims to detect a non-interactive environment — the same residue is instead recorded `blocked` in the register, written to the Brief's `### Deferred questions` led by its `Q<N>` id and tagged `arbiter: USER-RESERVED`, and named as a blocker; the run stops on it rather than idling or reading silence as confirmation",
+        "Either outcome is acceptable and the two are DISTINCT: which one applies is decided by the caller's declaration alone",
+        "In NEITHER outcome does a disposition reach `### Captured assumptions`, get resolved to the recommendation on the user's behalf, or vanish from the output — the silent capture is the disqualifying result",
+        "The four survey-closed decisions ARE synthesized without questions — the guard narrows what may be synthesized, it does not block synthesis, so a run that asks about the header name or the sweep window has over-applied it"
+      ]
     }
   ]
 }

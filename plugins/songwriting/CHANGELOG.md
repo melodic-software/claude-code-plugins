@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.7]
+
+### Changed
+
+- **Dead first-party beat-article link (#2907).** `suno.com/hub/how-to-make-beats` now 404s. The
+  `power-tips.md` "Tag order" citation points at the April 2026 Wayback snapshot that still
+  carries the quoted hierarchy sentence. The live slug is not rewritten to a different article.
+
 ## [1.4.6]
 
 ### Changed
