@@ -14,10 +14,10 @@
 # source-control plugin hook plus required CI `pr-issue-linkage`. This gate
 # is the wiring-liveness half — it does not restore the stripped hook.
 #
-# Scope: .claude/hooks/*.sh minus *.test.sh. A script whose basename or
-# repo-relative path does not appear in settings.json hook commands, hook
-# args, or env values fails the gate. cloud-bootstrap.sh lives outside
-# .claude/hooks/ and is out of scope.
+# Scope: .claude/hooks/*.sh minus *.test.sh. A script whose repo-relative
+# path, or whose basename as a bounded path segment, does not appear in
+# settings.json hook commands, hook args, or env values fails the gate.
+# Scripts outside .claude/hooks/ are out of scope.
 #
 # Exit 0 = every hook script is referenced; 1 = one or more unwired;
 # 2 = environment / unreadable input (fail closed — never a silent skip).
@@ -39,7 +39,7 @@ if [[ ! -f "$SETTINGS" ]]; then
 fi
 
 if ! jq -e . "$SETTINGS" >/dev/null 2>&1; then
-  echo "check-hook-wiring-liveness: $SETTINGS is not parseable JSON" >&2
+  echo "check-hook-wiring-liveness: $SETTINGS is not valid JSON" >&2
   exit 2
 fi
 
@@ -54,6 +54,20 @@ refs="$(jq -r '
   ][]
 ' "$SETTINGS" | tr -d '\r')"
 
+# True when $3 names $1 (repo-relative path) or $2 (basename) as a path
+# segment, not as a substring of a longer filename. `gate.sh` must not
+# match a ref that only names `not-gate.sh`.
+hook_ref_matches() {
+  local hook="$1" base="$2" ref="$3" ere pat
+  case "$ref" in
+  *"$hook"*) return 0 ;;
+  *) ;;
+  esac
+  ere="$(printf '%s' "$base" | sed 's/[][(){}.^$*+?|\\]/\\&/g')"
+  pat="(^|[/\\\\ \"'])${ere}([/\\\\ \"']|$)"
+  [[ "$ref" =~ $pat ]]
+}
+
 errors=0
 shopt -s nullglob
 for hook in "$HOOKS_DIR"/*.sh; do
@@ -62,8 +76,15 @@ for hook in "$HOOKS_DIR"/*.sh; do
   *.test.sh) continue ;;
   *) ;;
   esac
-  if printf '%s\n' "$refs" | grep -F -q -- "$hook" ||
-    printf '%s\n' "$refs" | grep -F -q -- "$base"; then
+  wired=0
+  while IFS= read -r ref; do
+    [[ -n "$ref" ]] || continue
+    # shellcheck disable=SC2310
+    hook_ref_matches "$hook" "$base" "$ref" || continue
+    wired=1
+    break
+  done <<<"$refs"
+  if ((wired)); then
     continue
   fi
   printf 'UNWIRED HOOK: %s is not referenced by %s hook commands or env\n' \

@@ -124,11 +124,10 @@ emit_tel() {
 
 # Defer-guard: when the consuming repo tracks its OWN equivalent gate in
 # .claude/settings.json (a PreToolUse hook whose command names
-# pr-linkage-mcp-gate), both copies would fire and exit 2
+# pr-linkage-mcp-gate — the marketplace repo does exactly this so its policy
+# survives sessions with no plugin install), both copies would fire and exit 2
 # on every MCP PR call, and the repo-local copy is deliberately
-# kill-switch-free. This marketplace repo does not wire a repo-local copy
-# (#2188 stripped it; #2959 deleted the leftover). Policy survives via this
-# plugin hook plus required CI pr-issue-linkage. The plugin side is the right place to yield: the repo's
+# kill-switch-free. The plugin side is the right place to yield: the repo's
 # settings.json states the wiring authoritatively, whereas the repo-local
 # script has no sound signal for "plugin enabled" (plugin SOURCE present never
 # implies plugin ACTIVE). A repo could suppress this gate with a no-op script

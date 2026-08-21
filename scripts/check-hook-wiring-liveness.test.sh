@@ -26,27 +26,16 @@ mkdir -p "$TMP/scripts" "$TMP/.claude/hooks"
 cp "$SUT_SRC" "$TMP/scripts/check-hook-wiring-liveness.sh"
 SUT="$TMP/scripts/check-hook-wiring-liveness.sh"
 
-# Minimal settings: SessionStart command + env-wired telemetry sink.
-# Mirrors the live .claude/settings.json wiring surfaces this gate reads.
+# Minimal settings: env-wired telemetry sink. Command-form and args-form
+# wiring are asserted in their own cases; this fixture names no file
+# outside .claude/hooks/.
 write_settings() {
   cat >"$TMP/.claude/settings.json" <<'EOF'
 {
   "env": {
     "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh"
   },
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/cloud-bootstrap.sh\""
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }
 EOF
 }
@@ -143,7 +132,24 @@ fi
 rm -f "$TMP/.claude/hooks/extra-gate.sh"
 write_settings
 
-# --- 6. Missing settings.json is a hard usage error, not a silent pass. -----
+# --- 6. A longer sibling name must not satisfy a shorter basename. ----------
+# `not-gate.sh` in env would substring-match `gate.sh` under a raw grep -F.
+write_hook gate.sh
+write_hook not-gate.sh
+jq '.env.HOOK_TELEMETRY_SINK = ".claude/hooks/not-gate.sh"' \
+  "$TMP/.claude/settings.json" >"$TMP/.claude/settings.json.next"
+mv "$TMP/.claude/settings.json.next" "$TMP/.claude/settings.json"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'UNWIRED HOOK' <<<"$out" && grep -q 'gate.sh' <<<"$out" && ! grep -q 'not-gate.sh' <<<"$out"; then
+  pass "not-gate.sh wiring does not satisfy an unwired gate.sh"
+else
+  fail "bounded match should fail naming only gate.sh (rc=$rc): $out"
+fi
+rm -f "$TMP/.claude/hooks/gate.sh" "$TMP/.claude/hooks/not-gate.sh"
+write_settings
+
+# --- 7. Missing settings.json is a hard usage error, not a silent pass. -----
 rm -f "$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
@@ -154,18 +160,18 @@ else
 fi
 write_settings
 
-# --- 7. Unparseable settings.json fails closed. -----------------------------
+# --- 8. Invalid settings.json fails closed. ---------------------------------
 printf '{not json\n' >"$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
-if [[ $rc -eq 2 ]] && grep -q 'not parseable' <<<"$out"; then
-  pass "unparseable settings.json exits 2"
+if [[ $rc -eq 2 ]] && grep -q 'not valid JSON' <<<"$out"; then
+  pass "invalid settings.json exits 2"
 else
-  fail "unparseable settings.json should exit 2 (rc=$rc): $out"
+  fail "invalid settings.json should exit 2 (rc=$rc): $out"
 fi
 write_settings
 
-# --- 8. Back to green after the dead script is gone. ------------------------
+# --- 9. Back to green after the dead script is gone. ------------------------
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
@@ -174,7 +180,7 @@ else
   fail "restored env-only tree should pass (rc=$rc): $out"
 fi
 
-# --- 9. Live tree pin: the checkout this test lives in must itself be green.
+# --- 10. Live tree pin: the checkout this test lives in must itself be green.
 # After #2959's deletion that is the post-delete tree. Running the SUT in
 # place (not the fixture copy) is the honesty proof the fixture cases cannot
 # fake — if a new unwired hook lands beside this test, this assertion fails.
