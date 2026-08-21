@@ -504,6 +504,136 @@ resolve_repo_markdownlint() {
   return 1
 }
 
+# True when $1 (a PATH entry) is a version-manager / session-ephemeral prefix:
+# a global install there is not durably hook-visible (#2748 / #2868).
+path_entry_is_ephemeral() {
+  case "$1" in
+  *fnm_multishells* | */.nvm/* | */nvm/versions/* | */.fnm/* | */.asdf/installs/* | \
+    */.volta/tmp/*)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+# Strip a trailing slash; on Git Bash, fold a drive-letter spelling to POSIX
+# so $HOME and PATH entries compare as the same directory.
+normalize_path_entry() {
+  local p="${1%/}" n
+  if command -v cygpath >/dev/null 2>&1; then
+    n="$(cygpath -u "$p" 2>/dev/null)" || n="$p"
+    p="${n%/}"
+  fi
+  printf '%s' "$p"
+}
+
+# True when the edited file sits inside a git working tree. git is preferred;
+# a .git walk covers a git-less host. CLAUDE_PROJECT_DIR alone is not a repo —
+# a scratch project dir has no package.json / node_modules for `npm i -D`.
+edit_is_in_git_repo() {
+  local dir parent
+  dir="$(cd "$(dirname -- "$1")" 2>/dev/null && pwd -P)" || return 1
+  if command -v git >/dev/null 2>&1 && in_git_working_tree "$dir"; then
+    return 0
+  fi
+  while :; do
+    [[ -e "$dir/.git" ]] && return 0
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" != "$dir" ]] || return 1
+    dir="$parent"
+  done
+}
+
+# Pick a durable user-scope directory already on $PATH. Preference matches
+# directories an operator can put a hook-visible binary in without a
+# repository: ~/.bun/bin (bun's default globalBinDir), ~/.local/bin, ~/bin.
+# Version-manager multishell prefixes are skipped. Prints the chosen PATH
+# entry in the spelling that was on PATH, or returns 1.
+select_user_scope_path_target() {
+  local home rest entry norm_entry norm_home
+  local best_pref=99 best=""
+  home="${HOME:-}"
+  [[ -n "$home" ]] || return 1
+  norm_home="$(normalize_path_entry "$home")"
+  [[ -n "$norm_home" ]] || return 1
+
+  rest="${PATH:-}"
+  while [[ -n "$rest" ]]; do
+    if [[ "$rest" == *:* ]]; then
+      entry="${rest%%:*}"
+      rest="${rest#*:}"
+    else
+      entry="$rest"
+      rest=""
+    fi
+    [[ -n "$entry" ]] || continue
+    path_entry_is_ephemeral "$entry" && continue
+    norm_entry="$(normalize_path_entry "$entry")"
+    [[ -n "$norm_entry" ]] || continue
+    case "$norm_entry" in
+    "$norm_home/.bun/bin")
+      printf '%s' "$entry"
+      return 0
+      ;;
+    "$norm_home/.local/bin")
+      if ((best_pref > 2)); then
+        best_pref=2
+        best="$entry"
+      fi
+      ;;
+    "$norm_home/bin")
+      if ((best_pref > 3)); then
+        best_pref=3
+        best="$entry"
+      fi
+      ;;
+    "$norm_home"/*)
+      if [[ -d "$entry" && -w "$entry" ]] && ((best_pref > 10)); then
+        best_pref=10
+        best="$entry"
+      fi
+      ;;
+    *) ;;
+    esac
+  done
+  [[ -n "$best" ]] || return 1
+  printf '%s' "$best"
+}
+
+# Remediation sentence(s) for the missing-markdownlint notice. In a repository
+# the node_modules/.bin probe is the reliable route. Outside one, name a
+# user-scope directory already on the probed PATH instead of `npm i -D` (#2868).
+markdownlint_skip_remediation() {
+  local target norm_target
+  if edit_is_in_git_repo "$FILE"; then
+    printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools."
+    return 0
+  fi
+  printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here. This edit is outside a repository, so a repo-local install has no repository to install into"
+  if target="$(select_user_scope_path_target)"; then
+    norm_target="$(normalize_path_entry "$target")"
+    # bun's documented default globalBinDir is ~/.bun/bin
+    # (https://bun.com/docs/runtime/bunfig, install.globalBinDir, fetched
+    # 2026-08-21). markdownlint-cli2's own install docs name
+    # `npm install markdownlint-cli2 --global` as the global-CLI form
+    # (https://github.com/DavidAnson/markdownlint-cli2#install, fetched
+    # 2026-08-21); cite bun only when the chosen PATH target is that default.
+    case "$norm_target" in
+    */.bun/bin)
+      printf '%s' "; place a user-scope markdownlint-cli2 on the probed PATH (this hook would accept one at ${target}; bun install --global markdownlint-cli2 lands there by default)"
+      ;;
+    *)
+      printf '%s' "; place a user-scope markdownlint-cli2 on the probed PATH (this hook would accept one at ${target})"
+      ;;
+    esac
+  else
+    printf '%s' "; install markdownlint-cli2 onto a durable user-scope directory already on this hook's PATH"
+  fi
+  printf '%s' ". This hook does not invoke npx or download tools."
+}
+
 MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
@@ -521,9 +651,14 @@ else
   # and agents stop retrying. The trailing PATH line is the probe diagnostic
   # (what this hook process actually searched); do not widen the probe to
   # nvm/rbenv layout guesses — that is a separate environment/bootstrap fix.
+  #
+  # Remediation is scoped (#2868): `npm i -D` is the reliable route only
+  # inside a repository. Outside one, name a durable user-scope directory
+  # already on the probed PATH rather than a repo-local install that cannot
+  # be followed.
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools.
+      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation)
 PATH probed: ${PATH:-<unset>}"
   fi
   emit_tel "skipped" '[]'
