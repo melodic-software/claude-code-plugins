@@ -317,8 +317,17 @@ jobs:
   # #2774: the disk-hygiene read-only Bash allowlist is NT-specific (MSYS path
   # mapping, .exe basename stripping, ProgramFiles trust roots). Linux CI cannot
   # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
-  # POSIX — which is how an inert Windows allowlist shipped green. Keep this
-  # job SMALL: GuardTests only, not the full hygiene suite.
+  # POSIX — which is how an inert Windows allowlist shipped green. The job
+  # stays on windows-2025 for that reason.
+  #
+  # #2871: this lane used to invoke only GuardTests, so the other TestCase
+  # classes in test_hygiene.py never gated here. The full module is not
+  # host-destructive (tempdir fixtures; no live drive-root scans). Measured
+  # green on Linux (317 tests). Invoke the whole module so every class is a
+  # required check. unittest.skipUnless still drops host-specific methods
+  # (POSIX-only Bash export, linux-mountinfo) rather than omitting a class.
+  # plugins/**/*.test.sh can SKIP the wrapper when Python is absent, so it is
+  # not this guarantee — this step provisions Python and cannot take that path.
   disk-hygiene-guard-windows:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -334,9 +343,9 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - name: Run disk-hygiene GuardTests on Windows
+      - name: Run disk-hygiene tests on Windows
         working-directory: plugins/disk-hygiene/skills/clean/scripts
-        run: python -m unittest -v test_hygiene.GuardTests
+        run: python -m unittest -v test_hygiene
 
   # #2834: an MSYS path literal (`/d/...`) handed to a Windows-native consumer
   # re-anchors to the CURRENT drive's root, so the consumer creates a phantom
