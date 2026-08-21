@@ -3,6 +3,67 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.5]
+
+### Fixed
+
+Five defects found by an independent audit of already-merged code — code that had passed six
+review rounds. Four were reproduced by execution before being fixed; every fix carries a test
+verified to go red without it.
+
+- **The Linear adapter could hand out a second lease over a live one.**
+  `wit_linear_lease_comments` passed a marker's `lease_comment_id` straight to `jq --argjson`. A
+  non-numeric value makes jq exit 2 printing nothing, which emptied the accumulator; every later
+  iteration failed identically; and the trailing `sort_by` over empty input printed nothing **and
+  exited 0**. The helper returned success-with-no-output, which every caller reads as "nothing is
+  claimed". The `|| exit "$?"` guards added at six call sites in 0.39.1 cannot catch this,
+  because the failure never arrives as a non-zero status. Reproduced: with one holder on a live
+  lease whose marker read `lease_comment_id: "abc"`, a second claim returned exit 0 and a full
+  success record. Markers are consumer-writable in practice, so this is reachable input.
+
+- **A losing claim could strip a same-login winner's assignment.** Both unassign guards compared
+  the assignee against `HOLDER` — the authenticated user's *display name*, not a session identity
+  — so they could not tell our own write from another session of the same login. Since
+  `lib/frontier.sh` selects purely on assignee emptiness and never consults leases, the loser
+  returned an actively-worked item to the frontier. Both sites now require **both** conditions: no
+  other live lease, and the assignee still matching our login. Each guard alone lets a different
+  assignment through, so the conjunction is strictly safer.
+
+- **Three gitea sites still had the swallowed-`exit` bug.** `create-item` was the damaging one: it
+  reported exit `2` — *usage (bad args)* per the contract — after `POST /issues` had already
+  succeeded, so a caller that "fixed" its arguments and retried would file a duplicate. It also
+  collapsed exit 8 to 1, disabling `work-loop`'s backoff routing, and leaked raw `jq --help` text.
+
+- **Conformance was pre-wired to fail for Linear.** The suite exact-matched github's free-text
+  `reason` (`"lease live"`) on a field CONTRACT.md gives no vocabulary; linear says `"lease is
+  still live"`. The live pass this effort is still blocked on would have been spent chasing a
+  string mismatch. It now asserts the semantic fact — the active lease was selected, not the
+  superseded one — checked against all three real strings.
+
+- **Two command-injection holes in the generator, one of which hid the other.** `api.sample_scope`
+  was validated only against a pattern *the spec itself supplies*, then substituted into a
+  double-quoted argument where `$(…)` expands. Proven: a crafted spec generated cleanly and
+  running the generated test — step 1 of the generator's own printed instructions — executed a
+  command as root while the suite reported PASS. Fixed with an anchored charset, verified against
+  every bundled provider's real scope shape so it is not over-tight.
+
+  Neutering that guard to check discrimination exposed the second, worse one: **`quote_safe`'s
+  refusal was inert**, because every `render()` call is `$(render …)` and an `exit` inside a
+  command substitution kills only the subshell. A spec with a single-quoted `scope_pattern`
+  printed the refusal once per template, then wrote a directory of **empty, executable** scripts,
+  reported "Wrote 9 file(s)", printed its "Next: run these" instructions, and exited 0 — the
+  loudest refusal in the script, delivered as success. That mattered because `SCOPE_PATTERN`
+  carries a regex and so cannot be charset-bounded: `quote_safe` was its only guard. Fixed by
+  hoisting the key list to `readonly RENDER_KEYS` and sweeping every value through `quote_safe` at
+  top level, before the first emit.
+
+  A full classification of all 34 template placeholders across ~180 occurrences accompanies the
+  fix: exactly six reach a double-quoted or bare context in generated shell, and five were already
+  anchored-charset validated. `.deferrals[]` is now the only unvalidated spec value in the
+  pipeline, reaching markdown only — flagged, not fixed.
+
+  This is the third distinct instance of the swallowed-`exit`-in-`$( )` class found in this seam.
+
 ## [0.39.4]
 
 ### Fixed
