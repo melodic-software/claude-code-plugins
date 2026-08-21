@@ -17,7 +17,8 @@ calls it a motive. Motivation comes from a source outside the implementation, or
 inference — and here, code shape is not even that: it leaves the scale and is recorded as a gap.
 
 The subtle version is a named constant. A literal `128 * 1024` and a convention elsewhere in the
-codebase feel like an explanation. They are a hypothesis at best.
+codebase feel like an explanation. They are not evidence of intent at all — they are code shape,
+so they leave the scale and are recorded as a gap, exactly like the obvious version above.
 
 ## Recency bias
 

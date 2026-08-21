@@ -4,6 +4,15 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.6.0 — 2026-08-21
+
+New adopter row: `docs-hygiene:write-for-humans`' source records, four four-part records over the
+external writing standards that skill falls back to (Diátaxis, Google developer documentation style,
+ASD-STE100, Global English). Each trigger is a publication event for its standard rather than a
+fetch divergence, because these are versioned publications rather than continuously-edited pages.
+Tabled only after confirming all four conform, per the rule that a known-unstamped carrier belongs
+in an issue rather than a row. Additive; minor under this contract's own rule.
+
 ## 1.5.0 — 2026-08-17
 
 New adopter row: the `ai-slop` tell catalog's revision-pinned record over Wikipedia's

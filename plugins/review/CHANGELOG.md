@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1]
+
+### Fixed
+
+- **`downstream` mode cited into another plugin's private files.** Its "say plainly what is
+  unverified" step pointed at `playbooks/fable-5/context/verification.md` — a path under another
+  plugin's `skills/<x>/context/`, which the encapsulation contract makes private. It now cites
+  `/playbooks:fable-5`'s verification chapter by slash invocation, which is the only supported
+  handle, and leaves the presence gate and the stands-on-its-own fallback unchanged.
+
 ## [0.26.0]
 
 ### Added

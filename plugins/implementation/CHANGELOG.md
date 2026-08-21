@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- **`implement-dispatch`'s unverified-versus-omitted rule names the lanes it borrows from.** It
+  read "the same grounding rule the loop lanes apply to their cycle reports" — an unresolvable
+  pointer for a consumer who installs `implementation` alone and has never met that phrase. It now
+  names `work-items:work-loop` and `source-control:babysit-loop`, which is what 0.15.0's own
+  release note already told a changelog reader the rule cited. The wording deliberately echoes
+  theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognises the
+  other.
+
 ## [0.15.0]
 
 ### Added

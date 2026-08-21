@@ -75,4 +75,6 @@ Close with your own read: which design wins, and why. If pieces of different des
 than the rest — what was considered and left behind, with the reason. A future reader learns most
 from the branch that was rejected and why, which is exactly what vanishes when only the winner
 survives. The record travels into `agreed-shape` when the shape is grilled; a hybrid proposed
-without one is a shape nobody can later audit.
+without one is a shape nobody can later audit. The record lands in the candidate artifact's
+`graft-record` field — a sibling of `agreed-shape`, not part of it — written by the Handoff step in
+[`../../actions/deepening.md`](../../actions/deepening.md) at the same moment the shape is agreed.

@@ -131,11 +131,11 @@ No tests needed for:
 
 The list above is about code that needs no test. A second, different question is whether a test
 worth having is worth *this* test — and the answer is sometimes no even for code that does need
-covering. **Prefer no new test to a bad one**, when the only available test would need broad harness
-setup, brittle mocks, slow end-to-end infrastructure, production-only state, a reproduction nobody
-can state precisely, or large unrelated fixture churn. A test that mostly exercises its own mocks,
-encodes today's implementation, or would be deleted the moment it has proved its point costs more to
-maintain than the confidence it buys.
+covering. **Prefer no new test to a bad one** (Khorikov, via `/tdd:principles`), when the only
+available test would need broad harness setup, brittle mocks, slow end-to-end infrastructure,
+production-only state, a reproduction nobody can state precisely, or large unrelated fixture churn.
+A test that mostly exercises its own mocks, encodes today's implementation, or would be deleted the
+moment it has proved its point costs more to maintain than the confidence it buys.
 
 Declining is not skipping. Say which of those made the test impractical, then name the closest
 executable check you used instead — a targeted script, a reproduction command, a snapshot

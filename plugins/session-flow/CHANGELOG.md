@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## [0.32.1]
+
+### Fixed
+
+- **`running-retro` and `retro` routed a skill candidate to a surface that cannot take one.**
+  0.32.0 had both skills "hand an accepted candidate to `/playbooks:skill-authoring`" and hand the
+  shape over rather than drafting one inline — but that skill takes no arguments and performs no
+  actions: it is a knowledge surface. Handing it a candidate resolves to nothing, so the
+  destination 0.32.0 set out to give a candidate did not exist. Both now say to read it for the
+  doctrine and draft against it, still gated on `/skill-quality:check` and still presence-gated
+  with the recorded-but-no-authoring-route fallback. The reason for not drafting ad hoc is
+  unchanged and now attaches to the right mechanism: the playbook carries the conventions a
+  retro-tail draft is most likely to miss.
+
 ## [0.32.0]
 
 ### Added

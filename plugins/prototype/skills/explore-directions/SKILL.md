@@ -225,7 +225,9 @@ the sidebar from C" — that's the actual design discovered.
 
 ### 6. Capture the answer and clean up
 
-Per the shared discipline — record which variant won and why.
+Per the shared discipline — record which variant won and why, and record the directions that lost
+with their reasons. When the verdict is a graft rather than a single winner, say which piece came
+from where. The deletions below are irreversible.
 
 - **Sub-shape A** — delete losing variants and the switcher; fold the winner into the existing page.
 - **Sub-shape B** — promote the winner to a real route; delete the throwaway route and switcher.

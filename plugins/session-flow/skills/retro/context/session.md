@@ -208,11 +208,12 @@ encapsulating as a skill:
 Always present the subsection — either candidate(s) with name/description/rationale, or "no
 candidates" with a one-line explanation of what was considered.
 
-**Name where an accepted candidate goes.** Hand it to `/playbooks:skill-authoring`, gated on
-`/skill-quality:check`, when those are installed; otherwise say the candidate has no authoring route
-here and leave it recorded rather than drafting one inline. A candidate with no destination is a
-finding that evaporates between sessions, and a skill drafted ad hoc at the end of a retro is the
-one most likely to miss the conventions the authoring surface exists to carry.
+**Name where an accepted candidate goes.** Read `/playbooks:skill-authoring` for the doctrine and
+draft against it, then gate the result on `/skill-quality:check`, when those are installed;
+otherwise say the candidate has no authoring route here and leave it recorded. A candidate with no
+destination is a finding that evaporates between sessions, and a skill written ad hoc at the end of
+a retro is the one most likely to miss the conventions that playbook exists to carry. (It is a
+knowledge surface — no arguments, no actions — so it informs the drafting rather than doing it.)
 
 ### Follow-up candidates (REQUIRED — always include)
 

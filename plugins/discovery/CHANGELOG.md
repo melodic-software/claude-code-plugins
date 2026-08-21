@@ -1,5 +1,29 @@
 # Changelog — discovery plugin
 
+## [0.16.1]
+
+### Fixed
+
+- **Three routes back to the code-shape exclusion `trace-intent` is built around, all closed.** The
+  source-control evidence row listed "test names" among what that category holds — but a test name
+  is a symbol in the implementation, not someone writing down a reason, so admitting it readmitted
+  code shape through the category table while the outcome gate still demanded that no claim rest on
+  the code's shape. Dropped; a code *comment stating a reason* stays admissible, because that is
+  someone writing down why. `context/gotchas.md` called a named constant plus a nearby convention
+  "a hypothesis at best", which collides with `Speculative`'s own output section (*Competing
+  hypotheses*) and so read as licensing the very rung the scale forbids for code shape; it now says
+  plainly that this is code shape, leaves the scale, and is recorded as a gap. And the
+  behavioural-signal ceiling said "reaches `Inferred` and never `Direct`" while the eval graded
+  "never `Direct` or `Supported`" — the body now names both, so the grading criterion is derivable
+  from the skill as written.
+- **An eval that could not distinguish the behavior it targets from correct behavior.** The
+  anticipatory-skip case told the model not to bother checking the tracker but never stipulated
+  that a tracker existed — and the tracker category is presence-gated, so in a bare checkout the
+  correct output is a tracker-unavailable gap line, which the eval's first expectation graded as a
+  failure. The prompt now states that the tracker is configured and reachable, isolating
+  anticipatory skipping from presence-gating, which the unavailable-category eval already covers
+  separately.
+
 ## [0.16.0]
 
 ### Added
