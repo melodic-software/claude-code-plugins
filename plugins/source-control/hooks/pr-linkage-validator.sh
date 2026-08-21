@@ -5,8 +5,6 @@
 # that check:
 #   - pr-body-linkage-gate.sh   (Bash surface: `gh pr create` / `gh pr edit`)
 #   - pr-linkage-mcp-gate.sh    (MCP surface: GitHub MCP create/update PR)
-#   - the marketplace repo's checked-in .claude/hooks/pr-linkage-mcp-gate.sh,
-#     which sources this file from its own checkout
 # A drift fix against the upstream validator lands here once and reaches every
 # surface atomically; per-surface extraction, scope guards, and block messages
 # stay in the consuming hooks.

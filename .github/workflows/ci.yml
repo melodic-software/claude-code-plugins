@@ -35,12 +35,12 @@ jobs:
   # inputs (.github/workflows/** and the named manifests) that a diff confined
   # to the docs-only allowlist (scripts/docs-only-paths.txt) cannot touch, so
   # on such a diff they report an honest evaluated-and-not-applicable success.
-  # ShellCheck and exec-bit are NOT
-  # gated: both scan the whole repo extension- and directory-agnostically
-  # (ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every tracked
-  # shebang file recorded 100644), so a shell/shebang file added under an
-  # otherwise docs-only prefix like docs/topics/ is real input they must still
-  # catch — gating them would open a fail-closed hole. The job NEVER skips — only
+  # ShellCheck, exec-bit, and hook-wiring-liveness are NOT
+  # gated: ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every
+  # tracked shebang file recorded 100644, and hook-wiring-liveness greps
+  # .claude/hooks/*.sh against settings.json — a shell/shebang/hook file added
+  # under an otherwise docs-only prefix like docs/topics/ is real input they
+  # must still catch — gating them would open a fail-closed hole. The job NEVER skips — only
   # the path-scoped steps are gated, via the same never-skip, self-test-first,
   # fail-closed detector plugin-gate/miro-plugin use. The detector self-test runs
   # unconditionally so a broken detector cannot mask a regression, and detection
@@ -225,9 +225,16 @@ jobs:
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
 
+      - name: Test the hook-wiring-liveness gate
+        run: bash scripts/check-hook-wiring-liveness.test.sh
+      - name: Check repo-local hooks are wired in settings.json
+        id: hook_wiring
+        continue-on-error: true
+        run: scripts/check-hook-wiring-liveness.sh
+
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck and exec-bit scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, and hook-wiring-liveness scan the whole repo and stay unconditional."
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -243,8 +250,9 @@ jobs:
           # masked. The aggregator stays fail-closed on any real non-`success`
           # (including `skipped`); it is never told to pass on `skipped`. The
           # condition (docs_only == 'true') is the exact inverse of each gate, so
-          # the two can never disagree. ShellCheck and exec-bit are unconditional
-          # (whole-repo scanners), so they feed their raw outcome.
+          # the two can never disagree. ShellCheck, exec-bit, and
+          # hook-wiring-liveness are unconditional (whole-repo scanners), so
+          # they feed their raw outcome.
           CHECK_RESULTS: |
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
@@ -261,6 +269,7 @@ jobs:
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
+            hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
   zizmor:
