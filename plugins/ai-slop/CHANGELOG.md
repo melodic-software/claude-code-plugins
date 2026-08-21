@@ -25,6 +25,20 @@ name a committed fixture instead.
   because nothing was owed, not because the fetch failed. Staging fixes both at once: the rewrite
   lands on a throwaway copy, and the copy is tracked, so persistence is genuinely owed. The staged
   copies were re-measured — identical rules, lines and densities at the new path.
+- **The staging commit sets its identity inline**, `git -c user.name=eval -c user.email=eval@local
+  commit -m stage`. `git init` inherits `user.name`/`user.email` from `~/.gitconfig` or the `GIT_*`
+  environment, and neither is guaranteed: this suite's own unit tests pin `HOME` to an empty tmpdir
+  for isolation (`detect.test.sh`), and a fresh container has no seeded identity either. Without the
+  flags the preamble dies at `git commit` with "Please tell me who you are" (exit 128) *before the
+  audit runs*, so all seven staged cases error out instead of grading — the same "scenario cannot
+  produce the graded input" failure this release exists to remove. Verified by executing each
+  preamble as written under an empty `HOME` with `GIT_AUTHOR_*`/`GIT_COMMITTER_*` unset.
+- Staging stops at a commit rather than at `git add`, though `git ls-files` already reports a staged
+  file as tracked and either form would satisfy the persistence gate. These cases model a *consuming
+  repo*, and a real one has history: the audit's repo-wide ordering reads
+  `git log --since=90.days --name-only` for change frequency, which returns nothing in a repo with
+  no commits. That divergence is harmless for today's single-file cases and invisible in every
+  current expectation, which is exactly why it is worth not building in.
 - **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
   That decision holds for the *unit* suite, whose fixtures are still built inline in a tmpdir. It
   does not survive contact with the eval suite: an eval case is graded against a deterministic
