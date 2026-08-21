@@ -84,9 +84,10 @@ zone bands, zones.json shape) are owned by
      a self-hosted cloud environment, a `claude -p` run — refreshes no statusline no matter what is
      wired. Where you can tell you are in such a session, report this as **INFO: no capture channel
      in this environment**, say that `unknown` is the correct and permanent zone here, and do NOT
-     print wiring the operator cannot make run. `reference/cloud-headless-capture.md` records why
-     no substitute channel exists (every channel checked, with sources and dates) and
-     `reference/reader-contract.md`'s cloud-and-headless section carries the consumer rule.
+     print wiring the operator cannot make run.
+     `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md` records why no substitute channel
+     exists (every channel checked, with sources and dates) and the cloud-and-headless section of
+     `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` carries the consumer rule.
    - **`statusLine` present, command references neither the shim nor this plugin's
      `statusline-tee.sh`** — wrapper missing. Print the wrapped wiring below with the user's
      current command preserved as the wrapped command.
