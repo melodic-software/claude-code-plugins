@@ -62,21 +62,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   somewhere else and must not be presented as instrument-backed. It also gives the discriminator the
   previous text lacked: structural absence and a broken install both print `unknown`, and only the
   writer side separates them — read `statusLine` from every scope that can carry it, **managed
-  settings included**, and treat a configured `statusLine` whose status line is *disabled* as
-  structural too. Claude Code turns the status line off entirely under a managed `disableAllHooks`
-  or an untrusted folder, and under `allowManagedHooksOnly` narrowing it runs a managed value if one
-  is deployed and otherwise skips yours without warning — a state that reads as a broken install
-  unless it is checked first, and whose remediation is policy or trust, never wiring.
+  settings included**, and treat a configured `statusLine` whose status line is *disabled* **or
+  whose environment is terminal-less** as structural too. Claude Code turns the status line off
+  entirely under a managed `disableAllHooks` or an untrusted folder, and under
+  `allowManagedHooksOnly` narrowing it runs a managed value if one is deployed and otherwise
+  skips yours without warning — a state that reads as a broken install unless it is checked
+  first, and whose remediation is policy or trust, never wiring. A configured, not-disabled
+  `statusLine` in a cloud or headless session is the same structural class: the command exists
+  and is still never invoked, which is the case this release measured.
 - **`/context-guard:setup` `check` stops prescribing a remediation that cannot work, and stops
-  contradicting itself when one would (#2957).** No `statusLine` in a session that runs none is
-  INFO with the structural explanation instead of printed wiring the operator cannot make run. The
-  matching snapshot-absent branch is now gated on the same condition rather than on the bare
-  absence of a `statusLine`: it reports structural absence only where step 3 took the terminal-less
-  exception, and otherwise reports the ordinary not-yet-wired state and points at the wiring step 3
-  just printed — previously the two steps could print wiring and then say nothing was broken, in
-  the same report, on the single most common state the check exists to diagnose. `check` also reads
-  managed settings as a `statusLine` scope and reports a policy- or trust-disabled status line as
-  INFO rather than letting it fall through to the wiring-defect FAIL.
+  contradicting itself when one would (#2957).** Terminal-less detection is orthogonal to all
+  four wiring states, not nested under "no `statusLine` configured": a correctly-wired shim in
+  a cloud or headless session is INFO (structural) rather than PASS-then-FAIL, and step 7 does
+  not print wiring those branches already forbade. The matching snapshot-absent **or stale**
+  branch is gated on the same condition rather than on the bare absence of a `statusLine`: it
+  reports structural absence only where step 3 took the terminal-less exception, and otherwise
+  reports the ordinary not-yet-wired state and points at the wiring step 3 just printed —
+  previously the two steps could print wiring and then say nothing was broken, in the same
+  report, on the single most common state the check exists to diagnose. `check` also reads
+  managed settings as a `statusLine` scope, reports a policy- or trust-disabled status line as
+  INFO rather than letting it fall through to the wiring-defect FAIL, and routes a managed
+  effective `statusLine` to the policy administrator instead of printing an operator edit for
+  that file.
 
 ## [0.7.16]
 

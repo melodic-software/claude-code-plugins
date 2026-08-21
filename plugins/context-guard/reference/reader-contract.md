@@ -490,9 +490,14 @@ and managed settings, where `statusLine` is also a valid key.
   to managed settings when `allowManagedHooksOnly` is set — under narrowing it runs a managed value
   if one is deployed and otherwise skips yours *without warning*. This state looks exactly like a
   broken install unless it is checked first.
-- **A `statusLine` configured, not disabled, and no fresh snapshot** is a real defect (wiring,
-  installed shim, or `jq`) — invoke `/context-guard:setup` via the Skill tool with `check` for the
-  diagnosis.
+- **A `statusLine` configured, not disabled, in an environment that does not run a statusline**
+  (cloud, headless `claude -p`, other terminal-less) is also structural. The command exists and
+  is not policy-disabled, and is still never invoked — measured 2026-08-21, a `statusLine`
+  written into a live cloud session's own user settings was never invoked. Report as "no
+  instrument in this environment", never as a defect.
+- **A `statusLine` configured, not disabled, in an environment that runs a statusline, and no
+  fresh snapshot** is a real defect (wiring, installed shim, or `jq`) — invoke
+  `/context-guard:setup` via the Skill tool with `check` for the diagnosis.
 
 ## Invariants and boundaries
 

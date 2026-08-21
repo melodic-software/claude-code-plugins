@@ -207,15 +207,22 @@ that runs it (<https://code.claude.com/docs/en/statusline>,
    if one is deployed; otherwise it skips your value without warning, the status line is disabled".
    A configured `statusLine` that never runs looks exactly like a broken install unless this branch
    is checked first.
-4. **A `statusLine` is configured, the status line is not disabled, and no fresh snapshot exists**
-   → a real defect: wiring, the installed shim, or `jq`. Invoke `/context-guard:setup` via the
-   Skill tool with `check` for the full diagnosis.
+4. **A `statusLine` is configured, the status line is not disabled, and the environment is
+   terminal-less** → also structural. The command exists and is not policy-disabled, and is
+   still never invoked. This is the measured cloud case: a `statusLine` written into a live
+   cloud session's user settings was never invoked. Report as "no instrument in this
+   environment"; do not offer wiring as a remediation.
+5. **A `statusLine` is configured, the status line is not disabled, the environment is one
+   that runs a statusline, and no fresh snapshot exists** → a real defect: wiring, the
+   installed shim, or `jq`. Invoke `/context-guard:setup` via the Skill tool with `check` for
+   the full diagnosis.
 
-A cloud or headless session lands on branch 2 by default: no `statusLine` is configured. It also
-lands on the structural side when one *is* configured — measured above, a `statusLine` written into
-a live cloud session's user settings was never invoked. The status line is a terminal-interface
+A cloud or headless session lands on branch 2 by default: no `statusLine` is configured. When
+one *is* configured it lands on branch 4 — measured above, a `statusLine` written into a live
+cloud session's user settings was never invoked. The status line is a terminal-interface
 surface: the page describes it rendering above the footer badges and reading `COLUMNS` / `LINES`
-for terminal dimensions. Configuring one there is not a remediation to offer.
+for terminal dimensions. Configuring one there is not a remediation to offer. It does **not**
+land on branch 5: that branch is a real defect only where a status line would actually run.
 
 ## What would have to change upstream
 

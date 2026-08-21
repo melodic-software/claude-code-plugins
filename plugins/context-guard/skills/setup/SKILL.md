@@ -74,24 +74,17 @@ zone bands, zones.json shape) are owned by
    `.claude/settings.local.json`, and managed settings, where `statusLine` is also a valid key)
    and determine which one owns the EFFECTIVE command (the most specific scope wins among the
    three non-managed scopes; a managed value outranks all of them). All wiring states below are
-   evaluated against that effective command,
-   and the printed edit in step 7 targets THAT scope's file — wiring the user file while a
-   project-level `statusLine` shadows it would apply cleanly and never run; when a shadow
-   exists, say so explicitly and print the edit for the shadowing file (or note that removing
-   the override is the alternative). Distinguish FOUR states:
+   evaluated against that effective command. The printed edit in step 7 targets THAT scope's
+   file **except** when the owning scope is managed: that file is administrator-controlled, the
+   operator running this skill generally cannot change it, and no lower-scope edit can override
+   it. In that case name the managed source, say the operator cannot change it from here, and
+   route to the policy administrator — do not print an operator edit for the managed file.
+   Wiring the user file while a project-level `statusLine` shadows it would apply cleanly and
+   never run; when a non-managed shadow exists, say so explicitly and print the edit for the
+   shadowing file (or note that removing the override is the alternative). Distinguish FOUR
+   states:
    - **No `statusLine` configured** — the wrapper is not running because nothing is. Print the
-     standalone wiring from the template below (the shim is then the whole statusline). **One
-     exception, and it changes the finding rather than the remediation:** the statusline is a
-     terminal-interface surface, so a session with no terminal interface does not run a statusline
-     even when one is wired. Measured 2026-08-21 for Claude Code on the web and for a `claude -p`
-     run — a configured `statusLine` was never invoked in either — and expected on the same
-     reasoning, though not measured, for other non-terminal environments such as a self-hosted
-     cloud runner. Where you can tell you are in such a session, report this as **INFO: no capture
-     channel in this environment**, say that `unknown` is the correct and permanent zone here, and
-     do NOT print wiring the operator cannot make run.
-     `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md` records why no substitute channel
-     exists (every channel checked, with sources and dates) and the cloud-and-headless section of
-     `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` carries the consumer rule.
+     standalone wiring from the template below (the shim is then the whole statusline).
    - **`statusLine` present, command references neither the shim nor this plugin's
      `statusline-tee.sh`** — wrapper missing. Print the wrapped wiring below with the user's
      current command preserved as the wrapped command.
@@ -107,14 +100,31 @@ zone bands, zones.json shape) are owned by
      comparison against `${CLAUDE_PLUGIN_ROOT}` applies or is meaningful here; the shim resolves
      the tee at run time.
 
-   Orthogonal to all four, and checked BEFORE reporting any of them as working: the status line
-   can be **turned off with a `statusLine` still configured**. Claude Code disables it entirely
-   when managed settings set `disableAllHooks` or the folder is not trusted, and narrows the
-   source to managed settings when `allowManagedHooksOnly` is set — under narrowing it runs a
-   managed value if one is deployed and otherwise "skips your value without warning, the status
-   line is disabled". Report that state as **INFO: the status line is disabled by policy or
-   workspace trust**, name which of the three conditions applies, and route the operator to policy
-   or trust — it is not a wiring defect, and printing wiring will not fix it.
+   Orthogonal to all four, and checked BEFORE reporting any of them as working, TWO
+   environment-side states that make a configured command inert:
+
+   - **The session is terminal-less.** The statusline is a terminal-interface surface, so a
+     session with no terminal interface does not run a statusline even when one is wired.
+     Measured 2026-08-21 for Claude Code on the web and for a `claude -p` run — a configured
+     `statusLine` was never invoked in either — and expected on the same reasoning, though not
+     measured, for other non-terminal environments such as a self-hosted cloud runner. Where
+     you can tell you are in such a session, report this as **INFO: no capture channel in this
+     environment** regardless of which of the four wiring states applies, say that `unknown` is
+     the correct and permanent zone here, and do NOT print wiring the operator cannot make run.
+     A correctly-wired shim in a cloud or headless session is still never invoked; classifying
+     that wiring as PASS and the missing snapshot as a wiring FAIL is the defect this exception
+     exists to prevent.
+     `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md` records why no substitute
+     channel exists (every channel checked, with sources and dates) and the cloud-and-headless
+     section of `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` carries the consumer rule.
+   - **The status line is turned off with a `statusLine` still configured.** Claude Code
+     disables it entirely when managed settings set `disableAllHooks` or the folder is not
+     trusted, and narrows the source to managed settings when `allowManagedHooksOnly` is set —
+     under narrowing it runs a managed value if one is deployed and otherwise "skips your value
+     without warning, the status line is disabled". Report that state as **INFO: the status
+     line is disabled by policy or workspace trust**, name which of the three conditions
+     applies, and route the operator to policy or trust — it is not a wiring defect, and
+     printing wiring will not fix it.
 4. **Live-session snapshot freshness** — this session's id is `${CLAUDE_SESSION_ID}`. Probe
    `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`:
    - Exists and `captured_at` is within the reader contract's 10-minute staleness window → PASS
@@ -122,23 +132,27 @@ zone bands, zones.json shape) are owned by
      `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" ${CLAUDE_SESSION_ID}`.
    - Fresh but `used_percentage` or `current_usage` null → INFO: documented early-session or
      post-`/compact` statusline state; the resolver correctly answers `unknown`. Not a defect.
-   - Absent while step 3 found **no `statusLine` in any scope** → INFO, not FAIL: nothing is
-     writing snapshots because nothing is configured to. Which INFO depends on the SAME condition
-     step 3 branched on, and the two reports must agree — never print step 3's wiring and then say
-     nothing is broken.
+   - Absent or stale while step 3 found **no `statusLine` in any scope** → INFO, not FAIL:
+     nothing is writing snapshots because nothing is configured to, whether the file is missing
+     or a leftover from an earlier session has gone stale. Which INFO depends on the SAME
+     condition step 3 branched on, and the two reports must agree — never print step 3's wiring
+     and then say nothing is broken.
      - **If step 3 took the terminal-less exception** (you could tell this session refreshes no
        statusline) this is structural: `unknown` is correct and permanent here, no other channel
        can supply one, and there is nothing to fix. Do not report a defect and do not send the
        operator to fix an install that is not broken.
-     - **Otherwise** this is the not-yet-wired state — the ordinary state of a fresh local install,
-       and the single most common reason `check` is run. The remediation is the wiring step 3 just
-       printed; point at it, say snapshots start on the next statusline refresh once it is applied,
-       and do NOT call this structural.
+     - **Otherwise** this is the not-yet-wired state — the ordinary state of a fresh local
+       install, and the single most common reason `check` is run. The remediation is the wiring
+       step 3 just printed; point at it, say snapshots start on the next statusline refresh once
+       it is applied, and do NOT call this structural.
    - Absent or stale while step 3 reported correct wiring **and did not find the status line
-     disabled** → FAIL: the wrapper is wired but not running (the statusline refreshes only in
-     interactive sessions; also re-check steps 2 and 3 — a shim that is wired but not installed
-     produces exactly this). Note the file only updates while this session is interactive. If step
-     3 found the status line disabled by policy or trust, this is that INFO instead, not a FAIL.
+     disabled and did not take the terminal-less exception** → FAIL: the wrapper is wired but
+     not running (the statusline refreshes only in interactive sessions; also re-check steps 2
+     and 3 — a shim that is wired but not installed produces exactly this). Note the file only
+     updates while this session is interactive. If step 3 found the status line disabled by
+     policy or trust, or took the terminal-less exception, this is that INFO instead, not a
+     FAIL — including the measured cloud case of a correctly-wired `statusLine` that is never
+     invoked.
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path —
      probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
@@ -173,10 +187,14 @@ zone bands, zones.json shape) are owned by
      default) leaves it inert while the injection hook still runs. Report it separately: an armed
      hook set with an advisory posture is a different runtime state from an inert hook set, and
      only one of the two is a defect.
-7. **Print the operator edit** — always print the applicable statusline edit for the settings
-   file that owns the effective command (step 3), marked clearly as the operator's to apply. The
-   wiring target is the SHIM's fixed path — never `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned
-   and belongs in no operator file:
+7. **Print the operator edit** — print the applicable statusline edit for the settings file
+   that owns the effective command (step 3), marked clearly as the operator's to apply, **except**
+   when step 3 took the terminal-less exception, found the status line disabled by policy or
+   trust, or found the effective command owned by managed settings. Those branches already
+   forbade printing wiring the operator cannot make run (or cannot change); printing it here
+   would recommend the exact ineffective remediation they suppress. When this step does print,
+   the wiring target is the SHIM's fixed path — never `${CLAUDE_PLUGIN_ROOT}`, which is
+   version-pinned and belongs in no operator file:
 
    **Unwrap before you compose.** `<current statusline command>` below means the operator's OWN
    renderer, never the raw effective `command` string. Recover it by peeling off the wrapping this
@@ -375,9 +393,9 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
 - The shim is **inert until wired**: installing it starts nothing. Only the operator's
   `settings.json` edit — step 7 of `check`, which this skill never applies — puts it on the
   statusline path. Say that explicitly when reporting the write.
-- After installing, print the wiring edit (`check` step 7) so the operator's next action is in
-  front of them, and note that a statusline already wired to the shim needs NO change now or on
-  any future plugin update.
+- After installing, print the wiring edit (`check` step 7) — honoring that step's exceptions —
+  so the operator's next action is in front of them when there is one, and note that a
+  statusline already wired to the shim needs NO change now or on any future plugin update.
 
 ### B. Seed or refresh the zones SSOT
 
