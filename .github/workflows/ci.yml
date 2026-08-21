@@ -320,8 +320,8 @@ jobs:
   # POSIX — which is how an inert Windows allowlist shipped green. Keep this
   # job SMALL: GuardTests only, not the full hygiene suite.
   #
-  # #2871: the full module (`python -m unittest -v test_hygiene`) is the
-  # required non-skippable gate, and it lives on `disk-hygiene-tests`
+  # #2871: a dedicated fast signal for the full module
+  # (`python -m unittest -v test_hygiene`) lives on `disk-hygiene-tests`
   # (Linux). It is not invoked here because two tests fail on windows-2025
   # (315/317, 9.96s on run 32477560257):
   #   - HygieneTests.test_preview_allows_root_children_os_managed_snapshot
