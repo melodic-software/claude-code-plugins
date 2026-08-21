@@ -6,7 +6,7 @@ from a versioned catalog, with trend-aware severity, narrow approval-gated remed
 dated markdown report per run. Fail-safe posture throughout: surface issues over silently fixing
 them, and every finding carries reproduction commands.
 
-Windows is fully implemented (17 checks, PowerShell 7.x). macOS and Linux are scaffolded as
+Windows is fully implemented (18 checks, PowerShell 7.x). macOS and Linux are scaffolded as
 honest `NOT_IMPLEMENTED` stubs — on those hosts the skill reports UNKNOWN and stops rather than
 pretending coverage.
 

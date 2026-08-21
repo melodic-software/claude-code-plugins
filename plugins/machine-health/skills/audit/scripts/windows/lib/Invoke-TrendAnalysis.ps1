@@ -157,6 +157,7 @@ function Get-TrendRelevantKey {
         'drivers' { return 'unsigned_in_store_count' }
         'reliability' { return 'stability_min_7d' }
         'claude-temp-root' { return 'total_gb' }
+        'environment-health' { return 'user_path_length' }
         default { return $null }
     }
 }
@@ -185,7 +186,7 @@ function Test-WorseningTrend {
     $upwardWorsens = @(
         'disk-space', 'defender', 'event-log-errors',
         'winget-upgrades', 'windows-update', 'services', 'drivers',
-        'claude-temp-root'
+        'claude-temp-root', 'environment-health'
     )
     $downwardWorsens = @('battery', 'reliability')
 

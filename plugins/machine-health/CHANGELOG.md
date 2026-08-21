@@ -3,6 +3,21 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`environment-health` detect-only Windows check (#2866).** Eighteenth catalog check.
+  Reads persisted User (`HKCU:\Environment`) and Machine environment values and emits
+  mechanical shapes only: `DISABLE_AUTOUPDATER`, missing PATH directories, duplicate
+  PATH entries, shadowed executables (WARN when the winner is a lower-precedence scope
+  than User), User Path stored as `REG_SZ` rather than `REG_EXPAND_SZ`, User Path
+  length against the 2047-character legacy-editor ceiling (WARN at 1800, CRIT at 2047),
+  and credential-pattern variable **names** (`*_TOKEN`, `*_API_KEY`, `*_SECRET`,
+  `*_PASSWORD`) with scope only. Credential values are never read. No remediation
+  entry — registry writes remain unauthorized. Rubric:
+  `references/windows/check-catalog.md` § 18.
+
 ## [0.10.6]
 
 ### Changed
