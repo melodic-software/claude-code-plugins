@@ -1111,14 +1111,31 @@ ps::might_write_via_python3() {
 # VARIABLE (`& $tool …`) is the genuinely-deferred variable-command-word residual
 # and is deliberately NOT routed here. Operates on the quote-INTACT command
 # (backticks recovered) so the string-literal forms stay visible.
+#
+# An unspaced assignment whose RHS is a string-literal call (`$a=& "$tool"`)
+# must enter this sink, or the measuring predicates never run (#2984) — the
+# mirror image of #2922/#2924, where entry was BROADER than measurement.
+# `=` is NOT a generic separator here. about_Assignment_Operators: `=` assigns
+# to a variable (`$name = …`, `$scope:name = …`). Putting `=` in the same
+# class as `;` `|` `&` also matches data inside quotes (about_Quoting_Rules:
+# quoted text is a literal string) and git(1) `-c <name>=<value>` config
+# overrides. Those are not assignments. The assignment arm is a separate
+# `$name=` / `$scope:name=` alternative, scanned quote-blanked so a quoted
+# `$a=& "…"` stays data. Spelled out literally, never shared through a
+# variable, for the quote-removal reason the block comment above states.
 ps::has_dynamic_invocation() {
   # `q` carries the two quote characters so neither appears literally inside the
   # [[ =~ ]] test (which would derail shellcheck's parser).
-  local recovered="${1//\`/}" lc q="\"'"
+  local recovered="${1//\`/}" lc q="\"'" blanked
   lc="${recovered,,}"
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   [[ "$recovered" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$q] ]] && return 0
-  return 1
+  # Assignment-glued call of a string literal. Quote-intact keeps the
+  # following quote visible (`& "…"` / `. '…'`). Quote-blanked confirms the
+  # `$name=` itself is not inside a string.
+  [[ "$recovered" =~ (^|[[:space:]\;\{\}\(\|\&])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*[.\&][[:space:]]*[$q] ]] || return 1
+  blanked=$(ps::blank_quoted_spans "$recovered")
+  [[ "$blanked" =~ \$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*[.\&] ]]
 }
 
 # True (0) when a process launcher / nested shell sits at a command position:
@@ -1132,12 +1149,20 @@ ps::has_dynamic_invocation() {
 # an airtight boundary; deeper nested-shell escaping (and `cmd /c`'s own quoting)
 # is a shared Bash+PS residual.
 ps::has_launcher() {
-  local lc="${1//\`/}"
+  local lc="${1//\`/}" blanked
   lc="${lc,,}"
   # The .exe-suffixed spellings (cmd.exe, powershell.exe, pwsh.exe) and the
   # `start` alias of Start-Process are the same launchers, not a new class —
   # a spelling gap here would skip the sink entirely (review round 4).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]] && return 0
+  # Assignment-glued launcher (`$out=pwsh $script`). Same `$name=` /
+  # `$scope:name=` LHS as has_dynamic_invocation — about_Assignment_Operators,
+  # not a generic `=` separator. Quote-BLANKED so `Write-Host "shell=pwsh $x"`
+  # and a quoted `$out=pwsh` stay data (about_Quoting_Rules). `git -c
+  # section.key=cmd` is git(1) `-c <name>=<value>`, not an assignment, and
+  # does not match. Spelled out literally, never shared through a variable.
+  blanked=$(ps::blank_quoted_spans "$lc")
+  [[ "$blanked" =~ (^|[[:space:]\;\|\&\(])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
 }
 
 # Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND
