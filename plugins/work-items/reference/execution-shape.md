@@ -54,6 +54,24 @@ Independent, parallelizable items; each item is its own micro journey to the def
 - Verification is per-item (the item's own gates) plus the macro close-out review when the
   container's last sub-item closes.
 
+**The serial variant — per-item PRs off one long-lived branch.** The shape value names *PR
+granularity*; fresh-branch-per-item is its default *provisioning*, not part of the definition. A
+single agent working a container end-to-end in one session line legitimately keeps one long-lived
+branch and opens a PR per item off it, merging each before the next: same per-item granularity,
+same per-item `Closes #N`, same close-out basis (the set of per-item squash commits), but the
+branch is provisioned once rather than per item. Recorded because container #2933 shipped exactly
+this way — eleven PRs, all with the same head ref — and an earlier version of this document
+described only the fresh-branch provisioning, so no container using the variant could record a
+truthful shape line.
+
+What the variant forfeits, and why it is not the default: parallelism is gone (one branch cannot
+host two concurrent items), so the seam claim stops being a collision signal between lanes and
+becomes bookkeeping; and each PR's diff is only honest if the previous one merged first, because
+an unmerged predecessor's commits ride along in the next PR's range. Choose it when the work is
+genuinely serial and single-agent. Anything with independent lanes wants the default. This is a
+provisioning note under `per-item PRs`, **not** a third shape value — the shape line stays
+two-valued, and readers, `ship`, and the close-out basis are unchanged by it.
+
 ### `integration branch → single PR`
 
 Sequential checkpoints on one shared branch; the journey ships as one PR at the end.
