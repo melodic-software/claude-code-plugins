@@ -4,6 +4,28 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.5]
+
+### Changed
+
+- **`docpage-digest` pipeline hardening from the 9-slice cloud-fleet corpus run
+  (#3015).** Fence mandate: every verbatim quote is a column-0 fenced container
+  under a bold `**CN.**` label — blockquotes and inline code spans are forbidden
+  quote carriers (the PostToolUse hook rewrites list markers inside blockquotes
+  and strips a trailing space from a bare code span). Ships
+  `scripts/check-fences-exact.py` and `scripts/check-snippets.py` as standing
+  gates alongside the quote gate; both fail loud on zero-parse and compare
+  payloads without `.strip()`, with negative-control suites that must fail
+  known-bad fixtures before a PASS is believed. Pin the tree on agent-REPORTED
+  completion, never file presence; a hash manifest freezes the tree for the
+  verification window and each arm restates the hashes it audited; a verdict
+  file on disk is an intermediate write, never a report. Subagent-death /
+  usage-limit ladder (retry window → inline-with-disclosure → degraded marker +
+  re-run trigger) sits beside the existing degraded-verifier rule, which covers
+  a missing cross-vendor arm, not a session that cannot spawn. `SKILL.md`
+  enumerates each gate's blind spots. Format and pin-manifest shape live in
+  `context/pipeline-hardening.md`.
+
 ## [0.13.4]
 
 ### Changed

@@ -23,9 +23,12 @@ collision check reads them to tell a resume from a slug collision.
       for a markdown or rendered-text channel, or `source.pdf` **plus** its `source.txt`
       extraction for a PDF original (both are originals; name the extraction tooling above)
 - [ ] Phase 2: Inventory — `INDEX.md` written (headings, themes, digest map, status rows)
-- [ ] Phase 3: Digest fan-out — one agent per digest unit → `digests/NN-slug.md` (fixed structure)
-- [ ] Phase 4: Dual verification — Verifier A (same-vendor) + Verifier B (cross-vendor) verdicts
-      in `verification/` (append-only; degraded fallback recorded, never silent)
+- [ ] Phase 3: Digest fan-out — one agent per digest unit → `digests/NN-slug.md` (fixed
+      structure; verbatim quotes in column-0 fences under bold `**CN.**` labels)
+- [ ] Phase 4: Dual verification — pin-manifest written on agent-reported completion; standing
+      gates (`check-fences-exact.py`, `check-snippets.py`) PASS; Verifier A (same-vendor) +
+      Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
+      hashes it audited; degraded fallback / death-ladder recorded, never silent)
 - [ ] Phase 5: Interview handoff — `interview-handoff.md` authored and its own commands replayed
       (every Phase 4 check precedes it); `/planning:interview` run or artifact presented
 
@@ -33,4 +36,6 @@ collision check reads them to tell a resume from a slug collision.
 
 - Phase 4 Verifier B — degrade per SKILL.md only when the cross-vendor verifier is genuinely
   unavailable; record reason in the verdict header
+- Phase 3/4 subagent death — SKILL.md ladder (retry window → inline-with-disclosure → degraded
+  marker + re-run trigger); do not tick the phase complete on a degraded marker
 - Phase 5 interview invocation — skip (present artifact only) when the planning plugin is absent
