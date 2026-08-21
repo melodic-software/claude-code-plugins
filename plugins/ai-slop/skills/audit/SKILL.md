@@ -23,11 +23,12 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
 
 1. **Deterministic**: `${CLAUDE_SKILL_DIR}/scripts/detect.sh` runs the catalog's `v1: script`
    rules. Its findings carry argued severity tiers (the detector-findings convention's crosswalk)
-   and persist as a conforming findings file. **What the relay can actually apply is narrow**:
-   `rule-utm-params` alone is auto-applicable, and the relay's cleanup route is a
-   code-simplification skill that never loads this skill's rewrite guide. Every other rule is
-   `/ai-slop:audit fix` work — the findings file is how a consumer *sees* them, not how they get
-   rewritten.
+   and persist as a conforming findings file. **What the relay APPLIES is narrow; what it ROUTES
+   is not.** `rule-utm-params` alone is auto-applicable, and every other rule is
+   `/ai-slop:audit fix` work — but the crosswalk now declares that ownership, so the relay hands
+   those rows to this skill's `fix` action rather than to its cleanup route, which is a
+   code-simplification skill that never loads this skill's rewrite guide. The findings file is
+   how a consumer *sees* them and how they reach the one surface that can rewrite them.
 2. **Judgment rubric**: the catalog's `v1: rubric` tells, applied by reading the prose. Rubric
    findings reach the human report only, never the findings file.
 
@@ -60,10 +61,17 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
    whenever the audit examined tracked files: fetch the producer contract first and refuse to
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
-   run tripped over deliberate house style (heavy declined counts or a flooded rule). Recommend
-   `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can
-   apply meaning-preservingly; routing prose rewrites there retires the findings without fixing
-   them.
+   run tripped over deliberate house style (heavy declined counts or a flooded rule).
+   `review:fanout fix` is now a valid route for the whole file, not just one rule: it hands every
+   row but `rule-utm-params` to this skill's own `fix` action, which the crosswalk declares as
+   their remediation owner. `rule-utm-params` is the one row the relay is *capable* of applying
+   meaning-preservingly — do not promise that it will. It takes its ordinary cleanup class and
+   reaches the relay's cleanup route, which prefers `/simplify`, a code-simplification skill that
+   reads no findings file, and applies rows itself only when `/simplify` is absent. Recommend the
+   relay when the operator is already running a fix pass; recommend this skill's `fix` directly
+   when they are not, since it is the shorter path to the same rewrites. Name the condition that
+   changes the answer — the relay can only hand the rows over when `/ai-slop:audit` is available
+   in that session, and surfaces them otherwise.
 
 ## Fix flow (explicit invocation only)
 

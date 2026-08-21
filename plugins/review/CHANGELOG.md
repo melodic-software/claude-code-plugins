@@ -3,6 +3,74 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Added
+
+- **The fix relay honors a producer's declared remediation owner (closes #3033).** A detector
+  can now tell the relay that its findings' repair, though contained to `Location`, is owned by
+  the detector's own remediation skill — and `fix-pass-mode.md` routes those rows there instead
+  of deciding for itself.
+
+  The gap this closes was silent and total for one adopter. `ai-slop:audit`'s fourteen
+  prose-rewrite rules classify as cleanup by content, and the cleanup route hands that class
+  wholesale to `/simplify` — a **code**-simplification skill that reads no findings file and
+  loads none of the producer's rewrite guide. Step 5 then retired the findings anyway. The pass
+  reported a clean run over findings nobody fixed, applying at most `rule-utm-params`, the one
+  genuinely auto-applicable rule.
+
+  Neither existing disposition reached it. **Off-site is a statement about the SITE** — both of
+  Step 2's limbs ask whether the repair leaves `Location`'s file — and these repairs are at
+  `Location`, so claiming off-site would assert something false and would route to surface-only,
+  trading a wrong apply for no apply. **`Auto-applicable: No` has no path to the cleanup route
+  at all**: Step 4's surface-instead-of-applying fence sits under its *correctness-class*
+  heading, so a cleanup row reaches `/simplify` whatever the crosswalk says about it.
+
+  - **Step 2** gains one classification rule: a row belonging to a rule whose crosswalk
+    `Auto-applicable` cell leads with ``No, remediated by `<invocation>` `` routes to that invocation,
+    whatever its class, and never to `/simplify` or the generic fixer. The declaration is
+    resolved through the qualified rule id every conforming row already leads its `Finding` cell
+    with, so **no producer has to change what it emits**. An `Action` cell leading with
+    ``Remediate with `<invocation>` `` only **corroborates** that declaration and can never be the
+    sole basis for routing: **the crosswalk row is necessary**, and a rule with no crosswalk
+    declaration takes its ordinary class however its `Action` reads. That asymmetry is the trust
+    boundary — the crosswalk lives in the consuming repo's docs, outside the artifact being
+    consumed, while the `Action` cell is inside it; Step 1 already establishes that nothing
+    authenticates a findings file's writer, and this is the one route whose target Step 4 does not
+    re-fence, so `Action`-alone routing would let any component that can write a conforming file
+    hand any installed skill arbitrary rows. Availability is not authentication. Off-site is
+    decided first, so a row that is both stays surface-only, and a pass that cannot resolve the
+    contract has no declaration to read — the no-declaration case, never an `Action` fallback.
+  - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
+    is the point. Only an invocation already available in the session is invoked; nothing is
+    installed, fetched, or name-matched loosely, because nothing authenticates the writer of a
+    findings file. An unavailable or unrecognized invocation surfaces its rows, naming what the
+    producer asked for so the operator can run it.
+  - **Steps 3 and 5** count and report the route, and an unavailable surface's rows land in the
+    consumption record's "Not applied" table with the invocation as their recovery.
+
+  Neither other adopter changes, and neither had to be touched. `mutation-testing:audit` declares
+  no owner and is off-site, which is decided first; `testing:audit` declares no owner because no
+  skill owns choosing the assertion a behavior deserves, and its rows are surfaced by Step 4's
+  judgment fence exactly as before.
+
+  `ai-slop` 0.3.1 rides along as the producer half of the same claim — a documentation
+  correction, not an emitter change. Its audit skill is the normal entry point that recommends
+  remediation, and it still told operators to keep prose rewrites away from this relay because
+  routing them here "retires the findings without fixing them". Leaving that in place would have
+  made this route unreachable through the documented flow while the contract advertised it.
+
+  Producer-side, the declaration and its fixed forms are owned by the detector-findings
+  convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
+  owned by the producer's own skill". No producer had to change what it emits.
+
+  One detail is called out in Step 2 rather than left to inference, because this step is the
+  *literal* read and the failure is silent: **the invocation arrives inside a code span and the
+  fixer strips the backticks before matching**. A fixer matching the bare form against a
+  backticked cell matches nothing and falls through to the ordinary class — the original defect
+  wearing the new disposition's clothes. The contract states the convention once and binds both
+  the crosswalk cell and the corroborating `Action` lead to it.
+
 ## [0.25.1]
 
 ### Fixed

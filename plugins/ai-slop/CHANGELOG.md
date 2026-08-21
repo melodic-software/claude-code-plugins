@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.1]
+
+The audit skill told operators to keep this plugin's findings away from the very relay route that
+now remediates them. Both statements were true when 0.2.0 wrote them and neither survives `review`
+0.26.0, which teaches the fix relay to honor a producer-declared remediation owner — but they fail
+differently, and the entry says which is which: step 6's steer is now **flatly false**, while the
+Purpose statement **draws a real distinction in the wrong place** rather than being false.
+
+- **Step 6 of the audit flow no longer steers users off the route.** It said: "Recommend
+  `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can apply
+  meaning-preservingly; routing prose rewrites there retires the findings without fixing them."
+  The second half is now flatly wrong. The crosswalk declares `/ai-slop:audit fix` as the
+  remediation owner for the other fourteen rules, so the relay hands those rows to this skill
+  instead of retiring them unfixed. This mattered more than an ordinary stale sentence because
+  **the audit flow is the normal entry point that recommends remediation** — leaving it in place
+  would have made the new route unreachable through the documented flow while the contract
+  advertised it, and handed the model directly contradictory instructions.
+- Step 6 now recommends `review:fanout fix` for the whole file when the operator is already
+  running a fix pass, and this skill's own `fix` directly when they are not, and it names the one
+  condition that changes the answer: the relay can only hand the rows over when `/ai-slop:audit`
+  is available in that session, and surfaces them otherwise.
+- **The Purpose section's detection-layer paragraph** drew the same line in the wrong place —
+  "What the relay can actually apply is narrow… the findings file is how a consumer *sees* them,
+  not how they get rewritten". The narrowness is real but it is about what the relay **applies**,
+  not what it **routes**: `rule-utm-params` is still the only row the relay is *capable* of
+  applying meaning-preservingly — it reaches the cleanup route, which prefers `/simplify` and
+  applies rows itself only when `/simplify` is absent, so nothing promises it lands — and the
+  other fourteen are now handed to this skill rather than left unrouted. The paragraph says
+  that distinction explicitly, and keeps the true half — the cleanup route is a
+  code-simplification skill that never loads this skill's rewrite guide, which is exactly why the
+  declaration exists.
+
+No behavior, script, or rule changed: this is the producer half of a claim the consumer now
+honors. Detector, emitter, catalog, and evals are untouched.
+
 ## [0.3.0]
 
 The audit eval cases described their input in prose. Nothing checked that the described input
