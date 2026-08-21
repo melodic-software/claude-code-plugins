@@ -582,11 +582,11 @@ attribute_file() {
   # numbers talking about the same thing. Found via #2833, whose exact-count
   # replay assertions turned a silent divergence into a red build.
   #
-# The rename-detection exposure the note above calls load-bearing is real --
-# `diff.renames = false` in a developer's config decomposes a `git mv` into
-# delete + add and makes relocating a large recent file fire -- but it is the
-# ENUMERATION in scan_commit that -M actually defends, not this diff. See the
-# pin table above.
+  # The rename-detection exposure the note above calls load-bearing is real --
+  # `diff.renames = false` in a developer's config decomposes a `git mv` into
+  # delete + add and makes relocating a large recent file fire -- but it is the
+  # ENUMERATION in scan_commit that -M actually defends, not this diff. See the
+  # pin table above.
   #
   # Status is checked separately from output (#2880). A failed diff used to
   # be byte-identical to "this file had no deleted lines": stderr discarded,
@@ -754,9 +754,18 @@ scan_commit() {
   # Redirect, never a pipe: `die` inside attribute_file must not land in a
   # subshell. A piped failure used to be byte-identical to "this file had
   # nothing to attribute" (#2880).
-  local attributed file_attr
+  #
+  # The enumeration diff is the same contract. A failed `git diff --name-only`
+  # used to feed the loop nothing (process substitution discards status),
+  # so scan_commit reported `ok` -- the quiet pass, reached before
+  # attribute_file ever ran.
+  local attributed file_attr enum_list
   attributed="$(mktemp)" || die "mktemp failed"
   file_attr="$(mktemp)" || die "mktemp failed"
+  enum_list="$(mktemp)" || die "mktemp failed"
+  run_attributing_git "$enum_list" \
+    "git diff --name-only failed enumerating $sha" \
+    diff --name-only -z -M --diff-filter=MD "$parent" "$sha"
   local file
   while IFS= read -r -d '' file; do
     : >"$file_attr"
@@ -766,8 +775,8 @@ scan_commit() {
     # -M pinned here for the same reason as in attribute_file: the enumeration
     # relies on a rename reporting as R so --diff-filter=MD skips it, and that
     # is git's default only until someone sets diff.renames = false.
-  done < <(git diff --name-only -z -M --diff-filter=MD "$parent" "$sha")
-  rm -f "$file_attr"
+  done <"$enum_list"
+  rm -f "$file_attr" "$enum_list"
 
   # Keep only lines whose culprit is inside the recency window.
   local in_window

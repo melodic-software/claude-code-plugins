@@ -405,7 +405,11 @@ t_rename_pin_is_load_bearing() {
   cfg="$repo/no-renames-gitconfig"
   printf '[diff]\n\trenames = false\n' >"$cfg"
 
-  strip_pin "$repo" no-rename-pin '/git diff/ s/ -M / /g' || return 0
+  # The load-bearing -M is on the --name-only enumeration, now invoked
+  # through run_attributing_git so a failed status cannot hide in a
+  # process substitution (#2880). Address that argv line, not a `git diff`
+  # spelling -- the content-diff -M is inert (pathspec-limited).
+  strip_pin "$repo" no-rename-pin '/--name-only/ s/ -M / /g' || return 0
 
   GIT_CONFIG_GLOBAL="$cfg" run_canary "$repo" --commit HEAD
   intact_rc="$RC"
@@ -1232,6 +1236,14 @@ if [[ "\${CANARY_INJECT_DIFF_FAIL:-}" == 1 && "\$1" == diff ]]; then
     fi
   done
 fi
+if [[ "\${CANARY_INJECT_ENUM_FAIL:-}" == 1 && "\$1" == diff ]]; then
+  for a in "\$@"; do
+    if [[ "\$a" == --name-only ]]; then
+      echo "fatal: injected enumeration failure" >&2
+      exit 128
+    fi
+  done
+fi
 if [[ "\${CANARY_INJECT_GIT_WARN:-}" == 1 ]]; then
   if [[ "\$1" == blame ]]; then
     echo "warning: injected git noise that must not leak" >&2
@@ -1264,6 +1276,17 @@ EOF
     ok "a failed content diff is exit 2, not a quiet zero-attribution pass"
   else
     fail "expected rc=2 on injected diff failure, rc=$RC: $out"
+  fi
+
+  # The enumeration path is the same quiet-pass: a failed --name-only used
+  # to feed the loop nothing and report `ok` before attribute_file ran.
+  CANARY_INJECT_ENUM_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git diff --name-only failed enumerating'; then
+    ok "a failed file-enumeration diff is exit 2, not a quiet ok"
+  else
+    fail "expected rc=2 on injected enumeration failure, rc=$RC: $out"
   fi
 
   # The same failure, reached through the replay, must stay exit 2 -- not
