@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.13]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 3).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  One quoted auto-invocation trigger (`the spec changed — redo the tickets`) keeps its
+  em dash so skill-quality does not treat the rewrite as a dropped trigger.
+
 ## [0.39.12]
 
 ### Changed

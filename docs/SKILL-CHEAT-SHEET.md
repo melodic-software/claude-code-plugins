@@ -203,8 +203,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/work-items:scan-todos`](../plugins/work-items/skills/scan-todos/SKILL.md) | `work-items` | Sweep source comments for TODO and FIXME markers, resolve or file each |
-| [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route a spec container's macro journey — status, execution shape, next step |
-| [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker — add, list, close, stats |
+| [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route a spec container's macro journey. Status, execution shape, next step |
+| [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker. Add, list, close, stats |
 | [`/work-items:triage`](../plugins/work-items/skills/triage/SKILL.md) | `work-items` | Evaluate raw intake through the verified-to-eligible state machine |
 | [`/work-items:work`](../plugins/work-items/skills/work/SKILL.md) | `work-items` | Auto-select one work item and execute it end-to-end |
 
