@@ -123,16 +123,25 @@ if [[ -n "$LABELS" ]]; then
     else
       (($(jq 'length' <<<"$WIT_GITEA_BODY") < WIT_GITEA_PAGE_SIZE)) && break
     fi
-    # Bounded like every other paginated loop in this adapter: a server that keeps
-    # answering a full page would otherwise spin forever with ALL_LABELS growing
-    # without limit.
-    if ((PAGE * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)); then
+    # Bounded like every other paginated loop in this adapter: a server that keeps answering
+    # a full page would otherwise spin forever with ALL_LABELS growing without limit. Measured
+    # against labels ACTUALLY FETCHED rather than `PAGE * page_size`, which diverge under the
+    # clamp: with page_size 100 against a cap of 50 the requested arithmetic declares
+    # truncation after 500 labels, and here that is not merely a short answer — it makes every
+    # label in rows 501-1000 read as nonexistent and refused.
+    if ((LABEL_SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
       LABELS_TRUNCATED=1
       break
     fi
     wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
     wit_gitea_require_ok "listing labels in $REPO (page $PAGE)"
-    ALL_LABELS="$(jq -c --argjson acc "$ALL_LABELS" '$acc + .' <<<"$WIT_GITEA_BODY")"
+    # Accumulator on stdin, page in argv: the reverse puts an unboundedly growing array on
+    # jq's command line, and past ARG_MAX the exec fails outright — leaving ALL_LABELS empty,
+    # which here means every requested label reads as nonexistent and is refused.
+    ALL_LABELS="$(jq -c --argjson page "$WIT_GITEA_BODY" '. + $page' <<<"$ALL_LABELS")" || {
+      printf 'create-item.sh: could not accumulate label page %s for %s\n' "$PAGE" "$REPO" >&2
+      exit "$EX_INTERNAL"
+    }
     LABEL_SEEN=$((LABEL_SEEN + $(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)))
     # An empty page ends the walk whatever the header claimed — a count that never gets
     # satisfied must not turn into an unbounded loop.
@@ -150,16 +159,32 @@ if [[ -n "$LABELS" ]]; then
   wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
   if [[ "$WIT_GITEA_STATUS" != "404" ]]; then
     wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER"
+    # Same walk as the repo labels above, and deliberately the SAME SHAPE: this endpoint sets
+    # X-Total-Count too, so the header decides. An earlier draft here used a largest-page-seen
+    # heuristic instead, which was wrong twice over — it always spent one extra request (the
+    # page that establishes the baseline can never be shorter than it), and against same-sized
+    # consecutive pages it walked to the ceiling and reported a truncation that had not
+    # happened, turning a genuinely-missing label name into a misleading "the label list was
+    # truncated" message.
     ORG_PAGE="$WIT_GITEA_BODY"
-    ORG_EFFECTIVE=0
+    ORG_TOTAL="$WIT_GITEA_TOTAL_COUNT"
+    ORG_SEEN=0
     ORG_PAGE_NUM=2
     while :; do
-      ALL_LABELS="$(jq -c --argjson acc "$ALL_LABELS" '$acc + .' <<<"$ORG_PAGE")"
+      ALL_LABELS="$(jq -c --argjson page "$ORG_PAGE" '. + $page' <<<"$ALL_LABELS")" || {
+        printf 'create-item.sh: could not accumulate org label page %s for %s\n' \
+          "$ORG_PAGE_NUM" "$WIT_GITEA_OWNER" >&2
+        exit "$EX_INTERNAL"
+      }
       ORG_GOT="$(jq 'length' <<<"$ORG_PAGE" 2>/dev/null)" || ORG_GOT=0
-      ((ORG_GOT > ORG_EFFECTIVE)) && ORG_EFFECTIVE="$ORG_GOT"
+      ORG_SEEN=$((ORG_SEEN + ORG_GOT))
       ((ORG_GOT == 0)) && break
-      ((ORG_GOT < ORG_EFFECTIVE)) && break
-      if ((ORG_PAGE_NUM * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)); then
+      if [[ -n "$ORG_TOTAL" ]]; then
+        ((ORG_SEEN >= ORG_TOTAL)) && break
+      else
+        ((ORG_GOT < WIT_GITEA_PAGE_SIZE)) && break
+      fi
+      if ((ORG_SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
         LABELS_TRUNCATED=1
         break
       fi

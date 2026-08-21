@@ -82,8 +82,17 @@ while :; do
   }
   # Belt and braces: `type=issues` should mean gitea sends no PRs, but a PR arriving as a work
   # item would be claimed and worked like one, so the filter stays.
-  COLLECTED="$(jq -c --argjson acc "$COLLECTED" \
-    '$acc + [ .[] | select(.pull_request == null) ]' <<<"$WIT_GITEA_BODY")"
+  # The ACCUMULATOR travels on stdin and only the (page-size-bounded) page travels in argv.
+  # The other way round — `--argjson acc "$COLLECTED"` — puts an unboundedly growing array on
+  # jq's command line, and past ARG_MAX the kernel refuses the exec: jq dies with "Argument
+  # list too long", the unchecked assignment leaves COLLECTED empty, and list-items reports
+  # ZERO issues while exiting 0. A big repo silently looked empty.
+  COLLECTED="$(jq -c --argjson page "$WIT_GITEA_BODY" \
+    '. + [ $page[] | select(.pull_request == null) ]' <<<"$COLLECTED")" || {
+    printf 'list-items.sh: could not accumulate page %s for %s — refusing to report a partial list as complete\n' \
+      "$PAGE" "$REPO" >&2
+    exit "$EX_INTERNAL"
+  }
   SEEN=$((SEEN + GOT))
   ((GOT == 0)) && break
   if [[ -n "$WIT_GITEA_TOTAL_COUNT" ]]; then
@@ -95,9 +104,13 @@ while :; do
     ((GOT < WIT_GITEA_PAGE_SIZE)) && break
   fi
   PAGE=$((PAGE + 1))
-  # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED
-  # truncation, not an error (CONTRACT.md "Adapter contract") — but it is never silent.
-  if ((PAGE * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)); then
+  # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED truncation, not
+  # an error (CONTRACT.md "Adapter contract") — but it is never silent. Measured against rows
+  # ACTUALLY RETURNED, not against `PAGE * page_size`: under the clamp this whole change is
+  # about, those two diverge. With page_size 100 against a server capping at 50, the requested
+  # arithmetic reaches 1000 after ten pages that returned only 500 issues, so the walk stopped
+  # half way and announced it had hit a ceiling it never reached.
+  if ((SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items for %s; results are truncated\n' \
       "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" >&2
     break
@@ -122,8 +135,18 @@ while IFS= read -r raw; do
     printf 'list-items.sh: could not normalize a gitea issue in %s\n' "$REPO" >&2
     exit "$EX_INTERNAL"
   }
-  ITEMS="$(jq -c --argjson acc "$ITEMS" --argjson one "$ONE" '$acc + [$one]' <<<'null')"
+  # Accumulator on stdin, one item in argv — see the note on the page accumulation above.
+  ITEMS="$(jq -c --argjson one "$ONE" '. + [$one]' <<<"$ITEMS")" || {
+    printf 'list-items.sh: could not accumulate a normalized issue in %s — refusing to report a partial list as complete\n' "$REPO" >&2
+    exit "$EX_INTERNAL"
+  }
 done < <(jq -c '.[]' <<<"$COLLECTED")
 
-jq -cn --arg sv "$WIT_SCHEMA_VERSION" --argjson items "$ITEMS" \
-  '{schema_version: $sv, items: $items}'
+# The envelope is built with ITEMS on STDIN for the same ARG_MAX reason as the accumulation
+# above — this is the one place where the array is guaranteed to be at its largest, so it is
+# the likeliest to blow the command line. A failure here must not emit a truncated or empty
+# envelope with a success status.
+jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
+  printf 'list-items.sh: could not emit the item envelope for %s\n' "$REPO" >&2
+  exit "$EX_INTERNAL"
+}

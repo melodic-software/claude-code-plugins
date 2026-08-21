@@ -58,6 +58,37 @@ parameter, request-body field, and response field the adapter reads matches the 
   `/orgs/{owner}/labels`, treating the 404 a user-owned repo returns as "no org labels" rather
   than an error.
 
+- **Every large list could silently return ZERO items.** Found by the ceiling regression test
+  written for the fix above, not by inspection. Both adapters accumulated paged results as
+  `jq --argjson acc "$ACC"`, which puts an **unboundedly growing array on jq's command line**.
+  Past `ARG_MAX` the kernel refuses the exec — `jq: Argument list too long` — and because the
+  assignment was unchecked, the accumulator was left empty and the verb **reported an empty
+  list while exiting 0**. A repository or team large enough to trip it looked simply empty.
+  The final envelope emit had the same shape, at the one point where the array is guaranteed
+  to be at its largest. Nine sites across `list-items`, `list-sub-items`, `create-item` and the
+  lease helper now pass the accumulator through **stdin** and only the bounded new element in
+  argv, and every one of them fails loudly rather than degrading to empty. On
+  `linear:list-sub-items` this was the worst of the set: an empty child list is what the
+  closed-children invariant reads as "nothing open under this container".
+- **The declared list ceiling counted requested page size, not rows returned.** Under the clamp
+  above the two diverge: with `page_size` 100 against a server capping at 50,
+  `PAGE * page_size` reaches 1000 after ten pages that returned 500 issues, so the walk stopped
+  half way and announced a ceiling it had never reached. For labels it was worse than a short
+  answer — every label in the unreached rows read as nonexistent and was refused. Both ceilings
+  now count rows actually collected.
+- **The org-label walk ignored the header the repo-label walk beside it obeys.** An earlier
+  draft of the org-label fix used a largest-page-seen heuristic, which always spent one extra
+  request and, against same-sized consecutive pages, walked to the ceiling and reported a
+  truncation that had not happened — turning a genuinely missing label into a misleading "the
+  label list was truncated" message. It now uses `X-Total-Count` exactly as its sibling does.
+  Caught by review; the regression test pins the request count at one, where the heuristic
+  made twenty.
+- **The new `linear` label walk had no ceiling**, unlike every other paginated loop in this
+  seam. A server that kept answering `hasNextPage` with a fresh cursor would have hung
+  `create-item` indefinitely. Bounded now, and — like `gitea` — it distinguishes "not found
+  because truncated" from "not found because absent", since telling someone to create a label
+  that already exists sends them to do the wrong thing.
+
 Each fix ships with regression cases verified to fail against the unfixed file. The `gitea` mock
 transport gained `-D` header support so the `X-Total-Count` path is exercised rather than
 silently falling back.

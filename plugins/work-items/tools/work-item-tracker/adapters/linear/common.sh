@@ -780,8 +780,12 @@ wit_linear_lease_comments() {
       # tool speaking the same v1 shape), so a malformed handle is reachable input, not a
       # theoretical one.
       [[ "$handle" =~ ^[0-9]+$ ]] || handle="$(wit_linear_handle "$(jq -r '.createdAt' <<<"$node")")"
-      all="$(jq -c --argjson acc "$all" --argjson h "$handle" --arg c "$cid" --argjson l "$lease" \
-        '$acc + [{handle: $h, comment_id: $c, lease: $l}]' <<<'null')" || {
+      # The accumulator travels on STDIN and only the new entry in argv. A lease set is small
+      # in practice, but the reverse shape puts a growing array on jq's command line, and past
+      # ARG_MAX the exec fails outright — which on this particular helper is the worst
+      # available outcome, per the paragraph above.
+      all="$(jq -c --argjson h "$handle" --arg c "$cid" --argjson l "$lease" \
+        '. + [{handle: $h, comment_id: $c, lease: $l}]' <<<"$all")" || {
         # Belt and braces: whatever else ever makes this jq fail, it must not degrade to
         # an empty accumulator that reads as "no leases". Fail loudly instead.
         printf 'linear: could not accumulate lease comments on %s — refusing to report an empty lease set\n' \
