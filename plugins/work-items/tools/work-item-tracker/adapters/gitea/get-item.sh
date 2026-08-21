@@ -36,7 +36,10 @@ wit_gitea_require_ok "fetching $ID"
 # Gitea's Issue carries no dependency data, so the open-blocker count is a second
 # request. get-item is the authoritative read, so it pays that cost rather than
 # reporting a count it did not compute.
-BBC="$(wit_gitea_blocked_by_count "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
+#
+# That helper exits on transport/HTTP failure, but inside $( ) that only ends the
+# subshell — propagate its code rather than continuing with "".
+BBC="$(wit_gitea_blocked_by_count "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")" || exit "$?"
 
 # `.repository` is absent from some Gitea issue payloads; the ID grammar needs
 # owner/repo, and the id parsed from the argument is authoritative for exactly that.
