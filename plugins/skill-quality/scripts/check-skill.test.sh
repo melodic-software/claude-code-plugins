@@ -2972,6 +2972,295 @@ else
   fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
 fi
 
+# 25a. Report-only verb (audit) whose description lead advertises mutation
+#      without override language warns (the listing-surface defect).
+make_skill audit '---
+name: audit
+description: "Rewrites the files it reviews. Use when: '"'"'rewriting reviewed files'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+An audit skill whose listing text advertises mutation.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out"; then
+  pass "audit verb + mutate-advertising description warns (verb-contract)"
+else
+  fail "audit+mutate-desc should warn (rc=$rc): $out"
+fi
+
+# 25b. The compliant override shape — audit + --fix in the listing — is silent.
+make_skill audit-fixok '---
+name: audit-fixok
+description: "Reports findings and remediates them. Use when: '"'"'auditing config'"'"'; pass --fix to apply auto-correctable findings."
+disable-model-invocation: false
+---
+
+## Purpose
+
+claude-config:audit [--fix] is the compliant precedent.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-fixok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "audit + --fix override in the listing is silent (compliant shape)"
+else
+  fail "audit+--fix should not warn (rc=$rc): $out"
+fi
+
+# 25c. Mutate verb (fix) whose description lead claims read-only warns.
+make_skill fix '---
+name: fix
+description: "Read-only findings report. Use when: '"'"'reporting findings'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+A fix skill whose listing text claims it does not mutate.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q "leaf verb 'fix' mutates the target" <<<"$out"; then
+  pass "fix verb + read-only description warns (verb-contract)"
+else
+  fail "fix+readonly-desc should warn (rc=$rc): $out"
+fi
+
+# 25d. Description claims read-only; body mutates on bare invocation.
+make_skill report-then-write '---
+name: report-then-write
+description: "Read-only findings report. Use when: '"'"'reporting then writing'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, edit the tracked files in place.
+
+## Gotchas
+
+None known.
+'
+out="$(run report-then-write 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q 'body mutates on bare invocation' <<<"$out"; then
+  pass "read-only description + bare-mutate body warns (verb-contract)"
+else
+  fail "readonly-desc+bare-mutate-body should warn (rc=$rc): $out"
+fi
+
+# 25e. Description advertises fixing; body claims the skill never mutates.
+make_skill advertise-no-write '---
+name: advertise-no-write
+description: "Rewrites the files you point at. Use when: '"'"'rewriting pointed files'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+This skill never mutates anything; it only reports.
+
+## Gotchas
+
+None known.
+'
+out="$(run advertise-no-write 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q 'description lead advertises fixing' <<<"$out"; then
+  pass "mutate-advertising description + never-mutates body warns (verb-contract)"
+else
+  fail "mutate-desc+never-mutate-body should warn (rc=$rc): $out"
+fi
+
+# 25f. A Use-when trigger phrase containing "fix" does not advertise mutation
+#      — polarity is the lead clause only.
+make_skill audit-trigger-fix '---
+name: audit-trigger-fix
+description: "Emit a findings report. Use when: '"'"'fix the formatting'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Trigger-list "fix" is not a mutate advertisement.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-trigger-fix 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "Use-when 'fix' trigger does not advertise mutation"
+else
+  fail "trigger-list fix should not warn (rc=$rc): $out"
+fi
+
+# 25g. "read-only by default" on a mutate verb is a default-then-override
+#      shape, not a never-mutates claim.
+make_skill clean '---
+name: clean
+description: "Inventory leftovers and optionally remove them after approval. Read-only by default. Use when: '"'"'cleaning leftovers'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Hybrid clean skill; default is read-only.
+
+## Gotchas
+
+None known.
+'
+out="$(run clean 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "read-only by default on a clean verb is silent"
+else
+  fail "read-only-by-default should not warn (rc=$rc): $out"
+fi
+
+# 25h. "remediation" as a noun and a negated "or rewrites" list are not
+#      mutate-advertising — the false-positive pair the prototype caught.
+make_skill audit-noun '---
+name: audit-noun
+description: "Emits a findings report; remediation only when pre-approved. It never deletes, prunes, or rewrites. Use when: '"'"'auditing with a noun'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Noun and negated-list must not read as mutate-advertising.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-noun 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "remediation-noun and negated rewrites list are silent"
+else
+  fail "noun/negated-list should not warn (rc=$rc): $out"
+fi
+
+# 25i. A fenced example of mismatch language does not trip the body limbs.
+make_skill audit-fenced '---
+name: audit-fenced
+description: "Read-only findings report. Use when: '"'"'showing a fenced example'"'"'."
+disable-model-invocation: false
+---
+
+## Example
+
+```text
+On bare invocation, edit the tracked files in place.
+This skill never mutates anything.
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "fenced mismatch language is ignored by the body limbs"
+else
+  fail "fenced body example should not warn (rc=$rc): $out"
+fi
+
+# 25j. A consistent mutate verb (fix + rewrites the files + body mutates)
+#      is silent — the check is mismatch-only.
+make_skill fix-ok '---
+name: fix-ok
+description: "Rewrites the files that fail the gate. Use when: '"'"'rewriting failing files'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, rewrite the failing files. The step is done when the gate exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "consistent fix verb + mutate description + mutate body is silent"
+else
+  fail "consistent fix skill should not warn (rc=$rc): $out"
+fi
+
+# 25k. "never rewrites the files" is a negation, not a mutate advertisement.
+make_skill audit-never-rewrite '---
+name: audit-never-rewrite
+description: "Reports findings and never rewrites the files. Use when: '"'"'reporting without rewriting'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Negated rewrite clause must not read as mutate-advertising.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-never-rewrite 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "never-rewrites-the-files is silent (negated mutate verb)"
+else
+  fail "never-rewrites-the-files should not warn (rc=$rc): $out"
+fi
+
+# 25l. A mutate lead with a scoped "does not modify X" is not a never-mutates
+#      claim — the restriction is on a particular target.
+make_skill fix-scoped '---
+name: fix-scoped
+description: "Fixes the source files but does not modify vendored dependencies. Use when: '"'"'fixing sources only'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, rewrite the failing source files. The step is done when the gate exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix-scoped 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "scoped does-not-modify next to a mutate lead is silent"
+else
+  fail "scoped does-not-modify should not warn (rc=$rc): $out"
+fi
+
 # Portability guard: no ERE interval expressions in the checker's awk regexes.
 #
 # Every other assertion here is black-box, but this failure mode is invisible to
