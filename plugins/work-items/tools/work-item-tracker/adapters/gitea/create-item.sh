@@ -170,7 +170,23 @@ for b in ${BLOCKERS[@]+"${BLOCKERS[@]}"}; do
   wit_gitea_require_ok "linking $REPO#$NUMBER as blocked by $b"
 done
 
-BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")"
+# The count is a READ-BACK: by here the issue EXISTS and its blocker edges are written.
+# The helper exits on transport/HTTP failure, but inside $( ) that only ends the
+# subshell, and continuing with "" fed jq an empty --argjson — the item was created and
+# the caller was told exit 2, "usage".
+#
+# The read still has to fail the verb: the contract's item object requires
+# blocked_by_count, and there is no honest value to substitute — 0 is the frontier lie
+# this adapter counts open blockers to avoid. So propagate the read's own code, keeping
+# the seam's status vocabulary intact (8 stays "unavailable, back off", 4 stays auth).
+# What non-zero must NOT mean here is "nothing happened": name the created id on stderr
+# so a retry re-reads the item instead of filing a second one.
+BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || {
+  RC=$?
+  printf 'create-item.sh: gitea:%s#%s WAS CREATED (blocker edges written); only its open-blocker count could not be read — re-read it with get-item, do not create it again\n' \
+    "$REPO" "$NUMBER" >&2
+  exit "$RC"
+}
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --argjson bbc "$BBC" \
   --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" \
   '(.repository.full_name //= $full) | '"$WIT_GITEA_NORMALIZE_PROGRAM" <<<"$CREATED"

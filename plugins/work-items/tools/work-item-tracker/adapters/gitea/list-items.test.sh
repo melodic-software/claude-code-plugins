@@ -106,6 +106,24 @@ else
 fi
 gitea_write_binding
 
+# --- a failing per-item blocker count keeps its own status ---
+# The status cases below fail the ISSUE page and never reach the per-item count. These
+# seed a healthy page and break only the dependencies request, so the failure is the one
+# that used to exit inside $( ) and reach the caller as this adapter's internal error.
+gitea_reset_routes
+gitea_seed "/dependencies" 401 '{"message":"token required"}'
+gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
+rc="$(gitea_run "$S")"
+assert_eq "unauthorized dependencies read → exit 4" "4" "$rc"
+assert_eq "and no envelope is emitted" "" "$(gitea_out)"
+
+# work-loop routes "seam exit 8 → backoff-and-retry", so a 5xx here must stay an 8.
+gitea_reset_routes
+gitea_seed "/dependencies" 503 '{"message":"down"}'
+gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
+rc="$(gitea_run "$S")"
+assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
+
 # --- HTTP status mapping ---
 gitea_reset_routes
 gitea_seed "/issues?" 404 '{"message":"repo not found"}'

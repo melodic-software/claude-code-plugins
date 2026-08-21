@@ -46,8 +46,8 @@ PARTIAL / REJECTED / OPEN.
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | ADOPTED (sixth route-away row: multi-window work routes to spec + decomposed items; advisory, no folklore token figures) | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
-| X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
-| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`, marketplace-wide glossary deferred) | #2948 |
+| X | Invocation doctrine (skills-repo delta PRs #878/#880; C23 from #848) | C21–C23 | playbooks:skill-authoring, skill-quality:check | PARTIAL (C21+C22 adopted; C23 already-present — corrected 2026-08-21 from a flat ADOPTED, which disagreed with C23's own disposition and with how every other lane holding an already-present candidate is graded) | #2940 |
+| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`; the glossary deferral has since ENDED — `docs/GLOSSARY.md` landed 2026-08-20 (#3062) and `phase boundary` is promoted there, while `item` and `checkpoint` stay reference-local as seam-specific terms) | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
@@ -87,7 +87,7 @@ pointer.
 | C20 | Map-as-index doctrine — a decision lives in exactly one place, its ticket; the map gists and links, never restates | `wayfinder:23` | W |
 | C21 | One-skill-per-call phrasing — a step needing two skills is two calls, not one call naming two | `.agents/invocation.md` (post-#878) | X |
 | C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; say "tell the user to run /X" | skills-repo PR #880 | X |
-| C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `.agents/` trigger text | X |
+| C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `domain-modeling/SKILL.md:3` (PR #848) | X |
 
 No "archive-your-specs" wording exists upstream in the skills repo — the nearest is
 `.scratch/<feature-slug>/spec.md` persistence in `issue-tracker-local.md:8`. That doctrine lives
@@ -250,9 +250,14 @@ withheld; three of five initial answers revised on evidence).
   finding-class enum (`missing` / `scope-creep` / `wrong`, each finding quoting its spec line);
   `self.md`'s fenced worker checklist keeps a shallow divergence check and does not restate the
   taxonomy, and the pointer to the owning file sits in orchestrator-facing escalation text, not
-  inside the subagent template a fresh-context worker cannot act on. Fills the dangling consumer in
-  `work-items:decompose` and `work-items:ship`, which both route container close-out to "the review
-  plugin's spec-fidelity machinery."
+  inside the subagent template a fresh-context worker cannot act on. **Correction: this lens did
+  NOT fill the dangling consumer**, and the sentence that said so was wrong twice over. The
+  consumer in `work-items:decompose` and `work-items:ship` was container-scoped, while this lens is
+  branch-scoped — `work-items`' own changelog records that the route "landed on nothing
+  container-scoped even after `review` 0.22.0 shipped the branch-scoped `spec` lens." It was
+  #3027's close-out mode that filled it. Nor do those skills still carry the phrase "the review
+  plugin's spec-fidelity machinery": both now name `/review:quality-gate close-out --container
+  <container-id>` directly, and the old wording survives only in changelog history.
 - **C13 ALREADY-PRESENT + one targeted edit**: the course's two-axis intent is already implemented
   as `fanout`'s two-axis presentation (merged ranked queue plus a per-dimension regrouping). The
   originally proposed "never merge or rerank across axes" rule was **withdrawn** — it would negate
@@ -301,7 +306,14 @@ withheld; three of five initial answers revised on evidence).
   four ways as originally specified (no seam verb yields a closing PR; "union of merge commits"
   is the empty set under this repo's squash-merge default; the integration-branch execution shape
   has no per-item PRs at all; a container-scoped basis conflicts with `quality-gate`'s singular
-  review-diff-base contract) and it is structurally larger than a mode addition.
+  review-diff-base contract) and it was judged structurally larger than a mode addition.
+  **That last judgement was wrong, and #3027 is closed.** It landed 2026-08-19 (PR #3043) as
+  exactly what it was said to be too large for — a tenth `quality-gate` lens,
+  `plugins/review/skills/quality-gate/context/close-out.md`, routed from `SKILL.md` with
+  `close-out [--container <id>] [--dry-run]` in the argument hint. All four broken mechanisms were
+  resolved in-file, the container-scoped basis becoming a documented mode-scoped override of
+  SKILL.md's single diff base rather than a conflict with it. It has since been run against #2933
+  itself.
 
 ## Lane W (#2939)
 
@@ -311,6 +323,32 @@ withheld; three of five initial answers revised on evidence).
   wrongly scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
 - **C20 ALREADY-PRESENT**: map body is a stable index not a mirror; Decisions-so-far is a
   pointer INDEX; Notes are links not recaps — recorded here, not restated in the skill docs.
+
+## Lane X (#2940)
+
+Landed via PR #2980. This section carries the per-candidate verdicts, which until 2026-08-21
+existed only as a flat lane-level `ADOPTED` in the verdict table above — C21–C23 were the one
+candidate group with no lane bullet, and C23's ALREADY-PRESENT disposition had no place here to
+sit. The audit detail behind C22 (fleet counts, the reworded call sites, the re-trigger
+condition) belongs to the invocation-reach tracked strand in
+[`mattpocock-skills.md`](mattpocock-skills.md), which owns that strand; it is not restated here.
+
+- **C21 ADOPTED**: the one-skill-per-call authoring line — a step needing two skills is two
+  Skill-tool calls, not one call naming two — landed at
+  `plugins/playbooks/skills/skill-authoring/SKILL.md:180` and
+  `plugins/skill-quality/skills/check/SKILL.md:161`.
+- **C22 ADOPTED**: the fleet audit of the invocation-reach invariant enumerated 57 skills
+  carrying `disable-model-invocation: true` and found **zero** explicit "via the Skill tool"
+  violations. A follow-up pass reworded operative slash-command instructions aimed at
+  user-invoked-only targets in `repo-fleet-hygiene:audit` and `claude-ops` (`inventory`,
+  `audit-performance`, `audit-install-state`) to the canonical human-relay form, "tell the user
+  to run /X". Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
+  target resolution is not cheap under the single skills-root model — so the doctrine lines in
+  the two authoring surfaces carry the rule rather than a check.
+- **C23 ALREADY-PRESENT**: `domain-driven-design:curate-language` triggers already key on
+  concrete artifacts (glossary, domain term, vocabulary), so upstream's artifact-anchored
+  `domain-modeling` rewording (`domain-modeling/SKILL.md:3`, PR #848) had nothing to add. A
+  one-shot comparison, not a re-evaluation trigger.
 
 ## Lane E (#2949)
 
@@ -344,6 +382,73 @@ withheld; three of five initial answers revised on evidence).
   publish; tracker reads without the item-content-trust boundary; folklore token figures
   (~150k smart zone, 100k ticket sizing); unverified sub-agent review findings;
   refactoring-excluded TDD loop; `research/<name>` branches (previously rejected).
+
+## Adapter-track scope decision (2026-08-20)
+
+Three seam follow-ons — #2950 (adapter-onboarding skill), #2952 (Gitea/Forgejo
+adapter), #2946 (Linear adapter) — each carry an acceptance criterion requiring a **live** conformance
+pass. The suite creates, claims, and closes items, so it must point at a disposable instance
+and can never run against a coordination tracker.
+
+**Decision: the Gitea live-conformance criterion is descoped. #2950 and #2952 close on what
+shipped; #2946 stays open.** The maintainer's call, in their words: "I don't think we need it,
+we just need linear." Gitea remains **shipped and supported** — it is the free, self-hostable
+option that serves the no-paid-tool constraint this effort set for solo developers — it is
+simply not being validated against a live server.
+
+What that leaves, stated per item rather than rounded up:
+
+| Item | Met | Not met |
+|---|---|---|
+| #2950 | skill with interview → live-exploration → generate → conformance-verify flow; security skeleton matching **and exceeding** the jira guards (the dot-boundary host pin went into the template, and `quote_safe` added a choke point jira never had) | end-to-end demo of a generated adapter against a **live** server |
+| #2952 | generated through the skill rather than hand-written; honest capability gating (five verbs declared `false`, `sub_item_depth: 0`, and **no verb script exists for any false verb**); generator findings fixed rather than filed; `setup`'s provider comparison updated | live conformance pass |
+| #2946 | adapter complete — all ten verbs implemented and unit-tested, including the lease protocol | live conformance pass |
+
+**The one thing genuinely lost** is #2950's end-to-end proof that the generator emits an adapter
+that works against a real provider. Gitea was the designated vehicle for exactly that, and Linear
+cannot substitute — Linear was hand-built, so it proves nothing about the generator. The honest
+size of the gap: the generated Gitea adapter passes its full mocked-transport suite, so what is
+missing is "verified against a live server", not "unverified".
+
+**Correcting a blocker reason recorded earlier in this effort.** It was written, more than once,
+that no tracker instance was reachable from the build environment. That was an untested
+assumption stated as fact and it is **false**: Gitea ships as a single self-contained binary with
+sqlite built in, its releases are fetchable here, and a real one was downloaded and
+version-verified. The actual blocker is narrower — serving it needs privileged setup (a dedicated
+unprivileged user plus `cap_net_bind_service`, since Gitea declines to run as root), which the
+sandbox's permission policy gates. Reachability was never the constraint.
+
+**Do not "unblock" a future attempt by relaxing the adapter's bare-hostname rule.** Port 443 and
+TLS are structural, not preferences: `wit_gitea_http` builds `https://<host>/api/v1` under
+`--proto '=https'`, and `config.gitea.host` must be a bare hostname, so a high port is not
+expressible. That rule exists so a PR-modifiable binding cannot smuggle URL structure and
+redirect the credential off the intended tenant. Widening it to make a suite run would trade a
+real security control for a green check.
+
+Issue #2946 remains open because Linear is SaaS and cannot be self-hosted at any
+permission level. It needs a throwaway workspace or team plus an API key supplied through
+the environment as `WIT_LINEAR_API_KEY` (the name `config.linear.auth_env` carries) — never
+a coordination workspace.
+
+**A claim in an earlier draft of this very section was wrong and is corrected here**, which is
+worth recording given the section's subject. It said the target must be disposable "since the
+suite closes what it creates." It does not. `run-conformance.sh` contains no close or delete
+logic at all; cleanup is entirely the binding's `_cb_clean_at_start`, and only two bindings ever
+implemented one — `github` (closing every open issue through `gh`) and `local-markdown` (a fresh
+temp dir per run). The `jira`, `gitea`, and `linear` bindings shipped it as an unfilled `:`
+placeholder, so a live run would have created, claimed, and mutated issues and left every one of
+them behind.
+
+The `linear` binding now implements it for real, archiving every issue in the throwaway team
+through Linear's own GraphQL API rather than through the seam under test, and **failing loudly**
+if that pass errors — a cleanup that quietly does nothing is worse than none, because the suite
+then asserts counts against a previous run's leftovers and flaps for reasons no one can see. The
+`gitea` binding and the generator's template still carry the placeholder and now say so on
+stderr on every run instead of staying silent.
+
+The reason a disposable target is mandatory is therefore stronger than the original wording
+suggested, not weaker: the suite mutates real items, and outside `github` and `local-markdown`
+nothing has ever cleaned them up.
 
 ## Cross-links
 

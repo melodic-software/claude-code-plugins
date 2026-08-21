@@ -184,6 +184,33 @@ SCOPE_PATTERN="$(jq -r '.api.scope_pattern // "^[A-Za-z0-9][A-Za-z0-9._/-]*$"' <
 
 SAMPLE_SCOPE="$(sget '.api.sample_scope')"
 [[ -n "$SAMPLE_SCOPE" ]] || die_spec "api.sample_scope is required (it seeds the generated fixtures)"
+# TWO checks, for two different jobs, and neither substitutes for the other.
+#
+# The charset first. sample_scope is substituted LITERALLY into generated shell, and
+# `common.test.sh.tmpl` puts it in a DOUBLE-quoted argument — where `$(…)` still
+# executes and a `"` closes the string outright. quote_safe() below only refuses a
+# single quote, so nothing else stood between the spec and live code in a file whose
+# execution is step 1 of this script's own printed "Next:" instructions. This is the
+# same treatment display_name got above, for the same reason stated there; sample_scope
+# is the one value in this block that never received it, while SAMPLE_HOST, BASE_PATH,
+# SAMPLE_ENV, SAMPLE_ID and PROVIDER all did.
+#
+# Honestly scoped: the spec comes from this skill's own interview, so this is a
+# robustness and supply-chain gap (a hand-edited or shared spec file), not a path a
+# remote attacker reaches. It is worth closing anyway because the generator's stated
+# posture — render() and quote_safe() both say values are inserted literally and
+# nothing downstream escapes them — was not actually true of this one key.
+#
+# The charset is deliberately wider than any shipped provider needs and still excludes
+# every shell metacharacter: `owner/repo` (gitea `^[A-Za-z0-9][A-Za-z0-9._-]*/…$`,
+# github), `<workspace>/<TEAMKEY>` (linear `^[a-z0-9][a-z0-9-]*/[A-Z][A-Z0-9]*$`), and
+# bare jira project keys (`^[A-Za-z][A-Za-z0-9_]*$`) all fit inside it, as does this
+# script's own default scope_pattern.
+[[ "$SAMPLE_SCOPE" =~ ^[A-Za-z0-9][A-Za-z0-9._~/-]*$ ]] ||
+  die_spec "api.sample_scope must be letters, digits, and . _ ~ / - only, starting alphanumeric (found: $SAMPLE_SCOPE) — it is substituted literally into generated shell, including a double-quoted argument where \$(…) would execute and a \" would break out"
+# The pattern match second, and it is NOT redundant: the charset says the sample is
+# inert, this says the sample is representative. A fixture that fails the provider's
+# own scope guard would make the generated adapter fail its own tests on birth.
 [[ "$SAMPLE_SCOPE" =~ $SCOPE_PATTERN ]] ||
   die_spec "api.sample_scope '$SAMPLE_SCOPE' does not match api.scope_pattern '$SCOPE_PATTERN'"
 
@@ -734,11 +761,14 @@ QUOTED_CONTEXT_KEYS=" CONFIG_KEY DISPLAY_NAME HOST_SUFFIX PROVIDER PROVIDER_FUNC
 PROVIDER_UPPER SAMPLE_AUTH_EXTRA SAMPLE_HOST SAMPLE_SCOPE SCOPE_PATTERN USAGE_ARGS VERB "
 
 # A single quote is the ONE character that can end such a context; everything after it
-# is live shell in the generated file. Most of these keys are already constrained to a
-# safe character class upstream, but `scope_pattern` and `sample_scope` are deliberately
-# permissive (they carry a regex and a matching sample), and a future template may quote
-# a key nobody re-audited. So the refusal lives here, at the single choke point every
-# value passes through, rather than in one validator per key.
+# is live shell in the generated file. Every one of these keys is now constrained to a
+# safe character class upstream — `scope_pattern` is the last deliberately permissive
+# one (it carries a regex, so it cannot be charset-bounded), and a future template may
+# quote a key nobody re-audited. So the refusal stays here, at the single choke point
+# every value passes through, as the backstop behind the per-key validators rather than
+# as the only guard. It is NOT sufficient on its own: it sees only single quotes, so a
+# key that reaches a DOUBLE-quoted context needs its own anchored charset upstream —
+# which is what `display_name` and `sample_scope` have.
 #
 # Refuse rather than escape — the doctrine `common.sh.tmpl` states at its own scope
 # guard: "an escaping bug is silent, a rejection is loud." No legitimate provider scope,
@@ -756,21 +786,39 @@ quote_safe() {
   esac
 }
 
+# The global substitution set, hoisted out of render() so the sweep below can walk it
+# at TOP LEVEL. Longest keys first so no key is a prefix of another's match, and
+# PROVIDER last so the `@@PROVIDER@@` tokens inside a caller-supplied PARSE_BLOCK are
+# still reached.
+readonly RENDER_KEYS=(
+  SHEBANG
+  PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY SCHEMA_VERSION
+  HOST_SUFFIX_DOC HOST_PIN_POSTURE HOST_SUFFIX BASE_PATH SCOPE_PATTERN
+  SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV
+  SAMPLE_ID_NUMBER SAMPLE_ID
+  AUTH_CONFORMANCE_REQUIRE AUTH_CONFORMANCE_JQARG CONFORMANCE_AUTH_EXTRA
+  AUTH_DESCRIPTION AUTH_CONFIG_READ AUTH_CONFIG_REQUIRE AUTH_EXPORT_EXTRA
+  AUTH_HEADER_EXPECT AUTH_HELPERS AUTH_DOC_ROW PROVIDER
+)
+
+# Sweep every global value through quote_safe HERE, at top level, before the first
+# emit — because a refusal raised from inside render() cannot stop this script. Every
+# render() call is made as `$(render …)`, and `exit` inside a command substitution
+# kills only that subshell. Left to render() alone, a spec whose scope_pattern carried
+# a single quote printed the refusal once per template and then carried on to write a
+# directory of EMPTY, chmod +x scripts, report "Wrote 9 file(s)", print the "Next:"
+# instructions, and exit 0 — the loudest refusal in the script, delivered as success.
+# render() keeps its own per-value call as the backstop for the caller-supplied pairs,
+# which are generator constants; this sweep is the one that can actually abort.
+for k in "${RENDER_KEYS[@]}"; do
+  quote_safe "$k" "${!k-}"
+done
+
 render() {
   local file="$1"
   shift
   local text
   text="$(cat "$file")"
-  local -a keys=(
-    SHEBANG
-    PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY SCHEMA_VERSION
-    HOST_SUFFIX_DOC HOST_PIN_POSTURE HOST_SUFFIX BASE_PATH SCOPE_PATTERN
-    SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV
-    SAMPLE_ID_NUMBER SAMPLE_ID
-    AUTH_CONFORMANCE_REQUIRE AUTH_CONFORMANCE_JQARG CONFORMANCE_AUTH_EXTRA
-    AUTH_DESCRIPTION AUTH_CONFIG_READ AUTH_CONFIG_REQUIRE AUTH_EXPORT_EXTRA
-    AUTH_HEADER_EXPECT AUTH_HELPERS AUTH_DOC_ROW PROVIDER
-  )
   local k v
   # Caller-supplied pairs first: they are per-file (verb name, tables) and never
   # collide with the global set above.
@@ -781,7 +829,7 @@ render() {
     quote_safe "$k" "$v"
     text="${text//@@$k@@/$v}"
   done
-  for k in "${keys[@]}"; do
+  for k in "${RENDER_KEYS[@]}"; do
     v="${!k-}"
     quote_safe "$k" "$v"
     text="${text//@@$k@@/$v}"

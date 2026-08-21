@@ -101,10 +101,24 @@ bash tools/work-item-tracker/conformance/run-conformance.sh --binding gitea
   per implemented verb. Every one of those drives the real code through a mock injected
   at `WIT_GITEA_CURL`; none touches a network.
 - **NOT run:** the abstract conformance suite against a live Gitea or Forgejo instance.
-  No such instance is reachable from the environment this adapter was built in. The
-  binding at `conformance/bindings/gitea.sh` is ready and refuses to run without an
+  The binding at `conformance/bindings/gitea.sh` is ready and refuses to run without an
   explicitly named throwaway target. Until that pass happens, treat the live behaviour
   as documented-and-tested-against-the-documentation, not as verified.
+
+  **Correcting an earlier claim in this file: it is not that no instance is *obtainable*.**
+  Gitea ships as a single self-contained binary with sqlite built in, and a real one was
+  downloaded and version-verified in the build environment. What stopped the pass is that
+  serving it needs privileged setup — a dedicated unprivileged user plus
+  `cap_net_bind_service`, because Gitea declines to run as root — and that setup is
+  gated by the sandbox's permission policy, not by reachability.
+
+  Port 443 and TLS are **not preferences**: `wit_gitea_http` builds `https://<host>/api/v1`
+  under `--proto '=https'`, and `config.gitea.host` must be a BARE hostname, so a high
+  port is not expressible. **Do not "unblock" this by relaxing the bare-hostname rule.**
+  That rule exists so a PR-modifiable binding cannot smuggle URL structure and redirect
+  the credential off the intended tenant; widening it to make a test run would trade a
+  real security control for a green check. Run the suite against a genuine TLS instance
+  on 443, or leave it unrun and honestly recorded — as here.
 
 ## Provider notes
 

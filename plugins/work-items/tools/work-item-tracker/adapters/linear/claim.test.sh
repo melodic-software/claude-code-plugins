@@ -162,6 +162,30 @@ seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "the same tie decided from the other side → exit 0" "0" "$rc"
 
+# --- a live foreign lease with a MALFORMED handle is still refused ---
+# `lease_comment_id` is consumer-writable in practice: hand-edited markers, or another
+# tool writing the same v1 shape. A non-numeric one used to make the reader's `--argjson`
+# fail, which emptied the accumulator and — because jq over empty input prints nothing
+# and EXITS 0 — returned success-with-no-output. Callers read that as "nothing is
+# claimed" and handed out a second lease over a live one. The `|| exit "$?"` guard at
+# the call site cannot catch it, because the failure never arrives as a non-zero status.
+# Built directly rather than via lin_lease_body, which types the handle as a number —
+# a STRING handle is precisely the shape under test.
+MALFORMED_MARKER="$(jq -cn --arg t "$NOW" \
+  '{schema_version: "1.0", holder: "someone-else", acquired_at: $t, renewed_at: $t,
+    ttl_hours: 24, ttl_minutes: 0, lease_comment_id: "abc"}')"
+MALFORMED="$(jq -cn --arg b "<!-- work-item-lease v1 $MALFORMED_MARKER -->" \
+  '[{id: "uuid-comment-theirs", body: $b, createdAt: "2026-08-20T11:00:00.000Z"}]')"
+seed_claim_ok "$MALFORMED"
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "a malformed lease handle does not hide a live foreign lease" "7" "$rc"
+assert_contains "…and still names the holder" "$(lin_err)" "someone-else"
+if [[ "$(lin_requests)" == *"issueUpdate"* ]]; then
+  fail "a claim refused on a malformed handle writes nothing" "no issueUpdate" "issueUpdate issued"
+else
+  pass "a claim refused on a malformed handle writes nothing"
+fi
+
 # --- the partial-claim window: assigned, then the lease write fails ---
 # The assignment lands first and the lease is posted second, so a failure in between
 # leaves the issue ASSIGNED WITH NO LEASE. That state is unrecoverable through the
@@ -205,17 +229,46 @@ assert_eq "a failure after the lease post still reports the failure" "1" "$rc"
 assert_eq "…and the rollback leaves a concurrent winner's assignment alone" \
   "0" "$(lin_bodies | grep -c '"assigneeId":null')"
 
-# Losing the race must NOT roll back: that path already decides the assignee by
-# re-fetching and comparing the holder, and a second unconditional unassign after it
-# would strip the winner's live claim — the precise failure that guarded check exists
-# to prevent.
+# Losing to a rival who holds a LIVE lease must not clear the assignee at all. The
+# winner is working the item, and `lib/frontier.sh` selects purely on assignee emptiness
+# with no lease check — so clearing here would put actively-worked work back on the
+# frontier. A stale name in the slot is cosmetic; an empty slot is a double-work
+# invitation. This also has to hold when the rival shares our login, which a display-name
+# compare cannot detect: HOLDER is the authenticated user's display name, not a session
+# identity, and same-login racing is the ordinary case the handle arbitration exists for.
 seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
   --arg theirs "$(lin_lease_body "$((MINE_HANDLE - 1000))" "earlier-rival" "$NOW" 24)" \
   '[$mine, {id: "uuid-comment-aaa", body: $theirs, createdAt: "2026-08-20T11:59:59.500Z"}]')"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "losing the race still exits 7" "7" "$rc"
-assert_eq "…with exactly one unassign — the guarded one, not a trap double-fire" \
-  "1" "$(lin_bodies | grep -c '"assigneeId":null')"
+assert_eq "…leaving the live winner's assignment untouched" \
+  "0" "$(lin_bodies | grep -c '"assigneeId":null')"
+
+# The same race, with the rival sharing OUR login. A display-name compare cannot tell
+# this from our own write, so under the old guard the loser cleared the winner's live
+# assignment. The live-lease test is identity-independent and holds here too.
+seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
+  --arg theirs "$(lin_lease_body "$((MINE_HANDLE - 1000))" "kyle" "$NOW" 24)" \
+  '[$mine, {id: "uuid-comment-aaa", body: $theirs, createdAt: "2026-08-20T11:59:59.500Z"}]')"
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "a same-login rival still wins the race" "7" "$rc"
+assert_eq "…and their live assignment is not stripped by the loser" \
+  "0" "$(lin_bodies | grep -c '"assigneeId":null')"
+
+# A FAILED lease re-read in the lost-race branch must not be read as "no live leases".
+# That default fails OPEN: the assignee still carries our login at this point, so the
+# name compare would pass and clear the winner's live assignment — the same bug the
+# branch guards against, arriving via the error path instead of a name collision. The
+# rollback trap fails safe on the identical read, and the two must agree.
+seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
+  --arg theirs "$(lin_lease_body "$((MINE_HANDLE - 1000))" "earlier-rival" "$NOW" 24)" \
+  '[$mine, {id: "uuid-comment-aaa", body: $theirs, createdAt: "2026-08-20T11:59:59.500Z"}]')"
+# Fail only the SECOND lease read (the loser branch's re-read); the first two comment
+# reads must succeed or the race never reaches that branch.
+lin_seed 'comments(' 500 '{"errors":[{"message":"upstream exploded"}]}'
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "…and an unreadable lease set never clears the assignee" \
+  "0" "$(lin_bodies | grep -c '"assigneeId":null')"
 
 # --- scope boundary ---
 lin_reset

@@ -26,7 +26,15 @@ _cb_clean_at_start() {
   # │ Do this through the PROVIDER's own tooling, not through the seam — the     │
   # │ seam is what is under test.                                                │
   # └────────────────────────────────────────────────────────────────────────────┘
-  :
+  #
+  # Until you fill it in, this SAYS SO on every run. An unfilled cleanup is not a
+  # harmless no-op: the suite creates, claims, and mutates real items and leaves every
+  # one of them in the target, and its own count assertions then run against the
+  # previous run's leftovers. That reads as a flaky suite rather than as missing
+  # cleanup, so the placeholder announces itself instead of passing for finished work.
+  # Delete this printf when you implement the mapping above.
+  printf 'conformance(@@PROVIDER@@): clean-at-start is an UNFILLED placeholder — items created by this run will be left in %s, and count assertions may flap against leftovers from a previous run\n' \
+    "${CB_REPO:-the configured scope}" >&2
 }
 
 cb_setup() {

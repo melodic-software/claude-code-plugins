@@ -101,6 +101,40 @@ gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'blocked')"
 rc="$(gitea_run "$S" --title "blocked" --blocked-by "gitea:acme/webapp#4")"
 assert_eq "failed edge write → non-zero" "5" "$rc"
 
+# --- the post-create blocker-count read-back ---
+# The POST already succeeded here, so the issue EXISTS on the server and only the
+# read-back of its open-blocker count fails. Exit 2 would be the dangerous answer: it
+# says "usage — bad args", and a caller that duly fixes its args and retries files a
+# duplicate issue.
+gitea_reset_routes
+gitea_seed "/dependencies" 401 '{"message":"token required"}'
+gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'created, count unreadable')"
+rc="$(gitea_run "$S" --title "created, count unreadable")"
+assert_eq "unreadable blocker count after create → exit 4, never 2" "4" "$rc"
+assert_contains "the issue really was posted" "$(gitea_requests)" \
+  "POST https://git.example.invalid/api/v1/repos/acme/webapp/issues"
+# A non-zero exit here must not read as "nothing happened" — the id of the created item
+# is the only thing standing between the caller and a duplicate.
+assert_contains "stderr names the created item" "$(gitea_err)" "gitea:acme/webapp#12"
+assert_contains "and says it was created" "$(gitea_err)" "WAS CREATED"
+# The count has no honest substitute, so nothing is emitted rather than a 0 that would
+# put a blocked item on the frontier.
+assert_eq "no item object is emitted" "" "$(gitea_out)"
+# Feeding jq an empty --argjson was how this failed before: raw jq usage text on stderr.
+if [[ "$(gitea_err)" == *"jq --help"* ]]; then
+  fail "no raw jq usage text leaks to stderr" "no jq usage text" "jq --help text present"
+else
+  pass "no raw jq usage text leaks to stderr"
+fi
+
+# work-loop routes "seam exit 8 → backoff-and-retry", so a 5xx must stay an 8 here too.
+gitea_reset_routes
+gitea_seed "/dependencies" 503 '{"message":"down"}'
+gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'created, deps down')"
+rc="$(gitea_run "$S" --title "created, deps down")"
+assert_eq "unavailable blocker-count read after create → exit 8" "8" "$rc"
+assert_contains "and still names the created item" "$(gitea_err)" "gitea:acme/webapp#12"
+
 # --- HTTP status mapping on the create itself ---
 gitea_reset_routes
 gitea_seed "/issues" 403 '{"message":"no write access"}'

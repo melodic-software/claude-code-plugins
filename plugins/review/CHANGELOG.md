@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Fixed
+
+- **`quality-gate close-out` Shape B was structurally blind to in-flight work.** Every rung
+  of the commit-set ladder reads the default branch — rung 1 keeps `MERGED` linkage nodes,
+  rung 2 scans `git log <default-branch>` — so work that is written, pushed, and sitting in
+  an **open** PR never entered the basis and was never mentioned. Merged-only is the right
+  reduction for the *basis* (an unmerged diff has not shipped) and the wrong thing to leave
+  unsaid for the *verdict*: a container closed on it closes on evidence that is not on the
+  default branch, which archival-by-closure cannot survive. Shape A reaches its open branch
+  through the `**Integration branch:**` line; Shape B had no analogue. The mode now runs one
+  extra `state=="OPEN"` query plus an open-PR search against the container before rendering,
+  reports whatever it finds as **in-flight, not in the basis**, and treats any open PR
+  carrying container work as a precondition of the close rather than a footnote. Surfaced by
+  running the mode over container #2933, where six behaviour-changing fixes sat in an open PR
+  and the derived basis showed none of them.
+
 ## [0.25.0]
 
 ### Added
