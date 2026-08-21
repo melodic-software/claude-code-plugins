@@ -39,7 +39,7 @@ queue (`/work-items:attend-queue`).
 
 ## Loop-lane contract (cited, never restated)
 
-Every shared cross-lane concern is owned by the loop-lane convention, 
+Every shared cross-lane concern is owned by the loop-lane convention,
 `docs/conventions/loop-lane/README.md` in this plugin's marketplace repository, and this skill
 holds those contracts **by citation**: the three-session topology and the autonomy merge ladder
 (including seam-only rung raises), the escalation contract, order-defined capability tiers
