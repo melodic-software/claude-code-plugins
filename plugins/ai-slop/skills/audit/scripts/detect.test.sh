@@ -441,10 +441,16 @@ assert_contains "emit: reports destination" "$out" "wrote $FOUT"
 fcontent="$(cat "$FOUT")"
 assert_contains "emit: frontmatter type" "$fcontent" "type: review-findings"
 assert_contains "emit: frontmatter branch" "$fcontent" "branch: test-branch"
-if LC_ALL=C grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z$' "$FOUT"; then
-  pass "emit: colon-free UTC date"
+# The `date:` frontmatter field is PARSED by the consumer: fix-pass-mode.md
+# "Step 1" reads a value only if it is a full ISO-8601 date-time with an explicit
+# UTC designator, so the time portion needs COLONS. This assertion previously
+# pinned a hyphenated time (`T05-45-10Z`), which is ISO-8601 in neither the
+# extended nor the basic profile — it encoded the emitter's bug as the contract.
+# The colon-free rule belongs to the FILE NAME (Windows-safe), not to this field.
+if LC_ALL=C grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' "$FOUT"; then
+  pass "emit: ISO-8601 extended UTC date"
 else
-  fail "emit: colon-free UTC date" "colon-free timestamp" "$(grep '^date:' "$FOUT")"
+  fail "emit: ISO-8601 extended UTC date" "YYYY-MM-DDThh:mm:ssZ" "$(grep '^date:' "$FOUT")"
 fi
 assert_contains "emit: finding cell leads with qualified rule id" "$fcontent" "ai-slop/audit/rule-em-dash"
 # detect.sh sanitizes prose pipes to / at excerpt production; the cell must

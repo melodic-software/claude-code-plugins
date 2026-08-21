@@ -4,6 +4,35 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.4.1 — 2026-08-21
+
+Two clarifications to prose this contract already had. **Patch under its own rule**: no
+producer-owned field's rule moves, no coexistence obligation changes, no enforceability verdict
+changes, no adopter row is added, and nothing a producer emits or a consumer parses is different.
+Both passages are corrected to say what the consumer already does.
+
+- **"Auto-applicability is settled per rule, at contract time" stated its criterion unqualified.**
+  The opening sentence read as a fence over every finding — "a fix is auto-applied only when it is
+  contained to its `Location`, high-confidence, and not a call for architectural judgment" — while
+  the section directly above it, and the Declared-dispositions table, both turn on the fact that
+  `fix-pass-mode.md` "Step 4" states that fence under its **correctness-class** heading and a
+  cleanup-class row never passes through it. Read literally the sentence contradicted its own
+  neighbours. It is now scoped to the correctness class, with the consequence this contract owns
+  (settle it once per rule, in the crosswalk) marked as the class-independent half. **This wording
+  predates the 2.4.0 release**: it entered with the crosswalk in #2737 on 2026-08-15, and 2.4.0 only
+  put a second passage beside it that made the tension legible.
+- **The `Auto-applicable: No` bullet described the cleanup route as `/simplify`-only.** It said the
+  route "hands that class wholesale to `/simplify`". Step 4 has two branches — `/simplify` when it
+  is available in the session, otherwise the cleanup findings applied directly, one file at a time —
+  and the bullet named one. Its conclusion is unaffected and was never at risk: a `No` cell cannot
+  restrain the route under *either* branch, which is why the bullet was written. The correction
+  states both branches and why the cell reaches neither: on the first no consumer reads it, and on
+  the second the reader is the cleanup route, whose fence is the file rather than auto-applicability.
+
+The same `/simplify`-only description appears in 2.4.0's own entry below and in
+`plugins/review/CHANGELOG.md`. Those are published entries recording what was written at the time
+and are deliberately left as they stand; this note is the correction's home.
+
 ## 2.4.0 — 2026-08-21
 
 A producer can now name the skill that owns its findings' remediation (#3033). New section, "When

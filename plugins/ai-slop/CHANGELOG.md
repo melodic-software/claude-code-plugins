@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.3.3]
+
+Three corrections found by re-reading what 0.3.1 and the 2.4.0 contract release actually shipped.
+None changes what the detector finds or what the fix flow rewrites.
+
+- **`emit-findings.sh` stamped a `date:` that is ISO-8601 in neither profile.** The format string
+  was `%Y-%m-%dT%H-%M-%SZ` — an extended-form date joined to a hyphenated time — so every emitted
+  file carried `date: 2026-08-21T13-24-36Z`. The consumer parses this field:
+  `fix-pass-mode.md` "Step 1" reads a value only when it is a full ISO-8601 date-time with an
+  explicit UTC designator or numeric offset, and classes anything else UNREADABLE. Nothing was
+  dropped, because every clause on that path fails open — an unreadable `date:` keeps the candidate,
+  at a bounded cost of one extra pass — but the staleness note Step 4's cleanup route asks for was
+  degrading silently, since it judges age only from files that declare a readable one. Now
+  `%Y-%m-%dT%H:%M:%SZ`.
+- **The unit suite had pinned the malformed shape as the contract.** `detect.test.sh` asserted the
+  hyphenated time under the name "colon-free UTC date", so the bug was guarded rather than caught.
+  The colon-free rule is real but belongs to the FILE NAME, where it exists to keep the path
+  Windows-safe (`persist-findings.md` "Where the file goes"); it never bound this frontmatter field,
+  whose owner (`default-mode.md` "Findings-file shape") asks for `<ISO-8601 UTC>` plainly. The
+  assertion now pins the extended form and says which document it answers to.
+- **The Purpose section described the relay's cleanup route as `/simplify`-only.** Step 4 of
+  `fix-pass-mode.md` reads "Invoke the `/simplify` skill when available in the session; otherwise
+  apply the cleanup findings directly, one file at a time" — two branches, and the Purpose section
+  named one. The paragraph's conclusion is unchanged and was never at risk: what makes routing these
+  rows to `/ai-slop:audit fix` correct is that *neither* branch loads this skill's rewrite guide, so
+  the omitted branch strengthens the argument rather than weakening it. This is a precision fix to
+  rationale, not a behavior change; the audit flow's step 6 already carried the two-branch wording,
+  and the Purpose section is now consistent with it.
+- **Eval case 2 graded persistence without stating the premise persistence needs.** Its fourth
+  expectation requires the findings file to be re-emitted after the last fixed file, but
+  `SKILL.md` step 5 gates persistence on the audit having "examined tracked files" and the prompt
+  asserted no such thing. 0.3.0 established the remedy for exactly this and applied it to cases 4
+  and 5: a case cannot verify real repository state, so a case that grades the persistence step
+  states the premise instead of constructing it. Case 2 is the third such case and was the one
+  missed. Its prompt now carries the same sentence, and the expectation names the premise it rests
+  on so a run that rewrites and re-runs but persists nothing no longer passes.
+
+  **The fix flow's re-emit wording is left alone here, and the question stays open.** It states
+  re-emission without repeating step 5's gate. `persist-findings.md` "Surfaces, and when the file is
+  written at all" enumerates when a file is written and tracked-ness is not on that list, which is
+  the reading under which the two never conflict — but that reading is not established, and this
+  entry does not claim it is. Against it: step 1 scopes "the repo's tracked markdown" to the
+  **empty-target** branch, while every eval case passes a path argument, so "examined tracked files"
+  and "nothing scanned" are not obviously the same condition; and cases 4 and 5 word tracked-ness as
+  gating ("since the audit examined a tracked file"), which an inert precondition would not need.
+  `persist-findings.md`'s precedence clause also names the convention README rather than this
+  `SKILL.md`, so its list is not authoritative over step 5.
+
+  What is settled is the eval: case 2 grades persistence and lacked the premise its siblings carry,
+  which is a gap under either reading. Whether tracked-ness is a substantive gate is a question about
+  this skill's own wording, and if it is, the fix belongs in `context/persist-findings.md` rather
+  than in the fix flow.
+
 ## [0.3.2]
 
 The catalog's cited source page lists an **Ineffective indicators** section — signals that

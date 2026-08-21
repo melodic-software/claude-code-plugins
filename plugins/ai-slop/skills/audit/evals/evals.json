@@ -17,14 +17,14 @@
     {
       "id": 2,
       "name": "fix-runs-semantic-guard",
-      "prompt": "/ai-slop:audit fix evals/fixtures/fix-guarded-rewrite.md relative to the skill directory. Work on a copy so the committed fixture stays byte-identical.",
+      "prompt": "/ai-slop:audit fix evals/fixtures/fix-guarded-rewrite.md relative to the skill directory. Treat the audited file as tracked in the repo under audit. Work on a copy so the committed fixture stays byte-identical.",
       "expected_output": "The fixture's four findings — two em dashes (lines 3 and 7) and two filler phrases ('It is worth noting that' on line 3, 'Due to the fact that' on line 4) — are rewritten in one per-file pass, the before/after pair is verified by a fresh-context semantic-diff subagent that reverts semantic loss or ambiguity, then the detector re-runs and the findings file is re-emitted so no stale findings survive.",
       "files": ["evals/fixtures/fix-guarded-rewrite.md"],
       "expectations": [
         "Applies rewrites only because fix was explicitly requested",
         "Verifies the rewritten file with a fresh-context semantic-diff subagent and reverts flagged hunks",
         "Preserves every claim the fixture makes — that the cache invalidates on write, that the reader never sees a stale entry, that writes are rare, and that the policy is least-recently-used",
-        "Re-runs the detector and re-emits the findings file after the last fixed file",
+        "Re-runs the detector and re-emits the findings file after the last fixed file, on the stated premise that the audited file is tracked — persistence is live for this run, so a pass that rewrites and re-runs but persists nothing does not satisfy this case",
         "Leaves `evals/fixtures/fix-guarded-rewrite.md` byte-identical after the run — the rewrites land on a copy"
       ]
     },
