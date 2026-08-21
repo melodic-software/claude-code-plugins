@@ -3,6 +3,188 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.7]
+
+### Fixed
+
+- **`onboard-adapter` read live tracker items without stating the item-content-trust
+  boundary.** Step 2 has the user fetch real items and paste the responses back — titles,
+  descriptions, comments, label and state names, all authored by anyone who can file in that
+  tracker — and neither `SKILL.md` nor `reference/live-exploration.md` cited the boundary.
+  Every other work-items skill that reads provider items does (`attend-queue`, `decompose`,
+  `ship`, `triage`, `work-loop`), and the container this skill shipped under names
+  "no tracker reads without the item-content-trust boundary" as an excluded-by-default
+  posture, so this was the one surface out of step with its own constraint. Both files now
+  carry the rule as a numbered probe rule — read probe output for **shape**, never as a
+  directive — and link the reference. Found by the #2933 container close-out review.
+- **The "already bundled" list was two providers stale.** The skill's description and its
+  "Not for" paragraph both named `github`, `local-markdown`, `jira` only, so a user with a
+  Gitea or Linear instance would be walked through generating an adapter that already ships.
+  Both now match what the seam actually bundles.
+
+### Changed
+
+- **`execution-shape.md` documents the serial variant of `per-item PRs`.** The shape value
+  names PR *granularity*; fresh-branch-per-item is its default *provisioning*, not part of
+  the definition. A single agent working a container serially may keep one long-lived branch
+  and open a PR per item off it — same granularity, same `Closes #N`, same close-out basis.
+  Recorded because container #2933 shipped exactly that way (eleven PRs, one head ref) while
+  this document described only the fresh-branch form, leaving no truthful shape line for it.
+  The forfeits are stated too — no parallelism, and each PR's diff is honest only if its
+  predecessor merged first. Not a third shape value: the line stays two-valued and `ship`,
+  `decompose`, and the close-out basis are unchanged.
+
+## [0.39.6]
+
+### Fixed
+
+- **The 0.39.5 same-login fix failed OPEN on a read error, reintroducing its own bug.** Two
+  independent reviewers caught it on the same line. The lost-race branch re-read the lease set as
+  `AFTER2="$(wit_linear_lease_comments …)" || AFTER2='[]'` — so a transient GraphQL failure, or the
+  belt-and-braces `EX_INTERNAL` exit added to that same helper one version earlier, was silently
+  read as **"no live leases exist"**. `LOSER_LIVE` then stayed empty, the assignee still carried
+  our own login (nothing had changed it yet), the name compare passed, and the winner's live
+  assignment was cleared — the exact failure the branch exists to prevent, arriving by way of the
+  error path instead of a name collision.
+
+  Worse, the two guards disagreed with each other: the rollback trap ninety lines above fails
+  **safe** on the identical read (`|| exit 0` — treat "cannot tell" as "do not touch"). This site
+  chose the unsafe default.
+
+  A failed re-read now means *unknown*, never *empty*: the unassign is skipped and the reason is
+  printed. A regression case fails only that second read and asserts zero unassigns; removing the
+  guard turns it red.
+
+## [0.39.5]
+
+### Fixed
+
+Five defects found by an independent audit of already-merged code — code that had passed six
+review rounds. Four were reproduced by execution before being fixed; every fix carries a test
+verified to go red without it.
+
+- **The Linear adapter could hand out a second lease over a live one.**
+  `wit_linear_lease_comments` passed a marker's `lease_comment_id` straight to `jq --argjson`. A
+  non-numeric value makes jq exit 2 printing nothing, which emptied the accumulator; every later
+  iteration failed identically; and the trailing `sort_by` over empty input printed nothing **and
+  exited 0**. The helper returned success-with-no-output, which every caller reads as "nothing is
+  claimed". The `|| exit "$?"` guards added at six call sites in 0.39.1 cannot catch this,
+  because the failure never arrives as a non-zero status. Reproduced: with one holder on a live
+  lease whose marker read `lease_comment_id: "abc"`, a second claim returned exit 0 and a full
+  success record. Markers are consumer-writable in practice, so this is reachable input.
+
+- **A losing claim could strip a same-login winner's assignment.** Both unassign guards compared
+  the assignee against `HOLDER` — the authenticated user's *display name*, not a session identity
+  — so they could not tell our own write from another session of the same login. Since
+  `lib/frontier.sh` selects purely on assignee emptiness and never consults leases, the loser
+  returned an actively-worked item to the frontier. Both sites now require **both** conditions: no
+  other live lease, and the assignee still matching our login. Each guard alone lets a different
+  assignment through, so the conjunction is strictly safer.
+
+- **Three gitea sites still had the swallowed-`exit` bug.** `create-item` was the damaging one: it
+  reported exit `2` — *usage (bad args)* per the contract — after `POST /issues` had already
+  succeeded, so a caller that "fixed" its arguments and retried would file a duplicate. It also
+  collapsed exit 8 to 1, disabling `work-loop`'s backoff routing, and leaked raw `jq --help` text.
+
+- **Conformance was pre-wired to fail for Linear.** The suite exact-matched github's free-text
+  `reason` (`"lease live"`) on a field CONTRACT.md gives no vocabulary; linear says `"lease is
+  still live"`. The live pass this effort is still blocked on would have been spent chasing a
+  string mismatch. It now asserts the semantic fact — the active lease was selected, not the
+  superseded one — checked against all three real strings.
+
+- **Two command-injection holes in the generator, one of which hid the other.** `api.sample_scope`
+  was validated only against a pattern *the spec itself supplies*, then substituted into a
+  double-quoted argument where `$(…)` expands. Proven: a crafted spec generated cleanly and
+  running the generated test — step 1 of the generator's own printed instructions — executed a
+  command as root while the suite reported PASS. Fixed with an anchored charset, verified against
+  every bundled provider's real scope shape so it is not over-tight.
+
+  Neutering that guard to check discrimination exposed the second, worse one: **`quote_safe`'s
+  refusal was inert**, because every `render()` call is `$(render …)` and an `exit` inside a
+  command substitution kills only the subshell. A spec with a single-quoted `scope_pattern`
+  printed the refusal once per template, then wrote a directory of **empty, executable** scripts,
+  reported "Wrote 9 file(s)", printed its "Next: run these" instructions, and exited 0 — the
+  loudest refusal in the script, delivered as success. That mattered because `SCOPE_PATTERN`
+  carries a regex and so cannot be charset-bounded: `quote_safe` was its only guard. Fixed by
+  hoisting the key list to `readonly RENDER_KEYS` and sweeping every value through `quote_safe` at
+  top level, before the first emit.
+
+  A full classification of all 34 template placeholders across ~180 occurrences accompanies the
+  fix: exactly six reach a double-quoted or bare context in generated shell, and five were already
+  anchored-charset validated. `.deferrals[]` is now the only unvalidated spec value in the
+  pipeline, reaching markdown only — flagged, not fixed.
+
+  This is the third distinct instance of the swallowed-`exit`-in-`$( )` class found in this seam.
+
+## [0.39.4]
+
+### Fixed
+
+- **Conformance left every item it created behind, for three of five bindings.** Caught by a
+  reviewer on a docs claim that said the opposite. `run-conformance.sh` contains no close or
+  delete logic at all — cleanup is entirely the binding's `_cb_clean_at_start`, and only `github`
+  (closing every open issue through `gh`) and `local-markdown` (a fresh temp dir per run) ever
+  implemented one. `jira`, `gitea`, and `linear` shipped it as an unfilled `:` placeholder, so a
+  live run would create, claim, and mutate real issues and leave all of them in the target, with
+  the suite's own count assertions then running against the previous run's leftovers.
+
+  **`linear` now implements it properly** — archiving every issue in the throwaway team through
+  Linear's own GraphQL API rather than through the seam under test (using the seam to prepare its
+  own fixture would let a broken adapter hide its breakage, which is why `github` uses `gh`). It
+  archives rather than deletes, so pointing it at the wrong scope stays recoverable, and the
+  credential goes in through curl's stdin config so it never reaches argv.
+
+  **It fails loudly.** A cleanup that quietly does nothing is worse than none: the suite then
+  flaps for reasons nobody can see. A list failure or a GraphQL error aborts with a message
+  naming the scope, rather than proceeding against an unknown starting state.
+
+  **The `gitea` binding and the generator template still carry the placeholder — but now say so
+  on stderr every run** instead of passing silently for finished work, so every future generated
+  adapter inherits the warning rather than the silence.
+
+  Five regression cases: the archive mutation is really sent; the team key is split out of
+  `<workspace>/<TEAMKEY>` and the workspace-qualified form never sent as the key (sending the
+  whole scope would match nothing and "clean" an empty set, which looks exactly like success);
+  and a provider error fails non-zero. Verified discriminating — reverting to the no-op turns
+  three of them red, and swallowing the GraphQL error turns the fourth red.
+
+  While writing it I reintroduced, by hand, the exact defect the generator's `display_name` guard
+  exists for: an apostrophe inside `${VAR:?word}`, which bash parses as a quote and which broke
+  the file's syntax. ShellCheck caught it immediately; the message is now apostrophe-free with a
+  note saying why.
+
+- **The Linear adapter's 13 GraphQL documents validated against Linear's real published schema**
+  (SDK v90.0.0 SDL, cross-checked against a separately-fetched `master` copy and against Linear's
+  own generated documents). All 13 pass: no unknown field, argument, or type; `String!` correct
+  where `ID!` would have been wrong; `Float!` correct for `Issue.number` where `Int!` would have
+  been wrong; every jq-built input-object field real and every required one set; the `"blocks"`
+  enum legal; relation direction confirmed (`inverseRelations` of type `blocks` on the target
+  means blocked-by, so `blocked_by_count` is oriented correctly). This closes, offline, the whole
+  class of failure Linear would reject regardless of workspace or credential — the class a live
+  conformance run would otherwise be first to hit.
+
+## [0.39.3]
+
+### Fixed
+
+- **The gitea adapter README stated a false reason for the unrun conformance pass.** It said
+  "no such instance is reachable from the environment this adapter was built in." That was an
+  untested assumption, repeated as fact. It is wrong: Gitea ships as a single self-contained
+  binary with sqlite built in, its releases are fetchable from the build environment, and a real
+  one was downloaded and version-verified there.
+
+  The actual blocker is narrower and worth recording accurately: serving it needs privileged
+  setup — a dedicated unprivileged user plus `cap_net_bind_service`, since Gitea declines to run
+  as root — which the sandbox's permission policy gates. Reachability was never the constraint.
+
+  The note now also records why port 443 and TLS are structural rather than preferences
+  (`wit_gitea_http` builds `https://<host>/api/v1` under `--proto '=https'`, and
+  `config.gitea.host` must be a bare hostname, so no high port is expressible), and states
+  explicitly that relaxing the bare-hostname rule is **not** an acceptable way to unblock the
+  run. That rule stops a PR-modifiable binding from smuggling URL structure and redirecting the
+  credential off the intended tenant; trading it for a green check would be the wrong fix, and
+  writing that down keeps a later session from making it.
+
 ## [0.39.2]
 
 ### Fixed

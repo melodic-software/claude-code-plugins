@@ -78,6 +78,26 @@ rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "dependencies unit disabled still returns the item" "0" "$rc"
 assert_eq "and reports zero blockers" "0" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
 
+# A dependencies request that fails for any OTHER reason is not "no visible edges": the
+# count is unknown, and reporting 0 would put a blocked item on the frontier. The status
+# cases below fail the ISSUE fetch and never reach the count, so these seed a healthy
+# issue and break only the second request — the shape that once let the failure exit
+# inside $( ) and the verb carry on.
+gitea_reset_routes
+gitea_seed "/dependencies" 401 '{"message":"token required"}'
+gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'issue ok, deps refused')"
+rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
+assert_eq "unauthorized dependencies read → exit 4, not the count's absence" "4" "$rc"
+assert_eq "and no item is emitted" "" "$(gitea_out)"
+
+# 8 in particular has to survive: work-loop routes "seam exit 8 → backoff-and-retry", so
+# a 5xx that collapses to 1 never triggers the backoff it was raised for.
+gitea_reset_routes
+gitea_seed "/dependencies" 503 '{"message":"down"}'
+gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'issue ok, deps down')"
+rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
+assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
+
 # --- HTTP status mapping ---
 gitea_reset_routes
 gitea_seed "/issues/12" 404 '{"message":"issue does not exist"}'

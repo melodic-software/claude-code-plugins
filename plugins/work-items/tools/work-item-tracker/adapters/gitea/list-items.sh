@@ -92,7 +92,10 @@ ITEMS='[]'
 while IFS= read -r raw; do
   [[ -n "$raw" ]] || continue
   NUMBER="$(jq -r '.number' <<<"$raw")"
-  BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")"
+  # The helper exits on transport/HTTP failure, but inside $( ) that only ends the
+  # subshell — propagate its code rather than continuing with "" and reporting a 401 or
+  # a 503 as this adapter's own internal error.
+  BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || exit "$?"
   ONE="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --argjson bbc "$BBC" \
     --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" \
     '(.repository.full_name //= $full) | '"$WIT_GITEA_NORMALIZE_PROGRAM" <<<"$raw")" || {

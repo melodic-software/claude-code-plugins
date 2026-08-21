@@ -25,7 +25,14 @@ _cb_clean_at_start() {
   # │ Do this through the PROVIDER's own tooling, not through the seam — the     │
   # │ seam is what is under test.                                                │
   # └────────────────────────────────────────────────────────────────────────────┘
-  :
+  #
+  # Until that is filled in, SAY SO. An unfilled cleanup is not a no-op with no
+  # consequences: the suite creates, claims, and mutates real items and leaves every one
+  # of them in the target, and its own count assertions then run against the previous
+  # run's leftovers. Failing silently here is what turns that into a mystery flake, so
+  # the placeholder announces itself on every run rather than passing for finished work.
+  printf 'conformance(gitea): clean-at-start is an UNFILLED placeholder — items created by this run will be left in %s, and count assertions may flap against leftovers from a previous run\n' \
+    "${CB_REPO:-the configured scope}" >&2
 }
 
 cb_setup() {

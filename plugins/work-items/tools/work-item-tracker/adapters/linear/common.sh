@@ -758,9 +758,27 @@ wit_linear_lease_comments() {
       # A marker with no handle predates this adapter's handle minting (or was written
       # by hand). Fall back to the comment's own createdAt so it still ORDERS rather
       # than being dropped — dropping it would make a live foreign lease invisible.
-      [[ -n "$handle" ]] || handle="$(wit_linear_handle "$(jq -r '.createdAt' <<<"$node")")"
+      # A NON-NUMERIC handle takes the same fallback as a missing one, and for the same
+      # reason. `--argjson h` on a non-JSON value makes jq exit 2 printing nothing, which
+      # emptied `all`; every later iteration then failed identically on `--argjson acc ""`,
+      # and the trailing `sort_by` over empty input printed nothing AND EXITED 0. The
+      # helper thus returned success-with-no-output, which every caller reads as "nothing
+      # is claimed" — so a live foreign lease became invisible and claim.sh handed out a
+      # second lease over it. The `|| exit "$?"` guards at the call sites cannot catch
+      # that, because the failure never reaches them as a non-zero status.
+      #
+      # Markers are consumer-writable in practice (hand-edited, or written by another
+      # tool speaking the same v1 shape), so a malformed handle is reachable input, not a
+      # theoretical one.
+      [[ "$handle" =~ ^[0-9]+$ ]] || handle="$(wit_linear_handle "$(jq -r '.createdAt' <<<"$node")")"
       all="$(jq -c --argjson acc "$all" --argjson h "$handle" --arg c "$cid" --argjson l "$lease" \
-        '$acc + [{handle: $h, comment_id: $c, lease: $l}]' <<<'null')"
+        '$acc + [{handle: $h, comment_id: $c, lease: $l}]' <<<'null')" || {
+        # Belt and braces: whatever else ever makes this jq fail, it must not degrade to
+        # an empty accumulator that reads as "no leases". Fail loudly instead.
+        printf 'linear: could not accumulate lease comments on %s — refusing to report an empty lease set\n' \
+          "$issue_id" >&2
+        exit "$EX_INTERNAL"
+      }
     done < <(jq -c '.nodes[]?' <<<"$page")
     has_next="$(jq -r '.pageInfo.hasNextPage // false' <<<"$page")"
     cursor="$(jq -r '.pageInfo.endCursor // ""' <<<"$page")"

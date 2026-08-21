@@ -219,6 +219,24 @@ no `gh`), `issue_read` with `method: "get"` returns the same linkage as `closed_
 and `method: "get_sub_issues"` enumerates the container's children. Use whichever mechanic the
 session actually has — both are provider mechanics; neither is the seam.
 
+**Merged-only is the right reduction for the basis, and a blind spot for the verdict — say so.**
+Every rung here reads the default branch: rung 1 keeps `MERGED` nodes, rung 2 scans
+`git log <default-branch>`. Work that is written, pushed, and sitting in an **open** PR is
+therefore invisible to the basis while being unmistakably part of the shipped whole. That is
+correct for the basis — an unmerged diff has not shipped and must not be reviewed as though it
+had — and wrong to leave unsaid, because a container closed on it closes on evidence that is not
+on the default branch, which the archival-by-closure model cannot survive.
+
+So run one extra query before rendering the verdict, and report its result whatever it is: the
+same connection with `select(.state=="OPEN")`, plus a search for open PRs referencing the
+container itself (`search_pull_requests` with `is:open`, or `gh pr list --search`). Anything it
+returns goes in the report as **in-flight, not in the basis**, named with its PR number and what
+it carries. If any open PR carries container work, the container is **not closable yet** —
+finish the review over what has merged, and state the merge as a precondition of the close. Shape
+A gets this reach from its `**Integration branch:**` line; Shape B has no such line, so this query
+is the only thing standing between a clean-looking close-out and one rendered over a partial
+record.
+
 **An empty rung-1 result is an answer, not a failure.** A *successful* query returning zero merged
 PRs means that sub-item closed without shipping code — investigation and decision items are closed
 by a recorded comment and produce none by design, and a container's journey routinely contains
