@@ -41,12 +41,12 @@
       "id": 4,
       "name": "keeps-the-punctuation-rules-available-not-deleted",
       "prompt": "/docs-hygiene:write-for-humans — our team uses em dashes on purpose and we have said so in our style guide. Draft the migration guide.",
-      "expected_output": "The skill honors the project's ruling and does not apply the periods-over-semicolons or em-dash-replacement rules to this project. The rules themselves remain part of the documented default set for projects that have not ruled on them — they are not deleted from the skill.",
+      "expected_output": "A project style guide is declared, so it is authoritative and the bundled default set is not reached at all — including its periods-over-semicolons and em-dash-replacement rules. Those rules stay documented in the skill for projects that have declared nothing; the project's ruling overrides them rather than deleting them.",
       "files": [],
       "expectations": [
-        "Does not apply the em-dash replacement rule to a project that has declared em dashes deliberate",
-        "Treats the punctuation pair as consumer-configurable rather than as a rule to remove from the skill",
-        "Applies the remaining layers normally — the one overruled pair does not disable the rest"
+        "Resolves the project's own style guide and applies it, saying in one line which standard it resolved",
+        "Does NOT apply the bundled em-dash or semicolon rules — a declared project standard means the fallback set is not reached",
+        "Treats the punctuation pair as consumer-overridable rather than as a rule to delete from the skill: it stays documented for projects that have declared nothing"
       ]
     },
     {

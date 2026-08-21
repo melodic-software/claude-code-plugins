@@ -16,6 +16,18 @@ All notable changes to the `review` plugin are documented here. Format follows
   literal blast-radius round but reviews plans, not code, before implementation. This mode is the
   outward-looking lens none of them provide.
 
+  Like `self`, the mode **dispatches rather than judging inline**, and for a sharper reason: the
+  thread that wrote the change is the worst judge of what the change reaches, because its model of
+  "what this touches" is the one it already held while writing — an inline pass re-derives the
+  author's own blast-radius assumption and then confirms it. The mode ships a dispatch policy, an
+  orchestrator sequence, and a worker brief, with the same presence-gated cross-vendor preference and
+  named same-vendor fallback every other delegating surface in this fleet uses. It takes a general
+  read-only subagent rather than a dedicated agent, and says why: its checks are not a fixed
+  per-ecosystem baseline like `architecture`'s or `security`'s but a search shaped by what the diff
+  changed, so the brief carries the specifics. Every finding is verified against the tree before it
+  is presented — this is the one mode whose findings name files the diff never touched, so an
+  unverified one sends a reviewer to the wrong place.
+
   Reauthored from the `blast-radius` skill in `cursor/plugins` (MIT); provenance and the
   substantial rejections are recorded in `docs/upstream/cursor-pstack.md`.
 

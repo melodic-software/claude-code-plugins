@@ -14,6 +14,52 @@ Severity and confidence come from the shared vocabulary
 project's own when it defines one. **This mode adds no grading scale of its own** — not a proof
 level, not an evidence rung, not a confidence variant. The two existing axes carry every finding.
 
+**Dispatch policy:** the producing main thread MUST NOT run the steps below inline — the thread that
+wrote the change is the worst judge of what the change reaches, for the same reason `self` mode
+refuses an inline checklist. Its model of "what this touches" is the one it already had while
+writing, so an inline pass re-derives the author's own blast-radius assumption and confirms it.
+Orchestrate a fresh-context read-only subagent; the main thread gathers inputs, dispatches, verifies
+findings against the tree, and presents the verdict. Where the verdict is high-stakes and correlated
+blind spots are the risk, prefer a cross-vendor reviewer **when one is installed and set up** — e.g.
+the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own
+docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that
+may not resolve.
+
+## Orchestrator sequence (main thread)
+
+1. **Gather inputs** — the resolved review diff base (SKILL.md "Shared inputs") and the changed
+   symbol list from Step 1.
+2. **Choose the worker** — a general read-only subagent. This mode has no dedicated agent, unlike
+   `architecture` and `security`: its checks are not a fixed per-ecosystem baseline but a search
+   shaped by what the diff changed, so the brief carries the specifics instead of an agent
+   definition.
+3. **Dispatch** with the brief below.
+4. **Verify every finding before presenting** — open the named file, confirm the caller or reader
+   exists and behaves as claimed. Worker output is synthesis, not evidence, and this mode's findings
+   point at files the diff never touched, so an unverified one sends a reviewer to the wrong place.
+5. **Present** the confirmed and cleared lists (Step 4) plus the cheapest-test handback.
+
+## Worker brief
+
+```text
+You are a fresh-context reviewer. You did NOT author this change.
+
+Inputs: git diff <review-diff-base>, plus the changed symbols named below.
+
+Your job is what this change breaks OUTSIDE its own diff. Do not review the
+changed lines — another mode does that. Listing callers is not the job either.
+
+Search for the breakage a grep does not show: a library whose source behaves
+unlike its docs, a wire format another service parses, a column a report reads,
+a flag that changes which branch runs, a consumer several hops out or in another
+language. A search that finds nothing is still an answer — report it as cleared,
+with what you searched.
+
+Do not edit files. Return two lists — confirmed and cleared — each finding with
+its file:line and what you checked. Use only the severity and confidence
+vocabulary given; introduce no other scale.
+```
+
 ## Step 1: Read what actually changed
 
 The diff, the symbols it adds, changes and removes, and what now behaves differently — including the
