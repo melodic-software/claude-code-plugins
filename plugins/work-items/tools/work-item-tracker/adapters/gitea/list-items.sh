@@ -60,24 +60,57 @@ wit_gitea_scope_parts "$REPO"
 # it passes through. STATE is already constrained to those three by the parse above.
 PAGE=1
 COLLECTED='[]'
+# SEEN counts raw rows returned so far, for comparison against gitea's own X-Total-Count.
+# `services/convert.ToCorrectPageSize` silently clamps `limit` to `[api] MAX_RESPONSE_ITEMS`
+# (stock 50), so on an instance whose cap is below config.gitea.page_size EVERY page comes
+# back short — and "short page means last page" then ended the loop after page 1 and returned
+# a truncated list with nothing said, because the ceiling guard below never fired either.
+# This endpoint's handler calls ctx.SetTotalCountHeader, so when the header is present it is
+# the authoritative end-of-list signal and the clamp stops mattering. The short-page heuristic
+# stays as the fallback for anything that does not send one; it costs no extra request.
+SEEN=0
 while :; do
-  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
+  # `type=issues` is a real query parameter on this endpoint (enum: issues|pulls). Without it
+  # gitea returns pull requests too, which are then dropped below — so PRs consumed the page
+  # budget and, worse, the declared ceiling counted rows rather than items, making a PR-heavy
+  # repo report "reached the declared ceiling of 1000 items" having collected far fewer.
+  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing issues in $REPO"
   GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || {
     printf 'list-items.sh: gitea returned a non-array issue list for %s\n' "$REPO" >&2
     exit "$EX_INTERNAL"
   }
-  # Gitea's issue list includes PULL REQUESTS: a PR is an issue with `pull_request`
-  # populated. The seam's items are issues, and a PR arriving as a work item would be
-  # claimed and worked like one, so they are dropped here rather than downstream.
-  COLLECTED="$(jq -c --argjson acc "$COLLECTED" \
-    '$acc + [ .[] | select(.pull_request == null) ]' <<<"$WIT_GITEA_BODY")"
-  # A short page is the last page: Gitea sends no total-count header on this endpoint.
-  ((GOT < WIT_GITEA_PAGE_SIZE)) && break
+  # Belt and braces: `type=issues` should mean gitea sends no PRs, but a PR arriving as a work
+  # item would be claimed and worked like one, so the filter stays.
+  # The ACCUMULATOR travels on stdin and only the (page-size-bounded) page travels in argv.
+  # The other way round — `--argjson acc "$COLLECTED"` — puts an unboundedly growing array on
+  # jq's command line, and past ARG_MAX the kernel refuses the exec: jq dies with "Argument
+  # list too long", the unchecked assignment leaves COLLECTED empty, and list-items reports
+  # ZERO issues while exiting 0. A big repo silently looked empty.
+  COLLECTED="$(jq -c --argjson page "$WIT_GITEA_BODY" \
+    '. + [ $page[] | select(.pull_request == null) ]' <<<"$COLLECTED")" || {
+    printf 'list-items.sh: could not accumulate page %s for %s — refusing to report a partial list as complete\n' \
+      "$PAGE" "$REPO" >&2
+    exit "$EX_INTERNAL"
+  }
+  SEEN=$((SEEN + GOT))
+  ((GOT == 0)) && break
+  if [[ -n "$WIT_GITEA_TOTAL_COUNT" ]]; then
+    # Authoritative: stop when gitea says we have them all. An EMPTY header is "no count was
+    # sent", never zero — hence the -n test rather than an arithmetic compare, which would
+    # read a missing header as "0 items" and end the listing on its first pass.
+    ((SEEN >= WIT_GITEA_TOTAL_COUNT)) && break
+  else
+    ((GOT < WIT_GITEA_PAGE_SIZE)) && break
+  fi
   PAGE=$((PAGE + 1))
-  # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED
-  # truncation, not an error (CONTRACT.md "Adapter contract") — but it is never silent.
-  if ((PAGE * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)); then
+  # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED truncation, not
+  # an error (CONTRACT.md "Adapter contract") — but it is never silent. Measured against rows
+  # ACTUALLY RETURNED, not against `PAGE * page_size`: under the clamp this whole change is
+  # about, those two diverge. With page_size 100 against a server capping at 50, the requested
+  # arithmetic reaches 1000 after ten pages that returned only 500 issues, so the walk stopped
+  # half way and announced it had hit a ceiling it never reached.
+  if ((SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items for %s; results are truncated\n' \
       "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" >&2
     break
@@ -102,8 +135,18 @@ while IFS= read -r raw; do
     printf 'list-items.sh: could not normalize a gitea issue in %s\n' "$REPO" >&2
     exit "$EX_INTERNAL"
   }
-  ITEMS="$(jq -c --argjson acc "$ITEMS" --argjson one "$ONE" '$acc + [$one]' <<<'null')"
+  # Accumulator on stdin, one item in argv — see the note on the page accumulation above.
+  ITEMS="$(jq -c --argjson one "$ONE" '. + [$one]' <<<"$ITEMS")" || {
+    printf 'list-items.sh: could not accumulate a normalized issue in %s — refusing to report a partial list as complete\n' "$REPO" >&2
+    exit "$EX_INTERNAL"
+  }
 done < <(jq -c '.[]' <<<"$COLLECTED")
 
-jq -cn --arg sv "$WIT_SCHEMA_VERSION" --argjson items "$ITEMS" \
-  '{schema_version: $sv, items: $items}'
+# The envelope is built with ITEMS on STDIN for the same ARG_MAX reason as the accumulation
+# above — this is the one place where the array is guaranteed to be at its largest, so it is
+# the likeliest to blow the command line. A failure here must not emit a truncated or empty
+# envelope with a success status.
+jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
+  printf 'list-items.sh: could not emit the item envelope for %s\n' "$REPO" >&2
+  exit "$EX_INTERNAL"
+}

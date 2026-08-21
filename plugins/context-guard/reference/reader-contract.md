@@ -436,6 +436,69 @@ fail-open behavior, not a bug — an idle session asking for a zone gets a fresh
 statusline refresh of waking. The writer's stale-file pruning cutoff (14 days) is deliberately far
 above the staleness window, so idle sessions' files are never deleted out from under them.
 
+## Cloud and headless sessions (`unknown` is structural)
+
+The single capture channel is the statusline tee, so **a session that never runs a statusline has
+no instrument at all** — no snapshot is ever written for it, and this contract resolves `unknown`
+for that session permanently. Cloud and headless sessions are that case by default: no `statusLine`
+is configured there, and configuring one does not help. Measured 2026-08-21 in both, a `statusLine`
+written into the session's own user settings was never invoked.
+
+This is not a degraded install and not a missing dependency. It is the absence of the only
+documented surface that **delivers per-session context-window occupancy to a local writer**: as of
+**2026-08-21**, hook stdin carries no context, token, usage, or window field on any event, except
+`PostToolUse` on the `Agent` tool, whose `tool_response` carries `totalTokens` and a `usage`
+breakdown for the *subagent's* final API request and nothing about the main session's window. Two
+other channels do carry live occupancy for the running session — the OpenTelemetry
+`claude_code.api_request` log event and the session transcript — and neither can be turned into a
+snapshot; `reference/cloud-headless-capture.md` records why in full. That file is the writer-side
+channel inventory — every channel checked, its live URL, the date read, what it does and does not
+carry, and what would have to change upstream. Re-check it when Claude Code's hooks, statusline,
+settings or telemetry reference changes; the finding is dated, not permanent.
+
+**What a consumer must do.** Nothing changes about the resolution rules — `unknown` still means
+take the conservative route. What changes is how a consumer *reports* it:
+
+- Report `unknown` in such a session as **"no instrument in this environment"**, never as a defect,
+  a broken install, or a reason to ask the operator to fix something.
+- **Never synthesize a zone from another source.** Each reachable near-substitute requires
+  inventing or trusting something the channel does not supply: the OpenTelemetry
+  `claude_code.api_request` event carries live per-session token counts but no window size and no
+  local sink, so a zone from it needs a fabricated denominator; the session transcript reachable
+  through the documented `transcript_path` hook field carries the right numbers behind an entry
+  format its own docs call internal and version-unstable, where a field can keep its name and stop
+  meaning full-context occupancy with nothing to detect it; and the OpenTelemetry token metric is
+  a cumulative counter, not occupancy. A wrong zone is strictly worse than `unknown`: `unknown`
+  routes to the conservative path, while a misread occupancy can read `smart` on a nearly full
+  window.
+- **`unknown` carries no direction.** It is not evidence of a full window and not evidence of an
+  empty one. A consumer that wants a fork or handoff trigger in an environment with no instrument
+  must drive it from something else — an explicit operator request, or an observation it makes
+  itself — and must not present that trigger as instrument-backed.
+
+**Telling structural absence from breakage.** Both print `unknown`, and the discriminator is on the
+writer side: the statusline runs only where a `statusLine` command is configured *and* the
+environment is one that runs it. Read `statusLine` from every scope that can carry it — user
+`~/.claude/settings.json`, project `.claude/settings.json`, local `.claude/settings.local.json`,
+and managed settings, where `statusLine` is also a valid key.
+
+- **No `statusLine` in any scope** is structural, and offering statusline wiring as the remediation
+  is wrong in an environment that runs no statusline.
+- **A `statusLine` configured but the status line disabled** is also structural, and the
+  remediation is policy or trust rather than wiring. Claude Code turns the status line off entirely
+  when managed settings set `disableAllHooks` or the folder is not trusted, and narrows the source
+  to managed settings when `allowManagedHooksOnly` is set — under narrowing it runs a managed value
+  if one is deployed and otherwise skips yours *without warning*. This state looks exactly like a
+  broken install unless it is checked first.
+- **A `statusLine` configured, not disabled, in an environment that does not run a statusline**
+  (cloud, headless `claude -p`, other terminal-less) is also structural. The command exists and
+  is not policy-disabled, and is still never invoked — measured 2026-08-21, a `statusLine`
+  written into a live cloud session's own user settings was never invoked. Report as "no
+  instrument in this environment", never as a defect.
+- **A `statusLine` configured, not disabled, in an environment that runs a statusline, and no
+  fresh snapshot** is a real defect (wiring, installed shim, or `jq`) — invoke
+  `/context-guard:setup` via the Skill tool with `check` for the diagnosis.
+
 ## Invariants and boundaries
 
 - **Per-session semantics.** One file per session id; no cross-session last-writer-wins collapse.
