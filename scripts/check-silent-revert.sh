@@ -168,13 +168,16 @@
 # -- so any non-zero status here is a real failure, not "these files
 # differ". git-blame(1) has no analogous "found something" status.
 #
-# A remaining subtraction, unchanged here, is a RECALL gap: paths the
-# repository's own .gitattributes marks `-diff` or `binary` produce no hunks
-# at all, so their deletions attribute to zero on every machine including CI
-# (#2883). That one is not a calibration gap -- no path of that class
-# appears in any commit whose figure is quoted here, and the largest such
-# deletion anywhere in the sweep was 72 lines from a package-lock.json, well
-# under the threshold.
+# `-diff` text paths used to be a remaining subtraction (#2883): the
+# path-limited content diff emits "Binary files differ" (gitattributes(5)
+# Unset on `diff`) and attribute_file derived no ranges, so a lock-file
+# revert attributed to zero. Those deletions are now recovered by a
+# blob-to-blob diff, which has no path and so no attribute. Genuine
+# binary CONTENT still contributes zero -- git's content heuristic, not
+# `--text` -- because treating a random blob as lines manufactures
+# hundred-line attributions from a commit that reverted nothing. That
+# one is not a calibration gap: no path of either class appears in any
+# commit whose figure is quoted here.
 #
 # Detection and disposition are separate steps, and only the first calibrates
 # the threshold. 6f0a31109 and 91e77fc16 are both recorded in
@@ -500,6 +503,18 @@ ack_reason() {
 # the same commit that renames its file is not attributed. A rename that git
 # still pairs is a mostly-similar file, which bounds how much content can vanish
 # inside one; the incident class this canary targets modifies existing paths.
+
+# Old-side hunk ranges (parent line numbers) with at least one deleted line.
+# Shared by the path-limited content diff and the blob-to-blob recovery.
+old_side_deleted_ranges() {
+  awk '/^@@ /{
+         split($2, a, ",")
+         start = substr(a[1], 2) + 0
+         count = (length(a) > 1) ? a[2] + 0 : 1
+         if (start > 0) print start, count
+       }' "$1"
+}
+
 attribute_file() {
   local parent="$1" commit="$2" file="$3"
   local -a ranges=()
@@ -517,7 +532,8 @@ attribute_file() {
   # surfaces as git, and this file is not the place to ship an assertion it
   # cannot defend. Each pin's flags are git's own defaults, so pinning them
   # changes nothing about what CI detects; it makes a local run match CI rather
-  # than the reverse.
+  # than the reverse. `-l0` is the exception: it overrides a default and is
+  # listed here only so its enumeration call site is as explicit as the pins.
   #
   # Pinned, with the call site each one is MEASURED to be load-bearing at
   # (scripts/check-silent-revert.test.sh strips each in turn and asserts the
@@ -537,30 +553,31 @@ attribute_file() {
   #                            here: this diff is pathspec-limited to one
   #                            old-side file, so no rename pair can form. It is
   #                            written here anyway for symmetry, not for effect.
+  #   -l0                      the --name-only enumeration in scan_commit.
+  #                            `-M` still consults git's default
+  #                            `diff.renameLimit` of 1000; above it the
+  #                            exhaustive rename pass is skipped (git-diff(1)
+  #                            `-l`: "a value of 0 is treated as unlimited")
+  #                            and a basename-changing content-touched
+  #                            relocation decomposes into A+D -- the false
+  #                            positive the header says must never happen.
+  #                            This OVERRIDES a git default rather than
+  #                            pinning one. Measured INERT here: same
+  #                            pathspec limit, no pair can form.
   #   --no-ignore-revs-file    the blame. Reassigns authorship outright.
   #   --no-show-signature      the `git log` reads. Protects INTENT DETECTION,
   #                            not the counts -- see declares_removal.
   #
-  # NOT covered, stated rather than implied:
+  # NOT a pin, stated rather than implied:
   #
-  #   The repository's own tracked .gitattributes. `-diff` on *.lock and
-  #   `binary` on assets make those paths produce zero hunks, so their deletions
-  #   contribute nothing -- they are enumerated and then attributed at zero. NO
-  #   command-line flag overrides an attribute; `--text` does force hunks and is
-  #   deliberately NOT used, because on a genuinely binary blob it manufactures
-  #   hundred-line attributions out of random bytes. This is a recall gap, not a
-  #   calibration one: no path of that class appears in any calibration commit.
-  #   It is also not the exposure the pins address -- attributes are tracked in
-  #   the repository, so CI and every developer read the same ones and nothing
-  #   diverges machine to machine.
-  #
-  #   git's own defaults, as opposed to the caller's overrides of them.
-  #   `diff.renameLimit` (default 1000) is the live one: a relocation of more
-  #   than ~1000 files that also edits their content decomposes into adds plus
-  #   deletes and can fire, with no hostile configuration anywhere. `-l0` would
-  #   lift it, but that OVERRIDES a git default rather than pinning one -- a
-  #   behaviour change on every machine including CI, and one that removes a
-  #   bound on an O(N^2) cost -- so it is filed rather than smuggled in here.
+  #   `--text` / `-a`. No command-line flag overrides a `-diff` or `binary`
+  #   attribute into hunks except `--text`, and `--text` MUST NOT be used:
+  #   on a genuinely binary blob it manufactures hundred-line attributions
+  #   out of random bytes (a 200 KB image is ~800 "lines"). `-diff` TEXT
+  #   deletions are recovered by a blob-to-blob diff instead -- no path,
+  #   so no attribute -- and genuine binary CONTENT stays at zero via
+  #   git's content heuristic. This is a recall fix, not a calibration
+  #   one: no path of that class appears in any calibration commit.
   #
   # This is not defensive decoration. The algorithm choice changes which lines a
   # hunk calls deleted, and therefore the per-culprit counts this canary
@@ -605,14 +622,54 @@ attribute_file() {
     [[ -n "$start" ]] || continue
     [[ "$count" -gt 0 ]] || continue
     ranges+=(-L "$start,$((start + count - 1))")
-  done < <(
-    awk '/^@@ /{
-           split($2, a, ",")
-           start = substr(a[1], 2) + 0
-           count = (length(a) > 1) ? a[2] + 0 : 1
-           if (start > 0) print start, count
-         }' "$diff_out"
-  )
+  done < <(old_side_deleted_ranges "$diff_out")
+
+  # `-diff` / `binary` attributes make the path-limited diff emit
+  # "Binary files differ" and no @@ hunks (gitattributes(5): Unset on
+  # `diff` generates that line; the built-in `binary` macro unsets it).
+  # No flag overrides the attribute except `--text`, which is forbidden
+  # here -- it would feed a random blob to blame as lines. A blob-to-blob
+  # diff has no path, so no attribute, and git's content heuristic still
+  # refuses a genuine binary. That recovers lock-file TEXT (#2883)
+  # without manufacturing attributions from an image churn.
+  #
+  # Statement, not a pipe: recover calls run_attributing_git, and die
+  # inside a pipeline would be swallowed back into a quiet zero (#2880).
+  # grep's status is read explicitly so a broken grep cannot look like
+  # "no binary header".
+  if [[ "${#ranges[@]}" -eq 0 ]]; then
+    local binary_rc=0
+    grep -q '^Binary files ' "$diff_out" || binary_rc=$?
+    case "$binary_rc" in
+      0)
+        local old_blob new_blob blob_out
+        if old_blob="$(git rev-parse --verify "${parent}:${file}" 2>/dev/null)"; then
+          if ! new_blob="$(git rev-parse --verify "${commit}:${file}" 2>/dev/null)"; then
+            # Deleted path: compare against the empty blob. hash-object
+            # -w is idempotent (always e69de29...) and does not touch
+            # the working tree.
+            new_blob="$(git hash-object -w --stdin </dev/null)" ||
+              die "could not hash empty blob attributing $file in $commit"
+          fi
+          if [[ "$old_blob" != "$new_blob" ]]; then
+            blob_out="$(mktemp)" || die "mktemp failed"
+            run_attributing_git "$blob_out" \
+              "git diff failed attributing blobs of $file in $commit" \
+              diff --no-ext-diff --no-textconv --unified=0 --no-color \
+              --diff-algorithm=myers "$old_blob" "$new_blob"
+            while read -r start count; do
+              [[ -n "$start" ]] || continue
+              [[ "$count" -gt 0 ]] || continue
+              ranges+=(-L "$start,$((start + count - 1))")
+            done < <(old_side_deleted_ranges "$blob_out")
+            rm -f "$blob_out"
+          fi
+        fi
+        ;;
+      1) ;;
+      *) die "grep failed looking for a binary-files header attributing $file in $commit (exit $binary_rc)" ;;
+    esac
+  fi
   rm -f "$diff_out"
 
   [[ "${#ranges[@]}" -gt 0 ]] || return 0
@@ -763,18 +820,26 @@ scan_commit() {
   attributed="$(mktemp)" || die "mktemp failed"
   file_attr="$(mktemp)" || die "mktemp failed"
   enum_list="$(mktemp)" || die "mktemp failed"
+  # -M so a rename reports as R and --diff-filter=MD skips it; that is
+  # git's default only until someone sets diff.renames = false.
+  # -l0 lifts git's default diff.renameLimit of 1000 (git-diff(1): "a
+  # value of 0 is treated as unlimited"). Above the limit the exhaustive
+  # rename pass is skipped and a basename-changing content-touched
+  # relocation decomposes into A+D -- the false-positive class the
+  # header says must never happen, reachable on a clean machine with no
+  # hostile config (#2884). Exact-rename and basename-preserving
+  # pre-passes are not limit-gated; only the inexact pass is. This flag
+  # is a behaviour change, not a pin, and it is inert on attribute_file
+  # (pathspec-limited, no pair can form).
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \
-    diff --name-only -z -M --diff-filter=MD "$parent" "$sha"
+    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha"
   local file
   while IFS= read -r -d '' file; do
     : >"$file_attr"
     attribute_file "$parent" "$sha" "$file" >"$file_attr"
     awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' \
       "$file_attr" >>"$attributed"
-    # -M pinned here for the same reason as in attribute_file: the enumeration
-    # relies on a rename reporting as R so --diff-filter=MD skips it, and that
-    # is git's default only until someone sets diff.renames = false.
   done <"$enum_list"
   rm -f "$file_attr" "$enum_list"
 
