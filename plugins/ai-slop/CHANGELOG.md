@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.3.0]
+
+The audit eval cases described their input in prose. Nothing checked that the described input
+produced the finding the case graded, and it drifted from the detector three times in one PR
+(#3041) — each time a golden answer the scenario could not produce. Seven of the nine cases now
+name a committed fixture instead.
+
+- **Six eval fixtures ship under `skills/audit/evals/fixtures/`**, referenced from each case's
+  `files` array: `report-only.md` (four rules on one file), `fix-guarded-rewrite.md` (two em dashes
+  and two filler phrases), `rubric-boundary.md` (one script finding, promotional register the
+  mechanical rules deliberately miss), `em-dash-substitution.md` (a single em dash),
+  `triads.md` (rule-of-three at 3 hits in 69 words) and `knowledge-cutoff-prose.md` (the recorded
+  false-positive class). Every case's `expected_output` now names the rules, lines and fired
+  thresholds the detector actually emits, measured rather than asserted.
+- **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
+  That decision holds for the *unit* suite, whose fixtures are still built inline in a tmpdir. It
+  does not survive contact with the eval suite: an eval case is graded against a deterministic
+  detector run, so its scenario has to satisfy an ERE the eval author does not have in front of
+  them. A committed fixture cannot disagree with the detector; prose describing one can, and did.
+- Cases 3 and 9 keep `narration: true`. They grade repo-wide flow and consuming-repo config, not
+  file content, so there is nothing for a fixture to pin.
+- The fixtures carry real tells, so a repo auditing its own tree has to decline them. Prefer an
+  `excluded_paths` glob over an in-file `ai-slop-ignore-file` marker: a file marker declines
+  unconditionally, including under the empty `HOME` + `CLAUDE_PROJECT_DIR` isolation, so
+  `detect.sh <fixture>` would print nothing and the eval author would be back to trusting prose.
+  An `excluded_paths` entry is a config layer, and that isolation lifts it. This repo's own
+  `.claude/ai-slop.json` carries the glob as the worked example.
+- Consuming repos need no exclusion of their own: the audit scans `git ls-files '*.md'`, and an
+  installed plugin's files are not tracked in the repo that installs it.
+
 ## [0.2.2]
 
 The in-file suppression the fix flow and the catalog both tell operators to reach for now works in

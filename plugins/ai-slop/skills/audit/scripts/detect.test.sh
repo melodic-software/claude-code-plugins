@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Self-contained tests for detect.sh (no external test lib; fixtures are built
-# inline in a tmpdir, so the plugin ships no slop samples for the audit to trip
-# over). Per the shell-test-helpers convention, assertion helpers are local.
+# Self-contained tests for detect.sh (no external test lib; THIS suite's
+# fixtures are built inline in a tmpdir, so no unit-test slop corpus sits in
+# the tree). The eval suite is the deliberate exception: evals/fixtures/ holds
+# committed slop samples, because a prose scenario cannot be checked against
+# the detector and drifted from it three times (#3041). This repo keeps its own
+# audit off them with an excluded_paths glob in .claude/ai-slop.json, and they
+# stay measurable through the same config isolation this suite uses — an empty
+# HOME and CLAUDE_PROJECT_DIR give the shipped defaults back.
+# Per the shell-test-helpers convention, assertion helpers are local.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
