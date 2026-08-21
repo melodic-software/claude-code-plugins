@@ -317,17 +317,20 @@ jobs:
   # #2774: the disk-hygiene read-only Bash allowlist is NT-specific (MSYS path
   # mapping, .exe basename stripping, ProgramFiles trust roots). Linux CI cannot
   # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
-  # POSIX — which is how an inert Windows allowlist shipped green. The job
-  # stays on windows-2025 for that reason.
+  # POSIX — which is how an inert Windows allowlist shipped green. Keep this
+  # job SMALL: GuardTests only, not the full hygiene suite.
   #
-  # #2871: this lane used to invoke only GuardTests, so the other TestCase
-  # classes in test_hygiene.py never gated here. The full module is not
-  # host-destructive (tempdir fixtures; no live drive-root scans). Measured
-  # green on Linux (317 tests). Invoke the whole module so every class is a
-  # required check. unittest.skipUnless still drops host-specific methods
-  # (POSIX-only Bash export, linux-mountinfo) rather than omitting a class.
-  # plugins/**/*.test.sh can SKIP the wrapper when Python is absent, so it is
-  # not this guarantee — this step provisions Python and cannot take that path.
+  # #2871: the full module (`python -m unittest -v test_hygiene`) is the
+  # required gate, and it lives on `disk-hygiene-tests` (Linux). It is not
+  # invoked here because two tests fail on windows-2025 (315/317, 9.96s):
+  #   - HygieneTests.test_preview_allows_root_children_os_managed_snapshot
+  #     expects ready-for-explicit-approval; Windows returns blocked
+  #   - HandoffVerifyTests.test_stash_must_exist_in_an_independent_checkout
+  #     compares path strings; 8.3 `RUNNER~1` != long `runneradmin`
+  # Those two are already green on Linux. Do not silently omit a class here
+  # without this comment; the other nine classes gate on disk-hygiene-tests.
+  # plugins/**/*.test.sh can SKIP the wrapper when Python is absent, so it
+  # is not that guarantee either.
   disk-hygiene-guard-windows:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -343,7 +346,29 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - name: Run disk-hygiene tests on Windows
+      - name: Run disk-hygiene GuardTests on Windows
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene.GuardTests
+
+  # #2871: every TestCase class in test_hygiene.py must gate. The Windows
+  # job above stays GuardTests-only (NT allowlist + two Windows failures
+  # named there). This lane provisions Python 3.14 and runs the whole
+  # module, so it cannot take hygiene.test.sh's SKIP-when-Python-absent
+  # path. Suite is not host-destructive (tempdir fixtures; no live
+  # drive-root scans). Measured 317 tests OK on Linux.
+  disk-hygiene-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Run disk-hygiene tests
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene
 
@@ -1402,6 +1427,7 @@ jobs:
       - hook-utils-sync
       - hook-utils-windows
       - disk-hygiene-guard-windows
+      - disk-hygiene-tests
       - windows-path-emit-gate
       - windows-path-emit-windows
       - parse-concern-value-sync
