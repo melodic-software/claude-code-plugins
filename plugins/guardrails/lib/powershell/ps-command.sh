@@ -240,15 +240,111 @@ ps::blank_herestrings() {
 
 # Crude, SCAN-ONLY strip of single- and double-quoted spans, so that structural
 # detection and commit/push shaping ignore characters inside message text. Never
-# fed to a parser. Backtick-escaped quotes are not honored — a backtick anywhere
-# already forces the fail-closed branch, so this crudeness cannot open a gap.
+# fed to a parser.
+#
+# LEFT TO RIGHT, FIRST OPENER OWNS ITS SPAN. This used to be a `sed` with two
+# independent expressions — `s/'[^']*'//g` then `s/"[^"]*"//g` — neither of which
+# had any notion of which quote style opened first. An apostrophe inside a
+# DOUBLE-quoted string is a literal character to PowerShell, but the single-quote
+# expression treated it as a delimiter, so the span it deleted ran from the
+# apostrophe in one double-quoted string to the apostrophe in the next — taking
+# everything between them with it:
+#
+#   in:  Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"
+#   out: Write-Host
+#
+# That is not a measurement error, it is the ERASURE of the command every
+# sink-trigger scan is about to look at. With the `(` gone, has_special_constructs
+# saw no construct, has_dynamic_invocation saw no call, has_launcher saw no
+# launcher — so classify_git_command never entered the fail-closed sink at all,
+# and the same deletion hid a computed writer call from write_bypass. Two
+# ordinary strings that happen to contain apostrophes ("Kyle's build") were a
+# general bypass of all three blocking hooks (#2965).
+#
+# A single walk fixes the pairing: whichever quote character opens first owns
+# everything up to its own next occurrence, so an apostrophe inside a
+# double-quoted span is ordinary text and a quote character inside a
+# single-quoted span is ordinary text.
+#
+# AMBIGUITY RESOLVES TOWARD NOT DELETING. This is an ENTRY scan: leaving text in
+# view can only cause an over-block, while deleting it is the fail-open above. So
+#   - an UNTERMINATED opener emits the rest of its line verbatim rather than
+#     swallowing it;
+#   - a span never crosses a NEWLINE (matching the old per-line `sed` semantics),
+#     because a multi-line double-quoted string would otherwise let
+#     `"a\n& ('g'+'it') push --force\n"` blank the middle line;
+#   - PowerShell's DOUBLED-quote escape (`'it''s'`, `"say ""hi"""`) makes a
+#     candidate closer ambiguous, so it too resolves to deleting nothing on the
+#     line. A lone empty string (`""`, `''`) is NOT doubled — its closer is
+#     followed by something other than the same quote — so it still blanks
+#     normally and `& $py $script ""` is unaffected.
+#   - SMART quotes (U+2018/U+2019/U+201C/U+201D), which PowerShell's tokenizer
+#     does accept as delimiters, are NOT treated as delimiters. Not deleting
+#     leaves their contents in view: over-block, not bypass.
+#
+# A BACKTICK inside a would-be DOUBLE-quoted span makes the pairing ambiguous,
+# and ambiguity here means DELETE NOTHING ON THIS LINE. Neither available answer
+# is safe on its own, which is why the resolution is to refuse the question:
+#
+#   - HONORING the escape (what `ps::_skip_double_quote` does, correctly, in the
+#     sink BLANKING path that runs after the entry decision) extends the span
+#     past `` `" `` to the next real quote, so
+#     `Write-Host "a`"; & ('g'+'it') push --force; Write-Host "b"` becomes one
+#     span and blanks the git command — this issue's own bug in a new spelling.
+#   - NOT honoring it ends the span at the backticked quote, which leaves the
+#     string's REAL closer behind as a stray opener that pairs with a quote far
+#     to the right. ``"a`""; & ('g'+'it') push --force; 'b"c'`` then reduces to
+#     `c'` and all three hooks returned 0 (caught in review of this change).
+#
+# Emitting the rest of the line verbatim costs nothing that is not already paid:
+# a surviving backtick trips has_special_constructs' backtick arm and routes to
+# the fail-closed sink anyway. It cannot do that if the span containing it is
+# deleted, which is the deeper reason this branch exists. SINGLE-quoted spans are
+# exempt: PowerShell gives them no escape at all, so a backtick inside one is an
+# ordinary character and the pairing is genuinely unambiguous.
 ps::blank_quoted_spans() {
-  local text="$1"
-  # One `sed` for both spans: expressions apply in order per line, so the
-  # double-quote strip still sees the single-quote-stripped text — same result
-  # as the two chained passes, at half the process cost on a hot classifier path.
-  text=$(printf '%s' "$text" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
-  printf '%s' "$text"
+  local text="$1" out="" i=0 n j q found c
+  n=${#text}
+  while ((i < n)); do
+    q="${text:i:1}"
+    if [[ "$q" == "'" || "$q" == '"' ]]; then
+      found=0
+      for ((j = i + 1; j < n; j++)); do
+        c="${text:j:1}"
+        [[ "$c" == $'\n' ]] && break
+        # Ambiguous escape context in a double-quoted span — stop looking and
+        # fall through to the delete-nothing branch below.
+        if [[ "$q" == '"' && "$c" == '`' ]]; then
+          for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          break
+        fi
+        if [[ "$c" == "$q" ]]; then
+          # A DOUBLED quote is PowerShell's other escape for a delimiter
+          # (`'it''s'`, `"say ""hi"""`), so this candidate closer may not be one.
+          # Same resolution as the backtick: refuse the question, delete nothing.
+          if [[ "${text:j+1:1}" == "$q" ]]; then
+            for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+            break
+          fi
+          found=1
+          break
+        fi
+      done
+      if ((found)); then
+        i=$((j + 1))
+        continue
+      fi
+      # Unterminated (or escape-ambiguous) on this line: extent is ambiguous, so
+      # delete nothing. `j` already sits on the newline (or at the end), so copy
+      # the rest verbatim in one slice — this also keeps the walk linear.
+      out+="${text:i:j-i}"
+      i=$j
+      continue
+    fi
+    out+="$q"
+    i=$((i + 1))
+  done
+  printf '%s' "$out"
 }
 
 # Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
@@ -1497,7 +1593,7 @@ ps::print_unparsable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head lcq q="\"'" blanked_gate
+  local cmd="$1" scan lcs seg lc head lcq lcq_bt q="\"'" blanked_gate
   ps::blank_herestrings "$cmd"
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
@@ -1512,6 +1608,16 @@ ps::write_bypass() {
   # the load-bearing position: the probes cannot do it themselves, because by the
   # time they are called the backticks are already gone.
   lcq=$(ps::fold_escaped_brace_closers "$PS_BLANKED")
+  # Keep a backtick-INTACT copy for the quote-blanking below, for the same reason
+  # the brace fold has to run before the deletion: a backtick-escaped QUOTE is an
+  # escape context that the deletion destroys. `"say `"hi"` is one string, but
+  # once the backtick is gone it reads as `"say "` + `hi` + a dangling `"` whose
+  # pairing runs forward to the next literal quote anywhere on the line — which
+  # swallowed `& ('set-'+'content') f.txt x` and returned 0 (review of #2965).
+  # ps::blank_quoted_spans can only resolve that toward NOT deleting while the
+  # backtick still exists, so it must see this copy; the result is stripped
+  # afterwards, which still recovers an obfuscated `Set``-Content` name.
+  lcq_bt="${lcq,,}"
   lcq="${lcq//\`/}"
   lcq="${lcq,,}"
   if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
@@ -1528,7 +1634,8 @@ ps::write_bypass() {
   # Both this and the quoted-writer check above accept a statement/block separator
   # boundary (`;& …`), not only whitespace (review round 6).
   if ps::call_target_is_bare_computed "$lcq"; then
-    blanked_gate=$(ps::blank_quoted_spans "$lcq")
+    blanked_gate=$(ps::blank_quoted_spans "$lcq_bt")
+    blanked_gate="${blanked_gate//\`/}"
     # fd-dup merges (`2>&1`) are plumbing, not file writes — strip them before
     # ANY probe in this branch runs, so `& $tool 2>&1` does not look like a
     # producer redirect AND the `&` of the merge is not read as a statement

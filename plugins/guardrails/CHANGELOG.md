@@ -3,6 +3,62 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.4]
+
+### Fixed
+
+- **PowerShell guards: an apostrophe inside a double-quoted string no longer
+  deletes the command between two such strings
+  ([#2965](https://github.com/melodic-software/claude-code-plugins/issues/2965)).**
+  `Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"` exited 0 from
+  `block-dangerous-git` and `block-no-verify`, while the bare
+  `& ('g'+'it') push --force` exited 2. The natural-prose spelling —
+  `Write-Host "Kyle's build"; & ($tool) push --force; Write-Host "that's all"` —
+  did the same, and `& ('set-'+'content') f.txt x` flanked the same way exited 0
+  from `block-hook-bypass`. Long-standing shipped behavior, not a 0.28.x/0.29.x
+  regression.
+
+  `ps::blank_quoted_spans` paired quote characters with two independent `sed`
+  expressions, neither aware of which quote style opened first. An apostrophe
+  inside a double-quoted string is a literal character to PowerShell, but the
+  single-quote expression treated it as a delimiter and matched from the
+  apostrophe in one string to the apostrophe in the next — deleting everything
+  between them. The whole command above reduced to the single token
+  `Write-Host`. This is an ENTRY-side failure, not a measurement error: with the
+  `(` deleted, `ps::has_special_constructs` saw no construct,
+  `ps::has_dynamic_invocation` saw no call and `ps::has_launcher` saw no
+  launcher, so `ps::classify_git_command` never entered the fail-closed sink and
+  none of the downstream probes ran at all.
+
+  The two expressions are replaced by one LEFT-TO-RIGHT walk in which whichever
+  quote character opens first owns everything up to its own next occurrence, so
+  an apostrophe inside a double-quoted span is ordinary text and a quote
+  character inside a single-quoted span is ordinary text. The reversed spelling
+  (`'a"b'; & ('g'+'it') push --force; 'c"d'`) closes by the same walk.
+
+  Ambiguity resolves toward NOT deleting, because this is an entry scan where
+  leaving text in view can only over-block while deleting it is the fail-open
+  above. An unterminated opener emits the rest of its line verbatim; a span never
+  crosses a newline; and smart quotes are not treated as delimiters.
+
+  Two escape spellings make pairing itself ambiguous, so the walk refuses the
+  question and emits the rest of the line verbatim rather than picking a closer.
+  PowerShell's doubled-quote escape (`'it''s'`, `"say ""hi"""`) is one: a doubled
+  candidate closer is treated as ambiguous, not naively paired. A backtick inside
+  a would-be double-quoted span is the other, and it has two failure modes —
+  honoring the escape (`ps::_skip_double_quote`) extends a span past `` "a`" ``
+  to the next real quote and reopens this same bypass; refusing it ends the span
+  at the backticked quote and leaves the string's real closer as a stray opener
+  that re-pairs far to the right. Review measured
+  ``"a`""; & ('g'+'it') push --force; 'b"c'`` at 0 on all three hooks before the
+  walk started deleting nothing once a backtick is seen. A lone empty string
+  (`""`, `''`) is not doubled and still blanks normally.
+
+  No behavior change to the [#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)
+  must-allow shapes: all six stay 0 on all three blocking hooks, including when
+  contaminated with apostrophes (`& $py $script (Join-Path $dir "that's.jsonl")`).
+  Prose that merely mentions a write or a git command stays inert.
+
 ## [0.29.3]
 
 ### Fixed

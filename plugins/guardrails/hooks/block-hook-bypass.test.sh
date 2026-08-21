@@ -1745,4 +1745,57 @@ nul_rc=0
 bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
 assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
+# --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
+# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# expressions, neither aware of which style opened first. The single-quote
+# expression matched from the apostrophe inside one double-quoted string to the
+# apostrophe inside the next and DELETED everything between them, so a computed
+# writer call flanked by two ordinary strings was ALLOWED even though the same
+# call blocks on its own. The controls are load-bearing: without them an
+# all-blocked column is equally consistent with a guard that refuses every
+# command containing an apostrophe.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed Set-Content call (control, blocked)" \
+  "& ('set-'+'content') f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: same call straddled by apostrophe-bearing strings (blocked — #2965)" \
+  "Write-Host \"a'b\"; & ('set-'+'content') f.txt x; Write-Host \"c'd\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: natural-prose spelling of the straddle (blocked — #2965)" \
+  "Write-Host \"Kyle's build\"; & ('set-'+'content') f.txt x; Write-Host \"that's all\"" 2
+# A bare-computed writer target with a -Value write signal is the other shape the
+# deletion hid — it reaches write_bypass through a different gate than the
+# subexpression target above, so it is pinned separately.
+# shellcheck disable=SC2016
+run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
+  "Write-Host \"it's\"; & \$w f.txt -Value x; Write-Host \"won't\"" 2
+# The escape cases have a SECOND failure mode that the first cut of this fix
+# shipped and review caught: ending a span AT the backticked quote leaves the
+# string's REAL closer behind as a stray opener, which then pairs with a quote
+# far to the right and deletes the writer call anyway. Both the backtick and the
+# doubled-quote escape therefore delete NOTHING on their line. This spelling
+# reaches write_bypass through `lcq_bt` — the backtick-intact copy built before
+# backticks are stripped from `lcq` — so `ps::blank_quoted_spans` sees the
+# backtick and the backtick-ambiguity branch emits the line verbatim. The
+# doubled-quote arm is not what catches this pinned case.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
+  "\"a\`\"\"; & ('set-'+'content') f.txt x; 'b\"c'" 2
+# A lone EMPTY string is not a doubled quote, so it must still blank normally
+# rather than fall into the delete-nothing branch and start over-blocking.
+# shellcheck disable=SC2016
+run_pwsh "PS: empty string still blanks normally (allowed — #2965)" \
+  "& \$py \$script \"\"" 0
+# Over-block rails. Message text naming a write must stay inert — quote blanking
+# is what makes it inert, and this change makes MORE text visible to every probe.
+run_pwsh "PS: redirect inside message text stays inert (allowed — #2965)" \
+  "Write-Host 'example > out.txt'" 0
+run_pwsh "PS: -Value inside a commit message stays inert (allowed — #2965)" \
+  "git commit -m 'use -Value x'" 0
+run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; Write-Host \"that's all\"" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
+
 report
