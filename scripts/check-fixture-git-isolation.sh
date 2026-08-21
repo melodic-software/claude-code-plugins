@@ -113,14 +113,16 @@ esac
 # rather than a grep per file. Three passes total, not eleven hundred.
 #
 # CLEARS: a shell file that unsets every load-bearing variable (GIT_DIR,
-#   GIT_WORK_TREE, GIT_CONFIG) on one logical line — an `unset` statement or
-#   `env -u`/`--unset` naming each — or a Python file that pops/deletes them
-#   from os.environ and names all three. The Python arm is FILE-scoped because
-#   the idiom spans lines (a tuple of names iterated into os.environ.pop), so
-#   its verdict is emitted at end-of-file. The shell arm joins physical lines
-#   while the previous line ends in an unescaped backslash, so a continued
-#   `git … \` / `unset … \` is one unit (the same recall the Python arm
-#   already had for formatter-wrapped argv).
+#   GIT_WORK_TREE, GIT_CONFIG) on one logical line via `unset` (process-wide),
+#   or that wraps EVERY fixture command with `env -u`/`--unset` naming each
+#   (per-command; one wrap does not isolate a later unwrapped write), or a
+#   Python file that pops/deletes them from os.environ and names all three.
+#   The Python arm is FILE-scoped because the idiom spans lines (a tuple of
+#   names iterated into os.environ.pop), so its verdict is emitted at
+#   end-of-file. The shell arm joins physical lines while the previous line
+#   ends in an unescaped backslash, so a continued `git … \` / `unset … \`
+#   is one unit (the same recall the Python arm already had for
+#   formatter-wrapped argv).
 # FIXTURE: a suite that runs a repository-creating or identity-writing git
 #   command. Comments are stripped first, so prose about `git init` in a header
 #   does not conscript a suite that never touches a fixture. The command form is
@@ -233,13 +235,17 @@ scan() {
       # loop over THAT name to perform the pop — a constant that merely
       # mentions the names, or a pop that never met the constant, cannot
       # satisfy the tie.
-      if (match(s, /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*[[(]/)) {
+      # Any assignment to a name drops its previous CONST binding. Only a
+      # list/tuple literal then re-populates it — `LEAKED = get_names()`
+      # must not keep the names an earlier literal left behind.
+      if (match(s, /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=/)) {
         cname = substr(s, RSTART, RLENGTH)
         sub(/^[ \t]+/, "", cname)
         sub(/[ \t]*=.*/, "", cname)
         for (i = 1; i <= NREQ; i++) delete CONST[cname, REQ[i]]
-        for (i = 1; i <= NREQ; i++)
-          if (s ~ (Q REQ[i] Q)) CONST[cname, REQ[i]] = 1
+        if (s ~ /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*[[(]/)
+          for (i = 1; i <= NREQ; i++)
+            if (s ~ (Q REQ[i] Q)) CONST[cname, REQ[i]] = 1
       }
       if (match(s, /for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]*[[(]/)) {
         v = substr(s, RSTART, RLENGTH)
@@ -321,12 +327,17 @@ scan() {
       return 1
     }
 
-    function sh_logical(s,   rest, path) {
-      if (is_fixture(s)) print "FIXTURE\t" FILENAME
-      # Comments are already stripped, and the names are matched inside the
-      # `unset` STATEMENT or the `env -u` FLAGS rather than anywhere on the
-      # line, so neither prose nor an unrelated later command can grant credit.
-      if (unset_clears(s) || env_clears(s)) print "CLEARS\t" FILENAME
+    function sh_logical(s,   rest, path, fixture) {
+      fixture = is_fixture(s)
+      if (fixture) print "FIXTURE\t" FILENAME
+      # `unset` is process-wide, so one statement isolates every later
+      # command in the file. `env -u` is per-COMMAND (GNU env: removals
+      # apply while it runs COMMAND), so a wrap on one fixture line must
+      # not credit a later unwrapped identity write. Credit env-only when
+      # every fixture line on the file is itself an env clear.
+      if (unset_clears(s)) SH_UNSET = 1
+      if (env_clears(s)) SH_ENV = 1
+      else if (fixture) SH_ENV_GAP = 1
       if (s ~ /^[ \t]*(source|\.)[ \t]+/) {
         rest = s
         sub(/^[ \t]*(source|\.)[ \t]+/, "", rest)
@@ -346,12 +357,18 @@ scan() {
       if (sh_pending != "") { sh_logical(sh_pending); sh_pending = ""; sh_joined = 0 }
     }
 
+    function sh_flush() {
+      sh_drain()
+      if (cur != "" && (SH_UNSET || (SH_ENV && !SH_ENV_GAP))) print "CLEARS\t" cur
+    }
+
     FILENAME != cur {
-      py_drain(); flush_py(); sh_drain()
+      py_drain(); flush_py(); sh_flush()
       cur = FILENAME
       split("", CLEARED); split("", BOUND); split("", LOOPVAR); split("", CONST)
       pending = ""; depth = 0; joined = 0
       sh_pending = ""; sh_joined = 0
+      SH_UNSET = 0; SH_ENV = 0; SH_ENV_GAP = 0
       ispy = (FILENAME ~ /\.py$/)
     }
     { line = $0; gsub(/\r/, "", line); code = line; sub(/#.*/, "", code) }
@@ -388,7 +405,7 @@ scan() {
       sh_joined++
       if (!cont || sh_joined >= MAXJOIN) sh_drain()
     }
-    END { py_drain(); flush_py(); sh_drain() }
+    END { py_drain(); flush_py(); sh_flush() }
   ' "$@"
 }
 

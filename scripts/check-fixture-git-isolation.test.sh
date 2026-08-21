@@ -746,6 +746,44 @@ else
   fail "shell env -u clear: rc=$rc out='$out'"
 fi
 
+# --- SHELL: every fixture command wrapped with env -u PASSES -----------------
+new_repo
+r="$REPO"
+cat >"$r/env-all.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "shell: env -u wrapping every fixture command passes"
+else
+  fail "shell env -u all wrapped: rc=$rc out='$out'"
+fi
+
+# --- SHELL: env -u on one fixture line does not credit an unwrapped write ----
+# env -u is per-COMMAND. A wrap on `init` must not isolate a later bare
+# `config user.email` — that is the leak the gate exists to stop.
+new_repo
+r="$REPO"
+cat >"$r/env-mixed.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"env-mixed.test.sh"* ]]; then
+  ok "shell: env -u on one command does not credit an unwrapped identity write"
+else
+  fail "shell env -u mixed: rc=$rc out='$out'"
+fi
+
 # --- SHELL: env -u of the discovery pair without GIT_CONFIG is NOT enough ----
 new_repo
 r="$REPO"
@@ -823,6 +861,30 @@ if [[ $rc -eq 1 && "$out" == *"test_const_rebound.py"* ]]; then
   ok "python: a rebound constant does not inherit an earlier binding"
 else
   fail "python const rebound: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: rebinding a constant to a CALL drops the earlier literal --------
+new_repo
+r="$REPO"
+cat >"$r/test_const_rebind_call.py" <<'PY'
+import os, subprocess
+def get_names():
+    return ("HOME",)
+LEAKED = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG")
+LEAKED = get_names()
+for _v in LEAKED:
+    os.environ.pop(_v, None)
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_const_rebind_call.py"* ]]; then
+  ok "python: rebinding a constant to a call does not keep the earlier literal"
+else
+  fail "python const rebind-call: rc=$rc out='$out'"
 fi
 
 # --- SCOPE: a declared counter-fixture is exempt -----------------------------
