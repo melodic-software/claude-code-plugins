@@ -942,12 +942,12 @@ else
 fi
 if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
   (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
-  (.hookSpecificOutput.additionalContext | contains($bun)) and
+  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
   (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
   (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
   ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
   ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains($fnm)) | not)
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
 ' >/dev/null 2>&1; then
   ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
 else
@@ -962,7 +962,8 @@ OUT_LOCALBIN="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$
     PATH="$FAKE_HOME/bin:$FAKE_HOME/.local/bin:$PATH" \
     CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
-  (.hookSpecificOutput.additionalContext | contains($local)) and
+  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
   ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
   ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
 ' >/dev/null 2>&1; then
@@ -982,8 +983,9 @@ if printf '%s' "$OUT_NOTARGET" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm
   (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
   (.hookSpecificOutput.additionalContext | contains("durable user-scope directory already on this hook")) and
   ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains($bun)) | not) and
-  ((.hookSpecificOutput.additionalContext | contains($fnm)) | not)
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
 ' >/dev/null 2>&1; then
   ok "out-of-repo notice without a user-scope PATH target invents none"
 else
