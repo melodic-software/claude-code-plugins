@@ -1059,6 +1059,7 @@ run_pwsh "PS: =-glued launcher token with no assignment LHS (allowed — #2984 g
 # shellcheck disable=SC2016
 run_pwsh "PS: equals inside double-quoted text does not trip launcher sink (allowed)" \
   'Write-Host "shell=pwsh $script"' 0
+# shellcheck disable=SC2016
 run_pwsh "PS: equals inside single-quoted text does not trip dynamic-invocation sink (allowed)" \
   'Write-Host '"'"'pattern=& "$tool"'"'"'' 0
 # shellcheck disable=SC2016
@@ -1096,18 +1097,23 @@ pin_predicate() {
 # shellcheck disable=SC2016
 pin_predicate "ps::has_launcher: quoted shell=pwsh is not a launcher" \
   ps::has_launcher 'Write-Host "shell=pwsh $script"' 1
+# shellcheck disable=SC2016
 pin_predicate "ps::has_dynamic_invocation: quoted pattern=& \"\$tool\" is not a call" \
   ps::has_dynamic_invocation 'Write-Host '"'"'pattern=& "$tool"'"'"'' 1
 pin_predicate "ps::has_launcher: git -c section.key=cmd is not a launcher assignment" \
   ps::has_launcher 'git -c section.key=cmd log --oneline -n 1' 1
+# shellcheck disable=SC2016
 pin_predicate "ps::has_launcher: \$out=pwsh \$script still is a launcher assignment" \
   ps::has_launcher '$out=pwsh $script' 0
+# shellcheck disable=SC2016
 pin_predicate "ps::has_dynamic_invocation: \$a=& \"\$tool\" still is a string-literal call" \
   ps::has_dynamic_invocation '$a=& "$tool" reset --hard' 0
+# shellcheck disable=SC2016
 pin_sink_trigger "classify: quoted =pwsh does not enter launcher sink" \
   'Write-Host "shell=pwsh $script"' ""
 pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink" \
   'git -c section.key=cmd log --oneline -n 1' ""
+# shellcheck disable=SC2016
 pin_sink_trigger "classify: \$out=pwsh \$script still enters launcher sink" \
   '$out=pwsh $script' "launcher"
 
