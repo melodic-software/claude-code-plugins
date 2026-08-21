@@ -345,9 +345,11 @@ it safe, which is the misapply this section was written for wearing a different 
 
 **When the contract cannot be resolved, nothing here fires and the row takes the consumer's ordinary
 classification.** That is the status quo rather than a fail-safe worth advertising, and the honest
-place to say so is here. It is bounded in practice by the producer side of the same problem: a
-producer that cannot fetch this contract is already required not to write at all, so a findings file
-that exists is evidence the contract was reachable to the producer at least once.
+place to say so is here. What bounds it in practice is not a rule but a habit both current adopters
+already have: "Three emitters, one statement of each mechanic" below names fetching this contract at
+run time and refusing to write when unreachable as the demonstrated conforming form, and both
+adopters that persist do exactly that. So a findings file that exists is usually evidence the
+contract was reachable at least once — usually, not always, and no consumer may assume it.
 
 **No column, for the reasons the off-site column was rejected, plus one.** All three arguments above
 carry unchanged — a shape every producer writes and every consumer parses, changed for a minority of
