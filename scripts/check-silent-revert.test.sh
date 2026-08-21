@@ -1115,16 +1115,17 @@ t_replay_asserts_the_recorded_attribution() {
     fi
   done
 
-  # An attribution on a `clean` row is nonsense -- clean rows have no findings.
-  printf 'clean %s [%s=40] attribution on a clean row\n' "$sha" "$culprit" \
+  # A `fires` commit labeled `clean` still fails on status -- the new
+  # attribution field does not change pass/fail semantics (#2879).
+  printf 'clean %s [%s=40] attribution on a firing commit\n' "$sha" "$culprit" \
     >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 2 ]]; then
-    ok "an attribution recorded on a 'clean' row exits 2"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'should stay clean and fired'; then
+    ok "a firing commit labeled clean still fails on status, attribution or not"
   else
-    fail "expected rc=2 for an attribution on a clean row, got rc=$RC: $out"
+    fail "expected rc=1 for a firing commit on a clean row, got rc=$RC: $out"
   fi
 
   # And a `fires` row with no attribution keeps working -- the field is optional
@@ -1137,6 +1138,154 @@ t_replay_asserts_the_recorded_attribution() {
     ok "a fires row with no attribution field still replays on exit status alone"
   else
     fail "an attribution-less row must still work, rc=$RC: $out"
+  fi
+}
+
+# A `clean` row's note names a specific sub-threshold count. Without a
+# field to assert it, that figure rots silently -- 129 drifted to 136
+# on the corpus's previous closest miss and the row stayed green (#2879).
+t_replay_asserts_clean_row_attribution() {
+  local repo out culprit other sha
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 15 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  other="$(git -C "$repo" rev-parse HEAD~1)"
+  drop_block "$repo" feature.txt alpha "docs: ordinary iteration (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  # True culprit and true count, under the threshold: the row stays clean
+  # AND the figure is checked.
+  printf 'clean %s [%s=15] closest miss\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'largest sub-threshold attribution reproduced exactly'; then
+    ok "replay passes when a clean row's largest sub-threshold attribution reproduces"
+  else
+    fail "clean-row attribution should have passed, rc=$RC: $out"
+  fi
+
+  # Right culprit, WRONG count -- the 129 -> 136 shape.
+  printf 'clean %s [%s=14] stale count\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'stays clean, but NOT as recorded'; then
+    ok "replay fails when a clean row's recorded line count no longer reproduces"
+  else
+    fail "a wrong clean-row count must fail the replay, rc=$RC: $out"
+  fi
+
+  # Right count, WRONG culprit.
+  printf 'clean %s [%s=15] wrong culprit\n' "$sha" "$other" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'stays clean, but NOT as recorded'; then
+    ok "replay fails when a clean row's figure is attributed to a different culprit"
+  else
+    fail "a wrong clean-row culprit must fail the replay, rc=$RC: $out"
+  fi
+
+  # A clean row with no field still replays on exit status alone -- the
+  # field is optional so a row can be pinned before its attribution is
+  # measured.
+  printf 'clean %s no attribution recorded\n' "$sha" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'stays clean as recorded'; then
+    ok "a clean row with no attribution field still replays on exit status alone"
+  else
+    fail "an attribution-less clean row must still work, rc=$RC: $out"
+  fi
+}
+
+# A failed diff or blame used to be indistinguishable from "this file had
+# nothing to attribute": stderr discarded, empty output, return 0. That
+# is the quiet pass the header contract forbids (#2880).
+t_attribute_file_git_failure_is_exit_2() {
+  local repo real_git shimdir sha out
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  drop_block "$repo" feature.txt alpha "feat: drop (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  real_git="$(command -v git)"
+  shimdir="$(mktemp -d)"
+  TMPDIRS+=("$shimdir")
+  cat >"$shimdir/git" <<EOF
+#!/usr/bin/env bash
+real_git=$(printf '%q' "$real_git")
+if [[ "\${CANARY_INJECT_BLAME_FAIL:-}" == 1 && "\$1" == blame ]]; then
+  echo "fatal: injected blame failure" >&2
+  exit 128
+fi
+if [[ "\${CANARY_INJECT_DIFF_FAIL:-}" == 1 && "\$1" == diff ]]; then
+  for a in "\$@"; do
+    if [[ "\$a" == --unified=0 ]]; then
+      echo "fatal: injected diff failure" >&2
+      exit 128
+    fi
+  done
+fi
+if [[ "\${CANARY_INJECT_GIT_WARN:-}" == 1 ]]; then
+  if [[ "\$1" == blame ]]; then
+    echo "warning: injected git noise that must not leak" >&2
+  elif [[ "\$1" == diff ]]; then
+    for a in "\$@"; do
+      if [[ "\$a" == --unified=0 ]]; then
+        echo "warning: injected git noise that must not leak" >&2
+        break
+      fi
+    done
+  fi
+fi
+exec "\$real_git" "\$@"
+EOF
+  chmod +x "$shimdir/git"
+
+  CANARY_INJECT_BLAME_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git blame failed attributing'; then
+    ok "a failed blame is exit 2, not a quiet zero-attribution pass"
+  else
+    fail "expected rc=2 on injected blame failure, rc=$RC: $out"
+  fi
+
+  CANARY_INJECT_DIFF_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git diff failed attributing'; then
+    ok "a failed content diff is exit 2, not a quiet zero-attribution pass"
+  else
+    fail "expected rc=2 on injected diff failure, rc=$RC: $out"
+  fi
+
+  # The same failure, reached through the replay, must stay exit 2 -- not
+  # degrade into a row FAIL (exit 1) or a green reproduction.
+  printf 'fires %s [%s=40] a real drop\n' "$sha" "$(git -C "$repo" rev-parse HEAD~1)" \
+    >"$repo/scripts/inc.txt"
+  CANARY_INJECT_BLAME_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'could not run'; then
+    ok "a failed blame during replay is exit 2, not a row FAIL or a pass"
+  else
+    fail "expected rc=2 on injected blame failure in replay, rc=$RC: $out"
+  fi
+
+  # Success still discards git stderr -- un-suppressing wholesale would
+  # train readers to ignore the canary.
+  CANARY_INJECT_GIT_WARN=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && ! printf '%s' "$out" | grep -q 'injected git noise'; then
+    ok "successful attribution still discards git stderr"
+  else
+    fail "git stderr leaked on success, or the finding disappeared, rc=$RC: $out"
   fi
 }
 
@@ -1829,6 +1978,23 @@ t_shipped_data_files_are_wellformed() {
     fail "a shipped fires row is missing or has a malformed [<sha>=<lines>] attribution field"
   fi
 
+  # Same pin for `clean` rows (#2879). The field is optional in the grammar
+  # so a row can be recorded before its figure is measured, but every
+  # shipped clean row must carry one -- otherwise the note's number is
+  # prose again and the next flag pin rots it silently.
+  local clean_rows
+  clean_rows="$(grep -cE '^clean[[:space:]]' "$inc")"
+  bad=0
+  [[ "$clean_rows" -ge 1 ]] || bad=1
+  grep -E '^clean[[:space:]]' "$inc" |
+    grep -qvE '^clean[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' &&
+    bad=1
+  if [[ "$bad" -eq 0 ]]; then
+    ok "every shipped clean row carries a well-formed attribution field ($clean_rows rows)"
+  else
+    fail "a shipped clean row is missing or has a malformed [<sha>=<lines>] attribution field"
+  fi
+
   # Every shipped `fires` row must carry at least one marker (#2855).
   #
   # --verify-restoration enforces this at run time too, but only in the canary
@@ -1901,6 +2067,8 @@ t_root_commit_is_handled
 t_empty_range_is_clean
 t_replay_fails_on_broken_expectation
 t_replay_asserts_the_recorded_attribution
+t_replay_asserts_clean_row_attribution
+t_attribute_file_git_failure_is_exit_2
 t_replay_refuses_a_zero_row_or_truncated_file
 t_restoration_reports_present_and_absent_markers
 t_restoration_refuses_a_malformed_corpus
