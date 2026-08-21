@@ -30,10 +30,17 @@ All notable changes to the `review` plugin are documented here. Format follows
     `Auto-applicable` cell leads with ``No, remediated by `<invocation>` `` routes to that invocation,
     whatever its class, and never to `/simplify` or the generic fixer. The declaration is
     resolved through the qualified rule id every conforming row already leads its `Finding` cell
-    with, so **no producer has to change what it emits** — an `Action` cell leading with
-    ``Remediate with `<invocation>` `` is an optional self-describing shortcut, and the crosswalk wins
-    when they disagree. Off-site is decided first, so a row that is both stays surface-only, and
-    a row whose contract cannot be resolved takes its ordinary class as before.
+    with, so **no producer has to change what it emits**. An `Action` cell leading with
+    ``Remediate with `<invocation>` `` only **corroborates** that declaration and can never be the
+    sole basis for routing: **the crosswalk row is necessary**, and a rule with no crosswalk
+    declaration takes its ordinary class however its `Action` reads. That asymmetry is the trust
+    boundary — the crosswalk lives in the consuming repo's docs, outside the artifact being
+    consumed, while the `Action` cell is inside it; Step 1 already establishes that nothing
+    authenticates a findings file's writer, and this is the one route whose target Step 4 does not
+    re-fence, so `Action`-alone routing would let any component that can write a conforming file
+    hand any installed skill arbitrary rows. Availability is not authentication. Off-site is
+    decided first, so a row that is both stays surface-only, and a pass that cannot resolve the
+    contract has no declaration to read — the no-declaration case, never an `Action` fallback.
   - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
     is the point. Only an invocation already available in the session is invoked; nothing is
     installed, fetched, or name-matched loosely, because nothing authenticates the writer of a

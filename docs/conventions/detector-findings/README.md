@@ -334,9 +334,20 @@ Enforceability table's tier check is built on. A consumer holding a row therefor
 its declaration without a new column, a new field, or a second copy of a rule-level fact.
 
 **A producer MAY also lead its `Action` cell with** ``Remediate with `<invocation>` `` — same
-code-span convention, same delimiter strip — and a consumer MAY route on that alone. This is a
-self-describing convenience for a consumer that cannot resolve the contract, never a second
-declaration: where the two disagree, **the crosswalk row wins** and the row is the defect.
+code-span convention, same delimiter strip. It **corroborates** the crosswalk declaration and never
+substitutes for it: **the crosswalk row is NECESSARY**, and a rule with no crosswalk declaration is
+not producer-owned however its `Action` reads. Where both are present and name different
+invocations, **the crosswalk row wins** and the row is the defect.
+
+**Why corroboration and not a second route, stated so it cannot be re-liberalized by accident.** The
+crosswalk lives in the consuming repo's own docs, **outside** the artifact being consumed; the
+`Action` cell is **inside** it. Nothing authenticates the writer of a findings file — that is the
+contract's own opening premise — and this is the disposition that hands rows to a skill the consumer
+then does not re-fence. An `Action`-alone route would therefore let any component that can write a
+conforming file name any already-installed skill and hand it arbitrary rows, bounded by neither
+`Location` nor the consumer's own step. **Availability is not authentication**, and a shortcut that
+skipped the out-of-artifact half would not be a convenience but the removal of the only check there
+is.
 `ai-slop:audit` writes a near form of it today (`Guarded rewrite via /ai-slop:audit fix`) on the
 rules whose `Action` has nothing more specific to say, which is a near form precisely because it does
 not lead — one more reason the crosswalk path is the load-bearing one.
@@ -349,8 +360,10 @@ declaration exists to prevent: the consumer would perform the edit without the d
 it safe, which is the misapply this section was written for wearing a different label.
 
 **When the contract cannot be resolved, nothing here fires and the row takes the consumer's ordinary
-classification.** That is the status quo rather than a fail-safe worth advertising, and the honest
-place to say so is here. What bounds it in practice is not a rule but a habit both current adopters
+classification** — and an unreachable crosswalk is the no-declaration case, never a reason to fall
+back to the `Action` cell, which is the trust boundary above read in the direction it matters most.
+That is the status quo rather than a fail-safe worth advertising, and the honest place to say so is
+here. What bounds it in practice is not a rule but a habit both current adopters
 already have: "Three emitters, one statement of each mechanic" below names fetching this contract at
 run time and refusing to write when unreachable as the demonstrated conforming form, and both
 adopters that persist do exactly that. **That is evidence about the PRODUCER's session, not the
@@ -369,7 +382,7 @@ different field count, so a sixth column is a gate rewrite before it is a contra
 | Remediation | How the row declares it | Consumer route |
 |---|---|---|
 | At `Location`, mechanical and meaning-preserving | `Auto-applicable: Yes — <argument>` | Auto-applied under Step 4's fence |
-| At `Location`, owned by the producer's own surface | `Auto-applicable` leads ``No, remediated by `<invocation>` ``, resolved through the row's rule id | Routed to that surface; surfaced when it is unavailable |
+| At `Location`, owned by the producer's own surface | `Auto-applicable` leads ``No, remediated by `<invocation>` `` — necessary, resolved through the row's rule id; an `Action` lead only corroborates | Routed to that surface; surfaced when it is unavailable |
 | Outside `Location`'s file | The off-site rule above; `Action` names the target file | Surface-only (Step 2) |
 
 A row declaring **none** of them is not in breach — it takes the consumer's own classification, which

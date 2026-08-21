@@ -23,8 +23,19 @@ time" already says a rule's remediation shape does not vary run to run, and who 
 exactly such a fact. Requiring every emitted row to carry a copy would be the per-finding
 restatement that section forbids, and would make conformance a property of a producer's emitter
 rather than of its rule set. A producer MAY additionally lead an `Action` cell with
-``Remediate with `<invocation>` `` (same code-span convention) as a self-describing shortcut for a consumer that cannot resolve this
-contract; where the two disagree the crosswalk wins and the row is the defect.
+``Remediate with `<invocation>` `` (same code-span convention), which **corroborates** the crosswalk
+declaration and never substitutes for it: the crosswalk row is NECESSARY, and a rule with no
+crosswalk declaration is not producer-owned however its `Action` reads. Where both are present and
+name different invocations the crosswalk wins and the row is the defect.
+
+**That asymmetry is a trust boundary rather than a preference**, and the section says so in terms a
+later reader cannot relax by accident. The crosswalk lives in the consuming repo's own docs, outside
+the artifact being consumed; the `Action` cell is inside it. Nothing authenticates the writer of a
+findings file — this contract's own opening premise — and this is the disposition that hands rows to
+a skill the consumer does not then re-fence, so an `Action`-alone route would let any component that
+can write a conforming file name any already-installed skill and hand it arbitrary rows, bounded by
+neither `Location` nor the consumer's own step. Availability is not authentication. An unreachable
+crosswalk is therefore the no-declaration case, never a fallback to the `Action` cell.
 
 The section opens by ruling out the two cheaper answers, because both were checked first and the
 reasoning is what makes the third disposition defensible rather than accreted:
