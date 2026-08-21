@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.3]
+
+### Fixed
+
+- **The gitea adapter README stated a false reason for the unrun conformance pass.** It said
+  "no such instance is reachable from the environment this adapter was built in." That was an
+  untested assumption, repeated as fact. It is wrong: Gitea ships as a single self-contained
+  binary with sqlite built in, its releases are fetchable from the build environment, and a real
+  one was downloaded and version-verified there.
+
+  The actual blocker is narrower and worth recording accurately: serving it needs privileged
+  setup — a dedicated unprivileged user plus `cap_net_bind_service`, since Gitea declines to run
+  as root — which the sandbox's permission policy gates. Reachability was never the constraint.
+
+  The note now also records why port 443 and TLS are structural rather than preferences
+  (`wit_gitea_http` builds `https://<host>/api/v1` under `--proto '=https'`, and
+  `config.gitea.host` must be a bare hostname, so no high port is expressible), and states
+  explicitly that relaxing the bare-hostname rule is **not** an acceptable way to unblock the
+  run. That rule stops a PR-modifiable binding from smuggling URL structure and redirecting the
+  credential off the intended tenant; trading it for a green check would be the wrong fix, and
+  writing that down keeps a later session from making it.
+
 ## [0.39.2]
 
 ### Fixed
