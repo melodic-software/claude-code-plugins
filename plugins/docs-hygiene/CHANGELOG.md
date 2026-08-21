@@ -1,5 +1,30 @@
 # Changelog — docs-hygiene plugin
 
+## [0.18.2]
+
+### Fixed
+
+- **`write-for-humans`' self-check is scoped to the standard the skill resolved, question by
+  question, and the three always-rules now say why they survive one.** 0.18.0 shipped the
+  seven-question completion gate unconditionally, and four of those seven restate a bundled layer:
+  1 is Diátaxis, 2 and 3 are ASD-STE100, and 5 is Global English's ambiguity set. So a run that
+  followed the skill to its end would have graded a project's README against the bundled standards
+  *after* resolving that project's own Microsoft guide, and rewritten it to conform. That is a
+  lane-1 hardcode wearing lane-2 clothing: it reverses the skill's own first instruction, and it
+  falsifies two of the six evals.
+
+  **The gate is split rather than switched off wholesale**, because the other three questions are
+  not bundled-layer restatements at all — 4 restates "cut every word that does no work", and 6 and
+  7 restate "write the real name". Those are the three rules the same section says survive a
+  declared guide, so a gate that dropped all seven under a project guide would contradict itself
+  one line later. It now says which four come from the bundled layers and stand down when a project
+  guide is in force, and which three apply whichever standard was resolved.
+
+  The section formerly headed "Three rules above the layers" is now "Three rules that survive a
+  declared guide" and says why they do — they are about doing the work rather than picking a style —
+  and that a project guide still wins if it somehow contradicts one. The heading was the tell: it
+  asserted three rules sat *above* a set the resolve rule had already called a fallback.
+
 ## [0.18.1]
 
 ### Changed

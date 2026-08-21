@@ -3,6 +3,21 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2]
+
+### Fixed
+
+- **`downstream` mode cited into another plugin's private files.** Its "say plainly what is
+  unverified" step path-cited the `playbooks` plugin's `fable-5` skill inside that skill's own
+  `context/` directory, which the encapsulation contract makes private. (The path is described
+  rather than spelled here on purpose: repeating it would leave the cite standing in this plugin
+  after the fix removed it from the skill body.) It now cites
+  `/playbooks:fable-5 verification` — slash invocation is the only supported handle, and the
+  **chapter argument is load-bearing**: that skill's own argument contract makes a bare invocation
+  arm its entire operating doctrine as standing session instructions for the rest of the run, where
+  a chapter name reads only that chapter. A cite that reaches for one formula must not re-posture
+  the session that follows it. The presence gate and the stands-on-its-own fallback are unchanged.
+
 ## [0.26.1]
 
 ### Changed

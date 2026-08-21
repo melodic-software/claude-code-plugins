@@ -1,5 +1,40 @@
 # Changelog — discovery plugin
 
+## [0.16.2]
+
+### Fixed
+
+- **Two routes back to the code-shape exclusion `trace-intent` is built around, both closed.** The
+  source-control evidence row listed "test names" among what that category holds — but a test name
+  is a symbol in the implementation, not someone writing down a reason, so admitting it readmitted
+  code shape through the category table while the outcome gate still demanded that no claim rest on
+  the code's shape. Dropped; a code *comment stating a reason* stays admissible, because that is
+  someone writing down why. And `context/gotchas.md` called a named constant plus a nearby
+  convention "a hypothesis at best", which collides with `Speculative`'s own output section
+  (*Competing hypotheses*) and so read as licensing the very rung the scale forbids for code shape;
+  it now says plainly that this is code shape, leaves the scale, and is recorded as a gap.
+- **A grading criterion that was not derivable from the skill as written.** The ceiling on
+  *version-control behaviour* — change coupling, churn, hotspots — said "reaches `Inferred` and
+  never `Direct`" while the eval graded "never `Direct` or `Supported`". The body now names both
+  rungs. This is not a third code-shape route: the same section says plainly that behavioural signal
+  is **not** code shape and is admissible. It is the neighbouring rule, and the gap was between the
+  body and its own eval rather than in the exclusion.
+- **An eval that could not distinguish the behavior it targets from correct behavior.** The
+  anticipatory-skip case told the model not to bother checking the tracker but never stipulated
+  that a tracker existed — and the tracker category is presence-gated, so in a bare checkout the
+  correct output is a tracker-unavailable gap line, which the eval's first expectation graded as a
+  failure. The prompt now states that the tracker is configured and reachable, isolating
+  anticipatory skipping from presence-gating, which the unavailable-category eval already covers
+  separately.
+- **`trace-intent` was the one skill in this plugin linking `reference/parent-contract.md` by a
+  relative path.** Its Scope-section link rendered the `${CLAUDE_PLUGIN_ROOT}` token as the link
+  *text* while the href underneath was `../../reference/parent-contract.md`. `explore`,
+  `research` and `research-deep` all cite that same file with the token on both sides, and so does
+  the rest of the fleet by a wide margin. Two spellings of one reference across sibling skills is
+  the divergence `discipline:reuse-or-replace` exists to catch, and the relative form is the one
+  that breaks first — it resolves from the file's own location rather than from the installed
+  plugin root. Brought into line with its siblings.
+
 ## [0.16.1]
 
 ### Changed

@@ -76,7 +76,7 @@ Investigate the following target: $ARGUMENTS
 Under dispatch the target arrives in the dispatch prompt instead. Do not rely on seeing an unfilled
 slot: a target that did not arrive in this prompt is a missing target, not an empty one, and it is a
 parent-envelope failure the agent reports rather than repairs. Contract:
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](../../reference/parent-contract.md). Running
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running
 inline with no target, infer it from the conversation — the file, symbol, decision, or convention
 under discussion.
 
@@ -118,7 +118,7 @@ exactly when the real record is thin — which is exactly when a reader most nee
 **Version-control behaviour is not code shape.** Change coupling, churn and hotspot data are evidence
 the code alone cannot give you, and they are admissible — but they locate rather than explain: they
 show that two files always change together, never why anyone decided that. Behavioural signal reaches
-`Inferred` and never `Direct`.
+`Inferred` at most — never `Supported`, never `Direct`.
 
 ## Evidence categories
 
@@ -126,7 +126,7 @@ Three categories are investigated wherever they resolve, and none is assumed pre
 
 | Category | What it holds | What kind of why it uniquely surfaces |
 |---|---|---|
-| **Source control** | Commit history, review discussion, merge threads, code comments, test names | Implementation-time rationale captured during review — the problem statement, the alternatives argued, the constraint someone encoded in a comment |
+| **Source control** | Commit history, review discussion, merge threads, code comments | Implementation-time rationale captured during review — the problem statement, the alternatives argued, the constraint someone encoded in a comment |
 | **Long-form documents** | Design docs, RFCs, ADRs, specs, postmortems | Rationale written out before it became code — explicit "alternatives considered", the decision record, the postmortem action item |
 | **Issue tracker** | Tickets, their labels, their parent initiatives | The product or business forcing function — the customer request, the compliance deadline, the incident follow-up |
 
