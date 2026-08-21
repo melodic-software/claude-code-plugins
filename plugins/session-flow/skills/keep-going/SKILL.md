@@ -156,8 +156,8 @@ For any "is it stuck / check the monitor / poke it":
   ```
 
   Exit `0` means the reset has passed — treat the worker as resumable now.
-  Exit `1` means the limit still holds — hand back via `/session-flow:handoff`
-  and stop. Exit `2` means the message carried no parseable reset clause; say
+  Exit `1` means the limit still holds — hand back by invoking
+  `/session-flow:handoff` via the Skill tool and stop. Exit `2` means the message carried no parseable reset clause; say
   so plainly and ask the operator rather than guessing. Exit `3` means the
   reset clause parsed but the IANA timezone could not be resolved (rare when
   the bundled `tzdata` under `scripts/vendor` is present); report the timezone
@@ -195,7 +195,7 @@ that is still the job.
   follows real output, and kill/restart is gated like any side effect.
 - **Does not summarize-and-stall after a limit lifts** — it continues.
 - **Does not build or arm its own scheduler.** Still-blocked work is
-  handed back via `/session-flow:handoff`, not parked on a self-armed
+  handed back by invoking `/session-flow:handoff` via the Skill tool, not parked on a self-armed
   wakeup.
 - **Does not trust remembered state.** Every status claim is grounded in
   a fresh read of the real artifact.

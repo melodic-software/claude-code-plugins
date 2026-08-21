@@ -3,6 +3,29 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.2]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `audit-performance`'s paused-sweep route to
+  `/claude-config:audit`; `morning-brief`'s two boundary hand-offs
+  (`/source-control:babysit-prs`, `/claude-ops:observability`); `observability`'s
+  `/claude-ops:known-issues` boundary and its `context/read-routing.md` routing line. The
+  `audit-install-state` handoff tables are deliberately untouched: they are marked
+  "Handoff (not executed here)", and two of their targets (`/claude-ops:plugins`,
+  `/disk-hygiene:clean`) are `disable-model-invocation: true`, which the rubric's
+  invocation-reach invariant puts out of a skill's reach. Wording only.
+
+### Added
+
+- **`morning-brief`: its first eval suite (#3002).** Seven cases pinning the shipped contract —
+  run-the-script-and-print-verbatim, the read-only refusal, repo resolved from `gh repo view`
+  rather than hardcoded, per-section degradation when no telemetry issue or queue labels exist,
+  merge-readiness authority routing to `/source-control:babysit-prs`, local telemetry routing to
+  `/claude-ops:observability`, and the post-merge timestamp discriminator behind Stranded
+  findings. Required because the changed-skill gate demands evals for any touched SKILL.md, and
+  this was the one swept skill in the plugin without a suite.
+
 ## [0.35.1]
 
 ### Fixed

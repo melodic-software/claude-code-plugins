@@ -3,6 +3,16 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- **`clarify`: the ELI5 hand-off names the Skill tool (#3002).** "hand off to `/education:explain`"
+  became "hand off by invoking `/education:explain` via the Skill tool". Wording only — the
+  routing condition, the presence gate, and the fallback are unchanged. The invocation-mode
+  rubric's cross-skill phrasing rule is now unconditional; the fleet sweep retired the "new and
+  edited text" scoping it used to carry.
+
 ## [0.4.0]
 
 ### Removed

@@ -20,7 +20,7 @@ checks each premise its inputs depend on against the current state, reports what
 drifted, and hands back a corrected picture to plan from.
 
 It verifies premises; it does not resume the work. Run it before continuing on
-old inputs, then hand to `/session-flow:keep-going` to actually pick the work
+old inputs, then hand off by invoking `/session-flow:keep-going` via the Skill tool to actually pick the work
 back up.
 
 ## What it re-anchors
@@ -115,7 +115,8 @@ back up.
   one; this copy serves the deliberate "is this still current" pass over an old
   plan, where the other two never run.
 - **Does not auto-fix drift.** It reports; the session decides. On a goal
-  misalignment that means naming it and handing to `/session-flow:keep-going` —
+  misalignment that means naming it and handing off by invoking
+  `/session-flow:keep-going` via the Skill tool —
   reanchor never re-derives the next action or amends a recorded goal, which
   changes only on an explicit statement from whoever set it.
 

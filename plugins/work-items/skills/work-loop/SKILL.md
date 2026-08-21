@@ -222,7 +222,7 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    before any later step reads the snapshot. The drain exit is evaluated against this filtered
    snapshot — new automated intake arriving mid-cycle is **reported, never chased** (per the
    convention).
-2. **Intake sweep.** Run `/work-items:triage` over untriaged intake in its **autonomous lane** —
+2. **Intake sweep.** Invoke `/work-items:triage` via the Skill tool over untriaged intake in its **autonomous lane** —
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
    authored by a workflow bot routes to the human-gated role label by default (this also lets drain

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "coupling",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Iteratively reduces coupling in any repository at any altitude — documents, code modules, applications, or repositories: scans for change-transmitting dependencies typed against a coupling model (strength ladder, connascence, volatility weighting), verifies every finding, applies a budgeted batch of safe behavior-preserving reductions, and keeps a durable ledger so structural candidates route to design lanes and repeated runs continue where the last stopped.",
   "author": {
     "name": "Melodic Software",

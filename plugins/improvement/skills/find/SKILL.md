@@ -152,10 +152,10 @@ reader knows what the ranking could not see.
 
 1. Present the ranked candidate list (shape above), evidence gaps included.
 2. The user picks a candidate.
-3. Interview on the pick — via `/planning:interview` when available — to reach a shared shape:
+3. Interview on the pick — invoke `/planning:interview` via the Skill tool when available — to reach a shared shape:
    what improvement, why now, what evidence, what done looks like.
-4. Hand off to the pipeline: `/discovery:explore` (internal unknowns) or `/discovery:research`
-   (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
+4. Hand off to the pipeline, invoking each via the Skill tool: `/discovery:explore` (internal
+   unknowns) or `/discovery:research` (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
    output, with the candidate's evidence citation attached.
 5. Offer the remainder: unpicked candidates can be filed via `work-items:track` when installed —
    the user decides which, if any.
@@ -193,7 +193,7 @@ declared-by-the-caller convention. In unattended mode:
 "Go implement this" — interactively or as a follow-up — routes through the pipeline, never through
 this skill's own hands: interview the pick → `/discovery:explore` / `/discovery:research` →
 `/planning:plan` → `/implementation:implement` → `/verification:confirm`, each delegated to its
-skill. This skill performs no code edits in any mode; an execution request changes where the
+skill by invoking it via the Skill tool. This skill performs no code edits in any mode; an execution request changes where the
 handoff goes, not what this skill is allowed to touch.
 
 ## What this skill does NOT do / Skip when

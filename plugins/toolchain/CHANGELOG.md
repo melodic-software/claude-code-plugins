@@ -3,6 +3,15 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3]
+
+### Changed
+
+- **Two composition pointers name the Skill tool (#3002).** `check`'s "To run lint-only checks"
+  bullet (now matching its "To run full verification" sibling, which already named the tool) and
+  `lint`'s quick-feedback / before-committing pair. Wording only; the resolution ladder and the
+  surfaces each skill owns are unchanged.
+
 ## [0.13.2]
 
 ### Changed

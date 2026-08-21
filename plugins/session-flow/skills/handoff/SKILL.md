@@ -35,7 +35,7 @@ rediscovering dead ends.
 
 This skill delivers the save-point for a MANUAL resume: the user `/clear`s and pastes the resume
 prompt themselves. To hand the resume prompt to a fresh background agent that continues the task
-now, use the sibling `/session-flow:continue-in-background` skill instead — same save-point engine,
+now, invoke the sibling `/session-flow:continue-in-background` via the Skill tool instead — same save-point engine,
 different delivery.
 
 ## Arguments

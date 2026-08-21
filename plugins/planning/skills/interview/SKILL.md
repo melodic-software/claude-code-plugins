@@ -67,14 +67,14 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer resolves a domain
-   term, invoke `/domain-driven-design:curate-language` (if that plugin is installed — else
+   term, invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed — else
    record the term in the Brief's glossary notes) IMMEDIATELY between questions, not
    batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
    same response. A general session writes no repo docs — it drives to a shared-understanding summary
    only
 
-**Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (`/discovery:blindspot <area>` if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
+**Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (invoke `/discovery:blindspot <area>` via the Skill tool if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
 When the effort is too big to hold at once AND still too foggy to phrase as sharp questions — the user can't yet list the decisions, let alone lock them — that is upstream of `/planning:interview`. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch.
 

@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.8]
+
+### Changed
+
+- **`audit-pass`: the lane dispatch names the Skill tool (#3002).** The "Dispatch, in inventory
+  order" preamble now states once that every skill in the list below is invoked via the Skill
+  tool, and the scope-boundary bullet that dispatches `/claude-config:audit-instructions` says so
+  inline. The out-of-scope route-out bullets are untouched — they name lanes this pass does not
+  run. Wording only; lane order, presence gates, and fallbacks unchanged.
+
 ## [0.38.7]
 
 ### Fixed

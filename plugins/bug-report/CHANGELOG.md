@@ -3,6 +3,15 @@
 All notable changes to the `bug-report` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Changed
+
+- **`setup`: the "write a report instead" boundary names the Skill tool (#3002).** "use
+  `/bug-report:write`" became "invoke `/bug-report:write` via the Skill tool". Wording only — the
+  boundary itself is unchanged. Follows the invocation-mode rubric's cross-skill phrasing rule,
+  now unconditional after the fleet sweep.
+
 ## [0.7.1]
 
 ### Changed

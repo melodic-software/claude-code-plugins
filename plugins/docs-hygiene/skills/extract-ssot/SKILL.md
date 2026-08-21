@@ -73,7 +73,7 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 | `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Refuses premature (<3 instances). Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
 | `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN`. OPTIONAL — does not gate `plan`/`execute`. See `actions/verify.md` |
 | `plan <cluster-name>` | Architect | Pre-step (Tier 0 grep): does an existing rule/doc already own the concept? If yes → consolidate-into-existing branch (extend the home + de-recap consumers, no new artifact). Else choose creation output type (rule vs skill); draft or extend SSOT body; sketch migration plan |
-| `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references via `/docs-hygiene:rename-references` if a heading/identifier changed; verify |
+| `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references by invoking `/docs-hygiene:rename-references` via the Skill tool if a heading/identifier changed; verify |
 | `batch <cluster-list>` | Multi-candidate orchestration | Auto-`verify` filter, file-overlap matrix, sequential-by-default dispatch, lesson injection between subagents. See `actions/batch.md` |
 | `unwind <ssot-name>` | Reverse | Re-introduce duplication per Sandi Metz wrong-abstraction recovery |
 
@@ -139,7 +139,7 @@ For markdown call sites, cite by exact H3 heading text + 1-line inline summary. 
 
 For code call sites, use the language's native import syntax. For config call sites, use the tooling's native include / anchor / `$ref` mechanism.
 
-One level deep — never chain `A.md` → `B.md` → `C.md`. A heading rename triggers a `/docs-hygiene:rename-references` sweep across all 10 syntactic forms.
+One level deep — never chain `A.md` → `B.md` → `C.md`. A heading rename triggers a sweep: invoke `/docs-hygiene:rename-references` via the Skill tool across all 10 syntactic forms.
 
 Full contract incl. line-wrap edge case: `context/citation-form.md`.
 
@@ -147,7 +147,7 @@ Full contract incl. line-wrap edge case: `context/citation-form.md`.
 
 Encapsulation enforcement (detection grep, public/private surface matrix, remediation paths) lives in its own skill — `/docs-hygiene:audit-encapsulation`. Different concern from duplication: violations are single-instance matters (Rule of Three does not gate them).
 
-`/docs-hygiene:extract-ssot execute` invokes `/docs-hygiene:audit-encapsulation detect` during the refactor pass to catch any encapsulation violations introduced or exposed by the migration. See `/docs-hygiene:audit-encapsulation` for the public surface matrix, filter taxonomy, and remediation paths.
+`/docs-hygiene:extract-ssot execute` invokes `/docs-hygiene:audit-encapsulation detect` via the Skill tool during the refactor pass to catch any encapsulation violations introduced or exposed by the migration. See `/docs-hygiene:audit-encapsulation` for the public surface matrix, filter taxonomy, and remediation paths.
 
 ## Anti-patterns guarded
 

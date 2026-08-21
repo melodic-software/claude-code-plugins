@@ -31,7 +31,7 @@ The same discipline runs against the status quo. An incumbent tool, library, or 
 This stress-test runs from a fresh pair of eyes, and dispatches to a fresh-context sub-agent in two cases:
 
 - **Plan-review mode** — if the plan under review was produced in THIS context/session, the producing context shares the assumptions that created the plan's blind spots and drifts toward approving its own work; dispatch the stress-test to a fresh-context sub-agent. When you were invoked on an artifact this context did not author (a file, a plan from another session, a diff), you are already the fresh pair of eyes — proceed directly.
-- **`incumbent` mode** — always dispatch. The incumbent lives in the current codebase, so any read of it you already hold is a digest; a first-hand exploration is what forms an independent view. The sub-agent runs `/discovery:explore` (if installed, else explores directly) on the incumbent itself (Alternatives Sweep, Step 1).
+- **`incumbent` mode** — always dispatch. The incumbent lives in the current codebase, so any read of it you already hold is a digest; a first-hand exploration is what forms an independent view. The sub-agent invokes `/discovery:explore` via the Skill tool (if installed, else explores directly) on the incumbent itself (Alternatives Sweep, Step 1).
 
 In both cases the dispatch prompt carries only WHAT to investigate — the plan artifact, or the incumbent's identity and where it lives — never your conclusions about it: "here is the target; go look yourself," not "here is what I found; confirm it." A sub-agent handed the parent's verdict inherits the parent's blind spot. Where the verdict is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor for that fresh pair of eyes **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor sub-agent as the stated fallback, never a route to a command that may not resolve.
 
@@ -64,7 +64,7 @@ To review an inline plan whose text legitimately *begins* with `incumbent`, `dee
 
 ### Research depth
 
-Both modes default to **risk-scaled** research (Round 2's high/medium/low scale). A leading `deep` token forces the heaviest tier — route load-bearing evaluations to `/discovery:research-deep` if installed; `shallow` restricts to codebase read/grep with no external research. Depth is a per-invocation choice, not a stored setting.
+Both modes default to **risk-scaled** research (Round 2's high/medium/low scale). A leading `deep` token forces the heaviest tier — route load-bearing evaluations to `/discovery:research-deep`, invoked via the Skill tool, if installed; `shallow` restricts to codebase read/grep with no external research. Depth is a per-invocation choice, not a stored setting.
 
 ## Analysis Process
 
@@ -89,7 +89,7 @@ For each assumption, verify against evidence. This is the research-heavy round.
 
 **Research depth — match to risk:**
 
-- **High risk**: deep multi-source research — official docs, issue trackers, and web search (use the strongest research capability available: `/discovery:research` if installed, a research MCP server, or WebSearch/WebFetch)
+- **High risk**: deep multi-source research — official docs, issue trackers, and web search (use the strongest research capability available: invoke `/discovery:research` via the Skill tool if installed, a research MCP server, or WebSearch/WebFetch)
 - **Medium risk**: a targeted search or single authoritative doc fetch
 - **Low risk**: codebase grep/read (no external research needed)
 
@@ -155,10 +155,10 @@ Findings use the same severity / failure-scenario / mitigation / residual-risk f
 
 Runs in place of Rounds 1–4 when `incumbent` mode is selected. It inherits the evidence mandate — every finding is backed by a specific bug number, doc reference, code path, or concrete logical argument, never training-data recall.
 
-1. **Explore the incumbent first-hand.** Dispatch the fresh sub-agent (see Fresh-context requirement) to run `/discovery:explore` on the incumbent — what it is, where it is used, what it is coupled to, and any recorded reason it was chosen. The sub-agent forms its own read; it receives the incumbent's identity, never a parent conclusion about it.
+1. **Explore the incumbent first-hand.** Dispatch the fresh sub-agent (see Fresh-context requirement) to invoke `/discovery:explore` via the Skill tool on the incumbent — what it is, where it is used, what it is coupled to, and any recorded reason it was chosen. The sub-agent forms its own read; it receives the incumbent's identity, never a parent conclusion about it.
 2. **Name the actual problem.** State what the incumbent solves — the real requirements, present and plausible-future — before any alternative is on the table. Do not let the incumbent's shape define the problem.
 3. **Survey the field.** Judge candidate alternatives against those requirements, walking the preference ladder — **native** (what the platform / language / framework already provides) > **official / authoritative** > **vetted third-party** (well-maintained, known, safe, secure) — where an earlier rung wins when it covers the requirements. Price each dependency's coupling: abandonment, a pricing pivot, a license change, security posture, exit cost. The full selection discipline lives in `/discipline:pick-for-the-problem` (apply it if installed); this baseline is enough to run the sweep without it. The seam between the two: that corrector is the light in-session nudge when selection drift surfaces mid-conversation; this sweep is the formal, dispatched, verdict-producing review to run before a plan commits to the incumbent.
-4. **"Is there a better way now?" — evidence, not memory.** The research-heavy step; scale to risk (Round 2) or the depth token. Route load-bearing evaluations to `/discovery:research` (or `/discovery:research-deep`) if installed — a tool's maintenance, security, licensing, and native-alternative landscape drift constantly since the training cutoff. Look especially for what changed since the incumbent was chosen: a new native capability, a shifted dependency, a since-published better-fit option.
+4. **"Is there a better way now?" — evidence, not memory.** The research-heavy step; scale to risk (Round 2) or the depth token. Route load-bearing evaluations to `/discovery:research` (or `/discovery:research-deep`), invoked via the Skill tool, if installed — a tool's maintenance, security, licensing, and native-alternative landscape drift constantly since the training cutoff. Look especially for what changed since the incumbent was chosen: a new native capability, a shifted dependency, a since-published better-fit option.
 5. **Verdict per candidate.** One of:
    - **KEEP** — re-derived from the problem and still the best fit; the duty is to re-derive, not to switch for switching's sake. An incumbent that audits clean is a clean finding — say so.
    - **MIGRATE** — a better-fit alternative exists; state the coupling price and the migration cost, not just the upside.

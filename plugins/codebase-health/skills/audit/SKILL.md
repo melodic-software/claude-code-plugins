@@ -66,7 +66,8 @@ Scope boundary with adjacent audit lanes: this skill verifies **factual claims**
 against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
 permissions) and automation-landscape gap analysis are different lanes — when the
 `claude-config` plugin is installed, route those to `/claude-config:audit` and
-`/claude-config:audit-automation-gaps`; otherwise state they are out of scope rather than
+`/claude-config:audit-automation-gaps`, invoked via the Skill tool; otherwise state they are out of
+scope rather than
 running claim-extraction over them.
 
 ---
@@ -256,7 +257,8 @@ fix priority, enforcement escalation, and config-gap observations ARE the delive
 verifying, self-reviewing, and retrospecting are separate lanes owned end-to-end by other plugins —
 re-implementing them here would duplicate those skills, so this skill delegates instead.
 
-Route remediation to the dedicated lanes (soft dependencies — use when the plugin is installed):
+Route remediation to the dedicated lanes, invoking each via the Skill tool (soft dependencies — use
+when the plugin is installed):
 
 - **Fix** → `/implementation:implement` (when the `implementation` plugin is installed). Hand it the
   Phase 3 findings, whose "Fix priority" section already carries the Config Drift → Missing

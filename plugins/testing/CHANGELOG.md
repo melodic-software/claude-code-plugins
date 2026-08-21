@@ -3,6 +3,16 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `diagnose`'s build-first fix row in
+  `context/investigate.md`, its genuine-bug fix route, and `context/loop.md`'s replan route;
+  `run-e2e`'s three next-step arrows and the matching pair in `context/e2e.md`, plus its
+  Playwright-CLI usage pointer; `write`'s run-the-tests / continue-implementation step and its two
+  next-step arrows. Wording only — presence gates, fallbacks, and step order unchanged.
+
 ## [0.7.0]
 
 ### Added

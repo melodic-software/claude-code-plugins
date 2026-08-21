@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.8]
+
+### Added
+
+- **`skill-authoring`: an authoring-time pointer to the cross-skill phrasing rule (#3002).** The
+  "Skill-tool composition" section now points at the invocation-mode rubric's
+  "Cross-skill invocation phrasing" section for how an operative hand-off is worded, and says the
+  rule is author-enforced rather than lint-enforced. Points, does not restate — the rubric stays
+  the single home.
+
 ## [0.8.7]
 
 ### Added

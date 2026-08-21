@@ -11,7 +11,7 @@ Claude Code ships `/code-review` as a [bundled skill](https://code.claude.com/do
 
 ## Primary path — `pr-review-toolkit` orchestrator plugin (when installed)
 
-When the `pr-review-toolkit` plugin (from the `claude-plugins-official` marketplace) is available, invoke `/pr-review-toolkit:review-pr` with aspects detected from the changed files:
+When the `pr-review-toolkit` plugin (from the `claude-plugins-official` marketplace) is available, invoke `/pr-review-toolkit:review-pr` via the Skill tool with aspects detected from the changed files:
 
 | Condition | Aspect |
 |-----------|--------|

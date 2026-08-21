@@ -86,4 +86,4 @@ Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md)
 | **`/claude-ops:observability`** | **Your** telemetry — hooks, OTEL store, collector, dashboard, ccusage, trends |
 | **`/claude-ops:known-issues`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
 
-CC behaving unexpectedly → `/claude-ops:known-issues search <feature>`. Reading what CC emitted → this file.
+CC behaving unexpectedly → invoke `/claude-ops:known-issues search <feature>` via the Skill tool. Reading what CC emitted → this file.

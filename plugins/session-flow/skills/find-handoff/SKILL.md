@@ -360,7 +360,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      `/session-flow:handoff` resume path). For a prompt-only recovery, continue from the inline
      prompt.
    - **Ended mid-work** (the recovered state shows interrupted, in-flight work rather than a
-     deliberate save-point) → hand to `/session-flow:keep-going`, which recovers and continues
+     deliberate save-point) → hand off by invoking `/session-flow:keep-going` via the Skill tool, which recovers and continues
      interrupted work.
 
 ## Read-only + redaction — hard invariants

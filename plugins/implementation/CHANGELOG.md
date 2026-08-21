@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `implement`'s Karpathy pre-execution
+  checklist, its scope-creep and major-divergence replan routes, its research escalation, the
+  pre-PR sequence read (`/session-flow:workflow pre-pr`), its divergence decision-table row, and
+  the config/docs verification note; `implement-dispatch`'s preflight, main-side build/test, the
+  divergence and phase-boundary rituals, the worker's worktree provisioning
+  (`/source-control:worktree`), the inline-routed hand-back, and four decision-table rows.
+  Wording only — routing thresholds, gates, and step order unchanged.
+
 ## [0.15.0]
 
 ### Added

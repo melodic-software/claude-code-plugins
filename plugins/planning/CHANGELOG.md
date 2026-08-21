@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `brainstorm`'s route-onward step;
+  `design`'s early-exit proceed, its two glossary invocations, the `handoff` action, and the
+  handoff-gate delegation; `design-handoff`'s FAIL route back and its hand-off to `/planning:plan`;
+  `devils-advocate`'s incumbent exploration (both sites), its two research routes, and the
+  high-risk research bullet; `interview`'s glossary invocation, its blindspot route, and
+  `context/loop.md`'s domain check; `plan`'s Karpathy checklist, the measurable-goal baseline
+  route, the stress-test dispatch, the targeted-research step, `context/plan-template.md`'s
+  test-strategy note, `context/research-iterate.md`'s research and re-assess steps, and
+  `context/tag-decisions.md`'s reversibility escalation and contested-cluster route; `wayfind`'s
+  no-fog bail-out. Left as prose on purpose: `interview`'s and `prd`'s next-step lists and
+  `devils-advocate`'s "Suggested Next Steps", all of which end in an explicit
+  "Do NOT auto-invoke — recommend; let the user pull the trigger"; `interview`'s
+  `/planning:wayfind` pointer, which says to recommend and never auto-switch; and the
+  `templates/checklist.md` artifacts. Wording only — no gate, threshold, or step order changed.
+
 ## [0.33.0]
 
 ### Added

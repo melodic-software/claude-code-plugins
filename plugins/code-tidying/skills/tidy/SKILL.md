@@ -108,8 +108,8 @@ Run in order. Each phase has one job. Don't skip phases for "small" tidyings —
 
 Understand before changing. No exceptions for "small" tidyings — workflow discipline is what keeps tidy runs safe.
 
-1. Explore the lane's scope globs: if the `discovery` plugin is installed, invoke `/discovery:explore` on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
-2. Research current best practice for the lane's stack: if the `discovery` plugin is installed, invoke `/discovery:research` using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
+1. Explore the lane's scope globs: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
+2. Research current best practice for the lane's stack: if the `discovery` plugin is installed, invoke `/discovery:research` via the Skill tool using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
 
 ### Phase D — Hunt + prioritize + scope-budget enforce
 
@@ -144,7 +144,7 @@ Self-review by the producing context is enough here — a fresh-context verifier
 
 Never call `git commit` or `gh pr create` directly — Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
 
-If the `source-control` plugin is installed, invoke `/source-control:pull-request create`. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content — the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content — the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
 
 Title:
 

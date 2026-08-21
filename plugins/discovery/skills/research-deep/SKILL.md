@@ -37,7 +37,7 @@ For a single-topic ask, detection is **engine-biased**: prefer the heaviest avai
 |---|---|---|
 | 1 — workflow engine (preferred) | The Workflow tool is available AND a deep-research workflow exists (a built-in deep-research workflow, or one the consuming project ships) AND the task is heavy/broad (or unknown scope) | Dispatch that workflow with the topic |
 | 2 — isolated subagent | No workflow path AND the task is heavy | Dispatch the purpose-built `discovery:researcher` agent with a resolved envelope |
-| 3 — inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Run `/discovery:research` inline in this session |
+| 3 — inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Invoke `/discovery:research` via the Skill tool, inline in this session |
 
 - **Heavy/broad** = multi-source, multi-vendor, comparison/migration, unfamiliar domain, or research that would flood main context with 9+ external queries.
 - **Clearly small** = a single verifiable fact from one obvious source. Even here the full `/discovery:research` discipline applies — task size never reduces depth.
@@ -76,7 +76,7 @@ Dispatch ONE `discovery:researcher` with the envelope above. With a single worke
 
 ### Tier 3 — inline (clearly small task)
 
-Run `/discovery:research` inline in this session — no dispatched *research* tier, no workflow. The full `/discovery:research` discipline still applies, including its own rule that an inline run hands the verifier-owned rows to a fresh context rather than self-grading them. That fresh context is a subagent; what Tier 3 declines to dispatch is the research, not the verification, and the boundary below arrives here through the parent skill rather than being restated.
+Invoke `/discovery:research` via the Skill tool, inline in this session — no dispatched *research* tier, no workflow. The full `/discovery:research` discipline still applies, including its own rule that an inline run hands the verifier-owned rows to a fresh context rather than self-grading them. That fresh context is a subagent; what Tier 3 declines to dispatch is the research, not the verification, and the boundary below arrives here through the parent skill rather than being restated.
 
 ### The post-dispatch boundary — every dispatching tier owns it
 

@@ -24,7 +24,7 @@ Run lint and format checks across affected ecosystems in one command. Fills the 
 | `/toolchain:check` | Build + test + lint | Medium (~30-60s) |
 | `/verification:confirm` | Build + test + lint + outcome verification | Medium+ |
 
-Use `/toolchain:lint` for quick feedback during development. Use `/verification:confirm` before committing.
+Invoke `/toolchain:lint` via the Skill tool for quick feedback during development. Invoke `/verification:confirm` via the Skill tool before committing.
 
 **The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) — shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
 

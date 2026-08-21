@@ -15,7 +15,7 @@
 
 Default mode dispatches a read-only exploration subagent that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
 
-Private surface — external consumers invoke `/docs-hygiene:extract-ssot identify`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
+Private surface — external consumers invoke `/docs-hygiene:extract-ssot identify` via the Skill tool, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## Two modes
 

@@ -27,13 +27,13 @@ Read `design-threads.md` in the topic's resolved design slice (`<contract_dir>/<
 - **directional** — direction agreed AND the remaining detail carries a research tag, or
 - **TAGGED-DEFERRED** — an explicit research tag naming the external investigation needed.
 
-A thread that is unresolved AND untagged is a silent gap → **FAIL**: list the offending thread(s), route back to `/planning:design` (its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. This is a binary check read off `design-threads.md`, not a "did we cover enough?" recap — a producing model rubber-stamps its own recap, so the gate must be read off the file rather than judged from memory.
+A thread that is unresolved AND untagged is a silent gap → **FAIL**: list the offending thread(s), route back by invoking `/planning:design` via the Skill tool (its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. This is a binary check read off `design-threads.md`, not a "did we cover enough?" recap — a producing model rubber-stamps its own recap, so the gate must be read off the file rather than judged from memory.
 
 If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact) — early-exit slices hand off on that artifact alone. Neither present → FAIL: no design evidence; route to `/planning:design`.
 
 ## Handoff summary (gate passed)
 
-Hand off to `/planning:plan` — sourced from the artifacts, not recalled from memory:
+Hand off by invoking `/planning:plan` via the Skill tool — sourced from the artifacts, not recalled from memory:
 
 - Resolved decisions with their recorded rationale (from `design-threads.md`)
 - Deferred research items with tags

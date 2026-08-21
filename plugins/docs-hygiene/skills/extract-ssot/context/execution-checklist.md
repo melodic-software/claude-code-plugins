@@ -57,7 +57,7 @@ After every callsite is migrated, run the rename sweep across the WHOLE repo to 
 | 1 | All 10 syntactic forms swept | `/docs-hygiene:rename-references` invoked with the SSOT name + each new identifier (heading / function / anchor) as renames-of-record | `/docs-hygiene:rename-references` (owns the 10-pattern sweep) |
 | 2 | Pure-token grep returns no orphans | `grep -rn 'OldText\|OldIdentifier'` across all tracked files returns clean | `citation-form.md` "Rename discipline" |
 | 3 | New SSOT is grep-discoverable | `grep -rn '<new-filename-or-identifier>'` across tracked files shows the expected callsites | Tier 0 verification |
-| 4 | No violation patterns reintroduced | Re-run `/docs-hygiene:audit-encapsulation detect` | `/docs-hygiene:audit-encapsulation` |
+| 4 | No violation patterns reintroduced | Re-invoke `/docs-hygiene:audit-encapsulation detect` via the Skill tool | `/docs-hygiene:audit-encapsulation` |
 | 5 | Code/config: language-aware refactor cross-checked | If applicable, run the IDE rename refactor and confirm the result matches the grep sweep — the IDE catches typed call sites grep misses | `anti-patterns.md` #1 |
 
 ## Post-extraction (before declaring done)

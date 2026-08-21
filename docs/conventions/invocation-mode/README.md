@@ -75,15 +75,49 @@ the audit-side trigger that guards this lives in the SSOT strand.
 When a skill body chains to another skill, name the mechanism explicitly — "invoke
 `/plugin:skill` via the Skill tool" (or an equivalent that names the Skill tool) — never bare
 `/name` prose, which reads as a suggestion to a human rather than an instruction the model
-reliably executes. Scope: this binds NEW and EDITED skill text; the existing fleet is mixed
-(many skills already use the explicit form, others chain bare — e.g. the knowledge pipeline
-handoffs), and normalizing the existing operative chains is the filed sweep
-[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002) (adopted
-2026-08-18, lane 6 of the AI Hero course vetting — `docs/upstream/aihero-course.md`). Upstream
-basis, named
+reliably executes. **Scope: unconditional.** It binds every operative chain in shipped skill
+text, new and existing alike; the fleet-wide normalization sweep landed
+([#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002), 2026-08-21), so
+there is no longer a grandfathered set. Adopted 2026-08-18, lane 6 of the AI Hero course vetting
+(`docs/upstream/aihero-course.md`). Upstream basis, named
 provenance: mattpocock/skills standardized the same rule in `.agents/invocation.md` (upstream
 PRs #878 and #880) on his measured claim — his repo's measurement, not re-verified here — that
 explicit Skill-tool phrasing has a higher cross-skill hit rate than bare `/name` prose.
+
+**What the rule binds: operative chains, not mentions.** An *operative* chain is text that
+directs the executing model to hand work to another skill at some point in the flow — an
+imperative or a routing construction ("invoke", "run", "hand off to", "delegate to", "chain to",
+"route to", "fall back to", "use X instead"). Those carry the explicit phrasing. A *mention* does
+not, and rewriting one is as much a defect as leaving an operative chain bare:
+
+- a statement of identity or ownership ("that is `/x:y`", "`/x:y` owns the commit mechanic",
+  "`/x:y` is SSOT for CLI invocation");
+- a "Related skills" / "see also" list, a capability catalog, or a coverage table that maps a
+  situation to the sibling that covers it;
+- text that explicitly *recommends to the human* rather than invoking ("suggest", "offer",
+  "recommend; let the user pull the trigger", "Handoff (not executed here)");
+- sample output, emitted templates, eval fixtures, plugin `README.md`, and `CHANGELOG.md`.
+
+A chain whose target carries `disable-model-invocation: true` is not rewritten either — the
+invocation-reach invariant above makes it unreachable from a skill, so its text must keep
+directing the human (`/plugin:setup` handoffs are the common case).
+
+**Enforcement is author-side, and deliberately so.** No `skill-quality:check` criterion enforces
+this phrasing; the decision was taken with the sweep and is recorded here rather than left
+implicit. A static scan cannot separate an operative chain from a mention, and the separation is
+the whole rule. Measured on the fleet at the sweep (2026-08-21): 1,129 body lines in
+`plugins/*/skills/**` and `plugins/*/agents/**` carry a cross-skill `/plugin:skill` token, of
+which ~120 were operative — a criterion keyed on the token would have been ~89% false positives.
+Narrowing to an unambiguous handoff verb on the same line does not rescue it: run against the
+post-sweep tree, that pattern returns only non-offenders (wrapped lines whose "via the Skill
+tool" sits on the next line, index rows, self-references, deliberate `true`-target handoffs). The
+sibling criterion this doc already owns, check 24, sets the precedent for the undecidable half of
+a rule — it emits a hand-verify note rather than a warning nothing can clear — but check 24's
+note fires on the 57-skill `true` subset, whereas this one would fire on nearly every skill in
+the fleet, which is how check output gets ignored. Authoring-time pointers carry the rule instead:
+`playbooks:skill-authoring` ("Skill-tool composition") and `docs-hygiene:write-for-agents`, both
+of which point here. Revisit if a future check gains paragraph-scoped context or a way to mark a
+mention.
 
 ## Splitting by invocation
 
@@ -229,7 +263,9 @@ in the table above**, and the table's two flips are the only entries that are no
 - `skill-quality:check`: `listing-budget` (measurement) and check 24, the explicit-key criterion
   (enforcement — FAIL for a marketplace plugin skill, WARN elsewhere; class attribution is
   hand-verified against this doc, since only a `setup` skill's `true` is decidable by a static scan).
-- `playbooks:skill-authoring`: authoring-time pointer here ("Choosing the mode at authoring time").
+- `playbooks:skill-authoring`: authoring-time pointers here ("Choosing the mode at authoring time"
+  for the mode, "Phrasing a chain to another skill" for the cross-skill phrasing rule this doc
+  leaves author-enforced).
 - Steering-lane provenance and lesson decision rows:
   `docs/upstream/aihero-course.md` (lane 8 section; the interim steering record dissolved into
   it at harvest).

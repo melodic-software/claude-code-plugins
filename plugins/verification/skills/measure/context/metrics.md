@@ -69,7 +69,7 @@ strength*, Infection names it *Covered Code MSI*): the share of injected faults 
 counting only faults in code the tests actually reach. Report it beside coverage, and report the
 *delta* diff-scoped to the change — a whole-repo score moves too slowly to attribute to one change.
 
-To collect it, invoke `/mutation-testing:audit` when the `mutation-testing` plugin is installed; it
+To collect it, invoke `/mutation-testing:audit` via the Skill tool when the `mutation-testing` plugin is installed; it
 owns the run and the metric vocabulary. Without that plugin, run your ecosystem's own mutation tool
 (StrykerJS, Stryker.NET, PIT, Infection, mutmut) scoped to the diff with its own since/incremental
 flag, and read the covered-code figure rather than the headline one. When the language has no such

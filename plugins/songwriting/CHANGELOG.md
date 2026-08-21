@@ -3,6 +3,15 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.6]
+
+### Changed
+
+- **Two craft-skill routes name the Skill tool (#3002).** `object-writing`'s "a metaphor request
+  routes to `/songwriting:metaphor`" hand-over and `workflow`'s draft-is-diagnosis route to
+  `/songwriting:diagnose`. The per-skill "Related skills" lists and `workflow`'s concern-skill
+  catalog table are left alone — they are see-also surfaces, not hand-offs. Wording only.
+
 ## [1.4.5]
 
 ### Changed

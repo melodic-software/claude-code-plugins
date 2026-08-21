@@ -3,6 +3,17 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `confirm`'s Stage-1 delegation (both the
+  stage table and the prose), the measurable-delta redirect row, the quick-mechanical-only
+  pointer, the two live-app fallbacks to `/testing:run-e2e`, the lint auto-fix pointer, and the
+  improvement-claim route to `/verification:measure`; `measure`'s green-tree precondition and
+  `context/metrics.md`'s mutation-score collection. Wording only — the STOP-on-fail gate,
+  presence gates, and manual fallbacks are unchanged.
+
 ## [0.5.3]
 
 ### Fixed

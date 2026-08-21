@@ -1,5 +1,19 @@
 # Changelog — docs-hygiene plugin
 
+## [0.18.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `audit-encapsulation`'s SSOT-verify step,
+  its rename sweep, and its post-fix checklist row; `audit-noise`'s optional reuse of the
+  derivability rubric; `compress`' caveman backend selection; `extract-ssot`'s `execute` action
+  row, its heading-rename sweep, its `audit-encapsulation detect` composition, the three
+  private-surface banners under `actions/`, and the sweep instructions in
+  `context/anti-patterns.md`, `context/citation-form.md`, and `context/execution-checklist.md`.
+  `write-for-agents` and `write-for-humans` already conformed. The derivability rubric's
+  `route to …` verdict *annotations* are left alone — they annotate a verdict, they do not hand
+  work off. Wording only; gates, verdicts, and step order unchanged.
+
 ## [0.18.0]
 
 ### Added

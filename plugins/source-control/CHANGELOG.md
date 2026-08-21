@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.14]
+
+### Changed
+
+- **Two cross-skill chains name the Skill tool (#3002).** `babysit-loop`'s per-cycle invocation of
+  `/source-control:babysit-prs` and `pull-request`'s commit-step delegation to
+  `/source-control:commit` in `reference/create.md`. The `/source-control:setup` references stay
+  prose: `setup` is `disable-model-invocation: true`, so the rubric's invocation-reach invariant
+  keeps it human-only. Wording only; tier semantics, gates, and the inline-commit fallback are
+  unchanged.
+
 ## [0.54.13]
 
 ### Added

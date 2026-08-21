@@ -34,7 +34,7 @@ Track skill Steps 0–5 in-session via the task list. Durable progress lives in 
 
 ## Step 0: Detect Execution Mode
 
-Before mode detection runs, apply a pre-execution discipline checklist by invoking `/andrej-karpathy-skills:karpathy-guidelines` (from the `karpathy-skills` marketplace) if that plugin is installed. It fires a four-rule discipline checklist (think-before-code, simplicity-first, surgical-changes, goal-driven-execution) ahead of the first Edit. Fallback is graceful: when the plugin is absent, hold to the same discipline directly — think before coding, prefer the simplest change that works, make surgical edits, keep the goal in view — and proceed without prompting.
+Before mode detection runs, apply a pre-execution discipline checklist by invoking `/andrej-karpathy-skills:karpathy-guidelines` via the Skill tool (from the `karpathy-skills` marketplace) if that plugin is installed. It fires a four-rule discipline checklist (think-before-code, simplicity-first, surgical-changes, goal-driven-execution) ahead of the first Edit. Fallback is graceful: when the plugin is absent, hold to the same discipline directly — think before coding, prefer the simplest change that works, make surgical edits, keep the goal in view — and proceed without prompting.
 
 Parse conversation context to determine execution mode. Mode shapes which context file to consult and how to structure the work.
 
@@ -77,7 +77,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 
 - **Build fails** → fix immediately. Don't add more code on top of broken code
 - **Test fails unexpectedly** → investigate. An unexpected failure may signal a flawed approach, not just a bug
-- **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan — route back to the planning skill (`/planning:plan review` when installed) rather than expanding scope silently
+- **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan — route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) rather than expanding scope silently
 - **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and name `/planning:wayfind` to the user — it charts the fog as a decision map upstream of the plan. Guide, never auto-switch
 
 ### Commit discipline
@@ -111,7 +111,7 @@ Most important discipline in execution. Plans are hypotheses — implementation 
 3. **Assess severity:**
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
    - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting — don't settle for workarounds when a proper solution may exist
-   - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (`/discovery:research` when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (`/planning:plan review` when installed) to re-plan. The user approved a plan that no longer works — they need to approve the new direction, informed by fresh research
+   - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works — they need to approve the new direction, informed by fresh research
 4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear
 
 **Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs" — Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
@@ -183,7 +183,7 @@ When all planned work is done:
    - No commented-out code
    - No TODO comments that should be actual work
 4. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)** — for changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
-5. **Hand off to the pre-PR sequence** — hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: suggest the project's review flow first (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides — the user controls timing). Do not commit-and-push unilaterally — final staging and PR creation belong to that flow
+5. **Hand off to the pre-PR sequence** — hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` via the Skill tool when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: suggest the project's review flow first (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides — the user controls timing). Do not commit-and-push unilaterally — final staging and PR creation belong to that flow
 
 ## Skill chaining during execution
 
@@ -193,7 +193,7 @@ When all planned work is done:
 | After each logical block | Invoke `/toolchain:check` via Skill tool (when the `toolchain` plugin is installed; else the project's own build) |
 | At every phase boundary | Run the Step 4 ritual (plan marks + handoff entry + status + commit + resume prompt) |
 | Worker-routed phase or autonomous orchestration | Invoke `/implementation:implement-dispatch` via Skill tool |
-| Divergence detected (major) | Route back to the planning skill (`/planning:plan review` when installed) |
+| Divergence detected (major) | Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Technical question mid-implementation | `/discovery:research` (when installed), otherwise disciplined multi-source research |
 | HIGH/CRITICAL change at completion | Call the `advisor` tool — rubber-duck checkpoint before review |
 | All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order — review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm` (else self-verify against intent), then `/source-control:pull-request`, each when its plugin is installed |
@@ -214,6 +214,6 @@ When all planned work is done:
 - **Divergence is not failure.** Plans are hypotheses. Detecting that an approach won't work and replanning is the skill working correctly — pushing through despite signals is the failure
 - **NEVER declare "impossible" without exhausting alternatives.** When an approach fails, research deeper before giving up. Check GitHub Issues for workaround flags, search for bypass options, try alternative APIs. Proper solution often exists one investigation level beyond where you'd normally stop
 - **Commit checkpoints are save points, not polish points.** Don't agonize over commit messages on feature branches when the workflow squash-merges — commit freely
-- **Config/docs changes still need verification.** Even non-code changes can break builds (`.editorconfig` changes, project-file modifications, markdown lint). Run `/verification:confirm` for these too
+- **Config/docs changes still need verification.** Even non-code changes can break builds (`.editorconfig` changes, project-file modifications, markdown lint). Invoke `/verification:confirm` via the Skill tool for these too
 - **Scope-fence drift detector at every decision boundary (Step 3.5).** Phase boundaries, agent returns, and anomaly-handoff moments are where invented work creeps in disguised as plan-anticipated work. Classify before announcing
 - **Over-correction guard on user pushback.** When the user pushes back on N proposed actions (≥2), ask per-category — never silently drop all. The pushback identifies a problem with at least one action, not necessarily all

@@ -64,7 +64,7 @@ as a known-large root it is gated like a home target (see step 1): the scan retu
 `--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
 target; scan those without the flag.
 
-- Use `/repo-hygiene:clean` for one repository's caches, build output, Git metadata, or tree reset.
+- Invoke `/repo-hygiene:clean` via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off to
   `/source-control:worktree status`/`cleanup` (if installed), run from the checkout's own main
   repository — those actions manage the current repository's worktrees and take no target path. The

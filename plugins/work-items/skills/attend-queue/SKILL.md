@@ -137,7 +137,7 @@ genuinely open question into a closed list just to satisfy the restatement. A te
 must never compress this restatement away; the row's context is precisely what the operator needs to
 answer without stopping the pass to ask which item is in front of them.
 
-- **`[intake]` rows** — run `/work-items:triage <number>`. The operator is present, so triage's
+- **`[intake]` rows** — invoke `/work-items:triage <number>` via the Skill tool. The operator is present, so triage's
   **interactive** direction gate applies: brief before asking, recommend, wait for direction, then
   mutate. All triage machinery (states, outcomes, briefs, closing invariant) is owned there.
 - **`[escalated]` rows** — read the machine-marked comment for the escalated question, restate the

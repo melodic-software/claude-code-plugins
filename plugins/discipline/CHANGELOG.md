@@ -5,6 +5,17 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.11]
+
+### Changed
+
+- **Corrector-to-corrector routes name the Skill tool (#3002).** `do-your-research-deep` and
+  `recheck-against-upstream-deep`'s "use the lighter sibling" bullets; `mind-your-maxims`'
+  Delegations section (one preamble line covering both axes); `reuse-or-replace`'s two
+  evidence/rationale routes; `scrutinize-dont-coast`'s `/review:quality-gate` route;
+  `use-your-skills`' `/skill-quality:check` and `/claude-config:audit` routes. Wording only —
+  the axis boundaries, presence gates, and prose-degradation fallbacks are unchanged.
+
 ## [0.12.10]
 
 ### Changed

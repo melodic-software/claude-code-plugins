@@ -3,6 +3,16 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- **`teach`: the tier-1 research chain names the Skill tool (#3002).** `/discovery:research` and
+  its `/context7:lookup` / `/firecrawl:firecrawl` fallback rungs now say "via the Skill tool".
+  Wording only — the tier order, presence gates, and the terminal WebSearch rung are unchanged.
+  `education:setup` references are left as prose: it is `disable-model-invocation: true`, so the
+  rubric's invocation-reach invariant keeps it human-only.
+
 ## [0.8.0]
 
 ### Added

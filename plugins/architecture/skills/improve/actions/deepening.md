@@ -94,7 +94,7 @@ Once the user picks a candidate, walk the decision tree: constraints, dependenci
 
 Side effects inline as decisions crystallize:
 
-- **New concept or sharpened term?** Invoke `/domain-driven-design:curate-language` immediately
+- **New concept or sharpened term?** Invoke `/domain-driven-design:curate-language` via the Skill tool immediately
   when that skill is available in the current session; it owns active glossary maintenance and
   known-context routing.
   Otherwise preserve the existing fallback: update a consumer-declared ubiquitous-language glossary

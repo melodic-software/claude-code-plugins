@@ -81,7 +81,7 @@ Run this in place of the sibling's inline audit and correct-forward steps:
 ## What this skill does NOT do
 
 - **Not a lighter inline pass.** For a single-surface recheck without the
-  subagent cost, use the sibling `/discipline:recheck-against-upstream`.
+  subagent cost, invoke the sibling `/discipline:recheck-against-upstream` via the Skill tool.
 - **Does not force persistence.** The mid-run checkpoint is best-effort crash
   safety on a durable slice when one exists; it never mandates a store or
   invents one.

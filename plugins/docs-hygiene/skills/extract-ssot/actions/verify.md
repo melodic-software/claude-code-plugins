@@ -14,7 +14,7 @@
 
 Cheap pre-extraction gate. Refuse-fast on candidates that wouldn't survive `plan`/`execute` anyway. Surfaces the refusal verdict from a single grep + citation check, without spawning a subagent.
 
-Private surface — external consumers invoke `/docs-hygiene:extract-ssot verify <cluster>`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
+Private surface — external consumers invoke `/docs-hygiene:extract-ssot verify <cluster>` via the Skill tool, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## When to invoke
 
