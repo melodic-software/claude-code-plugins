@@ -15,7 +15,8 @@ URL="https://raw.githubusercontent.com/linear/linear/master/packages/sdk/src/sch
 # This is the same file the adapter's own comments cite (see common.sh's schema references).
 if ! curl -fsSL --proto '=https' "$URL" -o "$DEST"; then
   printf 'fetch-schema.sh: could not fetch the Linear SDL from %s\n' "$URL" >&2
-  printf 'fetch-schema.sh: outbound HTTPS here goes through a proxy — see /root/.ccr/README.md\n' >&2
+  printf 'fetch-schema.sh: if your environment proxies outbound HTTPS, make curl aware of it\n' >&2
+  printf 'fetch-schema.sh: (HTTPS_PROXY and a CA bundle) before re-running.\n' >&2
   exit 1
 fi
 

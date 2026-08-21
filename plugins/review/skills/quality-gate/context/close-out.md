@@ -270,8 +270,9 @@ Rung 2 remains heuristic and must still be **flagged as heuristic** for any item
 item resolved there is not as certain as one the provider linked. That is the honest cost of
 admitting `Refs`-linked work, and it is far cheaper than silently omitting it.
 
-**Rung 2 — scan the default branch for the squash subjects.** The rung-1 query failed: search the
-default branch's history for commits referencing each sub-item. **Flag the whole set as heuristic
+**Rung 2 — scan the default branch for the squash subjects.** The rung-1 query failed **or came
+back empty** — both reach here, per the rule above: search the default branch's history for
+commits referencing each sub-item. **Flag the whole set as heuristic
 in the report** — this matches text, and text can lie:
 
 ```bash

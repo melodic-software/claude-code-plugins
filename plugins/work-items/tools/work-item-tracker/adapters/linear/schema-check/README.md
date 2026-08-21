@@ -45,7 +45,11 @@ than a paraphrase, by matching each one as a fixed string against **both** sides
 source *and* `validate.mjs`. Both matter: checking only the adapter would prove the literal exists
 somewhere while `validate.mjs` quietly validated a different, still-schema-valid query, and the
 whole guarantee ("the thing validated IS the thing sent") would be worth nothing. Multi-line
-operations are covered too, whitespace-normalized, since those are the ones an eyeball skips. It is
+operations are covered too, whitespace-normalized, since those are the ones an eyeball skips —
+and so is `WIT_LINEAR_ISSUE_FIELDS`, the shared field-selection block that `fetch_issue`,
+`list-items` and `list-sub-items` all interpolate rather than spelling out. That one was
+previously extracted, printed, and compared to nothing, which left the three highest-traffic
+reads resting on a human noticing a difference between two `echo` blocks. It is
 also the drift alarm: **change an operation in the adapter and not here, and `fidelity.sh` fails**
 — intended, not a nuisance. It caught exactly that when the label lookup moved to the root
 `issueLabels` connection.

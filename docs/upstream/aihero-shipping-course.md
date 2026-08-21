@@ -436,7 +436,7 @@ through the environment as `WIT_LINEAR_API_KEY` (the name `config.linear.auth_en
 never a coordination workspace.
 
 What changed is the evidence that replaced it. The adapter was validated against Linear's **real
-published GraphQL schema** (`@linear/sdk` 90.0.0 cross-checked against the published SDL): all 17
+published GraphQL schema** (`@linear/sdk` 90.0.0 cross-checked against the published SDL): all 18
 operations validate clean under `graphql-js`, with a negative control catching 10 of 10 injected
 faults, and the pass found and fixed two real defects — a `page_size` above Linear's cap of 250
 that config validation accepted, and label resolution that could see neither workspace-level labels

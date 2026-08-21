@@ -15,9 +15,6 @@ FIELDS="$(sed -n "/^readonly WIT_LINEAR_ISSUE_FIELDS='/,/^'$/p" "$A/common.sh" |
   sed "s/^readonly WIT_LINEAR_ISSUE_FIELDS=//" | sed "1s/^'//; \$s/^'$//")"
 echo "--- WIT_LINEAR_ISSUE_FIELDS as extracted from common.sh ---"
 printf '%s\n' "$FIELDS"
-echo "--- normalized ---"
-printf '%s' "$FIELDS" | norm
-echo
 echo
 
 # Every single-line operation literal must appear VERBATIM (fixed-string) in its source.
@@ -95,6 +92,24 @@ for e in "${MULTILINE[@]}"; do
     ((in_val)) || echo "MISMATCH  not in validate.mjs [multi-line]: $lit"
   fi
 done
+
+# The SHARED field-selection block. Three of the read operations — fetch_issue,
+# list-items' issues walk and list-sub-items' children walk — interpolate this one template
+# rather than spelling their selections out, so an unchecked `F` leaves the highest-traffic
+# reads resting on nothing. It was previously extracted, printed, and compared to nothing at
+# all, which made the README's "every operation matches" claim an overstatement for exactly
+# those three. Now asserted, and it contributes to ok/bad like everything else.
+fields_needle="$(printf '%s' "$FIELDS" | unesc | norm)"
+if [[ -z "$fields_needle" ]]; then
+  bad=$((bad + 1))
+  echo "MISMATCH  WIT_LINEAR_ISSUE_FIELDS could not be extracted from common.sh"
+elif unesc <"$V" | norm | grep -qF -- "$fields_needle"; then
+  ok=$((ok + 1))
+  echo "VERBATIM  WIT_LINEAR_ISSUE_FIELDS [shared field selection]: ${fields_needle:0:56}..."
+else
+  bad=$((bad + 1))
+  echo "MISMATCH  WIT_LINEAR_ISSUE_FIELDS differs between common.sh and validate.mjs's F"
+fi
 
 echo
 echo "operations found verbatim on BOTH sides: $ok  mismatched: $bad"
