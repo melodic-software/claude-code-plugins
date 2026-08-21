@@ -608,4 +608,15 @@ run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2
 run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
   "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
 
+# --- #2906 containment: quoted Path+Value is a write, not a --no-verify signal --
+# The placeholder lives only inside write_bypass's positional probe. These rows
+# must stay allowed here so a contained write-lane fix cannot leak into the
+# no-verify fail-closed sink.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value is not a no-verify signal (allowed — #2906 containment)" \
+  "& \$w 'f.txt' 'x'" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
+  "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
+
 report
