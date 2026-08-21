@@ -14,11 +14,18 @@ Mode: `me` (relentless). Domain: engineering (new skill/plugin component in this
 
 ## Open-question register
 
-- Q1 | open | round 1 | Primary target ecosystems the skill must serve in V1? |
-- Q2 | open | round 1 | Home & name — new skill inside code-tidying, or elsewhere? |
-- Q3 | open | round 1 | Scope of "dead" for V1 — code-only, or also deps/config/assets/flags? |
-- Q4 | open | round 1 | Output posture — report-only with delegated removal, or detect+fix? |
-- Q5 | open | round 1 | Detection strategy — tool-first with model verification pass, or model-first? |
+- Q1 | answered | round 1 | Primary target ecosystems for V1? | ecosystem-adaptive; first-class .NET/C#, TS/JS, Python, shell; others degrade to grep fallback
+- Q2 | answered | round 1 | Home & name? | new skill `audit-dead-code` inside the existing code-tidying plugin
+- Q3 | answered | round 1 | Scope of "dead" for V1? | unreferenced code symbols + orphaned files; deps/config/assets/flags deferred to V2
+- Q4 | answered | round 1 | Output posture? | report-only, removal delegated to /tidy, /simplify, work-items
+- Q5 | answered | round 1 | Detection strategy? | tool-first, model-verified; grep fallback where no tool exists; every finding survives a verification pass
+- Q6 | open | round 2 | Verdict vocabulary / confidence tiers? |
+- Q7 | open | round 2 | Suppression write-back — apply, propose, or omit? |
+- Q8 | open | round 2 | Missing-tool behavior — never install, degrade, or prompt? |
+- Q9 | open | round 2 | Scan scope — whole repo, path arg, or tidy-lane reuse? |
+- Q10 | open | round 2 | Findings persistence — stdout, persisted file, work-items handoff? |
+- Q11 | open | round 2 | Setup skill / project config, or zero-config V1? |
+- Q12 | open | round 2 | Eval fixture strategy for the skill? |
 
 ## Decision tree (`me` mode)
 
