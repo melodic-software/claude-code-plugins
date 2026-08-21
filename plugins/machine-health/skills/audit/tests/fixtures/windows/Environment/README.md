@@ -1,7 +1,7 @@
 # Environment registry fixtures
 
-Synthetic snapshots of `HKCU:\Environment` and
-`HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`.
+Synthetic snapshots of `HKCU:\Environment` and the machine Session Manager
+Environment key (PowerShell provider path under `HKLM:`).
 These are not captured CLIXML: a live `RegistryKey` does not round-trip
 through `Export-Clixml` in a form Pester can rehydrate on a non-Windows
 host, and the interesting cases (2047-character Path, a planted secret)
