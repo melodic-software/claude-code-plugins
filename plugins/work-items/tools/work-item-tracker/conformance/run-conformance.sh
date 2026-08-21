@@ -324,7 +324,14 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     # newer one — reason "lease live", never "lease already superseded".
     wit_case "reclaim live lease is a no-op" 0 reclaim "$ITEM_A_ID"
     assert_eq "live lease not reclaimed" "false" "$(jq -r '.reclaimed' <<<"$WIT_OUT")"
-    assert_eq "reclaim picked the active lease" "lease live" "$(jq -r '.reason' <<<"$WIT_OUT")"
+    # `reason` is FREE TEXT — CONTRACT.md's output table gives it no vocabulary — so this
+    # asserts the semantic fact, not one adapter's prose. Exact-matching github's "lease
+    # live" made the suite unrunnable for any adapter that words it differently: linear
+    # says "lease is still live", so its first live run would have been spent chasing a
+    # string mismatch rather than a real defect. What must hold is that reclaim selected
+    # the ACTIVE lease rather than the superseded newer one.
+    assert_contains "reclaim picked the active lease" "$(jq -r '.reason' <<<"$WIT_OUT")" "live"
+    assert_not_contains "…and not the superseded one" "$(jq -r '.reason' <<<"$WIT_OUT")" "superseded"
 
     # Expired-lease reclaim: ttl 0 lease on B expires immediately.
     if [[ -n "$ITEM_B_ID" ]]; then
