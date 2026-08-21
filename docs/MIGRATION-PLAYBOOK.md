@@ -333,6 +333,26 @@ eval. Two deliberate divergences from the guidance, both consequences of the def
 automated grading, which does not exist here yet), and grading is a human judgment pass (the
 method the guidance ranks last). Both revisit when the runner lands.
 
+**Which eval format this is, and why it is not `claude plugin eval`'s.** Two Anthropic-owned eval
+formats exist and they are not the same. The one shipped here is **`skill-creator`'s**:
+`evals/evals.json` inside the skill directory, cases carrying `id` / `prompt` / `expected_output` /
+`files` / `expectations`, which is why the schema's own `description` notes that upstream names that
+last field `assertions`. It is the ecosystem-wide shape — a public code search returns thousands of
+`evals.json` files in that form against a handful in any other. **`claude plugin eval` consumes a
+different layout** (`<eval dir>/**/case.yaml`, or `prompt.md` plus `graders/*.md`, with
+`experimental.evals` naming the directory). This repo has none of it, deliberately: the command is
+**early access** and refuses to run (`plugin eval is currently in early access`), so adopting its
+format would trade a corpus CI checks on every PR for one nobody here can execute. Adoption stays
+deferred behind the same `melodic-software/medley#1418` tracker as the runner; revisit when the
+command leaves early access. **The consequence for authors:** no command in *this* marketplace and
+nothing in *this* CI executes a prompt — the gates lint and schema-check them — so a case must be
+readable and followable by a human or an agent working by hand, and must not depend on a runner
+having been invoked. That is not the same as no runner existing: a consumer with Anthropic's
+`skill-creator` installed can run these suites, which is the format's own runner and which stages a
+case's `files[]` for it. So use `files[]` to declare fixtures and reference them by their documented
+path; do not hand-roll staging inside the `prompt` string. A prompt that builds its own workspace is
+neither followable by hand nor compatible with the runner that would otherwise stage it.
+
 **Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
 executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
 `melodic-software/medley#1418`); `skill-quality` only checks presence and schema, and it resolves

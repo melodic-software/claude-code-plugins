@@ -53,9 +53,13 @@ them.
   (prompt the positive); two loads (context + cognitive). Settled by: the merged skill diff.
 - [ ] Trigger families in the description: CLAUDE.md/AGENTS.md content edits, `.claude/rules`
   writing, agent-consumed reference/context docs, pointer-line adds, doc-plus-pointer
-  extraction. Settled by: shipped `claude plugin eval` suite — every positive case fires the
+  extraction. Settled by: the shipped `evals/evals.json` suite — every positive case fires the
   skill, every negative control (audit phrasing, "create a skill", human-README writing) does
-  not; suite passing gates the implementation PR.
+  not. This criterion was drafted naming `claude plugin eval`; the skill shipped in #3003 with
+  this marketplace's own eval format, which `MIGRATION-PLAYBOOK.md` "Evals" explains is
+  `skill-creator`'s and not that command's, and which nothing executes — so the suite is a
+  written specification checked by `check-evals-quality.sh`, exercised by hand per that
+  section's recipe, rather than a pass/fail gate on the implementation PR.
 - [ ] Scope statement grounded in the verified auto-read enumeration (research artifact in the
   topic memory slice, adapted into the skill's reference table). Settled by: the reference file
   citing the enumeration's surfaces.
