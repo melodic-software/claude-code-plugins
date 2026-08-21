@@ -2,7 +2,7 @@
 description: "Lay out which skills fit this moment as a decidable menu — a ranked shortlist per bucket plus the complete remainder by name, so nothing is hidden and the human chooses. Buckets: Now, Next, Skipped upstream (artifact-grounded), Later (the in-domain remainder, named-only), and a rotating Spotlight of three. Never omits an option because it judges the step already done or unnecessary — that judgment becomes an annotation and may affect rank, never presence. Resolves candidates from the full installed catalog rather than the in-context skill listing, which omits every manual-only skill and truncates most descriptions. Use when: 'what should I run next', 'what are my options', 'what am I forgetting', 'which skill fits here', 'what else could I run', 'show me my options', 'what skills apply now'. Writes one small rotation ledger per invocation so the Spotlight advances; otherwise read-only. Not the staged-workflow navigator that routes to exactly one next stage (/session-flow:workflow), not a situation report (/session-flow:orient), and not the model-side corrector for a skill that should have fired (/discipline:use-your-skills)."
 argument-hint: "[topic-slug] (e.g. /session-flow:show-options, /session-flow:show-options my-topic)"
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Lay out the skills that fit this moment as a ranked, nothing-hidden menu

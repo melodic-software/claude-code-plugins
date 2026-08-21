@@ -72,6 +72,17 @@ next" and carries the inverse mandate ("route to exactly ONE owner… never pres
 mandate is amended reciprocally to govern **stage** routing and cede option surfacing, because two
 contradictory routing doctrines in one plugin is a defect regardless of which skill wins at runtime.
 
+> **Revised 2026-08-21 ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024)):**
+> the skill now ships `disable-model-invocation: false`. Graded against
+> [`docs/conventions/invocation-mode/`](../conventions/invocation-mode/README.md) — the owner doc
+> for this choice — no exception class fits it, and neither of the two reasons above survives that
+> rubric: the listing-budget saving is the move the rubric names as *not* a sufficient reason to
+> hide a skill, and the `workflow` trigger collision is already fixed by the reciprocal amendment
+> in this very paragraph, which makes hiding redundant over a solved problem. This paragraph's
+> reasoning stands as what was weighed at V1; the decision is in the rubric's fleet-grade table.
+> **The ADR's core decision is untouched** — candidate names still resolve from the installed
+> catalog, never the listing, which is what makes the skill worth reaching in the first place.
+
 ## Consequences
 
 The skill pays one bounded enumeration cost per invocation instead of zero, in exchange for a
@@ -83,6 +94,15 @@ recursion is accepted for V1 rather than solved: graduating to model-invocable i
 decision, not a default, and `discipline:use-your-skills` already records the deferral of a
 deterministic per-prompt routing hook. `Stop` and `TaskCompleted` are the deterministic
 boundary events if that graduation is ever taken — never `UserPromptSubmit`, which is per-prompt.
+
+> **Revised 2026-08-21 (#3024):** the recursion is what settled it. The graduation was gated on
+> usage evidence that could not accrue while the recursion held, and the success criterion named
+> below measures the *bucket cut* rather than the mode — the ADR's own instruction is to revisit
+> the buckets first and the posture second. Graduating removes the recursion instead of waiting
+> it out: a human who says "what are my options" now reaches the skill by saying it. The
+> deterministic-hook note above is unaffected and stays deferred — model invocation is
+> description-matched, not hook-driven, so no `Stop`/`TaskCompleted` hook is implied by this
+> revision.
 
 **Placement.** `docs/CATALOG-TAXONOMY.md`'s assignment principle says subject wins when the subject
 is the salient reason a plugin exists, which argues for filing this under `claude-code`/`claude-ops`

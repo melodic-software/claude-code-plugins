@@ -124,6 +124,7 @@ setup skills are class (ii) by contract; the 141
 | `planning:questionnaire` | none — no side effects, not setup, not maintainer-only | **FLIPPED → `false`** ([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969); the re-check for a latent rationale found none — see below) |
 | `playbooks:update` | (iii) maintainer-only | KEEP `true` |
 | `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` |
+| `session-flow:show-options` | none — a human-facing catalog surface: no side effect whose timing must be human-chosen, an *uttered* trigger rather than a human-internal one, not setup, not maintainer-only | **FLIPPED → `false`** ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); graded after the fact, and the re-check against ADR 0016's latent rationale did not hold it — see below) |
 
 The 17 missing-key skills were normalized to explicit `false` (all sat in the default class), and
 the enforcement criterion shipped alongside them as `skill-quality:check` **check 24** — both under
@@ -146,13 +147,60 @@ own description advertises a hand-off from an interview branch that the invocati
 made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 `true` = 48 `*:setup`
 plus 10 non-setup.
 
-**One of those 10 is not graded above, and this is where that is recorded.**
-`session-flow:show-options` landed 2026-08-18, a day after the grade, so the table's population
-predates it and the ADR 0005 bound leaves it unswept rather than silently covered. Its `true` is
-therefore un-attributed to any exception class as of this writing — check 24 emits its
-hand-verify note for exactly this case. Grading it is filed as
-[#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); the other nine
-carry the verdicts in the table.
+**The second flip: `session-flow:show-options`, graded after the fact (2026-08-21, #3024).** It
+landed 2026-08-18, a day after the grade, so the table's population predated it and the ADR 0005
+bound left it unswept rather than silently covered — check 24 emitted its hand-verify note for
+exactly that case. It is now graded, and the verdict is a flip.
+
+*It is not the rejected router.* That verdict names a model-invoked skill routing **the agent** to
+user-invoked skills, and rejects it on two grounds: the always-in-context listing already does that
+job, and a router reaching into the deliberately-hidden `true` set would defeat the exception
+classes. Neither reaches this skill. The first is false here by measurement — ADR 0016 records the
+listing omitting every `true` skill and dropping ~82% of descriptions least-invoked-first, which is
+the whole reason this skill resolves from the installed catalog instead. The second turns on
+*naming* versus *reaching*: `show-options` renders a menu and explicitly does not execute what the
+human picks, and both surfaces the router verdict itself blesses as the answer to the human-side
+problem — `docs/SKILL-CHEAT-SHEET.md` and `claude-ops:inventory` (itself `false`) — already name the
+`true` set to a human from a model-reachable surface. Naming hidden skills to a human is settled
+practice in this fleet; only the agent invoking them is what the exception classes forbid. Nor is it
+the composition-router carve-out, which composes model-invoked skills rather than surfacing hidden
+ones.
+
+*No exception class fits.* Not (ii) or (iii) — it is consumer-facing and neither setup nor
+maintainer-only. Not (i) on any of its three limbs: the Spotlight ledger is incidental bookkeeping,
+not state whose timing must be a deliberate human choice; the skill is a one-shot render
+("presentation only"), not a persistent mode-entry; and its trigger is the opposite of
+`discipline:wait-what`'s human-internal one — "what should I run next", "what are my options",
+"what am I forgetting" are *utterances*, fully observable in the transcript, not an unspoken state
+only the human can detect.
+
+*The latent rationale it was re-checked against, per the #2969 precedent.* Here one existed and was
+dated: [ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md)
+shipped V1 manual-only for three stated reasons. None holds as an exception class. (1) *Costs no
+listing-budget description* — the default section above rejects exactly this move: hiding a skill
+from the model is a total trade, not a listing-budget optimization. (2) *Avoids a verbatim trigger
+collision with `session-flow:workflow`* — the same shape as #2969's candidate, and it dissolves the
+same way: ADR 0016 itself resolved that collision reciprocally, amending `workflow`'s
+"never present both" mandate to govern **stage** routing and cede option surfacing, and each
+description now routes to the other on that axis. Hiding is redundant belt-and-braces over a
+collision already fixed by another mechanism. (3) *Graduation is evidence-gated* — the real
+objection, but its own criterion measures the bucket cut rather than the mode (the ADR says to
+revisit the buckets first and the posture second), and the evidence cannot accrue while the
+recursion the ADR names goes unsolved: the operator must remember to invoke the skill about
+forgetting skills.
+
+*The two costs of the `true`, both now paid* — the same pair #2969 surfaced. Its trigger phrases
+were dead, because a hidden skill's description is never matched against user text: a human who
+says "what are my options" out loud got nothing. And the invocation-reach invariant made
+`workflow`'s shipped boundary paragraph a dangler, pointing the model at a target it could not
+reach. The cost the flip incurs is one description entering the listing budget, which the default
+section holds is manageable and not a forcing function. ADR 0016 is amended in place to record the
+revised posture; its core decision — resolve candidates from the catalog, not the listing — is
+untouched and is what makes this skill worth reaching.
+
+Fleet after this flip (2026-08-21): 222 top-level skills = 165 `false` / 0 missing key / 57 `true`
+= 48 `*:setup` plus 9 non-setup. **Every non-setup `true` skill in the fleet now carries a verdict
+in the table above**, and the table's two flips are the only entries that are not KEEP.
 
 ## Cross-references
 
