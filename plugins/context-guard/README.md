@@ -42,8 +42,9 @@ tool that needs it — so long-running workflows can route heavy work away from 
   zone-is-not-a-compaction-indicator rule. Its companion
   `reference/cloud-headless-capture.md` is the writer-side channel inventory: why the statusline is
   the only capture channel, which other channels were checked and rejected (with sources and
-  dates), and why `unknown` in a session with no configured `statusLine` — a cloud or headless
-  session by default — is structural rather than a defect.
+  dates) — including the two that do carry live occupancy and still cannot supply a snapshot — and
+  why `unknown` in a session that runs no statusline, a cloud or headless session by default, is
+  structural rather than a defect.
 
 ## Behavior
 
