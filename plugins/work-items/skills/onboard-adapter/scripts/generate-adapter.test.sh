@@ -272,10 +272,61 @@ assert_eq "half-anchored scope_pattern → exit 3" "3" "$(gen "$(with '.api.scop
 anchor_err="$(gen_err "$(with '.api.scope_pattern = "[a-z]+"')")"
 assert_contains "unanchored pattern names the risk" "$anchor_err" "conforming prefix"
 
+# scope_pattern carries a regex, so it cannot be charset-bounded the way its
+# neighbours are; quote_safe() is its only guard, and it must ABORT. It did not:
+# every render() call is made as `$(render …)`, and an `exit` inside a command
+# substitution kills only that subshell — so the refusal printed once per template
+# while the generator went on to write a directory of empty executable scripts and
+# exit 0. The exit code and the empty-tree assertion are two halves of one case.
+assert_eq "single-quoted scope_pattern → exit 3" "3" \
+  "$(gen "$(with '.api.scope_pattern = "^[A-Za-z0-9'\''][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"')")"
+if [[ -d "$(last_root)/tools/work-item-tracker/adapters/acmetracker" ]]; then
+  fail "a refused spec writes no adapter tree" "no adapter directory" "a directory of files"
+else
+  pass "a refused spec writes no adapter tree"
+fi
+
 # The generated fixtures must satisfy the generated guards, or the adapter would fail
 # its own tests the moment it was created.
 assert_eq "sample_scope violating its own pattern → exit 3" "3" \
   "$(gen "$(with '.api.sample_scope = "no-slash-here"')")"
+
+# sample_scope has its OWN anchored charset, independent of scope_pattern — because
+# scope_pattern comes from the same spec and can be written to permit anything
+# (`^.*$` is anchored at both ends and so passes the check above). Without the charset,
+# `sample_scope` landed unescaped in the DOUBLE-quoted argument at
+# common.test.sh.tmpl:72, where `$(…)` executes and a `"` breaks out — and running that
+# generated file is step 1 of this generator's own printed "Next:" instructions.
+# Each case below pins one escape route, mirroring the display_name cases above.
+SCOPE_ANY='.api.scope_pattern = "^.*$"'
+assert_eq "sample_scope with a double quote → exit 3" "3" \
+  "$(gen "$(with "$SCOPE_ANY | .api.sample_scope = \"acme/web\\\"x\" | .api.sample_id = \"acmetracker:acme/webapp#12\"")")"
+# shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED — an
+# expanded $(id) would test the guard against this shell's output instead of against
+# the command-substitution syntax, which is the whole point of the case.
+assert_eq "sample_scope with command substitution → exit 3" "3" \
+  "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/webapp\"; $(id); echo \"x" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
+assert_eq "sample_scope with a newline → exit 3" "3" \
+  "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/webapp\nid" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
+# shellcheck disable=SC2016  # same reason: the backticks are the payload under test
+# and must arrive at the generator as literal text.
+assert_eq "sample_scope with a backtick → exit 3" "3" \
+  "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/`id`" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
+assert_eq "sample_scope with a single quote → exit 3" "3" \
+  "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/web'\''x" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
+# …and the guard must not be tighter than the shapes the bundled providers actually
+# use: gitea/github `owner/repo`, linear `<workspace>/<TEAMKEY>`, jira bare project key.
+assert_eq "an owner/repo sample_scope still generates" "0" \
+  "$(gen "$(with '.api.sample_scope = "acme/webapp"')")"
+assert_eq "a linear-shaped sample_scope still generates" "0" \
+  "$(gen "$(with '.api.scope_pattern = "^[a-z0-9][a-z0-9-]*/[A-Z][A-Z0-9]*$" | .api.sample_scope = "acme/ENG"')")"
+assert_eq "a bare project-key sample_scope still generates" "0" \
+  "$(gen "$(with '.api.scope_pattern = "^[A-Za-z][A-Za-z0-9_]*$" | .api.sample_scope = "SW2"')")"
+assert_eq "a dotted sample_scope still generates" "0" \
+  "$(gen "$(with '.api.sample_scope = "acme.co/web_app-2"')")"
+scope_err="$(gen_err "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/web\"x" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
+assert_contains "the sample_scope refusal names the executing context" "$scope_err" "would execute"
+
 assert_eq "sample_host not a bare hostname → exit 3" "3" \
   "$(gen "$(with '.api.sample_host = "https://x.acme.example"')")"
 assert_eq "sample_host outside host_suffix → exit 3" "3" \
