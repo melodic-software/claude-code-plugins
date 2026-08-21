@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.3]
+
+### Changed
+
+- **The pipeline hand-offs name the Skill tool (#3002).** These were the two offenders the sweep
+  issue named. `map-corpus`: the resource-seeds-only route, the queue hand-off to N
+  `/knowledge:docpage-digest` runs, and the `mapper-handoff.md` hand-off to `/planning:interview`.
+  `docpage-digest`: the Phase 5 interview hand-off. `course-digest`: the two freshness-verification
+  steps (`/discovery:explore`, `/discovery:research`). `video-digest`: the optional agent-lane
+  `/x:read` reply-chain harvest, in `SKILL.md` and `reference/sources/x.md`. `video-digest`'s
+  "offer `/planning:interview`" phase line and the `templates/recommendations/` files are
+  deliberately unchanged — they *offer* to the operator rather than invoking, which the pipeline's
+  no-auto-implement rule requires. Wording only; queue contracts and phase order unchanged.
+
 ## [0.13.2]
 
 ### Added

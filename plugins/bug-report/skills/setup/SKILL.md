@@ -48,6 +48,6 @@ rerun observes the new rendered value.
 
 ## Boundaries
 
-- Do not produce or file a bug report; use `/bug-report:write`.
+- Do not produce or file a bug report; invoke `/bug-report:write` via the Skill tool.
 - Do not write Claude Code settings.
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

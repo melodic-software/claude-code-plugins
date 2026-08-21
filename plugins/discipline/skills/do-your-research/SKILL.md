@@ -108,8 +108,8 @@ the suspected source of bias, re-derive in a fresh-context subagent.
 
 When your own judgement is the suspected source of bias across MANY
 load-bearing claims — not just the current one — or a request to
-"fact-check" the whole session wants provable coverage, escalate to the
-sibling `/discipline:do-your-research-deep`. It enumerates a typed full
+"fact-check" the whole session wants provable coverage, escalate by invoking
+the sibling `/discipline:do-your-research-deep` via the Skill tool. It enumerates a typed full
 inventory of the session's claims and verifies each — at a configurable
 depth — reporting a per-item ledger; that fan-out is a heavier execution
 tier, so it lives in its own skill rather than as an argument here.

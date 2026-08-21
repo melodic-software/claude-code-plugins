@@ -30,7 +30,7 @@ The shared throwaway rules, the auto-invoke gate, and how to capture the answer 
 [`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md) — read it before you
 start. This file covers only the UI facet.
 
-If the question is about logic/state rather than appearance — wrong facet. Use `/prototype:pressure-test`.
+If the question is about logic/state rather than appearance — wrong facet. Invoke `/prototype:pressure-test` via the Skill tool.
 
 ## When this is the right shape
 

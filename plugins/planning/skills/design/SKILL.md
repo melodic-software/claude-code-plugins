@@ -25,7 +25,7 @@ This is the step between research and planning: exploration maps existing code, 
 
 The depth of design exploration scales to the work:
 
-- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason — then proceed to `/planning:plan`
+- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason — then proceed by invoking `/planning:plan` via the Skill tool
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
@@ -108,7 +108,7 @@ Derive types from capabilities:
 - Contracts: interfaces with method signatures
 - Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions) — read its rules before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:curate-language` (if that plugin is installed) the moment a
+- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed) the moment a
   domain term resolves so the active glossary owner applies the consumer's existing format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts directly
@@ -139,7 +139,7 @@ Systematic gap-finding. For each round:
 3. Present findings to user for discussion
 4. When discussion surfaces project-wide principles, suggest codifying them immediately in the project's own rules
 
-Continue rounds until no new gaps surface — then run the `handoff` action to delegate to `/planning:design-handoff` for the binary gate and plan-ready summary.
+Continue rounds until no new gaps surface — then run the `handoff` action, which invokes `/planning:design-handoff` via the Skill tool for the binary gate and plan-ready summary.
 
 ## Terminology pass (`terminology` action)
 
@@ -149,13 +149,13 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:curate-language` (if installed) to sync resolved terms and
+5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if installed) to sync resolved terms and
    rejected synonyms into the consuming project's active glossary; the terminology table above is
    the standalone fallback
 
 ## Handoff gate (`handoff` action)
 
-The in-session shortcut to the design→plan gate. Delegate to `/planning:design-handoff` — the single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
+The in-session shortcut to the design→plan gate. Invoke `/planning:design-handoff` via the Skill tool — the single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
 
 ## Scope-specific artifacts
 

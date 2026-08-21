@@ -3,6 +3,23 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- **`teach`: the whole research-grounding ladder names the Skill tool (#3002).** Tier 1's
+  `/discovery:research` and its `/context7:lookup` / `/firecrawl:firecrawl` fallback rungs, tier 2's
+  `/discovery:research-deep`, tier 3's `/knowledge:map-corpus`, and the adjacent intake/sources
+  line (`/discovery:blindspot`, `/dometrain:grounding`, `/x:read`) now all say "via the Skill
+  tool" — applying the rule to one rung of a ladder and not the rest was the defect. Tier 1 also
+  lost a mid-sentence lowercase "invoke" left by the first pass. `context/lessons.md`'s visual-design
+  delegation to `/frontend-design:frontend-design` carries the phrasing too: the rubric's
+  `disable-model-invocation: true` exemption is keyed on the TARGET, and `teach` being `true`
+  itself says nothing about what it may reach.
+  Wording only — the tier order, presence gates, and the terminal WebSearch rung are unchanged.
+  `education:setup` references are left as prose: it is `disable-model-invocation: true`, so the
+  rubric's invocation-reach invariant keeps it human-only.
+
 ## [0.8.0]
 
 ### Added

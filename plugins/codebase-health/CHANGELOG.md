@@ -3,6 +3,21 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- **`audit`: the config-lane route names the Skill tool (#3002).** The Claude Code config
+  route-out (`/claude-config:audit`, `/claude-config:audit-automation-gaps`) says so inline.
+  Wording only; presence gates and fallbacks unchanged.
+
+  The remediation preamble is deliberately **not** rewritten: the `--fix` paragraph below it
+  requires "an explicit user-directed suggestion" and states "Do NOT auto-invoke either skill —
+  the user drives both", so phrasing that route as a Skill-tool invocation would contradict the
+  gate four lines down and could launch the source-editing lane from a read-only audit. It stays
+  a recommendation to the user — a mention under the rubric's own carve-out, not an operative
+  chain.
+
 ## [0.8.0]
 
 ### Removed

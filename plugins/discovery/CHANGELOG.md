@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.16.1]
+## [0.16.2]
 
 ### Fixed
 
@@ -34,6 +34,17 @@
   the divergence `discipline:reuse-or-replace` exists to catch, and the relative form is the one
   that breaks first — it resolves from the file's own location rather than from the installed
   plugin root. Brought into line with its siblings.
+
+## [0.16.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `blindspot`'s `EXPLORE.md` hand-off and its
+  deeper-research route; `research`'s route to the multi-topic sibling; `research-deep`'s tier-3
+  inline row and its inline-tier section; `trace-intent`'s delegation of repo-local git
+  archaeology to `/discovery:explore git` and its follow-up routing through `/work-items:track`.
+  `blindspot`'s step-4 escalation is deliberately left as prose — it produces a *recommendation*
+  to the user, not an invocation. Wording only; tier semantics and dispatch behavior unchanged.
 
 ## [0.16.0]
 

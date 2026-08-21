@@ -77,7 +77,7 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 
 ## Test Strategy
 
-> **Invoke `/tdd:principles` (if installed) when writing this section** — it provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Which test type each changed file needs (unit / integration / e2e / architecture / analyzer) is classified by `/testing:plan`'s test-type table when the `testing` plugin is installed — cite it rather than restating; otherwise apply standard test-design judgment. Test-first (Red-Green-Refactor) is the default — specify test-after only when genuinely impractical.
+> **Invoke `/tdd:principles` via the Skill tool (if installed) when writing this section** — it provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Which test type each changed file needs (unit / integration / e2e / architecture / analyzer) is classified by `/testing:plan`'s test-type table when the `testing` plugin is installed — cite it rather than restating; otherwise apply standard test-design judgment. Test-first (Red-Green-Refactor) is the default — specify test-after only when genuinely impractical.
 
 - <How to verify the changes work — specific test types, not just "write tests">
 - <Test boundaries: the public interfaces the tests drive, each marked existing or newly introduced — approval of this plan settles them, and a boundary implementation picks that is not named here is a deviation>

@@ -45,7 +45,8 @@ The rung partition below is where its widening rule does the work.
 The single-pass mechanics belong to `/source-control:babysit-prs`: the tier matrix, scope
 resolution, the guarded mutation wrappers and deterministic gates, fan-out and the worker contract,
 review discipline, and the cross-tier safety invariants. Each cycle **invokes**
-`/source-control:babysit-prs <tier> <owner/repo>` with the resolved tier and scope; this loop
+`/source-control:babysit-prs <tier> <owner/repo>` via the Skill tool with the resolved tier and
+scope; this loop
 restates none of that. Two disciplines in particular are babysit-prs's own, held here by citation:
 the head-move yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded mutations" and
 its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the foreign-activity

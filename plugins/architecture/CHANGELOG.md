@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.1]
+## [0.6.2]
 
 ### Fixed
 
@@ -24,6 +24,16 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   pinned in three places"; the eval pins it in two — the `expected_output` line and the
   subagent-brief expectation. Corrected in place under the changelog contract's sanctioned form for
   released bodies: the heading is untouched, and the edit is named here and in the PR body.
+
+## [0.6.1]
+
+### Changed
+
+- **`improve`: the glossary hand-offs name the Skill tool (#3002).** Both
+  `/domain-driven-design:curate-language` invocations — the interview-loop table row and the
+  deepening action's "new concept or sharpened term" step — now say "via the Skill tool". Wording
+  only; presence gates and fallbacks unchanged. Follows the invocation-mode rubric's cross-skill
+  phrasing rule, now unconditional after the fleet sweep.
 
 ## [0.6.0]
 

@@ -61,6 +61,8 @@ maxims:
 
 ## Delegations — axes this skill routes elsewhere
 
+Each axis below is routed by invoking the named skill via the Skill tool.
+
 - **Quality (truthfulness, evidence) → `/discipline:do-your-research`.** The
   Gricean Quality maxim — say what you have grounds for — is that skill's
   discipline, not this one's. A claim's truth routes there; this skill owns

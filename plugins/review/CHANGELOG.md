@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.1]
+## [0.26.2]
 
 ### Fixed
 
@@ -17,6 +17,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   arm its entire operating doctrine as standing session instructions for the rest of the run, where
   a chapter name reads only that chapter. A cite that reaches for one formula must not re-posture
   the session that follows it. The presence gate and the stands-on-its-own fallback are unchanged.
+
+## [0.26.1]
+
+### Changed
+
+- **`quality-gate`: the PR-review-toolkit composition names the Skill tool (#3002).** In
+  `context/code.md`, the presence-gated `/pr-review-toolkit:review-pr` invocation now says "via
+  the Skill tool". Wording only; the aspect detection and the gate are unchanged.
 
 ## [0.26.0]
 

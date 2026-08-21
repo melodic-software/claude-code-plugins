@@ -187,6 +187,10 @@ and decide its value against the
 — it owns the model-invoked default, the only three exception classes a `true` may claim, and the
 when-to-split-by-invocation question. `skill-quality:check` enforces the explicit key.
 
+**Phrasing a chain to another skill**: the same rubric (§ Cross-skill invocation phrasing) owns the
+wording an operative handoff uses — name the Skill tool, never bare `/name` prose. It is
+author-enforced, not lint-enforced; the rubric records why.
+
 ---
 
 Source: [@trq212's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378)

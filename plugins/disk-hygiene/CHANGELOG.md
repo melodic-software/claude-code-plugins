@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.18]
+
+### Changed
+
+- **`clean`: both single-repository routes name the Skill tool (#3002).** "Use
+  `/repo-hygiene:clean`" became "Invoke `/repo-hygiene:clean` via the Skill tool", and the
+  worktree-checkout bullet's "hand off to `/source-control:worktree status`/`cleanup`" became
+  "hand off by invoking … via the Skill tool" (that target is `disable-model-invocation: false`,
+  so the invocation-reach invariant permits it). Wording only —
+  the scope boundary is unchanged. Follows the invocation-mode rubric's cross-skill phrasing rule,
+  now unconditional after the fleet sweep.
+
 ## [0.20.17]
 
 ### Fixed

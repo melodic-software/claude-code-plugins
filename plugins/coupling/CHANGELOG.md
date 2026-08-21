@@ -3,6 +3,18 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Changed
+
+- **`reduce`: the hand-off table and its two prose chains name the Skill tool (#3002).** The
+  `When | Then` table gains a one-line preamble stating that every skill in the `Then` column is
+  invoked via the Skill tool; the PR step (`/source-control:pull-request create`) and the
+  design-exploration hand-off (`/architecture:improve`) say so inline, as does the route-lane
+  filing arm (`/work-items:track add`) in the same sentence as that hand-off — the table's
+  preamble does not reach it, since it is prose outside the table. Wording only; presence
+  gates and fallbacks unchanged.
+
 ## [0.1.0]
 
 ### Added

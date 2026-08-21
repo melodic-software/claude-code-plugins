@@ -204,6 +204,31 @@ have jq || {
   exit 4
 }
 
+# Defined here, ahead of the live-source probe below, which is this script's
+# FIRST caller — a definition further down would make that call a runtime
+# `command not found`.
+fetch_repo_label_names() {
+  local raw=""
+  if [[ -n "$REPO_LABELS_JSON" ]]; then
+    jq -e 'type == "array"' "$REPO_LABELS_JSON" >/dev/null 2>&1 || return 1
+    raw="$(jq -r '.[] | if type == "string" then . else .name end' "$REPO_LABELS_JSON" 2>/dev/null)" || return 1
+  elif [[ -n "$REPO" ]]; then
+    raw="$(gh label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' 2>/dev/null | tr -d '\r')" || return 1
+  else
+    return 1
+  fi
+  jq -R -s '
+    split("\n")
+    | map(select(length > 0))
+    | unique
+  ' <<<"$raw"
+}
+
+label_exists_in_repo() {
+  local label="$1" names="$2"
+  jq -e --arg l "$label" 'index($l) != null' <<<"$names" >/dev/null 2>&1
+}
+
 # gh is only needed for live sources; a fully fixtured run (tests) must not
 # require it. Demand it only when at least one section will hit the network.
 NEEDS_LIVE_COUNTS=0
@@ -334,28 +359,6 @@ resolve_decision_label() {
   DECISION_LABEL="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
 }
 
-fetch_repo_label_names() {
-  local raw=""
-  if [[ -n "$REPO_LABELS_JSON" ]]; then
-    jq -e 'type == "array"' "$REPO_LABELS_JSON" >/dev/null 2>&1 || return 1
-    raw="$(jq -r '.[] | if type == "string" then . else .name end' "$REPO_LABELS_JSON" 2>/dev/null)" || return 1
-  elif [[ -n "$REPO" ]]; then
-    raw="$(gh label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' 2>/dev/null | tr -d '\r')" || return 1
-  else
-    return 1
-  fi
-  jq -R -s '
-    split("\n")
-    | map(select(length > 0))
-    | unique
-  ' <<<"$raw"
-}
-
-label_exists_in_repo() {
-  local label="$1" names="$2"
-  jq -e --arg l "$label" 'index($l) != null' <<<"$names" >/dev/null 2>&1
-}
-
 resolve_queue_labels
 resolve_decision_label
 
@@ -368,7 +371,7 @@ print_queues() {
   if [[ -n "$COUNTS_JSON" ]]; then
     counts="$(cat "$COUNTS_JSON")"
   fi
-  if [[ -n "$REPO_LABELS_JSON" || ( -z "$counts" && -n "$REPO" ) ]]; then
+  if [[ -n "$REPO_LABELS_JSON" || (-z "$counts" && -n "$REPO") ]]; then
     if repo_labels="$(fetch_repo_label_names)"; then
       labels_available=1
     fi
@@ -442,7 +445,7 @@ print_merge_ready() {
 print_decisions() {
   echo "== Parked decisions (${DECISION_LABEL}) with RECOMMENDED lines =="
   local decisions repo_labels="" labels_available=0
-  if [[ -z "$DECISIONS_JSON" && ( -n "$REPO" || -n "$REPO_LABELS_JSON" ) ]]; then
+  if [[ -z "$DECISIONS_JSON" && (-n "$REPO" || -n "$REPO_LABELS_JSON") ]]; then
     if repo_labels="$(fetch_repo_label_names)"; then
       labels_available=1
     fi

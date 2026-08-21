@@ -15,9 +15,9 @@ A tag does NOT license deciding. Each `[EXEC-SHAPE]` / `[FALLBACK]` candidate pa
 - **DECIDE (and surface)** only when the basis is evidence captured this session — a codebase pattern read, a research finding, or a directly-on-point project convention — AND no reasonable alternative survives that evidence.
 - **INTERVIEW** everything below that bar: queue it and run an interview round — every queued question whose prerequisites are settled asked as one numbered set, each with recommendation + basis — BEFORE the plan body locks. Render the round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise. Judgment calls, sizing guesses, taste-based placement, and "either would work" choices are below the bar by definition.
 
-**Reversibility ceiling on discretion:** a decision that is risky or hard to reverse later (new public contract, irreversible deletion, architecture-shaping placement, dependency adoption) does NOT qualify for deciding regardless of confidence — escalate to `/planning:interview me` (relentless mode) EARLY, before dependent plan work is authored, leading with the best-practice long-term default (never a hack or workaround). Tags cover only decisions cheap to change after the fact.
+**Reversibility ceiling on discretion:** a decision that is risky or hard to reverse later (new public contract, irreversible deletion, architecture-shaping placement, dependency adoption) does NOT qualify for deciding regardless of confidence — escalate by invoking `/planning:interview me` (relentless mode) via the Skill tool EARLY, before dependent plan work is authored, leading with the best-practice long-term default (never a hack or workaround). Tags cover only decisions cheap to change after the fact.
 
-**Complex/contested clusters** (3+ interacting decisions, or any the user pushed back on before) route to `/planning:devils-advocate` before presenting.
+**Complex/contested clusters** (3+ interacting decisions, or any the user pushed back on before) route to `/planning:devils-advocate`, invoked via the Skill tool, before presenting.
 
 ## Presentation contract (Step 5)
 

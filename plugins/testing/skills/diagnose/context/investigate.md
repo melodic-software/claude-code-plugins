@@ -16,7 +16,7 @@ When tests fail, investigate — never dismiss, never retry blindly. Activates w
    | "Unknown option" from test runner | Bad CLI flags (e.g. `--nologo` against xUnit v3 MTP) | Strip the offending flag; confirm the runner version the project uses |
    | Timeout / hung test | Async deadlock, missing cancellation | Check for sync-over-async (`.Result` / `.Wait()`) |
    | Intermittent pass/fail | Shared static state, race condition | Check for process-global singletons, parallel execution |
-   | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build via `/toolchain:check` first; verify project references |
+   | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build by invoking `/toolchain:check` via the Skill tool first; verify project references |
 
 3. **Reproduce deterministically** — run the failing test in isolation. Use the ecosystem's per-framework filter syntax (e.g. `--filter "FullyQualifiedName~TestClassName.TestMethodName"` for xUnit; `-k <pattern>` for pytest; `--testNamePattern` for vitest).
 
@@ -49,7 +49,7 @@ Most test runners parallelize across test classes / assemblies / modules. Proces
 
 - If root cause found: proceed to the loop phase ([loop.md](loop.md)) for the fix cycle
 - If root cause is in test infrastructure: fix the test, not the production code
-- If root cause is a genuine bug: document it, then fix via `/implementation:implement fix`
+- If root cause is a genuine bug: document it, then fix by invoking `/implementation:implement fix` via the Skill tool
 - If intermittent and not reproducible: document the mechanism with root cause analysis. Never close as "cannot reproduce"
 
 ## Marketplace plugin skills (invoke only when installed)

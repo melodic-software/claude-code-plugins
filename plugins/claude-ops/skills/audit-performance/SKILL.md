@@ -94,7 +94,7 @@ subsystem).
 
 - **Do not convert this audit into a cleanup.** The single most tempting wrong move is "the tree
   is big, delete it." Big is not the finding — *unswept* is. A healthy sweep bounds the tree by
-  itself; route a paused sweep to `/claude-config:audit` (settings fix) and tell the user to run
+  itself; route a paused sweep to `/claude-config:audit` (settings fix), invoked via the Skill tool, and tell the user to run
   `/disk-hygiene:clean` for unmanaged leftovers.
 - **A number alone never convicts.** 100k files with `walk_seconds: 4` on an excluded NVMe volume
   is healthy; 20k files with `walk_seconds: 90` behind a scanning filter driver is the problem.

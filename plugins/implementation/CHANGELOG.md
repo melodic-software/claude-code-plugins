@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.1]
+## [0.15.2]
 
 ### Fixed
 
@@ -14,6 +14,31 @@ All notable changes to the `implementation` plugin are documented here. Format f
   release note already told a changelog reader the rule cited. The wording deliberately echoes
   theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognises the
   other.
+
+## [0.15.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `implement`'s Karpathy pre-execution
+  checklist, its scope-creep and major-divergence replan routes, its research escalation, the
+  pre-PR sequence read (`/session-flow:workflow pre-pr`), the config/docs verification note, and
+  all four rows of its handoff table — the mid-implementation research row and the pre-PR-sequence
+  row were left bare beside two rewritten siblings; `implement-dispatch`'s main-side build/test in
+  both the cadence step and the integration table, the worker's worktree provisioning
+  (`/source-control:worktree`), and the inline-routed hand-back.
+  Wording only — routing thresholds, gates, and step order unchanged.
+
+- **`implement-dispatch`: citations to `/implementation:implement`'s NAMED STEPS stay citations
+  (#3002).** The first pass rewrote "run the `/implementation:implement` 'Step 1: Prerequisite
+  Check' preflight" into "invoke `/implementation:implement` via the Skill tool and run its
+  'Step 1…'", and did the same to the Step 3 divergence ladder, the Step 4 phase-boundary ritual,
+  and two integration-table rows. Those are different actions: the text says to APPLY another
+  skill's enumerated checklist here, not to hand control to it — and handing control to it is a
+  re-entry hazard, since `/implementation:implement`'s Step 0 detects worker routing and chains
+  straight back into this skill. All five sites are back to the citation form, and the
+  Prerequisites paragraph now says outright that the criteria are enumerated in place and names
+  the loop it would otherwise create. Genuine whole-skill hand-backs (the inline-routed cadence
+  hand-back, and "All phases complete" → Step 5) keep the invocation phrasing.
 
 ## [0.15.0]
 

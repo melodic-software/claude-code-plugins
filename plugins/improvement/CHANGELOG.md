@@ -3,6 +3,17 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Changed
+
+- **`find`: the pipeline hand-offs name the Skill tool (#3002).** The interview-on-the-pick step,
+  the explore/research/plan hand-off, and the execution-request pipeline sentence now say the
+  named skills are invoked via the Skill tool. The remainder-filing line keeps its
+  recommend-to-the-human shape ("the user decides which, if any") and only regains the leading
+  slash its siblings all carry: `work-items:track` → `/work-items:track`. Wording only — this
+  skill still performs no code edits in any mode, and the presence gates are unchanged.
+
 ## [0.1.1]
 
 ### Fixed
