@@ -321,16 +321,19 @@ jobs:
   # job SMALL: GuardTests only, not the full hygiene suite.
   #
   # #2871: the full module (`python -m unittest -v test_hygiene`) is the
-  # required gate, and it lives on `disk-hygiene-tests` (Linux). It is not
-  # invoked here because two tests fail on windows-2025 (315/317, 9.96s):
+  # required non-skippable gate, and it lives on `disk-hygiene-tests`
+  # (Linux). It is not invoked here because two tests fail on windows-2025
+  # (315/317, 9.96s on run 32477560257):
   #   - HygieneTests.test_preview_allows_root_children_os_managed_snapshot
   #     expects ready-for-explicit-approval; Windows returns blocked
   #   - HandoffVerifyTests.test_stash_must_exist_in_an_independent_checkout
   #     compares path strings; 8.3 `RUNNER~1` != long `runneradmin`
   # Those two are already green on Linux. Do not silently omit a class here
   # without this comment; the other nine classes gate on disk-hygiene-tests.
-  # plugins/**/*.test.sh can SKIP the wrapper when Python is absent, so it
-  # is not that guarantee either.
+  # plugin-gate also reaches the module via hygiene.test.sh when Python is
+  # present, but that wrapper SKIPs (exit 0) when Python is absent or below
+  # MIN_PYTHON, and plugin-gate is docs-only gated — so it is not this
+  # guarantee.
   disk-hygiene-guard-windows:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -350,12 +353,16 @@ jobs:
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
 
-  # #2871: every TestCase class in test_hygiene.py must gate. The Windows
-  # job above stays GuardTests-only (NT allowlist + two Windows failures
-  # named there). This lane provisions Python 3.14 and runs the whole
-  # module, so it cannot take hygiene.test.sh's SKIP-when-Python-absent
-  # path. Suite is not host-destructive (tempdir fixtures; no live
-  # drive-root scans). Measured 317 tests OK on Linux.
+  # #2871: every TestCase class in test_hygiene.py must gate on a lane
+  # that cannot skip. plugin-gate already runs hygiene.test.sh (the whole
+  # module) when it installs Python, but that wrapper SKIPs exit 0 if
+  # Python is absent or below MIN_PYTHON, and plugin-gate short-circuits
+  # on a docs-only diff. This job always sets up Python 3.14 and always
+  # runs `python -m unittest -v test_hygiene` — the dedicated required
+  # signal, not a second copy of plugin-gate. The Windows job above stays
+  # GuardTests-only (NT allowlist + two Windows failures named there).
+  # Suite is not host-destructive (tempdir fixtures; no live drive-root
+  # scans). Measured 317 tests OK on Linux.
   disk-hygiene-tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
