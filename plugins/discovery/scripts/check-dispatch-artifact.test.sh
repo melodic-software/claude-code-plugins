@@ -8,11 +8,12 @@
 # never read as "usable" — that reading is the whole failure this gate exists to
 # refuse, because the caller's next move on a pass is to proceed to planning.
 #
-# The shape suite runs TWICE, once per artifact family, because the gate serves
-# both `/discovery:explore` and `/discovery:research` and the only difference
-# between them is `--index-name`. Running it for EXPLORE.md alone would let a
-# RESEARCH.md regression through on the strength of an explore-shaped pass,
-# which is the same class of false evidence the gate itself refuses.
+# The shape suite runs ONCE PER ARTIFACT FAMILY, because the gate serves
+# `/discovery:explore`, `/discovery:research` and `/discovery:trace-intent` and
+# the only difference between them is `--index-name`. Running it for EXPLORE.md
+# alone would let a RESEARCH.md or INTENT.md regression through on the strength
+# of an explore-shaped pass, which is the same class of false evidence the gate
+# itself refuses.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -119,7 +120,7 @@ sidecar() {
 }
 
 # ============================================================================
-# The shape suite — identical for both families, run once per family.
+# The shape suite — identical for every family, run once per family.
 # ============================================================================
 suite() {
   INDEX_NAME="$1"
@@ -355,6 +356,7 @@ suite() {
 
 suite EXPLORE.md
 suite RESEARCH.md
+suite INTENT.md
 
 # ============================================================================
 # --index-name itself — the one parameter the two families differ by.

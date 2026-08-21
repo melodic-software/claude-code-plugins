@@ -129,6 +129,19 @@ No tests needed for:
 - One-liner delegation methods
 - Configuration wiring tested end-to-end through the repo's E2E orchestrator
 
+The list above is about code that needs no test. A second, different question is whether a test
+worth having is worth *this* test — and the answer is sometimes no even for code that does need
+covering. **Prefer no new test to a bad one**, when the only available test would need broad harness
+setup, brittle mocks, slow end-to-end infrastructure, production-only state, a reproduction nobody
+can state precisely, or large unrelated fixture churn. A test that mostly exercises its own mocks,
+encodes today's implementation, or would be deleted the moment it has proved its point costs more to
+maintain than the confidence it buys.
+
+Declining is not skipping. Say which of those made the test impractical, then name the closest
+executable check you used instead — a targeted script, a reproduction command, a snapshot
+comparison, a log assertion, a focused integration check. A decline with a named substitute is a
+decision; a decline with silence is a gap nobody can see.
+
 ## Commit discipline
 
 - **Failing test committed** (optional but valuable) — proves the bug/requirement exists in git history

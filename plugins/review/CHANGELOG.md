@@ -3,6 +3,56 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Added
+
+- **`downstream` mode — what a change breaks outside its own diff.** The review lane was entirely
+  diff-scoped: `architecture-guardian` maps which layer each *changed* file belongs to and never
+  enumerates consumers of a changed contract, `code-reviewer` and `doc-drift-detector` carry no
+  caller or ripple item at all, `fanout` fans across surfaces all diffing the same merge-base,
+  `verification:confirm` matches requirements to implementation (inward), and
+  `mutation-testing:audit` is `git diff`-scoped by construction. `planning:devils-advocate` has a
+  literal blast-radius round but reviews plans, not code, before implementation. This mode is the
+  outward-looking lens none of them provide.
+
+  Like `self`, the mode **dispatches rather than judging inline**, and for a sharper reason: the
+  thread that wrote the change is the worst judge of what the change reaches, because its model of
+  "what this touches" is the one it already held while writing — an inline pass re-derives the
+  author's own blast-radius assumption and then confirms it. The mode ships a dispatch policy, an
+  orchestrator sequence, and a worker brief, with the same presence-gated cross-vendor preference and
+  named same-vendor fallback every other delegating surface in this fleet uses. It takes a general
+  read-only subagent rather than a dedicated agent, and says why: its checks are not a fixed
+  per-ecosystem baseline like `architecture`'s or `security`'s but a search shaped by what the diff
+  changed, so the brief carries the specifics. Every finding is verified against the tree before it
+  is presented — this is the one mode whose findings name files the diff never touched, so an
+  unverified one sends a reviewer to the wrong place.
+
+  Reauthored from the `blast-radius` skill in `cursor/plugins` (MIT); provenance and the
+  substantial rejections are recorded in `docs/upstream/cursor-pstack.md`.
+
+  It **adds no grading scale**. Findings carry the existing severity and confidence axes unchanged,
+  and an unverifiable claim is marked in words rather than on a new ladder — the fleet already ships
+  eight evidence ladders, and a ninth would be the silent second way `discipline:reuse-or-replace`
+  exists to catch. `context/severity.md` is deliberately untouched: its own Vocabulary section
+  closes "axis" at severity and confidence, and `context/spec.md` already answered this same
+  question the same way.
+
+  The load-bearing rule is that **an unverified safety fact cannot clear a concern** — it stays in
+  the confirmed-risk list carrying the reason it is unverified. An unchecked assumption sorted into
+  the reassuring column is worse than one nobody looked at, because it now reads as checked.
+
+  Because this skill does not run builds or tests, the deliverable "the cheapest test that would
+  catch this" is a presence-gated handoff to `/testing:write` and `/mutation-testing:audit` rather
+  than an assertion — stronger than the upstream it came from, since the mutant is re-run and the
+  agent that wrote the test does not grade itself into a pass.
+
+  The description carries the "blast radius" trigger phrases deliberately: trigger phrases are
+  behavior, and leaving the noun unclaimed routes it to `/planning:plan`, which advertises
+  "blast-radius assessment" and operates a stage earlier. Negative routing is stated against that
+  skill, against `/planning:devils-advocate`, and against
+  `/docs-hygiene:rename-references audit blast`.
+
 ## [0.24.0]
 
 ### Added

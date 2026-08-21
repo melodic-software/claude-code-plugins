@@ -1,5 +1,50 @@
 # Changelog — docs-hygiene plugin
 
+## [0.18.0]
+
+### Added
+
+- **`write-for-humans` — the write-side doctrine for prose a person reads.** Adapted from an
+  upstream cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `technical-writing` row).
+  This closes a hole the plugin declared twice about itself: `write-for-agents` excludes
+  human-facing docs in both its description and its "What this skill does NOT do", and nothing
+  else in the marketplace claimed end-user READMEs, RFCs, release notes, or guides. Two of the
+  four layers it carries — Google developer documentation style and Global English — had zero
+  presence anywhere in the fleet; Diátaxis appeared three times and was never applied to pick a
+  document's mode.
+
+  **The skill resolves the consuming project's own style guide before it applies anything
+  bundled.** This is the design decision the port turns on, and it came out of an adversarial
+  audit of the plan. `PLUGIN-PHILOSOPHY.md:198-202` admits a shipped default "only when it is a
+  good-practice value that cannot conflict in *any* repo the plugin drops into" — and the draft
+  plan contained its own disproof, in the form of a decision to delete two Global English rules
+  because they already conflicted with this repository's measured em-dash ruling. A standard that
+  must be pre-edited to stop fighting its home repo is not that class of value. So the four
+  standards ship as a **named, replaceable default set** applied only when the project declares
+  nothing, with the fallback stated out loud so a project can overrule it later. The punctuation
+  rules stay in the set, where a consumer's own guide disables them, rather than being deleted for
+  every consumer because one repository disagreed.
+
+  Ships the Diátaxis mode picker with the don't-mix rule; three always-rules; a rhythm section
+  aimed at prose that obeys every rule and still reads machine-written; one
+  `reference/sentence-rules.md` spoke carrying the address, load, and ambiguity layers together
+  (they apply to every sentence at once, so splitting them by standard would force three opens per
+  sentence — the sibling's own co-location doctrine); `reference/sources.md` with a four-part drift
+  stamp per standard, including the caveat that the ASD-STE100 layer is a principles subset and a
+  document written to it is not thereby STE-conformant; a fully generic worked example carrying no
+  path or symbol from any real repository; a Gotchas surface; and a seven-item self-check with an
+  explicit done-condition. Six evals cover guide resolution, visible fallback, mode-mixing,
+  the overruled-punctuation case, surface declines, and the write-time-only posture.
+
+### Changed
+
+- **`write-for-agents` now routes to its new sibling in both directions.** Its description and its
+  "does NOT do" entry previously ended the human-facing exclusion without naming an owner; both now
+  point at `write-for-humans`. One-directional routing is what the invocation-mode convention's own
+  collision precedent forbids, so the new skill routes back. Every existing trigger phrase is
+  preserved verbatim and guarded by the skill-quality trigger-continuity check; description and
+  one bullet only, no behavior change.
+
 ## [0.17.2]
 
 ### Fixed

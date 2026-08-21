@@ -1,0 +1,75 @@
+{
+  "skill_name": "write-for-humans",
+  "evals": [
+    {
+      "id": 1,
+      "name": "resolves-the-project-guide-before-the-bundled-set",
+      "prompt": "Write the README for this library. Our CONTRIBUTING.md says all docs follow the Microsoft Writing Style Guide.",
+      "expected_output": "The skill resolves the project's declared standard FIRST, applies the Microsoft guide rather than the bundled default set, and says in one line which standard it resolved. It does not apply Google developer style, ASD-STE100, or Global English over the top of a declared guide.",
+      "files": [],
+      "expectations": [
+        "Applies the project's declared style guide (Microsoft) rather than the bundled default layers",
+        "States in one line which standard was resolved, before writing",
+        "Does NOT silently impose Google developer style, ASD-STE100, or Global English on a project that declared a different guide"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "falls-back-visibly-when-no-guide-is-declared",
+      "prompt": "Write the release notes for version 2.0.",
+      "expected_output": "The skill looks for a declared standard (STYLE.md, contributing guide, docs README, prose-linter config), finds none, applies the bundled default set, and SAYS that it fell back — so the choice is visible and the project can overrule it later.",
+      "files": [],
+      "expectations": [
+        "Looks for a declared standard in more places than a root STYLE.md — contributor guides, docs READMEs, and prose-linter configs all count",
+        "Applies the bundled default set only after the search comes back empty",
+        "States that the bundled set was used as a fallback, rather than applying it silently"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "picks-one-diataxis-mode-and-does-not-mix",
+      "prompt": "Write a guide for our auth library that teaches a newcomer how it works, walks them through their first integration, and also lists every configuration option.",
+      "expected_output": "The skill names the mode conflict rather than producing one mixed document: a first integration is a tutorial, understanding-how-it-works is explanation, and the option list is reference. It splits and links instead of embedding a reference table inside a tutorial.",
+      "files": [],
+      "expectations": [
+        "Identifies that the request spans more than one Diátaxis mode (tutorial, explanation, reference)",
+        "Splits into separate documents and links them, rather than producing one document mixing modes",
+        "Does NOT place a full configuration reference table inside the tutorial"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "keeps-the-punctuation-rules-available-not-deleted",
+      "prompt": "/docs-hygiene:write-for-humans — our team uses em dashes on purpose and we have said so in our style guide. Draft the migration guide.",
+      "expected_output": "A project style guide is declared, so it is authoritative and the bundled default set is not reached at all — including its periods-over-semicolons and em-dash-replacement rules. Those rules stay documented in the skill for projects that have declared nothing; the project's ruling overrides them rather than deleting them.",
+      "files": [],
+      "expectations": [
+        "Resolves the project's own style guide and applies it, saying in one line which standard it resolved",
+        "Does NOT apply the bundled em-dash or semicolon rules — a declared project standard means the fallback set is not reached",
+        "Treats the punctuation pair as consumer-overridable rather than as a rule to delete from the skill: it stays documented for projects that have declared nothing"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "declines-the-agent-facing-and-commit-surfaces",
+      "prompt": "Write a new section for our CLAUDE.md explaining our deployment conventions, then write the commit message for it.",
+      "expected_output": "The skill routes the CLAUDE.md work to docs-hygiene:write-for-agents rather than handling it, and does not claim the commit message: its shape belongs to source-control:commit's subject-convention ladder, and the markdown-prose regime already excludes commit messages.",
+      "files": [],
+      "expectations": [
+        "Routes the CLAUDE.md section to docs-hygiene:write-for-agents instead of writing it under this skill's doctrine",
+        "Does NOT apply its layers to the commit message, and names source-control as the owner of commit-message shape"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "write-time-only-does-not-become-an-audit",
+      "prompt": "/docs-hygiene:write-for-humans — I just finished writing the migration guide. Now go through every documentation file we already have and grade each one against these layers.",
+      "expected_output": "The skill declines to run a directory-wide audit. It fires at the writing moment; grading existing prose routes to the docs-hygiene audit siblings for structure and derivability, and to ai-slop:audit for AI-writing tells.",
+      "files": [],
+      "expectations": [
+        "Declines to perform a cross-document audit, naming the write-time-only posture",
+        "Routes existing-prose grading to the docs-hygiene audit siblings and ai-slop:audit rather than performing it"
+      ]
+    }
+  ]
+}

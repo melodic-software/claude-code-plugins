@@ -3,6 +3,36 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **`improve` Design-It-Twice: a sixth return part, a read of the spread, and a graft record.**
+  Three additions to the deepening interview's Design-It-Twice mode, absorbed from an upstream
+  skill this marketplace decided not to ship (`docs/upstream/cursor-pstack.md`, the `arena` row).
+  (1) Each subagent's structured result gains **rejected shapes** — the alternatives that design
+  considered and turned down, each with its `rejected-reason`, deliberately reusing the field name
+  the durable candidate artifact already carries so one vocabulary covers both. Without it a
+  design's structure reads as principled and accidental alike, and a reader grafting from it cannot
+  tell which. The part is fenced: it never travels into a fresh-eyes dispatch, because the
+  delegation contract hands a reviewer the artifact and not the story, and importing the author's
+  reasoning re-imports the bias the fresh context exists to remove. It is safe in this flow only
+  because the step-3 comparison is done by the parent, which already holds that reasoning; the
+  fence names adding an independent judge as the trigger to stop it at the parent.
+  (2) **Read what the spread itself tells you** — a new step-3 section splitting three readings of
+  the fan-out's disagreement. Convergence *despite* orthogonal constraints is a stronger consensus
+  signal than agreement between same-brief candidates, precisely because this fan-out was built to
+  prevent it. Shape-divergence is the designed null result and never a reason to re-frame — the
+  orthogonality is deliberate, so a rule that fired on it would fire on every healthy run.
+  Assumption-divergence about callers, invariants, or ordering is the real signal: those designs
+  answered different questions, which means step 1's framing left those facts open, and choosing
+  between the returns would be picking a question rather than a design.
+  (3) A proposed hybrid now carries a **graft record** — what was taken from which design, and what
+  was considered and left behind with its reason — which travels into `agreed-shape` when the shape
+  is grilled. The durable candidate schema in `actions/deepening.md` gains a matching
+  `graft-record:` field; without it the ledger would live only in conversation prose and evaporate.
+  Evals updated: the five-part schema was pinned in three places.
+
 ## [0.5.4]
 
 ### Changed

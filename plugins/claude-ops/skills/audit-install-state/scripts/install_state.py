@@ -120,7 +120,9 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
 KEPT = "product-managed-kept"  # documented as never age-swept
-SESSION_SCOPED = "product-managed-session-scoped"  # removed at session exit, not age-swept
+SESSION_SCOPED = (
+    "product-managed-session-scoped"  # removed at session exit, not age-swept
+)
 AUTHORED = "authored"  # you wrote it; the product will not remove it
 SECRET = "secret"  # never-read list
 UNCLASSIFIED = "unclassified"  # not in any upstream table -- the interesting bucket
@@ -129,7 +131,10 @@ UNCLASSIFIED = "unclassified"  # not in any upstream table -- the interesting bu
 # directory entry name; see `classify_entry` for why.
 SURFACE_TABLE: dict[str, tuple[str, str]] = {
     # Cleaned up automatically (age-swept at cleanupPeriodDays)
-    "projects": (SWEPT, "Transcripts, subagent transcripts, spilled tool results, auto memory"),
+    "projects": (
+        SWEPT,
+        "Transcripts, subagent transcripts, spilled tool results, auto memory",
+    ),
     "file-history": (SWEPT, "Pre-edit snapshots for checkpoint restore"),
     "plans": (SWEPT, "Plan files written during plan mode"),
     "debug": (SWEPT, "Per-session debug logs (--debug / /debug only)"),
@@ -137,17 +142,38 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     "image-cache": (SWEPT, "Attached images"),
     "session-env": (SWEPT, "Per-session environment metadata"),
     "tasks": (SWEPT, "Per-session task lists"),
-    "shell-snapshots": (SWEPT, "Shell state captured at startup; removed on clean exit"),
-    "backups": (SWEPT, "Timestamped copies of ~/.claude.json taken before config migrations"),
+    "shell-snapshots": (
+        SWEPT,
+        "Shell state captured at startup; removed on clean exit",
+    ),
+    "backups": (
+        SWEPT,
+        "Timestamped copies of ~/.claude.json taken before config migrations",
+    ),
     "feedback-bundles": (SWEPT, "Redacted transcript archives written by /feedback"),
-    "todos": (SWEPT, "Legacy; no longer written. Sweep removes contents then the directory"),
-    "statsig": (SWEPT, "Legacy; no longer written. Sweep removes contents then the directory"),
-    "logs": (SWEPT, "Legacy; no longer written. Sweep removes contents then the directory"),
+    "todos": (
+        SWEPT,
+        "Legacy; no longer written. Sweep removes contents then the directory",
+    ),
+    "statsig": (
+        SWEPT,
+        "Legacy; no longer written. Sweep removes contents then the directory",
+    ),
+    "logs": (
+        SWEPT,
+        "Legacy; no longer written. Sweep removes contents then the directory",
+    ),
     # Kept until you delete them
     "history.jsonl": (KEPT, "Every prompt typed, with timestamp and project path"),
     "stats-cache.json": (KEPT, "Aggregated token and cost counts shown by /usage"),
-    "remote-settings.json": (KEPT, "Cached server-managed settings for your organization"),
-    "policy-limits.json": (KEPT, "Cached feature policy settings for your organization"),
+    "remote-settings.json": (
+        KEPT,
+        "Cached server-managed settings for your organization",
+    ),
+    "policy-limits.json": (
+        KEPT,
+        "Cached feature policy settings for your organization",
+    ),
     "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
     # Session-scoped, explicitly NOT age-swept
     "sessions": (
@@ -208,7 +234,9 @@ SWEEP_UNIT_UNDOCUMENTED = (
 # Directories whose contents are session-keyed or otherwise churn while a scan
 # runs. A clean unanimous small-n count over one of these is a red flag, not a
 # confirmation (see reference/evidence-discipline.md).
-VOLATILE_DIRS = frozenset({"sessions", "backups", "projects", "shell-snapshots", "ide", "tasks"})
+VOLATILE_DIRS = frozenset(
+    {"sessions", "backups", "projects", "shell-snapshots", "ide", "tasks"}
+)
 
 # --------------------------------------------------------------------------
 # Deliberate / experimental state
@@ -364,7 +392,10 @@ def classify_name(rel: str) -> tuple[str, str]:
         if scheme.matches(rel):
             return scheme.meaning, scheme.note
     if _HAS_DIGITS.search(PurePosixPath(rel).name):
-        return UNKNOWN_MEANING, "No known scheme matches this name; the number's meaning is unknown."
+        return (
+            UNKNOWN_MEANING,
+            "No known scheme matches this name; the number's meaning is unknown.",
+        )
     return NO_NUMBER, "No number in this name."
 
 
@@ -401,9 +432,15 @@ def probe_pid(pid: int) -> tuple[str, str]:
                 return ALIVE, "OpenProcess succeeded"
             err = ctypes.get_last_error()
             if err == ERROR_INVALID_PARAMETER:
-                return DEAD, "OpenProcess reported ERROR_INVALID_PARAMETER (no such process)"
+                return (
+                    DEAD,
+                    "OpenProcess reported ERROR_INVALID_PARAMETER (no such process)",
+                )
             if err == ERROR_ACCESS_DENIED:
-                return ALIVE, "OpenProcess reported ERROR_ACCESS_DENIED (process exists, not ours)"
+                return (
+                    ALIVE,
+                    "OpenProcess reported ERROR_ACCESS_DENIED (process exists, not ours)",
+                )
             return UNVERIFIED, f"OpenProcess failed with unmapped error {err}"
         except Exception as exc:  # pragma: no cover - platform-dependent
             return UNVERIFIED, f"no usable process probe: {exc!r}"
@@ -434,7 +471,9 @@ def verdict_for(rel: str, probe=probe_pid) -> NameVerdict:
         )
     pid = extract_pid(rel)
     if pid is None:
-        return NameVerdict(PID, UNVERIFIED, "name classified as pid but no digits found", MEASURED)
+        return NameVerdict(
+            PID, UNVERIFIED, "name classified as pid but no digits found", MEASURED
+        )
     liveness, reason = probe(pid)
     return NameVerdict(PID, liveness, reason, MEASURED, pid)
 
@@ -568,7 +607,8 @@ def find_deliberate_state(root: Path) -> list[dict]:
             except ValueError:  # pragma: no cover - defensive
                 continue
             if any(
-                rel_dir == p or rel_dir.startswith(p + "/") for p in LEDGER_SCAN_SKIP_PREFIXES
+                rel_dir == p or rel_dir.startswith(p + "/")
+                for p in LEDGER_SCAN_SKIP_PREFIXES
             ):
                 dirnames[:] = []
                 continue
@@ -677,7 +717,9 @@ def read_retention(root: Path) -> dict:
                 if days is None:
                     # Reported, not silently ignored, and it does NOT drive
                     # effective_days -- the documented default stands instead.
-                    result["user_setting_days"] = f"invalid: {data['cleanupPeriodDays']!r}"
+                    result["user_setting_days"] = (
+                        f"invalid: {data['cleanupPeriodDays']!r}"
+                    )
                 else:
                     result["user_setting_days"] = days
                     result["effective_days"] = days
@@ -705,7 +747,9 @@ def read_retention(root: Path) -> dict:
         if candidate.is_file():
             result["managed_settings_path"] = str(candidate)
             try:
-                data = json.loads(candidate.read_text(encoding="utf-8", errors="replace"))
+                data = json.loads(
+                    candidate.read_text(encoding="utf-8", errors="replace")
+                )
                 if isinstance(data, dict) and "cleanupPeriodDays" in data:
                     days = valid_retention_days(data["cleanupPeriodDays"])
                     if days is None:
@@ -729,7 +773,9 @@ def read_retention(root: Path) -> dict:
     # `user_settings_parse`, so no evidence is lost.
     if settings_unparsable and isinstance(result["managed_setting_days"], int):
         result["findings"] = [
-            f for f in result["findings"] if f["id"] != "settings-unparsable-pauses-sweep"
+            f
+            for f in result["findings"]
+            if f["id"] != "settings-unparsable-pauses-sweep"
         ]
 
     marker = root / ".last-cleanup"
@@ -801,7 +847,9 @@ def walk_tree(
     exclude = exclude or set()
     rows: list[FileRow] = []
     errors: list[dict] = []
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=errors.append):
+    for dirpath, dirnames, filenames in os.walk(
+        root, followlinks=False, onerror=errors.append
+    ):
         for name in filenames:
             full = Path(dirpath) / name
             try:
@@ -893,7 +941,9 @@ def rollup(
         }
         entry["reading"] = staleness_reading(entry, retention_days)
         if entry["listing"] == "per-file":
-            entry["members"] = [dataclasses.asdict(m) for m in sorted(members, key=lambda m: m.relpath)]
+            entry["members"] = [
+                dataclasses.asdict(m) for m in sorted(members, key=lambda m: m.relpath)
+            ]
         out.append(entry)
     return out
 
@@ -975,7 +1025,9 @@ def recent_writers(rows: list[FileRow], hours: int) -> list[dict]:
     # reason `rollup`'s cutoff does: without it the cutoff carries microseconds, `.`
     # (0x2E) sorts after `+` (0x2B), and a file written inside the window but in the
     # cutoff second compares LOWER than the cutoff and is silently dropped.
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(
+        timespec="seconds"
+    )
     seen: dict[str, str] = {}
     for row in rows:
         if row.mtime >= cutoff:
@@ -1166,6 +1218,28 @@ def scan(
     }
 
 
+def csv_safe(value: object) -> object:
+    """Neutralize spreadsheet formula injection in a CSV cell.
+
+    Every cell here is derived from the scanned tree, and a path segment is
+    attacker-influenceable: a plugin, project, or worktree directory may be
+    named anything, including `=HYPERLINK("http://x","click")`. A spreadsheet
+    evaluates a cell that opens with `=`, `+`, `-`, or `@` as a formula, and
+    this artifact exists to be read file by file, so it lands in one.
+
+    Leading tab, CR, and LF are included because a spreadsheet strips them
+    before deciding, so `\\t=cmd()` is evaluated exactly as `=cmd()` is.
+
+    A leading `'` is what a spreadsheet reads as "the rest is literal text",
+    and it stays visible to `grep`, `csv.reader`, and the eye — so a reader
+    who sees one knows the cell was quoted rather than altered. Non-strings
+    (the integer byte counts, the boolean deny flag) pass through untouched.
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    return "'" + value if value[0] in "=+-@\t\r\n" else value
+
+
 def write_csv(rows: list[FileRow], path: Path) -> int:
     """Emit EVERY file as a row, so "every file" literally exists as an artifact.
 
@@ -1193,15 +1267,15 @@ def write_csv(rows: list[FileRow], path: Path) -> int:
         for row in sorted(rows, key=lambda r: r.relpath):
             writer.writerow(
                 [
-                    row.relpath,
+                    csv_safe(row.relpath),
                     row.bytes,
                     row.mtime,
-                    row.surface,
-                    row.number_meaning,
-                    row.liveness,
-                    row.liveness_reason,
+                    csv_safe(row.surface),
+                    csv_safe(row.number_meaning),
+                    csv_safe(row.liveness),
+                    csv_safe(row.liveness_reason),
                     row.deny_listed,
-                    row.evidence,
+                    csv_safe(row.evidence),
                 ]
             )
             written += 1
@@ -1221,16 +1295,26 @@ def main(argv: list[str] | None = None) -> int:
         prog="install_state.py",
         description="Read-only inventory of a Claude Code installation directory.",
     )
-    parser.add_argument("--root", default=None, help="Config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)")
-    parser.add_argument("--samples", type=int, default=2, help="Times to count files (default 2)")
-    parser.add_argument("--sample-interval", type=float, default=0.5, help="Seconds between samples")
+    parser.add_argument(
+        "--root",
+        default=None,
+        help="Config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)",
+    )
+    parser.add_argument(
+        "--samples", type=int, default=2, help="Times to count files (default 2)"
+    )
+    parser.add_argument(
+        "--sample-interval", type=float, default=0.5, help="Seconds between samples"
+    )
     parser.add_argument(
         "--authored-threshold",
         type=int,
         default=200,
         help="Entries with more files than this are rolled up instead of listed (default 200)",
     )
-    parser.add_argument("--recent-hours", type=int, default=24, help="Recent-writer window")
+    parser.add_argument(
+        "--recent-hours", type=int, default=24, help="Recent-writer window"
+    )
     parser.add_argument(
         "--csv",
         default=None,

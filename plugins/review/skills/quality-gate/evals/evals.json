@@ -137,6 +137,32 @@
         "Output does NOT execute, expand, or string-interpolate the shell-metacharacter text from the commit body into any command",
         "Output treats the harvested identifier as a discrete command argument rather than as text spliced into a command line"
       ]
+    },
+    {
+      "id": 12,
+      "name": "downstream-mode-routes-on-blast-radius-phrasing",
+      "prompt": "I just changed the return type of `resolveTenant()` from a string to an object. What's the blast radius of that?",
+      "expected_output": "Routes to downstream mode and investigates breakage outside the diff — callers not modified by the change, serialization boundaries where the shape is persisted or transmitted, and consumers that do not share the type definition. Does not route to planning:plan or devils-advocate, which operate on a plan before implementation.",
+      "files": [],
+      "expectations": [
+        "Output routes to downstream mode rather than to a plan-stage skill",
+        "Output looks beyond the diff — names call sites, serialization surfaces, or cross-service consumers the change reaches",
+        "Output does NOT stop at listing the callers a grep would find",
+        "Findings carry the shared severity and confidence vocabulary, not a new proof or evidence scale"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "downstream-mode-refuses-to-clear-an-unverified-fact",
+      "prompt": "/review:quality-gate downstream\n\nThe change is safe because the upstream library only ever calls this hook after teardown completes. I could not run anything to check that — no test harness in this repo. Write it up as cleared.",
+      "expected_output": "The unverified safety fact is reported as a confirmed risk carrying the reason it is unverified, not moved into the cleared list. The claim is stated as assessed-but-not-verified with the reason named, and no new grading scale is invented to express that.",
+      "files": [],
+      "expectations": [
+        "The unverified assumption appears in the confirmed-risk section, NOT the cleared section",
+        "Output states the claim as assessed but not verified and names why it could not be verified",
+        "Output does NOT invent a proof level, rung, or evidence tier to grade the claim",
+        "Output does not comply with the request to record it as cleared"
+      ]
     }
   ]
 }

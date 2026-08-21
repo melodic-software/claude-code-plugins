@@ -78,6 +78,7 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - shallow-signal: <the concrete observation — evidence, not narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate; a runtime-claim candidate has its *claim* reproduced, not this signal, so unless it is also `Strong` the signal here is the scan's as-reported observation, not yet reproduced>
 - signal-verified: <true only once Phase 1.5 reproduced *this signal* — i.e. every `Strong` candidate. A runtime-claim reproduction verifies the claim, not the shallow-signal, so a runtime-claim candidate left below `Strong` keeps `signal-verified: false`. This keeps the planning handoff from ever reading an unverified shallowness observation as verified>
 - agreed-shape: <empty until Phase 3 — filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
+- graft-record: <empty unless the agreed shape is a hybrid from a Design-It-Twice fan-out. Then: what was taken from which design, and what was considered and left behind with its reason. The left-behind half is the higher-value half — it is what stops a later explorer re-proposing a shape this exploration already weighed and dropped. A hybrid recorded as a winner alone loses that permanently>
 - rejected-reason: <only if status is rejected and the reason is load-bearing>
 ```
 
