@@ -14,53 +14,27 @@ name a committed fixture instead.
   `triads.md` (rule-of-three at 3 hits in 69 words) and `knowledge-cutoff-prose.md` (the recorded
   false-positive class). Every case's `expected_output` now names the rules, lines and fired
   thresholds the detector actually emits, measured rather than asserted.
-- **Every fixture-backed case stages its target before auditing it**: `git init` a temp directory,
-  copy the fixture in as `docs/<name>.md`, commit it, and point the invocation at that copy. A case
-  that named the fixture directly was self-corrupting in two ways. The `fix` cases (2, 6, 7) rewrite
-  each flagged line in place, so the first run remediated the committed fixture and the second run
-  graded already-fixed input, where the declared findings no longer fire. And the persistence
-  expectations (cases 2, 4, 5) grade a branch conditioned on the audit having "examined tracked
-  files" — an installed plugin's fixture is not tracked in the consuming repo, so the branch was
-  unreachable and case 4's contract-fetch refusal passed for the wrong reason: nothing was written
-  because nothing was owed, not because the fetch failed. Staging fixes both at once: the rewrite
-  lands on a throwaway copy, and the copy is tracked, so persistence is genuinely owed. The staged
-  copies were re-measured — identical rules, lines and densities at the new path.
-- **The staging commit sets its identity inline**, `git -c user.name=eval -c user.email=eval@local
-  commit -m stage`. `git init` inherits `user.name`/`user.email` from `~/.gitconfig` or the `GIT_*`
-  environment, and neither is guaranteed: this suite's own unit tests pin `HOME` to an empty tmpdir
-  for isolation (`detect.test.sh`), and a fresh container has no seeded identity either. Without the
-  flags the preamble dies at `git commit` with "Please tell me who you are" (exit 128) *before the
-  audit runs*, so all seven staged cases error out instead of grading — the same "scenario cannot
-  produce the graded input" failure this release exists to remove. Verified by executing each
-  preamble as written under an empty `HOME` with `GIT_AUTHOR_*`/`GIT_COMMITTER_*` unset.
-- **The preamble pins the config cascade as well as the identity**, pointing `CLAUDE_PROJECT_DIR` at
-  the scratch directory and `HOME` at an empty one. `detect.sh` resolves `CLAUDE_PROJECT_DIR` ahead
-  of `git rev-parse --show-toplevel` and then loads that root's `.claude/ai-slop.json`, and rule
-  disablement is not path-scoped — so a maintainer running these evals from a session rooted at this
-  repo inherits its `disabled_rules`, and the finding a case grades is silently deleted from a
-  scratch repo in `/tmp`. Measured with only `CLAUDE_PROJECT_DIR` changed: case 1 drops 4 findings to
-  3, case 2 drops 4 to 2, case 4 drops 4 to 3, and cases 5 and 6 drop to **zero**, where the em dash
-  *is* the whole case and the expectations then pass vacuously. That is the same failure as the rest
-  of this release — a golden answer the scenario cannot produce — arriving through config rather
-  than through prose.
-- **The preamble is an explicit shell sequence, not prose**, because three things a prose
-  instruction leaves to the reader all reintroduce the same failure. It runs in ONE invocation and
-  says why: the harness re-supplies `CLAUDE_PROJECT_DIR` on every tool call and shell state does not
-  survive between them, so a pin phrased as a one-time export is gone by the time the detector runs
-  and the disabled rule silently returns. It issues `git add` before the commit, which the prose
-  version never did — a literal executor got `nothing to commit` and an untracked target, inverting
-  exactly the tracked-file branch cases 4 and 5 exist to grade. And it opens with
-  `unset GIT_DIR GIT_WORK_TREE GIT_CONFIG`, the invariant `scripts/check-fixture-git-isolation.sh`
-  already enforces for `*.sh`/`*.py` fixtures: without it, an ambient `GIT_DIR` sends `git init` and
-  the stage commit into the *caller's* repository and leaves the scratch directory with no `.git` at
-  all. That gate cannot see prose inside `evals.json`, so the eval suite had to honor the rule on its
-  own.
-- Staging stops at a commit rather than at `git add`, though `git ls-files` already reports a staged
-  file as tracked and either form would satisfy the persistence gate. These cases model a *consuming
-  repo*, and a real one has history: the audit's repo-wide ordering reads
-  `git log --since=90.days --name-only` for change frequency, which returns nothing in a repo with
-  no commits. That divergence is harmless for today's single-file cases and invisible in every
-  current expectation, which is exactly why it is worth not building in.
+- **A case names its fixture through `files[]` and in prose, the way every sibling suite does** —
+  `mcp-tools:audit` and `docs-hygiene:compress` both read "`evals/fixtures/<name>.md` relative to the
+  skill directory", and none of the eighteen fixture-backed suites here builds a repository to audit
+  in. These prompts are a *specification* of expected skill behavior, not a script: this repo has 200
+  `evals.json` files and zero of the `case.yaml` / `prompt.md` + `graders/` layout `claude plugin
+  eval` consumes, no manifest declares `experimental.evals`, and the only things that read
+  `evals.json` are lint scripts. Nothing executes a prompt, so a prompt must be readable by a human
+  or an agent working by hand, and environment control belongs nowhere in it. If this repo ever
+  adopts the CLI's format, per-case setup has a first-class home there — a `scaffold_script` run
+  under `--scaffold`.
+- **Cases 2, 6 and 7 tell the reader to work on a copy.** They invoke `fix`, and the fix flow
+  rewrites each flagged line in place, so running one by hand against the committed fixture
+  remediates it and dirties the repo — and a later run then grades already-fixed input, where the
+  declared findings no longer fire. One sentence in the prompt, no mechanism.
+- **Cases 4 and 5 state their premise instead of constructing it.** Both grade the persistence step,
+  which `SKILL.md` gates on the audit having "examined tracked files", so each prompt says the
+  audited file is tracked in the repo under audit and the expectations grade the skill's *decision*:
+  that it treats persistence as applicable, fetches the producer contract first, and — case 4 —
+  refuses to write when that fetch fails, rather than refusing because the target was out of tracked
+  space. A case cannot verify real repository state, and pretending otherwise is what made case 4
+  pass for the wrong reason.
 - **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
   That decision holds for the *unit* suite, whose fixtures are still built inline in a tmpdir. It
   does not survive contact with the eval suite: an eval case is graded against a deterministic
