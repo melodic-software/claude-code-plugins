@@ -345,6 +345,53 @@ withheld; three of five initial answers revised on evidence).
   (~150k smart zone, 100k ticket sizing); unverified sub-agent review findings;
   refactoring-excluded TDD loop; `research/<name>` branches (previously rejected).
 
+## Adapter-track scope decision (2026-08-20)
+
+Three seam follow-ons — #2950 (adapter-onboarding skill), #2952 (Gitea/Forgejo
+adapter), #2946 (Linear adapter) — each carry an acceptance criterion requiring a **live** conformance
+pass. The suite creates, claims, and closes items, so it must point at a disposable instance
+and can never run against a coordination tracker.
+
+**Decision: the Gitea live-conformance criterion is descoped. #2950 and #2952 close on what
+shipped; #2946 stays open.** The maintainer's call, in their words: "I don't think we need it,
+we just need linear." Gitea remains **shipped and supported** — it is the free, self-hostable
+option that serves the no-paid-tool constraint this effort set for solo developers — it is
+simply not being validated against a live server.
+
+What that leaves, stated per item rather than rounded up:
+
+| Item | Met | Not met |
+|---|---|---|
+| #2950 | skill with interview → live-exploration → generate → conformance-verify flow; security skeleton matching **and exceeding** the jira guards (the dot-boundary host pin went into the template, and `quote_safe` added a choke point jira never had) | end-to-end demo of a generated adapter against a **live** server |
+| #2952 | generated through the skill rather than hand-written; honest capability gating (five verbs declared `false`, `sub_item_depth: 0`, and **no verb script exists for any false verb**); generator findings fixed rather than filed; `setup`'s provider comparison updated | live conformance pass |
+| #2946 | adapter complete — all ten verbs implemented and unit-tested, including the lease protocol | live conformance pass |
+
+**The one thing genuinely lost** is #2950's end-to-end proof that the generator emits an adapter
+that works against a real provider. Gitea was the designated vehicle for exactly that, and Linear
+cannot substitute — Linear was hand-built, so it proves nothing about the generator. The honest
+size of the gap: the generated Gitea adapter passes its full mocked-transport suite, so what is
+missing is "verified against a live server", not "unverified".
+
+**Correcting a blocker reason recorded earlier in this effort.** It was written, more than once,
+that no tracker instance was reachable from the build environment. That was an untested
+assumption stated as fact and it is **false**: Gitea ships as a single self-contained binary with
+sqlite built in, its releases are fetchable here, and a real one was downloaded and
+version-verified. The actual blocker is narrower — serving it needs privileged setup (a dedicated
+unprivileged user plus `cap_net_bind_service`, since Gitea declines to run as root), which the
+sandbox's permission policy gates. Reachability was never the constraint.
+
+**Do not "unblock" a future attempt by relaxing the adapter's bare-hostname rule.** Port 443 and
+TLS are structural, not preferences: `wit_gitea_http` builds `https://<host>/api/v1` under
+`--proto '=https'`, and `config.gitea.host` must be a bare hostname, so a high port is not
+expressible. That rule exists so a PR-modifiable binding cannot smuggle URL structure and
+redirect the credential off the intended tenant. Widening it to make a suite run would trade a
+real security control for a green check.
+
+Issue #2946 remains open because Linear is SaaS and cannot be self-hosted at any
+permission level. It
+needs a throwaway workspace or team plus an API token supplied through the environment — never
+a coordination workspace, since the suite closes what it creates.
+
 ## Cross-links
 
 - Skills-repo SSOT: [`mattpocock-skills.md`](mattpocock-skills.md) (attribution table; tracked
