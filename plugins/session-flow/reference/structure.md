@@ -1,11 +1,11 @@
 # Handoff document structure + full-path write procedure
 
-Reference consulted while WRITING a full-path handoff (the delivery decision logic — STOP gate,
+Reference consulted while WRITING a full-path handoff (delivery-decision logic — STOP gate,
 launch gates, exit checklists — stays in the citing skill's `SKILL.md`; path choice and destination
 resolution live in the sibling `save-point.md` engine doc).
 
-The reader is a session with NO prior context. It will act on this file. Be specific — vague
-handoffs cost the next session a re-investigation, which is the cost this document exists to avoid.
+Reader is a session with NO prior context. It will act on this file. Be specific — vague handoffs
+cost the next session a re-investigation, which is the cost this document exists to avoid.
 
 ## Body sections
 
@@ -112,9 +112,9 @@ the process step meant to produce it ("phase 3 done", "the bundle merged"). Proc
 turns a resumed session onto the machinery: it is satisfiable while the goal is no closer, and it
 reports done when the process finished rather than when the work landed.
 
-This stacks on the observability rule; it does not relax it. Goal-framed criteria are the harder
-ones to settle mechanically, which is precisely why writers drift to process framing — so each
-criterion carries both halves, the goal-state and the command or diff that settles it.
+This stacks on the observability rule; it does not relax it. Goal-framed criteria are harder to
+settle mechanically, which is why writers drift to process framing — so each criterion carries
+both halves, the goal-state and the command or diff that settles it.
 
 ```markdown
 - [x] `dotnet test` green on the affected projects
@@ -336,8 +336,8 @@ checklist name that same section for the same reason. Renaming §1 therefore req
 those surfaces. Renaming or reordering any other section requires none, and no change here orphans
 handoffs already written to disk.
 
-Consumers cite this section list rather than restating it. A copy of the list in another file drifts
-silently — it has before.
+Consumers cite this section list rather than restating it. A copy of the list in another file
+drifts silently — it has before.
 
 ## Full-path write procedure
 
@@ -420,9 +420,9 @@ the backward chain pointer — the walker resolves the prior session's id by rea
 continued the prior handoff's work: it resumed from that handoff (the resume prompt loaded it), or
 the task/topic clearly matches. A shared handoff directory accumulates entries from unrelated tasks
 — pointing at the newest file regardless would splice unrelated sessions into one chain, and a later
-`/session-flow:retro` would aggregate stale transcripts and decisions as if they belonged to the current work.
-The first handoff of a NEW task omits the field, even when older, unrelated handoffs exist in the
-directory. Older entries lacking `session_id` cause chain-walkers to break cleanly at the first
+`/session-flow:retro` would aggregate stale transcripts and decisions as if they belonged to the
+current work. The first handoff of a NEW task omits the field, even when older, unrelated handoffs
+exist in the directory. Older entries lacking `session_id` cause chain-walkers to break cleanly at the first
 absent field.
 
 **Carrying the goal forward — read it off disk, never out of memory.** Whenever `previous_handoff`
