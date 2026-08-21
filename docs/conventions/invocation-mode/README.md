@@ -197,9 +197,15 @@ reach. The cost the flip incurs is one description entering the listing budget, 
 section holds is manageable and not a forcing function.
 
 *What the flip does not buy, stated rather than left implicit.* It does not guarantee trigger
-matching. The fleet's aggregate listing measures **117,695 chars against an 8,000-char budget
-(~14.7× over)** — `skill-quality:check listing-budget` over `plugins/*/skills`, 2026-08-21 — and
-under overflow Claude Code drops the least-invoked skills' descriptions to **name-only** first, a
+matching. The fleet's aggregate listing estimates at **117,695 description chars against an
+8,000-char budget (~14.7× over)** — reproduce with
+`bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` (2026-08-21). Read
+that as an order-of-magnitude bound, not a reading: the instrument says so itself, since the budget
+scales with the live model's context window via `skillListingBudgetFraction` and 8,000 is the
+documented `SLASH_COMMAND_TOOL_CHAR_BUDGET` fallback a consumer's `settings.json` can move. `/doctor`
+in a live session is the authoritative resolved cost. At any plausible resolved budget the aggregate
+still overflows by an order of magnitude, which is all this paragraph needs. Under overflow Claude
+Code drops the least-invoked skills' descriptions to **name-only** first, a
 drop order a never-invoked skill sits at the front of. The floor this flip establishes is therefore
 name-only visibility, not description matching. That floor is still strictly above where `true`
 sat: `disable-model-invocation: true` removes the skill from context *entirely* — name included —
