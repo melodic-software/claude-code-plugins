@@ -194,9 +194,23 @@ were dead, because a hidden skill's description is never matched against user te
 says "what are my options" out loud got nothing. And the invocation-reach invariant made
 `workflow`'s shipped boundary paragraph a dangler, pointing the model at a target it could not
 reach. The cost the flip incurs is one description entering the listing budget, which the default
-section holds is manageable and not a forcing function. ADR 0016 is amended in place to record the
-revised posture; its core decision — resolve candidates from the catalog, not the listing — is
-untouched and is what makes this skill worth reaching.
+section holds is manageable and not a forcing function.
+
+*What the flip does not buy, stated rather than left implicit.* It does not guarantee trigger
+matching. The fleet's aggregate listing measures **117,695 chars against an 8,000-char budget
+(~14.7× over)** — `skill-quality:check listing-budget` over `plugins/*/skills`, 2026-08-21 — and
+under overflow Claude Code drops the least-invoked skills' descriptions to **name-only** first, a
+drop order a never-invoked skill sits at the front of. The floor this flip establishes is therefore
+name-only visibility, not description matching. That floor is still strictly above where `true`
+sat: `disable-model-invocation: true` removes the skill from context *entirely* — name included —
+and blocks cross-skill reach and subagent preload, whereas a name-only entry is listed,
+model-invocable, and chainable. Whether any given description survives the aggregate is a
+fleet-wide budget question, owned by `claude-ops:audit-skill-visibility` and measured by the
+instrument above; it is not a reason to hide a skill, which the default section forecloses in
+terms ("hiding a skill from the model is a *total* trade, not a listing-budget optimization").
+
+ADR 0016 is amended in place to record the revised posture; its core decision — resolve candidates
+from the catalog, not the listing — is untouched and is what makes this skill worth reaching.
 
 Fleet after this flip (2026-08-21): 222 top-level skills = 165 `false` / 0 missing key / 57 `true`
 = 48 `*:setup` plus 9 non-setup. **Every non-setup `true` skill in the fleet now carries a verdict
