@@ -10,8 +10,11 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`downstream` mode cited into another plugin's private files.** Its "say plainly what is
   unverified" step pointed at `playbooks/fable-5/context/verification.md` — a path under another
   plugin's `skills/<x>/context/`, which the encapsulation contract makes private. It now cites
-  `/playbooks:fable-5`'s verification chapter by slash invocation, which is the only supported
-  handle, and leaves the presence gate and the stands-on-its-own fallback unchanged.
+  `/playbooks:fable-5 verification` — slash invocation is the only supported handle, and the
+  **chapter argument is load-bearing**: that skill's own argument contract makes a bare invocation
+  arm its entire operating doctrine as standing session instructions for the rest of the run, where
+  a chapter name reads only that chapter. A cite that reaches for one formula must not re-posture
+  the session that follows it. The presence gate and the stands-on-its-own fallback are unchanged.
 
 ## [0.26.0]
 

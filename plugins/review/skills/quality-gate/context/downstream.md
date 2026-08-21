@@ -114,10 +114,12 @@ because it now reads as checked.
 This skill does not run builds or tests (see the parent skill's "What this skill does NOT do"), so a
 claim resting on an unrun check is stated as **"assessed, not verified because Y"** — naming Y.
 
-That formula and the discipline behind it are owned by `/playbooks:fable-5`'s verification chapter
-when the `playbooks` plugin is installed — invoke the skill rather than reading into it; when it is
-not installed, the rule stands on its own as written here. Do not invent a grading scale for it — the
-unverified claim is marked in words, and its confidence is the shared `confidence` axis.
+That formula and the discipline behind it are owned by `/playbooks:fable-5 verification` when the
+`playbooks` plugin is installed — invoke it **with the chapter name**, rather than reading into the
+plugin's files, and rather than bare, which arms that playbook's entire doctrine as standing session
+instructions for the rest of the run. When it is not installed, the rule stands on its own as
+written here. Do not invent a grading scale for it — the unverified claim is marked in words, and
+its confidence is the shared `confidence` axis.
 
 ## Step 6: Hand back the cheapest test that would catch it
 
