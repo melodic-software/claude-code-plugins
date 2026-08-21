@@ -162,4 +162,30 @@ rc="$(lin_run "$S" --title "x" --labels "type: fix")"
 assert_eq "a null endCursor terminates rather than looping" "0" "$rc"
 assert_eq "and asked for labels exactly once" "1" "$(grep -c 'issueLabels(' <<<"$(lin_bodies)")"
 
+# --- the label walk is BOUNDED, and says which kind of "not found" it means ---
+# A null cursor stops the walk (above); a server that keeps supplying VALID ones does not,
+# and without a ceiling create-item would hang with ALL_LABELS growing. Routes sharing a
+# pattern are call-ordered and the last one repeats, so a single always-more page is exactly
+# the misbehaving server this bound exists for: 50 labels per page against a ceiling of 1000
+# means the walk stops on page 21 rather than never.
+lin_reset
+lin_data 'teams(filter:' "$TEAM_NODE"
+ENDLESS_PAGE="$(jq -cn '{issueLabels: {nodes: ([range(50)] | map({id: "uuid-\(.)", name: "filler: \(.)"})), pageInfo: {hasNextPage: true, endCursor: "always-more"}}}')"
+lin_data 'issueLabels(' "$ENDLESS_PAGE"
+rc="$(lin_run "$S" --title "x" --labels "never: present")"
+assert_eq "an endless label feed terminates → exit 5" "5" "$rc"
+# The message must distinguish truncated-so-it-might-exist from absent-so-create-it. A bare
+# "create them first" against a truncated list sends someone to create a label that is
+# already there — the same wrong-direction failure the org-label fix removes for gitea.
+assert_contains "and says the list was truncated, not that the label is absent" \
+  "$(lin_err)" "truncated at the declared ceiling"
+if [[ "$(lin_err)" == *"create them first"* ]]; then
+  fail "and does not tell the operator to create it" "no create-them-first" "create-them-first shown"
+else
+  pass "and does not tell the operator to create it"
+fi
+# 1000/50 = 20 full pages, and the 21st is what pushes LABEL_SEEN past the ceiling.
+assert_eq "the walk stopped at the ceiling rather than running on" "21" \
+  "$(grep -c 'issueLabels(' <<<"$(lin_bodies)")"
+
 [[ $FAILED -eq 0 ]] || exit 1
