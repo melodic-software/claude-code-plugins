@@ -20,9 +20,10 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "check-snippets.py")
 
+KEEP = "keep me "
 SOURCE = (
     "Intro line.\n"
-    "keep me \n"
+    + KEEP + "\n"
     "You are a helpful assistant.\n"
     "prompt example here\n"
 )
@@ -56,14 +57,14 @@ class GateHarness(unittest.TestCase):
         return proc
 
 
-CLEAN = """# Unit
+CLEAN = f"""# Unit
 
 ## Key claims (verbatim)
 
 **C1.** `cc-applicable`
 
 ```
-keep me 
+{KEEP}
 ```
 
 ## Prompt snippets (exact)
@@ -141,12 +142,12 @@ this prompt was recalled, not copied
         self.assertIn(b"indented", proc.stderr)
 
     def test_key_claims_only_does_not_satisfy_this_gate(self):
-        text = """## Key claims (verbatim)
+        text = f"""## Key claims (verbatim)
 
 **C1.** `cc-applicable`
 
 ```
-keep me 
+{KEEP}
 ```
 """
         proc = self.run_gate(text, 1)

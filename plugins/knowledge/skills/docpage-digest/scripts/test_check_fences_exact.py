@@ -17,11 +17,13 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "check-fences-exact.py")
 
-# Trailing space on "keep me " is load-bearing — the hook strips it from a
-# bare code span; a fence must preserve it.
+# Trailing space on KEEP is load-bearing — the hook strips it from a
+# bare code span; a fence must preserve it. The space lives inside the
+# quotes so this file has no physical trailing whitespace (editorconfig).
+KEEP = "keep me "
 SOURCE = (
     "Intro line.\n"
-    "keep me \n"
+    + KEEP + "\n"
     "A list:\n"
     "* star item\n"
     "1. one\n"
@@ -59,7 +61,7 @@ class GateHarness(unittest.TestCase):
         return proc
 
 
-CLEAN = """# Unit
+CLEAN = f"""# Unit
 
 ## Summary
 
@@ -70,7 +72,7 @@ A summary.
 **C1.** `cc-applicable`
 
 ```
-keep me 
+{KEEP}
 ```
 
 **C2.** `cc-applicable`
@@ -133,21 +135,22 @@ class TestFailLoudZeroParse(GateHarness):
 class TestFenceContract(GateHarness):
     def test_indented_fence_fails(self):
         # REPAIR-pass corruption: indent the fence. strip() would hide this.
-        text = CLEAN.replace("```\nkeep me \n```", "    ```\n    keep me \n    ```")
+        text = CLEAN.replace(
+            f"```\n{KEEP}\n```", f"    ```\n    {KEEP}\n    ```")
         proc = self.run_gate(text, 1)
         self.assertIn(b"indented", proc.stderr)
 
     def test_trailing_space_stripped_fails(self):
-        text = CLEAN.replace("keep me \n```", "keep me\n```")
+        text = CLEAN.replace(f"{KEEP}\n```", "keep me\n```")
         proc = self.run_gate(text, 1)
         self.assertIn(b"not an exact contiguous substring", proc.stderr)
 
     def test_blockquote_instead_of_fence(self):
-        text = """## Key claims (verbatim)
+        text = f"""## Key claims (verbatim)
 
 **C1.** `cc-applicable`
 
-> keep me 
+> {KEEP}
 """
         proc = self.run_gate(text, 1)
         self.assertIn(b"blockquote", proc.stderr)
@@ -182,12 +185,12 @@ this was never in the source
         self.assertIn(b"unlabelled fence", proc.stderr)
 
     def test_duplicate_label(self):
-        text = """## Key claims (verbatim)
+        text = f"""## Key claims (verbatim)
 
 **C1.** `cc-applicable`
 
 ```
-keep me 
+{KEEP}
 ```
 
 **C1.** `cc-applicable`
