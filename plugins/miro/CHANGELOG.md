@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#3020): `@biomejs/biome` 2.5.7→2.5.8, `@types/node` 26.1.2→26.2.0, `esbuild` 0.28.1→0.28.2.
+
 ## [0.3.3]
 
 ### Changed
