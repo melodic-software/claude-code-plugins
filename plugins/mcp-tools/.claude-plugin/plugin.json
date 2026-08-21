@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mcp-tools",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Audits MCP server tool definitions against MCP-specification, Anthropic tool-design, and Claude-Code client criteria and reports a per-tool PASS/WARN/FAIL scorecard covering description, parameters, naming, and annotations. Language-agnostic — Python (mcp), TypeScript, and .NET.",
   "author": {
     "name": "Melodic Software",

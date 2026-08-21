@@ -7,6 +7,10 @@
 
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-linkage-mcp-gate.sh"
 FIXTURE=$(mktemp -d)
 trap 'rm -rf "$FIXTURE"' EXIT

@@ -4,6 +4,10 @@
 # each is consumed by a grader (check-orphaned-fixtures.sh's contract).
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCAN="$SCRIPT_DIR/cant-fail-scan.sh"
 FIX="$SCRIPT_DIR/../evals/fixtures"
