@@ -21,7 +21,8 @@
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ee96bd28a43eebfa06b61aee8b518cc5b1b195b3",
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@734158c4cb6e67b0b99fd703045ac0f7f9f042d5",
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@62bef7bab01e8532fedfa739879034a210e9e67d",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50"
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50",
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@d26c750691b5498fab529d115b63f84aa7aecebe"
     ]
   },
   "approvedSelectorInputContracts": {
@@ -98,6 +99,13 @@
       ]
     },
     "melodic-software/ci-workflows/.github/workflows/select-runner.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "allowedInputs": [
+        "self-hosted-labels-json",
+        "admits-ancillary-events",
+        "admits-comment-events"
+      ]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@d26c750691b5498fab529d115b63f84aa7aecebe": {
       "allowedInputs": [
         "self-hosted-labels-json",
         "admits-ancillary-events",
@@ -870,6 +878,32 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths-file", "skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@d26c750691b5498fab529d115b63f84aa7aecebe": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@d26c750691b5498fab529d115b63f84aa7aecebe": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "paths-file", "skip-actors"],
