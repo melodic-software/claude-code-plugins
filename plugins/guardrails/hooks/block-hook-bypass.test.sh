@@ -1798,4 +1798,69 @@ run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2
 run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
   "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
 
+# --- #2906: quoting an operand is not a free escape from the positional signal --
+# ps::blank_quoted_spans DELETES quoted spans, so the two-positional arm of
+# ps::computed_call_has_positional_write_signal saw `& $w 'f.txt' 'x'` as a
+# zero-operand call. Quoting is the idiomatic Path+Value spelling, not an
+# obscure one. The contained fix keeps those operands present-but-opaque for
+# that probe only; blank_quoted_spans is unchanged, so a quoted `>` / `-value`
+# in message text stays inert for the other arms.
+#
+# The unquoted control is already pinned above (`& $w f.txt x`). Each blocked
+# row here is that same write with quotes on one or both operands. The
+# `#2965` pairing is load-bearing: without it the apostrophe in "it's fine"
+# still ate the call site and these rows could not see the command.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value both operands (blocked — #2906)" \
+  "& \$w 'f.txt' 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted path, bare value (blocked — #2906)" \
+  "& \$w 'f.txt' x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouped computed path, quoted value (blocked — #2906)" \
+  "& \$w (Join-Path \$d f.txt) 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value flanked by an apostrophe-bearing string (blocked — #2906)" \
+  "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 2
+# Double-quoted operands are expandable (about_Quoting_Rules) but still
+# present. A `$`-free double-quoted pair is two visible literals, same as the
+# unquoted `& $py script.py arg` already blocked by the #2722 signal.
+# shellcheck disable=SC2016
+run_pwsh "PS: unquoted two-positional computed call (blocked — #2722 control for #2906)" \
+  "& \$py script.py arg" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted two-positional computed call (blocked — #2906)" \
+  "& \$py \"script.py\" \"arg\"" 2
+# A SINGLE-quoted `$x` is verbatim, not a variable (about_Quoting_Rules), so
+# both operands are present-but-opaque literals — the Path+Value shape.
+# shellcheck disable=SC2016
+run_pwsh "PS: single-quoted dollar path is a literal (blocked — #2906)" \
+  "& \$w '\$file' 'x'" 2
+# An interpolating double-quoted operand is computed, not a visible literal.
+# `& $w "$p" "$v"` is the quoted twin of the all-variable staged pin above.
+# shellcheck disable=SC2016
+run_pwsh "PS: interpolating path beside a literal (blocked — #2906)" \
+  "& \$w \"\$path\" x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: both operands interpolating (allowed — quoted twin of all-variable, #2906)" \
+  "& \$w \"\$path\" \"\$value\"" 0
+# Interpolating-dash FIRST: only a DOUBLE-quoted token that both starts with
+# `-` and interpolates is a flag, matching the unquoted `-Path$x` stop.
+# A merely dash-prefixed quoted literal is still an argument (about_Parsing:
+# quoted strings are never parameters) and must keep blocking, or a hyphen
+# on the path reopens the #2906 evasion.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted interpolating dash-flag stops the positional scan (allowed — #2906)" \
+  "& \$w \"-Path\$x\" y" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: single-quoted dash-prefixed path is a literal (blocked — #2906)" \
+  "& \$w '-file.txt' 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted dash-prefixed path is a literal (blocked — #2906)" \
+  "& \$w \"-file.txt\" 'x'" 2
+# Containment: the other write-signal probes still delete quotes, so a quoted
+# `>` or `-value` in message text cannot become a signal. These already exist
+# above; the empty-string #2965 pin (`& $py $script ""`) must also keep
+# passing — an empty span is still deleted, not counted as a literal.
+
 report
