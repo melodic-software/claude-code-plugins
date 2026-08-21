@@ -40,4 +40,4 @@ diff_base: <merge-base SHA>
 
 Findings table columns: `file:line | class | severity | finding | action`, where `class` is `restatement`, `detail-leak`, or `recorded-external-state`. The project's contract, when present, owns the body shape too — these columns are the fallback.
 
-**A clean pass still writes the artifact** — scope (base SHA, HEAD SHA, file count) plus an explicit no-findings assertion. The artifact is evidence the lane ran, not just a record of what it found.
+**A clean pass still writes the artifact.** The artifact is evidence the lane ran, not just a record of what it found. When a project contract is present, write that contract's clean-result body exactly — do not add the bundled scope fields or an explicit no-findings assertion the contract does not ask for. When there is no project contract, the fallback body is scope (base SHA, HEAD SHA, file count) plus an explicit no-findings assertion.

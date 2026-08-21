@@ -19,7 +19,10 @@ All notable changes to the `review` plugin are documented here. Format follows
   `reviewed_at_sha`. The bundled YAML is now the fallback only: when the
   project ships its own evidence-contract criteria, those fields and the
   contract's body shape are authoritative, and the two shapes are not
-  merged. Default consumers with no contract are unchanged.
+  merged. A clean pass still writes an artifact, but its body follows
+  the same split: the contract's clean-result shape when one exists,
+  and the bundled scope plus no-findings assertion only as the
+  no-contract fallback. Default consumers with no contract are unchanged.
 
 ## [0.26.2]
 
