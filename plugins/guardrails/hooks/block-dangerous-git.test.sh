@@ -1149,6 +1149,20 @@ run_pwsh "PS: backtick-escaped quote does not extend the span (blocked — #2965
 # shellcheck disable=SC2016
 run_pwsh "PS: doubled-quote escape over-blocks rather than deletes (blocked — #2965)" \
   "Write-Host 'it''s'; & ('g'+'it') push --force" 2
+# The escape cases have a SECOND failure mode that the first cut of this fix
+# shipped and review caught: ending a span AT the backticked quote leaves the
+# string's REAL closer behind as a stray opener, which then pairs with a quote
+# far to the right and deletes the command anyway. Both escapes therefore delete
+# NOTHING on their line. Pinned on the exact reviewed spelling.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
+  "\"a\`\"\"; & ('g'+'it') push --force; 'b\"c'" 2
+# A lone EMPTY string is not a doubled quote — its closer is followed by
+# something other than the same quote — so it must still blank normally rather
+# than fall into the delete-nothing branch and start over-blocking.
+# shellcheck disable=SC2016
+run_pwsh "PS: empty string still blanks normally (allowed — #2965)" \
+  "Write-Host \"\"; & \$py script.py" 0
 # Over-block rails. Message text must stay inert, and the #2848 must-allow shapes
 # must survive an apostrophe appearing beside them — more text is now VISIBLE to
 # every probe, so this is exactly where a new over-block would surface.

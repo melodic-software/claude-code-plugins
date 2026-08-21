@@ -1769,6 +1769,21 @@ run_pwsh "PS: natural-prose spelling of the straddle (blocked — #2965)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
   "Write-Host \"it's\"; & \$w f.txt -Value x; Write-Host \"won't\"" 2
+# The escape cases have a SECOND failure mode that the first cut of this fix
+# shipped and review caught: ending a span AT the backticked quote leaves the
+# string's REAL closer behind as a stray opener, which then pairs with a quote
+# far to the right and deletes the writer call anyway. Both the backtick and the
+# doubled-quote escape therefore delete NOTHING on their line. This spelling
+# reaches write_bypass through `lcq`, which has already stripped backticks, so
+# only the doubled-quote arm can catch it — which is why it is pinned here.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
+  "\"a\`\"\"; & ('set-'+'content') f.txt x; 'b\"c'" 2
+# A lone EMPTY string is not a doubled quote, so it must still blank normally
+# rather than fall into the delete-nothing branch and start over-blocking.
+# shellcheck disable=SC2016
+run_pwsh "PS: empty string still blanks normally (allowed — #2965)" \
+  "& \$py \$script \"\"" 0
 # Over-block rails. Message text naming a write must stay inert — quote blanking
 # is what makes it inert, and this change makes MORE text visible to every probe.
 run_pwsh "PS: redirect inside message text stays inert (allowed — #2965)" \
