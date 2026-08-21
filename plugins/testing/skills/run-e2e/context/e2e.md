@@ -18,7 +18,7 @@ Before ANY live testing, verify tool availability. The e2e orchestrator and any 
 
 **If app not running:** suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 
-**If Playwright CLI missing:** install globally via `npm install -g @playwright/cli@latest`; when the `playwright` plugin is installed, invoke `/playwright:playwright` for usage — it owns defaults, sessions, and per-scenario references.
+**If Playwright CLI missing:** install globally via `npm install -g @playwright/cli@latest`; when the `playwright` plugin is installed, invoke `/playwright:playwright` via the Skill tool for usage — it owns defaults, sessions, and per-scenario references.
 
 **If only orchestrator tooling available (no browser automation):** degrade to API + log verification and report that visual/UI testing is unavailable.
 
@@ -146,8 +146,8 @@ When a test element can't be found:
 
 ## After E2E testing
 
-- If all scenarios pass: proceed to `/verification:confirm outcome` (composes /verification:confirm default + intent + evidence; chains back to /testing:run-e2e if needed)
-- If visual bugs found: `/testing:diagnose` for diagnosis and the fix cycle
+- If all scenarios pass: proceed by invoking `/verification:confirm outcome` via the Skill tool (composes /verification:confirm default + intent + evidence; chains back to /testing:run-e2e if needed)
+- If visual bugs found: invoke `/testing:diagnose` via the Skill tool for diagnosis and the fix cycle
 - If API errors found: check the orchestrator's structured logs for root cause
 - Document findings — E2E results are ephemeral. Screenshot evidence persists
 

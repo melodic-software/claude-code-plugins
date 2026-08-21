@@ -3,6 +3,38 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Fixed
+
+- **The `graft-record` field now has a writer.** 0.6.0 added `graft-record:` to the durable
+  candidate schema in `skills/improve/actions/deepening.md` and told the Design-It-Twice research
+  file that the record "travels into `agreed-shape`" — but no step ever wrote it: the Handoff step
+  named `status` and `agreed-shape` and stopped. A schema field nothing fills is a field that is
+  always empty, so the left-behind half of a graft survived nowhere, and that is the half that
+  stops a later explorer re-proposing a shape this exploration already weighed and dropped. Handoff
+  now fills it in the same edit, and states that it is a sibling field rather than part of
+  `agreed-shape` and that this is the only step that writes it.
+  `skills/improve/research/deepening/interface-design.md` said the record "travels into
+  `agreed-shape`" — the wrong field, since the record is that field's sibling. That sentence is
+  replaced rather than annotated: leaving it standing beside the correction would have shipped a
+  file that names two different destinations for one record. It now names the Handoff step and the
+  moment it runs.
+- **Declared correction inside the released 0.6.0 body.** That entry read "the five-part schema was
+  pinned in three places"; the eval pins it in two — the `expected_output` line and the
+  subagent-brief expectation. Corrected in place under the changelog contract's sanctioned form for
+  released bodies: the heading is untouched, and the edit is named here and in the PR body.
+
+## [0.6.1]
+
+### Changed
+
+- **`improve`: the glossary hand-offs name the Skill tool (#3002).** Both
+  `/domain-driven-design:curate-language` invocations — the interview-loop table row and the
+  deepening action's "new concept or sharpened term" step — now say "via the Skill tool". Wording
+  only; presence gates and fallbacks unchanged. Follows the invocation-mode rubric's cross-skill
+  phrasing rule, now unconditional after the fleet sweep.
+
 ## [0.6.0]
 
 ### Added
@@ -31,7 +63,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   was considered and left behind with its reason — which travels into `agreed-shape` when the shape
   is grilled. The durable candidate schema in `actions/deepening.md` gains a matching
   `graft-record:` field; without it the ledger would live only in conversation prose and evaporate.
-  Evals updated: the five-part schema was pinned in three places.
+  Evals updated: the five-part schema was pinned in two places.
 
 ## [0.5.4]
 

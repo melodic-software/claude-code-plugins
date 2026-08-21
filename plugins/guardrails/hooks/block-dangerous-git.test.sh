@@ -972,12 +972,175 @@ run_pwsh "PS: unspaced assignment before a computed launcher (fail-closed block 
 # shellcheck disable=SC2016
 run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block — pre-existing)" \
   "\$p = Start-Process ('g'+'it') reset" 2
+
+# --- Unspaced assignment before a LAUNCHER: sink-trigger half (#2984) --------
+# `ps::has_launcher` is the SINK TRIGGER; `ps::might_invoke_git`'s own launcher
+# class (widened by #2928) is a MEASURING probe one layer down. #2928 widened the
+# measuring class only, so the two rows below were pinned rc=0 by that PR — but
+# that 0 was STRUCTURAL, not a decision: the sink was never entered, so no arm
+# ever ran. Entry NARROWER than measurement is the mirror image of #2922/#2924,
+# and it fails OPEN.
+#
+# That the 0 was an accident of entry, not a policy, is settled by measuring the
+# SIBLING SPELLINGS of the identical class on the pre-fix base `fdbc42137`. Every
+# one of them ALREADY blocked 0/2/2 there; only the unspaced `=` did not:
+#
+#   pwsh $script          2   (bare, start of string)
+#   cmd $t                2
+#   Start-Process $app    2
+#   $a=1;pwsh $script     2   (`;` separator)
+#   $a|pwsh $script       2   (`|` separator)
+#   $out = pwsh $script   2   (SPACED `=`)
+#   $out=pwsh $script     0   <- the lone hole
+#
+# So these rows now pin 2, matching all six siblings. This is the fail-CLOSED
+# direction and weakens nothing; the ordinary-assignment guards below prove the
+# widening is narrow rather than a blanket hit on assignment idiom.
 # shellcheck disable=SC2016
-run_pwsh "PS: unspaced assignment before a bare-variable launcher (allowed — #2928 guard)" \
-  "\$out=pwsh \$script" 0
+run_pwsh "PS: unspaced assignment before a bare-variable launcher (fail-closed block — #2984)" \
+  "\$out=pwsh \$script" 2
 # shellcheck disable=SC2016
-run_pwsh "PS: unspaced assignment before Start-Process of a variable (allowed — #2928 guard)" \
-  "\$p=Start-Process \$app" 0
+run_pwsh "PS: unspaced assignment before cmd of a variable (fail-closed block — #2984)" \
+  "\$x=cmd \$t" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before Start-Process of a variable (fail-closed block — #2984)" \
+  "\$p=Start-Process \$app" 2
+# The spaced contrasts, pinned so a future NARROWING of the class cannot silently
+# re-open the hole from the other side.
+# shellcheck disable=SC2016
+run_pwsh "PS: spaced assignment before a bare-variable launcher (fail-closed block — pre-existing)" \
+  "\$out = pwsh \$script" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: semicolon-separated bare-variable launcher (fail-closed block — pre-existing sibling)" \
+  "\$a=1;pwsh \$script" 2
+
+# --- Unspaced assignment before a DYNAMIC INVOCATION: sink-trigger half (#2984)
+# `ps::has_dynamic_invocation` matches a call `&` / dot-source `.` of a STRING
+# LITERAL. Its separator class lacked `=` too, so `$a=& "$tool" commit` never
+# entered the sink while the identical spaced form blocked.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a call of an interpolating string (fail-closed block — #2984)" \
+  "\$a=& \"\$tool\" reset --hard" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a call of a single-quoted string (fail-closed block — #2984)" \
+  "\$a=& 'git reset --hard'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: spaced assignment before a call of an interpolating string (fail-closed block — pre-existing)" \
+  "\$a = & \"\$tool\" reset --hard" 2
+
+# --- The widening is NARROW: ordinary assignment idiom stays allowed (#2984) --
+# A `=` in the separator class admits an assignment whose RHS is a launcher or a
+# string-literal call — NOT assignment generally. These are the allow side of the
+# same edit and are pinned so a future widening cannot silently over-block them.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment of a plain cmdlet (allowed — #2984 guard)" \
+  "\$a=Get-Content f.txt" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment of an env var to itself (allowed — #2984 guard)" \
+  "\$env:PATH=\$env:PATH" 0
+# `=` is the PowerShell assignment operator (about_Assignment_Operators), not a
+# generic token separator. git(1) `-c <name>=<value>` is a config override
+# (`git -c section.key=cmd …`): the value may spell a launcher word, but the
+# `=` is not `$name=` and must not classify as a launcher assignment.
+run_pwsh "PS: launcher token as a git -c config VALUE (allowed — not an assignment)" \
+  "git -c core.pager=cmd log --oneline -n 1" 0
+run_pwsh "PS: git -c section.key=cmd is not a launcher assignment (allowed)" \
+  "git -c section.key=cmd log --oneline -n 1" 0
+run_pwsh "PS: non-launcher git -c config value (allowed — #2984 guard)" \
+  "git -c core.pager=cat log --oneline -n 1" 0
+run_pwsh "PS: plain read-only git is untouched (allowed — #2984 guard)" \
+  "git log --oneline -n 5" 0
+# A `=`-glued launcher TOKEN with no `$name=` LHS is not an assignment, so the
+# launcher sink is not entered. No git token either, so the parse path allows.
+run_pwsh "PS: =-glued launcher token with no assignment LHS (allowed — #2984 guard)" \
+  "Write-Output x=cmd y" 0
+# Quoted text is a literal string (about_Quoting_Rules). An `=` inside quotes
+# is data, even when it spells `=pwsh` or `& "…"` — it must not trip the sink.
+# shellcheck disable=SC2016
+run_pwsh "PS: equals inside double-quoted text does not trip launcher sink (allowed)" \
+  'Write-Host "shell=pwsh $script"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: equals inside single-quoted text does not trip dynamic-invocation sink (allowed)" \
+  'Write-Host '"'"'pattern=& "$tool"'"'"'' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted \$out=pwsh is data, not an assignment (allowed)" \
+  'Write-Host '"'"'$out=pwsh $script'"'"'' 0
+# The assignment-shaped call inside quotes is what actually reaches
+# has_dynamic_invocation's quote-blanked confirmation. `pattern=&` has no
+# `$name=` LHS and fails the structural check even unquoted. `$a` glued to
+# the opening quote also fails the quote-intact predecessor class (no
+# space/`;`/`{`/`}`/`(`/`|`/`&` before `$`). The confirmation arm needs
+# `$name=` after one of those predecessors WHILE still inside a quoted
+# span, so blanking erases it.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted \$a=& \"\$tool\" is data, not a string-literal call (allowed)" \
+  'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted semicolon-then-\$a=& reaches blanking confirmation (allowed)" \
+  'Write-Host "x; $a=& '"'"'ls'"'"'"' 0
+# A dot-source separator is `.` followed by a QUOTE. A decimal literal and a
+# property access after `=` carry no quote, so neither trips the assignment arm.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment of a decimal literal (allowed — #2984 guard)" \
+  "\$x=.5" 0
+
+# Direct classification pins — hook rc=0 can hide "entered the sink and then
+# allowed as git-free". These assert the trigger itself.
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$HOOK_DIR/../lib/powershell/ps-command.sh"
+pin_sink_trigger() {
+  local label="$1" cmd="$2" expect="$3"
+  PS_SINK_TRIGGER=""
+  ps::classify_git_command PowerShell "$cmd" >/dev/null
+  if [[ "$PS_SINK_TRIGGER" == "$expect" ]]; then
+    ok "$label (trigger=${PS_SINK_TRIGGER:-none})"
+  else
+    bad "$label: expected trigger '${expect:-none}', got '${PS_SINK_TRIGGER:-none}'"
+  fi
+}
+pin_predicate() {
+  local label="$1" fn="$2" cmd="$3" expect="$4" rc=0
+  "$fn" "$cmd" || rc=$?
+  if [[ "$rc" == "$expect" ]]; then
+    ok "$label (rc=$rc)"
+  else
+    bad "$label: $fn expected $expect, got $rc"
+  fi
+}
+# shellcheck disable=SC2016
+pin_predicate "ps::has_launcher: quoted shell=pwsh is not a launcher" \
+  ps::has_launcher 'Write-Host "shell=pwsh $script"' 1
+# shellcheck disable=SC2016
+pin_predicate "ps::has_dynamic_invocation: quoted pattern=& \"\$tool\" is not a call" \
+  ps::has_dynamic_invocation 'Write-Host '"'"'pattern=& "$tool"'"'"'' 1
+# shellcheck disable=SC2016
+pin_predicate "ps::has_dynamic_invocation: quoted \$a=& \"\$tool\" is not a call" \
+  ps::has_dynamic_invocation 'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' 1
+# shellcheck disable=SC2016
+pin_predicate "ps::has_dynamic_invocation: quoted semicolon-then-\$a=& is not a call" \
+  ps::has_dynamic_invocation 'Write-Host "x; $a=& '"'"'ls'"'"'"' 1
+pin_predicate "ps::has_launcher: git -c section.key=cmd is not a launcher assignment" \
+  ps::has_launcher 'git -c section.key=cmd log --oneline -n 1' 1
+# shellcheck disable=SC2016
+pin_predicate "ps::has_launcher: \$out=pwsh \$script still is a launcher assignment" \
+  ps::has_launcher '$out=pwsh $script' 0
+# shellcheck disable=SC2016
+pin_predicate "ps::has_dynamic_invocation: \$a=& \"\$tool\" still is a string-literal call" \
+  ps::has_dynamic_invocation '$a=& "$tool" reset --hard' 0
+# shellcheck disable=SC2016
+pin_sink_trigger "classify: quoted =pwsh does not enter launcher sink" \
+  'Write-Host "shell=pwsh $script"' ""
+# shellcheck disable=SC2016
+pin_sink_trigger "classify: quoted \$a=& \"\$tool\" does not enter dynamic-invocation sink" \
+  'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' ""
+# shellcheck disable=SC2016
+pin_sink_trigger "classify: quoted semicolon-then-\$a=& does not enter dynamic-invocation sink" \
+  'Write-Host "x; $a=& '"'"'ls'"'"'"' ""
+pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink" \
+  'git -c section.key=cmd log --oneline -n 1' ""
+# shellcheck disable=SC2016
+pin_sink_trigger "classify: \$out=pwsh \$script still enters launcher sink" \
+  '$out=pwsh $script' "launcher"
 
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
@@ -1106,5 +1269,86 @@ assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" 
 assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
   "$(nul_stderr '' '')" "NUL byte"
 run "empty command, no NUL (allowed)" "" 0
+
+# --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
+# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# expressions, neither aware of which style opened first. The single-quote
+# expression matched from the apostrophe inside one double-quoted string to the
+# apostrophe inside the next and DELETED everything between them:
+#
+#   in:  Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"
+#   out: Write-Host
+#
+# With the `(` gone, has_special_constructs saw no construct and the fail-closed
+# sink was never ENTERED — so every downstream measuring probe was moot. Each
+# command below blocks on its own; adding two ordinary apostrophe-bearing strings
+# is what made it vanish. The controls are load-bearing: without them an
+# all-blocked column is equally consistent with a guard that refuses every
+# command containing an apostrophe.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed git push --force (control, blocked)" \
+  "& ('g'+'it') push --force" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: same call straddled by apostrophe-bearing strings (blocked — #2965)" \
+  "Write-Host \"a'b\"; & ('g'+'it') push --force; Write-Host \"c'd\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: natural-prose spelling, variable target (blocked — #2965)" \
+  "Write-Host \"Kyle's build\"; & (\$tool) push --force; Write-Host \"that's all\"" 2
+# The REVERSED pairing — a double quote inside SINGLE-quoted strings — is the same
+# defect with the roles swapped, and must stay closed by the same walk.
+# shellcheck disable=SC2016
+run_pwsh "PS: reversed straddle, quotes inside single-quoted strings (blocked — #2965)" \
+  "Write-Host 'a\"b'; & ('g'+'it') push --force; Write-Host 'c\"d'" 2
+# AMBIGUITY RESOLVES TOWARD NOT DELETING. An UNTERMINATED opener must not swallow
+# the rest of the line, a BACKTICK-escaped quote must not extend the span to the
+# next real one (honoring the escape here is what would reopen this bug in a new
+# spelling), and PowerShell's DOUBLED-quote escape is deliberately over-blocked.
+# shellcheck disable=SC2016
+run_pwsh "PS: unterminated opener does not swallow the command (blocked — #2965)" \
+  "Write-Host \"oops; & ('g'+'it') push --force" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: backtick-escaped quote does not extend the span (blocked — #2965)" \
+  "Write-Host \"a\`\"; & ('g'+'it') push --force; Write-Host \"b\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: doubled-quote escape over-blocks rather than deletes (blocked — #2965)" \
+  "Write-Host 'it''s'; & ('g'+'it') push --force" 2
+# The escape cases have a SECOND failure mode that the first cut of this fix
+# shipped and review caught: ending a span AT the backticked quote leaves the
+# string's REAL closer behind as a stray opener, which then pairs with a quote
+# far to the right and deletes the command anyway. Both escapes therefore delete
+# NOTHING on their line. Pinned on the exact reviewed spelling.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
+  "\"a\`\"\"; & ('g'+'it') push --force; 'b\"c'" 2
+# A lone EMPTY string is not a doubled quote — its closer is followed by
+# something other than the same quote — so it must still blank normally rather
+# than fall into the delete-nothing branch and start over-blocking.
+# shellcheck disable=SC2016
+run_pwsh "PS: empty string still blanks normally (allowed — #2965)" \
+  "Write-Host \"\"; & \$py script.py" 0
+# Over-block rails. Message text must stay inert, and the #2848 must-allow shapes
+# must survive an apostrophe appearing beside them — more text is now VISIBLE to
+# every probe, so this is exactly where a new over-block would surface.
+run_pwsh "PS: apostrophe in a commit message stays inert (allowed — #2965)" \
+  "git commit -m \"it's a fix\"" 0
+run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; Write-Host \"that's all\"" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 apostrophe inside the grouped operand itself (allowed — #2965)" \
+  "& \$py \$script (Join-Path \$dir \"that's.jsonl\")" 0
+
+# --- #2906 containment: quoted Path+Value is a write, not a git signal ----------
+# The placeholder lives only inside write_bypass's positional probe. These rows
+# must stay allowed here so a contained write-lane fix cannot leak into the
+# git fail-closed sink.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value is not a git signal (allowed — #2906 containment)" \
+  "& \$w 'f.txt' 'x'" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
+  "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
 
 report

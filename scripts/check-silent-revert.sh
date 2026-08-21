@@ -156,17 +156,28 @@
 # still describes a fixed corpus after main moves, which it does several times
 # a day.
 #
-# Those totals are FLOORS rather than exact counts, and the reason is
-# structural. attribute_file discards git's stderr on both commands that
-# produce a count, so a file whose diff or blame FAILED is indistinguishable
-# from one that had nothing to attribute, and the failure can only ever
-# subtract lines, never invent them (#2880). A second subtraction carries the
-# same one-way sign: paths the repository's own .gitattributes marks `-diff` or
-# `binary` produce no hunks at all, so their deletions attribute to zero on
-# every machine including CI (#2883). That one is a RECALL gap rather than a
-# calibration gap -- no path of that class appears in any commit whose figure
-# is quoted here, and the largest such deletion anywhere in the sweep was 72
-# lines from a package-lock.json, well under the threshold.
+# A completed scan's counts are exact for every path the detector can see.
+# attribute_file used to discard git's stderr on both commands that produce a
+# count, so a file whose diff or blame FAILED was indistinguishable from one
+# that had nothing to attribute, and the failure could only ever subtract
+# lines, never invent them (#2880). A non-zero status is now a hard error
+# (exit 2) rather than a quiet zero; stderr stays discarded on success so
+# expected git noise does not train anyone to ignore the canary.
+# git-diff(1) of two commits exits 0 on success even when the files differ
+# -- `--exit-code` is the option that would turn a difference into status 1
+# -- so any non-zero status here is a real failure, not "these files
+# differ". git-blame(1) has no analogous "found something" status.
+#
+# `-diff` text paths used to be a remaining subtraction (#2883): the
+# path-limited content diff emits "Binary files differ" (gitattributes(5)
+# Unset on `diff`) and attribute_file derived no ranges, so a lock-file
+# revert attributed to zero. Those deletions are now recovered by a
+# blob-to-blob diff, which has no path and so no attribute. Genuine
+# binary CONTENT still contributes zero -- git's content heuristic, not
+# `--text` -- because treating a random blob as lines manufactures
+# hundred-line attributions from a commit that reverted nothing. That
+# one is not a calibration gap: no path of either class appears in any
+# commit whose figure is quoted here.
 #
 # Detection and disposition are separate steps, and only the first calibrates
 # the threshold. 6f0a31109 and 91e77fc16 are both recorded in
@@ -189,9 +200,11 @@
 #
 # The incident attributions -- 853, 451, 346 and 298 -- are re-measured on
 # every CI run, because scripts/silent-revert-incidents.txt records each one
-# and the replay asserts it exactly. The shipped replay cannot assert 447 or
-# 323: an acknowledged commit short-circuits before it is attributed, which is
-# the same step that keeps it off a reader's screen.
+# and the replay asserts it exactly. The two clean-row figures -- 195 and
+# 136 -- are asserted the same way as each row's largest sub-threshold
+# attribution (#2879). The shipped replay cannot assert 447 or 323: an
+# acknowledged commit short-circuits before it is attributed, which is the
+# same step that keeps it off a reader's screen.
 #
 # State the uncomfortable part plainly: the cleared fires and the real
 # incidents OVERLAP. The smallest true finding is 298 -- #2642's share of
@@ -446,7 +459,12 @@ ack_reason() {
   local sha="$1"
   [[ -f "$ACK_FILE" ]] || return 1
   local recorded reason
-  while read -r recorded reason; do
+  # `read` returns non-zero at EOF even when it populated the variables, so a
+  # final line with no trailing newline would otherwise be dropped. That
+  # direction is fail-closed (an acknowledged commit fires anyway), but it is
+  # the same one-line defect as verify_known_incidents and is fixed here so
+  # the two file readers cannot drift (#2874).
+  while read -r recorded reason || [[ -n "$recorded" ]]; do
     case "$recorded" in
       '' | '#'*) continue ;;
       *) ;;
@@ -485,6 +503,18 @@ ack_reason() {
 # the same commit that renames its file is not attributed. A rename that git
 # still pairs is a mostly-similar file, which bounds how much content can vanish
 # inside one; the incident class this canary targets modifies existing paths.
+
+# Old-side hunk ranges (parent line numbers) with at least one deleted line.
+# Shared by the path-limited content diff and the blob-to-blob recovery.
+old_side_deleted_ranges() {
+  awk '/^@@ /{
+         split($2, a, ",")
+         start = substr(a[1], 2) + 0
+         count = (length(a) > 1) ? a[2] + 0 : 1
+         if (start > 0) print start, count
+       }' "$1"
+}
+
 attribute_file() {
   local parent="$1" commit="$2" file="$3"
   local -a ranges=()
@@ -502,7 +532,8 @@ attribute_file() {
   # surfaces as git, and this file is not the place to ship an assertion it
   # cannot defend. Each pin's flags are git's own defaults, so pinning them
   # changes nothing about what CI detects; it makes a local run match CI rather
-  # than the reverse.
+  # than the reverse. `-l0` is the exception: it overrides a default and is
+  # listed here only so its enumeration call site is as explicit as the pins.
   #
   # Pinned, with the call site each one is MEASURED to be load-bearing at
   # (scripts/check-silent-revert.test.sh strips each in turn and asserts the
@@ -522,30 +553,31 @@ attribute_file() {
   #                            here: this diff is pathspec-limited to one
   #                            old-side file, so no rename pair can form. It is
   #                            written here anyway for symmetry, not for effect.
+  #   -l0                      the --name-only enumeration in scan_commit.
+  #                            `-M` still consults git's default
+  #                            `diff.renameLimit` of 1000; above it the
+  #                            exhaustive rename pass is skipped (git-diff(1)
+  #                            `-l`: "a value of 0 is treated as unlimited")
+  #                            and a basename-changing content-touched
+  #                            relocation decomposes into A+D -- the false
+  #                            positive the header says must never happen.
+  #                            This OVERRIDES a git default rather than
+  #                            pinning one. Measured INERT here: same
+  #                            pathspec limit, no pair can form.
   #   --no-ignore-revs-file    the blame. Reassigns authorship outright.
   #   --no-show-signature      the `git log` reads. Protects INTENT DETECTION,
   #                            not the counts -- see declares_removal.
   #
-  # NOT covered, stated rather than implied:
+  # NOT a pin, stated rather than implied:
   #
-  #   The repository's own tracked .gitattributes. `-diff` on *.lock and
-  #   `binary` on assets make those paths produce zero hunks, so their deletions
-  #   contribute nothing -- they are enumerated and then attributed at zero. NO
-  #   command-line flag overrides an attribute; `--text` does force hunks and is
-  #   deliberately NOT used, because on a genuinely binary blob it manufactures
-  #   hundred-line attributions out of random bytes. This is a recall gap, not a
-  #   calibration one: no path of that class appears in any calibration commit.
-  #   It is also not the exposure the pins address -- attributes are tracked in
-  #   the repository, so CI and every developer read the same ones and nothing
-  #   diverges machine to machine.
-  #
-  #   git's own defaults, as opposed to the caller's overrides of them.
-  #   `diff.renameLimit` (default 1000) is the live one: a relocation of more
-  #   than ~1000 files that also edits their content decomposes into adds plus
-  #   deletes and can fire, with no hostile configuration anywhere. `-l0` would
-  #   lift it, but that OVERRIDES a git default rather than pinning one -- a
-  #   behaviour change on every machine including CI, and one that removes a
-  #   bound on an O(N^2) cost -- so it is filed rather than smuggled in here.
+  #   `--text` / `-a`. No command-line flag overrides a `-diff` or `binary`
+  #   attribute into hunks except `--text`, and `--text` MUST NOT be used:
+  #   on a genuinely binary blob it manufactures hundred-line attributions
+  #   out of random bytes (a 200 KB image is ~800 "lines"). `-diff` TEXT
+  #   deletions are recovered by a blob-to-blob diff instead -- no path,
+  #   so no attribute -- and genuine binary CONTENT stays at zero via
+  #   git's content heuristic. This is a recall fix, not a calibration
+  #   one: no path of that class appears in any calibration commit.
   #
   # This is not defensive decoration. The algorithm choice changes which lines a
   # hunk calls deleted, and therefore the per-culprit counts this canary
@@ -572,20 +604,89 @@ attribute_file() {
   # delete + add and makes relocating a large recent file fire -- but it is the
   # ENUMERATION in scan_commit that -M actually defends, not this diff. See the
   # pin table above.
+  #
+  # Status is checked separately from output (#2880). A failed diff used to
+  # be byte-identical to "this file had no deleted lines": stderr discarded,
+  # no @@ headers, no ranges, return 0. That is the quiet pass the header
+  # contract forbids. git-diff(1) `--exit-code` is deliberately NOT passed
+  # -- without it, two-commit diff exits 0 on success even when the files
+  # differ -- so a non-zero status here is a real failure.
+  local diff_out
+  diff_out="$(mktemp)" || die "mktemp failed"
+  run_attributing_git "$diff_out" \
+    "git diff failed attributing $file in $commit" \
+    diff --no-ext-diff --no-textconv --unified=0 --no-color \
+    --diff-algorithm=myers -M "$parent" "$commit" -- "$file"
+
   while read -r start count; do
     [[ -n "$start" ]] || continue
     [[ "$count" -gt 0 ]] || continue
     ranges+=(-L "$start,$((start + count - 1))")
-  done < <(
-    git diff --no-ext-diff --no-textconv --unified=0 --no-color \
-      --diff-algorithm=myers -M "$parent" "$commit" -- "$file" 2>/dev/null |
-      awk '/^@@ /{
-             split($2, a, ",")
-             start = substr(a[1], 2) + 0
-             count = (length(a) > 1) ? a[2] + 0 : 1
-             if (start > 0) print start, count
-           }'
-  )
+  done < <(old_side_deleted_ranges "$diff_out")
+
+  # `-diff` / `binary` attributes make the path-limited diff emit
+  # "Binary files differ" and no @@ hunks (gitattributes(5): Unset on
+  # `diff` generates that line; the built-in `binary` macro unsets it).
+  # No flag overrides the attribute except `--text`, which is forbidden
+  # here -- it would feed a random blob to blame as lines. A blob-to-blob
+  # diff has no path, so no attribute; recovery is skipped when
+  # `git check-attr binary` is set, so an ASCII-looking `*.pdf binary`
+  # stays at zero. `-diff` TEXT (lock files) has binary unspecified and
+  # still recovers. That is the #2883 split: recall on hidden text,
+  # no manufactured lines from a path the repo marked binary.
+  #
+  # Statement, not a pipe: recover calls run_attributing_git, and die
+  # inside a pipeline would be swallowed back into a quiet zero (#2880).
+  # grep's status is read explicitly so a broken grep cannot look like
+  # "no binary header".
+  if [[ "${#ranges[@]}" -eq 0 ]]; then
+    local binary_rc=0
+    grep -q '^Binary files ' "$diff_out" || binary_rc=$?
+    case "$binary_rc" in
+      0)
+        # The built-in `binary` macro unsets `diff` AND pins the path
+        # as binary. Blob-to-blob recovery would otherwise reclassify
+        # an ASCII-looking binary (no early NUL) as text -- the false
+        # positive `--text` would also create. Honor the attribute:
+        # recover only when `binary` is not set. `-diff` lock files
+        # have binary unspecified and still recover.
+        local binary_attr
+        binary_attr="$(git check-attr --source "$parent" binary -- "$file")" ||
+          die "git check-attr failed attributing $file at $parent"
+        case "$binary_attr" in
+          *': binary: set') ;;
+          *)
+            local old_blob new_blob blob_out
+            old_blob="$(git rev-parse --verify "${parent}:${file}" 2>/dev/null)" ||
+              die "could not resolve ${parent}:${file} after a Binary files header"
+            if ! new_blob="$(git rev-parse --verify "${commit}:${file}" 2>/dev/null)"; then
+              # Deleted path: compare against the empty blob. hash-object
+              # -w is idempotent (always e69de29...) and does not touch
+              # the working tree.
+              new_blob="$(git hash-object -w --stdin </dev/null)" ||
+                die "could not hash empty blob attributing $file in $commit"
+            fi
+            if [[ "$old_blob" != "$new_blob" ]]; then
+              blob_out="$(mktemp)" || die "mktemp failed"
+              run_attributing_git "$blob_out" \
+                "git diff failed attributing blobs of $file in $commit" \
+                diff --no-ext-diff --no-textconv --unified=0 --no-color \
+                --diff-algorithm=myers "$old_blob" "$new_blob"
+              while read -r start count; do
+                [[ -n "$start" ]] || continue
+                [[ "$count" -gt 0 ]] || continue
+                ranges+=(-L "$start,$((start + count - 1))")
+              done < <(old_side_deleted_ranges "$blob_out")
+              rm -f "$blob_out"
+            fi
+            ;;
+        esac
+        ;;
+      1) ;;
+      *) die "grep failed looking for a binary-files header attributing $file in $commit (exit $binary_rc)" ;;
+    esac
+  fi
+  rm -f "$diff_out"
 
   [[ "${#ranges[@]}" -gt 0 ]] || return 0
 
@@ -634,12 +735,46 @@ attribute_file() {
   # outright. That case owns the figures; do not restate them here.
   # --no-ext-diff is deliberately NOT here: blame accepts it but never runs an
   # external diff driver, so it would be decoration.
-  git blame --no-ignore-revs-file --no-textconv --line-porcelain \
-    "${ranges[@]}" "$parent" -- "$file" 2>/dev/null |
-    awk '
-      /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
-      /^\t/ { if (sha != "") printf "%s\t%s\n", sha, substr($0, 2) }
-    '
+  #
+  # Same fail-closed contract as the diff above (#2880). git-blame(1) exits 0
+  # on success and a fatal status (typically 128) on error -- there is no
+  # `--exit-code` analogue that would make "lines were attributed" a
+  # non-zero success. Stderr stays discarded on success.
+  local blame_out
+  blame_out="$(mktemp)" || die "mktemp failed"
+  run_attributing_git "$blame_out" \
+    "git blame failed attributing $file at $parent" \
+    blame --no-ignore-revs-file --no-textconv --line-porcelain \
+    "${ranges[@]}" "$parent" -- "$file"
+  awk '
+    /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
+    /^\t/ { if (sha != "") printf "%s\t%s\n", sha, substr($0, 2) }
+  ' "$blame_out"
+  rm -f "$blame_out"
+}
+
+# run_attributing_git <stdout-file> <fail-label> <git-args...>
+#
+# Runs `git <args>` with stdout in the file and stderr discarded on
+# success. A non-zero status is exit 2 ("the canary could not run"), and
+# the captured stderr is attached to the die message so the failure has a
+# distinct signature from "this file had nothing to attribute" (#2880).
+#
+# Call it as a statement, never through a pipe: `die` inside a pipeline
+# lands in a subshell and would be swallowed back into a quiet zero.
+run_attributing_git() {
+  local out_file="$1" what="$2"
+  shift 2
+  local err_file rc=0
+  err_file="$(mktemp)" || die "mktemp failed"
+  git "$@" >"$out_file" 2>"$err_file" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    local err
+    err="$(cat "$err_file")"
+    rm -f "$err_file"
+    die "$what (exit $rc): ${err:-no stderr}"
+  fi
+  rm -f "$err_file"
 }
 
 # ---------------------------------------------------------------------------
@@ -688,16 +823,41 @@ scan_commit() {
   fi
 
   # Attribute every deleted line across every modified/deleted file.
-  local attributed
+  #
+  # Redirect, never a pipe: `die` inside attribute_file must not land in a
+  # subshell. A piped failure used to be byte-identical to "this file had
+  # nothing to attribute" (#2880).
+  #
+  # The enumeration diff is the same contract. A failed `git diff --name-only`
+  # used to feed the loop nothing (process substitution discards status),
+  # so scan_commit reported `ok` -- the quiet pass, reached before
+  # attribute_file ever ran.
+  local attributed file_attr enum_list
   attributed="$(mktemp)" || die "mktemp failed"
+  file_attr="$(mktemp)" || die "mktemp failed"
+  enum_list="$(mktemp)" || die "mktemp failed"
+  # -M so a rename reports as R and --diff-filter=MD skips it; that is
+  # git's default only until someone sets diff.renames = false.
+  # -l0 lifts git's default diff.renameLimit of 1000 (git-diff(1): "a
+  # value of 0 is treated as unlimited"). Above the limit the exhaustive
+  # rename pass is skipped and a basename-changing content-touched
+  # relocation decomposes into A+D -- the false-positive class the
+  # header says must never happen, reachable on a clean machine with no
+  # hostile config (#2884). Exact-rename and basename-preserving
+  # pre-passes are not limit-gated; only the inexact pass is. This flag
+  # is a behaviour change, not a pin, and it is inert on attribute_file
+  # (pathspec-limited, no pair can form).
+  run_attributing_git "$enum_list" \
+    "git diff --name-only failed enumerating $sha" \
+    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha"
   local file
   while IFS= read -r -d '' file; do
-    attribute_file "$parent" "$sha" "$file" |
-      awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' >>"$attributed"
-    # -M pinned here for the same reason as in attribute_file: the enumeration
-    # relies on a rename reporting as R so --diff-filter=MD skips it, and that
-    # is git's default only until someone sets diff.renames = false.
-  done < <(git diff --name-only -z -M --diff-filter=MD "$parent" "$sha")
+    : >"$file_attr"
+    attribute_file "$parent" "$sha" "$file" >"$file_attr"
+    awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' \
+      "$file_attr" >>"$attributed"
+  done <"$enum_list"
+  rm -f "$file_attr" "$enum_list"
 
   # Keep only lines whose culprit is inside the recency window.
   local in_window
@@ -705,6 +865,16 @@ scan_commit() {
   if [[ -s "$attributed" ]]; then
     awk -F '\t' 'NR == FNR { w[$1] = 1; next } ($1 in w)' \
       "$window_file" "$attributed" >"$in_window"
+  fi
+
+  # ATTRIBUTION_SINK records every in-window culprit, including those
+  # below the threshold. FINDINGS_SINK (written by report_finding) stays
+  # threshold-filtered -- that is what a `fires` row asserts. A `clean`
+  # row asserts the largest remaining attribution (#2879), which lives
+  # here and nowhere else.
+  if [[ -n "${ATTRIBUTION_SINK:-}" ]]; then
+    awk -F '\t' '{c[$1]++} END {for (k in c) print k, c[k]}' \
+      "$in_window" >>"$ATTRIBUTION_SINK"
   fi
 
   local findings=0 culprit count
@@ -814,6 +984,24 @@ report_finding() {
 # exit 2 (cannot run), never a FAIL and never a pass: an expectation silently
 # misread is the same false-green this whole file exists to remove.
 #
+# WHAT A `clean` ROW ACTUALLY ASSERTS (#2879)
+# ------------------------------------------
+# Exit status alone proves only "this commit still produces no finding
+# above the threshold". The note beside it names a specific culprit and a
+# specific sub-threshold line count -- the closest miss, the figure a
+# threshold change would trip first -- and nothing used to check that
+# number. Pinning the detector's diff flags moved 129 to 136 on this
+# file's previous closest-miss row; the `fires` sibling of that drift
+# went red and was corrected, the `clean` row stayed green.
+#
+# So a `clean` row may carry the same bracketed field. The replay then
+# asserts the run's largest *in-window, sub-threshold* attribution is
+# EXACTLY that set -- same culprit, same count. The row's pass/fail
+# does not change: nothing above the threshold is still what makes it
+# clean. The field only checks the number the note treats as measured
+# fact. Ties (two culprits at the same max) must all be listed, the
+# same extras-and-omissions rule the fires path uses.
+#
 # Do NOT loosen a count to a minimum or a tolerance to make CI pass. If a
 # number legitimately changes, measure the new one and record it with the
 # reason -- that is a decision, not a threshold.
@@ -830,9 +1018,21 @@ parse_attribution_field() {
   field="${field#\[}"
   field="${field%\]}"
   [[ -n "$field" ]] || die "empty attribution field in $INCIDENTS_FILE"
+  # Word splitting under IFS=',' drops a trailing empty field, so
+  # `[sha=1,]` would otherwise parse as `[sha=1]` and pass. A leading or
+  # doubled comma survives splitting and already died below; reject all
+  # three empty-entry shapes here so the grammar is the same in every
+  # position (#2875).
+  case "$field" in
+    *, | ,* | *,,*)
+      die "malformed attribution field in $INCIDENTS_FILE (empty entry from a leading, trailing, or doubled comma)"
+      ;;
+    *) ;;
+  esac
   local IFS=','
   for entry in $field; do
     case "$entry" in
+      '') die "empty attribution entry in $INCIDENTS_FILE (trailing or doubled comma?)" ;;
       *=*) ;;
       *) die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)" ;;
     esac
@@ -845,15 +1045,48 @@ parse_attribution_field() {
   done
 }
 
+# Keep the largest in-window attribution(s) from a `<sha> <count>` file.
+# Ties (same max count, different culprits) are all kept, so a recorded
+# field that names only one of two equal maxima fails the exact-set
+# compare. An empty file yields empty output: a recorded field then
+# fails the compare rather than matching by accident.
+#
+# Call it with a plain redirect, never through a pipe -- the same
+# discipline parse_attribution_field documents.
+largest_attributions() {
+  local src="$1"
+  awk '
+    {
+      n = $2 + 0
+      if (n > max) {
+        max = n
+        delete keep
+        keep[$1] = n
+      } else if (n == max && max > 0) {
+        keep[$1] = n
+      }
+    }
+    END {
+      for (s in keep) print s, keep[s]
+    }
+  ' "$src"
+}
+
 verify_known_incidents() {
   [[ -f "$INCIDENTS_FILE" ]] || die "incident file not found: $INCIDENTS_FILE"
 
   local rc=0 expect sha rest note attribution
-  local expected_file observed_file
+  local expected_file observed_file all_attr_file verified=0
   expected_file="$(mktemp)" || die "mktemp failed"
   observed_file="$(mktemp)" || die "mktemp failed"
+  all_attr_file="$(mktemp)" || die "mktemp failed"
 
-  while read -r expect sha rest; do
+  # `read` returns non-zero at EOF even when it populated the variables, so a
+  # final line with no trailing newline would otherwise never enter the body
+  # -- the row is not reported, not counted, and not warned about. Combined
+  # with a zero-row success below, dropping the only row of a one-row file
+  # is a green run that verified nothing (#2874).
+  while read -r expect sha rest || [[ -n "$expect" ]]; do
     case "$expect" in
       '' | '#'*) continue ;;
       # Restoration markers (#2855) are a different assertion about the same
@@ -863,6 +1096,7 @@ verify_known_incidents() {
       marker) continue ;;
       *) ;;
     esac
+    verified=$((verified + 1))
     if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
       die "incident commit $sha is unreachable -- the canary self-check needs full history (fetch-depth: 0)"
     fi
@@ -888,16 +1122,31 @@ verify_known_incidents() {
 
     : >"$expected_file"
     if [[ -n "$attribution" ]]; then
-      [[ "$expect" = "fires" ]] ||
-        die "row for $sha in $INCIDENTS_FILE records an attribution on a '$expect' row; only 'fires' rows have findings"
+      case "$expect" in
+        fires | clean) ;;
+        *)
+          die "row for $sha in $INCIDENTS_FILE records an attribution on a '$expect' row; only 'fires' and 'clean' rows may carry one"
+          ;;
+      esac
       parse_attribution_field "$attribution" >"$expected_file"
       sort -o "$expected_file" "$expected_file"
     fi
 
     local out status
     : >"$observed_file"
-    out="$(FINDINGS_SINK="$observed_file" scan_commit "$sha" 2>&1)"
+    : >"$all_attr_file"
+    out="$(FINDINGS_SINK="$observed_file" ATTRIBUTION_SINK="$all_attr_file" \
+      scan_commit "$sha" 2>&1)"
     status=$?
+    # A scan that could not run (exit 2) is not a row FAIL and not a
+    # pass. Treating it as either would turn a blame/diff failure into
+    # "the canary reproduced the incidents" or "the row was wrong" --
+    # the quiet-success path #2880 closes, reached from the replay.
+    if [[ "$status" -eq 2 ]]; then
+      printf '%s\n' "$out"
+      rm -f "$expected_file" "$observed_file" "$all_attr_file"
+      die "scan of $sha could not run"
+    fi
     sort -o "$observed_file" "$observed_file"
 
     case "$expect" in
@@ -923,19 +1172,43 @@ verify_known_incidents() {
         fi
         ;;
       clean)
-        if [[ "$status" -eq 0 ]]; then
-          printf 'ok   %s stays clean as recorded  (%s)\n' "${sha:0:9}" "$note"
-        else
+        if [[ "$status" -ne 0 ]]; then
           printf 'FAIL %s should stay clean and fired  (%s)\n' "${sha:0:9}" "$note"
           printf '%s\n' "$out"
           rc=1
+        elif [[ -n "$attribution" ]]; then
+          largest_attributions "$all_attr_file" >"$observed_file"
+          sort -o "$observed_file" "$observed_file"
+          if ! cmp -s "$expected_file" "$observed_file"; then
+            printf 'FAIL %s stays clean, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
+            printf '     recorded largest sub-threshold attribution:\n'
+            sed 's/^/       /' "$expected_file"
+            printf '     what the detector reported:\n'
+            sed 's/^/       /' "$observed_file"
+            printf '     A clean row whose figure has moved is not a reproduction.\n'
+            printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+            rc=1
+          else
+            printf 'ok   %s stays clean as recorded, largest sub-threshold attribution reproduced exactly  (%s)\n' \
+              "${sha:0:9}" "$note"
+          fi
+        else
+          printf 'ok   %s stays clean as recorded  (%s)\n' "${sha:0:9}" "$note"
         fi
         ;;
       *) die "unknown expectation '$expect' in $INCIDENTS_FILE" ;;
     esac
   done <"$INCIDENTS_FILE"
 
-  rm -f "$expected_file" "$observed_file"
+  rm -f "$expected_file" "$observed_file" "$all_attr_file"
+
+  # Zero rows verified is a broken input, not a pass. An empty file, a
+  # comments-only file, or a file whose only row was dropped by a missing
+  # trailing newline used to fall through to the success banner -- the
+  # self-proof lane reporting that it reproduced every recorded incident
+  # after it reproduced none (#2874).
+  ((verified > 0)) ||
+    die "$INCIDENTS_FILE verified zero rows -- an incident file that pins nothing is a broken input, not a pass"
 
   if [[ "$rc" -ne 0 ]]; then
     echo

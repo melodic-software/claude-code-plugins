@@ -1,5 +1,44 @@
 # Changelog — session-flow plugin
 
+## [0.32.2]
+
+### Fixed
+
+- **`running-retro` and `retro` routed a skill candidate to a surface that cannot take one.**
+  0.32.0 had both skills "hand an accepted candidate to `/playbooks:skill-authoring`" and hand the
+  shape over rather than drafting one inline — but that skill takes no arguments and performs no
+  actions: it is a knowledge surface. Handing it a candidate resolves to nothing, so the
+  destination 0.32.0 set out to give a candidate did not exist. Both now say to read it for the
+  doctrine and draft against it, still gated on `/skill-quality:check` and still presence-gated
+  with the recorded-but-no-authoring-route fallback. The reason for not drafting ad hoc is
+  unchanged and now attaches to the right mechanism: the playbook carries the conventions a
+  retro-tail draft is most likely to miss.
+
+  **0.32.1's Skill-tool phrasing is kept, not reverted.** That release respelled
+  `retro/context/session.md`'s route as an explicit Skill-tool invocation and deliberately left
+  `running-retro`'s list alone, because that list sits under "Offer routing — never auto-apply".
+  The two changes compose: 0.32.1 fixed how the invocation is spelled, this one fixes what the
+  invocation was claimed to do. `session.md` therefore still names the Skill tool — it invokes the
+  skill to *read* it — while `running-retro` keeps its offer-shaped wording, so the asymmetry
+  0.32.1 argued for survives.
+
+## [0.32.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `find-handoff`'s deliberate-save-point
+  hand-off to `/session-flow:keep-going`; `handoff`'s route to the
+  `/session-flow:continue-in-background` sibling; `keep-going`'s two hand-backs to
+  `/session-flow:handoff`; `reanchor`'s two hand-offs to `/session-flow:keep-going`;
+  `show-options`' durable-state probe route to `/session-flow:orient`;
+  `workflow/context/spec-first.md`'s mid-stage `/session-flow:handoff` escape hatch;
+  `retro/context/session.md`'s skill-candidate hand-off to `/playbooks:skill-authoring`;
+  `workflow/context/steps.md`'s phase-boundary save-point.
+  `running-retro`'s routing list is untouched — its section is titled
+  "Offer routing — never auto-apply", and so is `workflow/context/wrap-up.md`, whose table
+  column is literally "Suggest" under a heading that says to *suggest* these before the user
+  leaves. Wording only.
+
 ## [0.32.0]
 
 ### Added

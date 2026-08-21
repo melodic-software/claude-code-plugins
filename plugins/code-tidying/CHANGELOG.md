@@ -3,6 +3,27 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.13.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `batch-simplify`'s grounding step
+  (`/discovery:explore`, `/discovery:research`), its work-item filing (`/work-items:track add`),
+  and its `context/reference.md` verification step (`/toolchain:check`); `tidy`'s explore/research
+  steps, its PR step (`/source-control:pull-request create`), its scope-budget overflow filing
+  (`/work-items:track add`, step 5), and `reference/scope-budget.md`'s
+  deferral filing; `dissolve-comments`' `reference/safety.md` commit hand-off
+  (`/source-control:commit`). Wording only — presence gates, fallbacks, and step order unchanged.
+
 ## [0.13.0]
 
 ### Added

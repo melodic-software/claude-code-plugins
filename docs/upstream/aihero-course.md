@@ -188,7 +188,15 @@ interim `aihero-core-lanes.md`, dissolved here). Verdicts were convergent (asset
 convergent-validated; the `lock` audit concluded LICENSED EXCEPTION in both); the chain run
 additionally filed
 [#2997](https://github.com/melodic-software/claude-code-plugins/issues/2997) — eval coverage
-regression-gating the lock/auto-guard defenses — which stands.
+regression-gating the lock/auto-guard defenses — which stands. **Coverage landed with this
+record:** the two behavioral defenses the item named are gated as of the change that added this
+paragraph. Eval cases `lock-halts-on-planted-open-decision` (id 15) and
+`auto-residue-asked-or-user-reserved-never-assumed` (id 16) live in
+`plugins/planning/skills/interview/evals/evals.json`, each with planted fixtures under
+`plugins/planning/skills/interview/evals/fixtures/`; because the marketplace has no model-graded
+eval runner yet, the mechanical gate behind them is
+`plugins/planning/tests/interview-defenses.test.sh`, which pins both cases and the load-bearing
+rule text in the skill body they grade against.
 
 | Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
@@ -209,7 +217,8 @@ the default action leans to relentless interviewing, and `/planning:audit-answer
 producer-not-critic check (exercised live in this effort, where it corrected two decisions).
 This run decided no plugin change; the parallel chain run filed the one lane 4 work item,
 [#2997](https://github.com/melodic-software/claude-code-plugins/issues/2997) (regression evals
-for the four lock/auto-guard structural defenses). Lane-6 parcels are the three term candidates
+for the four lock/auto-guard structural defenses) — whose eval-case and tripwire-suite pointers
+are recorded in "Dual provenance" above. Lane-6 parcels are the three term candidates
 (design concept mapped to shared understanding, asset rush, sycophancy) and coverage phrasing.
 
 ## Lane 5: grilling-interview parity (issue #2903, decided 2026-08-17)
@@ -434,7 +443,8 @@ and implementation families) but the practice was mixed — several operative ch
 bare — and codified nowhere; the doctrine now lives in
 `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"), added by this
 lane and scoped to new/edited text, with the fleet normalization sweep filed as
-[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002).
+[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002). The sweep landed
+2026-08-21; the scoping note is retired and the rule is now unconditional.
 
 ## Coverage index (the journey's completion gate)
 

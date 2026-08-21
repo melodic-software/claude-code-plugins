@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "repo-fleet-hygiene",
-  "version": "0.23.6",
+  "version": "0.23.8",
   "description": "Cross-repository Git/GitHub fleet discovery, evidence rollup, and a gated apply verb that executes a prior fleet action plan behind one confirmation. Audit stays read-only and confidence-tiered; apply mutates only with --apply plus interactive confirmation or --yes.",
   "author": {
     "name": "Melodic Software",

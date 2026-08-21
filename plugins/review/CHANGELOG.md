@@ -3,6 +3,157 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.5]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.26.4]
+
+### Fixed
+
+- **`quality-gate close-out` Shape B dropped code-shipping sub-items from the basis.** Rung 1's
+  empty-result rule read *"a successful query returning zero merged PRs means that sub-item closed
+  without shipping code … Only a failed query falls to rung 2."* But an empty rung-1 result means
+  only that **no PR named the item with a closing keyword**, and two very different situations
+  produce that: the item genuinely shipped nothing, or it shipped under a `Refs #N` reference — a
+  posture `work-items`' own `work/SKILL.md` explicitly sanctions (*"an intentional `Refs #N` opt-out
+  does not exclude its issue"*), and the normal shape whenever one PR advances several items while
+  closing only the spin-offs it fully resolves. Everything in the second case was classified
+  `no-code` and silently excluded, while the report still claimed to cover the shipped whole. An
+  empty rung 1 now falls to rung 2 as well, `no-code` is only reached when both rungs come back
+  empty, and the verdict names which rung produced it.
+
+  Found by the mode reviewing the container that shipped it — #3027's dogfood criterion working as
+  intended. On container #2933's own close-out, PR #3056 carried `Closes` for three spin-offs only
+  and PRs #3067 and #3071 carried no closing keyword at all, so three sub-items that between them
+  shipped **83 file-touches** of adapter and generator code would have been dropped from the basis
+  of the review deciding whether that container could close.
+
+  **Rung 2's own reduction is reconciled with it.** The first version of this fix left rung 2
+  still saying that no surviving hit means `unresolved` — which escalates to rung 3 and can stop a
+  close-out — while the new rung-1 wording said the same outcome is `no-code`. Two sections
+  prescribing opposite results for the exact case the fallback exists to preserve. Rung 2 now
+  classifies by **why rung 1 was empty**: rung 1 *succeeded* and empty plus rung 2 empty is
+  `no-code` and does not escalate; rung 1 *failed* plus rung 2 empty is `unresolved` and does,
+  because in that case nothing has actually looked successfully. The verdict says which.
+
+## [0.26.3]
+
+### Fixed
+
+- **`quality-gate` restatement lane: a project's evidence-artifact contract
+  now wins over the bundled frontmatter template (closes #2863).** The
+  Artifact section prescribed `type: restatement-review` plus `mode`/`branch`
+  with no exception, so sessions that followed the skill verbatim emitted
+  that shape even when the consumer already owned the artifact — a quality-gate
+  evidence contract that requires `type: quality-gate-evidence` (literal)
+  plus `date`/`slug`/`reviewed_at_sha`/`diff_base` was overridden, and a
+  scan of one adopter found fourteen hybrid or template-shaped artifacts
+  that its pre-push gate then accepted because it only parses
+  `reviewed_at_sha`. The bundled YAML is now the fallback only: when the
+  project ships its own evidence-contract criteria, those fields and the
+  contract's body shape are authoritative, and the two shapes are not
+  merged. A clean pass still writes an artifact, but its body follows
+  the same split: the contract's clean-result shape when one exists,
+  and the bundled scope plus no-findings assertion only as the
+  no-contract fallback. Default consumers with no contract are unchanged.
+
+## [0.26.2]
+
+### Fixed
+
+- **`downstream` mode cited into another plugin's private files.** Its "say plainly what is
+  unverified" step path-cited the `playbooks` plugin's `fable-5` skill inside that skill's own
+  `context/` directory, which the encapsulation contract makes private. (The path is described
+  rather than spelled here on purpose: repeating it would leave the cite standing in this plugin
+  after the fix removed it from the skill body.) It now cites
+  `/playbooks:fable-5 verification` — slash invocation is the only supported handle, and the
+  **chapter argument is load-bearing**: that skill's own argument contract makes a bare invocation
+  arm its entire operating doctrine as standing session instructions for the rest of the run, where
+  a chapter name reads only that chapter. A cite that reaches for one formula must not re-posture
+  the session that follows it. The presence gate and the stands-on-its-own fallback are unchanged.
+
+## [0.26.1]
+
+### Changed
+
+- **`quality-gate`: the PR-review-toolkit composition names the Skill tool (#3002).** In
+  `context/code.md`, the presence-gated `/pr-review-toolkit:review-pr` invocation now says "via
+  the Skill tool". Wording only; the aspect detection and the gate are unchanged.
+
+## [0.26.0]
+
+### Added
+
+- **The fix relay honors a producer's declared remediation owner (closes #3033).** A detector
+  can now tell the relay that its findings' repair, though contained to `Location`, is owned by
+  the detector's own remediation skill — and `fix-pass-mode.md` routes those rows there instead
+  of deciding for itself.
+
+  The gap this closes was silent and total for one adopter. `ai-slop:audit`'s fourteen
+  prose-rewrite rules classify as cleanup by content, and the cleanup route hands that class
+  wholesale to `/simplify` — a **code**-simplification skill that reads no findings file and
+  loads none of the producer's rewrite guide. Step 5 then retired the findings anyway. The pass
+  reported a clean run over findings nobody fixed, applying at most `rule-utm-params`, the one
+  genuinely auto-applicable rule.
+
+  Neither existing disposition reached it. **Off-site is a statement about the SITE** — both of
+  Step 2's limbs ask whether the repair leaves `Location`'s file — and these repairs are at
+  `Location`, so claiming off-site would assert something false and would route to surface-only,
+  trading a wrong apply for no apply. **`Auto-applicable: No` has no path to the cleanup route
+  at all**: Step 4's surface-instead-of-applying fence sits under its *correctness-class*
+  heading, so a cleanup row reaches `/simplify` whatever the crosswalk says about it.
+
+  - **Step 2** gains one classification rule: a row belonging to a rule whose crosswalk
+    `Auto-applicable` cell leads with ``No, remediated by `<invocation>` `` routes to that invocation,
+    whatever its class, and never to `/simplify` or the generic fixer. The declaration is
+    resolved through the qualified rule id every conforming row already leads its `Finding` cell
+    with, so **no producer has to change what it emits**. An `Action` cell leading with
+    ``Remediate with `<invocation>` `` only **corroborates** that declaration and can never be the
+    sole basis for routing: **the crosswalk row is necessary**, and a rule with no crosswalk
+    declaration takes its ordinary class however its `Action` reads. That asymmetry is the trust
+    boundary — the crosswalk lives in the consuming repo's docs, outside the artifact being
+    consumed, while the `Action` cell is inside it; Step 1 already establishes that nothing
+    authenticates a findings file's writer, and this is the one route whose target Step 4 does not
+    re-fence, so `Action`-alone routing would let any component that can write a conforming file
+    hand any installed skill arbitrary rows. Availability is not authentication. Off-site is
+    decided first, so a row that is both stays surface-only, and a pass that cannot resolve the
+    contract has no declaration to read — the no-declaration case, never an `Action` fallback.
+  - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
+    is the point. Only an invocation already available in the session is invoked; nothing is
+    installed, fetched, or name-matched loosely, because nothing authenticates the writer of a
+    findings file. An unavailable or unrecognized invocation surfaces its rows, naming what the
+    producer asked for so the operator can run it.
+  - **Steps 3 and 5** count and report the route, and an unavailable surface's rows land in the
+    consumption record's "Not applied" table with the invocation as their recovery.
+
+  Neither other adopter changes, and neither had to be touched. `mutation-testing:audit` declares
+  no owner and is off-site, which is decided first; `testing:audit` declares no owner because no
+  skill owns choosing the assertion a behavior deserves, and its rows are surfaced by Step 4's
+  judgment fence exactly as before.
+
+  `ai-slop` 0.3.1 rides along as the producer half of the same claim — a documentation
+  correction, not an emitter change. Its audit skill is the normal entry point that recommends
+  remediation, and it still told operators to keep prose rewrites away from this relay because
+  routing them here "retires the findings without fixing them". Leaving that in place would have
+  made this route unreachable through the documented flow while the contract advertised it.
+
+  Producer-side, the declaration and its fixed forms are owned by the detector-findings
+  convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
+  owned by the producer's own skill". No producer had to change what it emits.
+
+  One detail is called out in Step 2 rather than left to inference, because this step is the
+  *literal* read and the failure is silent: **the invocation arrives inside a code span and the
+  fixer strips the backticks before matching**. A fixer matching the bare form against a
+  backticked cell matches nothing and falls through to the ordinary class — the original defect
+  wearing the new disposition's clothes. The contract states the convention once and binds both
+  the crosswalk cell and the corroborating `Action` lead to it.
+
 ## [0.25.1]
 
 ### Fixed

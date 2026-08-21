@@ -3,6 +3,15 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Changed
+
+- **`realign`: the movement-composition table names the Skill tool (#3002).** The paragraph above
+  the `Movement | Composition | Inline fallback` table now states once that every skill in the
+  `Composition` column is invoked via the Skill tool. Wording only — the presence gates, the
+  inline fallbacks, and the say-which-one-ran rule are unchanged.
+
 ## [0.1.0]
 
 ### Added

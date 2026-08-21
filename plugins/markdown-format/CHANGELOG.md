@@ -3,6 +3,57 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.25]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.11.24]
+
+### Fixed
+
+- **Do not launch the PostToolUse hook on non-Markdown Writes (#2867).** The
+  script is advisory and has no non-zero exit path, but Claude Code still
+  recorded `PostToolUse:Write` as `hook_non_blocking_error` with
+  `Failed with non-blocking status code: No stderr output` — official exit-code
+  semantics for a canceled or non-zero hook with empty stdout/stderr
+  ([hooks reference](https://docs.claude.com/en/docs/claude-code/hooks),
+  fetched 2026-08-21). The failing invocation was a `.txt` Write: the matcher
+  `Write|Edit` launched the process, and the script never reached its
+  applicability `exit 0` (timeout/cancel and a failed Git Bash spawn both
+  produce that exact no-stderr record). `hooks.json` now carries two handlers
+  with `if: Edit(*.md)` and `if: Edit(*.mdc)` — Edit path rules cover Write;
+  a `Write(*.md)` rule is never consulted
+  ([permissions](https://docs.claude.com/en/docs/claude-code/permissions),
+  fetched 2026-08-21) — plus explicit `shell: bash` so Windows does not fall
+  through to PowerShell, which cannot run a `.sh` handler. The in-script
+  extension check remains defense in depth. Advisory/fail-open semantics are
+  unchanged.
+
+## [0.11.23]
+
+### Fixed
+
+- **Out-of-repo missing-tool notice no longer recommends `npm i -D` (#2868).** The skip
+  notice still prints `PATH probed:` and still points at a repo-local
+  `npm i -D markdownlint-cli2` when that command has a place to land: a git working
+  tree, or a `package.json` between the file and `REPO_ROOT` (an unpacked / non-git
+  Node project). A scratch dir with neither is not a repo-local install target; the
+  notice says so and names a durable user-scope directory already on the probed PATH
+  — only `~/.bun/bin`, `~/.local/bin`, or `~/bin`, never a generic `$HOME/…` fallback
+  (version-manager install/shim trees are not durable). When the chosen target is
+  exactly bun's default `globalBinDir` (`~/.bun/bin`;
+  [bunfig `install.globalBinDir`](https://bun.com/docs/runtime/bunfig), fetched
+  2026-08-21) it also names `bun install --global markdownlint-cli2`. The official
+  markdownlint-cli2 global form
+  [`npm install markdownlint-cli2 --global`](https://github.com/DavidAnson/markdownlint-cli2#install)
+  (fetched 2026-08-21) is documented here only; the notice never cites it, because
+  an fnm/nvm `npm i -g` is the #2748 failure mode.
+
 ## [0.11.22]
 
 ### Fixed

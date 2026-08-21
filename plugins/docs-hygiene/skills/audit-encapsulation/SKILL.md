@@ -112,11 +112,11 @@ Hits that survive ALL filters = illegal. Report.
 
 Use when: the caller needs data the private file contains, and the data is genuinely shared vocabulary or constraint.
 
-1. Apply `/docs-hygiene:extract-ssot verify` (the 6-gate refuse-fast check) to the private file's content
+1. Invoke `/docs-hygiene:extract-ssot verify` via the Skill tool (the 6-gate refuse-fast check) against the private file's content
 2. If it passes: extract the content into a shared rule or convention doc outside the skill (e.g. `.claude/rules/<topic>.md`, or extend an existing one)
 3. Migrate the violator AND the original skill body to cite the new doc by heading
 4. Delete or shrink the private file
-5. Run `/docs-hygiene:rename-references` to sweep all syntactic forms
+5. Invoke `/docs-hygiene:rename-references` via the Skill tool to sweep all syntactic forms
 
 ### Path B — Route via `/skill-name` invocation (caller wants the behavior)
 
@@ -141,7 +141,7 @@ When invoked from another skill's execute pass (e.g. `/docs-hygiene:extract-ssot
 | 3 | For each violation, choose Path A (promote) or Path B (route via `/name`) |
 | 4 | DO NOT preserve a violation because "it works today" — broken-window pattern |
 | 5 | If Path B is needed but the action is missing, file a tracking work item and STOP — don't ship a partial fix |
-| 6 | Run a `/docs-hygiene:rename-references` sweep after edits |
+| 6 | Invoke `/docs-hygiene:rename-references` via the Skill tool to sweep after edits |
 
 A surfaced violation is never silently ignored: fix it, capture it as a side note to the user, or file a tracking work item.
 

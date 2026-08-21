@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.16]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.54.15]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The plugin test
+  helper already unset the discovery variables at source time; it now also
+  unsets `GIT_CONFIG`. Test-only; no skill behavior change.
+
+## [0.54.14]
+
+### Changed
+
+- **Three cross-skill chains name the Skill tool (#3002).** `babysit-loop`'s per-cycle invocation
+  of `/source-control:babysit-prs`, `pull-request`'s commit-step delegation to
+  `/source-control:commit` in `reference/create.md`, and its post-merge retrospective step in
+  `reference/merge.md`, which said "invoke it" of a `/session-flow:retro`-shaped capability
+  without naming the mechanism. The `/source-control:setup` references stay
+  prose: `setup` is `disable-model-invocation: true`, so the rubric's invocation-reach invariant
+  keeps it human-only. Wording only; tier semantics, gates, and the inline-commit fallback are
+  unchanged.
+
 ## [0.54.13]
 
 ### Added

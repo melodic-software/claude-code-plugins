@@ -319,6 +319,19 @@ jobs:
   # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
   # POSIX — which is how an inert Windows allowlist shipped green. Keep this
   # job SMALL: GuardTests only, not the full hygiene suite.
+  #
+  # #2871: a dedicated fast signal for the full module
+  # (`python -m unittest -v test_hygiene`) lives on `disk-hygiene-tests`
+  # (Linux). It is not invoked here because two tests fail on windows-2025
+  # (315/317, 9.96s on run 32477560257):
+  #   - HygieneTests.test_preview_allows_root_children_os_managed_snapshot
+  #     expects ready-for-explicit-approval; Windows returns blocked
+  #   - HandoffVerifyTests.test_stash_must_exist_in_an_independent_checkout
+  #     compares path strings; 8.3 `RUNNER~1` != long `runneradmin`
+  # Those two are already green on Linux. Do not silently omit a class here
+  # without this comment; the other nine classes gate on disk-hygiene-tests
+  # (dedicated fast signal; plugin-gate also runs the module on
+  # non-docs-only diffs via hygiene.test.sh).
   disk-hygiene-guard-windows:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -337,6 +350,31 @@ jobs:
       - name: Run disk-hygiene GuardTests on Windows
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
+
+  # #2871: dedicated required signal for the full test_hygiene module.
+  # plugin-gate already runs hygiene.test.sh on non-docs-only diffs (this
+  # PR's own plugin-gate did). That is the heavy lane (Node, ShellCheck,
+  # every plugins/**/*.test.sh). This job exists so the ten TestCase
+  # classes have a fast, always-on check that does not wait on that
+  # matrix and cannot take hygiene.test.sh's SKIP-when-Python-absent
+  # path. The Windows job above stays GuardTests-only (NT allowlist +
+  # two Windows failures named there). Suite is not host-destructive
+  # (tempdir fixtures; no live drive-root scans). Measured 317 OK.
+  disk-hygiene-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Run disk-hygiene tests
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene
 
   # #2834: an MSYS path literal (`/d/...`) handed to a Windows-native consumer
   # re-anchors to the CURRENT drive's root, so the consumer creates a phantom
@@ -709,8 +747,8 @@ jobs:
   # CALLER's .git/config — shared by every worktree of the clone — and the
   # caller's next commit is silently re-authored. That failed
   # required_signatures with `no_user` and cost #2827 -> #2830 (#2840). The
-  # check is repo-wide and static; pre-existing debt is grandfathered in
-  # scripts/fixture-git-isolation-baseline.txt with a stale guard. The
+  # check is repo-wide and static. The grandfathered baseline was drained
+  # in #2872; a new fixture-building suite must isolate itself. The
   # self-test runs unconditionally so a broken detector cannot mask a
   # regression behind a green gate.
   fixture-git-isolation-gate:
@@ -1393,6 +1431,7 @@ jobs:
       - hook-utils-sync
       - hook-utils-windows
       - disk-hygiene-guard-windows
+      - disk-hygiene-tests
       - windows-path-emit-gate
       - windows-path-emit-windows
       - parse-concern-value-sync

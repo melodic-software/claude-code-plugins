@@ -56,7 +56,7 @@ Ubiquitous Language stickies are session artifacts — the terms they resolve sh
 - If the repo keeps no committed glossary yet, offer discovery-first lazy creation: infer placement
   and shape from consumer conventions; ask when ambiguous; never prescribe a universal filename
 - When `/domain-driven-design:curate-language` is available in the current session, delegate
-  graduation to it; the skill owns active maintenance and routing among already-known contexts.
+  graduation to it by invoking it via the Skill tool; the skill owns active maintenance and routing among already-known contexts.
   Without it, the shape above is the complete fallback contract
 - Do not use glossary graduation to discover bounded contexts; this section consumes boundaries the
   workshop or project has already established

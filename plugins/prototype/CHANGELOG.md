@@ -3,6 +3,28 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Fixed
+
+- **`explore-directions` step 6 restated the shared discipline in its pre-0.9.0 form.** 0.9.0
+  widened `context/discipline.md`'s when-done capture to record the directions that lost and — when
+  the verdict is a graft — which piece came from where, and what the discarded parts held that the
+  graft deliberately left behind. Step 6 of `explore-directions` still said only "record which
+  variant won and why", and then listed the deletions. A reader following that skill end to end
+  therefore never reached the widened capture, and the bullets immediately below delete the losing
+  variants irreversibly. Step 6 now carries all three clauses — the left-behind one included, which
+  is the half the discipline argues is worth the most — and repeats the shared surface's warning
+  that whatever is not written down before those deletions is gone.
+
+## [0.9.1]
+
+### Changed
+
+- **The two wrong-facet routes name the Skill tool (#3002).** `explore-directions` →
+  `/prototype:pressure-test` and `pressure-test` → `/prototype:explore-directions`. Wording only;
+  the facet boundary is unchanged.
+
 ## [0.9.0]
 
 ### Added

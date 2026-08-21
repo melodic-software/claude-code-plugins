@@ -3,6 +3,102 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **The two behavioral defenses licensing `interview`'s synthesize-directly paths now have a gate
+  behind them (#2997).** The course lane 4 audit graded `lock` and auto-detect as a LICENSED
+  exception to the asset-rush failure mode, resting on four structural defenses. Two of them —
+  `lock`'s STOP-on-gap rule and the Step 1.5 auto-guard — were prose with nothing enforcing them,
+  so the audit's "the defenses hold" was a claim, not a check. Two new eval cases pin them, each
+  over a planted fixture rather than a narrated scenario: `lock-halts-on-planted-open-decision`
+  (id 15) locks a brief over a task whose one open decision — the disposition of export artifacts
+  a deleted workspace already produced — has real tradeoffs both ways and, per the shipped survey
+  fixture, no answer anywhere in the codebase; `auto-residue-asked-or-user-reserved-never-assumed`
+  (id 16) is an `auto` invocation whose context closes four decisions outright and leaves exactly
+  one interactive design choice, and it accepts EITHER licensed outcome — the residue asked as a
+  one-question round, or, when the caller declared the run unattended, recorded `blocked` with
+  `arbiter: USER-RESERVED` — while rejecting the silent capture as an assumption. Both fixtures
+  state findings only (what the user said, what the survey searched, what it found and did not) and
+  never label an item a fact or a decision — that sorting is what the case grades, so it cannot be
+  read off the input. Fixtures live in `skills/interview/evals/fixtures/`. The three older narrative
+  cases over the same rules — `auto-guard-never-folds-user-choice` (2),
+  `lock-mode-does-not-fudge-gap` (3), `unattended-run-emits-named-blockers-not-assumptions` (13) —
+  are KEPT, not superseded: they state each rule in the abstract with no fixtures, the cheap surface
+  a reader scans. The coverage is deliberately doubled, and all five cases are gated — a sibling
+  advertised as kept coverage that has been rewritten to say the opposite is worse than no sibling.
+  Cases 1, 8, and 12 are gated for the same reason one step removed: they rest on the fact-vs-
+  decision line the auto-guard draws, or on the no-silent-resolution rule.
+- **`tests/interview-defenses.test.sh` makes those cases bite (#2997).** The marketplace has no
+  model-graded eval runner, so an `evals.json` case is a rubric a human reads, not a gate CI runs.
+  The new tripwire suite is the gate: it pins both cases — including that case A still invokes
+  `lock`, that case B still routes through `auto`, and that each still carries its defense as a
+  CHECKABLE expectation rather than only as rubric prose — plus the load-bearing rule text in
+  `SKILL.md` and `context/loop.md` those cases grade against. It gates in three layers, each closing
+  an attack the one inside it is blind to. **Phrase pins** anchored on the clause carrying each
+  rule's meaning (several structural — the auto-guard must sit inside Step 1.5, the router's
+  STOP-on-gap clause inside the Action Router) catch deletion and rewording, and name which clause
+  went. **Byte-exact whole-line pins** catch a clause NEUTRALIZED IN PLACE — an `**Exception:**`
+  appended to the auto-guard licensing `### Captured assumptions`, or a sentence after the `lock`
+  routing line redefining a "real" gap as one that blocks the Brief entirely — which leaves every
+  pinned phrase intact and inverts the rule. **Digests** over thirteen sections, the whole YAML
+  frontmatter, the eight cases that speak to these rules, the case roster, and the four fixtures
+  catch what is added BESIDE a pinned line rather than to it. Fourteen such shapes were demonstrated
+  passing an earlier revision at FAIL=0, each closed by the layer added in response: an adjacent
+  paragraph qualifying both rules; the same paragraph in a neighbouring section; the same shifted
+  one line up into Step 1 where it reads as their preamble; a governing preamble in the
+  interview-loop intro three lines above that; a qualifier in the frontmatter `description`; a
+  qualifier in a different frontmatter key (`metadata.summary`), short enough to clear the
+  cheatsheet's cap, which pinning `description` alone did not reach; an append-only inversion of a
+  defense line carrying only a phrase pin, in a section no digest covered; a criterion added to a
+  case contradicting one already pinned; a sibling case added; an existing sibling rewritten in
+  place, keeping its name and so the roster hash; a non-pinned case that nonetheless rests on the
+  fact-vs-decision line rewritten in place; a rewritten fixture answering case A's planted gap from
+  the codebase so the case grades nothing; a crafted heading that moved a digested region's own
+  boundary; and an append-only inversion of `context/loop.md`'s twin of a byte-pinned `SKILL.md`
+  line, leaving the pinned original standing. Every line the suite phrase-pins as a defense, and
+  every loop.md twin of a byte-pinned line, now sits inside a digested region — an unpinned twin or
+  a phrase pin without an enclosing digest is append-invertible, and that is the invariant to
+  preserve when adding one. What is still NOT gated, stated so nobody reads more into a green run than is
+  there: prose outside the digested regions — among them `SKILL.md`'s Purpose, Emit checklist,
+  Step 2 and Step 5, the undigested parts of `context/loop.md`, `context/gotchas.md`,
+  `templates/checklist.md`, the plugin README; an in-place rewrite of one of this file's other eval
+  cases; and anything semantic. The distance a qualifier needs is not large — one demonstrated
+  escape was a single paragraph abutting a digest boundary. The gate proves the rule text and the
+  case inputs are intact; it cannot prove the skill obeys them, which needs a model-graded runner
+  the marketplace does not have. Rewording, extending, or qualifying a pinned line is EXPECTED to
+  fail, a typo fix included, and so is any edit inside a digested region — re-read the defense,
+  confirm it still holds, then update the skill body and the suite in one change.
+
+## [0.33.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).**
+  `design`'s early-exit proceed, its two glossary invocations, the `handoff` action, and the
+  handoff-gate delegation; all three of `design-handoff`'s FAIL routes back to `/planning:design`
+  (the untagged-thread gate, the no-design-evidence branch, and the missing-rationale gotcha) and
+  its hand-off to `/planning:plan`;
+  `devils-advocate`'s incumbent exploration (both sites), its two research routes, and the
+  high-risk research bullet; `interview`'s glossary invocation, its blindspot route, and
+  `context/loop.md`'s domain check; `plan`'s Karpathy checklist, the measurable-goal baseline
+  route, the stress-test dispatch, the targeted-research step, the `/tdd:principles` directive in
+  the Plan-structure test-strategy bullet (whose twin in `context/plan-template.md` was rewritten
+  while this one was missed), `context/plan-template.md`'s
+  test-strategy note, `context/research-iterate.md`'s research and re-assess steps, and
+  `context/tag-decisions.md`'s reversibility escalation and contested-cluster route; `wayfind`'s
+  no-fog bail-out — attached to `/planning:interview` alone, since the other two arms of that
+  three-way route are `/work-items` (a plugin name, not an invocable skill; lines 2, 184 and 195
+  have always used it that way) and "small enough to just do → say so", which invokes nothing.
+  Left as prose on purpose: `brainstorm`'s route-onward step, whose own skill body says
+  "**Does not decide** — user reactions drive selection; the skill recommends";
+  `interview`'s and `prd`'s next-step lists and
+  `devils-advocate`'s "Suggested Next Steps", all of which end in an explicit
+  "Do NOT auto-invoke — recommend; let the user pull the trigger"; `interview`'s
+  `/planning:wayfind` pointer, which says to recommend and never auto-switch; and the
+  `templates/checklist.md` artifacts. Wording only — no gate, threshold, or step order changed.
+
 ## [0.33.0]
 
 ### Added

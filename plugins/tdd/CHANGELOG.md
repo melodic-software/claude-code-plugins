@@ -3,6 +3,14 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Changed
+
+- **`principles`: the mutation-score aside names the Skill tool (#3002).** In
+  `reference/four-pillars-khorikov.md`, the presence-gated `/mutation-testing:principles`
+  invocation now says "via the Skill tool". Wording only; the without-it summary is unchanged.
+
 ## [0.4.1]
 
 ### Changed

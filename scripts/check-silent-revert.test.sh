@@ -405,7 +405,11 @@ t_rename_pin_is_load_bearing() {
   cfg="$repo/no-renames-gitconfig"
   printf '[diff]\n\trenames = false\n' >"$cfg"
 
-  strip_pin "$repo" no-rename-pin '/git diff/ s/ -M / /g' || return 0
+  # The load-bearing -M is on the --name-only enumeration, now invoked
+  # through run_attributing_git so a failed status cannot hide in a
+  # process substitution (#2880). Address that argv line, not a `git diff`
+  # spelling -- the content-diff -M is inert (pathspec-limited).
+  strip_pin "$repo" no-rename-pin '/--name-only/ s/ -M / /g' || return 0
 
   GIT_CONFIG_GLOBAL="$cfg" run_canary "$repo" --commit HEAD
   intact_rc="$RC"
@@ -418,6 +422,270 @@ t_rename_pin_is_load_bearing() {
   else
     fail "the -M pin did not discriminate (pinned rc=$intact_rc want 0, stripped rc=$stripped_rc want 1): $OUT"
   fi
+}
+
+# --------------------------------------------------------------------------
+# 2c. #2883 / #2884 -- attributes hide hunks; renameLimit decomposes.
+# --------------------------------------------------------------------------
+
+# build_basename_changing_relocation <repo> <n> <lines>
+# Lands n files at src/oldK.txt, then relocates them to dst/newK.txt with
+# the last line touched. That is the shape that consults git's inexact
+# rename pass: a pure `git mv` and a basename-preserving move both pair
+# in cheap pre-passes that `diff.renameLimit` does not gate (#2884).
+build_basename_changing_relocation() {
+  local repo="$1" n="$2" lines="$3" i j
+  mkdir -p "$repo/src"
+  for i in $(seq 1 "$n"); do
+    : >"$repo/src/old${i}.txt"
+    for j in $(seq 1 "$lines"); do
+      printf 'the alpha guard file %s line %s\n' "$i" "$j" >>"$repo/src/old${i}.txt"
+    done
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the corpus"
+  mkdir -p "$repo/dst"
+  for i in $(seq 1 "$n"); do
+    {
+      head -n $((lines - 1)) "$repo/src/old${i}.txt"
+      printf 'the alpha guard file %s line %s touched\n' "$i" "$lines"
+    } >"$repo/dst/new${i}.txt"
+    rm -f "$repo/src/old${i}.txt"
+  done
+  rmdir "$repo/src" 2>/dev/null || true
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: relocate the corpus"
+}
+
+# #2883. A path whose .gitattributes say `-diff` produces "Binary files
+# differ" and zero hunks, so attribute_file used to return without
+# blaming. Blame itself is fine -- the detector just never asked. The
+# issue's own fixture: 320 lock lines + a binary png churn + 25 text
+# lines. As shipped that saw only the 25. `--text` would also see the
+# png as hundreds of fake lines and is forbidden; blob-to-blob recovery
+# sees the lock (text) and not the png (binary content).
+t_minus_diff_lock_file_is_attributed() {
+  local repo sink lock_culprit txt_culprit
+  repo="$(mk_repo)"
+  {
+    printf '*.lock -diff\n'
+    printf '*.png binary\n'
+  } >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs and mark pngs binary"
+
+  add_block "$repo" foo.lock 320 alpha
+  lock_culprit="$(git -C "$repo" rev-parse HEAD)"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the image"
+  add_block "$repo" plain.txt 25 beta
+  txt_culprit="$(git -C "$repo" rev-parse HEAD)"
+
+  grep -v "the alpha guard rejects" "$repo/foo.lock" >"$repo/foo.lock.tmp" || true
+  mv "$repo/foo.lock.tmp" "$repo/foo.lock"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  grep -v "the beta guard rejects" "$repo/plain.txt" >"$repo/plain.txt.tmp" || true
+  mv "$repo/plain.txt.tmp" "$repo/plain.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  sort -o "$sink" "$sink"
+
+  if [[ "$RC" -eq 1 ]] &&
+    grep -qx "${lock_culprit} 320" "$sink" &&
+    grep -qx "${txt_culprit} 25" "$sink" &&
+    printf '%s' "$OUT" | grep -q 'foo.lock' &&
+    printf '%s' "$OUT" | grep -q 'plain.txt' &&
+    ! printf '%s' "$OUT" | grep -q 'img.png'; then
+    ok "a -diff lock file is attributed and a binary png churn is not (#2883)"
+  else
+    fail "lock/png/txt mix: want rc=1 with ${lock_culprit}=320 and ${txt_culprit}=25, no png; rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# The blob-to-blob recovery is the #2883 fix. Break the binary-files
+# detector and the lock file goes back to contributing zero -- a FALSE
+# GREEN at the shipped threshold, the issue's measured outcome.
+t_minus_diff_recovery_is_load_bearing() {
+  local repo intact_sink stripped_sink intact_rc stripped_rc
+  repo="$(mk_repo)"
+  printf '*.lock -diff\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs"
+  add_block "$repo" foo.lock 320 alpha
+  drop_block "$repo" foo.lock alpha "feat: unrelated feature (#99)"
+
+  strip_pin "$repo" no-attr-recover '/grep -q/ s/\^Binary files /^Binary files NEVER /' || return 0
+
+  intact_sink="$(mktemp)"
+  stripped_sink="$(mktemp)"
+  FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
+    run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  FINDINGS_SINK="$stripped_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/no-attr-recover.sh run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 1 ]] && [[ -s "$intact_sink" ]] &&
+    [[ "$stripped_rc" -eq 0 ]] && [[ ! -s "$stripped_sink" ]]; then
+    ok "blob-to-blob recovery is load-bearing: stripped it a -diff lock deletion is a FALSE GREEN"
+  else
+    fail "attr recovery did not discriminate (pinned rc=$intact_rc want 1, stripped rc=$stripped_rc want 0): pinned=[$(tr '\n' ';' <"$intact_sink")] stripped=[$(tr '\n' ';' <"$stripped_sink")]"
+  fi
+  rm -f "$intact_sink" "$stripped_sink"
+}
+
+# `--text` is the one flag that would force hunks through a `-diff` /
+# `binary` attribute, and it is the false-positive machine the issue
+# forbids: a 200 KB random blob is ~800 "lines". The detector must not
+# pass it. Comments may name it; a CODE line must not.
+t_detector_does_not_pass_text() {
+  local code
+  code="$(mktemp)"
+  grep -v '^[[:space:]]*#' "$SCRIPT" >"$code"
+  if grep -Eq -- '(^|[[:space:]])--text([[:space:]]|$)' "$code"; then
+    fail "the detector's code passes --text, which #2883 forbids: $(grep -E -- '--text' "$code")"
+  else
+    ok "the detector does not pass --text (blob-to-blob recovery, not -a)"
+  fi
+  rm -f "$code"
+}
+
+# Whole-file deletion of a `-diff` lock file -- the empty-blob branch,
+# not a truncation. A squash that dropped a sibling's lockfile update
+# is the #2883 impact case.
+t_minus_diff_whole_file_deletion_is_attributed() {
+  local repo sink culprit
+  repo="$(mk_repo)"
+  printf '*.lock -diff\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs"
+  add_block "$repo" foo.lock 320 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  git_test_config "$repo" rm -q foo.lock >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -qx "${culprit} 320" "$sink"; then
+    ok "a wholly deleted -diff lock file is attributed (320 lines)"
+  else
+    fail "whole-file -diff deletion must fire 320, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# An ASCII-looking file marked `binary` must stay at zero. The pathless
+# blob diff would treat it as text (no NUL); the attribute is what keeps
+# it a non-finding -- the reviewer's 320-line PDF-like fixture.
+t_explicit_binary_ascii_is_not_attributed() {
+  local repo sink
+  repo="$(mk_repo)"
+  printf '*.pdf binary\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: mark pdfs binary"
+  {
+    printf '%%PDF-1.4\n'
+    for i in $(seq 1 320); do
+      printf 'the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+  } >"$repo/doc.pdf"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the ascii pdf"
+  : >"$repo/doc.pdf"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
+    ok "an ASCII file marked binary is not attributed"
+  else
+    fail "explicit binary must stay clean even without NULs, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# A genuine binary churn with the `binary` attribute must stay clean at
+# the shipped threshold. This is the control that keeps `--text` from
+# coming back: the same fixture under `--text` fires on ~800 lines.
+t_binary_asset_churn_is_not_a_finding() {
+  local repo sink
+  repo="$(mk_repo)"
+  printf '*.png binary\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: mark pngs binary"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the image"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: re-export the image"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
+    ok "a binary png re-export is not a finding (no --text)"
+  else
+    fail "binary churn must stay clean, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# #2884. git's default diff.renameLimit is 1000. Above it, a basename-
+# changing content-touched relocation decomposes into A+D and every
+# old-side line is attributed -- a false positive on a clean machine,
+# no hostile config required. -l0 is unlimited (git-diff(1)). N=1001
+# is the measured trip point when src == dst == N.
+t_rename_limit_does_not_decompose_basename_changing_relocation() {
+  local repo
+  repo="$(mk_repo)"
+  build_basename_changing_relocation "$repo" 1001 10
+  SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]]; then
+    ok "a 1001-file basename-changing relocation is not a finding (-l0)"
+  else
+    fail "default renameLimit must not decompose 1001 basename-changing moves, rc=$RC: $OUT"
+  fi
+}
+
+# -l0 is load-bearing against the limit, proven by taking it away.
+# 12 files of 20 lines with renameLimit=1 is the same mechanism as
+# 1001 files at the default 1000, cheap enough to run twice.
+t_rename_limit_flag_is_load_bearing() {
+  local repo cfg intact_rc stripped_rc intact_sink stripped_sink
+  repo="$(mk_repo)"
+  build_basename_changing_relocation "$repo" 12 20
+
+  cfg="$repo/low-rename-limit-gitconfig"
+  printf '[diff]\n\trenameLimit = 1\n' >"$cfg"
+
+  strip_pin "$repo" no-l0-pin '/--name-only/ s/ -l0 / /' || return 0
+
+  intact_sink="$(mktemp)"
+  stripped_sink="$(mktemp)"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
+    run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$stripped_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/no-l0-pin.sh run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 0 ]] && [[ ! -s "$intact_sink" ]] &&
+    [[ "$stripped_rc" -eq 1 ]] && [[ -s "$stripped_sink" ]]; then
+    ok "the -l0 flag is load-bearing: stripped it a renameLimit=1 relocation fires, pinned it stays clean"
+  else
+    fail "the -l0 flag did not discriminate (pinned rc=$intact_rc want 0, stripped rc=$stripped_rc want 1): pinned=[$(tr '\n' ';' <"$intact_sink")] stripped=[$(tr '\n' ';' <"$stripped_sink")] out=$OUT"
+  fi
+  rm -f "$intact_sink" "$stripped_sink"
 }
 
 # --no-ext-diff. `diff.external` is what difftastic's and delta's own install
@@ -557,8 +825,11 @@ t_textconv_pin_is_load_bearing() {
   fi
 
   strip_pin "$repo" no-textconv-pin 's/ --no-textconv//g' || return 0
-  strip_pin "$repo" blame-textconv-unpinned '/git blame/ s/ --no-textconv//' || return 0
-  strip_pin "$repo" diff-textconv-unpinned '/git diff --no-ext-diff/,+1 s/ --no-textconv//' || return 0
+  # These address the run_attributing_git argv lines, not a `git blame` /
+  # `git diff` spelling -- the detector now invokes both through a helper
+  # so a failed status cannot hide in a pipe (#2880).
+  strip_pin "$repo" blame-textconv-unpinned '/blame --no-ignore-revs-file/ s/ --no-textconv//' || return 0
+  strip_pin "$repo" diff-textconv-unpinned '/diff --no-ext-diff/ s/ --no-textconv//' || return 0
 
   clean_sink="$(mktemp)"
   intact_sink="$(mktemp)"
@@ -803,6 +1074,30 @@ t_abbreviated_ack_does_not_clear() {
     ok "an abbreviated sha in the acknowledgment file does not clear a finding"
   else
     fail "expected an abbreviated ack to be refused, rc=$RC: $out"
+  fi
+}
+
+# Same last-line-without-newline defect as the incident reader. Direction is
+# fail-closed (the ack is dropped and the commit fires), but the two file
+# readers must not drift (#2874 finding 3).
+t_ack_last_row_without_newline_is_honored() {
+  local repo out sha
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  # Two rows, the match on the last line, no trailing newline. Dropping that
+  # line would leave the commit unacked and fire.
+  printf '# ack\n%s  reviewed: last row, no trailing newline' "$sha" \
+    >"$repo/scripts/ack.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_ACK=scripts/ack.txt \
+    run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'reviewed and cleared'; then
+    ok "an acknowledgment file whose last row has no trailing newline still clears"
+  else
+    fail "expected the unterminated last ack row to clear, rc=$RC: $out"
   fi
 }
 
@@ -1075,16 +1370,33 @@ t_replay_asserts_the_recorded_attribution() {
     fi
   done
 
-  # An attribution on a `clean` row is nonsense -- clean rows have no findings.
-  printf 'clean %s [%s=40] attribution on a clean row\n' "$sha" "$culprit" \
+  # All four empty-entry comma positions must exit 2. Word splitting under
+  # IFS=',' drops a trailing empty field, so `[sha=n,]` used to parse as
+  # `[sha=n]` and pass while leading / doubled / comma-only already died --
+  # the grammar enforced in three of four positions (#2875).
+  for bad in "[$culprit=40,]" "[,$culprit=40]" "[$culprit=40,,$other=1]" "[,]"; do
+    printf 'fires %s %s comma\n' "$sha" "$bad" >"$repo/scripts/inc.txt"
+    SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+      run_canary "$repo" --verify-known-incidents
+    out="$OUT"
+    if [[ "$RC" -eq 2 ]]; then
+      ok "a comma-malformed attribution field '$bad' exits 2"
+    else
+      fail "expected rc=2 on comma-malformed attribution '$bad', got rc=$RC: $out"
+    fi
+  done
+
+  # A `fires` commit labeled `clean` still fails on status -- the new
+  # attribution field does not change pass/fail semantics (#2879).
+  printf 'clean %s [%s=40] attribution on a firing commit\n' "$sha" "$culprit" \
     >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 2 ]]; then
-    ok "an attribution recorded on a 'clean' row exits 2"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'should stay clean and fired'; then
+    ok "a firing commit labeled clean still fails on status, attribution or not"
   else
-    fail "expected rc=2 for an attribution on a clean row, got rc=$RC: $out"
+    fail "expected rc=1 for a firing commit on a clean row, got rc=$RC: $out"
   fi
 
   # And a `fires` row with no attribution keeps working -- the field is optional
@@ -1097,6 +1409,256 @@ t_replay_asserts_the_recorded_attribution() {
     ok "a fires row with no attribution field still replays on exit status alone"
   else
     fail "an attribution-less row must still work, rc=$RC: $out"
+  fi
+}
+
+# A `clean` row's note names a specific sub-threshold count. Without a
+# field to assert it, that figure rots silently -- 129 drifted to 136
+# on the corpus's previous closest miss and the row stayed green (#2879).
+t_replay_asserts_clean_row_attribution() {
+  local repo out culprit other sha
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 15 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  other="$(git -C "$repo" rev-parse HEAD~1)"
+  drop_block "$repo" feature.txt alpha "docs: ordinary iteration (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  # True culprit and true count, under the threshold: the row stays clean
+  # AND the figure is checked.
+  printf 'clean %s [%s=15] closest miss\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'largest sub-threshold attribution reproduced exactly'; then
+    ok "replay passes when a clean row's largest sub-threshold attribution reproduces"
+  else
+    fail "clean-row attribution should have passed, rc=$RC: $out"
+  fi
+
+  # Right culprit, WRONG count -- the 129 -> 136 shape.
+  printf 'clean %s [%s=14] stale count\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'stays clean, but NOT as recorded'; then
+    ok "replay fails when a clean row's recorded line count no longer reproduces"
+  else
+    fail "a wrong clean-row count must fail the replay, rc=$RC: $out"
+  fi
+
+  # Right count, WRONG culprit.
+  printf 'clean %s [%s=15] wrong culprit\n' "$sha" "$other" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'stays clean, but NOT as recorded'; then
+    ok "replay fails when a clean row's figure is attributed to a different culprit"
+  else
+    fail "a wrong clean-row culprit must fail the replay, rc=$RC: $out"
+  fi
+
+  # A clean row with no field still replays on exit status alone -- the
+  # field is optional so a row can be pinned before its attribution is
+  # measured.
+  printf 'clean %s no attribution recorded\n' "$sha" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'stays clean as recorded'; then
+    ok "a clean row with no attribution field still replays on exit status alone"
+  else
+    fail "an attribution-less clean row must still work, rc=$RC: $out"
+  fi
+}
+
+# A failed diff or blame used to be indistinguishable from "this file had
+# nothing to attribute": stderr discarded, empty output, return 0. That
+# is the quiet pass the header contract forbids (#2880).
+t_attribute_file_git_failure_is_exit_2() {
+  local repo real_git shimdir sha out
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  drop_block "$repo" feature.txt alpha "feat: drop (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  real_git="$(command -v git)"
+  shimdir="$(mktemp -d)"
+  TMPDIRS+=("$shimdir")
+  cat >"$shimdir/git" <<EOF
+#!/usr/bin/env bash
+real_git=$(printf '%q' "$real_git")
+if [[ "\${CANARY_INJECT_BLAME_FAIL:-}" == 1 && "\$1" == blame ]]; then
+  echo "fatal: injected blame failure" >&2
+  exit 128
+fi
+if [[ "\${CANARY_INJECT_DIFF_FAIL:-}" == 1 && "\$1" == diff ]]; then
+  for a in "\$@"; do
+    if [[ "\$a" == --unified=0 ]]; then
+      echo "fatal: injected diff failure" >&2
+      exit 128
+    fi
+  done
+fi
+if [[ "\${CANARY_INJECT_ENUM_FAIL:-}" == 1 && "\$1" == diff ]]; then
+  for a in "\$@"; do
+    if [[ "\$a" == --name-only ]]; then
+      echo "fatal: injected enumeration failure" >&2
+      exit 128
+    fi
+  done
+fi
+if [[ "\${CANARY_INJECT_GIT_WARN:-}" == 1 ]]; then
+  if [[ "\$1" == blame ]]; then
+    echo "warning: injected git noise that must not leak" >&2
+  elif [[ "\$1" == diff ]]; then
+    for a in "\$@"; do
+      if [[ "\$a" == --unified=0 ]]; then
+        echo "warning: injected git noise that must not leak" >&2
+        break
+      fi
+    done
+  fi
+fi
+exec "\$real_git" "\$@"
+EOF
+  chmod +x "$shimdir/git"
+
+  CANARY_INJECT_BLAME_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git blame failed attributing'; then
+    ok "a failed blame is exit 2, not a quiet zero-attribution pass"
+  else
+    fail "expected rc=2 on injected blame failure, rc=$RC: $out"
+  fi
+
+  CANARY_INJECT_DIFF_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git diff failed attributing'; then
+    ok "a failed content diff is exit 2, not a quiet zero-attribution pass"
+  else
+    fail "expected rc=2 on injected diff failure, rc=$RC: $out"
+  fi
+
+  # The enumeration path is the same quiet-pass: a failed --name-only used
+  # to feed the loop nothing and report `ok` before attribute_file ran.
+  CANARY_INJECT_ENUM_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git diff --name-only failed enumerating'; then
+    ok "a failed file-enumeration diff is exit 2, not a quiet ok"
+  else
+    fail "expected rc=2 on injected enumeration failure, rc=$RC: $out"
+  fi
+
+  # The same failure, reached through the replay, must stay exit 2 -- not
+  # degrade into a row FAIL (exit 1) or a green reproduction.
+  printf 'fires %s [%s=40] a real drop\n' "$sha" "$(git -C "$repo" rev-parse HEAD~1)" \
+    >"$repo/scripts/inc.txt"
+  CANARY_INJECT_BLAME_FAIL=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'could not run'; then
+    ok "a failed blame during replay is exit 2, not a row FAIL or a pass"
+  else
+    fail "expected rc=2 on injected blame failure in replay, rc=$RC: $out"
+  fi
+
+  # Success still discards git stderr -- un-suppressing wholesale would
+  # train readers to ignore the canary.
+  CANARY_INJECT_GIT_WARN=1 PATH="$shimdir:$PATH" \
+    SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 1 ]] && ! printf '%s' "$out" | grep -q 'injected git noise'; then
+    ok "successful attribution still discards git stderr"
+  else
+    fail "git stderr leaked on success, or the finding disappeared, rc=$RC: $out"
+  fi
+}
+
+# A file that yields no rows, or whose last row is dropped for want of a
+# trailing newline, must not report green. The replay is the self-proof lane:
+# success that verified nothing is the false green this harness exists to
+# remove (#2874).
+t_replay_refuses_a_zero_row_or_truncated_file() {
+  local repo out sha culprit
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  : >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'reproduces every recorded incident'; then
+    ok "an empty incident file is exit 2, not a green replay"
+  else
+    fail "expected rc=2 on an empty incident file, rc=$RC: $out"
+  fi
+
+  printf '# only a comment\n# still nothing pinned\n' >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'reproduces every recorded incident'; then
+    ok "a comments-only incident file is exit 2, not a green replay"
+  else
+    fail "expected rc=2 on a comments-only incident file, rc=$RC: $out"
+  fi
+
+  # Two rows, byte-identical except the final newline. Row 2 carries a
+  # deliberately wrong count: if the last line is dropped, only the correct
+  # row 1 is seen and the run goes green. Both files must FAIL the same way.
+  #
+  # Write both files with printf directly. A `$(printf '...\n')` assignment
+  # would strip the trailing newline (command substitution does), so both
+  # files would be the no-newline case and this pin would not be testing
+  # what it claims (#3081 review).
+  local line1 line2
+  line1="fires $sha [$culprit=40] row 1 correct"
+  line2="fires $sha [$culprit=1] row 2 wrong count"
+  printf '%s\n%s\n' "$line1" "$line2" >"$repo/scripts/inc-nl.txt"
+  printf '%s\n%s' "$line1" "$line2" >"$repo/scripts/inc-nonl.txt"
+  local nl_bytes nonl_bytes
+  nl_bytes="$(wc -c <"$repo/scripts/inc-nl.txt")"
+  nonl_bytes="$(wc -c <"$repo/scripts/inc-nonl.txt")"
+  if [[ "$((nl_bytes - nonl_bytes))" -eq 1 ]]; then
+    ok "the newline and no-newline fixtures differ by exactly one trailing byte"
+  else
+    fail "newline fixture ($nl_bytes bytes) must be one byte longer than no-newline ($nonl_bytes bytes)"
+  fi
+
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc-nl.txt \
+    run_canary "$repo" --verify-known-incidents
+  local rc_nl="$RC" out_nl="$OUT"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc-nonl.txt \
+    run_canary "$repo" --verify-known-incidents
+  local rc_nonl="$RC" out_nonl="$OUT"
+
+  if [[ "$rc_nl" -eq 1 && "$rc_nonl" -eq 1 ]] &&
+    printf '%s' "$out_nl" | grep -q 'fires, but NOT as recorded' &&
+    printf '%s' "$out_nonl" | grep -q 'fires, but NOT as recorded'; then
+    ok "a two-row file without a trailing newline reaches the same FAIL as with one"
+  else
+    fail "newline and no-newline two-row files must both FAIL on the wrong last row; nl rc=$rc_nl nonl rc=$rc_nonl nl=$out_nl nonl=$out_nonl"
+  fi
+
+  # A one-row file that is correct, minus its trailing newline, must still
+  # verify that row -- the idiom must process the last line, not merely
+  # fail-closed when it is missing.
+  printf 'fires %s [%s=40] the only row' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'attribution(s) reproduced exactly'; then
+    ok "a one-row file with no trailing newline still verifies that row"
+  else
+    fail "the last unterminated row must be processed, rc=$RC: $out"
   fi
 }
 
@@ -1706,6 +2268,23 @@ t_shipped_data_files_are_wellformed() {
     fail "a shipped fires row is missing or has a malformed [<sha>=<lines>] attribution field"
   fi
 
+  # Same pin for `clean` rows (#2879). The field is optional in the grammar
+  # so a row can be recorded before its figure is measured, but every
+  # shipped clean row must carry one -- otherwise the note's number is
+  # prose again and the next flag pin rots it silently.
+  local clean_rows
+  clean_rows="$(grep -cE '^clean[[:space:]]' "$inc")"
+  bad=0
+  [[ "$clean_rows" -ge 1 ]] || bad=1
+  grep -E '^clean[[:space:]]' "$inc" |
+    grep -qvE '^clean[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' &&
+    bad=1
+  if [[ "$bad" -eq 0 ]]; then
+    ok "every shipped clean row carries a well-formed attribution field ($clean_rows rows)"
+  else
+    fail "a shipped clean row is missing or has a malformed [<sha>=<lines>] attribution field"
+  fi
+
   # Every shipped `fires` row must carry at least one marker (#2855).
   #
   # --verify-restoration enforces this at run time too, but only in the canary
@@ -1759,6 +2338,14 @@ t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
+t_minus_diff_lock_file_is_attributed
+t_minus_diff_whole_file_deletion_is_attributed
+t_minus_diff_recovery_is_load_bearing
+t_detector_does_not_pass_text
+t_explicit_binary_ascii_is_not_attributed
+t_binary_asset_churn_is_not_a_finding
+t_rename_limit_does_not_decompose_basename_changing_relocation
+t_rename_limit_flag_is_load_bearing
 t_ext_diff_pin_is_load_bearing
 t_textconv_pin_is_load_bearing
 t_show_signature_pin_is_load_bearing
@@ -1768,6 +2355,7 @@ t_prose_mentioning_revert_still_fires
 t_empty_trailer_still_fires
 t_acknowledged_commit_is_cleared
 t_abbreviated_ack_does_not_clear
+t_ack_last_row_without_newline_is_honored
 t_default_threshold_is_wired
 t_range_mode_scans_every_commit
 t_declared_note_ends_its_line
@@ -1777,6 +2365,9 @@ t_root_commit_is_handled
 t_empty_range_is_clean
 t_replay_fails_on_broken_expectation
 t_replay_asserts_the_recorded_attribution
+t_replay_asserts_clean_row_attribution
+t_attribute_file_git_failure_is_exit_2
+t_replay_refuses_a_zero_row_or_truncated_file
 t_restoration_reports_present_and_absent_markers
 t_restoration_refuses_a_malformed_corpus
 t_restoration_binds_a_marker_to_exactly_one_file

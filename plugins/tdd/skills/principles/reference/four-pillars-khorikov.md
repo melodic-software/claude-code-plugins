@@ -98,7 +98,7 @@ Test accuracy = Signal (bugs found) / Noise (false alarms raised)
 > equivalent exists for the false-positive half; resistance to refactoring stays a judgment. So the
 > measurement is deliberately lopsided, and a suite optimized for mutation score alone will trade
 > away the other three pillars — which is the reason it is an indicator here and not a target. For
-> the metric family and its limits, invoke `/mutation-testing:principles` when the
+> the metric family and its limits, invoke `/mutation-testing:principles` via the Skill tool when the
 > `mutation-testing` plugin is installed; without it, the short version is that the number to read
 > is the *covered-code* mutation score, that its ceiling is unknowable because equivalent mutants
 > cannot all be removed, and that a suite with known flaky tests reports a score inflated by an

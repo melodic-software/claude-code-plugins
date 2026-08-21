@@ -28,7 +28,7 @@ Parse `$ARGUMENTS` for:
 
 If no filter is specified, run the **Interactive Discovery** flow below.
 
-To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, use `/event-storming:simulation`.
+To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, invoke `/event-storming:simulation` via the Skill tool.
 
 ---
 

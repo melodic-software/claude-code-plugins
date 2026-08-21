@@ -68,8 +68,8 @@
     {
       "id": 6,
       "name": "does-not-skip-a-search-by-anticipation",
-      "prompt": "Why was the CSV export column order chosen? Do not bother checking the tracker, it is definitely not in there — this is too small a thing to have been ticketed.",
-      "expected_output": "The skill runs the tracker search anyway, because 'probably irrelevant' is not one of the two permitted skip reasons, and reports the actual result.",
+      "prompt": "Why was the CSV export column order chosen? Our issue tracker is configured and reachable in this checkout, but do not bother checking it — it is definitely not in there, this is too small a thing to have been ticketed.",
+      "expected_output": "The skill runs the tracker search anyway, because 'probably irrelevant' is not one of the two permitted skip reasons, and reports the actual result. The prompt stipulates the tracker IS available, so a tracker-unavailable gap line is not the correct answer here — that is the separate presence-gated case covered by the unavailable-category eval.",
       "files": [],
       "expectations": [
         "Output runs the tracker search rather than accepting the user's assurance that it is empty",

@@ -3,6 +3,155 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.7]
+
+### Fixed
+
+- **PowerShell write guard: quoting an operand no longer evades the computed-call
+  positional write signal
+  ([#2906](https://github.com/melodic-software/claude-code-plugins/issues/2906)).**
+  `& $w 'f.txt' 'x'` and `& $w 'f.txt' x` exited 0 from `block-hook-bypass`
+  while the identical unquoted `& $w f.txt x` exited 2 — a working
+  `Set-Content <path> <value>` through a computed target, waved through
+  because the operands were quoted. `& $w (Join-Path $d f.txt) 'x'` did the
+  same. Pre-existing, not a 0.28.x/0.29.x regression: every shape measured 0
+  on the pre-0.28.33 base as well. Official quoting rules
+  ([about_Quoting_Rules](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)):
+  a quoted argument is still an argument.
+
+  `ps::blank_quoted_spans` DELETES quoted spans so a quoted `>` or `-value` in
+  message text stays inert for the redirect and `-va*` probes. The
+  two-positional arm of `ps::computed_call_has_positional_write_signal` then
+  saw those operands as absent, not present-but-opaque, and quoting became a
+  general evasion of the `#2722` Path+Value signal. A global placeholder was
+  measured and rejected: it fail-opened producer-redirect rows. The contained
+  fix derives a sibling string (`ps::opaque_quoted_spans`) inside
+  `ps::write_bypass` and hands it to the positional probe alone. Pairing is
+  the same left-to-right walk `#2965` landed — first opener owns its span —
+  so `Write-Host "it's fine"; & $w 'f.txt' 'x'` is visible as a call.
+
+  Classification, interpolating-dash first: only a double-quoted token that
+  both starts with `-` and interpolates is a flag (`"-Path$x"` stops the
+  scan, matching unquoted `-Path$x`). A merely dash-prefixed quoted literal
+  (`'-file.txt'`) is still an argument — quoted strings are never parameters
+  (about_Parsing) — and stays an opaque literal, or a hyphen on the path
+  would reopen this evasion. A double-quoted span that contains `$` is
+  computed, not a visible literal (about_Quoting_Rules expandable strings);
+  everything else is an opaque literal. An empty span (`""`, `''`) is still deleted, so
+  `& $py $script ""` stays allowed. `#2965` pairing pins and `#2984`
+  assignment-arm pins are unchanged. The six `#2848` must-allow cases stay
+  at 0 on all three blocking hooks, including
+  `& $py $script (Join-Path $dir "$id.jsonl")`. Deliberately ACCEPTED:
+  `& $py "script.py" "arg"` now blocks, consistent with the already-blocked
+  unquoted `& $py script.py arg`.
+
+## [0.29.6]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.29.5]
+
+### Fixed
+
+- **PowerShell guards: an unspaced assignment no longer hides a dynamic
+  invocation or a launcher from the fail-closed sink
+  ([#2984](https://github.com/melodic-software/claude-code-plugins/issues/2984)).**
+  `$a=& "$tool" commit --no-verify` exited 0 from `block-dangerous-git` and
+  `block-no-verify` while the identical spaced `$a = & "$tool" commit
+  --no-verify` exited 2. Same for `$out=pwsh $script` against `$out = pwsh
+  $script`. The only difference in each pair is whitespace around `=`.
+
+  `#2966` added `=` to the CALL-TARGET separator classes. The SINK-TRIGGER
+  classes one layer up — `ps::has_dynamic_invocation` and `ps::has_launcher` —
+  still lacked it, so the two lanes disagreed about what a token boundary is.
+  This is the MIRROR IMAGE of `#2922`/`#2924`: there the gate ENTRY predicate was
+  BROADER than every measuring predicate, so the gate was entered and no arm
+  fired; here entry was NARROWER than measurement, so the sink was never entered
+  and the measuring predicates — which would have recognized the call target
+  fine — never ran at all. Both directions fail OPEN.
+
+  The unspaced assignment is matched as a PowerShell assignment operator
+  (`about_Assignment_Operators`: `$name=` / `$scope:name=`), not by putting `=`
+  in the same separator class as `;` `|` `&`. A generic `=` also matches data
+  inside quotes (`about_Quoting_Rules`) and git(1) `-c <name>=<value>` config
+  overrides (`git -c section.key=cmd`), neither of which is an assignment. The
+  assignment arm is spelled out literally in each predicate and scanned
+  quote-blanked.
+
+  Widening a sink trigger is the OVER-BLOCK direction, so the allow side is what
+  was measured. It is NARROW, not a blanket hit on assignment idiom:
+  `$a=Get-Content f.txt`, `$env:PATH=$env:PATH`, `git -c core.pager=cmd log`,
+  `git -c section.key=cmd log`, `Write-Host "shell=pwsh $script"`,
+  `$x=.5` and the six `#2848` computed-writer acceptance cases all stay allowed.
+  Two rows `#2966` pinned as allowed — `$out=pwsh $script` and
+  `$p=Start-Process $app` — now block. That rc=0 was structural rather than a
+  decision: on the pre-fix base every SIBLING SPELLING of the identical class
+  already blocked (`pwsh $script`, `cmd $t`, `Start-Process $app`,
+  `$a=1;pwsh $script`, `$a|pwsh $script`, and the spaced `$out = pwsh $script`),
+  and only the unspaced `=` did not. The rows now pin the same rc as their six
+  siblings.
+
+## [0.29.4]
+
+### Fixed
+
+- **PowerShell guards: an apostrophe inside a double-quoted string no longer
+  deletes the command between two such strings
+  ([#2965](https://github.com/melodic-software/claude-code-plugins/issues/2965)).**
+  `Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"` exited 0 from
+  `block-dangerous-git` and `block-no-verify`, while the bare
+  `& ('g'+'it') push --force` exited 2. The natural-prose spelling —
+  `Write-Host "Kyle's build"; & ($tool) push --force; Write-Host "that's all"` —
+  did the same, and `& ('set-'+'content') f.txt x` flanked the same way exited 0
+  from `block-hook-bypass`. Long-standing shipped behavior, not a 0.28.x/0.29.x
+  regression.
+
+  `ps::blank_quoted_spans` paired quote characters with two independent `sed`
+  expressions, neither aware of which quote style opened first. An apostrophe
+  inside a double-quoted string is a literal character to PowerShell, but the
+  single-quote expression treated it as a delimiter and matched from the
+  apostrophe in one string to the apostrophe in the next — deleting everything
+  between them. The whole command above reduced to the single token
+  `Write-Host`. This is an ENTRY-side failure, not a measurement error: with the
+  `(` deleted, `ps::has_special_constructs` saw no construct,
+  `ps::has_dynamic_invocation` saw no call and `ps::has_launcher` saw no
+  launcher, so `ps::classify_git_command` never entered the fail-closed sink and
+  none of the downstream probes ran at all.
+
+  The two expressions are replaced by one LEFT-TO-RIGHT walk in which whichever
+  quote character opens first owns everything up to its own next occurrence, so
+  an apostrophe inside a double-quoted span is ordinary text and a quote
+  character inside a single-quoted span is ordinary text. The reversed spelling
+  (`'a"b'; & ('g'+'it') push --force; 'c"d'`) closes by the same walk.
+
+  Ambiguity resolves toward NOT deleting, because this is an entry scan where
+  leaving text in view can only over-block while deleting it is the fail-open
+  above. An unterminated opener emits the rest of its line verbatim; a span never
+  crosses a newline; and smart quotes are not treated as delimiters.
+
+  Two escape spellings make pairing itself ambiguous, so the walk refuses the
+  question and emits the rest of the line verbatim rather than picking a closer.
+  PowerShell's doubled-quote escape (`'it''s'`, `"say ""hi"""`) is one: a doubled
+  candidate closer is treated as ambiguous, not naively paired. A backtick inside
+  a would-be double-quoted span is the other, and it has two failure modes —
+  honoring the escape (`ps::_skip_double_quote`) extends a span past `` "a`" ``
+  to the next real quote and reopens this same bypass; refusing it ends the span
+  at the backticked quote and leaves the string's real closer as a stray opener
+  that re-pairs far to the right. Review measured
+  ``"a`""; & ('g'+'it') push --force; 'b"c'`` at 0 on all three hooks before the
+  walk started deleting nothing once a backtick is seen. A lone empty string
+  (`""`, `''`) is not doubled and still blanks normally.
+
+  No behavior change to the [#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)
+  must-allow shapes: all six stay 0 on all three blocking hooks, including when
+  contaminated with apostrophes (`& $py $script (Join-Path $dir "that's.jsonl")`).
+  Prose that merely mentions a write or a git command stays inert.
+
 ## [0.29.3]
 
 ### Fixed

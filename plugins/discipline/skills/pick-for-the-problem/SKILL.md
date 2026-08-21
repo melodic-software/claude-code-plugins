@@ -66,8 +66,8 @@ When the selection is load-bearing, the field survey and the maintenance /
 security / license / adoption judgement must come from CURRENT research, not
 training-data recall — a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
-from memory: `/discovery:research`, or `/discovery:research-deep` for a large
-surface. Degrade to an explicit in-thread research pass (fetch the primary
+from memory: invoke `/discovery:research` via the Skill tool, or
+`/discovery:research-deep` for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
 sources yourself and cite them) when that capability is not installed —
 never a bare recalled verdict.
 

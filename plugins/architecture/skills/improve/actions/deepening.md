@@ -94,7 +94,7 @@ Once the user picks a candidate, walk the decision tree: constraints, dependenci
 
 Side effects inline as decisions crystallize:
 
-- **New concept or sharpened term?** Invoke `/domain-driven-design:curate-language` immediately
+- **New concept or sharpened term?** Invoke `/domain-driven-design:curate-language` via the Skill tool immediately
   when that skill is available in the current session; it owns active glossary maintenance and
   known-context routing.
   Otherwise preserve the existing fallback: update a consumer-declared ubiquitous-language glossary
@@ -109,4 +109,4 @@ Branch here when the user wants alternative interfaces for the selected candidat
 
 ### Handoff
 
-When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what sits behind the seam, tests that survive). Hand off to a planning step, which consumes the `agreed-shape` entry to plan the implementation. If no dedicated planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
+When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what sits behind the seam, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit** — what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to a planning step, which consumes the `agreed-shape` entry to plan the implementation. If no dedicated planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.

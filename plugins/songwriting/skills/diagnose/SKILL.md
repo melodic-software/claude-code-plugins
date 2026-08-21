@@ -71,7 +71,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   taste — load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists,
   name that as a skipped gate instead of ruling on register anyway.
 - If the user pastes an incomplete fragment/idea/half-song, this is the wrong skill — route to
-  `/songwriting:workflow` (`fragment` / `idea`), not `diagnose`.
+  `/songwriting:workflow` (`fragment` / `idea`) by invoking it via the Skill tool, not `diagnose`.
 
 ## Persistence and template overrides
 

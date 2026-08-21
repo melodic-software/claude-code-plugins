@@ -112,7 +112,8 @@ Present findings in the artifact's order and dispose of each by its current stat
 Interview → explore and research → plan → implement. Each composes a sibling skill **when its plugin
 is installed** and runs the documented inline fallback when it is not. Check presence, take the
 fallback, and **say which one ran** — a silent skip is indistinguishable from a step that was never
-needed. Record the presence answer on the finding.
+needed. Record the presence answer on the finding. Every skill in the `Composition` column is
+invoked via the Skill tool.
 
 | Movement | Composition (presence-gated) | Inline fallback when absent |
 |---|---|---|

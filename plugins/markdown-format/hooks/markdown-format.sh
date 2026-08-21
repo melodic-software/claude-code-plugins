@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # PostToolUse hook: auto-format and lint Markdown via markdownlint-cli2.
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
+# hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc) — Edit() is the
+# permission-rule form that covers Write as well; a Write(path) rule is never
+# matched (https://docs.claude.com/en/docs/claude-code/permissions, fetched
+# 2026-08-21). The in-script extension check stays: the if filter is one rule
+# per handler and fails open on an unparsable payload, so a non-Markdown path
+# can still reach this script.
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
@@ -43,8 +49,9 @@ emit_tel() {
 INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not process anyway (the Write|Edit matcher is broader than the
-# Markdown filter).
+# hook would not process anyway. hooks.json already gates launch with
+# if: Edit(*.md)/Edit(*.mdc); this check remains because that filter is one
+# rule per handler and fails open on an unparsable payload.
 RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
 case "$RAW_FILE" in
 *.md | *.mdc) ;;
@@ -504,6 +511,137 @@ resolve_repo_markdownlint() {
   return 1
 }
 
+# Strip a trailing slash; on Git Bash, fold a drive-letter spelling to POSIX
+# so $HOME and PATH entries compare as the same directory.
+normalize_path_entry() {
+  local p="${1%/}" n
+  if command -v cygpath >/dev/null 2>&1; then
+    n="$(cygpath -u "$p" 2>/dev/null)" || n="$p"
+    p="${n%/}"
+  fi
+  printf '%s' "$p"
+}
+
+# True when the edited file sits inside a git working tree. git is preferred;
+# a .git walk covers a git-less host.
+edit_is_in_git_repo() {
+  local dir parent
+  dir="$(cd "$(dirname -- "$1")" 2>/dev/null && pwd -P)" || return 1
+  if command -v git >/dev/null 2>&1 && in_git_working_tree "$dir"; then
+    return 0
+  fi
+  while :; do
+    [[ -e "$dir/.git" ]] && return 0
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" != "$dir" ]] || return 1
+    dir="$parent"
+  done
+}
+
+# True when `npm i -D` has a place to land: a git working tree, or a package.json
+# between the file and REPO_ROOT (an unpacked / non-git Node project whose
+# CLAUDE_PROJECT_DIR last-resort root is exactly that case). A scratch dir
+# with no package.json is not a repo-local install target.
+edit_has_repo_local_install_target() {
+  local dir parent root=""
+  if edit_is_in_git_repo "$FILE"; then
+    return 0
+  fi
+  dir="$(cd "$(dirname -- "$FILE")" 2>/dev/null && pwd -P)" || return 1
+  if [[ -n "${REPO_ROOT:-}" ]]; then
+    root="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || root=""
+  fi
+  while :; do
+    [[ -f "$dir/package.json" ]] && return 0
+    if [[ -n "$root" && "$dir" == "$root" ]]; then
+      return 1
+    fi
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" != "$dir" ]] || return 1
+    dir="$parent"
+  done
+}
+
+# Pick a durable user-scope directory already on $PATH. Only the three
+# directories an operator can put a hook-visible binary in without a
+# repository, in preference order: ~/.bun/bin (bun's default globalBinDir),
+# ~/.local/bin, ~/bin. No generic $HOME/* fallback — a version-manager
+# install/shim tree under $HOME is not a durable target (#2868 review).
+# Prints the chosen PATH entry in the spelling that was on PATH, or returns 1.
+select_user_scope_path_target() {
+  local home rest entry norm_entry norm_home
+  local best_pref=99 best=""
+  home="${HOME:-}"
+  [[ -n "$home" ]] || return 1
+  norm_home="$(normalize_path_entry "$home")"
+  [[ -n "$norm_home" ]] || return 1
+
+  rest="${PATH:-}"
+  while [[ -n "$rest" ]]; do
+    if [[ "$rest" == *:* ]]; then
+      entry="${rest%%:*}"
+      rest="${rest#*:}"
+    else
+      entry="$rest"
+      rest=""
+    fi
+    [[ -n "$entry" ]] || continue
+    norm_entry="$(normalize_path_entry "$entry")"
+    [[ -n "$norm_entry" ]] || continue
+    case "$norm_entry" in
+    "$norm_home/.bun/bin")
+      printf '%s' "$entry"
+      return 0
+      ;;
+    "$norm_home/.local/bin")
+      if ((best_pref > 2)); then
+        best_pref=2
+        best="$entry"
+      fi
+      ;;
+    "$norm_home/bin")
+      if ((best_pref > 3)); then
+        best_pref=3
+        best="$entry"
+      fi
+      ;;
+    *) ;;
+    esac
+  done
+  [[ -n "$best" ]] || return 1
+  printf '%s' "$best"
+}
+
+# Remediation sentence(s) for the missing-markdownlint notice. When a
+# repo-local install can land (git tree or package.json), that is the
+# reliable route. Otherwise name a durable user-scope directory already
+# on the probed PATH instead of `npm i -D` (#2868).
+markdownlint_skip_remediation() {
+  local target norm_target norm_home bun_bin
+  if edit_has_repo_local_install_target; then
+    printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools."
+    return 0
+  fi
+  printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here. This edit is outside a repository, so a repo-local install has no repository to install into"
+  if target="$(select_user_scope_path_target)"; then
+    norm_target="$(normalize_path_entry "$target")"
+    norm_home="$(normalize_path_entry "${HOME:-}")"
+    bun_bin="$norm_home/.bun/bin"
+    # bun's documented default globalBinDir is exactly ~/.bun/bin
+    # (https://bun.com/docs/runtime/bunfig, install.globalBinDir, fetched
+    # 2026-08-21). Cite bun only for that exact directory, never a nested
+    # `*/.bun/bin` suffix.
+    if [[ -n "$norm_home" && "$norm_target" == "$bun_bin" ]]; then
+      printf '%s' "; place a user-scope markdownlint-cli2 on the probed PATH (this hook would accept one at ${target}; bun install --global markdownlint-cli2 lands there by default)"
+    else
+      printf '%s' "; place a user-scope markdownlint-cli2 on the probed PATH (this hook would accept one at ${target})"
+    fi
+  else
+    printf '%s' "; install markdownlint-cli2 onto a durable user-scope directory already on this hook's PATH"
+  fi
+  printf '%s' ". This hook does not invoke npx or download tools."
+}
+
 MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
@@ -521,9 +659,14 @@ else
   # and agents stop retrying. The trailing PATH line is the probe diagnostic
   # (what this hook process actually searched); do not widen the probe to
   # nvm/rbenv layout guesses — that is a separate environment/bootstrap fix.
+  #
+  # Remediation is scoped (#2868): `npm i -D` is the reliable route only
+  # inside a repository. Outside one, name a durable user-scope directory
+  # already on the probed PATH rather than a repo-local install that cannot
+  # be followed.
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools.
+      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation)
 PATH probed: ${PATH:-<unset>}"
   fi
   emit_tel "skipped" '[]'

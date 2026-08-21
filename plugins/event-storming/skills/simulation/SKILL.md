@@ -29,7 +29,7 @@ Parse `$ARGUMENTS` for a simulation mode:
 
 If no simulation mode is specified, ask whether to run a full `--simulate` cycle (defaulting the domain to "Developer Conference") or to read facilitation reference instead (`/event-storming:methodology`).
 
-For facilitation knowledge, format guidance, notation, and the no-args interactive discovery flow, use `/event-storming:methodology`.
+For facilitation knowledge, format guidance, notation, and the no-args interactive discovery flow, invoke `/event-storming:methodology` via the Skill tool.
 
 ---
 

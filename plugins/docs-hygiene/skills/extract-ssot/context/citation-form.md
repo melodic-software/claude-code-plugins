@@ -81,7 +81,7 @@ If the heading itself contains characters that confuse grep (parens, em-dashes, 
 
 ## Rename discipline
 
-Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, run `/docs-hygiene:rename-references` immediately — it sweeps all 10 syntactic forms including:
+Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately — it sweeps all 10 syntactic forms including:
 
 | Form | Example | Pure-token grep catches? |
 |------|---------|--------------------------|

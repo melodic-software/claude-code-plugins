@@ -3,6 +3,187 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.12]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.39.11]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The tracker test
+  harness already unset the discovery variables at source time; it now also
+  unsets `GIT_CONFIG`. Test-only; no skill behavior change.
+
+## [0.39.10]
+
+### Added
+
+- **The Linear schema check is committed, so the evidence that replaced a live conformance run is
+  reproducible.** #2946 closed with its live-conformance criterion descoped and a schema-validation
+  pass substituted — but that pass existed only as a session artifact, so the claim justifying the
+  descope could not be re-run or regression-guarded by anyone. It now lives at
+  `adapters/linear/schema-check/`: `validate.mjs` (every operation through `graphql.validate()` plus
+  spec-compliant variable coercion), `negative.mjs` (the control that makes a green run mean
+  something — deliberately broken variants that must all fail), `fidelity.sh` (proves the operations
+  checked are the adapter's own text, not a paraphrase, and doubles as the drift alarm), plus a
+  `fetch-schema.sh` that pulls the SDL on demand rather than vendoring 1.2 MB of upstream text.
+  Current result: **18/18 operations valid, 10/10 injected faults caught, 11/11 strings verbatim.**
+  `fidelity.sh` immediately earned its place by catching that the harness still expected the
+  pre-0.39.9 `team.labels` query.
+
+  **All three exit non-zero on failure, and `fidelity.sh` checks both sides.** The first version
+  of this harness had two defects that review caught, and both were the very failure it exists to
+  prevent. Every script printed `FAIL`/`MISSED`/`MISMATCH` and then **exited 0**, so no caller
+  could tell a passing run from a failing one — a check that cannot go red is the vacuous green
+  this whole seam has spent three PRs eliminating, and I shipped three of them. And `fidelity.sh`
+  matched each operation only against the *adapter*, never against `validate.mjs`, so
+  `validate.mjs` could have validated a different — still schema-valid — query while both scripts
+  stayed green and the adapter's real request went unchecked. Both fixed: all three return 1 on
+  failure, `fidelity.sh` requires each operation on **both** sides, and multi-line operations are
+  covered whitespace-normalized rather than merely printed. Verified by breaking each script
+  deliberately and confirming exit 1, then confirming a clean run still exits 0.
+
+### Changed
+
+- **`tracker-seam.md` now names the item-content-trust boundary where it teaches body reads.** The
+  file is the SSOT twelve surfaces consult, and it explained how to read an item's body via a
+  provider mechanic without once mentioning that what comes back is untrusted. No live surface was
+  unguarded — `decompose`, `ship`, `work`, `triage` and the review spokes all cite the boundary —
+  but the document a *new* surface reads when adding a body read did not, so the link ran one way
+  only.
+- **The #2945 role-split topology decision is recorded in `CONTRACT.md`.** #2951 (Jira write
+  support) was closed `not_planned` on the strength of that decision, which existed only as a
+  comment on a sub-issue — and under this plugin's own disposable-tickets doctrine a decision
+  resting in a ticket is resting in the wrong place. `CONTRACT.md` § "Multi-provider topology" now
+  carries the shape (one writable coordination provider, N read-only `sources`), states plainly
+  that **nothing implements `sources` today**, and marks building it demand-gated.
+- **The README's synonym claim is scoped to the skills it is true of.** It said ticket/issue
+  "appear in skill Use-when triggers" fleet-wide; `ship`, `onboard-adapter` and `setup` carry
+  neither token. Rather than stuff the tokens into an adapter generator's triggers to satisfy the
+  sentence — buying a tidier claim at the cost of worse routing — the claim now names the
+  item-facing skills and says why the infrastructure and container-journey skills differ.
+
+## [0.39.9]
+
+### Fixed
+
+Five defects in the `linear` and `gitea` adapters, all of the same class: **both adapters are
+tested only against mock transports whose responses the tests themselves author**, so a wrong
+field name, argument, enum value, endpoint path, or termination signal passes every suite and
+fails on the first real call. Neither adapter has ever run against a live server. Found by
+validating both against their providers' real published contracts — Linear's GraphQL schema
+(`@linear/sdk` 90.0.0 plus the SDL, cross-checked and byte-identical) and Gitea's own generated
+Swagger at `v1.22.6`, with the handler source consulted where the spec is silent.
+
+The validation also cleared the whole surface it did not find fault with: **all 17 Linear
+operations validate against the real schema** under `graphql-js`, including argument types,
+nested selections, enum members, and variable coercion — proven sensitive by a negative control
+in which 10 of 10 deliberately-injected faults were caught. Every Gitea path, method, query
+parameter, request-body field, and response field the adapter reads matches the spec.
+
+- **`linear` accepted a `page_size` the API rejects.** Config validation took any positive
+  integer while Linear caps every connection's `first` at 250 — a value the adapter's own
+  comment already documented. Validation passed and the *first* live call failed, which is the
+  failure mode config validation exists to prevent. Now bounded, with the cap named in the
+  refusal.
+- **`linear` could not resolve workspace-level labels, and lost labels past the first page.**
+  Label ids were read from `team.labels(first: 250)` — one page, no `pageInfo`, no loop, where
+  250 is Linear's per-page *maximum* rather than a comfortable ceiling — and `Team.labels` is
+  documented only as *"Labels associated with the team"*, while `IssueLabel.team` says *"If
+  null, the label is a workspace-level label available to all teams"*. Because an unresolved
+  name is refused rather than dropped, both defects surfaced as a hard exit on a label that
+  exists. Resolution now walks the **root** `issueLabels` connection — the one documented to
+  return both scopes — filtered to this team or workspace-level, fully paginated, and stops on
+  a null cursor rather than restarting from page 1.
+- **`gitea` silently truncated every list on instances with a lower paging cap.**
+  `ToCorrectPageSize` clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), so where
+  `config.gitea.page_size` exceeds an instance's cap *every* page came back short — and
+  "short page means last page" ended the walk after page 1 with nothing said, since the
+  ceiling warning never fired either. The issue-list and label-list handlers do send
+  `X-Total-Count` (`ctx.SetTotalCountHeader`), so the transport now captures response headers
+  and both walks use that count as the authoritative end-of-list signal. The short-page
+  heuristic remains the fallback where no header is sent, so behaviour is unchanged on
+  instances that send none, and no extra request is ever spent.
+- **`gitea` fetched pull requests only to throw them away.** `list-items` omitted the
+  `type=issues` query parameter that this endpoint actually supports, so PRs consumed the page
+  budget and — worse — the declared ceiling counted raw rows rather than items, making a
+  PR-heavy repo report *"reached the declared ceiling of 1000 items"* having collected far
+  fewer. The client-side PR filter stays as belt and braces.
+- **`gitea` refused organization-wide labels it would happily have applied.**
+  `GetLabelsByRepoID` backs `/repos/{o}/{r}/labels` with `WHERE repo_id = ?`, so an org label
+  never appears there, yet `NewIssueWithIndex` accepts any label whose `OrgID == repo.OwnerID`.
+  The asymmetry was user-visible and backwards: `get-item` and `list-items` *do* report org
+  labels in `.labels[]`, so the tracker returned a label name it would then refuse to write
+  back, telling the operator to create a label that already exists. `create-item` now merges
+  `/orgs/{owner}/labels`, treating the 404 a user-owned repo returns as "no org labels" rather
+  than an error.
+
+- **Every large list could silently return ZERO items.** Found by the ceiling regression test
+  written for the fix above, not by inspection. Both adapters accumulated paged results as
+  `jq --argjson acc "$ACC"`, which puts an **unboundedly growing array on jq's command line**.
+  Past `ARG_MAX` the kernel refuses the exec — `jq: Argument list too long` — and because the
+  assignment was unchecked, the accumulator was left empty and the verb **reported an empty
+  list while exiting 0**. A repository or team large enough to trip it looked simply empty.
+  The final envelope emit had the same shape, at the one point where the array is guaranteed
+  to be at its largest. Nine sites across `list-items`, `list-sub-items`, `create-item` and the
+  lease helper now pass the accumulator through **stdin** and only the bounded new element in
+  argv, and every one of them fails loudly rather than degrading to empty. On
+  `linear:list-sub-items` this was the worst of the set: an empty child list is what the
+  closed-children invariant reads as "nothing open under this container".
+- **The declared list ceiling counted requested page size, not rows returned.** Under the clamp
+  above the two diverge: with `page_size` 100 against a server capping at 50,
+  `PAGE * page_size` reaches 1000 after ten pages that returned 500 issues, so the walk stopped
+  half way and announced a ceiling it had never reached. For labels it was worse than a short
+  answer — every label in the unreached rows read as nonexistent and was refused. Both ceilings
+  now count rows actually collected.
+- **The org-label walk ignored the header the repo-label walk beside it obeys.** An earlier
+  draft of the org-label fix used a largest-page-seen heuristic, which always spent one extra
+  request and, against same-sized consecutive pages, walked to the ceiling and reported a
+  truncation that had not happened — turning a genuinely missing label into a misleading "the
+  label list was truncated" message. It now uses `X-Total-Count` exactly as its sibling does.
+  Caught by review; the regression test pins the request count at one, where the heuristic
+  made twenty.
+- **The new `linear` label walk had no ceiling**, unlike every other paginated loop in this
+  seam. A server that kept answering `hasNextPage` with a fresh cursor would have hung
+  `create-item` indefinitely. Bounded now, and — like `gitea` — it distinguishes "not found
+  because truncated" from "not found because absent", since telling someone to create a label
+  that already exists sends them to do the wrong thing.
+
+Each fix ships with regression cases verified to fail against the unfixed file. The `gitea` mock
+transport gained `-D` header support so the `X-Total-Count` path is exercised rather than
+silently falling back.
+
+Four Linear behaviours remain unverifiable without a live credential and are recorded rather
+than guessed: whether `assigneeId: null` semantically unassigns (the schema permits the null;
+the resolver's behaviour is not in the schema), Linear's default comment ordering, and the
+instance-configuration-dependent halves of the Gitea findings (`MAX_RESPONSE_ITEMS`,
+`ALLOW_CROSS_REPOSITORY_DEPENDENCIES`). Forgejo parity is still assumed rather than measured.
+
+## [0.39.8]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `attend-queue`'s `[intake]` row triage and
+  its `[escalated]` row's drive-to-a-decision route to `/planning:interview`;
+  `decompose`'s container close-out review (`/review:quality-gate close-out`);
+  `onboard-adapter`'s spec interview; `work-loop`'s intake sweep and its cycle step 4, which
+  works admitted items through `/work-items:work` (step 2 of the same numbered cycle had been
+  rewritten and this one missed); `scan-todos`' "file a work item" disposition
+  (`/work-items:track add`); `ship`'s container-discovery dead end, which routes to
+  `/work-items:decompose` when no container exists at all; `work`'s dispatch-mechanics
+  chain to `/implementation:implement-dispatch`, its deferred-finding filing, its post-green
+  hand-off of the PR to `/source-control:babysit-prs`, and its completion bookkeeping. Left as prose on purpose: every `/work-items:setup` reference, since `setup` is
+  `disable-model-invocation: true` and unreachable from a skill under the rubric's
+  invocation-reach invariant; and `ship`'s Step-4 journey-state route table, since that skill
+  "reads, states, and routes" and its Step 5 emits the routed action as *the recommendation*
+  rather than taking it. Wording only.
+
 ## [0.39.7]
 
 ### Fixed

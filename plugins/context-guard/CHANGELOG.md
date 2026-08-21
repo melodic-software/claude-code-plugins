@@ -5,6 +5,86 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.17]
+
+### Added
+
+- **The cloud/headless capture verdict is now a shipped reference, and `unknown` there is documented
+  as structural (#2957).** The snapshot rides the statusline tee, so a session that never runs a
+  statusline has no instrument at all — cloud and headless sessions by default. Measured in a live
+  Claude Code on the web container on 2026-08-21: no `statusLine` in any settings scope, no
+  `<session_id>.json` snapshot, and `context-zone.sh` answering `unknown`. Measured from the other
+  side the same day, so the cloud finding is not an inference: a `statusLine` written into the live
+  cloud session's own user settings, with `refreshInterval: 2` and a probe that logs every
+  invocation, was **never invoked once** over ~7 minutes, and the identical wiring under a scratch
+  `HOME` exercised with `claude -p` behaved the same. One correction to the
+  reported symptom, and it is the finding the rest rests on: `~/.claude/context-guard/` *does* exist
+  there, created by the `PostCompact` hook — plugin hooks run fine in cloud, only the statusline
+  writer is silent, which is why hook stdin was the first channel checked. New
+  `reference/cloud-headless-capture.md` records the writer-side channel inventory: every channel
+  checked with its live URL and the date read (all 2026-08-21), what each does and does not carry,
+  and what would have to change upstream. **Verdict: no documented channel other than the status
+  line delivers per-session context-window occupancy to a local writer.** Hook stdin carries
+  `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`,
+  `hook_event_name` and event-specific fields, and no context, token, usage, or window field on any
+  event — **except `PostToolUse` on the `Agent` tool, whose `tool_response` carries `totalTokens`
+  and a `usage` breakdown for the *subagent's* final API request, and nothing about the main
+  session's window.** Also rejected with the reason recorded: `subagentStatusLine` (subagent rows
+  only, and itself a status-line surface), non-interactive JSON/stream output (per-invocation and
+  after the fact), the OpenTelemetry token *metric* (a cumulative counter, no occupancy gauge), the
+  OpenTelemetry `claude_code.api_request` *event*, and the session transcript. The last two are the
+  near-misses and each gets its own section rather than a table cell, because each really does
+  carry live per-session occupancy. The `api_request` event carries `input_tokens`,
+  `output_tokens`, `cache_read_tokens`, `cache_creation_tokens`, `query_source` and `event.sequence`
+  with `session.id` on by default — the same three input addends the statusline page gives as the
+  `used_percentage` formula — but it carries no `context_window_size` and no percentage, and the
+  resolver needs a denominator: measured, a snapshot with mapped `current_usage`, both token totals
+  and a `cli_version` but no `context_window_size` resolves `unknown`, while adding one to the
+  identical file resolves `acceptable`. It also has no local sink (`prometheus` is metrics-only,
+  `console` writes to Claude Code's own stdout, and Claude Code strips `OTEL_*` from every
+  subprocess including hooks), so nothing hook-local can consume it. The transcript is reachable
+  from every hook through the documented `transcript_path` and carries exactly the right numbers,
+  and the rejection no longer rests on "a reader would break on a release": a shape-validating
+  reader degrades to writing nothing, which is `unknown`, the same fail-open posture this contract
+  mandates everywhere else. It is declined instead on silent semantic drift — a field can keep its
+  name, type and magnitude while ceasing to mean full-context occupancy, which no shape check
+  detects — plus an unbounded re-verification obligation against a format its own docs call
+  internal and unsupported.
+
+### Changed
+
+- **`reference/reader-contract.md` tells consumers how to report a missing instrument (#2957).** A
+  new cloud-and-headless section states that `unknown` in a session that never runs a statusline is
+  structural and permanent, to be reported as "no instrument in this environment" and never as a
+  defect or a broken install; that no zone may be synthesized from another source, naming each
+  reachable near-substitute and the thing it requires the reader to invent or trust; and that
+  `unknown` carries no direction, so a fork or handoff trigger in such a session must come from
+  somewhere else and must not be presented as instrument-backed. It also gives the discriminator the
+  previous text lacked: structural absence and a broken install both print `unknown`, and only the
+  writer side separates them — read `statusLine` from every scope that can carry it, **managed
+  settings included**, and treat a configured `statusLine` whose status line is *disabled* **or
+  whose environment is terminal-less** as structural too. Claude Code turns the status line off
+  entirely under a managed `disableAllHooks` or an untrusted folder, and under
+  `allowManagedHooksOnly` narrowing it runs a managed value if one is deployed and otherwise
+  skips yours without warning — a state that reads as a broken install unless it is checked
+  first, and whose remediation is policy or trust, never wiring. A configured, not-disabled
+  `statusLine` in a cloud or headless session is the same structural class: the command exists
+  and is still never invoked, which is the case this release measured.
+- **`/context-guard:setup` `check` stops prescribing a remediation that cannot work, and stops
+  contradicting itself when one would (#2957).** Terminal-less detection is orthogonal to all
+  four wiring states, not nested under "no `statusLine` configured": a correctly-wired shim in
+  a cloud or headless session is INFO (structural) rather than PASS-then-FAIL, and step 7 does
+  not print wiring those branches already forbade. The matching snapshot-absent **or stale**
+  branch is gated on the same condition rather than on the bare absence of a `statusLine`: it
+  reports structural absence only where step 3 took the terminal-less exception, and otherwise
+  reports the ordinary not-yet-wired state and points at the wiring step 3 just printed —
+  previously the two steps could print wiring and then say nothing was broken, in the same
+  report, on the single most common state the check exists to diagnose. `check` also reads
+  managed settings as a `statusLine` scope, reports a policy- or trust-disabled status line as
+  INFO rather than letting it fall through to the wiring-defect FAIL, and routes a managed
+  effective `statusLine` to the policy administrator instead of printing an operator edit for
+  that file.
+
 ## [0.7.16]
 
 ### Added

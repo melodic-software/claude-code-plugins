@@ -52,7 +52,7 @@ verify-and-route:
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.
 
-After any reconfiguration, rerun `check` and verify with `/skill-quality:check` — without turning setup
+After any reconfiguration, rerun `check` and verify by invoking `/skill-quality:check` via the Skill tool — without turning setup
 into the full quality audit. Re-running `apply` when the root resolves and enumerates changes nothing
 and reports "already configured".
 

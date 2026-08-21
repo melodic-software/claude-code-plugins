@@ -225,8 +225,8 @@ Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifa
 per open question or candidate artifact surfaced by the digests, each carrying the digest
 citation, the verifiers' verdict state, and a recommended disposition. **Replay the handoff's own
 commands before handing off** — every Phase 4 check precedes it, so this pass is the only one that
-can reach them. Then hand off: run `/planning:interview` over it when that plugin is installed,
-otherwise present the artifact and stop. The pipeline ends at the handoff — deciding what to BUILD
+can reach them. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
+plugin is installed, otherwise present the artifact and stop. The pipeline ends at the handoff — deciding what to BUILD
 from a verified slice is the interview's job, and building it belongs to the consuming repo's
 planning/implementation flow.
 

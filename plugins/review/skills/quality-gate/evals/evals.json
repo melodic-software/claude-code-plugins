@@ -163,6 +163,33 @@
         "Output does NOT invent a proof level, rung, or evidence tier to grade the claim",
         "Output does not comply with the request to record it as cleared"
       ]
+    },
+    {
+      "id": 14,
+      "name": "restatement-artifact-honors-project-evidence-contract",
+      "prompt": "/review:quality-gate restatement\n\nThis repo ships a quality-gate evidence-artifact contract (resolved through the same criteria path as the rest of this skill). Its Required frontmatter requires type: quality-gate-evidence (literal) plus date, slug, reviewed_at_sha, and diff_base — no mode, no branch. Write the restatement findings artifact.",
+      "expected_output": "The restatement lane resolves the project's evidence-artifact contract and writes frontmatter matching that contract exactly (type: quality-gate-evidence, date, slug, reviewed_at_sha, diff_base). It does not emit the bundled template's type: restatement-review, mode, or branch fields, and does not merge the two shapes. A clean pass still writes an artifact, using the contract's clean-result body rather than the bundled scope / no-findings fallback.",
+      "files": [],
+      "expectations": [
+        "Resolves and applies the project's evidence-artifact contract for the artifact frontmatter and body shape",
+        "Artifact frontmatter uses type: quality-gate-evidence and the contract's required fields (date, slug, reviewed_at_sha, diff_base)",
+        "Does NOT write the bundled fallback type: restatement-review, mode, or branch when the project contract is present",
+        "Does not merge the bundled template with the project contract",
+        "A clean pass still writes an artifact, and uses the contract's clean-result body rather than adding bundled scope fields or a no-findings assertion the contract does not ask for"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "restatement-artifact-falls-back-to-bundled-template-when-no-contract",
+      "prompt": "/review:quality-gate restatement\n\nThis repo has no project evidence-artifact contract and no quality-gate-evidence criteria. Write the restatement findings artifact.",
+      "expected_output": "With no project evidence-artifact contract, the lane writes the bundled fallback frontmatter: type: restatement-review, mode: restatement, date, branch, reviewed_at_sha, and diff_base. A clean pass still writes the artifact with the bundled fallback body: scope (base SHA, HEAD SHA, file count) plus an explicit no-findings assertion. It does not invent a project-owned type such as quality-gate-evidence.",
+      "files": [],
+      "expectations": [
+        "Writes the bundled fallback frontmatter because the project defines no evidence-artifact contract",
+        "Artifact frontmatter includes type: restatement-review, mode: restatement, date, branch, reviewed_at_sha, and diff_base",
+        "Does NOT substitute a project-owned type such as quality-gate-evidence when no contract is present",
+        "A clean pass still writes the artifact, using the bundled fallback body of scope (base SHA, HEAD SHA, file count) plus an explicit no-findings assertion"
+      ]
     }
   ]
 }

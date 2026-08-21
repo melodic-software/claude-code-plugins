@@ -90,7 +90,7 @@ new_repo
 r="$REPO"
 cat >"$r/clean.test.sh" <<'SH'
 #!/usr/bin/env bash
-unset GIT_DIR GIT_WORK_TREE
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 d="$(mktemp -d)"
 git -C "$d" init -q
 git -C "$d" config user.email test@example.com
@@ -99,9 +99,31 @@ commit_all "$r"
 out="$(run_gate "$r")"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  ok "suite that unsets GIT_DIR/GIT_WORK_TREE passes"
+  ok "suite that unsets GIT_DIR/GIT_WORK_TREE/GIT_CONFIG passes"
 else
   fail "self-clearing suite: rc=$rc out='$out'"
+fi
+
+# --- clearing only the discovery pair is NOT enough (#2889) ------------------
+# GIT_CONFIG is a second leak path (git-config ENVIRONMENT: used as --file),
+# so a suite that only unsets GIT_DIR and GIT_WORK_TREE still writes through
+# an inherited GIT_CONFIG.
+new_repo
+r="$REPO"
+cat >"$r/no-config.test.sh" <<'SH'
+#!/usr/bin/env bash
+unset GIT_DIR GIT_WORK_TREE
+d="$(mktemp -d)"
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"no-config.test.sh"* ]]; then
+  ok "unsetting GIT_DIR/GIT_WORK_TREE without GIT_CONFIG is still a violation"
+else
+  fail "discovery-only clear: rc=$rc out='$out'"
 fi
 
 # --- clearing only GIT_DIR is NOT enough -------------------------------------
@@ -129,7 +151,7 @@ r="$REPO"
 mkdir -p "$r/lib"
 cat >"$r/lib/harness.sh" <<'SH'
 # shellcheck shell=bash
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
 SH
 cat >"$r/sourced.test.sh" <<'SH'
 #!/usr/bin/env bash
@@ -193,7 +215,7 @@ new_repo
 r="$REPO"
 cat >"$r/fixed.test.sh" <<'SH'
 #!/usr/bin/env bash
-unset GIT_DIR GIT_WORK_TREE
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 d="$(mktemp -d)"
 git -C "$d" init -q
 git -C "$d" config user.email test@example.com
@@ -385,7 +407,7 @@ new_repo
 r="$REPO"
 cat >"$r/test_clean.py" <<'PY'
 import os, subprocess
-for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG"):
     os.environ.pop(_v, None)
 def make(d):
     subprocess.run(["git", "init", "-q", d], check=True)
@@ -395,7 +417,7 @@ commit_all "$r"
 out="$(run_gate "$r")"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  ok "python: popping GIT_DIR and GIT_WORK_TREE passes"
+  ok "python: popping GIT_DIR, GIT_WORK_TREE and GIT_CONFIG passes"
 else
   fail "python cleared: rc=$rc out='$out'"
 fi
@@ -417,6 +439,26 @@ if [[ $rc -eq 1 && "$out" == *"test_half.py"* ]]; then
   ok "python: popping GIT_DIR alone is still a violation"
 else
   fail "python half-cleared: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: popping the discovery pair without GIT_CONFIG is NOT enough -----
+new_repo
+r="$REPO"
+cat >"$r/test_no_config.py" <<'PY'
+import os, subprocess
+for _v in ("GIT_DIR", "GIT_WORK_TREE"):
+    os.environ.pop(_v, None)
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_no_config.py"* ]]; then
+  ok "python: popping GIT_DIR/GIT_WORK_TREE without GIT_CONFIG is still a violation"
+else
+  fail "python discovery-only clear: rc=$rc out='$out'"
 fi
 
 # --- PYTHON: naming the variables without popping anything is NOT enough -----
@@ -483,6 +525,7 @@ import subprocess
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
+    "GIT_CONFIG",
 ):
     os.environ.pop(_leaked_git_var, None)
 
@@ -634,6 +677,233 @@ if [[ $rc -eq 1 && "$out" == *"commented.test.sh"* ]]; then
   ok "shell: a commented-out unset does not credit the suite"
 else
   fail "shell commented unset: rc=$rc out='$out'"
+fi
+
+# --- SHELL: a backslash-continued git command is still SEEN (#2893) ----------
+# A per-physical-line scan never has `git` and `init` on one line here, so the
+# suite would not merely get the wrong verdict — it would be invisible to the
+# gate. The Python arm already joined on open brackets; the shell arm now
+# joins while the previous line ends in an unescaped backslash.
+new_repo
+r="$REPO"
+cat >"$r/continued-init.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+git -C "$d" \
+  init -q
+git -C "$d" \
+  config \
+  user.email t@t.test
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"continued-init.test.sh"* ]]; then
+  ok "shell: a backslash-continued git command is still detected as a fixture"
+else
+  fail "shell continued fixture: rc=$rc out='$out'"
+fi
+
+# --- SHELL: a backslash-continued unset of all three PASSES (#2893) ----------
+new_repo
+r="$REPO"
+cat >"$r/continued-unset.test.sh" <<'SH'
+#!/usr/bin/env bash
+unset GIT_DIR \
+      GIT_WORK_TREE \
+      GIT_CONFIG
+d="$(mktemp -d)"
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "shell: a backslash-continued unset of all three required names passes"
+else
+  fail "shell continued unset: rc=$rc out='$out'"
+fi
+
+# --- SHELL: env -u naming all three is a clear (#2893) -----------------------
+# Use `$d` rather than `"$(mktemp -d)"` as the -C argument: the latter embeds a
+# space, and the fixture matcher (option-and-argument pairs) would then miss
+# `init` — the suite would not be a fixture at all, so both this case and the
+# half-clear below would "pass" for the wrong reason.
+new_repo
+r="$REPO"
+cat >"$r/env-unset.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "shell: env -u naming GIT_DIR/GIT_WORK_TREE/GIT_CONFIG passes"
+else
+  fail "shell env -u clear: rc=$rc out='$out'"
+fi
+
+# --- SHELL: every fixture command wrapped with env -u PASSES -----------------
+new_repo
+r="$REPO"
+cat >"$r/env-all.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "shell: env -u wrapping every fixture command passes"
+else
+  fail "shell env -u all wrapped: rc=$rc out='$out'"
+fi
+
+# --- SHELL: env -u on one fixture line does not credit an unwrapped write ----
+# env -u is per-COMMAND. A wrap on `init` must not isolate a later bare
+# `config user.email` — that is the leak the gate exists to stop.
+new_repo
+r="$REPO"
+cat >"$r/env-mixed.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"env-mixed.test.sh"* ]]; then
+  ok "shell: env -u on one command does not credit an unwrapped identity write"
+else
+  fail "shell env -u mixed: rc=$rc out='$out'"
+fi
+
+# --- SHELL: env -u and an unwrapped write on ONE `;` line is still a gap -----
+# The same leak as env-mixed, reached through one physical line. A
+# file-wide name-presence test on the joined string would credit it.
+new_repo
+r="$REPO"
+cat >"$r/env-semi.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q; git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"env-semi.test.sh"* ]]; then
+  ok "shell: env -u and an unwrapped write on one semicolon line is still a violation"
+else
+  fail "shell env -u semicolon: rc=$rc out='$out'"
+fi
+
+# --- SHELL: env -u of the discovery pair without GIT_CONFIG is NOT enough ----
+new_repo
+r="$REPO"
+cat >"$r/env-half.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE git -C "$d" init -q
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"env-half.test.sh"* ]]; then
+  ok "shell: env -u without GIT_CONFIG is still a violation"
+else
+  fail "shell env -u discovery-only: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a module-level constant iterated into pop PASSES (#2893) --------
+new_repo
+r="$REPO"
+cat >"$r/test_const_clear.py" <<'PY'
+import os, subprocess
+LEAKED = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG")
+for _v in LEAKED:
+    os.environ.pop(_v, None)
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "python: a module-level constant iterated into pop passes"
+else
+  fail "python const clear: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a constant that only NAMES the vars does not credit -------------
+new_repo
+r="$REPO"
+cat >"$r/test_const_mention.py" <<'PY'
+import subprocess
+LEAKED = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG")
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_const_mention.py"* ]]; then
+  ok "python: a constant naming the variables without popping is still a violation"
+else
+  fail "python const mention: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: a REBOUND constant does not carry a stale binding ---------------
+new_repo
+r="$REPO"
+cat >"$r/test_const_rebound.py" <<'PY'
+import os, subprocess
+LEAKED = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG")
+LEAKED = ("HOME",)
+for _v in LEAKED:
+    os.environ.pop(_v, None)
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_const_rebound.py"* ]]; then
+  ok "python: a rebound constant does not inherit an earlier binding"
+else
+  fail "python const rebound: rc=$rc out='$out'"
+fi
+
+# --- PYTHON: rebinding a constant to a CALL drops the earlier literal --------
+new_repo
+r="$REPO"
+cat >"$r/test_const_rebind_call.py" <<'PY'
+import os, subprocess
+def get_names():
+    return ("HOME",)
+LEAKED = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG")
+LEAKED = get_names()
+for _v in LEAKED:
+    os.environ.pop(_v, None)
+def make(d):
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", "test@example.com"], check=True)
+PY
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"test_const_rebind_call.py"* ]]; then
+  ok "python: rebinding a constant to a call does not keep the earlier literal"
+else
+  fail "python const rebind-call: rc=$rc out='$out'"
 fi
 
 # --- SCOPE: a declared counter-fixture is exempt -----------------------------

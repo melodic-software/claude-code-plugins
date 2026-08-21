@@ -579,4 +579,44 @@ assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
   "$(nul_stderr '' '')" "NUL byte"
 run "empty command, no NUL (allowed)" "" 0
 
+# --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
+# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# expressions, neither aware of which style opened first. The single-quote
+# expression matched from the apostrophe inside one double-quoted string to the
+# apostrophe inside the next and DELETED everything between them — including the
+# command. With the `(` gone the sink was never entered, so this blocked on its
+# own and was ALLOWED once flanked by two ordinary strings.
+#
+# The controls are load-bearing: without them an all-blocked column is equally
+# consistent with a guard that refuses everything containing an apostrophe.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed git commit --no-verify (control, blocked)" \
+  "& ('g'+'it') commit --no-verify -m x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: same call straddled by apostrophe-bearing strings (blocked — #2965)" \
+  "Write-Host \"a'b\"; & ('g'+'it') commit --no-verify -m x; Write-Host \"c'd\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: natural-prose spelling of the straddle (blocked — #2965)" \
+  "Write-Host \"Kyle's build\"; & ('g'+'it') commit --no-verify -m x; Write-Host \"that's all\"" 2
+# Over-block rails. An apostrophe inside message text must stay inert, and the
+# #2848 must-allow shape must survive an apostrophe appearing next to it.
+run_pwsh "PS: apostrophe in a commit message stays inert (allowed — #2965)" \
+  "git commit -m \"it's a fix\"" 0
+run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; Write-Host \"that's all\"" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
+
+# --- #2906 containment: quoted Path+Value is a write, not a --no-verify signal --
+# The placeholder lives only inside write_bypass's positional probe. These rows
+# must stay allowed here so a contained write-lane fix cannot leak into the
+# no-verify fail-closed sink.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value is not a no-verify signal (allowed — #2906 containment)" \
+  "& \$w 'f.txt' 'x'" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
+  "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
+
 report

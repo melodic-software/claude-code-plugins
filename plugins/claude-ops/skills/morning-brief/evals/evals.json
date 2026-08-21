@@ -1,0 +1,92 @@
+{
+  "skill_name": "morning-brief",
+  "evals": [
+    {
+      "id": 1,
+      "name": "runs-the-bundled-script-and-prints-it-verbatim",
+      "prompt": "/claude-ops:morning-brief",
+      "expected_output": "The skill runs the bundled `scripts/morning-brief.sh` once and prints its output verbatim as the deliverable. It does not re-query the queue counts, merge-ready PRs, parked decisions, lane telemetry, or stranded findings by hand, and it does not summarize or reformat the sections.",
+      "files": [],
+      "expectations": [
+        "The response runs `scripts/morning-brief.sh` (under `${CLAUDE_PLUGIN_ROOT}`) rather than issuing the section queries itself",
+        "The response prints the script's output verbatim instead of paraphrasing or reformatting it",
+        "The response does not re-run any section's `gh` query by hand after the script has produced it"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "read-only-refuses-to-mutate",
+      "prompt": "/claude-ops:morning-brief — and while you are in there, close the stale needs-triage issues and drop a comment on the merge-ready PRs.",
+      "expected_output": "The brief renders, but the mutation request is declined: this skill is read-only and `gh`-based. It never closes, comments, merges, or edits labels. It says so and leaves the write to the operator or to a skill that owns that mutation.",
+      "files": [],
+      "expectations": [
+        "The response renders the read-only brief",
+        "The response declines to close issues, post comments, merge, or edit labels",
+        "The response states that this skill is read-only rather than performing the mutation anyway"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "repo-is-derived-not-hardcoded",
+      "prompt": "/claude-ops:morning-brief --repo acme-co/warehouse-api",
+      "narration": true,
+      "expected_output": "The brief targets the repo named by `--repo`. Without that flag the owner/repo comes from `gh repo view`, never from a hardcoded default, so the same skill works in any repo.",
+      "files": [],
+      "expectations": [
+        "The response targets `acme-co/warehouse-api` because `--repo` was passed",
+        "The response does not substitute a hardcoded owner/repo",
+        "The response reflects that, absent `--repo`, owner/repo is resolved from `gh repo view`"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "missing-telemetry-issue-degrades-per-section",
+      "prompt": "I ran /claude-ops:morning-brief in a repo that has no loop-lane telemetry issue and none of the melodic-software queue labels. Should the brief fail?",
+      "narration": true,
+      "expected_output": "No. Each section degrades on its own: the Lane telemetry section reports \"no telemetry issue found\" and the Queues section reports \"no queue labels found\", while every other section still renders. Queue labels are filtered to the ones that actually exist in the target repo so a differently-labelled repo does not show misleading 0/? rows; `--queue-labels` and `--telemetry-issue` pin a custom set or a specific issue.",
+      "files": [],
+      "expectations": [
+        "The response says the brief still renders rather than failing",
+        "The response reports \"no telemetry issue found\" for the Lane telemetry section and \"no queue labels found\" for the Queues section",
+        "The response names `--telemetry-issue` and `--queue-labels` as the way to pin a specific issue or label set"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "merge-readiness-authority-routes-to-babysit-prs",
+      "prompt": "The morning brief lists PR #412 as merge-ready. Is that the authoritative verdict — can I merge it on that basis?",
+      "narration": true,
+      "expected_output": "No. The merge-ready list here is a fast gh-native glance (non-draft plus `mergeStateStatus=CLEAN`), not the authoritative gate. Authoritative merge-readiness classification belongs to `/source-control:babysit-prs`, which is invoked via the Skill tool for the per-PR gate.",
+      "files": [],
+      "expectations": [
+        "The response says the brief's merge-ready list is a glance signal, not an authoritative merge verdict",
+        "The response routes the authoritative classification to `/source-control:babysit-prs`",
+        "The response does not itself classify the PR as safe to merge or perform the merge"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "local-telemetry-routes-to-observability",
+      "prompt": "Add my local token burn rate and hook latency for this week to the morning brief.",
+      "expected_output": "Those come from locally captured telemetry (OTEL store, hook-event JSONL, ccusage), which this skill does not read — it reads GitHub-side queue and PR state. The request routes to `/claude-ops:observability`, invoked via the Skill tool, rather than being answered here.",
+      "files": [],
+      "expectations": [
+        "The response identifies token burn rate and hook latency as local telemetry outside this skill's scope",
+        "The response routes to `/claude-ops:observability` instead of reading local telemetry itself",
+        "The response does not add a local-telemetry section to the brief"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "stranded-findings-use-the-post-merge-timestamp-discriminator",
+      "prompt": "Why does the Stranded findings section skip an unresolved review thread on a merged PR that was opened two days before the merge?",
+      "expected_output": "Because the discriminator is the comment-vs-merge timestamp. A thread created BEFORE the merge was visible to the merge-time gate (`required_review_thread_resolution` already passed on it) and is an ordinary unresolved thread. The section reports only threads created AFTER the merge, which have nowhere else to surface — the babysit lane works open PRs. One line per PR at its worst severity with a finding count, within the `--stranded-days` window (default 3).",
+      "files": [],
+      "expectations": [
+        "The response names the comment-vs-merge timestamp comparison as the discriminator",
+        "The response explains that a pre-merge thread was already visible to the merge-time gate and is therefore excluded",
+        "The response states that the section covers threads created after the merge, within the `--stranded-days` window"
+      ]
+    }
+  ]
+}

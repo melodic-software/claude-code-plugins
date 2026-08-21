@@ -3,6 +3,54 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.3]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.35.2]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `audit-performance`'s paused-sweep route to
+  `/claude-config:audit`; `morning-brief`'s two boundary hand-offs
+  (`/source-control:babysit-prs`, `/claude-ops:observability`); `observability`'s
+  `/claude-ops:known-issues` boundary and its `context/read-routing.md` routing line. The
+  `audit-install-state` handoff tables are deliberately untouched: they are marked
+  "Handoff (not executed here)", and two of their targets (`/claude-ops:plugins`,
+  `/disk-hygiene:clean`) are `disable-model-invocation: true`, which the rubric's
+  invocation-reach invariant puts out of a skill's reach. Wording only.
+
+### Fixed
+
+- **`morning-brief`: `fetch_repo_label_names` was called 116 lines before it was defined.** The
+  live-source probe that short-circuits the parked-decisions section on a fixture label inventory
+  called `fetch_repo_label_names` (and `label_exists_in_repo`) while both definitions still sat
+  further down the file, so at that point in execution the call died with `command not found` and
+  the probe silently never short-circuited. Both definitions now sit immediately after the `jq`
+  presence check, ahead of their first caller, with a comment saying why the order is
+  load-bearing. This is a pre-existing bug — it reproduces unchanged at `origin/main` — surfaced
+  by the new eval suite's sibling test run: `morning-brief.test.sh` went from 2 failing cases
+  (`[41] missing decision label degrades gracefully`, `[43] empty label inventory degrades
+  decision section`) to all 83 passing.
+- **`audit-performance`: the `(settings fix)` gloss re-attached to the skill it describes.**
+  "route a paused sweep to `/claude-config:audit`, invoked via the Skill tool (settings fix)" read
+  as though the Skill tool were the settings fix; the gloss now follows the skill name.
+
+### Added
+
+- **`morning-brief`: its first eval suite (#3002).** Seven cases pinning the shipped contract —
+  run-the-script-and-print-verbatim, the read-only refusal, repo resolved from `gh repo view`
+  rather than hardcoded, per-section degradation when no telemetry issue or queue labels exist,
+  merge-readiness authority routing to `/source-control:babysit-prs`, local telemetry routing to
+  `/claude-ops:observability`, and the post-merge timestamp discriminator behind Stranded
+  findings. Required because the changed-skill gate demands evals for any touched SKILL.md, and
+  this was the one swept skill in the plugin without a suite.
+
 ## [0.35.1]
 
 ### Fixed

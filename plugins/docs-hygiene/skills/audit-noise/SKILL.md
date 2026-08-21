@@ -32,8 +32,9 @@ read-only).
 Four categories always pass admission regardless of derivability: decisions,
 domain language, thin navigation, and policy/wiring. For the four-factor
 scoring behind a contested call, reuse `/docs-hygiene:audit-derivability`'s
-rubric by reference — namespaced skill invocation, optional: invoke it when
-available; otherwise apply the admission question above standalone.
+rubric by reference — namespaced skill invocation, optional: invoke it via the
+Skill tool when available; otherwise apply the admission question above
+standalone.
 
 **Org override.** This pre-check is a portable-baseline default. When the
 consuming repository declares its own documentation-existence convention,

@@ -4,6 +4,10 @@
 # mirroring the claude-config audit skill's SETTINGS_AUDIT_FIXTURE_DIR pattern.
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fleet-state.sh"
 TEST_TMPDIR="$(mktemp -d)"

@@ -3,6 +3,17 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- **`audit`: the failing-test diagnosis chain names the Skill tool (#3002).** "Run
+  `/testing:diagnose` when the `testing` plugin is installed" became "Invoke `/testing:diagnose`
+  via the Skill tool …". Wording only; the presence gate and the diagnose-manually fallback are
+  unchanged. The `/mutation-testing:setup` arrows stay prose — `setup` is
+  `disable-model-invocation: true` and unreachable from a skill by the rubric's invocation-reach
+  invariant.
+
 ## [0.3.3]
 
 ### Changed

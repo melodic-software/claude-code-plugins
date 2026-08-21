@@ -45,7 +45,12 @@ project can overrule it later. Never silently impose one.
 When a rule makes a sentence worse, fix the sentence another way or leave it alone. The rules serve
 the reader; a sentence that obeys every rule and sounds machine-written has failed.
 
-## Three rules above the layers
+## Three rules that survive a declared guide
+
+These are the only part of this skill that outlives a project's own guide: they are about doing the
+work, not picking a style, and no standard asks you to keep dead words or rename the thing you are
+documenting. Apply them whichever standard you resolved — and if a project's guide somehow
+contradicts one, the guide still wins.
 
 - **Cut every word that does no work.** If the sentence survives without a word, the word goes.
   "In order to" is "to". "It is important to note that" is nothing.
@@ -147,7 +152,11 @@ ambiguity). "If exceeded" gets a subject: the request (ambiguity).
 
 ## Self-check before handing back
 
-Answer all seven against the text you just wrote, not from memory of writing it.
+**Check the draft against the standard you resolved.** Questions 4, 6 and 7 restate the three rules
+above, so they apply whichever standard that was. The other four come from the bundled layers: when
+the project declared its own guide, that guide supplies their equivalents and these four do not
+apply — reaching for them would impose the bundled set on a project that already chose. Answer
+whichever apply against the text you just wrote, not from memory of writing it.
 
 1. Is each document one mode, with links where modes meet? Confirm it by naming the mode.
 2. Is every instruction a command, with its condition in front?

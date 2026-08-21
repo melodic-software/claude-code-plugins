@@ -3,6 +3,39 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.7.2]
+
+### Fixed
+
+- **"Prefer no new test to a bad one" now carries its attribution.** The phrase and the six
+  impracticality triggers 0.7.0 added are the upstream cursor/plugins `tdd` cost branch — the
+  pinned file at `cursor/plugins@60c641e4` `pstack/skills/tdd/SKILL.md` states "Prefer no new test
+  over a bad test" and lists the same six triggers. They are not in `/tdd:principles`: a search of
+  that skill and its routed Khorikov files finds neither the phrase nor the triggers. The nearest
+  sentence is Khorikov's "It's better to not write a test at all than to write a bad test" in
+  `testable-architecture-khorikov.md`, the 2x2 / Humble Object chapter, which this port used as
+  grounds to *reject* upstream's five-item bad-test definition as already owned
+  (`docs/upstream/cursor-pstack.md`). Cited inline as `(upstream cursor/plugins tdd)`.
+
+## [0.7.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `diagnose`'s build-first fix row in
+  `context/investigate.md`, its genuine-bug fix route, and `context/loop.md`'s replan route;
+  `run-e2e`'s three next-step arrows and the matching pair in `context/e2e.md`, plus its
+  Playwright-CLI usage pointer; `write`'s run-the-tests / continue-implementation step and its two
+  next-step arrows. Wording only — presence gates, fallbacks, and step order unchanged.
+
 ## [0.7.0]
 
 ### Added

@@ -139,7 +139,7 @@ Unchanged — [context/data-sources.md](context/data-sources.md), [context/priva
 
 ## What this skill does NOT do
 
-- **Does not track GitHub bugs** — use `/claude-ops:known-issues`
+- **Does not track GitHub bugs** — invoke `/claude-ops:known-issues` via the Skill tool
 - **Does not modify code** — read-only
 - **Does not replace built-in `/insights`** or your own retrospective workflow
 - **Does not write to memory** unless user explicitly saves

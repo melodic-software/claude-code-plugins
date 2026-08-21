@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "improvement",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Evidence-first, cross-dimension improvement finder — point it at a repo, feature, concept, or process surface and it produces a ranked, evidence-cited list of improvement candidates led by value-to-effort, interviews on the pick, and hands off to the planning pipeline; runnable unattended as a tech-debt-sweep routine.",
   "author": {
     "name": "Melodic Software",
