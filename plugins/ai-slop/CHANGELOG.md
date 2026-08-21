@@ -40,9 +40,21 @@ name a committed fixture instead.
   repo inherits its `disabled_rules`, and the finding a case grades is silently deleted from a
   scratch repo in `/tmp`. Measured with only `CLAUDE_PROJECT_DIR` changed: case 1 drops 4 findings to
   3, case 2 drops 4 to 2, case 4 drops 4 to 3, and cases 5 and 6 drop to **zero**, where the em dash
-  *is* the whole case and the expectations then pass vacuously. That is the same golden-answer-the-
-  scenario-cannot-produce failure as the rest of this release, arriving through config rather than
-  through prose.
+  *is* the whole case and the expectations then pass vacuously. That is the same failure as the rest
+  of this release — a golden answer the scenario cannot produce — arriving through config rather
+  than through prose.
+- **The preamble is an explicit shell sequence, not prose**, because three things a prose
+  instruction leaves to the reader all reintroduce the same failure. It runs in ONE invocation and
+  says why: the harness re-supplies `CLAUDE_PROJECT_DIR` on every tool call and shell state does not
+  survive between them, so a pin phrased as a one-time export is gone by the time the detector runs
+  and the disabled rule silently returns. It issues `git add` before the commit, which the prose
+  version never did — a literal executor got `nothing to commit` and an untracked target, inverting
+  exactly the tracked-file branch cases 4 and 5 exist to grade. And it opens with
+  `unset GIT_DIR GIT_WORK_TREE GIT_CONFIG`, the invariant `scripts/check-fixture-git-isolation.sh`
+  already enforces for `*.sh`/`*.py` fixtures: without it, an ambient `GIT_DIR` sends `git init` and
+  the stage commit into the *caller's* repository and leaves the scratch directory with no `.git` at
+  all. That gate cannot see prose inside `evals.json`, so the eval suite had to honor the rule on its
+  own.
 - Staging stops at a commit rather than at `git add`, though `git ls-files` already reports a staged
   file as tracked and either form would satisfy the persistence gate. These cases model a *consuming
   repo*, and a real one has history: the audit's repo-wide ordering reads
