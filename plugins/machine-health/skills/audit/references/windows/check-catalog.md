@@ -290,3 +290,63 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   there is no POSIX implementation to register and the skill reports `UNKNOWN` wholesale on those
   hosts. A POSIX port derives the root the same way, appending the Unix segment (`claude-{uid}`) to
   `$CLAUDE_CODE_TMPDIR` then `$TMPDIR` then `/tmp`.
+
+---
+
+## 18. Environment and PATH health
+
+- **Script:** `scripts/windows/checks/Test-EnvironmentHealth.ps1`
+- **Category:** `config`
+- **Needs admin:** no. `HKCU:\Environment` is readable un-elevated; `HKLM:\...\Environment`
+  usually is too. If the machine key is unreadable the check keeps User-scope findings and
+  notes the gap — it does not ask for elevation.
+- **Remediation:** none. `references/windows/remediation-policy.md` bars registry cleanup of
+  any kind. This check ships with no remediation entry; every fix is a human action.
+- **Commands:**
+
+  ```powershell
+  Get-Item -LiteralPath 'HKCU:\Environment'
+  (Get-Item -LiteralPath 'HKCU:\Environment').GetValueKind('Path')
+  [Environment]::GetEnvironmentVariable('Path', 'User').Length
+  Get-ItemProperty -LiteralPath 'HKCU:\Environment' -Name DISABLE_AUTOUPDATER
+  Get-ChildItem Env: |
+      Where-Object Name -match '(_TOKEN|_API_KEY|_SECRET|_PASSWORD)$' |
+      Select-Object Name
+  ```
+
+- **Severity rubric:**
+  - `CRIT` — User Path length ≥ 2047 (legacy System Properties editor ceiling; further
+    appends are silently discarded).
+  - `WARN` — any of: User Path length ≥ 1800; User Path value kind is `REG_SZ` (`String`)
+    rather than `REG_EXPAND_SZ` (`ExpandString`); `DISABLE_AUTOUPDATER` set to a truthy
+    value (`1` / `true` / `yes` / `on`) in User or Machine scope; a persisted variable
+    **name** matching `*_TOKEN`, `*_API_KEY`, `*_SECRET`, `*_PASSWORD` (or those exact
+    names); an executable name resolvable from 2+ PATH directories whose winner is a
+    lower-precedence scope than User while a User-scope copy also exists.
+  - `INFO` — PATH entry pointing at a non-existent directory; duplicate PATH entries
+    (case-insensitive, trailing-slash-normalized, across User and Machine); executable
+    name present in 2+ PATH directories with a User-precedence winner; `DISABLE_AUTOUPDATER`
+    present but not truthy.
+  - `OK` — none of the above.
+  - `UNKNOWN` — `HKCU:\Environment` could not be read.
+  - Aggregated severity = max across findings.
+
+- **What is in scope (mechanical shapes only):** persisted User and Machine environment
+  values. Shadowing uses the process `$env:PATH` as the live search order and labels each
+  entry `user` / `machine` / `both` / `unknown` from membership in the persisted Path
+  lists. Persisted Path is read without expanding `%VAR%` tokens so `user_path_length`
+  measures the stored string (legacy-editor ceiling). Directory existence and scope
+  classification expand those tokens first — otherwise stock Machine Path entries
+  such as a `%SystemRoot%` system32 directory would false-positive as missing and be labeled
+  `unknown`. The check does not attribute a vendor, decide whether `WindowsApps`
+  belongs last, or recommend editing `TEMP`/`TMP`.
+
+- **Safety:** credential-pattern **values are never read**. The result reports `name` and
+  `scope` only. `GetValue` is not called for those names, so a summary, note, or exception
+  cannot leak a secret the check never loaded. The check never writes: no `Set-Item`,
+  `Set-ItemProperty`, `SetEnvironmentVariable`, or Path rewrite.
+
+- **Notes:** `DISABLE_AUTOUPDATER` is the Claude Code / Electron auto-update kill switch.
+  A User-scope `=1` silently freezes the installed binary — the defect that motivated
+  this check. Duplicate and missing PATH entries are INFO because presence is a shape,
+  not a verdict that the entry should be removed.
