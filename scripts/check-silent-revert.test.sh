@@ -509,7 +509,7 @@ t_minus_diff_lock_file_is_attributed() {
   rm -f "$sink"
 }
 
-# The blob-to-blob recovery is what closes #2883. Break the binary-files
+# The blob-to-blob recovery is the #2883 fix. Break the binary-files
 # detector and the lock file goes back to contributing zero -- a FALSE
 # GREEN at the shipped threshold, the issue's measured outcome.
 t_minus_diff_recovery_is_load_bearing() {
