@@ -24,13 +24,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   and the measuring predicates — which would have recognized the call target
   fine — never ran at all. Both directions fail OPEN.
 
-  `=` is now spelled out literally in both separator classes, matching the
-  call-target predicates and `ps::might_invoke_git`'s own launcher class, which
-  already carried it.
+  The unspaced assignment is matched as a PowerShell assignment operator
+  (`about_Assignment_Operators`: `$name=` / `$scope:name=`), not by putting `=`
+  in the same separator class as `;` `|` `&`. A generic `=` also matches data
+  inside quotes (`about_Quoting_Rules`) and git(1) `-c <name>=<value>` config
+  overrides (`git -c section.key=cmd`), neither of which is an assignment. The
+  assignment arm is spelled out literally in each predicate and scanned
+  quote-blanked.
 
   Widening a sink trigger is the OVER-BLOCK direction, so the allow side is what
   was measured. It is NARROW, not a blanket hit on assignment idiom:
   `$a=Get-Content f.txt`, `$env:PATH=$env:PATH`, `git -c core.pager=cmd log`,
+  `git -c section.key=cmd log`, `Write-Host "shell=pwsh $script"`,
   `$x=.5` and the six `#2848` computed-writer acceptance cases all stay allowed.
   Two rows `#2966` pinned as allowed — `$out=pwsh $script` and
   `$p=Start-Process $app` — now block. That rc=0 was structural rather than a

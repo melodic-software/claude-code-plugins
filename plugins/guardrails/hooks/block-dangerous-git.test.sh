@@ -1038,38 +1038,78 @@ run_pwsh "PS: unspaced assignment of a plain cmdlet (allowed — #2984 guard)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: unspaced assignment of an env var to itself (allowed — #2984 guard)" \
   "\$env:PATH=\$env:PATH" 0
-# A `=`-glued launcher TOKEN that is not in command position — `core.pager=cmd`
-# is a git config value, not a launched shell — is the shape most at risk of a
-# false trigger, and it DOES now fail closed. That is parity, not new friction:
-# the identical collision already blocked on the pre-fix base under every OTHER
-# separator, and only the `=`-glued spelling did not:
-#
-#   git -c core.pager= cmd log --oneline -n 1   2   (space separator)
-#   git log --grep=" cmd "                      2   (space separator)
-#   git log --grep="|cmd "                      2   (pipe separator)
-#   git -c core.pager=cmd log --oneline -n 1    0   <- the lone hole
-#
-# It is also the safe direction on its merits: this file's own
-# ps::git_command_is_readonly note names `-c core.pager=./x` as a spelling that
-# turns a read-only `git log` into arbitrary local execution, so refusing to
-# treat it as read-only is what the sink is for.
-run_pwsh "PS: launcher token as a git -c config VALUE (fail-closed block — #2984 parity)" \
-  "git -c core.pager=cmd log --oneline -n 1" 2
-# The benign neighbours in that same shape carry no launcher token and stay
-# allowed, so the trigger is the launcher word and not the `=` itself.
+# `=` is the PowerShell assignment operator (about_Assignment_Operators), not a
+# generic token separator. git(1) `-c <name>=<value>` is a config override
+# (`git -c section.key=cmd …`): the value may spell a launcher word, but the
+# `=` is not `$name=` and must not classify as a launcher assignment.
+run_pwsh "PS: launcher token as a git -c config VALUE (allowed — not an assignment)" \
+  "git -c core.pager=cmd log --oneline -n 1" 0
+run_pwsh "PS: git -c section.key=cmd is not a launcher assignment (allowed)" \
+  "git -c section.key=cmd log --oneline -n 1" 0
 run_pwsh "PS: non-launcher git -c config value (allowed — #2984 guard)" \
   "git -c core.pager=cat log --oneline -n 1" 0
 run_pwsh "PS: plain read-only git is untouched (allowed — #2984 guard)" \
   "git log --oneline -n 5" 0
-# A `=`-glued launcher token with NO git anywhere: the sink is entered but
-# ps::might_invoke_git proves it git-free, so it is allowed rather than blocked.
-run_pwsh "PS: =-glued launcher token with no git token (allowed — #2984 guard)" \
+# A `=`-glued launcher TOKEN with no `$name=` LHS is not an assignment, so the
+# launcher sink is not entered. No git token either, so the parse path allows.
+run_pwsh "PS: =-glued launcher token with no assignment LHS (allowed — #2984 guard)" \
   "Write-Output x=cmd y" 0
+# Quoted text is a literal string (about_Quoting_Rules). An `=` inside quotes
+# is data, even when it spells `=pwsh` or `& "…"` — it must not trip the sink.
+# shellcheck disable=SC2016
+run_pwsh "PS: equals inside double-quoted text does not trip launcher sink (allowed)" \
+  'Write-Host "shell=pwsh $script"' 0
+run_pwsh "PS: equals inside single-quoted text does not trip dynamic-invocation sink (allowed)" \
+  'Write-Host '"'"'pattern=& "$tool"'"'"'' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted \$out=pwsh is data, not an assignment (allowed)" \
+  'Write-Host '"'"'$out=pwsh $script'"'"'' 0
 # A dot-source separator is `.` followed by a QUOTE. A decimal literal and a
-# property access after `=` carry no quote, so neither trips the widened class.
+# property access after `=` carry no quote, so neither trips the assignment arm.
 # shellcheck disable=SC2016
 run_pwsh "PS: unspaced assignment of a decimal literal (allowed — #2984 guard)" \
   "\$x=.5" 0
+
+# Direct classification pins — hook rc=0 can hide "entered the sink and then
+# allowed as git-free". These assert the trigger itself.
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$HOOK_DIR/../lib/powershell/ps-command.sh"
+pin_sink_trigger() {
+  local label="$1" cmd="$2" expect="$3"
+  PS_SINK_TRIGGER=""
+  ps::classify_git_command PowerShell "$cmd" >/dev/null
+  if [[ "$PS_SINK_TRIGGER" == "$expect" ]]; then
+    ok "$label (trigger=${PS_SINK_TRIGGER:-none})"
+  else
+    bad "$label: expected trigger '${expect:-none}', got '${PS_SINK_TRIGGER:-none}'"
+  fi
+}
+pin_predicate() {
+  local label="$1" fn="$2" cmd="$3" expect="$4" rc=0
+  "$fn" "$cmd" || rc=$?
+  if [[ "$rc" == "$expect" ]]; then
+    ok "$label (rc=$rc)"
+  else
+    bad "$label: $fn expected $expect, got $rc"
+  fi
+}
+# shellcheck disable=SC2016
+pin_predicate "ps::has_launcher: quoted shell=pwsh is not a launcher" \
+  ps::has_launcher 'Write-Host "shell=pwsh $script"' 1
+pin_predicate "ps::has_dynamic_invocation: quoted pattern=& \"\$tool\" is not a call" \
+  ps::has_dynamic_invocation 'Write-Host '"'"'pattern=& "$tool"'"'"'' 1
+pin_predicate "ps::has_launcher: git -c section.key=cmd is not a launcher assignment" \
+  ps::has_launcher 'git -c section.key=cmd log --oneline -n 1' 1
+pin_predicate "ps::has_launcher: \$out=pwsh \$script still is a launcher assignment" \
+  ps::has_launcher '$out=pwsh $script' 0
+pin_predicate "ps::has_dynamic_invocation: \$a=& \"\$tool\" still is a string-literal call" \
+  ps::has_dynamic_invocation '$a=& "$tool" reset --hard' 0
+pin_sink_trigger "classify: quoted =pwsh does not enter launcher sink" \
+  'Write-Host "shell=pwsh $script"' ""
+pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink" \
+  'git -c section.key=cmd log --oneline -n 1' ""
+pin_sink_trigger "classify: \$out=pwsh \$script still enters launcher sink" \
+  '$out=pwsh $script' "launcher"
 
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
