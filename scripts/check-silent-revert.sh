@@ -446,7 +446,12 @@ ack_reason() {
   local sha="$1"
   [[ -f "$ACK_FILE" ]] || return 1
   local recorded reason
-  while read -r recorded reason; do
+  # `read` returns non-zero at EOF even when it populated the variables, so a
+  # final line with no trailing newline would otherwise be dropped. That
+  # direction is fail-closed (an acknowledged commit fires anyway), but it is
+  # the same one-line defect as verify_known_incidents and is fixed here so
+  # the two file readers cannot drift (#2874).
+  while read -r recorded reason || [[ -n "$recorded" ]]; do
     case "$recorded" in
       '' | '#'*) continue ;;
       *) ;;
@@ -830,9 +835,20 @@ parse_attribution_field() {
   field="${field#\[}"
   field="${field%\]}"
   [[ -n "$field" ]] || die "empty attribution field in $INCIDENTS_FILE"
+  # Word splitting under IFS=',' drops a trailing empty field, so
+  # `[sha=1,]` would otherwise parse as `[sha=1]` and pass. A leading or
+  # doubled comma survives splitting and already died below; reject all
+  # three empty-entry shapes here so the grammar is the same in every
+  # position (#2875).
+  case "$field" in
+    *, | ,* | *,,*)
+      die "malformed attribution field in $INCIDENTS_FILE (empty entry from a leading, trailing, or doubled comma)"
+      ;;
+  esac
   local IFS=','
   for entry in $field; do
     case "$entry" in
+      '') die "empty attribution entry in $INCIDENTS_FILE (trailing or doubled comma?)" ;;
       *=*) ;;
       *) die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)" ;;
     esac
@@ -849,11 +865,16 @@ verify_known_incidents() {
   [[ -f "$INCIDENTS_FILE" ]] || die "incident file not found: $INCIDENTS_FILE"
 
   local rc=0 expect sha rest note attribution
-  local expected_file observed_file
+  local expected_file observed_file verified=0
   expected_file="$(mktemp)" || die "mktemp failed"
   observed_file="$(mktemp)" || die "mktemp failed"
 
-  while read -r expect sha rest; do
+  # `read` returns non-zero at EOF even when it populated the variables, so a
+  # final line with no trailing newline would otherwise never enter the body
+  # -- the row is not reported, not counted, and not warned about. Combined
+  # with a zero-row success below, dropping the only row of a one-row file
+  # is a green run that verified nothing (#2874).
+  while read -r expect sha rest || [[ -n "$expect" ]]; do
     case "$expect" in
       '' | '#'*) continue ;;
       # Restoration markers (#2855) are a different assertion about the same
@@ -863,6 +884,7 @@ verify_known_incidents() {
       marker) continue ;;
       *) ;;
     esac
+    verified=$((verified + 1))
     if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
       die "incident commit $sha is unreachable -- the canary self-check needs full history (fetch-depth: 0)"
     fi
@@ -936,6 +958,14 @@ verify_known_incidents() {
   done <"$INCIDENTS_FILE"
 
   rm -f "$expected_file" "$observed_file"
+
+  # Zero rows verified is a broken input, not a pass. An empty file, a
+  # comments-only file, or a file whose only row was dropped by a missing
+  # trailing newline used to fall through to the success banner -- the
+  # self-proof lane reporting that it reproduced every recorded incident
+  # after it reproduced none (#2874).
+  ((verified > 0)) ||
+    die "$INCIDENTS_FILE verified zero rows -- an incident file that pins nothing is a broken input, not a pass"
 
   if [[ "$rc" -ne 0 ]]; then
     echo
