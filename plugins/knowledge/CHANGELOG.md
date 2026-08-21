@@ -4,6 +4,32 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.4]
+
+### Changed
+
+- **Anthropic publisher profile — interview-ratified amendment bundle from the 9-slice
+  cloud-fleet corpus run (#3014).** Ten contract rules land in
+  `context/anthropic-docs-profile.md`. The `cc-applicable`/`mixed` boundary is now the pure
+  four-surface letter rule (a row is `mixed` only when its own quoted text names an API request
+  parameter, endpoint, SDK call, or model ID) with worked examples: a settings-page "parameter"
+  such as `dangerouslyDisableSandbox` never triggers; a hostname is a name not an endpoint
+  (`prUrlTemplate` / `skipWebFetchPreflight`); header names stay out (`apiKeyHelper`). The
+  vocabulary's evidence burden binds digest prose, not only claim rows. The `code.claude.com`
+  raw-md channel gains a known-artifact register (Documentation-Index banner, `theme={null}`
+  fences, hard-tab expansion, `\&`-escaped URLs) — digest layer reproduce-never-repair;
+  reader-facing layer repair-and-disclose. Hedge preservation gains the wrong-footer trap
+  (server-managed-settings' own "not a security boundary" sentence travels instead of the
+  hallucination footer). Row-local basis accepts subsection-level inheritance when
+  anchor-correct and mechanically recoverable. A settings-style claim is the whole table row
+  including its Example cell. `tag-exempt (consumer-surface)` is a documented-subject test, not
+  a hosting test. Bare "See X" is `navigation-pointer`; a directive pointer is guidance. Digest
+  sections state mechanism, never consuming-org instance. Ranked doc queue recorded, not
+  dispatched: `/docs/en/permissions` first, `/docs/en/self-hosted-environments` second; corpus
+  expansion otherwise STOPPED (operator decision 2026-08-19). The two settings-slice Example-cell
+  retags and the `skipWebFetchPreflight` retag execute only inside a graduation-time verification
+  cycle — never as bare edits to verified slices.
+
 ## [0.13.3]
 
 ### Changed
