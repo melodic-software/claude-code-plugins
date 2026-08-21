@@ -38,8 +38,8 @@ fail() {
 surface() {
   find "$PLUGIN_ROOT" -type f \( -name '*.md' -o -name '*.json' \) \
     ! -name 'CHANGELOG.md' \
-    ! -path '*/.claude-plugin/*' \
-    | sort
+    ! -path '*/.claude-plugin/*' |
+    sort
 }
 
 # assert_absent <label> <extended-regex>
@@ -199,8 +199,8 @@ fi
 # than the spoke it delegates to pays that cost on every dispatch. This pins the
 # direction, not a byte count.
 # ---------------------------------------------------------------------------
-hub_words="$(wc -w < "$PLUGIN_ROOT/skills/research/SKILL.md" | tr -d ' ')"
-spoke_words="$(wc -w < "$PLUGIN_ROOT/skills/research/context/discipline.md" | tr -d ' ')"
+hub_words="$(wc -w <"$PLUGIN_ROOT/skills/research/SKILL.md" | tr -d ' ')"
+spoke_words="$(wc -w <"$PLUGIN_ROOT/skills/research/context/discipline.md" | tr -d ' ')"
 if [[ "$hub_words" -lt "$spoke_words" ]]; then
   pass "research/SKILL.md ($hub_words words) is smaller than context/discipline.md ($spoke_words words)"
 else
@@ -236,7 +236,7 @@ assert_absent 'no agent restates the write boundary as a closed two-destination 
   'exactly two permitted destinations'
 assert_absent 'no agent restates the write boundary as a single destination' \
   'write destination is exactly one place'
-for agent in explorer researcher; do
+for agent in explorer researcher intent-tracer; do
   assert_present "agents/$agent.md defers to the single write boundary" \
     "agents/$agent.md" 'single write boundary'
 done

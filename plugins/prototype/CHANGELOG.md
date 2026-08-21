@@ -3,6 +3,24 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **The shared discipline now records the directions that lost, not only the one that won.**
+  Absorbed from an upstream skill this marketplace decided not to ship
+  (`docs/upstream/cursor-pstack.md`, the `arena` row), whose claim that the rejection notes are the
+  highest-signal part of the record had no counterpart here. `context/discipline.md`'s when-done
+  capture now asks for each direction that was tried and the reason it lost, and — when the verdict
+  is a graft rather than a single winner, which `explore-directions` step 5 already names as the
+  usual outcome ("I want the header from B with the sidebar from C") — which piece came from where
+  and what the discarded parts held that the graft deliberately left behind. The argument is that a
+  losing direction is the cheapest available answer to "why not just do it this way?" and the only
+  part of the exercise a future reader cannot reconstruct from the shipped result, while the very
+  next step deletes it irreversibly. Rule 6 changes with it: "the answer is the only thing worth
+  keeping" now says the answer is larger than the winner and points at the capture section, because
+  as written it licensed dropping exactly this.
+
 ## [0.8.0]
 
 ### Added

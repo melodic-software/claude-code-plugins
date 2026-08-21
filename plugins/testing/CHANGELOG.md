@@ -3,6 +3,32 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`write`: a test worth having is not always worth *this* test.** Absorbed from an upstream
+  cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `tdd` section) into the existing
+  "When NOT to write tests" section.
+
+  That list already covered code that needs no test — pure contracts, constants, one-liner
+  delegation, config wiring. It said nothing about the other axis: code that genuinely needs
+  covering, where the only available test would need broad harness setup, brittle mocks, slow
+  end-to-end infrastructure, production-only state, a reproduction nobody can state precisely, or
+  large unrelated fixture churn. Prefer no new test to a bad one there — a test that mostly
+  exercises its own mocks, encodes today's implementation, or would be deleted the moment it has
+  proved its point costs more to maintain than the confidence it buys.
+
+  **Declining is not skipping.** The addition requires naming which trigger made the test
+  impractical and then naming the closest executable check used instead — a targeted script, a
+  reproduction command, a snapshot comparison, a log assertion, a focused integration check. That
+  matches doctrine this repo already enforces mechanically in CI, where a silent skip is a defect.
+
+  Landed here rather than in `debugging:debug`, which the plan originally proposed: an adversarial
+  audit pointed out that this decline list is the incumbent for the concern and a second one in
+  `debug` would split it. The two lists are different axes, verified by reading both, so this is an
+  addition rather than a restatement.
+
 ## [0.6.2]
 
 ### Fixed

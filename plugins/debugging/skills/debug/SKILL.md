@@ -146,7 +146,10 @@ A correct seam is one where the test exercises the **real bug pattern as it occu
 If a correct seam exists:
 
 1. Turn the minimised repro into a failing test at that seam — follow your project's test naming + structure conventions
-2. Watch it fail (Red)
+2. Watch it fail (Red) — and confirm it fails **for the intended reason**. A test that errors on a
+   typo, a bad import, or an unrelated defect is also red, and a fix that turns *that* red green has
+   not touched the bug. Read the failure message against the root cause you are targeting; if they
+   do not match, repair the test or the reproduction before editing any implementation code
 3. Apply the smallest fix that addresses the **root cause**, not the symptom (Green)
 4. Watch the test pass
 5. Re-run the **Phase 1 feedback loop** against the original (un-minimised) scenario — the test passing is necessary but not sufficient

@@ -1,5 +1,79 @@
 # Changelog — discovery plugin
 
+## [0.16.0]
+
+### Added
+
+- **`/discovery:trace-intent` — reconstruct why a thing was built the way it was.**
+  The plugin's third evidence-substrate axis: `explore` answers what IS, `research`
+  answers what SHOULD BE, and this answers what WAS and why, from records outside
+  the code — review discussion, tickets, long-form documents. Every claim carries an
+  **intent-evidence tier** (Direct / Supported / Inferred / Speculative / Unknown)
+  measuring inferential distance from an explicit statement of intent, which is a
+  different axis from the research skill's source-authority tiers and is deliberately
+  not that vocabulary. A per-citation source-reliability note rides alongside without
+  routing, because evidence directness and source reliability are separate questions —
+  a review comment by the change's author and a four-year-old wiki page are both
+  `Direct` and are not equally trustworthy. `Unknown` is a first-class tier: an
+  investigated question that came back empty is a finding about how the decision was
+  made. Reauthored from the `why` skill in `cursor/plugins` (MIT); provenance and the
+  one deliberate departure are recorded in `docs/upstream/cursor-pstack.md`.
+- Three evidence categories ship — source control, long-form documents, issue tracker —
+  each presence-gated, none assumed. Four further categories that carry real intent
+  evidence are deliberately **not** shipped, because no seam in this marketplace reaches
+  them and four permanently-empty investigators would report the same gap forever; the
+  adapter seam for adding one is documented instead.
+- **`discovery:intent-tracer`** — the purpose-built subagent `/discovery:trace-intent`
+  dispatches by default, so review threads, ticket histories and design documents stay
+  out of the orchestrator's context window. It follows the `discovery:researcher`
+  pattern — a `disallowedTools:` denylist and no `tools:` allowlist — because an
+  allowlist strips every MCP tool, and two of this skill's three evidence categories
+  live behind MCP forge and tracker surfaces; an allowlisted agent would report both as
+  unavailable forever and be unable to tell that gap apart from a real one. It is
+  read-only on every evidence surface it touches: it never comments on a pull request,
+  transitions a ticket, or edits a page.
+- `skills/trace-intent/context/dispatch.md` — the intent family's parent-side dispatch
+  contract: the three inline escape hatches, the post-dispatch acceptance gate, the
+  reason-per-skip check that stands in for a coverage ledger (this family's corpus is
+  whatever the environment exposes, so an enumerate-then-mark ledger would count against
+  a denominator nobody can fix in advance), why a tier census sitting entirely in
+  `Speculative` / `Unknown` is a **pass**, and the by-value rung.
+- `skills/trace-intent/context/artifact-shape.md` — the third sidecar header schema, and
+  deliberately neither sibling's. The research header's `confidence` / source `tier` /
+  publishing `pool` describe external evidence and would let "someone hinted at this in a
+  merge thread" occupy the field a fetched primary source does; the exploration header's
+  `verified: read | grep | inferred` describes whether a repository file was opened, which
+  is the one axis this skill refuses to grade intent on. `tier` is readable off the header
+  so a verifier who never saw the run can grade tier assignment mechanically, and
+  `reliability` is a sibling of `ref` rather than of `tier` — only `tier` routes a claim to
+  an output section. **Sources consulted** lives in the index rather than a sidecar,
+  because a sidecar is opt-in reading and a reader who takes the answer and stops must
+  still meet the shape of the record behind it.
+
+### Changed
+
+- `/discovery:explore`'s description gains an explicit boundary against
+  `/discovery:trace-intent`. Its `'how does this work'` trigger is why-shaped, so
+  without the reverse boundary auto-discovery could route intent questions into the
+  wrong sibling — the same defect the research / research-deep boundary already fixes.
+- `reference/parent-contract.md` now covers three dispatched families rather than two:
+  the pointer table gains the intent row, the pre-dispatch baseline command names
+  `.trace-intent-dispatch` in both its POSIX and PowerShell forms, and the gate's
+  pre-flight probe list distinguishes the routes that owe a coverage checker from the
+  one that does not. `/discovery:trace-intent` keeps the shared `Topic:` envelope label
+  rather than adding a `Target:` one, so the label a dispatched agent parses and the
+  `topic_as_received` field that verifies it stay the same name.
+- `reference/topic-docs.md` records `INTENT.md` in the plugin's writes table and widens the
+  single write-boundary statement from two dispatched agents to three. The artifact stays
+  **private** — it is deliberately absent from `reference/artifact-protocol.md`, which is one
+  of five byte-identical copies across five plugins, so promoting a kind into it costs an
+  identical edit to all five plus a protocol version bump. That price is worth paying for an
+  artifact several plugins consume and not for one this skill writes and its own reader reads.
+- `scripts/contract.test.sh` extends its write-boundary loop to the third agent, and
+  `scripts/check-dispatch-artifact.test.sh` runs its full shape suite a third time for
+  `INTENT.md` — an `EXPLORE.md`-only run would let an `INTENT.md` regression through on
+  the strength of an explore-shaped pass.
+
 ## [0.15.6]
 
 ### Changed

@@ -1,0 +1,81 @@
+{
+  "skill_name": "trace-intent",
+  "evals": [
+    {
+      "id": 1,
+      "name": "routes-from-why-was-this-built",
+      "prompt": "Why was the retry backoff in our API client built the way it is? It retries three times with exponential backoff and I want to know what drove that.",
+      "expected_output": "The skill triggers, restates the target and its code anchor, and investigates the three shipped evidence categories rather than reading the implementation and explaining the mechanism back.",
+      "files": [],
+      "expectations": [
+        "Output investigates evidence outside the code — review discussion, tickets, or design documents",
+        "Output does NOT explain the retry mechanism as though describing it answered the why-question",
+        "Every claim about intent carries an intent-evidence tier",
+        "A Sources consulted section appears listing each category and what it returned"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "routes-away-to-reason-dont-recite",
+      "prompt": "Why is it this way? We always put validation in the controller and I think it is wrong — should we still be doing that?",
+      "expected_output": "The skill recognizes this is a present-tense challenge to a convention rather than a request for its history, and routes to /discipline:reason-dont-recite instead of running an intent investigation.",
+      "files": [],
+      "expectations": [
+        "Output identifies that the question asks whether a convention should STILL hold, not why it was adopted",
+        "Output names /discipline:reason-dont-recite as the fitting skill",
+        "Output does NOT produce a full intent-evidence report with tiers and a coverage map"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-code-shape-as-intent",
+      "prompt": "Why does this function clamp the upload size to 128 * 1024? There is no ticket and no design doc I can find. Just tell me why it is that number.",
+      "expected_output": "The skill declines to infer the reason from the constant and the surrounding code. It records the absence as a gap and reports Unknown with the searches it ran, rather than constructing a plausible explanation.",
+      "files": [],
+      "expectations": [
+        "Output does NOT assert a reason derived from the constant's value, the function's name, or a convention elsewhere in the codebase",
+        "The claim is reported at the Unknown tier, or as a gap, rather than as Inferred or Speculative from code shape",
+        "Output names the specific searches that came back empty rather than saying only that nothing was found",
+        "Output does not present a confident narrative in place of the missing record"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "reports-unavailable-category-as-gap-not-skip",
+      "prompt": "Trace the intent behind our feature-flag rollout gate. Note this checkout has no issue tracker configured and no docs directory.",
+      "expected_output": "The skill investigates source control, and reports the long-form-document and issue-tracker categories as unavailable in the Sources consulted map — distinguishing an unavailable category from one that was searched and returned nothing.",
+      "files": [],
+      "expectations": [
+        "Sources consulted names all three categories, including the two that could not run",
+        "The unavailable categories are described as unavailable, NOT as 'no relevant results' — which would falsely imply a search ran",
+        "Output does not silently omit the categories it could not reach",
+        "The run still produces findings from the category that did resolve"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "behavioural-signal-lands-at-inferred",
+      "prompt": "Why do our payment module and our audit-log module always seem to change together? Git shows they have been co-edited in 40 of the last 45 commits touching either one.",
+      "expected_output": "The skill treats the change-coupling data as admissible evidence but grades any intent claim built on it at Inferred rather than Direct, because coupling locates a relationship without explaining the decision behind it.",
+      "files": [],
+      "expectations": [
+        "The change-coupling observation is accepted as evidence rather than excluded as code-shape inference",
+        "Any claim about WHY the coupling exists is graded Inferred or lower, never Direct or Supported, unless a separate explicit source is cited",
+        "Output distinguishes what the coupling shows from what it does not explain",
+        "Hedged phrasing is used for the inference"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "does-not-skip-a-search-by-anticipation",
+      "prompt": "Why was the CSV export column order chosen? Do not bother checking the tracker, it is definitely not in there — this is too small a thing to have been ticketed.",
+      "expected_output": "The skill runs the tracker search anyway, because 'probably irrelevant' is not one of the two permitted skip reasons, and reports the actual result.",
+      "files": [],
+      "expectations": [
+        "Output runs the tracker search rather than accepting the user's assurance that it is empty",
+        "If the search returns nothing, that null result is reported rather than the category being omitted",
+        "Output does not record 'skipped, user said it was not there' as a valid skip reason"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,33 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- **`implement-dispatch`: the autonomous deviation log is now append-only, and each entry carries
+  its evidence and its outcome.** Absorbed from an upstream cursor/plugins skill
+  (`docs/upstream/cursor-pstack.md`, the `show-me-your-work` section). `DEVIATIONS.md` already
+  recorded what was planned, what was done instead, why, and the blast radius; it said nothing about
+  whether the entry could be edited later, how an entry should be backed, or whether the choice
+  actually worked. Four rules close that: append and supersede rather than edit, because rewriting
+  history hides the reversal a PR reviewer most needs to see; evidence is a pointer (a SHA, a
+  `file:line`, a test name) and preferably one a committed script produced, so the reviewer can
+  re-run it rather than believe it; an entry carries its outcome and says `unverified` rather than
+  reading as settled; and one entry is one decision, because an entry that does not fit on a line or
+  two is a decision that is not crisp yet.
+
+  The unverified-versus-omitted rule deliberately cites the grounding discipline
+  `work-items:work-loop` and `source-control:babysit-loop` already apply to their cycle reports
+  rather than restating it a third time — same reason, same unwatched-run failure mode.
+
+  Selected as the landing site after checking every audit-trail surface in the fleet: this is the
+  only one that is a decision trail written by the acting agent at decision time. The others are a
+  change inventory, loop counters, a hook-wired notification record, an in-place status comment,
+  OTel spans whose contract forbids a parallel schema, and a human-attested return record that says
+  outright it is "not activity". That table is in the provenance file, and it is why this landed as
+  an absorb into one consumer instead of a marketplace convention.
+
 ## [0.14.0]
 
 ### Changed

@@ -1,5 +1,60 @@
 # Changelog — session-flow plugin
 
+## [0.32.0]
+
+### Added
+
+- **`running-retro` and `retro`: a new-skill candidate now has somewhere to go.** Both skills are
+  required to produce skill candidates — `running-retro`'s checkpoint block ends with a
+  "New-skill candidates" line, and `retro`'s skill-candidate analysis is marked REQUIRED — and
+  neither named a destination. `running-retro` offered exactly three routes (codify, tracker,
+  nothing), none of them authoring; `retro` gave a recommendation format and stopped. A candidate
+  with no destination is a finding that evaporates between sessions.
+
+  Both now hand an accepted candidate to `/playbooks:skill-authoring`, gated on
+  `/skill-quality:check`, presence-gated with the stated fallback of recording it and saying there
+  is no authoring route here. Both also say to hand the shape over rather than drafting one inline:
+  a skill written ad hoc at the end of a retro is the one most likely to miss the conventions the
+  authoring surface exists to carry.
+
+  Absorbed from an upstream cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `reflect`
+  section), whose contribution here is routing an accepted learning by edit size. An adversarial
+  audit of the plan widened the fix: the plan had scoped it to `running-retro` on the reasoning that
+  `retro`'s five dimensions are closed, which is a non-sequitur — `retro` closes its *scoring*
+  dimensions, not the improvement analysis that produces the candidates.
+
+## [0.31.0]
+
+### Changed
+
+- **`show-options` is model-invoked (#3024).** It landed a day after course lane 8's fleet grade,
+  so the rubric's table never covered it and its `true` sat un-attributed to any exception class.
+  Graded now against `docs/conventions/invocation-mode/README.md`, none of the three fits: the
+  Spotlight ledger is incidental bookkeeping rather than a side effect whose timing must be a
+  human's, the skill is a one-shot render rather than a persistent mode-entry, and — unlike
+  `discipline:wait-what`, the class-(i) skill it most resembles — its trigger is *uttered*
+  ("what are my options", "what am I forgetting"), not a state only the human can detect. It is
+  also not the rubric's rejected router, which routes **the agent** to hidden skills: this one
+  renders a menu and does not execute the pick, and `claude-ops:inventory` (itself model-invoked)
+  and `docs/SKILL-CHEAT-SHEET.md` already name the hidden set to a human from model-reachable
+  surfaces. The flip was gated on re-checking ADR 0016's latent rationale for shipping V1
+  manual-only, and it does not hold it — see that ADR's two revision notes.
+
+  Unlike the prior flip (`planning:questionnaire`, #2969), **no trigger-phrase work was needed**:
+  this description was written with real phrases from the start, so the flip makes phrases that
+  already existed reachable rather than adding any. What the `true` cost was that a human saying
+  "what are my options" out loud reached nothing, and that `workflow`'s boundary paragraph pointed
+  the model at a target the invocation-reach invariant made unreachable. Both are now paid.
+
+- **`workflow`'s description routes the option-menu ask to `show-options`.** The reciprocal
+  amendment ADR 0016 made — `workflow`'s "never present both" governs **stage** routing and cedes
+  option surfacing — lived only in `workflow`'s body, which is loaded *after* description matching
+  has already picked a skill. With `show-options` now model-invoked, the two are matched against
+  the same user text, and "what comes next" sits one phrasing away from "what should I run next".
+  The disambiguation therefore has to be in the description to fire at all, so it is: `workflow`
+  now names `show-options` as the owner of the ranked menu. Behavior at every other trigger is
+  unchanged.
+
 ## [0.30.0]
 
 ### Changed
