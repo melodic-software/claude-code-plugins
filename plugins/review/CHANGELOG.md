@@ -3,6 +3,49 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Added
+
+- **The fix relay honors a producer's declared remediation owner (closes #3033).** A detector
+  can now tell the relay that its findings' repair, though contained to `Location`, is owned by
+  the detector's own remediation skill — and `fix-pass-mode.md` routes those rows there instead
+  of deciding for itself.
+
+  The gap this closes was silent and total for one adopter. `ai-slop:audit`'s fourteen
+  prose-rewrite rules classify as cleanup by content, and the cleanup route hands that class
+  wholesale to `/simplify` — a **code**-simplification skill that reads no findings file and
+  loads none of the producer's rewrite guide. Step 5 then retired the findings anyway. The pass
+  reported a clean run over findings nobody fixed, applying at most `rule-utm-params`, the one
+  genuinely auto-applicable rule.
+
+  Neither existing disposition reached it. **Off-site is a statement about the SITE** — both of
+  Step 2's limbs ask whether the repair leaves `Location`'s file — and these repairs are at
+  `Location`, so claiming off-site would assert something false and would route to surface-only,
+  trading a wrong apply for no apply. **`Auto-applicable: No` has no path to the cleanup route
+  at all**: Step 4's surface-instead-of-applying fence sits under its *correctness-class*
+  heading, so a cleanup row reaches `/simplify` whatever the crosswalk says about it.
+
+  - **Step 2** gains one classification rule: a row whose `Action` cell **leads with
+    `Remediate with <invocation>`** routes to that invocation, whatever its class, and never to
+    `/simplify` or the generic fixer. Off-site is decided first, so a row that is both stays
+    surface-only.
+  - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
+    is the point. Only an invocation already available in the session is invoked; nothing is
+    installed, fetched, or name-matched loosely, because nothing authenticates the writer of a
+    findings file. An unavailable or unrecognized invocation surfaces its rows, naming what the
+    producer asked for so the operator can run it.
+  - **Steps 3 and 5** count and report the route, and an unavailable surface's rows land in the
+    consumption record's "Not applied" table with the invocation as their recovery.
+
+  Neither other adopter changes. `mutation-testing:audit` names a test *file* in `Action`, which
+  is not the lead form, and off-site is decided first; `testing:audit` declares no owner and its
+  rows are surfaced by Step 4's judgment fence exactly as before.
+
+  Producer-side, the declaration and its fixed forms are owned by the detector-findings
+  convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
+  owned by the producer's own skill".
+
 ## [0.24.0]
 
 ### Added
