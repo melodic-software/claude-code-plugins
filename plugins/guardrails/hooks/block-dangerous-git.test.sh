@@ -1067,10 +1067,17 @@ run_pwsh "PS: quoted \$out=pwsh is data, not an assignment (allowed)" \
   'Write-Host '"'"'$out=pwsh $script'"'"'' 0
 # The assignment-shaped call inside quotes is what actually reaches
 # has_dynamic_invocation's quote-blanked confirmation. `pattern=&` has no
-# `$name=` LHS and fails the structural check even unquoted.
+# `$name=` LHS and fails the structural check even unquoted. `$a` glued to
+# the opening quote also fails the quote-intact predecessor class (no
+# space/`;`/`{`/`}`/`(`/`|`/`&` before `$`). The confirmation arm needs
+# `$name=` after one of those predecessors WHILE still inside a quoted
+# span, so blanking erases it.
 # shellcheck disable=SC2016
 run_pwsh "PS: quoted \$a=& \"\$tool\" is data, not a string-literal call (allowed)" \
   'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted semicolon-then-\$a=& reaches blanking confirmation (allowed)" \
+  'Write-Host "x; $a=& '"'"'ls'"'"'"' 0
 # A dot-source separator is `.` followed by a QUOTE. A decimal literal and a
 # property access after `=` carry no quote, so neither trips the assignment arm.
 # shellcheck disable=SC2016
@@ -1109,6 +1116,9 @@ pin_predicate "ps::has_dynamic_invocation: quoted pattern=& \"\$tool\" is not a 
 # shellcheck disable=SC2016
 pin_predicate "ps::has_dynamic_invocation: quoted \$a=& \"\$tool\" is not a call" \
   ps::has_dynamic_invocation 'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' 1
+# shellcheck disable=SC2016
+pin_predicate "ps::has_dynamic_invocation: quoted semicolon-then-\$a=& is not a call" \
+  ps::has_dynamic_invocation 'Write-Host "x; $a=& '"'"'ls'"'"'"' 1
 pin_predicate "ps::has_launcher: git -c section.key=cmd is not a launcher assignment" \
   ps::has_launcher 'git -c section.key=cmd log --oneline -n 1' 1
 # shellcheck disable=SC2016
@@ -1123,6 +1133,9 @@ pin_sink_trigger "classify: quoted =pwsh does not enter launcher sink" \
 # shellcheck disable=SC2016
 pin_sink_trigger "classify: quoted \$a=& \"\$tool\" does not enter dynamic-invocation sink" \
   'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' ""
+# shellcheck disable=SC2016
+pin_sink_trigger "classify: quoted semicolon-then-\$a=& does not enter dynamic-invocation sink" \
+  'Write-Host "x; $a=& '"'"'ls'"'"'"' ""
 pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink" \
   'git -c section.key=cmd log --oneline -n 1' ""
 # shellcheck disable=SC2016
