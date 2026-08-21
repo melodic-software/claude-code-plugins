@@ -3,6 +3,26 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.23]
+
+### Fixed
+
+- **Out-of-repo missing-tool notice no longer recommends `npm i -D` (#2868).** The skip
+  notice still prints `PATH probed:` and still points at a repo-local
+  `npm i -D markdownlint-cli2` when that command has a place to land: a git working
+  tree, or a `package.json` between the file and `REPO_ROOT` (an unpacked / non-git
+  Node project). A scratch dir with neither is not a repo-local install target; the
+  notice says so and names a durable user-scope directory already on the probed PATH
+  — only `~/.bun/bin`, `~/.local/bin`, or `~/bin`, never a generic `$HOME/…` fallback
+  (version-manager install/shim trees are not durable). When the chosen target is
+  exactly bun's default `globalBinDir` (`~/.bun/bin`;
+  [bunfig `install.globalBinDir`](https://bun.com/docs/runtime/bunfig), fetched
+  2026-08-21) it also names `bun install --global markdownlint-cli2`. The official
+  markdownlint-cli2 global form
+  [`npm install markdownlint-cli2 --global`](https://github.com/DavidAnson/markdownlint-cli2#install)
+  (fetched 2026-08-21) is documented here only; the notice never cites it, because
+  an fnm/nvm `npm i -g` is the #2748 failure mode.
+
 ## [0.11.22]
 
 ### Fixed

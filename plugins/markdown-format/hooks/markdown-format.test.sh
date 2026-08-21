@@ -904,7 +904,133 @@ if printf '%s' "$OUT_NO_MDLINT" | jq -e '
 else
   fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
 fi
+# In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and
+  (.hookSpecificOutput.additionalContext | contains("is the reliable route"))
+' >/dev/null 2>&1; then
+  ok "in-repo missing markdownlint names repo-local npm i -D"
+else
+  fail "in-repo missing markdownlint lost npm i -D guidance: $OUT_NO_MDLINT"
+fi
 if [[ ! -e "$NPX_MARKER" ]]; then ok "missing markdownlint never invokes npx"; else fail "missing markdownlint invoked npx"; fi
+
+# --- Out-of-repo missing-tool notice (#2868) --------------------------------
+# A non-git project dir (CLAUDE_PROJECT_DIR set so membership admits the file)
+# has no repository for `npm i -D`. The notice must name a durable user-scope
+# directory already on the probed PATH, never the repo-local command, and must
+# not name an ephemeral version-manager prefix that happens to sit earlier
+# on PATH.
+OUTREPO="$WORK/out-of-repo-project"
+mkdir -p "$OUTREPO"
+printf '{ "config": { "MD013": false } }\n' >"$OUTREPO/.markdownlint-cli2.jsonc"
+printf '# Note\n' >"$OUTREPO/note.md"
+FAKE_HOME="$WORK/fake-home"
+mkdir -p "$FAKE_HOME/.bun/bin" "$FAKE_HOME/.local/bin" "$FAKE_HOME/bin" \
+  "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin"
+PD_OUTREPO="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_OUTREPO="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_OUTREPO" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin:$FAKE_HOME/.local/bin:$FAKE_HOME/.bun/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_OUTREPO=$?
+if [[ $RC_OUTREPO -eq 0 ]]; then
+  ok "out-of-repo missing markdownlint exits 0"
+else
+  fail "out-of-repo missing markdownlint exit $RC_OUTREPO"
+fi
+if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
+  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
+  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
+  (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
+  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
+' >/dev/null 2>&1; then
+  ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
+else
+  fail "out-of-repo missing markdownlint remediation wrong: $OUT_OUTREPO"
+fi
+
+# Preference: with no ~/.bun/bin on PATH, name ~/.local/bin over ~/bin.
+PD_LOCALBIN="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_LOCALBIN="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_LOCALBIN" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/bin:$FAKE_HOME/.local/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
+  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+' >/dev/null 2>&1; then
+  ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
+else
+  fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
+fi
+
+# A generic writable $HOME/… PATH entry (mise install tree, nested .bun/bin)
+# is not a named target — only ~/.bun/bin, ~/.local/bin, ~/bin qualify.
+PD_GENERIC="$(mktemp -d "$WORK/pd.XXXXXX")"
+mkdir -p "$FAKE_HOME/share/mise/installs/node/22/bin" "$FAKE_HOME/foo/.bun/bin"
+OUT_GENERIC="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_GENERIC" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/share/mise/installs/node/22/bin:$FAKE_HOME/foo/.bun/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_GENERIC" | jq -e --arg mise "$FAKE_HOME/share/mise/installs/node/22/bin" --arg nested "$FAKE_HOME/foo/.bun/bin" '
+  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $mise)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $nested)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+' >/dev/null 2>&1; then
+  ok "out-of-repo notice does not name a generic or nested \$HOME PATH entry"
+else
+  fail "out-of-repo generic PATH fallback leaked into notice: $OUT_GENERIC"
+fi
+
+# Non-git project with package.json: npm i -D still has a place to land.
+printf '{}\n' >"$OUTREPO/package.json"
+PD_PKGJSON="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_PKGJSON="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_PKGJSON" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/.bun/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_PKGJSON" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and
+  (.hookSpecificOutput.additionalContext | contains("is the reliable route")) and
+  ((.hookSpecificOutput.additionalContext | contains("outside a repository")) | not)
+' >/dev/null 2>&1; then
+  ok "non-git project with package.json still names repo-local npm i -D"
+else
+  fail "non-git package.json lost npm i -D guidance: $OUT_PKGJSON"
+fi
+rm -f "$OUTREPO/package.json"
+
+# No durable user-scope PATH entry: do not invent a path or recommend npm i -D.
+PD_NOTARGET="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_NOTARGET="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_NOTARGET" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_NOTARGET" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
+  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
+  (.hookSpecificOutput.additionalContext | contains("durable user-scope directory already on this hook")) and
+  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
+' >/dev/null 2>&1; then
+  ok "out-of-repo notice without a user-scope PATH target invents none"
+else
+  fail "out-of-repo no-target remediation wrong: $OUT_NOTARGET"
+fi
 
 # --- Monorepo workspace node_modules/.bin walk (#2732) ----------------------
 # Hide PATH markdownlint; plant the shim only under packages/pkg/node_modules
