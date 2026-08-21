@@ -30,11 +30,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the same left-to-right walk `#2965` landed — first opener owns its span —
   so `Write-Host "it's fine"; & $w 'f.txt' 'x'` is visible as a call.
 
-  Classification, dash-flag first: a quoted token that starts with `-` is a
-  flag (`"-Path$x"` stops the scan, matching unquoted `-Path$x`); a
-  double-quoted span that contains `$` is computed, not a visible literal
-  (about_Quoting_Rules expandable strings); everything else is an opaque
-  literal. An empty span (`""`, `''`) is still deleted, so
+  Classification, interpolating-dash first: only a double-quoted token that
+  both starts with `-` and interpolates is a flag (`"-Path$x"` stops the
+  scan, matching unquoted `-Path$x`). A merely dash-prefixed quoted literal
+  (`'-file.txt'`) is still an argument — quoted strings are never parameters
+  (about_Parsing) — and stays an opaque literal, or a hyphen on the path
+  would reopen this evasion. A double-quoted span that contains `$` is
+  computed, not a visible literal (about_Quoting_Rules expandable strings);
+  everything else is an opaque literal. An empty span (`""`, `''`) is still deleted, so
   `& $py $script ""` stays allowed. `#2965` pairing pins and `#2984`
   assignment-arm pins are unchanged. The six `#2848` must-allow cases stay
   at 0 on all three blocking hooks, including

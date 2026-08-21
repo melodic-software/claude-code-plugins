@@ -360,12 +360,15 @@ ps::blank_quoted_spans() {
 # That is why this string is handed ONLY to the positional probe: the redirect
 # and `-va*` probes still need the deletion semantics.
 #
-# Classification, dash-flag FIRST (about_Quoting_Rules + about_Parsing):
-#   1. inner text starts with `-` → `-_q_`
-#      A token that both starts with `-` and interpolates (`"-Path$x"`) is a
-#      flag, matching the unquoted `-Path$x` stop. Evaluating interpolation
-#      first was a prototype bug: it classified that token as computed and
-#      let the scan continue into later operands.
+# Classification, interpolating-dash FIRST (about_Quoting_Rules + about_Parsing):
+#   1. DOUBLE-quoted, starts with `-`, AND contains `$` → `-_q_`
+#      Only this shape is treated as a flag. `"-Path$x"` matches the unquoted
+#      `-Path$x` stop. Evaluating interpolation first was a prototype bug: it
+#      classified that token as computed and let the scan continue.
+#      A merely dash-prefixed quoted literal (`'-file.txt'`, `"-file.txt"`)
+#      is still an ARGUMENT in PowerShell (quoted strings are never parameters)
+#      and must stay an opaque literal — otherwise quoting a hyphen-prefixed
+#      path reopens the #2906 evasion.
 #   2. DOUBLE-quoted and contains `$` → `$q`
 #      Expandable string (about_Quoting_Rules). Counts as a positional, not a
 #      visible literal — same class as `$path`. A SINGLE-quoted `$x` is
@@ -402,7 +405,7 @@ ps::opaque_quoted_spans() {
       if ((found)); then
         inner="${text:i+1:j-i-1}"
         if [[ -n "$inner" ]]; then
-          if [[ "$inner" == -* ]]; then
+          if [[ "$inner" == -* && "$q" == '"' && "$inner" == *'$'* ]]; then
             out+='-_q_'
           elif [[ "$q" == '"' && "$inner" == *'$'* ]]; then
             out+="\$q"

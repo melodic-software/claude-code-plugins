@@ -1844,12 +1844,20 @@ run_pwsh "PS: interpolating path beside a literal (blocked — #2906)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: both operands interpolating (allowed — quoted twin of all-variable, #2906)" \
   "& \$w \"\$path\" \"\$value\"" 0
-# Dash-flag FIRST: a token that both starts with `-` and interpolates is a
-# flag, matching the unquoted `-Path$x` stop. Interpolation-first classified
-# `"-Path$x"` as computed and let the scan continue (prototype bug).
+# Interpolating-dash FIRST: only a DOUBLE-quoted token that both starts with
+# `-` and interpolates is a flag, matching the unquoted `-Path$x` stop.
+# A merely dash-prefixed quoted literal is still an argument (about_Parsing:
+# quoted strings are never parameters) and must keep blocking, or a hyphen
+# on the path reopens the #2906 evasion.
 # shellcheck disable=SC2016
 run_pwsh "PS: quoted interpolating dash-flag stops the positional scan (allowed — #2906)" \
   "& \$w \"-Path\$x\" y" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: single-quoted dash-prefixed path is a literal (blocked — #2906)" \
+  "& \$w '-file.txt' 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted dash-prefixed path is a literal (blocked — #2906)" \
+  "& \$w \"-file.txt\" 'x'" 2
 # Containment: the other write-signal probes still delete quotes, so a quoted
 # `>` or `-value` in message text cannot become a signal. These already exist
 # above; the empty-string #2965 pin (`& $py $script ""`) must also keep
