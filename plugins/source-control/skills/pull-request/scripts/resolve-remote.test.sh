@@ -4,6 +4,10 @@
 # shape, then asserts the resolver's stdout and exit code. Non-zero exit on
 # any FAIL.
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
