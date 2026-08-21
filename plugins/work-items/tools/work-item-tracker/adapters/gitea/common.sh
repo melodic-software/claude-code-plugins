@@ -311,9 +311,16 @@ wit_gitea_auth_header() {
 wit_gitea_http() {
   local method="$1" path="$2" body="${3:-}"
   local url="https://$WIT_GITEA_HOST/api/v1$path"
-  local auth raw rc
+  local auth raw rc hdrs
   auth="$(wit_gitea_auth_header)" || exit "$?"
-  local curl_args=(-sS -X "$method" -H "Accept: application/json" --proto '=https' -w $'\n%{http_code}' -K -)
+  # Headers are dumped to a private temp file rather than read via curl's `%header{}`
+  # write-out, which needs curl 7.83+; this adapter targets no such floor. `-D` has been
+  # there since forever. The file is per-call and removed before returning.
+  hdrs="$(mktemp)" || {
+    printf 'gitea: could not create a temp file for response headers\n' >&2
+    exit "$EX_INTERNAL"
+  }
+  local curl_args=(-sS -X "$method" -H "Accept: application/json" --proto '=https' -D "$hdrs" -w $'\n%{http_code}' -K -)
   if [[ -n "$body" ]]; then
     curl_args+=(-H "Content-Type: application/json" --data "$body")
   fi
@@ -321,11 +328,24 @@ wit_gitea_http() {
     "$WIT_GITEA_CURL_BIN" "${curl_args[@]}" 2>/dev/null)"
   rc=$?
   if ((rc != 0)); then
+    rm -f "$hdrs"
     printf 'gitea: request to %s failed (curl exit %s) — network or endpoint unavailable\n' "$path" "$rc" >&2
     exit "$EX_UNAVAILABLE"
   fi
   WIT_GITEA_STATUS="${raw##*$'\n'}"
   WIT_GITEA_BODY="$(printf '%s' "${raw%$'\n'*}" | wit_strip_cr)"
+  # X-Total-Count, when the endpoint sends one. The issue-list and label-list handlers do
+  # (`ctx.SetTotalCountHeader`); the dependency-list handler does not. Empty means "this
+  # endpoint gave no authoritative count", never "zero" — callers MUST distinguish the two,
+  # because reading absent-as-zero would end a listing before it began.
+  # shellcheck disable=SC2034  # read by list-items.sh and create-item.sh; this file is sourced-only
+  WIT_GITEA_TOTAL_COUNT=""
+  if [[ -s "$hdrs" ]]; then
+    # shellcheck disable=SC2034  # ditto
+    WIT_GITEA_TOTAL_COUNT="$(wit_strip_cr <"$hdrs" |
+      sed -n 's/^[Xx]-[Tt]otal-[Cc]ount:[[:space:]]*\([0-9][0-9]*\).*$/\1/p' | tail -1)"
+  fi
+  rm -f "$hdrs"
 }
 
 # wit_gitea_require_ok <context> — map WIT_GITEA_STATUS to a
@@ -442,7 +462,15 @@ wit_gitea_blocked_by_count() {
     wit_gitea_require_ok "listing dependencies of $owner/$repo#$index"
     got="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || got=0
     total=$((total + $(jq '[.[] | select(.state != "closed")] | length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)))
-    # A short page is the last page. Gitea sends no total-count header on this endpoint.
+    # A short page is the last page. This endpoint genuinely sends no total-count header —
+    # `routers/api/v1/repo/issue_dependency.go` calls neither SetTotalCountHeader nor
+    # SetLinkHeader, unlike the issue and label list handlers — so unlike those two there is
+    # no authoritative signal to prefer. The residual risk is bounded and stated rather than
+    # papered over: gitea clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), so an
+    # instance whose cap is below config.gitea.page_size would under-count an issue carrying
+    # MORE blockers than that cap. Paging one extra time to be sure would cost an extra
+    # request PER ITEM inside list-items (this is already the N+1 path), which is a real
+    # regression against a case that needs 50+ blockers on a single issue to appear.
     ((got < WIT_GITEA_PAGE_SIZE)) && break
     page=$((page + 1))
     # The same overall bound list-items uses, so a pathological dependency graph cannot

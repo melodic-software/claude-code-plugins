@@ -275,8 +275,17 @@ wit_need_linear_config() {
   # not a fall-through to the default.
   wit_linear_nonempty_array "$WIT_LINEAR_DONE_TYPES" ||
     bad+=" done_state_types(must be a non-empty array)"
-  [[ "$WIT_LINEAR_PAGE_SIZE" =~ ^[1-9][0-9]*$ ]] ||
+  # Bounded, not just positive. Linear caps every connection's `first` at 250
+  # (WIT_LINEAR_DEFAULT_PAGE_SIZE's comment above says so), so an unbounded check accepts a
+  # page_size the API rejects — config validation passes and the FIRST live call fails, which
+  # is the failure mode config validation exists to prevent. Caught by validating the adapter's
+  # operations against Linear's published schema; every read verb passes this value as `first`.
+  if [[ "$WIT_LINEAR_PAGE_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+    [[ "$WIT_LINEAR_PAGE_SIZE" -le 250 ]] ||
+      bad+=" page_size:'$WIT_LINEAR_PAGE_SIZE'(exceeds linear's cap of 250 for a connection's first)"
+  else
     bad+=" page_size:'$WIT_LINEAR_PAGE_SIZE'(must be a positive integer)"
+  fi
   # TTLs bound lease liveness arithmetic; a non-integer would make every comparison
   # error out and silently read as "not live", handing every item to the next claimer.
   [[ "$WIT_LINEAR_LEASE_TTL_HOURS" =~ ^[0-9]+$ ]] ||
@@ -771,8 +780,12 @@ wit_linear_lease_comments() {
       # tool speaking the same v1 shape), so a malformed handle is reachable input, not a
       # theoretical one.
       [[ "$handle" =~ ^[0-9]+$ ]] || handle="$(wit_linear_handle "$(jq -r '.createdAt' <<<"$node")")"
-      all="$(jq -c --argjson acc "$all" --argjson h "$handle" --arg c "$cid" --argjson l "$lease" \
-        '$acc + [{handle: $h, comment_id: $c, lease: $l}]' <<<'null')" || {
+      # The accumulator travels on STDIN and only the new entry in argv. A lease set is small
+      # in practice, but the reverse shape puts a growing array on jq's command line, and past
+      # ARG_MAX the exec fails outright — which on this particular helper is the worst
+      # available outcome, per the paragraph above.
+      all="$(jq -c --argjson h "$handle" --arg c "$cid" --argjson l "$lease" \
+        '. + [{handle: $h, comment_id: $c, lease: $l}]' <<<"$all")" || {
         # Belt and braces: whatever else ever makes this jq fail, it must not degrade to
         # an empty accumulator that reads as "no leases". Fail loudly instead.
         printf 'linear: could not accumulate lease comments on %s — refusing to report an empty lease set\n' \

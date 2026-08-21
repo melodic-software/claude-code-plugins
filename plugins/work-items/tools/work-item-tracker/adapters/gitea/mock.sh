@@ -35,19 +35,31 @@ fix="$(dirname "$d")"
 cfg="$(cat)"
 url="$(printf '%s' "$cfg" | sed -n 's/^url = "\(.*\)"$/\1/p')"
 method="GET"
+dumpfile=""
 prev=""
 for a in "$@"; do
   if [[ "$prev" == "-X" ]]; then method="$a"; fi
+  # The adapter passes -D <file> to capture response headers; honour it so the
+  # X-Total-Count path is exercised rather than silently falling back.
+  if [[ "$prev" == "-D" ]]; then dumpfile="$a"; fi
   prev="$a"
 done
 printf '%s %s\n' "$method" "$url" >>"$fix/requests"
-while IFS=$'\t' read -r pat status body; do
+while IFS=$'\t' read -r pat status body headers; do
   [[ -n "$pat" ]] || continue
   if [[ "$url" == *"$pat"* ]]; then
+    if [[ -n "$dumpfile" ]]; then
+      printf 'HTTP/1.1 %s\r\n' "$status" >"$dumpfile"
+      [[ -z "$headers" ]] || printf '%s\r\n' "$headers" >>"$dumpfile"
+      printf '\r\n' >>"$dumpfile"
+    fi
     printf '%s\n%s' "$body" "$status"
     exit 0
   fi
 done <"$fix/routes"
+# Even an unseeded URL must leave a well-formed header dump, or the adapter would read
+# a stale file from a previous call.
+[[ -z "$dumpfile" ]] || printf 'HTTP/1.1 599\r\n\r\n' >"$dumpfile"
 # An unseeded URL is a test bug, not a provider condition: answer 599 so the verb
 # fails loudly rather than treating an empty body as a valid response.
 printf '%s\n%s' '{"message":"unseeded url in mock"}' '599'
@@ -71,7 +83,15 @@ gitea_write_binding() {
 # gitea_seed <url-substring> <status> <body-json> — add a route. Seeded order is match
 # order, so seed the most specific substring first.
 gitea_seed() {
-  printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$GITEA_FIX/routes"
+  printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${4:-}" >>"$GITEA_FIX/routes"
+}
+
+# gitea_seed_total <url-substring> <status> <body-json> <x-total-count> — the same, plus
+# the X-Total-Count header gitea's issue-list and label-list handlers really send
+# (ctx.SetTotalCountHeader). Seeded separately because the dependency-list handler sends
+# none, and the adapter must behave differently in the two cases.
+gitea_seed_total() {
+  gitea_seed "$1" "$2" "$3" "X-Total-Count: $4"
 }
 
 # gitea_reset_routes — drop every seeded route and the recorded request log.
