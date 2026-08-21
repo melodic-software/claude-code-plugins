@@ -1774,8 +1774,10 @@ run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
 # string's REAL closer behind as a stray opener, which then pairs with a quote
 # far to the right and deletes the writer call anyway. Both the backtick and the
 # doubled-quote escape therefore delete NOTHING on their line. This spelling
-# reaches write_bypass through `lcq`, which has already stripped backticks, so
-# only the doubled-quote arm can catch it — which is why it is pinned here.
+# reaches write_bypass through `lcq_bt` — the backtick-intact copy built before
+# backticks are stripped from `lcq` — so `ps::blank_quoted_spans` sees the
+# backtick and the backtick-ambiguity branch emits the line verbatim. The
+# doubled-quote arm is not what catches this pinned case.
 # shellcheck disable=SC2016
 run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
   "\"a\`\"\"; & ('set-'+'content') f.txt x; 'b\"c'" 2
