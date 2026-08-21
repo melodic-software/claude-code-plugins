@@ -34,6 +34,13 @@ The central claim is **confirmed with one correction**: `~/.claude/context-guard
 a cloud container, but only because a hook created it. The **snapshot** the reader needs is absent,
 and the resolver prints `unknown`.
 
+**The reader side is healthy; only the writer channel is missing.** In the same container, feeding
+the resolver one synthetic statusline payload under a scratch `HOME` — 120000 input + 3000 output
+tokens in a 200000 window, `used_percentage` 60 — produced a snapshot and resolved `acceptable`,
+while the real session id resolved `unknown` moments earlier. Nothing about `context-zone.sh`,
+`statusline-tee.sh`, `jq`, or the contract path is broken here. There is simply nothing calling the
+tee, because nothing calls a statusline.
+
 The correction matters. The `.compacted` marker in that directory was written by
 `hooks/post-compact-mark.sh` during an auto-compaction of that session, which proves **plugin hooks
 do run in this environment**. The status line is the only context-guard writer that is silent in
