@@ -39,7 +39,11 @@ tool that needs it — so long-running workflows can route heavy work away from 
 - **Reader contract** (`reference/reader-contract.md`) — the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the
-  zone-is-not-a-compaction-indicator rule.
+  zone-is-not-a-compaction-indicator rule. Its companion
+  `reference/cloud-headless-capture.md` is the writer-side channel inventory: why the statusline is
+  the only capture channel, which other channels were checked and rejected (with sources and
+  dates), and why `unknown` in a session with no configured `statusLine` — a cloud or headless
+  session by default — is structural rather than a defect.
 
 ## Behavior
 

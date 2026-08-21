@@ -436,6 +436,45 @@ fail-open behavior, not a bug — an idle session asking for a zone gets a fresh
 statusline refresh of waking. The writer's stale-file pruning cutoff (14 days) is deliberately far
 above the staleness window, so idle sessions' files are never deleted out from under them.
 
+## Cloud and headless sessions (`unknown` is structural)
+
+The single capture channel is the statusline tee, so **a session with no `statusLine` configured
+has no instrument at all** — no snapshot is ever written for it, and this contract resolves
+`unknown` for that session permanently. Cloud and headless sessions are that case by default.
+
+This is not a degraded install and not a missing dependency. It is the absence of the only
+documented surface that carries per-session context-window telemetry: as of **2026-08-21**, hook
+stdin carries no context, token, usage, or window field on any event, and no other documented
+channel carries current occupancy either. `reference/cloud-headless-capture.md` is the writer-side
+channel inventory — every channel checked, its live URL, the date read, what it does and does not
+carry, and what would have to change upstream. Re-check it when Claude Code's hooks or statusline
+reference changes; the finding is dated, not permanent.
+
+**What a consumer must do.** Nothing changes about the resolution rules — `unknown` still means
+take the conservative route. What changes is how a consumer *reports* it:
+
+- Report `unknown` in such a session as **"no instrument in this environment"**, never as a defect,
+  a broken install, or a reason to ask the operator to fix something.
+- **Never synthesize a zone from another source.** The two reachable near-substitutes — Claude
+  Code's cumulative OpenTelemetry token counter, and the session transcript reachable through the
+  documented `transcript_path` hook field — both fail in the direction that yields a confident
+  wrong answer, and the transcript's entry format is documented as internal and version-unstable.
+  A wrong zone is strictly worse than `unknown`: `unknown` routes to the conservative path, while a
+  misread occupancy can read `smart` on a nearly full window.
+- **`unknown` carries no direction.** It is not evidence of a full window and not evidence of an
+  empty one. A consumer that wants a fork or handoff trigger in an environment with no instrument
+  must drive it from something else — an explicit operator request, or an observation it makes
+  itself — and must not present that trigger as instrument-backed.
+
+**Telling structural absence from breakage.** Both print `unknown`, and the discriminator is on the
+writer side: the statusline runs only where a `statusLine` command is configured. Read `statusLine`
+from every scope that can carry it — user `~/.claude/settings.json`, project
+`.claude/settings.json`, local `.claude/settings.local.json`. **No `statusLine` in any scope** is
+structural, and offering statusline wiring as the remediation is wrong in an environment that
+refreshes no statusline. **A `statusLine` configured but no fresh snapshot** is a real defect
+(wiring, installed shim, or `jq`) — invoke `/context-guard:setup` via the Skill tool with `check`
+for the diagnosis.
+
 ## Invariants and boundaries
 
 - **Per-session semantics.** One file per session id; no cross-session last-writer-wins collapse.

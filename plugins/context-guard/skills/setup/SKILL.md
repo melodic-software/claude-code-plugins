@@ -78,7 +78,15 @@ zone bands, zones.json shape) are owned by
    exists, say so explicitly and print the edit for the shadowing file (or note that removing
    the override is the alternative). Distinguish FOUR states:
    - **No `statusLine` configured** — the wrapper is not running because nothing is. Print the
-     standalone wiring from the template below (the shim is then the whole statusline).
+     standalone wiring from the template below (the shim is then the whole statusline). **One
+     exception, and it changes the finding rather than the remediation:** the statusline is a
+     terminal-interface surface, so a session with no terminal interface — Claude Code on the web,
+     a self-hosted cloud environment, a `claude -p` run — refreshes no statusline no matter what is
+     wired. Where you can tell you are in such a session, report this as **INFO: no capture channel
+     in this environment**, say that `unknown` is the correct and permanent zone here, and do NOT
+     print wiring the operator cannot make run. `reference/cloud-headless-capture.md` records why
+     no substitute channel exists (every channel checked, with sources and dates) and
+     `reference/reader-contract.md`'s cloud-and-headless section carries the consumer rule.
    - **`statusLine` present, command references neither the shim nor this plugin's
      `statusline-tee.sh`** — wrapper missing. Print the wrapped wiring below with the user's
      current command preserved as the wrapped command.
@@ -100,6 +108,11 @@ zone bands, zones.json shape) are owned by
      `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" ${CLAUDE_SESSION_ID}`.
    - Fresh but `used_percentage` or `current_usage` null → INFO: documented early-session or
      post-`/compact` statusline state; the resolver correctly answers `unknown`. Not a defect.
+   - Absent while step 3 found **no `statusLine` in any scope** → INFO, never FAIL: nothing is
+     writing snapshots because nothing is configured to. This is the structural-absence branch, and
+     it is the default state of a cloud or headless session. Say that `unknown` is the correct
+     answer here and that no other channel can supply one — do not report a defect and do not send
+     the operator to fix an install that is not broken.
    - Absent or stale while step 3 reported correct wiring → FAIL: the wrapper is wired but not
      running (the statusline refreshes only in interactive sessions; also re-check steps 2 and 3 —
      a shim that is wired but not installed produces exactly this). Note the file only updates
