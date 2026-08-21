@@ -438,6 +438,33 @@
         "The collapsed row retains both distinct Actions rather than dropping one producer's remediation",
         "Rank is renumbered from 1 across the merged table — the plan does not contain two rank-1 rows"
       ]
+    },
+    {
+      "id": 36,
+      "name": "fix-pass-producer-owned-routes-to-named-surface",
+      "prompt": "[Scenario: a conforming current-branch findings file from ai-slop:audit. Every row leads its Finding cell with a qualified rule id; thirteen rows are prose-rewrite rules whose detector-findings crosswalk row leads its Auto-applicable cell with 'No, remediated by /ai-slop:audit fix', and one row is ai-slop/audit/rule-utm-params, whose crosswalk row is auto-applicable. /ai-slop:audit is available in the session.] /review:fanout fix",
+      "expected_output": "The thirteen producer-owned rows route to /ai-slop:audit fix; only the utm-params row takes the ordinary contained-fix route. /simplify is not invoked for the producer-owned rows.",
+      "files": [],
+      "expectations": [
+        "Resolves each row's qualified rule id against the detector-findings crosswalk and reads the producer-owned declaration from the rule's Auto-applicable cell — not from the finding's prose",
+        "Routes the thirteen declared rows to /ai-slop:audit fix and NEVER to /simplify, even though their content classifies as cleanup",
+        "Does NOT treat the rows as off-site — the remediation is at Location, so they are routed rather than surfaced",
+        "The rule-utm-params row is not routed to the producer surface: its crosswalk row declares no owner",
+        "The plan emitted before the gate counts the producer-owned rows on their own line, naming the invocation"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "fix-pass-producer-owned-surface-unavailable",
+      "prompt": "[Scenario: the same ai-slop:audit findings file, but the ai-slop plugin is NOT installed in this session, so /ai-slop:audit fix cannot be invoked.] /review:fanout fix --yes",
+      "expected_output": "The producer-owned rows are surfaced with the invocation the producer asked for; nothing is applied directly and nothing is installed.",
+      "files": [],
+      "expectations": [
+        "Does NOT install, fetch, enable, or shell out to obtain the named skill, and does not substitute a similarly-named one — a findings file's writer is not authenticated",
+        "Does NOT fall back to applying the rewrites directly, and does not hand them to /simplify — this route has no direct-apply fallback by design",
+        "Surfaces every such row and names /ai-slop:audit fix as the recovery so the operator can run it",
+        "The consumption record's 'Not applied' table carries each surfaced row with that reason and its source findings file"
+      ]
     }
   ]
 }

@@ -4,6 +4,58 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.4.0 — 2026-08-21
+
+A producer can now name the skill that owns its findings' remediation (#3033). New section, "When
+the remediation is owned by the producer's own skill": a rule whose repair is contained to
+`Location` but safe only under discipline the producer owns leads its crosswalk `Auto-applicable`
+cell with `No, remediated by <invocation>`. The consumer resolves that declaration through the
+qualified rule id every conforming row already leads its `Finding` cell with, and routes those rows
+to that surface instead of the cleanup route's `/simplify`.
+
+Minor under this contract's own rule: the disposition is **opt-in and additive**. No existing
+obligation changes, no producer-owned field's rule moves, nothing about what a producer emits
+changes, and a row that declares nothing behaves exactly as it did.
+
+**The declaration is per RULE and lives only in the crosswalk**, which is this contract's own
+settle-once rule applied rather than restated — "Auto-applicability is settled per rule, at contract
+time" already says a rule's remediation shape does not vary run to run, and who owns the repair is
+exactly such a fact. Requiring every emitted row to carry a copy would be the per-finding
+restatement that section forbids, and would make conformance a property of a producer's emitter
+rather than of its rule set. A producer MAY additionally lead an `Action` cell with
+`Remediate with <invocation>` as a self-describing shortcut for a consumer that cannot resolve this
+contract; where the two disagree the crosswalk wins and the row is the defect.
+
+The section opens by ruling out the two cheaper answers, because both were checked first and the
+reasoning is what makes the third disposition defensible rather than accreted:
+
+- **Off-site does not reach it.** Its producer obligation binds a remediation "outside `Location`'s
+  file" and both of the consumer's limbs are site limbs, so a rule whose repair is *at* `Location`
+  would have to assert something false to reach the disposition — and would then be routed to
+  surface-only, which is the wrong destination when the producer ships a surface that can apply the
+  fix.
+- **`Auto-applicable: No` does not reach it either.** `fix-pass-mode.md` Step 4's
+  surface-instead-of-applying fence sits under its correctness-class heading; a prose-style row
+  classifies as cleanup by content and the cleanup route hands the class wholesale to `/simplify`,
+  which reads no findings file. A cell no consumer reads on that path cannot restrain it.
+
+**No column was added**, for the three reasons the off-site remediation-target column was rejected
+plus one that is new: `scripts/check-detector-findings-crosswalk.sh` locates the crosswalk by its
+exact five-column header and fails any row splitting into a different field count. The leading-token
+device is this contract's own precedent — it is how the rule id rides in `Finding` without a column.
+
+Also here: `Auto-applicable`'s cell grammar is stated (four leading forms, argument after);
+producer-owned joins cross-file and architectural judgment as a third shape that is never
+auto-applicable *by the consumer*; the fourteen non-`rule-utm-params` `ai-slop:audit` rows carry the
+new lead; two Enforceability rows are added, one deterministic (the leading form is a literal-prefix
+read of a cell the crosswalk gate already parses) and one reasoning-only (nothing outside the
+session can see which skill the fixer invoked, so the declaration is checkable and the honoring is
+not). All three adopter rows now state their disposition explicitly — `ai-slop:audit` declares an
+owner, `mutation-testing:audit` is off-site and decided first, `testing:audit` declares none because
+no skill owns choosing an oracle.
+
+The consumer half lands in `review` 0.25.0.
+
 ## 2.3.0 — 2026-08-19
 
 Three `ai-slop:audit` rows join the crosswalk (`rule-chatbot-artifacts`, `rule-filler-phrases`,

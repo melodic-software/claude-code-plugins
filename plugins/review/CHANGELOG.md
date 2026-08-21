@@ -26,10 +26,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   at all**: Step 4's surface-instead-of-applying fence sits under its *correctness-class*
   heading, so a cleanup row reaches `/simplify` whatever the crosswalk says about it.
 
-  - **Step 2** gains one classification rule: a row whose `Action` cell **leads with
-    `Remediate with <invocation>`** routes to that invocation, whatever its class, and never to
-    `/simplify` or the generic fixer. Off-site is decided first, so a row that is both stays
-    surface-only.
+  - **Step 2** gains one classification rule: a row belonging to a rule whose crosswalk
+    `Auto-applicable` cell leads with `No, remediated by <invocation>` routes to that invocation,
+    whatever its class, and never to `/simplify` or the generic fixer. The declaration is
+    resolved through the qualified rule id every conforming row already leads its `Finding` cell
+    with, so **no producer has to change what it emits** — an `Action` cell leading with
+    `Remediate with <invocation>` is an optional self-describing shortcut, and the crosswalk wins
+    when they disagree. Off-site is decided first, so a row that is both stays surface-only, and
+    a row whose contract cannot be resolved takes its ordinary class as before.
   - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
     is the point. Only an invocation already available in the session is invoked; nothing is
     installed, fetched, or name-matched loosely, because nothing authenticates the writer of a
@@ -38,9 +42,10 @@ All notable changes to the `review` plugin are documented here. Format follows
   - **Steps 3 and 5** count and report the route, and an unavailable surface's rows land in the
     consumption record's "Not applied" table with the invocation as their recovery.
 
-  Neither other adopter changes. `mutation-testing:audit` names a test *file* in `Action`, which
-  is not the lead form, and off-site is decided first; `testing:audit` declares no owner and its
-  rows are surfaced by Step 4's judgment fence exactly as before.
+  Neither other adopter changes, and neither had to be touched. `mutation-testing:audit` declares
+  no owner and is off-site, which is decided first; `testing:audit` declares no owner because no
+  skill owns choosing the assertion a behavior deserves, and its rows are surfaced by Step 4's
+  judgment fence exactly as before.
 
   Producer-side, the declaration and its fixed forms are owned by the detector-findings
   convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
