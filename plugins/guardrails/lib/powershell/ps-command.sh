@@ -347,6 +347,82 @@ ps::blank_quoted_spans() {
   printf '%s' "$out"
 }
 
+# Sibling of ps::blank_quoted_spans for ONE consumer:
+# ps::computed_call_has_positional_write_signal. Same left-to-right pairing —
+# first opener owns its span, ambiguity copies the rest of the line verbatim —
+# but a FOUND span is replaced by a classified placeholder instead of deleted.
+#
+# Deletion is what made quoting a general evasion of the two-positional arm
+# (#2906): `& $w 'f.txt' 'x'` is a complete Set-Content <path> <value> call, and
+# blanking both operands left the probe with nothing to count. The placeholder
+# keeps the operand PRESENT so it still counts, while its content stays OPAQUE
+# so a quoted `>` or `-value` in message text cannot become a different signal.
+# That is why this string is handed ONLY to the positional probe: the redirect
+# and `-va*` probes still need the deletion semantics.
+#
+# Classification, dash-flag FIRST (about_Quoting_Rules + about_Parsing):
+#   1. inner text starts with `-` → `-_q_`
+#      A token that both starts with `-` and interpolates (`"-Path$x"`) is a
+#      flag, matching the unquoted `-Path$x` stop. Evaluating interpolation
+#      first was a prototype bug: it classified that token as computed and
+#      let the scan continue into later operands.
+#   2. DOUBLE-quoted and contains `$` → `$q`
+#      Expandable string (about_Quoting_Rules). Counts as a positional, not a
+#      visible literal — same class as `$path`. A SINGLE-quoted `$x` is
+#      verbatim, so it falls through to the literal placeholder.
+#   3. otherwise → `_q_`
+#      Present-but-opaque visible literal.
+#
+# An EMPTY span (`""`, `''`) is still deleted, matching blank_quoted_spans.
+# `& $py $script ""` must stay allowed (#2965); counting the empty string as a
+# literal would turn that pin into an over-block.
+ps::opaque_quoted_spans() {
+  local text="$1" out="" i=0 n j q found c inner
+  n=${#text}
+  while ((i < n)); do
+    q="${text:i:1}"
+    if [[ "$q" == "'" || "$q" == '"' ]]; then
+      found=0
+      for ((j = i + 1; j < n; j++)); do
+        c="${text:j:1}"
+        [[ "$c" == $'\n' ]] && break
+        if [[ "$q" == '"' && "$c" == '`' ]]; then
+          for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          break
+        fi
+        if [[ "$c" == "$q" ]]; then
+          if [[ "${text:j+1:1}" == "$q" ]]; then
+            for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+            break
+          fi
+          found=1
+          break
+        fi
+      done
+      if ((found)); then
+        inner="${text:i+1:j-i-1}"
+        if [[ -n "$inner" ]]; then
+          if [[ "$inner" == -* ]]; then
+            out+='-_q_'
+          elif [[ "$q" == '"' && "$inner" == *'$'* ]]; then
+            out+='$q'
+          else
+            out+='_q_'
+          fi
+        fi
+        i=$((j + 1))
+        continue
+      fi
+      out+="${text:i:j-i}"
+      i=$j
+      continue
+    fi
+    out+="$q"
+    i=$((i + 1))
+  done
+  printf '%s' "$out"
+}
+
 # Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
 # deletes backticks to recover an obfuscated name.
 #
@@ -1618,7 +1694,7 @@ ps::print_unparsable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head lcq lcq_bt q="\"'" blanked_gate
+  local cmd="$1" scan lcs seg lc head lcq lcq_bt q="\"'" blanked_gate opaque_gate
   ps::blank_herestrings "$cmd"
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
@@ -1672,10 +1748,10 @@ ps::write_bypass() {
     # at a depth-zero `;` `|` `&`, and the `&` inside `2>&1` is at depth zero, so
     # `& $w 2>&1 f.txt x` — a working `Set-Content <path> <value>`, verified as a
     # real write under pwsh — had its region truncated to `" 2>"`. Both measuring
-    # probes went silent and the command fell through ALLOWED (#2927). One text
-    # for every probe in the branch is what keeps that from recurring: the
-    # divergence between what the gate stripped and what the probes measured WAS
-    # the bug.
+    # probes went silent and the command fell through ALLOWED (#2927). The same
+    # fd-dup strip therefore runs on BOTH texts below before any probe sees them.
+    # The texts then diverge on PURPOSE: quote-blanked for every probe except
+    # the positional one, which needs quoted operands to stay present (#2906).
     #
     # Deleting the merge cannot manufacture a signal. The pattern requires a `>`
     # immediately before the `&` and a digit after it, so it never consumes the
@@ -1685,6 +1761,16 @@ ps::write_bypass() {
     # Redirect / -va* probes run on quote-blanked text so a quoted `>` or
     # `-value` substring in message text is not a write signal (#2722 review).
     blanked_gate=$(printf '%s' "$blanked_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    # Quoted operands stay PRESENT-BUT-OPAQUE for the positional probe only.
+    # blank_quoted_spans DELETES them, so `& $w 'f.txt' 'x'` counted as a
+    # zero-operand call and quoting was a general evasion of the Path+Value
+    # signal (#2906). A global placeholder would also feed quoted `>` / `-value`
+    # in message text to the redirect and `-va*` probes — measured fail-open
+    # on producer-redirect rows — so this string is derived here and handed
+    # to ps::computed_call_has_positional_write_signal alone.
+    opaque_gate=$(ps::opaque_quoted_spans "$lcq_bt")
+    opaque_gate="${opaque_gate//\`/}"
+    opaque_gate=$(printf '%s' "$opaque_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
     # The gate used to be a blanket ps::has_special_constructs, which treated ANY
     # grouping anywhere in the command as a write signal — so an ordinary
     # `foreach (…) { & $py run.py $x }` was reported as a "file-write cmdlet
@@ -1721,7 +1807,7 @@ ps::write_bypass() {
       ps::computed_call_has_splat_operand "$blanked_gate" ||
       [[ "$blanked_gate" == *'>'* ]] ||
       [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
-      ps::computed_call_has_positional_write_signal "$blanked_gate"; then
+      ps::computed_call_has_positional_write_signal "$opaque_gate"; then
       return 0
     fi
   fi

@@ -1340,4 +1340,15 @@ run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed 
 run_pwsh "PS: #2848 apostrophe inside the grouped operand itself (allowed — #2965)" \
   "& \$py \$script (Join-Path \$dir \"that's.jsonl\")" 0
 
+# --- #2906 containment: quoted Path+Value is a write, not a git signal ----------
+# The placeholder lives only inside write_bypass's positional probe. These rows
+# must stay allowed here so a contained write-lane fix cannot leak into the
+# git fail-closed sink.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value is not a git signal (allowed — #2906 containment)" \
+  "& \$w 'f.txt' 'x'" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
+  "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
+
 report

@@ -3,6 +3,45 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.7]
+
+### Fixed
+
+- **PowerShell write guard: quoting an operand no longer evades the computed-call
+  positional write signal
+  ([#2906](https://github.com/melodic-software/claude-code-plugins/issues/2906)).**
+  `& $w 'f.txt' 'x'` and `& $w 'f.txt' x` exited 0 from `block-hook-bypass`
+  while the identical unquoted `& $w f.txt x` exited 2 — a working
+  `Set-Content <path> <value>` through a computed target, waved through
+  because the operands were quoted. `& $w (Join-Path $d f.txt) 'x'` did the
+  same. Pre-existing, not a 0.28.x/0.29.x regression: every shape measured 0
+  on the pre-0.28.33 base as well. Official quoting rules
+  ([about_Quoting_Rules](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)):
+  a quoted argument is still an argument.
+
+  `ps::blank_quoted_spans` DELETES quoted spans so a quoted `>` or `-value` in
+  message text stays inert for the redirect and `-va*` probes. The
+  two-positional arm of `ps::computed_call_has_positional_write_signal` then
+  saw those operands as absent, not present-but-opaque, and quoting became a
+  general evasion of the `#2722` Path+Value signal. A global placeholder was
+  measured and rejected: it fail-opened producer-redirect rows. The contained
+  fix derives a sibling string (`ps::opaque_quoted_spans`) inside
+  `ps::write_bypass` and hands it to the positional probe alone. Pairing is
+  the same left-to-right walk `#2965` landed — first opener owns its span —
+  so `Write-Host "it's fine"; & $w 'f.txt' 'x'` is visible as a call.
+
+  Classification, dash-flag first: a quoted token that starts with `-` is a
+  flag (`"-Path$x"` stops the scan, matching unquoted `-Path$x`); a
+  double-quoted span that contains `$` is computed, not a visible literal
+  (about_Quoting_Rules expandable strings); everything else is an opaque
+  literal. An empty span (`""`, `''`) is still deleted, so
+  `& $py $script ""` stays allowed. `#2965` pairing pins and `#2984`
+  assignment-arm pins are unchanged. The six `#2848` must-allow cases stay
+  at 0 on all three blocking hooks, including
+  `& $py $script (Join-Path $dir "$id.jsonl")`. Deliberately ACCEPTED:
+  `& $py "script.py" "arg"` now blocks, consistent with the already-blocked
+  unquoted `& $py script.py arg`.
+
 ## [0.29.6]
 
 ### Changed
