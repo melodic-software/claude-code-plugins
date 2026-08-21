@@ -5,8 +5,8 @@ field list, both shell forms of the pre-dispatch baseline, the `$ARGUMENTS` clai
 boundary, and the resume-before-discard ordering for a partial slice — lives in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 and is not restated here. `SKILL.md`'s **Routing** section owns the dispatch-by-default decision and
-the preload sentinel. This file owns the three inline escape hatches and what the parent does with
-the payload once it comes back.
+the discipline-liveness token. This file owns the three inline escape hatches and what the parent
+does with the payload once it comes back.
 
 ## The three reasons to run inline
 
@@ -34,9 +34,11 @@ PowerShell lane) and the halt rule are in the parent contract.
 path across the dispatch, because it is this gate's input — never a path read out of the payload. The
 failure this gate exists to catch is a payload carrying no pointer at all.
 
-1. **The payload is well-formed.** `preload_token` matches the sentinel verbatim, and an `artifact:`
-   pointer is present. Missing either is a **failed dispatch** whatever `status` says; a missing
-   token is a discard rather than a downgrade.
+1. **The payload is well-formed.** `preload_token` matches the token verbatim, `preload:` is `fired`
+   or `fallback`, and an `artifact:` pointer is present. Missing token or artifact is a **failed
+   dispatch** whatever `status` says; a missing token is a discard rather than a downgrade. A missing
+   or unrecognized `preload:` field is an out-of-date agent definition, not a pass. A matching token
+   is file-identity only — MUST NOT infer `fired` from it — and `preload: fallback` is not a discard.
 
    **And `topic_as_received` matches the target the parent actually sent** — compared against the
    envelope the parent wrote, not against what it meant. It is the only check here that fires on an

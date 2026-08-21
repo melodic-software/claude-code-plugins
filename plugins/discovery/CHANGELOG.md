@@ -1,5 +1,20 @@
 # Changelog — discovery plugin
 
+## [0.16.3]
+
+### Fixed
+
+- **A matching `preload_token` is no longer treated as proof that `skills:` preload
+  fired (#2895).** The #2374 fallback Reads the same `SKILL.md` that preload would
+  have injected, so a recovered agent echoes the same token a preloaded run would —
+  and the agent body also embedded the token, so it could be echoed without seeing
+  the skill at all. The same pattern sat on `discovery:intent-tracer`. The token is
+  now file-identity evidence only and lives only in the skill file, on both
+  families. Provenance is a structured `preload: fired | fallback` field the parent
+  grades; `fallback` is the accepted recovery, not a discard. A missing or
+  unrecognized `preload:` field is an out-of-date agent definition. `explorer` has
+  no disk-fallback path and is unchanged.
+
 ## [0.16.2]
 
 ### Fixed

@@ -67,7 +67,7 @@ against a run that produced none):
    second worker write access to the same slice reintroduces exactly the one-writer-per-slice problem
    the sub-slice rule exists to prevent. It returns a verdict; the parent persists it.
 
-## Preload liveness — why a sentinel at all
+## Discipline liveness — why a token at all
 
 A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
 the debug log and starts the agent regardless. The resulting run has no disciplines, no phase
@@ -75,13 +75,20 @@ structure, and no gate — and it still writes an artifact, still returns a payl
 `coverage: complete`. At every seam this design builds, that failure is indistinguishable from
 success.
 
-So the preloaded skill carries a token, the agent echoes it verbatim, and **the parent discards any
+So the skill file carries a token, the agent echoes it verbatim, and **the parent discards any
 run whose `preload_token` is missing or mismatched**. Not downgrade, not warn, not accept-with-a-note:
 the artifact of an undisciplined run is worse than no artifact, because it will be read as though the
 discipline ran.
 
-The token lives in `SKILL.md` — the file that is preloaded — and nowhere in the agent definition. An
-agent that never received the skill has no way to produce it, which is the whole mechanism.
+The token lives in `SKILL.md` and nowhere in the agent definition. An agent that never received the
+skill has no way to produce it. That is **file-identity** evidence: the discipline body reached the
+agent by some route.
+
+It is **not** preload evidence. The disk fallback Reads this same file, so a recovered agent echoes
+the same token a preloaded agent would. Provenance is the structured `preload: fired | fallback`
+field. The parent grades that field and MUST NOT infer `fired` from a matching token. `fallback` is
+the accepted recovery, not a discard. A missing or unrecognized `preload:` field is an out-of-date
+agent definition, the same class as a missing `topic_as_received`.
 
 ## The acceptance gate — why it grades the slice path, not the payload
 
@@ -269,5 +276,5 @@ in
   log and the gap lists are written outputs rather than working notes.
 - **Debuggability** — worse, and worth stating plainly. Background is the default execution mode, so
   a failed run's transcript is not in the conversation at all. The artifact and the payload are the
-  evidence; that is why `status`, `coverage`, and `preload_token` are mandatory fields rather than
-  nice-to-haves.
+  evidence; that is why `status`, `coverage`, `preload_token`, and `preload` are mandatory fields
+  rather than nice-to-haves. `preload_token` is file-identity; `preload` is provenance.
