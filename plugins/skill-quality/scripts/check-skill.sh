@@ -1429,6 +1429,7 @@ vc_lead_readonly() {
   local t="$1"
   case "$t" in
   *"read-only by default"* | *"read only by default"*) return 1 ;;
+  *) ;;
   esac
   printf '%s' "$t" | grep -qE \
     'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
