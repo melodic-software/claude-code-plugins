@@ -344,9 +344,14 @@ different layout** (`<eval dir>/**/case.yaml`, or `prompt.md` plus `graders/*.md
 **early access** and refuses to run (`plugin eval is currently in early access`), so adopting its
 format would trade a corpus CI checks on every PR for one nobody here can execute. Adoption stays
 deferred behind the same `melodic-software/medley#1418` tracker as the runner; revisit when the
-command leaves early access. **The consequence for authors is the sentence below:** because nothing
-executes a prompt, a prompt must be readable and followable by a human or an agent working by hand,
-and must not assume a runner will stage anything for it.
+command leaves early access. **The consequence for authors:** no command in *this* marketplace and
+nothing in *this* CI executes a prompt — the gates lint and schema-check them — so a case must be
+readable and followable by a human or an agent working by hand, and must not depend on a runner
+having been invoked. That is not the same as no runner existing: a consumer with Anthropic's
+`skill-creator` installed can run these suites, which is the format's own runner and which stages a
+case's `files[]` for it. So use `files[]` to declare fixtures and reference them by their documented
+path; do not hand-roll staging inside the `prompt` string. A prompt that builds its own workspace is
+neither followable by hand nor compatible with the runner that would otherwise stage it.
 
 **Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
 executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
