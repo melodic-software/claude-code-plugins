@@ -306,8 +306,8 @@ already covers is pure cost.
 - **`Auto-applicable: No` has no path to the route that actually misapplies these rows.** Step 4's
   surface-instead-of-auto-applying fence sits under its **correctness-class** heading. A prose-style
   row classifies as cleanup by content, and the cleanup route hands that class wholesale to
-  `/simplify`, which — Step 4's own words — "rediscovers cleanups from the working-tree diff; it does
-  NOT read the findings files". A cell no consumer reads on that path cannot restrain it. That is the
+  `/simplify`, which — Step 4's own words — "rediscovers cleanups from the working-tree diff — it
+  does NOT read the findings files". A cell no consumer reads on that path cannot restrain it. That is the
   mechanical half of the gap: the crosswalk can already say a rule is not auto-applicable and still
   not stop the apply.
 
