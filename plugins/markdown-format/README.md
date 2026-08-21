@@ -13,6 +13,14 @@ config has chosen no Markdown style, so the hook does not run there at all
 
 ## Behavior
 
+- **Markdown paths only at launch.** `hooks.json` registers the handler on
+  `Write|Edit` but each copy carries `if: Edit(*.md)` or `if: Edit(*.mdc)`.
+  `Edit(path)` is the permission-rule form that covers Write; a `Write(path)`
+  rule is never matched. A `.txt` Write therefore never starts the process —
+  it does not reach the script's in-script extension skip, and it cannot
+  produce a `hook_non_blocking_error` for work this hook does not do (#2867).
+  The script still checks the extension itself, because an `if` filter is one
+  rule per handler and fails open on an unparsable payload.
 - **Config opt-in.** The hook runs only when a markdownlint config file that
   `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
   `.markdownlint.json`, … — any of the ten documented names) exists between the

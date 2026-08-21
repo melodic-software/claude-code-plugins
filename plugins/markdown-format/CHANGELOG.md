@@ -3,6 +3,28 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.24]
+
+### Fixed
+
+- **Do not launch the PostToolUse hook on non-Markdown Writes (#2867).** The
+  script is advisory and has no non-zero exit path, but Claude Code still
+  recorded `PostToolUse:Write` as `hook_non_blocking_error` with
+  `Failed with non-blocking status code: No stderr output` — official exit-code
+  semantics for a canceled or non-zero hook with empty stdout/stderr
+  ([hooks reference](https://docs.claude.com/en/docs/claude-code/hooks),
+  fetched 2026-08-21). The failing invocation was a `.txt` Write: the matcher
+  `Write|Edit` launched the process, and the script never reached its
+  applicability `exit 0` (timeout/cancel and a failed Git Bash spawn both
+  produce that exact no-stderr record). `hooks.json` now carries two handlers
+  with `if: Edit(*.md)` and `if: Edit(*.mdc)` — Edit path rules cover Write;
+  a `Write(*.md)` rule is never consulted
+  ([permissions](https://docs.claude.com/en/docs/claude-code/permissions),
+  fetched 2026-08-21) — plus explicit `shell: bash` so Windows does not fall
+  through to PowerShell, which cannot run a `.sh` handler. The in-script
+  extension check remains defense in depth. Advisory/fail-open semantics are
+  unchanged.
+
 ## [0.11.23]
 
 ### Fixed
