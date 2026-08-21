@@ -105,7 +105,12 @@ if [[ -e "$OUT" ]]; then
 fi
 mkdir -p "$(dirname "$OUT")"
 
-DATE_UTC="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+# ISO-8601 EXTENDED, colons in the time portion. The consumer parses this field:
+# fix-pass-mode.md "Step 1" reads a value only if it is "a full ISO-8601
+# date-time carrying an explicit UTC designator (Z) or a numeric offset", and
+# calls anything else UNREADABLE. The colon-free rule this convention states
+# elsewhere binds the FILE NAME (Windows-safe), never this frontmatter field.
+DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" '
   # Tier/Action mirror of the severity crosswalk (see header comment).

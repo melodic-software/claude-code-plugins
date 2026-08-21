@@ -26,9 +26,10 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
    and persist as a conforming findings file. **What the relay APPLIES is narrow; what it ROUTES
    is not.** `rule-utm-params` alone is auto-applicable, and every other rule is
    `/ai-slop:audit fix` work — but the crosswalk now declares that ownership, so the relay hands
-   those rows to this skill's `fix` action rather than to its cleanup route, which is a
-   code-simplification skill that never loads this skill's rewrite guide. The findings file is
-   how a consumer *sees* them and how they reach the one surface that can rewrite them.
+   those rows to this skill's `fix` action rather than to its cleanup route, which prefers
+   `/simplify`, a code-simplification skill, and applies the rows itself when `/simplify` is
+   absent. Neither branch loads this skill's rewrite guide. The findings file is how a consumer
+   *sees* them and how they reach the one surface that can rewrite them.
 2. **Judgment rubric**: the catalog's `v1: rubric` tells, applied by reading the prose. Rubric
    findings reach the human report only, never the findings file.
 

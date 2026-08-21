@@ -305,11 +305,12 @@ already covers is pure cost.
   can. Reaching it would trade a misapply for a non-apply, not close the gap.
 - **`Auto-applicable: No` has no path to the route that actually misapplies these rows.** Step 4's
   surface-instead-of-auto-applying fence sits under its **correctness-class** heading. A prose-style
-  row classifies as cleanup by content, and the cleanup route hands that class wholesale to
-  `/simplify`, which — Step 4's own words — "rediscovers cleanups from the working-tree diff — it
-  does NOT read the findings files". A cell no consumer reads on that path cannot restrain it. That is the
-  mechanical half of the gap: the crosswalk can already say a rule is not auto-applicable and still
-  not stop the apply.
+  row classifies as cleanup by content, and the cleanup route prefers `/simplify` — which, in Step
+  4's own words, "rediscovers cleanups from the working-tree diff — it does NOT read the findings
+  files" — and **applies the rows itself, one file at a time, when `/simplify` is absent**. The cell
+  restrains neither branch: on the first no consumer reads it, and on the second the reader is the
+  cleanup route, whose fence is the file, not auto-applicability. That is the mechanical half of the
+  gap: the crosswalk can already say a rule is not auto-applicable and still not stop the apply.
 
 **Producer obligation — one declaration, in the crosswalk row.** A rule whose remediation is
 contained to `Location` but owned by the producer's own remediation surface **leads its
@@ -393,11 +394,14 @@ about repairs nobody claims.
 
 ## Auto-applicability is settled per rule, at contract time
 
-`fix-pass-mode.md` "Step 4" owns the criterion — a fix is auto-applied only when it is contained to
-its `Location`, high-confidence, and not a call for architectural judgment. What this contract owns
-is the consequence for a detector author: **settle it once per rule in the crosswalk, not per finding
-at apply time.** A rule's remediation shape does not vary run to run, so a per-finding decision is
-the same decision taken repeatedly with less evidence.
+`fix-pass-mode.md` "Step 4" owns the criterion, and it binds the **correctness class**: a
+correctness-class fix is auto-applied only when it is contained to its `Location`, high-confidence,
+and not a call for architectural judgment. That scope is not a caveat on the criterion but the whole
+of where it lives — Step 4 states the fence under its correctness-class heading, and the two sections
+above turn on the fact that a cleanup-class row never passes through it. What this contract owns is
+the consequence for a detector author, which is class-independent: **settle it once per rule in the
+crosswalk, not per finding at apply time.** A rule's remediation shape does not vary run to run, so a
+per-finding decision is the same decision taken repeatedly with less evidence.
 
 Three rule shapes are never auto-applicable, and saying so is the contract's intent rather than a
 limitation to route around:
