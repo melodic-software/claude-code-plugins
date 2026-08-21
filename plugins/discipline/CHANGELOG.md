@@ -5,6 +5,24 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.10]
+
+### Changed
+
+- **`reason-dont-recite` disambiguates its shared trigger phrase.** It carries the
+  literal trigger `'why is it this way'`, which the new `/discovery:trace-intent`
+  serves from the opposite direction: this skill challenges whether a convention
+  should STILL hold and re-derives it from first principles, while that one recovers
+  the original reasoning from the historical record. The two are inverse postures on
+  the same words — one treats absent rationale as a finding, the other goes and looks
+  for it — so the description now names the boundary and routes across it.
+
+  The clause is presence-gated with a documented fallback (read the record directly)
+  rather than an unguarded cross-plugin reference, and it is strictly **additive**:
+  every pre-existing single-quoted trigger is preserved byte-identically, because the
+  trigger-preservation check treats a cross-plugin move as a dropped trigger and an
+  auto-invocation regression.
+
 ## [0.12.9]
 
 ### Changed

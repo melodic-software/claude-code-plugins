@@ -11,6 +11,18 @@ The two per-concept teaching artifacts. A **lesson** delivers learning; a **refe
 - **Knowledge first, then practice.** Teach the minimum knowledge the skill needs, then drive practice via a tight feedback loop (per the Skills layer in SKILL.md).
 - **Inline citations.** Link each non-obvious / load-bearing claim to its `RESOURCES.md` entry or external source — trust, a go-deeper path, AND the rot re-verify anchor. Cite claims that carry risk, not every sentence.
 - **Close with a follow-up reminder.** The agent is the user's teacher — end the lesson inviting questions on anything unclear.
+- **Teach the mechanism; a list of names is reference, not teaching.** Enumerating the functions,
+  constants, or fields a thing has produces something that looks like a lesson and teaches nothing.
+  Say what problem each part solves and how it actually works. If the draft reads like a changelog,
+  it belongs in the concept's `reference.md`, not its lesson.
+- **Build a diagram up; never open with the finished one.** For anything with three or more moving
+  parts, do not draw a single diagram carrying all of them. Draw a short series where each picture
+  redraws the last and adds exactly one part, so the learner watches the system assemble. To teach a
+  flow from A to B to C: draw A→B; redraw and add C; redraw and add the return edge. Three small
+  growing diagrams beat one crowded diagram, and the series is the opposite of a wall — each step is
+  small and carries one idea. A single all-at-once diagram, especially one saved for the end, is a
+  reference. A single simple point needs no figure at all; a visual earns its place by teaching, not
+  by decorating.
 
 ### Lesson file format
 

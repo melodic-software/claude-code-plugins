@@ -3,6 +3,29 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.1]
+
+### Fixed
+
+- **`audit-install-state`: the emitted CSV no longer lets a scanned path execute as a spreadsheet
+  formula.** `write_csv` passed `relpath`, `surface`, `number_meaning`, `liveness`,
+  `liveness_reason`, and `evidence` straight through `csv.writer`, and every one of those is derived
+  from walking the install tree. A plugin, project, or worktree directory under `~/.claude` may be
+  named anything — including `=HYPERLINK("http://x","click")` — and a spreadsheet evaluates a cell
+  opening with `=`, `+`, `-`, or `@` as a formula. The skill's whole reason for emitting this file
+  is that it is the artifact where "every file" literally exists and is read row by row, so it lands
+  in a spreadsheet by design. A new `csv_safe` prefixes such a cell with a single quote, which
+  spreadsheets read as "the rest is literal text" while `grep`, `csv.reader`, and the eye still see
+  the original; leading tab, CR, and LF are covered too, because a spreadsheet strips them before
+  deciding, so `\t=cmd()` evaluates exactly as `=cmd()` does. Integer and boolean cells pass through
+  untouched.
+
+  Found while porting an upstream skill whose logging helper carries this guard
+  (`docs/upstream/cursor-pstack.md`, the `show-me-your-work` section); looking for somewhere in the
+  fleet to apply it turned up a live exposure rather than a hypothetical one. Covered by
+  `TestCsvFormulaInjection`, which was confirmed discriminating: with the guard disabled in memory
+  its cases fail, and pass with it restored.
+
 ## [0.35.0]
 
 ### Added

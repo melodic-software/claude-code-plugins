@@ -54,7 +54,7 @@ not). All three adopter rows now state their disposition explicitly — `ai-slop
 owner, `mutation-testing:audit` is off-site and decided first, `testing:audit` declares none because
 no skill owns choosing an oracle.
 
-The consumer half lands in `review` 0.25.0.
+The consumer half lands in `review` 0.26.0.
 
 ## 2.3.0 — 2026-08-19
 

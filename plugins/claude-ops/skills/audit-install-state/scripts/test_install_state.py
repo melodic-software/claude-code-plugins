@@ -50,7 +50,9 @@ def build_tree(root: Path) -> None:
     )
 
     (root / "rate-limit-guard").mkdir()
-    (root / "rate-limit-guard" / "stop-events.jsonl.tmp.2541395").write_text("x", encoding="utf-8")
+    (root / "rate-limit-guard" / "stop-events.jsonl.tmp.2541395").write_text(
+        "x", encoding="utf-8"
+    )
 
     (root / "shell-snapshots").mkdir()
     (root / "shell-snapshots" / "snapshot-bash-1786398511670-a1b2c3.sh").write_text(
@@ -61,16 +63,18 @@ def build_tree(root: Path) -> None:
     (root / "paste-cache" / "deadbeefdeadbeef").write_text("p", encoding="utf-8")
 
     (root / "session-env" / "0be285ac-e025-47df-bac9-ee6a03806c3d").mkdir(parents=True)
-    (root / "session-env" / "0be285ac-e025-47df-bac9-ee6a03806c3d" / "env.json").write_text(
-        "{}", encoding="utf-8"
-    )
+    (
+        root / "session-env" / "0be285ac-e025-47df-bac9-ee6a03806c3d" / "env.json"
+    ).write_text("{}", encoding="utf-8")
 
     (root / "projects" / "D--repo").mkdir(parents=True)
-    (root / "projects" / "D--repo" / "e2a52749-8ff6-4355-bd13-cbef81921701.jsonl").write_text(
-        "{}", encoding="utf-8"
-    )
+    (
+        root / "projects" / "D--repo" / "e2a52749-8ff6-4355-bd13-cbef81921701.jsonl"
+    ).write_text("{}", encoding="utf-8")
 
-    (root / "settings.json").write_text(json.dumps({"cleanupPeriodDays": 14}), encoding="utf-8")
+    (root / "settings.json").write_text(
+        json.dumps({"cleanupPeriodDays": 14}), encoding="utf-8"
+    )
     (root / ".credentials.json").write_text("SECRET", encoding="utf-8")
     (root / "history.jsonl").write_text("{}", encoding="utf-8")
 
@@ -131,7 +135,9 @@ class TestLivenessGate(unittest.TestCase):
             verdict = engine.verdict_for(rel, probe=self.spy)
             with self.subTest(rel=rel):
                 self.assertEqual(verdict.liveness, engine.NOT_APPLICABLE)
-        self.assertEqual(self.calls, [], "the liveness probe ran against a non-PID number")
+        self.assertEqual(
+            self.calls, [], "the liveness probe ran against a non-PID number"
+        )
 
     def test_probe_is_called_only_for_a_genuine_pid_name(self) -> None:
         verdict = engine.verdict_for("sessions/5052.json", probe=self.spy)
@@ -154,7 +160,12 @@ class TestLivenessGate(unittest.TestCase):
 
 class TestSecretHandling(unittest.TestCase):
     def test_never_read_list_covers_the_documented_secrets(self) -> None:
-        for rel in (".credentials.json", "daemon/control.key", "daemon/pipe.key", "ide/22580.lock"):
+        for rel in (
+            ".credentials.json",
+            "daemon/control.key",
+            "daemon/pipe.key",
+            "ide/22580.lock",
+        ):
             with self.subTest(rel=rel):
                 self.assertTrue(engine.is_never_read(rel))
 
@@ -173,7 +184,9 @@ class TestSecretHandling(unittest.TestCase):
             build_tree(root)
             with self.assertRaises(engine.SecretReadRefused):
                 engine.read_text_guarded(root, "history.jsonl")
-            self.assertEqual(engine.read_text_guarded(root, "settings.json").strip()[0], "{")
+            self.assertEqual(
+                engine.read_text_guarded(root, "settings.json").strip()[0], "{"
+            )
 
 
 class TestDenyListCaseSensitivity(unittest.TestCase):
@@ -217,10 +230,16 @@ class TestDeliberateState(unittest.TestCase):
             (exp / "RESTORE.md").write_text("all keys set false", encoding="utf-8")
             (exp / "settings.json.baseline").write_text("{}", encoding="utf-8")
 
-            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
-            self.assertTrue(report["deliberate_state"], "the revert ledger was not found")
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=1000, recent_hours=24
+            )
+            self.assertTrue(
+                report["deliberate_state"], "the revert ledger was not found"
+            )
             self.assertIn("plugins/data/an-experiment", report["deny_roots"])
-            plugins_entry = next(e for e in report["entries"] if e["entry"] == "plugins")
+            plugins_entry = next(
+                e for e in report["entries"] if e["entry"] == "plugins"
+            )
             self.assertTrue(plugins_entry["deny_listed"])
             self.assertEqual(plugins_entry["reading"]["verdict"], "deny-listed")
 
@@ -228,7 +247,9 @@ class TestDeliberateState(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "plugins" / "data" / "e").mkdir(parents=True)
-            (root / "plugins" / "data" / "e" / "manifest.json").write_text("{}", encoding="utf-8")
+            (root / "plugins" / "data" / "e" / "manifest.json").write_text(
+                "{}", encoding="utf-8"
+            )
             found = engine.find_deliberate_state(root)
             self.assertEqual(len(found), 1)
             self.assertTrue(found[0]["found_via"].startswith("hotspot:"))
@@ -297,7 +318,9 @@ class TestRetention(unittest.TestCase):
         self.assertEqual(engine.valid_retention_days(1), 1)
         self.assertEqual(engine.valid_retention_days(30), 30)
 
-    def test_an_invalid_user_value_is_reported_and_does_not_drive_the_window(self) -> None:
+    def test_an_invalid_user_value_is_reported_and_does_not_drive_the_window(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "settings.json").write_text(
@@ -331,8 +354,15 @@ class TestReadings(unittest.TestCase):
             engine.staleness_reading(entry, 30)["verdict"], "product-managed-healthy"
         )
 
-    def test_an_mtime_overage_is_reported_as_an_inference_not_a_measurement(self) -> None:
-        entry = {"entry": "file-history", "surface": engine.SWEPT, "older_than_retention": 4, "deny_listed": False}
+    def test_an_mtime_overage_is_reported_as_an_inference_not_a_measurement(
+        self,
+    ) -> None:
+        entry = {
+            "entry": "file-history",
+            "surface": engine.SWEPT,
+            "older_than_retention": 4,
+            "deny_listed": False,
+        }
         reading = engine.staleness_reading(entry, 30)
         self.assertEqual(reading["verdict"], "age-exceeds-window")
         self.assertEqual(reading["evidence"], engine.INFERRED)
@@ -340,13 +370,23 @@ class TestReadings(unittest.TestCase):
         self.assertIn("checkpoint", reading["why"])
 
     def test_an_unclassified_path_is_never_called_disposable(self) -> None:
-        entry = {"entry": "some-plugin", "surface": engine.UNCLASSIFIED, "older_than_retention": 99, "deny_listed": False}
+        entry = {
+            "entry": "some-plugin",
+            "surface": engine.UNCLASSIFIED,
+            "older_than_retention": 99,
+            "deny_listed": False,
+        }
         reading = engine.staleness_reading(entry, 30)
         self.assertEqual(reading["verdict"], "unclassified-report-only")
         self.assertEqual(reading["evidence"], "no-upstream-row")
 
     def test_session_scoped_state_is_keep_not_stale(self) -> None:
-        entry = {"entry": "sessions", "surface": engine.SESSION_SCOPED, "older_than_retention": 7, "deny_listed": False}
+        entry = {
+            "entry": "sessions",
+            "surface": engine.SESSION_SCOPED,
+            "older_than_retention": 7,
+            "deny_listed": False,
+        }
         self.assertEqual(engine.staleness_reading(entry, 30)["verdict"], "keep")
 
 
@@ -359,8 +399,13 @@ class TestEntrySurfacePromotion(unittest.TestCase):
     """
 
     def _entries(self, root: Path) -> dict:
-        rows, _errors = engine.walk_tree(root, denied=[], probe=lambda _pid: (engine.DEAD, "x"))
-        return {e["entry"]: e for e in engine.rollup(rows, retention_days=30, authored_threshold=200)}
+        rows, _errors = engine.walk_tree(
+            root, denied=[], probe=lambda _pid: (engine.DEAD, "x")
+        )
+        return {
+            e["entry"]: e
+            for e in engine.rollup(rows, retention_days=30, authored_threshold=200)
+        }
 
     def test_a_secret_bearing_member_promotes_its_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -376,7 +421,9 @@ class TestEntrySurfacePromotion(unittest.TestCase):
             root = Path(tmp)
             build_tree(root)
             entries = self._entries(root)
-            self.assertEqual(entries["some-plugin-state"]["surface"], engine.UNCLASSIFIED)
+            self.assertEqual(
+                entries["some-plugin-state"]["surface"], engine.UNCLASSIFIED
+            )
 
     def test_every_secret_member_is_covered_by_its_entry_surface(self) -> None:
         """The general property, not just the `ide` instance: no row may be SECRET
@@ -384,7 +431,9 @@ class TestEntrySurfacePromotion(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            rows, _ = engine.walk_tree(root, denied=[], probe=lambda _pid: (engine.DEAD, "x"))
+            rows, _ = engine.walk_tree(
+                root, denied=[], probe=lambda _pid: (engine.DEAD, "x")
+            )
             entries = self._entries(root)
             for row in rows:
                 if row.surface == engine.SECRET:
@@ -398,9 +447,9 @@ class TestRecentWriterPrecision(unittest.TestCase):
         """`FileRow.mtime` carries second precision; a cutoff carrying microseconds
         compares HIGHER (`.` 0x2E sorts after `+` 0x2B), so a file written inside the
         window but in the cutoff second was silently excluded."""
-        cutoff_second = (
-            datetime.now(timezone.utc) - timedelta(hours=24)
-        ).isoformat(timespec="seconds")
+        cutoff_second = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(
+            timespec="seconds"
+        )
         row = engine.FileRow(
             relpath="projects/x.jsonl",
             bytes=1,
@@ -412,7 +461,9 @@ class TestRecentWriterPrecision(unittest.TestCase):
             deny_listed=False,
             evidence=engine.MEASURED,
         )
-        self.assertEqual([w["entry"] for w in engine.recent_writers([row], 24)], ["projects"])
+        self.assertEqual(
+            [w["entry"] for w in engine.recent_writers([row], 24)], ["projects"]
+        )
 
 
 class TestSampledCounts(unittest.TestCase):
@@ -426,7 +477,9 @@ class TestSampledCounts(unittest.TestCase):
         self.assertNotIn("mean", out)
         self.assertNotIn("value", out)
 
-    def test_unanimous_small_n_on_a_volatile_path_is_flagged_not_confirmed(self) -> None:
+    def test_unanimous_small_n_on_a_volatile_path_is_flagged_not_confirmed(
+        self,
+    ) -> None:
         out = engine.Sampled([5, 5]).as_dict(volatile=True)
         self.assertEqual(out["flag"], "unanimous_small_n_on_volatile_path")
 
@@ -442,7 +495,9 @@ class TestScanShape(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=1000, recent_hours=24
+            )
             self.assertTrue(report["entries"])
             for entry in report["entries"]:
                 with self.subTest(entry=entry["entry"]):
@@ -454,8 +509,12 @@ class TestScanShape(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
-            entry = next(e for e in report["entries"] if e["entry"] == "some-plugin-state")
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=1000, recent_hours=24
+            )
+            entry = next(
+                e for e in report["entries"] if e["entry"] == "some-plugin-state"
+            )
             self.assertEqual(entry["surface"], engine.UNCLASSIFIED)
             self.assertEqual(entry["reading"]["verdict"], "unclassified-report-only")
 
@@ -476,14 +535,18 @@ class TestScanShape(unittest.TestCase):
                 recent_hours=24,
                 exclude=exclude,
             )
-            listed = {m["relpath"] for e in report["entries"] for m in e.get("members", [])}
+            listed = {
+                m["relpath"] for e in report["entries"] for m in e.get("members", [])
+            }
             self.assertNotIn("plugins/data/claude-ops/listing.csv", listed)
 
     def test_the_report_never_claims_a_quiesced_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=1000, recent_hours=24
+            )
             self.assertFalse(report["quiesced"])
 
 
@@ -500,7 +563,9 @@ class TestCsvCompleteness(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=1000, recent_hours=24
+            )
             rows = report["_rows"]
             out = Path(tmp) / "listing.csv"
             self.assertEqual(engine.write_csv(rows, out), report["totals"]["files"])
@@ -509,13 +574,71 @@ class TestCsvCompleteness(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            report = engine.scan(root, samples=1, interval=0, authored_threshold=0, recent_hours=24)
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=0, recent_hours=24
+            )
             self.assertTrue(
                 all(e["listing"] == "rolled-up" for e in report["entries"]),
                 "the threshold did not actually force rollups",
             )
             out = Path(tmp) / "listing.csv"
-            self.assertEqual(engine.write_csv(report["_rows"], out), report["totals"]["files"])
+            self.assertEqual(
+                engine.write_csv(report["_rows"], out), report["totals"]["files"]
+            )
+
+
+class TestCsvFormulaInjection(unittest.TestCase):
+    """A path segment is attacker-influenceable; the CSV is opened in a spreadsheet.
+
+    A plugin, project, or worktree directory under the scanned root may be named
+    anything, including `=HYPERLINK(...)`. A spreadsheet evaluates a cell that
+    opens with `=`, `+`, `-`, or `@` as a formula, so an unguarded cell turns a
+    read-only audit artifact into code execution on the reader's machine.
+    """
+
+    LEADERS = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+    def test_every_formula_leader_is_quoted(self) -> None:
+        for leader in self.LEADERS:
+            with self.subTest(leader=repr(leader)):
+                cell = f'{leader}HYPERLINK("http://evil","click")'
+                self.assertEqual(engine.csv_safe(cell), "'" + cell)
+
+    def test_ordinary_cells_are_untouched(self) -> None:
+        for cell in (
+            "plugins/foo/SKILL.md",
+            "settings.json",
+            "",
+            "a=b",
+            "2026-08-20T00:00:00Z",
+        ):
+            with self.subTest(cell=cell):
+                self.assertEqual(engine.csv_safe(cell), cell)
+
+    def test_non_strings_pass_through_unchanged(self) -> None:
+        for value in (0, 4096, True, False, None):
+            with self.subTest(value=value):
+                self.assertIs(engine.csv_safe(value), value)
+
+    def test_a_hostile_relpath_reaches_the_csv_quoted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            hostile = root / "=cmd|' /C calc'!A0"
+            hostile.mkdir(parents=True, exist_ok=True)
+            (hostile / "plugin.json").write_text("{}", encoding="utf-8")
+            report = engine.scan(
+                root, samples=1, interval=0, authored_threshold=1000, recent_hours=24
+            )
+            out = Path(tmp) / "listing.csv"
+            engine.write_csv(report["_rows"], out)
+            body = out.read_text(encoding="utf-8")
+            self.assertNotIn(
+                "\n=cmd", body, "a formula-leading relpath reached the CSV unquoted"
+            )
+            self.assertIn(
+                "'=cmd", body, "the hostile relpath was dropped rather than quoted"
+            )
 
 
 class TestCsvNoteAccuracy(unittest.TestCase):
@@ -556,7 +679,9 @@ class TestCsvNoteAccuracy(unittest.TestCase):
                 note = self._report(root, target)["csv"]["note"]
                 with self.subTest(csv=target is not None):
                     self.assertNotIn("per-file detail", note)
-                    self.assertNotIn("embeds", note.replace("embeds no per-file rows", ""))
+                    self.assertNotIn(
+                        "embeds", note.replace("embeds no per-file rows", "")
+                    )
 
     def test_the_csv_row_count_reported_matches_the_file_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

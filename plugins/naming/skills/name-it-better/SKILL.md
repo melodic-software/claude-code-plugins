@@ -199,6 +199,16 @@ a user-stated blocklisted word, or collide with the existing vocabulary
 disqualified). A rejected, blocklisted, or colliding name must never enter
 the bracket, let alone reach the finalist.
 
+**Settle the scoring criteria before the generators return, and write them
+down.** The criteria are still resolved from the consuming project's own
+declared standards, not chosen here — but *which* of them decide this name,
+and how they rank, is a judgement, and it must be made while the pool is
+still unknown. A rubric fixed after the candidates land gets shaped by
+them, and one that already fits the pool cannot eliminate anything: the
+independent judges then score against a standard the pool itself authored.
+A criterion found missing mid-bracket still routes upstream, and adding it
+means re-scoring the round it changes.
+
 HONEST FRAMING: a "naming tournament / bracket" is NOT a documented
 software-naming technique. This mode ADAPTS elimination brackets plus
 pairwise social-choice scoring as a convergence mechanism — see
