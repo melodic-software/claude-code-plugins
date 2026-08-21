@@ -5,6 +5,48 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.17]
+
+### Added
+
+- **The cloud/headless capture verdict is now a shipped reference, and `unknown` there is documented
+  as structural (#2957).** The snapshot rides the statusline tee, so a session with no configured
+  `statusLine` has no instrument at all — cloud and headless sessions by default. Measured in a live
+  Claude Code on the web container on 2026-08-21: no `statusLine` in any settings scope, no
+  `<session_id>.json` snapshot, and `context-zone.sh` answering `unknown`. One correction to the
+  reported symptom, and it is the finding the rest rests on: `~/.claude/context-guard/` *does* exist
+  there, created by the `PostCompact` hook — plugin hooks run fine in cloud, only the statusline
+  writer is silent, which is why hook stdin was the first channel checked. New
+  `reference/cloud-headless-capture.md` records the writer-side channel inventory: every channel
+  checked with its live URL and the date read (all 2026-08-21), what each does and does not carry,
+  and what would have to change upstream. **Verdict: no documented channel other than the status
+  line carries per-session context-window telemetry.** Hook stdin carries `session_id`, `prompt_id`,
+  `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name` and event-specific
+  fields, and no context, token, usage, or window field on any event. Also rejected with the reason
+  recorded: `subagentStatusLine` (subagent rows only, and itself a status-line surface),
+  non-interactive JSON/stream output (per-invocation and after the fact), OpenTelemetry (a
+  cumulative token counter, no occupancy gauge), and the session transcript — reachable from every
+  hook through the documented `transcript_path` and carrying exactly the right numbers, but its
+  entry format is documented as internal and version-unstable, so a capture built on it would
+  warrant a zone with nothing and would break on a Claude Code release rather than on a change here.
+  A wrong zone is strictly worse than `unknown`.
+
+### Changed
+
+- **`reference/reader-contract.md` tells consumers how to report a missing instrument (#2957).** A
+  new cloud-and-headless section states that `unknown` in a session with no configured `statusLine`
+  is structural and permanent, to be reported as "no instrument in this environment" and never as a
+  defect or a broken install; that no zone may be synthesized from another source, naming the two
+  reachable near-substitutes and how each fails toward a confident wrong answer; and that `unknown`
+  carries no direction, so a fork or handoff trigger in such a session must come from somewhere else
+  and must not be presented as instrument-backed. It also gives the discriminator the previous text
+  lacked: structural absence and a broken install both print `unknown`, and only the writer side
+  separates them — read `statusLine` from every scope that can carry it.
+- **`/context-guard:setup` `check` stops prescribing a remediation that cannot work (#2957).** No
+  `statusLine` in a session that refreshes none is now INFO with the structural explanation instead
+  of printed wiring the operator cannot make run, and an absent snapshot with no `statusLine`
+  configured anywhere is INFO rather than the FAIL branch that assumes correct wiring.
+
 ## [0.7.16]
 
 ### Added
