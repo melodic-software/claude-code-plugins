@@ -1175,12 +1175,24 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   # Two rows, byte-identical except the final newline. Row 2 carries a
   # deliberately wrong count: if the last line is dropped, only the correct
   # row 1 is seen and the run goes green. Both files must FAIL the same way.
-  local with_nl without_nl
-  with_nl="$(printf 'fires %s [%s=40] row 1 correct\nfires %s [%s=1] row 2 wrong count\n' \
-    "$sha" "$culprit" "$sha" "$culprit")"
-  without_nl="${with_nl%$'\n'}"
-  printf '%s' "$with_nl" >"$repo/scripts/inc-nl.txt"
-  printf '%s' "$without_nl" >"$repo/scripts/inc-nonl.txt"
+  #
+  # Write both files with printf directly. A `$(printf '...\n')` assignment
+  # would strip the trailing newline (command substitution does), so both
+  # files would be the no-newline case and this pin would not be testing
+  # what it claims (#3081 review).
+  local line1 line2
+  line1="fires $sha [$culprit=40] row 1 correct"
+  line2="fires $sha [$culprit=1] row 2 wrong count"
+  printf '%s\n%s\n' "$line1" "$line2" >"$repo/scripts/inc-nl.txt"
+  printf '%s\n%s' "$line1" "$line2" >"$repo/scripts/inc-nonl.txt"
+  local nl_bytes nonl_bytes
+  nl_bytes="$(wc -c <"$repo/scripts/inc-nl.txt")"
+  nonl_bytes="$(wc -c <"$repo/scripts/inc-nonl.txt")"
+  if [[ "$((nl_bytes - nonl_bytes))" -eq 1 ]]; then
+    ok "the newline and no-newline fixtures differ by exactly one trailing byte"
+  else
+    fail "newline fixture ($nl_bytes bytes) must be one byte longer than no-newline ($nonl_bytes bytes)"
+  fi
 
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc-nl.txt \
     run_canary "$repo" --verify-known-incidents

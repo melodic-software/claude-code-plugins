@@ -844,6 +844,7 @@ parse_attribution_field() {
     *, | ,* | *,,*)
       die "malformed attribution field in $INCIDENTS_FILE (empty entry from a leading, trailing, or doubled comma)"
       ;;
+    *) ;;
   esac
   local IFS=','
   for entry in $field; do
