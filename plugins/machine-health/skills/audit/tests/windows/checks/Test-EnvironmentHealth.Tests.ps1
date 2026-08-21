@@ -128,6 +128,8 @@ Describe 'Test-EnvironmentHealth' -Tag 'check' {
     AfterEach {
         $env:PATH = $script:priorPath
         $env:PATHEXT = $script:priorPathext
+        Remove-Item Env:MH_ENV_SYSROOT -ErrorAction SilentlyContinue
+        Remove-Item Env:MH_ENV_MISSING -ErrorAction SilentlyContinue
         Remove-MachineHealthTempDir -Path $script:tmpDir
     }
 
@@ -175,6 +177,26 @@ Describe 'Test-EnvironmentHealth' -Tag 'check' {
             $result.detail.disable_autoupdater | Should -HaveCount 1
             $result.detail.disable_autoupdater[0].scope | Should -Be 'user'
             $result.detail.disable_autoupdater[0].disables_updates | Should -BeTrue
+        }
+    }
+
+    Context 'REG_EXPAND_SZ PATH tokens' {
+        It 'expands %VAR% before existence and scope checks; length stays unexpanded' {
+            $fx = Import-EnvironmentFixture -Name 'expand-path-tokens' -TempRoot $script:tmpDir
+            $env:PATH = $fx.ProcessPath
+            $env:MH_ENV_SYSROOT = $script:tmpDir
+            Remove-Item Env:MH_ENV_MISSING -ErrorAction SilentlyContinue
+            Install-EnvironmentMocks $fx
+
+            $result = Invoke-EnvironmentHealthAsObject
+            $result.severity | Should -Be 'INFO'
+            $result.detail.user_path_length | Should -Be ('%MH_ENV_SYSROOT%/userBin').Length
+            $result.detail.missing_path_dirs | Should -HaveCount 1
+            $result.detail.missing_path_dirs[0].path | Should -Be '%MH_ENV_MISSING%/ghost'
+            $result.detail.missing_path_dirs[0].scope | Should -Be 'machine'
+            $result.detail.shadowed_executables | Should -HaveCount 1
+            $result.detail.shadowed_executables[0].winner_scope | Should -Be 'user'
+            $result.detail.shadowed_executables[0].warn | Should -BeFalse
         }
     }
 

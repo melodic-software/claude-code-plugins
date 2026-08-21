@@ -1,0 +1,13 @@
+{
+  "user": {
+    "Path": { "kind": "ExpandString", "value": "%MH_ENV_SYSROOT%/userBin" }
+  },
+  "machine": {
+    "Path": { "kind": "ExpandString", "value": "%MH_ENV_SYSROOT%/machineBin;%MH_ENV_MISSING%/ghost" }
+  },
+  "dirs": {
+    "userBin": { "exists": true, "files": ["git.exe"] },
+    "machineBin": { "exists": true, "files": ["git.exe"] }
+  },
+  "process_path": ["{userBin}", "{machineBin}"]
+}

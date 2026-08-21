@@ -69,6 +69,28 @@ function Get-NormalizedPathEntry {
     return $PathEntry.Trim().TrimEnd('\', '/').ToLowerInvariant()
 }
 
+function Get-ExpandedPathEntry {
+    <#
+    .SYNOPSIS
+    Expand %VAR% tokens in a persisted PATH entry for filesystem and scope use.
+
+    .DESCRIPTION
+    Read-PersistentEnvironment keeps REG_EXPAND_SZ values unexpanded so
+    user_path_length measures the stored string (legacy-editor ceiling).
+    Existence checks and Get-PathScope must expand first: a stock Machine
+    Path stores `%SystemRoot%` plus a system32 fragment as a token, and
+    Test-Path / live $env:PATH comparisons against that raw token
+    false-positive as missing and mislabel scope as 'unknown'.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)] [string] $PathEntry)
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($PathEntry)
+    if ([string]::IsNullOrWhiteSpace($expanded)) { return $PathEntry }
+    return $expanded
+}
+
 function Split-PathEntries {
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -255,23 +277,39 @@ try {
     foreach ($e in @(Split-PathEntries $machinePathRaw)) { $machineEntries.Add($e) }
 
     $userNorm = @{}
-    foreach ($e in $userEntries) { $userNorm[(Get-NormalizedPathEntry $e)] = $true }
+    foreach ($e in $userEntries) {
+        $userNorm[(Get-NormalizedPathEntry (Get-ExpandedPathEntry $e))] = $true
+    }
     $machineNorm = @{}
-    foreach ($e in $machineEntries) { $machineNorm[(Get-NormalizedPathEntry $e)] = $true }
+    foreach ($e in $machineEntries) {
+        $machineNorm[(Get-NormalizedPathEntry (Get-ExpandedPathEntry $e))] = $true
+    }
 
     $persistedEntries = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($e in $userEntries) {
-        $persistedEntries.Add([pscustomobject]@{ path = $e; scope = 'user'; norm = (Get-NormalizedPathEntry $e) })
+        $expanded = Get-ExpandedPathEntry $e
+        $persistedEntries.Add([pscustomobject]@{
+                path     = $e
+                expanded = $expanded
+                scope    = 'user'
+                norm     = (Get-NormalizedPathEntry $expanded)
+            })
     }
     foreach ($e in $machineEntries) {
-        $persistedEntries.Add([pscustomobject]@{ path = $e; scope = 'machine'; norm = (Get-NormalizedPathEntry $e) })
+        $expanded = Get-ExpandedPathEntry $e
+        $persistedEntries.Add([pscustomobject]@{
+                path     = $e
+                expanded = $expanded
+                scope    = 'machine'
+                norm     = (Get-NormalizedPathEntry $expanded)
+            })
     }
 
     $missingDirs = New-FindingList
     foreach ($e in $persistedEntries) {
         $exists = $false
         try {
-            $exists = Test-Path -LiteralPath $e.path -PathType Container -ErrorAction Stop
+            $exists = Test-Path -LiteralPath $e.expanded -PathType Container -ErrorAction Stop
         } catch {
             $exists = $false
         }
@@ -298,7 +336,9 @@ try {
     $processEntries = [System.Collections.Generic.List[string]]::new()
     foreach ($p in @(Split-PathEntries $env:PATH)) { $processEntries.Add($p) }
     if ($processEntries.Count -eq 0) {
-        foreach ($p in @($userEntries) + @($machineEntries)) { $processEntries.Add($p) }
+        foreach ($p in @($userEntries) + @($machineEntries)) {
+            $processEntries.Add((Get-ExpandedPathEntry $p))
+        }
     }
 
     $pathext = Get-DefaultPathext

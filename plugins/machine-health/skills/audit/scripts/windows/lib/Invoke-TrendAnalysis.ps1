@@ -186,8 +186,12 @@ function Test-WorseningTrend {
     $upwardWorsens = @(
         'disk-space', 'defender', 'event-log-errors',
         'winget-upgrades', 'windows-update', 'services', 'drivers',
-        'claude-temp-root', 'environment-health'
+        'claude-temp-root'
     )
+    # environment-health is mapped to user_path_length for history, but is
+    # not in $upwardWorsens: the check has several independent WARN causes
+    # (credential names, DISABLE_AUTOUPDATER, REG_SZ Path). A generic
+    # upgrade would turn those into CRIT whenever Path grew by >=5 chars.
     $downwardWorsens = @('battery', 'reliability')
 
     $delta = $cur - $prev

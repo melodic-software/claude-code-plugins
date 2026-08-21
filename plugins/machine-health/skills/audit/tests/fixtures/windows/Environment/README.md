@@ -25,3 +25,4 @@ from JSON and `-Human` output.
 | `path-length-warn.json` | User Path length ≥ 1800 and < 2047 |
 | `path-length-crit.json` | User Path length ≥ 2047 |
 | `credential-names.json` | `GITHUB_TOKEN` planted; value must never be emitted |
+| `expand-path-tokens.json` | Machine/User Path stored as `%VAR%/dir` tokens |

@@ -14,8 +14,11 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   than User), User Path stored as `REG_SZ` rather than `REG_EXPAND_SZ`, User Path
   length against the 2047-character legacy-editor ceiling (WARN at 1800, CRIT at 2047),
   and credential-pattern variable **names** (`*_TOKEN`, `*_API_KEY`, `*_SECRET`,
-  `*_PASSWORD`) with scope only. Credential values are never read. No remediation
-  entry — registry writes remain unauthorized. Rubric:
+  `*_PASSWORD`) with scope only. Credential values are never read. Missing-dir
+  and scope checks expand `%VAR%` tokens; `user_path_length` still measures the
+  unexpanded stored string. The check is trend-tracked as `user_path_length` but
+  is not in the generic upward-worsens upgrade list (composite WARN causes).
+  No remediation entry — registry writes remain unauthorized. Rubric:
   `references/windows/check-catalog.md` § 18.
 
 ## [0.10.6]

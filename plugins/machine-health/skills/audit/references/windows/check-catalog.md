@@ -334,8 +334,12 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
 - **What is in scope (mechanical shapes only):** persisted User and Machine environment
   values. Shadowing uses the process `$env:PATH` as the live search order and labels each
   entry `user` / `machine` / `both` / `unknown` from membership in the persisted Path
-  lists. The check does not attribute a vendor, decide whether `WindowsApps` belongs last,
-  or recommend editing `TEMP`/`TMP`.
+  lists. Persisted Path is read without expanding `%VAR%` tokens so `user_path_length`
+  measures the stored string (legacy-editor ceiling). Directory existence and scope
+  classification expand those tokens first — otherwise stock Machine Path entries
+  such as a `%SystemRoot%` system32 directory would false-positive as missing and be labeled
+  `unknown`. The check does not attribute a vendor, decide whether `WindowsApps`
+  belongs last, or recommend editing `TEMP`/`TMP`.
 
 - **Safety:** credential-pattern **values are never read**. The result reports `name` and
   `scope` only. `GetValue` is not called for those names, so a summary, note, or exception
