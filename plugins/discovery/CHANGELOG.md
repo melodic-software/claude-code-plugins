@@ -4,18 +4,21 @@
 
 ### Fixed
 
-- **Three routes back to the code-shape exclusion `trace-intent` is built around, all closed.** The
+- **Two routes back to the code-shape exclusion `trace-intent` is built around, both closed.** The
   source-control evidence row listed "test names" among what that category holds — but a test name
   is a symbol in the implementation, not someone writing down a reason, so admitting it readmitted
   code shape through the category table while the outcome gate still demanded that no claim rest on
   the code's shape. Dropped; a code *comment stating a reason* stays admissible, because that is
-  someone writing down why. `context/gotchas.md` called a named constant plus a nearby convention
-  "a hypothesis at best", which collides with `Speculative`'s own output section (*Competing
-  hypotheses*) and so read as licensing the very rung the scale forbids for code shape; it now says
-  plainly that this is code shape, leaves the scale, and is recorded as a gap. And the
-  behavioural-signal ceiling said "reaches `Inferred` and never `Direct`" while the eval graded
-  "never `Direct` or `Supported`" — the body now names both, so the grading criterion is derivable
-  from the skill as written.
+  someone writing down why. And `context/gotchas.md` called a named constant plus a nearby
+  convention "a hypothesis at best", which collides with `Speculative`'s own output section
+  (*Competing hypotheses*) and so read as licensing the very rung the scale forbids for code shape;
+  it now says plainly that this is code shape, leaves the scale, and is recorded as a gap.
+- **A grading criterion that was not derivable from the skill as written.** The ceiling on
+  *version-control behaviour* — change coupling, churn, hotspots — said "reaches `Inferred` and
+  never `Direct`" while the eval graded "never `Direct` or `Supported`". The body now names both
+  rungs. This is not a third code-shape route: the same section says plainly that behavioural signal
+  is **not** code shape and is admissible. It is the neighbouring rule, and the gap was between the
+  body and its own eval rather than in the exclusion.
 - **An eval that could not distinguish the behavior it targets from correct behavior.** The
   anticipatory-skip case told the model not to bother checking the tracker but never stipulated
   that a tracker existed — and the tracker category is presence-gated, so in a bare checkout the

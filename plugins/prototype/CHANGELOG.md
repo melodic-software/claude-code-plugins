@@ -9,11 +9,13 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 
 - **`explore-directions` step 6 restated the shared discipline in its pre-0.9.0 form.** 0.9.0
   widened `context/discipline.md`'s when-done capture to record the directions that lost and — when
-  the verdict is a graft — which piece came from where. Step 6 of `explore-directions` still said
-  only "record which variant won and why", and then listed the deletions. A reader following that
-  skill end to end therefore never reached the widened capture, and the bullets immediately below
-  delete the losing variants irreversibly. Step 6 now carries the widened form and says that the
-  deletions below it are irreversible.
+  the verdict is a graft — which piece came from where, and what the discarded parts held that the
+  graft deliberately left behind. Step 6 of `explore-directions` still said only "record which
+  variant won and why", and then listed the deletions. A reader following that skill end to end
+  therefore never reached the widened capture, and the bullets immediately below delete the losing
+  variants irreversibly. Step 6 now carries all three clauses — the left-behind one included, which
+  is the half the discipline argues is worth the most — and repeats the shared surface's warning
+  that whatever is not written down before those deletions is gone.
 
 ## [0.9.0]
 

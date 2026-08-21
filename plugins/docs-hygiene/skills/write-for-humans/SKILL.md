@@ -73,41 +73,43 @@ One document, one mode. Two questions pick it: does the content serve **doing** 
 - Understanding + work → **reference**
 - Understanding + learning → **explanation**
 
-Use the compass on a whole document or on a single sentence, whenever you feel unsure what you are
-writing; gut feel is often wrong here.
+Use the compass on a whole document or on a single sentence. Reach for it whenever you feel unsure
+what you are writing; gut feel is often wrong here.
 
-**Tutorial — learning by doing.** You are the teacher and the learner's success is your job. Open by
-saying what they will build, not what they will "learn". Every step produces a visible result, and
-you tell them what they should see: the expected output, the prompt change, the log line. Cut
+**Tutorial — learning by doing.** You are the teacher and the learner's success is your job. Open
+by saying what they will build, not what they will "learn". Every step produces a visible result,
+and you tell them what they should see: the expected output, the prompt change, the log line. Cut
 explanation to one clause and a link — teaching pauses break the lesson. Write as "we", in commands.
 
 **How-to — steps to a goal.** Solve a problem a person has, not an operation the machine can
 perform. Assume competence, skip teaching, allow forks ("if you want x, do y"). Name the guide by
 the task ("How to calibrate the radar array", not "Radar array calibration").
 
-**Reference — facts for lookup.** Describe, and only describe: no instruction, no persuasion, no
-opinion, no hedging. State facts, options, limits, and errors. Mirror the structure of the thing
-described so code and docs navigate together, and generate from source where you can so it stays true.
+**Reference — facts for lookup.** Describe, and only describe. No instruction, no persuasion, no
+opinion, no hedging: state facts, options, limits, and errors. Mirror the structure of the thing
+described so code and docs navigate together, and generate from source where you can so it stays
+true.
 
-**Explanation — understanding and why.** One bounded topic, readable away from the product, each
-title tolerating an implicit "About…" in front. Give design decisions, history, constraints, and
-alternatives. Opinion is allowed here and nowhere else.
+**Explanation — understanding and why.** One bounded topic, readable away from the product. Each
+title should tolerate an implicit "About…" in front. Give design decisions, history, constraints,
+and alternatives. Opinion is allowed here and nowhere else.
 
 **Do not mix modes.** No reference tables inside a tutorial, no hand-holding inside reference, no
 arguing inside a how-to. Split and link instead.
 
 ## Vary the rhythm
 
-A document can obey every layer and still read machine-written: every sentence clipped short, no view
-anywhere, nothing specific.
+A document can obey every layer and still read machine-written: every sentence clipped short, no
+view anywhere, nothing specific.
 
 - Mix sentence lengths on purpose. Short sentences land a point; a longer one that takes its time
   carries a fact with its condition or consequence.
-- One thought per sentence is not one length per sentence. Split the sentence carrying two thoughts;
-  keep the long one carrying a single thought.
+- One thought per sentence is not one length per sentence. Split the sentence carrying two
+  thoughts. Keep the long sentence carrying one.
 - Have a view where the mode allows it. Explanation weighs trade-offs, so say what you make of them
   instead of listing pros and cons. Reference stays dry.
-- Be specific over sterile. Not "schema changes can cause issues" but "a column rename fails the build".
+- Be specific over sterile. Not "schema changes can cause issues" but "a column rename fails the
+  build".
 
 ## Write the sentences
 
@@ -132,11 +134,11 @@ After:
 > request fails. Use the reset flag only to lower the limit.
 
 The fixes, by layer. "Configuration is performed" becomes "the client reads", so someone does
-something (address). The five-noun string "retry attempt limit parameters" breaks into plain clauses,
-and "if exceeded" gets a subject (ambiguity). The hedge "note that it is important to remember" is
-deleted (cut every word that does no work). The failure condition moves ahead of the step it
-explains, and the buried "should only be done when lowering" becomes a command with "only" beside
-the verb it changes (load).
+something (address). The five-noun string "retry attempt limit parameters" breaks into plain clauses
+(ambiguity). The hedge "note that it is important to remember" is deleted (cut every word that does
+no work). The failure condition moves ahead of the step it explains (load). The buried "should only
+be done when lowering" becomes a command with "only" next to the verb it changes (load and
+ambiguity). "If exceeded" gets a subject: the request (ambiguity).
 
 ## After writing
 
@@ -150,10 +152,11 @@ the verb it changes (load).
 
 ## Self-check before handing back
 
-**Check the draft against the standard you resolved.** When the project declared its own guide, that
-guide supplies the checklist and the seven below do not apply — reaching for them would impose the
-bundled set on a project that already chose. The three rules above apply either way. Otherwise
-answer these against the text you just wrote, not from memory of writing it.
+**Check the draft against the standard you resolved.** Questions 4, 6 and 7 restate the three rules
+above, so they apply whichever standard that was. The other four come from the bundled layers: when
+the project declared its own guide, that guide supplies their equivalents and these four do not
+apply — reaching for them would impose the bundled set on a project that already chose. Answer
+whichever apply against the text you just wrote, not from memory of writing it.
 
 1. Is each document one mode, with links where modes meet? Confirm it by naming the mode.
 2. Is every instruction a command, with its condition in front?
@@ -182,19 +185,21 @@ The draft is done when every answer is yes. A "no" is a rewrite now, not a note 
   copy, not documentation; they follow your product's own copy guidelines.
 - **Does not author skills** — a SKILL.md is `playbooks:skill-authoring` and `skill-quality:check`
   territory.
-- **Does not claim to be the standards it names** — each layer is a paraphrase; see below.
+- **Does not claim to be the standards it names.** Each layer is a paraphrase of a published
+  standard; see the source records below.
 
 ## Gotchas
 
 - **Falling back because no `STYLE.md` sat in the root.** Style rules also live in contributor
-  guides, docs READMEs, and prose-linter configs — an unnoticed house guide is the failure the first
-  step exists to prevent.
+  guides, docs READMEs, and prose-linter configs. Look in all of them before reaching for the
+  bundled set — an unnoticed house guide is the failure this skill's first step exists to prevent.
 - **Rewording a passage the edit did not touch.** It costs a reviewer a diff they must read for
-  nothing, and teaches the codebase two names for one thing. Change what the edit is about.
+  nothing, and it teaches the codebase two names for one thing. Change what the edit is about.
 - **Flattening explanation into reference.** Explanation is the one mode that permits a view, and
-  stripping its opinions into a neutral trade-off list is how a good design document dies.
-- **Treating the mode as a whole-document decision.** A tutorial carrying one reference table is
-  still mixed. The compass applies to the paragraph in front of you.
+  stripping its opinions into a neutral list of trade-offs is the usual way a good design document
+  dies. If it answers "why", say what you make of it.
+- **Treating the mode as a whole-document decision only.** A tutorial carrying one reference table
+  is still a mixed document. The compass applies to the paragraph in front of you.
 
 ## Source records
 

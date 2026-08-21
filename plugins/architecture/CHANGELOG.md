@@ -15,8 +15,11 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   stops a later explorer re-proposing a shape this exploration already weighed and dropped. Handoff
   now fills it in the same edit, and states that it is a sibling field rather than part of
   `agreed-shape` and that this is the only step that writes it.
-  `skills/improve/research/deepening/interface-design.md` now points at that step by name instead
-  of leaving the destination as "travels into `agreed-shape`", which named the wrong field.
+  `skills/improve/research/deepening/interface-design.md` said the record "travels into
+  `agreed-shape`" — the wrong field, since the record is that field's sibling. That sentence is
+  replaced rather than annotated: leaving it standing beside the correction would have shipped a
+  file that names two different destinations for one record. It now names the Handoff step and the
+  moment it runs.
 - **Declared correction inside the released 0.6.0 body.** That entry read "the five-part schema was
   pinned in three places"; the eval pins it in two — the `expected_output` line and the
   subagent-brief expectation. Corrected in place under the changelog contract's sanctioned form for
