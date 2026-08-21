@@ -17,7 +17,7 @@ readonly _CLEAN_TEST_HELPERS_LOADED=1
 # Strip inherited git-hook context so a fixture `git init` in these tests
 # resolves to the mktemp fixture, never the real repo (a git-hook chain exports
 # GIT_DIR / GIT_INDEX_FILE etc.).
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 : "${FAILED:=0}"
 : "${CASE_NUM:=0}"

@@ -12,7 +12,7 @@
 #
 # To clear an entry, add this once near the top of the suite:
 #
-#     unset GIT_DIR GIT_WORK_TREE
+#     unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 #
 # or source a harness that already does it (scripts/test-git-helpers.sh, or the
 # plugin-local *-test-helpers.sh siblings). Sourcing is preferred where the

@@ -25,7 +25,7 @@ readonly _WIT_TESTS_LIB_LOADED=1
 # never resolve to the real repo instead of its throwaway dir (a git hook chain
 # exports GIT_DIR / GIT_INDEX_FILE etc.; leaving them set has rewritten a real
 # repo's refs in the past). Every seam test gets a clean git environment.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 # Defensive counter defaults so the first assertion in a test that forgot to
 # declare them does not trip `set -u`.

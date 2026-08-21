@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.11]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The tracker test
+  harness already unset the discovery variables at source time; it now also
+  unsets `GIT_CONFIG`. Test-only; no skill behavior change.
+
 ## [0.39.10]
 
 ### Added
