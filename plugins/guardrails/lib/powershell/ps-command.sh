@@ -344,9 +344,6 @@ ps::blank_quoted_spans() {
     out+="$q"
     i=$((i + 1))
   done
-  # The old `$(printf … | sed …)` form stripped trailing newlines; callers see
-  # that shape, so keep it rather than change it in passing.
-  while [[ "$out" == *$'\n' ]]; do out="${out%$'\n'}"; done
   printf '%s' "$out"
 }
 
