@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression gate for the two BEHAVIORAL defenses that license `planning:interview`'s
-# synthesize-directly paths (issue #2997, from the course lane 4 audit in
-# docs/upstream/aihero-course.md "Lane 4: plan mode / asset rush"):
+# synthesize-directly paths, from the course lane 4 audit in
+# docs/upstream/aihero-course.md "Lane 4: plan mode / asset rush":
 #
 #   Case A — STOP-on-gap. `lock` skips Q&A, so the only thing standing between it and a
 #            Brief that fudges an unknown is the rule that a gap surfacing mid-synthesis
