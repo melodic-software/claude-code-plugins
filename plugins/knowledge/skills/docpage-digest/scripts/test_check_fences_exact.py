@@ -253,6 +253,48 @@ none
         proc = self.run_gate(CLEAN, 0)
         self.assertIn(b"PASS", proc.stdout)
 
+    def test_longer_outer_fence_keeps_inner_backtick_run(self):
+        # CommonMark: a 3-tick line inside a 4-tick wrapper is payload.
+        # Closing on any 3+ tick-only line truncated this to "" or to the
+        # prose prefix — a false empty-payload FAIL or a false PASS.
+        inner = "Wrap code like this:\n```\nprint(1)\n```"
+        source = write(self.dir, "src-nested.md", inner + "\n")
+        text = f"""## Key claims (verbatim)
+
+**C1.** `cc-applicable`
+
+````
+{inner}
+````
+"""
+        digest = write(self.dir, "d-nested.md", text)
+        proc = subprocess.run(
+            [sys.executable, GATE, "--source", source, "--digest", digest],
+            capture_output=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(b"PASS", proc.stdout)
+        self.assertIn(b"1 **CN.**", proc.stdout)
+
+    def test_four_tick_wrapper_around_immediate_inner_fence(self):
+        # Truncation at the first inner ``` used to yield payload "" and
+        # fail the empty-payload check on a valid verbatim quote.
+        inner = "```\nprint(1)\n```"
+        source = write(self.dir, "src-immediate.md", inner + "\n")
+        text = f"""## Key claims (verbatim)
+
+**C1.** `cc-applicable`
+
+````
+{inner}
+````
+"""
+        digest = write(self.dir, "d-immediate.md", text)
+        proc = subprocess.run(
+            [sys.executable, GATE, "--source", source, "--digest", digest],
+            capture_output=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(b"PASS", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

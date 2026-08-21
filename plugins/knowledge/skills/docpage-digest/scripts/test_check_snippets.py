@@ -168,6 +168,23 @@ this prompt was recalled, not copied
         proc = self.run_gate(text, 1)
         self.assertIn(b"no '## Prompt snippets'", proc.stderr)
 
+    def test_longer_outer_fence_keeps_inner_backtick_run(self):
+        inner = "Wrap code like this:\n```\nprint(1)\n```"
+        source = write(self.dir, "src-nested.md", inner + "\n")
+        text = f"""## Prompt snippets (exact)
+
+````
+{inner}
+````
+"""
+        digest = write(self.dir, "d-nested.md", text)
+        proc = subprocess.run(
+            [sys.executable, GATE, "--source", source, "--digest", digest],
+            capture_output=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(b"PASS", proc.stdout)
+        self.assertIn(b"1 Prompt-snippets", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

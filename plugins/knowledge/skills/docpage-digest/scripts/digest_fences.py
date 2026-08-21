@@ -87,14 +87,16 @@ def iter_h2_sections(text: str) -> Iterator[Tuple[str, str, int]]:
     lines = split_lines(text)
     starts: List[Tuple[int, str]] = []
     in_fence = False
+    open_ticks = 0
     for idx, line in enumerate(lines):
-        is_open, _indented = _is_fence_opener(line)
+        is_open, _indented, ticks = _is_fence_opener(line)
         if in_fence:
-            if _is_fence_closer(line):
+            if _is_fence_closer(line, open_ticks):
                 in_fence = False
             continue
         if is_open:
             in_fence = True
+            open_ticks = ticks
             continue
         match = ATX_H2.match(line)
         if match:
@@ -114,17 +116,31 @@ def find_section(text: str, prefix: str) -> Optional[Tuple[str, str, int]]:
     return None
 
 
-def _is_fence_opener(line: str) -> Tuple[bool, bool]:
-    """Return (is_opener, indented)."""
+def _is_fence_opener(line: str) -> Tuple[bool, bool, int]:
+    """Return (is_opener, indented, backtick-run-length)."""
     stripped = line.lstrip(" \t")
-    if stripped.startswith("```"):
-        return True, (len(line) != len(stripped))
-    return False, False
+    if not stripped.startswith("```"):
+        return False, False, 0
+    ticks = 0
+    for char in stripped:
+        if char != "`":
+            break
+        ticks += 1
+    return True, (len(line) != len(stripped)), ticks
 
 
-def _is_fence_closer(line: str) -> bool:
+def _is_fence_closer(line: str, min_ticks: int) -> bool:
+    """CommonMark: a closer is backticks-only, length >= the opener."""
     stripped = line.lstrip(" \t")
-    return stripped.startswith("```") and stripped.strip("` \t") == ""
+    if not stripped.startswith("`"):
+        return False
+    ticks = 0
+    for char in stripped:
+        if char != "`":
+            break
+        ticks += 1
+    rest = stripped[ticks:].strip(" \t")
+    return rest == "" and ticks >= min_ticks
 
 
 def extract_fences(text: str, *, start_line: int = 1) -> List[Fence]:
@@ -133,7 +149,7 @@ def extract_fences(text: str, *, start_line: int = 1) -> List[Fence]:
     fences: List[Fence] = []
     i = 0
     while i < len(lines):
-        is_open, indented = _is_fence_opener(lines[i])
+        is_open, indented, ticks = _is_fence_opener(lines[i])
         if not is_open:
             i += 1
             continue
@@ -142,7 +158,7 @@ def extract_fences(text: str, *, start_line: int = 1) -> List[Fence]:
         body_lines: List[str] = []
         closed = False
         while i < len(lines):
-            if _is_fence_closer(lines[i]):
+            if _is_fence_closer(lines[i], ticks):
                 closed = True
                 break
             body_lines.append(lines[i])
