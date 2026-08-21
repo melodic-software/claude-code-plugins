@@ -405,7 +405,7 @@ ps::opaque_quoted_spans() {
           if [[ "$inner" == -* ]]; then
             out+='-_q_'
           elif [[ "$q" == '"' && "$inner" == *'$'* ]]; then
-            out+='$q'
+            out+="\$q"
           else
             out+='_q_'
           fi
