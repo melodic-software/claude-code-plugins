@@ -24,7 +24,8 @@
         "Applies rewrites only because fix was explicitly requested",
         "Verifies the rewritten file with a fresh-context semantic-diff subagent and reverts flagged hunks",
         "Preserves every claim the fixture makes — that the cache invalidates on write, that the reader never sees a stale entry, that writes are rare, and that the policy is least-recently-used",
-        "Re-runs the detector and re-emits the findings file after the last fixed file"
+        "Re-runs the detector and re-emits the findings file after the last fixed file",
+        "Leaves `evals/fixtures/fix-guarded-rewrite.md` byte-identical after the run — the rewrites land on a copy"
       ]
     },
     {
@@ -77,7 +78,8 @@
       "expectations": [
         "Reads reference/rewrite-guide.md before applying the rewrite, per the fix flow's first step",
         "The rewritten line contains no em dash, en dash, parenthesis, or spaced hyphen standing in for the original punctuation",
-        "Preserves the sentence's claim — the version fact survives the rewrite"
+        "Preserves the sentence's claim — the version fact survives the rewrite",
+        "Leaves `evals/fixtures/em-dash-substitution.md` byte-identical after the run — the rewrite lands on a copy"
       ]
     },
     {
@@ -89,7 +91,8 @@
       "expectations": [
         "Collapses the two rhetorical triads toward one item rather than preserving all three in a reworded form",
         "Keeps the 'user, team, and local' triad because each element is load-bearing, and says why it was kept",
-        "Does not treat every three-item enumeration as a tell — enumerating three actual things is not slop"
+        "Does not treat every three-item enumeration as a tell — enumerating three actual things is not slop",
+        "Leaves `evals/fixtures/triads.md` byte-identical after the run — the rewrites land on a copy"
       ]
     },
     {

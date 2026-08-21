@@ -27,7 +27,10 @@ name a committed fixture instead.
 - **Cases 2, 6 and 7 tell the reader to work on a copy.** They invoke `fix`, and the fix flow
   rewrites each flagged line in place, so running one by hand against the committed fixture
   remediates it and dirties the repo — and a later run then grades already-fixed input, where the
-  declared findings no longer fire. One sentence in the prompt, no mechanism.
+  declared findings no longer fire. One sentence in the prompt and one expectation per case, both
+  about the outcome rather than the mechanism: the committed fixture is byte-identical after the run,
+  and how the copy gets made is the reader's business. An instruction a case states but never checks
+  is the same defect in miniature as the one this release removes.
 - **Cases 4 and 5 state their premise instead of constructing it.** Both grade the persistence step,
   which `SKILL.md` gates on the audit having "examined tracked files", so each prompt says the
   audited file is tracked in the repo under audit and the expectations grade the skill's *decision*:
