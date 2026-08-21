@@ -33,6 +33,16 @@ name a committed fixture instead.
   audit runs*, so all seven staged cases error out instead of grading — the same "scenario cannot
   produce the graded input" failure this release exists to remove. Verified by executing each
   preamble as written under an empty `HOME` with `GIT_AUTHOR_*`/`GIT_COMMITTER_*` unset.
+- **The preamble pins the config cascade as well as the identity**, pointing `CLAUDE_PROJECT_DIR` at
+  the scratch directory and `HOME` at an empty one. `detect.sh` resolves `CLAUDE_PROJECT_DIR` ahead
+  of `git rev-parse --show-toplevel` and then loads that root's `.claude/ai-slop.json`, and rule
+  disablement is not path-scoped — so a maintainer running these evals from a session rooted at this
+  repo inherits its `disabled_rules`, and the finding a case grades is silently deleted from a
+  scratch repo in `/tmp`. Measured with only `CLAUDE_PROJECT_DIR` changed: case 1 drops 4 findings to
+  3, case 2 drops 4 to 2, case 4 drops 4 to 3, and cases 5 and 6 drop to **zero**, where the em dash
+  *is* the whole case and the expectations then pass vacuously. That is the same golden-answer-the-
+  scenario-cannot-produce failure as the rest of this release, arriving through config rather than
+  through prose.
 - Staging stops at a commit rather than at `git add`, though `git ls-files` already reports a staged
   file as tracked and either form would satisfy the persistence gate. These cases model a *consuming
   repo*, and a real one has history: the audit's repo-wide ordering reads
