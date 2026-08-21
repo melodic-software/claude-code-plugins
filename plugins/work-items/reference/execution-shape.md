@@ -92,9 +92,11 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
 
 ## Vocabulary
 
-Canonical journey terms (resolved 2026-08-17; the marketplace-wide glossary write is deferred until
-the consuming repo establishes a glossary convention — this reference is the canonical record until
-then):
+Canonical journey terms (resolved 2026-08-17). The marketplace-wide glossary write is **no longer
+deferred** — `docs/GLOSSARY.md` landed 2026-08-20 (#3062) and declares itself repo-wide. Of the
+three terms below, **`phase boundary` has been promoted there and this file no longer defines it**;
+`work item` and `checkpoint` stay reference-local, because both are specific to this seam's
+execution shapes rather than repo-wide vocabulary.
 
 **Work item** (short: **item**)
 
@@ -108,11 +110,14 @@ An item closed within a shared-branch (`integration branch → single PR`) flow:
 recorded on the branch and in the tracker, safe to clear context and resume — from any machine.
 An item is always a graph node; it is a checkpoint only in a shared-branch flow.
 
-**Phase boundary**
+**Phase boundary** — defined repo-wide in [`docs/GLOSSARY.md`](../../../docs/GLOSSARY.md), not here.
 
-The session-level decision moment between phases of work: continue, clear, compact, or hand off.
-A checkpoint is a phase boundary with durable progress; not every phase boundary is a checkpoint
-(a mid-item pause that hands off uncommitted context is a phase boundary and no checkpoint).
+This file used to carry its own definition ("the session-level decision moment between phases of
+work"), which diverged from the glossary's once that landed. Two definitions of one term, one of
+them in a file claiming repo-wide authority, is worse than either alone — so the definition is
+ceded and only the seam-specific relation is kept: a checkpoint is a phase boundary with durable
+progress, and not every phase boundary is a checkpoint (a mid-item pause that hands off
+uncommitted context is a phase boundary and no checkpoint).
 
 Avoid: *milestone* (untracked, no graph node), *stage* / *step* (ambiguous between item and phase
 boundary), *sub-issue* as a distinct concept (it is an item that happens to have a parent).

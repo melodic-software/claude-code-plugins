@@ -46,8 +46,8 @@ PARTIAL / REJECTED / OPEN.
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | ADOPTED (sixth route-away row: multi-window work routes to spec + decomposed items; advisory, no folklore token figures) | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
-| X | Invocation doctrine (skills-repo delta PRs #878/#880) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
-| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`, marketplace-wide glossary deferred) | #2948 |
+| X | Invocation doctrine (skills-repo delta PRs #878/#880; C23 from #848) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
+| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`; the glossary deferral has since ENDED — `docs/GLOSSARY.md` landed 2026-08-20 (#3062) and `phase boundary` is promoted there, while `item` and `checkpoint` stay reference-local as seam-specific terms) | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
@@ -87,7 +87,7 @@ pointer.
 | C20 | Map-as-index doctrine — a decision lives in exactly one place, its ticket; the map gists and links, never restates | `wayfinder:23` | W |
 | C21 | One-skill-per-call phrasing — a step needing two skills is two calls, not one call naming two | `.agents/invocation.md` (post-#878) | X |
 | C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; say "tell the user to run /X" | skills-repo PR #880 | X |
-| C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `.agents/` trigger text | X |
+| C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `domain-modeling/SKILL.md:3` (PR #848) | X |
 
 No "archive-your-specs" wording exists upstream in the skills repo — the nearest is
 `.scratch/<feature-slug>/spec.md` persistence in `issue-tracker-local.md:8`. That doctrine lives
@@ -250,9 +250,14 @@ withheld; three of five initial answers revised on evidence).
   finding-class enum (`missing` / `scope-creep` / `wrong`, each finding quoting its spec line);
   `self.md`'s fenced worker checklist keeps a shallow divergence check and does not restate the
   taxonomy, and the pointer to the owning file sits in orchestrator-facing escalation text, not
-  inside the subagent template a fresh-context worker cannot act on. Fills the dangling consumer in
-  `work-items:decompose` and `work-items:ship`, which both route container close-out to "the review
-  plugin's spec-fidelity machinery."
+  inside the subagent template a fresh-context worker cannot act on. **Correction: this lens did
+  NOT fill the dangling consumer**, and the sentence that said so was wrong twice over. The
+  consumer in `work-items:decompose` and `work-items:ship` was container-scoped, while this lens is
+  branch-scoped — `work-items`' own changelog records that the route "landed on nothing
+  container-scoped even after `review` 0.22.0 shipped the branch-scoped `spec` lens." It was
+  #3027's close-out mode that filled it. Nor do those skills still carry the phrase "the review
+  plugin's spec-fidelity machinery": both now name `/review:quality-gate close-out --container
+  <container-id>` directly, and the old wording survives only in changelog history.
 - **C13 ALREADY-PRESENT + one targeted edit**: the course's two-axis intent is already implemented
   as `fanout`'s two-axis presentation (merged ranked queue plus a per-dimension regrouping). The
   originally proposed "never merge or rerank across axes" rule was **withdrawn** — it would negate
@@ -301,7 +306,14 @@ withheld; three of five initial answers revised on evidence).
   four ways as originally specified (no seam verb yields a closing PR; "union of merge commits"
   is the empty set under this repo's squash-merge default; the integration-branch execution shape
   has no per-item PRs at all; a container-scoped basis conflicts with `quality-gate`'s singular
-  review-diff-base contract) and it is structurally larger than a mode addition.
+  review-diff-base contract) and it was judged structurally larger than a mode addition.
+  **That last judgement was wrong, and #3027 is closed.** It landed 2026-08-19 (PR #3043) as
+  exactly what it was said to be too large for — a tenth `quality-gate` lens,
+  `plugins/review/skills/quality-gate/context/close-out.md`, routed from `SKILL.md` with
+  `close-out [--container <id>] [--dry-run]` in the argument hint. All four broken mechanisms were
+  resolved in-file, the container-scoped basis becoming a documented mode-scoped override of
+  SKILL.md's single diff base rather than a conflict with it. It has since been run against #2933
+  itself.
 
 ## Lane W (#2939)
 
