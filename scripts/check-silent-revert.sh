@@ -629,9 +629,11 @@ attribute_file() {
   # `diff` generates that line; the built-in `binary` macro unsets it).
   # No flag overrides the attribute except `--text`, which is forbidden
   # here -- it would feed a random blob to blame as lines. A blob-to-blob
-  # diff has no path, so no attribute, and git's content heuristic still
-  # refuses a genuine binary. That recovers lock-file TEXT (#2883)
-  # without manufacturing attributions from an image churn.
+  # diff has no path, so no attribute; recovery is skipped when
+  # `git check-attr binary` is set, so an ASCII-looking `*.pdf binary`
+  # stays at zero. `-diff` TEXT (lock files) has binary unspecified and
+  # still recovers. That is the #2883 split: recall on hidden text,
+  # no manufactured lines from a path the repo marked binary.
   #
   # Statement, not a pipe: recover calls run_attributing_git, and die
   # inside a pipeline would be swallowed back into a quiet zero (#2880).
@@ -642,29 +644,43 @@ attribute_file() {
     grep -q '^Binary files ' "$diff_out" || binary_rc=$?
     case "$binary_rc" in
       0)
-        local old_blob new_blob blob_out
-        if old_blob="$(git rev-parse --verify "${parent}:${file}" 2>/dev/null)"; then
-          if ! new_blob="$(git rev-parse --verify "${commit}:${file}" 2>/dev/null)"; then
-            # Deleted path: compare against the empty blob. hash-object
-            # -w is idempotent (always e69de29...) and does not touch
-            # the working tree.
-            new_blob="$(git hash-object -w --stdin </dev/null)" ||
-              die "could not hash empty blob attributing $file in $commit"
-          fi
-          if [[ "$old_blob" != "$new_blob" ]]; then
-            blob_out="$(mktemp)" || die "mktemp failed"
-            run_attributing_git "$blob_out" \
-              "git diff failed attributing blobs of $file in $commit" \
-              diff --no-ext-diff --no-textconv --unified=0 --no-color \
-              --diff-algorithm=myers "$old_blob" "$new_blob"
-            while read -r start count; do
-              [[ -n "$start" ]] || continue
-              [[ "$count" -gt 0 ]] || continue
-              ranges+=(-L "$start,$((start + count - 1))")
-            done < <(old_side_deleted_ranges "$blob_out")
-            rm -f "$blob_out"
-          fi
-        fi
+        # The built-in `binary` macro unsets `diff` AND pins the path
+        # as binary. Blob-to-blob recovery would otherwise reclassify
+        # an ASCII-looking binary (no early NUL) as text -- the false
+        # positive `--text` would also create. Honor the attribute:
+        # recover only when `binary` is not set. `-diff` lock files
+        # have binary unspecified and still recover.
+        local binary_attr
+        binary_attr="$(git check-attr --source "$parent" binary -- "$file")" ||
+          die "git check-attr failed attributing $file at $parent"
+        case "$binary_attr" in
+          *': binary: set') ;;
+          *)
+            local old_blob new_blob blob_out
+            old_blob="$(git rev-parse --verify "${parent}:${file}" 2>/dev/null)" ||
+              die "could not resolve ${parent}:${file} after a Binary files header"
+            if ! new_blob="$(git rev-parse --verify "${commit}:${file}" 2>/dev/null)"; then
+              # Deleted path: compare against the empty blob. hash-object
+              # -w is idempotent (always e69de29...) and does not touch
+              # the working tree.
+              new_blob="$(git hash-object -w --stdin </dev/null)" ||
+                die "could not hash empty blob attributing $file in $commit"
+            fi
+            if [[ "$old_blob" != "$new_blob" ]]; then
+              blob_out="$(mktemp)" || die "mktemp failed"
+              run_attributing_git "$blob_out" \
+                "git diff failed attributing blobs of $file in $commit" \
+                diff --no-ext-diff --no-textconv --unified=0 --no-color \
+                --diff-algorithm=myers "$old_blob" "$new_blob"
+              while read -r start count; do
+                [[ -n "$start" ]] || continue
+                [[ "$count" -gt 0 ]] || continue
+                ranges+=(-L "$start,$((start + count - 1))")
+              done < <(old_side_deleted_ranges "$blob_out")
+              rm -f "$blob_out"
+            fi
+            ;;
+        esac
         ;;
       1) ;;
       *) die "grep failed looking for a binary-files header attributing $file in $commit (exit $binary_rc)" ;;

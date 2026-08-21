@@ -557,6 +557,61 @@ t_detector_does_not_pass_text() {
   rm -f "$code"
 }
 
+# Whole-file deletion of a `-diff` lock file -- the empty-blob branch,
+# not a truncation. A squash that dropped a sibling's lockfile update
+# is the #2883 impact case.
+t_minus_diff_whole_file_deletion_is_attributed() {
+  local repo sink culprit
+  repo="$(mk_repo)"
+  printf '*.lock -diff\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs"
+  add_block "$repo" foo.lock 320 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  git_test_config "$repo" rm -q foo.lock >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -qx "${culprit} 320" "$sink"; then
+    ok "a wholly deleted -diff lock file is attributed (320 lines)"
+  else
+    fail "whole-file -diff deletion must fire 320, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# An ASCII-looking file marked `binary` must stay at zero. The pathless
+# blob diff would treat it as text (no NUL); the attribute is what keeps
+# it a non-finding -- the reviewer's 320-line PDF-like fixture.
+t_explicit_binary_ascii_is_not_attributed() {
+  local repo sink
+  repo="$(mk_repo)"
+  printf '*.pdf binary\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: mark pdfs binary"
+  {
+    printf '%%PDF-1.4\n'
+    for i in $(seq 1 320); do
+      printf 'the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+  } >"$repo/doc.pdf"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the ascii pdf"
+  : >"$repo/doc.pdf"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
+    ok "an ASCII file marked binary is not attributed"
+  else
+    fail "explicit binary must stay clean even without NULs, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
 # A genuine binary churn with the `binary` attribute must stay clean at
 # the shipped threshold. This is the control that keeps `--text` from
 # coming back: the same fixture under `--text` fires on ~800 lines.
@@ -2284,8 +2339,10 @@ t_rename_is_not_a_removal
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
 t_minus_diff_lock_file_is_attributed
+t_minus_diff_whole_file_deletion_is_attributed
 t_minus_diff_recovery_is_load_bearing
 t_detector_does_not_pass_text
+t_explicit_binary_ascii_is_not_attributed
 t_binary_asset_churn_is_not_a_finding
 t_rename_limit_does_not_decompose_basename_changing_relocation
 t_rename_limit_flag_is_load_bearing
