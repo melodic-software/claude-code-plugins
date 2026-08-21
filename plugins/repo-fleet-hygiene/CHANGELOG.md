@@ -3,6 +3,21 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.7]
+
+### Changed
+
+- **`setup`: the real-audit hand-off names the Skill tool (#3002).** Step 5's "hand off to
+  `/repo-fleet-hygiene:audit`" — the route taken when the user wants the end-to-end fleet walk
+  this skill deliberately never runs — became "hand off by invoking `/repo-fleet-hygiene:audit`
+  via the Skill tool". The target is `disable-model-invocation: false`, so the rubric's
+  invocation-reach invariant permits it. Wording only: the refusal to run the collector for
+  verification, and the reason for it, are unchanged. The `audit` skill's own
+  "Handoff (not executed here)" integration table is deliberately untouched — its column heading
+  says it does not execute, which the rubric classes as a mention. Rule:
+  `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"), now
+  unconditional after the fleet sweep.
+
 ## [0.23.6]
 
 ### Changed

@@ -58,7 +58,8 @@ Proposed commit-message body (staged from removed comments):
   <file>:<line> — <the narrative, condensed but information-complete>
 ```
 
-Hand the block to `/source-control:commit` when committing the tidied diff, or fold it into the
+Hand the block to `/source-control:commit`, invoked via the Skill tool, when committing the tidied
+diff, or fold it into the
 PR description or an ADR when the repo keeps them. For explicit-target runs on already-committed
 code, note in the report that the narrative belongs with the *next* commit touching that code —
 or keep the comment if no vehicle exists (staging with no landing place is not a deletion

@@ -222,7 +222,7 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    before any later step reads the snapshot. The drain exit is evaluated against this filtered
    snapshot — new automated intake arriving mid-cycle is **reported, never chased** (per the
    convention).
-2. **Intake sweep.** Run `/work-items:triage` over untriaged intake in its **autonomous lane** —
+2. **Intake sweep.** Invoke `/work-items:triage` via the Skill tool over untriaged intake in its **autonomous lane** —
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
    authored by a workflow bot routes to the human-gated role label by default (this also lets drain
@@ -231,7 +231,7 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
    label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
-4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
+4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set on
    `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
    frontier omits `createdAt`) before filling cap slots — `oldest-first` ascending,

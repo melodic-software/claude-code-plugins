@@ -151,7 +151,7 @@ Create one task per group using `TaskCreate`. Each task should include:
 
 ### Phase 6: Run simplification waves
 
-**Before spawning any agents**, ground the run: if the `discovery` plugin is installed, invoke `/discovery:explore` on the batch scope and `/discovery:research` covering idioms relevant to the dominant ecosystems in the wave; otherwise read representative files per group and do a focused inline research pass on the ecosystems' current idioms.
+**Before spawning any agents**, ground the run: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the batch scope and `/discovery:research` via the Skill tool covering idioms relevant to the dominant ecosystems in the wave; otherwise read representative files per group and do a focused inline research pass on the ecosystems' current idioms.
 
 Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies.
 
@@ -188,7 +188,7 @@ After all groups complete, consolidate the deferred items collected in Phase 6. 
 
 3. **Present to the user** — before filing, show the consolidated list grouped by priority with proposed titles. Default to filing High + Medium automatically when running non-interactively; ask for Low and Do-not-file items.
 
-4. **File work items** — one per deferred concern (not per site): via `/work-items:track add` when that plugin is installed, else `gh issue create` (or present the list when no tracker is reachable). Use Conventional Commits-style titles: `refactor(<area>): <what>`. The body should include the rationale the agent recorded, the specific files/lines, and the scope estimate.
+4. **File work items** — one per deferred concern (not per site): invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create` (or present the list when no tracker is reachable). Use Conventional Commits-style titles: `refactor(<area>): <what>`. The body should include the rationale the agent recorded, the specific files/lines, and the scope estimate.
 
 5. **Record issue numbers** in the Phase 8 summary report so the user can cross-reference.
 

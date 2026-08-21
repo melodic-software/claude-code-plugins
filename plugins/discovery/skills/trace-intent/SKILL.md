@@ -134,9 +134,10 @@ Each is **presence-gated**. Source control is not guaranteed either: a run may e
 repository resolves, which is the normal condition for a dispatched worker rather than an edge case.
 An unavailable category is reported as a gap, never skipped in silence.
 
-Repo-local git archaeology is delegated to `/discovery:explore git` when that skill is installed,
-rather than reimplemented here; without it, read the history directly and say so. Tracker access
-routes through `/work-items:track` when the `work-items` plugin is installed, which owns the
+Repo-local git archaeology is delegated by invoking `/discovery:explore git` via the Skill tool
+when that skill is installed, rather than reimplemented here; without it, read the history directly
+and say so. Tracker access routes through `/work-items:track`, invoked via the Skill tool, when the
+`work-items` plugin is installed, which owns the
 provider-neutral seam; without it, use whatever tracker interface the session actually has, and when
 none resolves, report the tracker category as unavailable.
 

@@ -3,6 +3,14 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Changed
+
+- **The two wrong-facet routes name the Skill tool (#3002).** `explore-directions` →
+  `/prototype:pressure-test` and `pressure-test` → `/prototype:explore-directions`. Wording only;
+  the facet boundary is unchanged.
+
 ## [0.9.0]
 
 ### Added

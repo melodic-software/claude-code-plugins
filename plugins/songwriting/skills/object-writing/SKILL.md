@@ -42,7 +42,7 @@ No action → issue one usable timed object-writing prompt immediately (do not a
   90 seconds). Do not assign the full curriculum unless asked — that is `/songwriting:practice`.
 - Keep object-writing sense-bound and personal; its job is to reveal specific, sensory detail, not
   to produce finished lines.
-- A metaphor request routes to `/songwriting:metaphor`. Sensory material mined here is that skill's
+- A metaphor request routes to `/songwriting:metaphor`, invoked via the Skill tool. Sensory material mined here is that skill's
   input — hand over the material, do not generate the metaphor here.
 
 ## `generate` — dispatch, never write it inline

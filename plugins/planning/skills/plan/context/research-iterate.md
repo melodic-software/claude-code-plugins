@@ -35,7 +35,7 @@ From the `/planning:devils-advocate` output, extract each CRITICAL and HIGH find
 
 ### 2. Research targeted queries
 
-Run targeted research (`/discovery:research` if installed, or the strongest research capability available) with specific queries targeting each finding:
+Run targeted research (invoke `/discovery:research` via the Skill tool if installed, or the strongest research capability available) with specific queries targeting each finding:
 
 - Include the exact claim that failed
 - Include version numbers and context
@@ -52,7 +52,7 @@ Based on research results:
 
 ### 4. Re-assess
 
-Dispatch `/planning:devils-advocate` to a fresh-context sub-agent on the updated plan — never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
+Dispatch `/planning:devils-advocate` — invoked via the Skill tool — to a fresh-context sub-agent on the updated plan — never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
 
 ## Guardrails
 

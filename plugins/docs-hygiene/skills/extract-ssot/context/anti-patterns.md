@@ -32,7 +32,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. Cite by EXACT heading text (markdown), exact identifier (code), exact anchor (config) — never by line number or section number
-2. After ANY heading/identifier/anchor edit in an SSOT, run `/docs-hygiene:rename-references` immediately — it sweeps all 10 syntactic forms, not just pure-token grep
+2. After ANY heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately — it sweeps all 10 syntactic forms, not just pure-token grep
 3. The SSOT file should include a `## Recheck triggers` section — a rename row triggers the sweep
 4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
 

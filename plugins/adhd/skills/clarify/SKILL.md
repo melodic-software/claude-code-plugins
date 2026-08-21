@@ -195,7 +195,7 @@ accessibility, and it climbs back up only on request. This skill holds altitude
 clear by reorganizing. The routing rule: "I don't get it / explain simply / what
 does this mean" is a comprehension gap → `explain`; "make this clear / clarify
 this / what am I deciding" is a structure problem → this skill. When a reader
-genuinely needs the concept made simpler, hand off to `/education:explain` (if the
+genuinely needs the concept made simpler, hand off by invoking `/education:explain` via the Skill tool (if the
 `education` plugin is installed); otherwise a faithful restructure is this skill's
 job.
 

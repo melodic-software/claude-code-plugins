@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Changed
+
+- **`audit`: the instruction-surface route-out names the Skill tool (#3002).** Findings routed to
+  `/claude-config:audit-instructions` now say the skill is invoked via the Skill tool. Wording
+  only; the presence gate and the in-plugin fallback are unchanged. Follows the invocation-mode
+  rubric's cross-skill phrasing rule, now unconditional after the fleet sweep.
+
 ## [0.11.0]
 
 ### Added

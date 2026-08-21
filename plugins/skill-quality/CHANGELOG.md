@@ -3,6 +3,26 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.3]
+
+### Changed
+
+- **`setup`: the post-reconfiguration verification names the Skill tool (#3002).** "verify with
+  `/skill-quality:check`" became "verify by invoking `/skill-quality:check` via the Skill tool".
+  Wording only.
+
+### Notes
+
+- **No new check for cross-skill phrasing, deliberately (#3002).** The sweep considered a
+  criterion enforcing the rubric's cross-skill phrasing rule and declined it: a static scan
+  cannot separate an operative chain from a mention, and the separation is the whole rule.
+  Measured on the post-sweep tree, 1,635 body lines fleet-wide carry a backticked
+  `/plugin:skill` token and 189 of them are operative chains — 88.4% false positives for any
+  criterion keyed on the token. Both figures are regenerable; the rubric records the exact two
+  `grep` commands beside them. The reasoning lives in
+  `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"); check 24 is
+  unchanged.
+
 ## [0.17.2]
 
 ### Changed

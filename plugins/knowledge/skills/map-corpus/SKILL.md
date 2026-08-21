@@ -102,7 +102,8 @@ Seeds come in two kinds, told apart by their normalized path:
   hand (full record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §2).
   **V1 requires at least one origin seed** — the link-map gate needs a discovery basis;
   a resource-seeds-ONLY corpus is outside V1 mapper scope (recorded deferral in
-  `discovery/link-map-format.md`): route those URLs to direct `/knowledge:docpage-digest` runs.
+  `discovery/link-map-format.md`): route those URLs to direct `/knowledge:docpage-digest` runs,
+  each invoked via the Skill tool.
   **GitHub blob URLs:** seed the `raw.githubusercontent.com` form — a `blob` URL snapshots the
   HTML chrome; translate blob→raw before normalization, recording the translation.
 
@@ -174,9 +175,10 @@ resources get digests); the parent's invariant governs each downstream run untou
 2. `mapper-handoff.md`: per-classification tallies, every `uncertain` verdict with evidence, the
    `companion` and `referenced-external` lists, and any all-`not-relevant` resource (a candidate
    to drop from the queue — flag, never silently drop).
-3. Hand the queue to **N runs of `/knowledge:docpage-digest`** — unrenamed, unmodified, one URL
-   per run, each under its own contract.
-4. Hand `mapper-handoff.md` to `/planning:interview` when installed; otherwise present and stop.
+3. Hand the queue to **N runs of `/knowledge:docpage-digest`, each invoked via the Skill tool** —
+   unrenamed, unmodified, one URL per run, each under its own contract.
+4. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
+   otherwise present and stop.
 
 Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase, work root).
 

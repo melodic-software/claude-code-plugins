@@ -182,7 +182,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 - **Does not filter by merit.** "Already done" and "unnecessary" never remove an option — see the two
   rules. A design that ranks-then-truncates reintroduces the same gatekeeping through the cutoff.
 - **Does not invent names.** A thin catalog yields a short menu, never a plausible one.
-- **Does not build its own durable-state probe.** It routes to `/session-flow:orient`.
+- **Does not build its own durable-state probe.** It routes to `/session-flow:orient`, invoked via the Skill tool.
 - **Does not execute what you pick.** Presentation only; invoking the choice is a separate act.
 - **Does not enumerate a catalog in its own body.** The candidate set is resolved at runtime; an
   embedded inventory would be a permanent token cost that rots as the fleet changes.

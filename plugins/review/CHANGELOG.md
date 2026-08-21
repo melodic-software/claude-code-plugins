@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1]
+
+### Changed
+
+- **`quality-gate`: the PR-review-toolkit composition names the Skill tool (#3002).** In
+  `context/code.md`, the presence-gated `/pr-review-toolkit:review-pr` invocation now says "via
+  the Skill tool". Wording only; the aspect detection and the gate are unchanged.
+
 ## [0.26.0]
 
 ### Added

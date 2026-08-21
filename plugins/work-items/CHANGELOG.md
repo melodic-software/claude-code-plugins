@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.8]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `attend-queue`'s `[intake]` row triage and
+  its `[escalated]` row's drive-to-a-decision route to `/planning:interview`;
+  `decompose`'s container close-out review (`/review:quality-gate close-out`);
+  `onboard-adapter`'s spec interview; `work-loop`'s intake sweep and its cycle step 4, which
+  works admitted items through `/work-items:work` (step 2 of the same numbered cycle had been
+  rewritten and this one missed); `scan-todos`' "file a work item" disposition
+  (`/work-items:track add`); `ship`'s container-discovery dead end, which routes to
+  `/work-items:decompose` when no container exists at all; `work`'s dispatch-mechanics
+  chain to `/implementation:implement-dispatch`, its deferred-finding filing, its post-green
+  hand-off of the PR to `/source-control:babysit-prs`, and its completion bookkeeping. Left as prose on purpose: every `/work-items:setup` reference, since `setup` is
+  `disable-model-invocation: true` and unreachable from a skill under the rubric's
+  invocation-reach invariant; and `ship`'s Step-4 journey-state route table, since that skill
+  "reads, states, and routes" and its Step 5 emits the routed action as *the recommendation*
+  rather than taking it. Wording only.
+
 ## [0.39.7]
 
 ### Fixed

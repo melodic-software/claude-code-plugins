@@ -46,8 +46,8 @@ one command".
 
 ## Step 1 — Interview
 
-Lock the spec's fields before writing anything. Chain to `/planning:interview` (if
-installed) when the answers are not already obvious; otherwise ask directly. Ask in this
+Lock the spec's fields before writing anything. Chain to `/planning:interview`, invoked via the
+Skill tool (if installed), when the answers are not already obvious; otherwise ask directly. Ask in this
 order, because later answers depend on earlier ones:
 
 1. **Provider identity.** The short name (lowercase, the directory and ID prefix) and the

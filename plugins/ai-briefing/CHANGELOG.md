@@ -3,6 +3,16 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Changed
+
+- **`generate`: the two external-renderer fallbacks name the Skill tool (#3002).** In
+  `references/slide-generation.md`, the `/document-skills:pptx` and
+  `/frontend-design:frontend-design` invocations now say "via the Skill tool". Wording only — the
+  in-tree-builder-first order and the presence gates are unchanged. Follows the invocation-mode
+  rubric's cross-skill phrasing rule, now unconditional after the fleet sweep.
+
 ## [0.7.3]
 
 ### Changed

@@ -1,5 +1,22 @@
 # Changelog — session-flow plugin
 
+## [0.32.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `find-handoff`'s deliberate-save-point
+  hand-off to `/session-flow:keep-going`; `handoff`'s route to the
+  `/session-flow:continue-in-background` sibling; `keep-going`'s two hand-backs to
+  `/session-flow:handoff`; `reanchor`'s two hand-offs to `/session-flow:keep-going`;
+  `show-options`' durable-state probe route to `/session-flow:orient`;
+  `workflow/context/spec-first.md`'s mid-stage `/session-flow:handoff` escape hatch;
+  `retro/context/session.md`'s skill-candidate hand-off to `/playbooks:skill-authoring`;
+  `workflow/context/steps.md`'s phase-boundary save-point.
+  `running-retro`'s routing list is untouched — its section is titled
+  "Offer routing — never auto-apply", and so is `workflow/context/wrap-up.md`, whose table
+  column is literally "Suggest" under a heading that says to *suggest* these before the user
+  leaves. Wording only.
+
 ## [0.32.0]
 
 ### Added

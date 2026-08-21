@@ -46,10 +46,10 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 
 ## Handoff
 
-- Run the new tests via `/toolchain:check` (or the project's own test command when the `toolchain` plugin is absent), then continue implementation — `/implementation:implement` when that plugin is installed
+- Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is absent), then continue implementation — invoke `/implementation:implement` via the Skill tool when that plugin is installed
 - **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session) — rubber-duck checkpoint before commit. Lightweight cross-model critique catches false-green or brittle tests before slow CI runs — the author writing tests for their own code is the producer verifying its own work, and this cross-model pass is that independence seam. Skip for trivial test additions
 - After an `organize` decision: proceed to authoring for the new test project
-- Coverage gaps still open → `/testing:plan`; failures while running → `/testing:diagnose`
+- Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:diagnose` via the Skill tool
 
 ## What this skill does NOT do
 

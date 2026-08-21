@@ -51,7 +51,8 @@ From `$ARGUMENTS`:
   for the `**Spec container:** <qualified-id>` line under `## Brief`. Fallback discovery: query the
   bound adapter for **open** items carrying the resolved container label (body citing the slug when
   one is known). One hit → use it; several → list them and ask which journey to drive; none →
-  report that no container exists and route to `/work-items:decompose` (which owns publishing one).
+  report that no container exists and route to `/work-items:decompose` (which owns publishing one),
+  invoked via the Skill tool.
 
 ### 2. Read the macro state
 

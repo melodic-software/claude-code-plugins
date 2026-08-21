@@ -119,15 +119,15 @@ breaks a test was secretly behavioral: revert that reduction, reclassify it as r
 and continue. Never ship red.
 
 **G. Ship.** Present the verified diff, or when the session should open a pull request,
-invoke `/source-control:pull-request create` when that plugin is installed; otherwise use the
+invoke `/source-control:pull-request create` via the Skill tool when that plugin is installed; otherwise use the
 repo's own PR convention with a body listing each reduction as `edge → mechanism → why safe`.
 One coupling pass per PR; structure-only, no behavioral riders. A human merges — this skill
 never auto-merges.
 
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected` — schema in [`reference/ledger.md`](reference/ledger.md)). For route-lane
-candidates: hand the top one to `/architecture:improve` (if that plugin is installed) for
-design exploration, and file the rest via `/work-items:track add` when that plugin is
+candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
+design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
 installed, else the repo's own tracker, else present the list to the user. Close by reporting
 the ledger path, what was applied, what was routed where, and the recommended next-run scope.
 
@@ -152,7 +152,8 @@ skill is ever extended to judge work its own session produced outside those gate
 ## Composition
 
 Graceful degradation — where a named collaborator is not installed, inline the equivalent
-work or present the handoff manually; never skip silently.
+work or present the handoff manually; never skip silently. Every skill named in the `Then` column
+is invoked via the Skill tool.
 
 | When | Then |
 |------|------|

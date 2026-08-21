@@ -43,7 +43,8 @@ them.
 ## Scope boundary (route out)
 
 - **One instruction surface against the model-capability catalog** → `/claude-config:audit-instructions`
-  directly. This pass dispatches that skill; it does not re-answer it.
+  directly. This pass dispatches that skill by invoking it via the Skill tool; it does not
+  re-answer it.
 - **Config-file correctness** → `/claude-config:audit`; grant portability →
   `/claude-config:audit-permission-grants`; automation landscape → `/claude-config:audit-automation-gaps`.
   None is in this pass's surface set.
@@ -267,7 +268,8 @@ catalog per invocation, the lane carries that whole catalog — the pass never s
 cannot address. Extending a delegated interface to accept a finer filter is a change to that skill,
 and until it lands the lane stays at the coarser grain.
 
-Dispatch, in inventory order, each invocation presence-gated with its fallback stated:
+Dispatch, in inventory order — every skill below is invoked via the Skill tool — each invocation
+presence-gated with its fallback stated:
 
 - **`/claude-config:audit-instructions`** — sibling in this plugin, always available. Carries the
   model-capability catalog over every non-memory surface, and the cross-surface conflict check. It

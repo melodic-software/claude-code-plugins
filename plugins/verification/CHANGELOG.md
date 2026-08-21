@@ -3,6 +3,31 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `confirm`'s Stage-1 delegation (both the
+  stage table and the prose), the measurable-delta redirect row, the **primary** live-app
+  delegation to `/testing:run-e2e` — left bare by the first pass while its own fallback was
+  rewritten, directly under a heading reading "`/verification:confirm` delegates rather than
+  reimplementing app-launch" — plus both of those fallbacks, the lint auto-fix pointer, and the
+  improvement-claim route to `/verification:measure`; `measure`'s green-tree precondition and
+  `context/metrics.md`'s mutation-score collection. Wording only — the STOP-on-fail gate,
+  presence gates, and manual fallbacks are unchanged.
+- **`confirm`: two rewrites re-worded so they read as one clause again (#3002).** The Stage-1
+  table cell had stranded the architecture-test gate inside the invocation phrase
+  ("… cross-cutting via the Skill tool + architecture-test gate"), and the improvement-claim
+  gotcha had split the original compound ("route to `/verification:measure`, invoked via the
+  Skill tool, and its baseline discipline"). Both now name the mechanism without breaking the
+  sentence.
+- **`confirm`: the "which do you reach for" catalog stays prose (#3002).** The first pass
+  rewrote clause 1 of a four-clause capability catalog ("**Quick mechanical-only?** …
+  **Lint-only?** … **Tests-only?** … Reach for `/verification:confirm` when …") and left the
+  other three, leaving the paragraph internally inconsistent. It is a catalog mapping a
+  situation to the sibling that covers it — a mention under the rubric — so clause 1 is back to
+  "Use `/toolchain:check` (not `/verification:confirm`)."
+
 ## [0.5.3]
 
 ### Fixed

@@ -122,8 +122,8 @@ the user (fixing trivial mechanical items directly).
   on the timeline. Route "poke holes in this plan before we start" to
   devils-advocate; degrade to prose when it is not installed.
 - **Not a review checkpoint.** A structured review pass between "code works" and
-  "code is ready" routes to `/review:quality-gate` (degrade to prose when it is not
-  installed); this corrector is a re-anchor of a discipline, not a review mode.
+  "code is ready" routes to `/review:quality-gate`, invoked via the Skill tool (degrade to
+  prose when it is not installed); this corrector is a re-anchor of a discipline, not a review mode.
 - **Not a single-axis corrector.** It does not own research, incumbency, terseness,
   or any one discipline a sibling owns — it is the *general* adversarial re-look.
   When a flaw is squarely one axis (an unverified claim), hand that part to the
