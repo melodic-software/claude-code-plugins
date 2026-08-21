@@ -806,6 +806,30 @@ t_abbreviated_ack_does_not_clear() {
   fi
 }
 
+# Same last-line-without-newline defect as the incident reader. Direction is
+# fail-closed (the ack is dropped and the commit fires), but the two file
+# readers must not drift (#2874 finding 3).
+t_ack_last_row_without_newline_is_honored() {
+  local repo out sha
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  # Two rows, the match on the last line, no trailing newline. Dropping that
+  # line would leave the commit unacked and fire.
+  printf '# ack\n%s  reviewed: last row, no trailing newline' "$sha" \
+    >"$repo/scripts/ack.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_ACK=scripts/ack.txt \
+    run_canary "$repo" --commit HEAD
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'reviewed and cleared'; then
+    ok "an acknowledgment file whose last row has no trailing newline still clears"
+  else
+    fail "expected the unterminated last ack row to clear, rc=$RC: $out"
+  fi
+}
+
 # --------------------------------------------------------------------------
 # 5. Shipped defaults, range mode, whole-file removal, fail-closed exits.
 # --------------------------------------------------------------------------
@@ -1075,6 +1099,22 @@ t_replay_asserts_the_recorded_attribution() {
     fi
   done
 
+  # All four empty-entry comma positions must exit 2. Word splitting under
+  # IFS=',' drops a trailing empty field, so `[sha=n,]` used to parse as
+  # `[sha=n]` and pass while leading / doubled / comma-only already died --
+  # the grammar enforced in three of four positions (#2875).
+  for bad in "[$culprit=40,]" "[,$culprit=40]" "[$culprit=40,,$other=1]" "[,]"; do
+    printf 'fires %s %s comma\n' "$sha" "$bad" >"$repo/scripts/inc.txt"
+    SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+      run_canary "$repo" --verify-known-incidents
+    out="$OUT"
+    if [[ "$RC" -eq 2 ]]; then
+      ok "a comma-malformed attribution field '$bad' exits 2"
+    else
+      fail "expected rc=2 on comma-malformed attribution '$bad', got rc=$RC: $out"
+    fi
+  done
+
   # An attribution on a `clean` row is nonsense -- clean rows have no findings.
   printf 'clean %s [%s=40] attribution on a clean row\n' "$sha" "$culprit" \
     >"$repo/scripts/inc.txt"
@@ -1097,6 +1137,89 @@ t_replay_asserts_the_recorded_attribution() {
     ok "a fires row with no attribution field still replays on exit status alone"
   else
     fail "an attribution-less row must still work, rc=$RC: $out"
+  fi
+}
+
+# A file that yields no rows, or whose last row is dropped for want of a
+# trailing newline, must not report green. The replay is the self-proof lane:
+# success that verified nothing is the false green this harness exists to
+# remove (#2874).
+t_replay_refuses_a_zero_row_or_truncated_file() {
+  local repo out sha culprit
+  repo="$(mk_repo)"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  : >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'reproduces every recorded incident'; then
+    ok "an empty incident file is exit 2, not a green replay"
+  else
+    fail "expected rc=2 on an empty incident file, rc=$RC: $out"
+  fi
+
+  printf '# only a comment\n# still nothing pinned\n' >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'reproduces every recorded incident'; then
+    ok "a comments-only incident file is exit 2, not a green replay"
+  else
+    fail "expected rc=2 on a comments-only incident file, rc=$RC: $out"
+  fi
+
+  # Two rows, byte-identical except the final newline. Row 2 carries a
+  # deliberately wrong count: if the last line is dropped, only the correct
+  # row 1 is seen and the run goes green. Both files must FAIL the same way.
+  #
+  # Write both files with printf directly. A `$(printf '...\n')` assignment
+  # would strip the trailing newline (command substitution does), so both
+  # files would be the no-newline case and this pin would not be testing
+  # what it claims (#3081 review).
+  local line1 line2
+  line1="fires $sha [$culprit=40] row 1 correct"
+  line2="fires $sha [$culprit=1] row 2 wrong count"
+  printf '%s\n%s\n' "$line1" "$line2" >"$repo/scripts/inc-nl.txt"
+  printf '%s\n%s' "$line1" "$line2" >"$repo/scripts/inc-nonl.txt"
+  local nl_bytes nonl_bytes
+  nl_bytes="$(wc -c <"$repo/scripts/inc-nl.txt")"
+  nonl_bytes="$(wc -c <"$repo/scripts/inc-nonl.txt")"
+  if [[ "$((nl_bytes - nonl_bytes))" -eq 1 ]]; then
+    ok "the newline and no-newline fixtures differ by exactly one trailing byte"
+  else
+    fail "newline fixture ($nl_bytes bytes) must be one byte longer than no-newline ($nonl_bytes bytes)"
+  fi
+
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc-nl.txt \
+    run_canary "$repo" --verify-known-incidents
+  local rc_nl="$RC" out_nl="$OUT"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc-nonl.txt \
+    run_canary "$repo" --verify-known-incidents
+  local rc_nonl="$RC" out_nonl="$OUT"
+
+  if [[ "$rc_nl" -eq 1 && "$rc_nonl" -eq 1 ]] &&
+    printf '%s' "$out_nl" | grep -q 'fires, but NOT as recorded' &&
+    printf '%s' "$out_nonl" | grep -q 'fires, but NOT as recorded'; then
+    ok "a two-row file without a trailing newline reaches the same FAIL as with one"
+  else
+    fail "newline and no-newline two-row files must both FAIL on the wrong last row; nl rc=$rc_nl nonl rc=$rc_nonl nl=$out_nl nonl=$out_nonl"
+  fi
+
+  # A one-row file that is correct, minus its trailing newline, must still
+  # verify that row -- the idiom must process the last line, not merely
+  # fail-closed when it is missing.
+  printf 'fires %s [%s=40] the only row' "$sha" "$culprit" >"$repo/scripts/inc.txt"
+  SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
+    run_canary "$repo" --verify-known-incidents
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'attribution(s) reproduced exactly'; then
+    ok "a one-row file with no trailing newline still verifies that row"
+  else
+    fail "the last unterminated row must be processed, rc=$RC: $out"
   fi
 }
 
@@ -1768,6 +1891,7 @@ t_prose_mentioning_revert_still_fires
 t_empty_trailer_still_fires
 t_acknowledged_commit_is_cleared
 t_abbreviated_ack_does_not_clear
+t_ack_last_row_without_newline_is_honored
 t_default_threshold_is_wired
 t_range_mode_scans_every_commit
 t_declared_note_ends_its_line
@@ -1777,6 +1901,7 @@ t_root_commit_is_handled
 t_empty_range_is_clean
 t_replay_fails_on_broken_expectation
 t_replay_asserts_the_recorded_attribution
+t_replay_refuses_a_zero_row_or_truncated_file
 t_restoration_reports_present_and_absent_markers
 t_restoration_refuses_a_malformed_corpus
 t_restoration_binds_a_marker_to_exactly_one_file
