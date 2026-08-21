@@ -784,6 +784,25 @@ else
   fail "shell env -u mixed: rc=$rc out='$out'"
 fi
 
+# --- SHELL: env -u and an unwrapped write on ONE `;` line is still a gap -----
+# The same leak as env-mixed, reached through one physical line. A
+# file-wide name-presence test on the joined string would credit it.
+new_repo
+r="$REPO"
+cat >"$r/env-semi.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git -C "$d" init -q; git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"env-semi.test.sh"* ]]; then
+  ok "shell: env -u and an unwrapped write on one semicolon line is still a violation"
+else
+  fail "shell env -u semicolon: rc=$rc out='$out'"
+fi
+
 # --- SHELL: env -u of the discovery pair without GIT_CONFIG is NOT enough ----
 new_repo
 r="$REPO"

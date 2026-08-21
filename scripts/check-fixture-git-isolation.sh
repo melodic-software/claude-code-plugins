@@ -327,17 +327,25 @@ scan() {
       return 1
     }
 
-    function sh_logical(s,   rest, path, fixture) {
-      fixture = is_fixture(s)
-      if (fixture) print "FIXTURE\t" FILENAME
-      # `unset` is process-wide, so one statement isolates every later
-      # command in the file. `env -u` is per-COMMAND (GNU env: removals
-      # apply while it runs COMMAND), so a wrap on one fixture line must
-      # not credit a later unwrapped identity write. Credit env-only when
-      # every fixture line on the file is itself an env clear.
-      if (unset_clears(s)) SH_UNSET = 1
-      if (env_clears(s)) SH_ENV = 1
-      else if (fixture) SH_ENV_GAP = 1
+    function sh_logical(s,   rest, path, fixture, n, i, segs) {
+      # Score fixture / env-u / unset per STATEMENT, not per physical or
+      # backslash-joined line. `env -u … git init; git config user.email`
+      # is two commands: the wrap applies only to the first (GNU env:
+      # removals apply while it runs COMMAND). A file-wide name presence
+      # test on the joined string would credit the unwrapped write.
+      n = split(s, segs, /[ \t]*(\|\||&&|;)[ \t]*/)
+      for (i = 1; i <= n; i++) {
+        fixture = is_fixture(segs[i])
+        if (fixture) print "FIXTURE\t" FILENAME
+        # `unset` is process-wide, so one statement isolates every later
+        # command in the file. `env -u` is per-COMMAND, so a wrap on one
+        # fixture statement must not credit a later unwrapped identity
+        # write. Credit env-only when every fixture statement is itself
+        # an env clear.
+        if (unset_clears(segs[i])) SH_UNSET = 1
+        if (env_clears(segs[i])) SH_ENV = 1
+        else if (fixture) SH_ENV_GAP = 1
+      }
       if (s ~ /^[ \t]*(source|\.)[ \t]+/) {
         rest = s
         sub(/^[ \t]*(source|\.)[ \t]+/, "", rest)
