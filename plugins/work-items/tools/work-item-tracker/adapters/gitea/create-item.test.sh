@@ -147,4 +147,35 @@ gitea_seed "/issues" 423 '{"message":"repo is archived"}'
 rc="$(gitea_run "$S" --title "t")"
 assert_eq "archived repo → exit 7" "7" "$rc"
 
+# --- ORGANIZATION-WIDE labels resolve ---
+# `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org label
+# never appears there — yet `NewIssueWithIndex` accepts any label whose OrgID == repo.OwnerID.
+# The old lookup therefore refused a label that would have applied, and the asymmetry was
+# user-visible and backwards: get-item and list-items DO report org labels in `.labels[]`,
+# so the tracker returned a name it would then refuse to write back.
+gitea_reset_routes
+gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
+gitea_seed_total "/orgs/acme/labels" 200 '[{"id":9,"name":"priority: high"}]' 1
+gitea_seed "/issues" 201 '{"number":7,"title":"t","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/webapp/issues/7","repository":{"full_name":"acme/webapp"}}'
+rc="$(gitea_run "$S" --title "t" --labels "priority: high")"
+assert_eq "an org-wide label resolves → exit 0" "0" "$rc"
+assert_contains "the org label endpoint was consulted" "$(gitea_requests)" "/orgs/acme/labels"
+
+# A user-owned repo has no organization: /orgs/<user>/labels answers 404, which is not an
+# error — there are simply no org labels to merge. A repo label must still resolve.
+gitea_reset_routes
+gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
+gitea_seed "/orgs/acme/labels" 404 '{"message":"user redirect does not exist"}'
+gitea_seed "/issues" 201 '{"number":8,"title":"t","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/webapp/issues/8","repository":{"full_name":"acme/webapp"}}'
+rc="$(gitea_run "$S" --title "t" --labels "type: fix")"
+assert_eq "a 404 from /orgs is not an error → exit 0" "0" "$rc"
+
+# And a name that exists in neither place is still refused, not silently dropped.
+gitea_reset_routes
+gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
+gitea_seed_total "/orgs/acme/labels" 200 '[{"id":9,"name":"priority: high"}]' 1
+rc="$(gitea_run "$S" --title "t" --labels "nonexistent")"
+assert_eq "a label in neither scope → exit 5" "5" "$rc"
+assert_contains "and it is named" "$(gitea_err)" "nonexistent"
+
 [[ $FAILED -eq 0 ]] || exit 1

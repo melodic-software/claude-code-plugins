@@ -108,7 +108,21 @@ if [[ -n "$LABELS" ]]; then
   ALL_LABELS="$WIT_GITEA_BODY"
   PAGE=2
   LABELS_TRUNCATED=0
-  while (($(jq 'length' <<<"$WIT_GITEA_BODY") == WIT_GITEA_PAGE_SIZE)); do
+  # This handler calls ctx.SetTotalCountHeader (routers/api/v1/repo/label.go), so when the
+  # header is present it decides when the list is exhausted. That matters more here than in
+  # list-items: gitea clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), and under the
+  # old page-length test an instance whose cap is below config.gitea.page_size stopped after
+  # page 1 — making a label past that point indistinguishable from a nonexistent one, so the
+  # operator was told to create a label that already exists. SEEN/-n mirror list-items: an
+  # empty header means "no count sent", never zero.
+  LABEL_SEEN="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || LABEL_SEEN=0
+  LABEL_TOTAL="$WIT_GITEA_TOTAL_COUNT"
+  while :; do
+    if [[ -n "$LABEL_TOTAL" ]]; then
+      ((LABEL_SEEN >= LABEL_TOTAL)) && break
+    else
+      (($(jq 'length' <<<"$WIT_GITEA_BODY") < WIT_GITEA_PAGE_SIZE)) && break
+    fi
     # Bounded like every other paginated loop in this adapter: a server that keeps
     # answering a full page would otherwise spin forever with ALL_LABELS growing
     # without limit.
@@ -119,8 +133,42 @@ if [[ -n "$LABELS" ]]; then
     wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
     wit_gitea_require_ok "listing labels in $REPO (page $PAGE)"
     ALL_LABELS="$(jq -c --argjson acc "$ALL_LABELS" '$acc + .' <<<"$WIT_GITEA_BODY")"
+    LABEL_SEEN=$((LABEL_SEEN + $(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)))
+    # An empty page ends the walk whatever the header claimed — a count that never gets
+    # satisfied must not turn into an unbounded loop.
+    (($(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0) == 0)) && break
     PAGE=$((PAGE + 1))
   done
+  # ORGANIZATION-WIDE labels are usable on this repo's issues and are NOT in the repo label
+  # list. `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org
+  # label never appears there — but `NewIssueWithIndex` accepts any label whose
+  # `OrgID == repo.OwnerID`. The asymmetry was user-visible and backwards: get-item and
+  # list-items DO report an org label in `.labels[]` (it is on the issue), so the tracker
+  # returned a label name it would then refuse to write back, telling the operator to create
+  # a label that already exists. A user-owned repo has no org and answers 404 here, which is
+  # not an error — it just means there are no org labels to merge.
+  wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
+  if [[ "$WIT_GITEA_STATUS" != "404" ]]; then
+    wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER"
+    ORG_PAGE="$WIT_GITEA_BODY"
+    ORG_EFFECTIVE=0
+    ORG_PAGE_NUM=2
+    while :; do
+      ALL_LABELS="$(jq -c --argjson acc "$ALL_LABELS" '$acc + .' <<<"$ORG_PAGE")"
+      ORG_GOT="$(jq 'length' <<<"$ORG_PAGE" 2>/dev/null)" || ORG_GOT=0
+      ((ORG_GOT > ORG_EFFECTIVE)) && ORG_EFFECTIVE="$ORG_GOT"
+      ((ORG_GOT == 0)) && break
+      ((ORG_GOT < ORG_EFFECTIVE)) && break
+      if ((ORG_PAGE_NUM * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)); then
+        LABELS_TRUNCATED=1
+        break
+      fi
+      wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=$ORG_PAGE_NUM&limit=$WIT_GITEA_PAGE_SIZE"
+      wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER (page $ORG_PAGE_NUM)"
+      ORG_PAGE="$WIT_GITEA_BODY"
+      ORG_PAGE_NUM=$((ORG_PAGE_NUM + 1))
+    done
+  fi
   MISSING="$(jq -rc --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]' <<<'null')"
   if [[ "$MISSING" != "[]" ]]; then

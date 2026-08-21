@@ -275,8 +275,17 @@ wit_need_linear_config() {
   # not a fall-through to the default.
   wit_linear_nonempty_array "$WIT_LINEAR_DONE_TYPES" ||
     bad+=" done_state_types(must be a non-empty array)"
-  [[ "$WIT_LINEAR_PAGE_SIZE" =~ ^[1-9][0-9]*$ ]] ||
+  # Bounded, not just positive. Linear caps every connection's `first` at 250
+  # (WIT_LINEAR_DEFAULT_PAGE_SIZE's comment above says so), so an unbounded check accepts a
+  # page_size the API rejects — config validation passes and the FIRST live call fails, which
+  # is the failure mode config validation exists to prevent. Caught by validating the adapter's
+  # operations against Linear's published schema; every read verb passes this value as `first`.
+  if [[ "$WIT_LINEAR_PAGE_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+    [[ "$WIT_LINEAR_PAGE_SIZE" -le 250 ]] ||
+      bad+=" page_size:'$WIT_LINEAR_PAGE_SIZE'(exceeds linear's cap of 250 for a connection's first)"
+  else
     bad+=" page_size:'$WIT_LINEAR_PAGE_SIZE'(must be a positive integer)"
+  fi
   # TTLs bound lease liveness arithmetic; a non-integer would make every comparison
   # error out and silently read as "not live", handing every item to the next claimer.
   [[ "$WIT_LINEAR_LEASE_TTL_HOURS" =~ ^[0-9]+$ ]] ||

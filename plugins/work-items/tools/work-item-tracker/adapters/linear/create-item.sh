@@ -107,7 +107,7 @@ fi
 # filed without its type or priority label is invisible to the selection tiers that
 # would have picked it up.
 wit_linear_gql \
-  'query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id labels(first: 250) { nodes { id name } } } } }' \
+  'query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id } } }' \
   "$(jq -cn --arg k "$TARGET_TEAM" '{key: $k}')" \
   "resolving team $TARGET_TEAM"
 TEAM_NODE="$(jq -c '.teams.nodes[0] // empty' <<<"$WIT_LINEAR_DATA")"
@@ -119,16 +119,57 @@ TEAM_UUID="$(jq -r '.id' <<<"$TEAM_NODE")"
 
 LABEL_IDS='[]'
 if [[ -n "$LABELS" ]]; then
-  ALL_LABELS="$(jq -c '.labels.nodes // []' <<<"$TEAM_NODE")"
+  # Labels come from the ROOT `issueLabels` connection, PAGINATED. Two defects this shape
+  # replaces, both found by validating this adapter against Linear's published schema:
+  #
+  #  1. The old query asked `team.labels(first: 250)` with no pageInfo and no loop. 250 is
+  #     Linear's per-page maximum, not a "surely enough" number, so a team past that count
+  #     silently lost labels — and because an unresolved name is REFUSED below, the failure
+  #     was not a dropped label but a hard exit on a label that exists.
+  #  2. `Team.labels` is documented only as "Labels associated with the team", while
+  #     `IssueLabel.team` says "If null, the label is a workspace-level label available to
+  #     all teams" and the root `issueLabels` query is the one documented to return "both
+  #     workspace-level and team-scoped labels". A workspace label is valid on this team's
+  #     issues, so refusing it was wrong.
+  #
+  # Filtering to this team OR workspace-level (`team: { null: true }`) keeps the resolution
+  # scoped — a same-named label on some other team is still not silently borrowed.
+  LABEL_QUERY='query($team: ID!, $first: Int!, $after: String) {
+    issueLabels(
+      filter: { or: [{ team: { id: { eq: $team } } }, { team: { null: true } }] }
+      first: $first
+      after: $after
+    ) {
+      nodes { id name }
+      pageInfo { hasNextPage endCursor }
+    }
+  }'
+  ALL_LABELS='[]'
+  LABEL_CURSOR=""
+  while :; do
+    wit_linear_gql "$LABEL_QUERY" \
+      "$(jq -cn --arg t "$TEAM_UUID" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$LABEL_CURSOR" \
+        '{team: $t, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
+      "resolving labels for team $TARGET_TEAM"
+    LABEL_PAGE="$(jq -c '.issueLabels // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
+    ALL_LABELS="$(jq -c --argjson acc "$ALL_LABELS" --argjson page "$LABEL_PAGE" \
+      '$acc + ($page.nodes // [])' <<<'null')"
+    [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$LABEL_PAGE")" == "true" ]] || break
+    LABEL_CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$LABEL_PAGE")"
+    # endCursor is nullable in the schema; without a cursor the next request would restart
+    # from the beginning and loop forever, so stop rather than spin.
+    [[ -n "$LABEL_CURSOR" ]] || break
+  done
   MISSING="$(jq -rc --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]' <<<'null')"
   if [[ "$MISSING" != "[]" ]]; then
-    printf 'create-item.sh: label(s) not found on team %s: %s — create them first, or drop them from --labels\n' \
+    printf 'create-item.sh: label(s) not found on team %s or at workspace level: %s — create them first, or drop them from --labels\n' \
       "$TARGET_TEAM" "$MISSING" >&2
     exit "$EX_NOT_FOUND"
   fi
+  # first(...) — a name present both team-scoped and workspace-level resolves to one id, not two.
   LABEL_IDS="$(jq -c --arg names "$LABELS" --argjson all "$ALL_LABELS" \
-    '[($names | split(",") | .[] | select(length > 0)) as $n | ($all[] | select(.name == $n) | .id)]' <<<'null')"
+    '[($names | split(",") | .[] | select(length > 0)) as $n | (first($all[] | select(.name == $n)) | .id)]' <<<'null')"
 fi
 
 # --type is accepted and cannot be honored: Linear has no issue-type axis in the

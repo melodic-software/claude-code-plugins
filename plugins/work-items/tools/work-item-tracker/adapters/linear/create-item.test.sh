@@ -19,13 +19,17 @@ assert_usage_error "$S" --title "t" --repo
 lin_fixture_init
 trap 'rm -rf "$LIN_FIX"' EXIT
 
-TEAM_NODE='{"teams":{"nodes":[{"id":"uuid-team-eng","labels":{"nodes":[{"id":"uuid-label-fix","name":"type: fix"},{"id":"uuid-label-hi","name":"priority: high"}]}}]}}'
+TEAM_NODE='{"teams":{"nodes":[{"id":"uuid-team-eng"}]}}'
+# Labels come from the ROOT issueLabels connection now, not team.labels — see the
+# pagination/workspace-label cases below for why.
+LABEL_PAGE='{"issueLabels":{"nodes":[{"id":"uuid-label-fix","name":"type: fix"},{"id":"uuid-label-hi","name":"priority: high"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}'
 
 seed_create() {
   lin_reset
   lin_data 'issueRelationCreate' '{"issueRelationCreate":{"success":true}}'
   lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
   lin_data 'teams(filter:' "$TEAM_NODE"
+  lin_data 'issueLabels(' "$LABEL_PAGE"
   lin_seed_issue 12 started
 }
 
@@ -114,5 +118,48 @@ lin_data 'teams(filter:' "$TEAM_NODE"
 lin_seed 'issueCreate' 200 '{"errors":[{"message":"forbidden","extensions":{"type":"Forbidden"}}]}'
 rc="$(lin_run "$S" --title "t")"
 assert_eq "GraphQL forbidden → exit 4" "4" "$rc"
+
+# --- label lookup PAGINATES ---
+# The old shape asked team.labels(first: 250) once, with no pageInfo and no loop. 250 is
+# Linear's per-page MAXIMUM, not a comfortable ceiling — so a workspace past that count lost
+# labels, and because an unresolved name is refused, the symptom was a hard exit on a label
+# that exists rather than a quietly dropped one. Routes sharing a pattern are call-ordered,
+# so these two seedings are page 1 and page 2.
+lin_reset
+lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
+lin_data 'teams(filter:' "$TEAM_NODE"
+lin_data 'issueLabels(' '{"issueLabels":{"nodes":[{"id":"uuid-label-fix","name":"type: fix"}],"pageInfo":{"hasNextPage":true,"endCursor":"cur-1"}}}'
+lin_data 'issueLabels(' '{"issueLabels":{"nodes":[{"id":"uuid-label-p2","name":"on: page-two"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}'
+lin_seed_issue 12 started
+rc="$(lin_run "$S" --title "paged" --labels "on: page-two")"
+assert_eq "a label on page 2 resolves → exit 0" "0" "$rc"
+assert_contains "and its id is sent" "$(lin_bodies)" '"labelIds":["uuid-label-p2"]'
+assert_contains "the second page was requested with the cursor" "$(lin_bodies)" 'cur-1'
+
+# --- WORKSPACE-level labels are reachable ---
+# `Team.labels` is documented only as "Labels associated with the team", while IssueLabel.team
+# says "If null, the label is a workspace-level label available to all teams" — and the ROOT
+# issueLabels query is the one documented to return both. A workspace label is valid on this
+# team's issues, so the old team-scoped lookup refused a label that would have applied.
+lin_reset
+lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
+lin_data 'teams(filter:' "$TEAM_NODE"
+lin_data 'issueLabels(' '{"issueLabels":{"nodes":[{"id":"uuid-label-ws","name":"workspace: wide"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}'
+lin_seed_issue 12 started
+rc="$(lin_run "$S" --title "ws" --labels "workspace: wide")"
+assert_eq "a workspace-level label resolves → exit 0" "0" "$rc"
+assert_contains "the filter admits team-null labels" "$(lin_bodies)" 'null'
+assert_contains "and the workspace label id is sent" "$(lin_bodies)" '"labelIds":["uuid-label-ws"]'
+
+# A nullable endCursor with hasNextPage true must STOP, not restart from the beginning —
+# without a cursor the next request repeats page 1 forever.
+lin_reset
+lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
+lin_data 'teams(filter:' "$TEAM_NODE"
+lin_data 'issueLabels(' '{"issueLabels":{"nodes":[{"id":"uuid-label-fix","name":"type: fix"}],"pageInfo":{"hasNextPage":true,"endCursor":null}}}'
+lin_seed_issue 12 started
+rc="$(lin_run "$S" --title "x" --labels "type: fix")"
+assert_eq "a null endCursor terminates rather than looping" "0" "$rc"
+assert_eq "and asked for labels exactly once" "1" "$(grep -c 'issueLabels(' <<<"$(lin_bodies)")"
 
 [[ $FAILED -eq 0 ]] || exit 1

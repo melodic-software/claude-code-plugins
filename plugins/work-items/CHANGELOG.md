@@ -3,6 +3,71 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.9]
+
+### Fixed
+
+Five defects in the `linear` and `gitea` adapters, all of the same class: **both adapters are
+tested only against mock transports whose responses the tests themselves author**, so a wrong
+field name, argument, enum value, endpoint path, or termination signal passes every suite and
+fails on the first real call. Neither adapter has ever run against a live server. Found by
+validating both against their providers' real published contracts — Linear's GraphQL schema
+(`@linear/sdk` 90.0.0 plus the SDL, cross-checked and byte-identical) and Gitea's own generated
+Swagger at `v1.22.6`, with the handler source consulted where the spec is silent.
+
+The validation also cleared the whole surface it did not find fault with: **all 17 Linear
+operations validate against the real schema** under `graphql-js`, including argument types,
+nested selections, enum members, and variable coercion — proven sensitive by a negative control
+in which 10 of 10 deliberately-injected faults were caught. Every Gitea path, method, query
+parameter, request-body field, and response field the adapter reads matches the spec.
+
+- **`linear` accepted a `page_size` the API rejects.** Config validation took any positive
+  integer while Linear caps every connection's `first` at 250 — a value the adapter's own
+  comment already documented. Validation passed and the *first* live call failed, which is the
+  failure mode config validation exists to prevent. Now bounded, with the cap named in the
+  refusal.
+- **`linear` could not resolve workspace-level labels, and lost labels past the first page.**
+  Label ids were read from `team.labels(first: 250)` — one page, no `pageInfo`, no loop, where
+  250 is Linear's per-page *maximum* rather than a comfortable ceiling — and `Team.labels` is
+  documented only as *"Labels associated with the team"*, while `IssueLabel.team` says *"If
+  null, the label is a workspace-level label available to all teams"*. Because an unresolved
+  name is refused rather than dropped, both defects surfaced as a hard exit on a label that
+  exists. Resolution now walks the **root** `issueLabels` connection — the one documented to
+  return both scopes — filtered to this team or workspace-level, fully paginated, and stops on
+  a null cursor rather than restarting from page 1.
+- **`gitea` silently truncated every list on instances with a lower paging cap.**
+  `ToCorrectPageSize` clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), so where
+  `config.gitea.page_size` exceeds an instance's cap *every* page came back short — and
+  "short page means last page" ended the walk after page 1 with nothing said, since the
+  ceiling warning never fired either. The issue-list and label-list handlers do send
+  `X-Total-Count` (`ctx.SetTotalCountHeader`), so the transport now captures response headers
+  and both walks use that count as the authoritative end-of-list signal. The short-page
+  heuristic remains the fallback where no header is sent, so behaviour is unchanged on
+  instances that send none, and no extra request is ever spent.
+- **`gitea` fetched pull requests only to throw them away.** `list-items` omitted the
+  `type=issues` query parameter that this endpoint actually supports, so PRs consumed the page
+  budget and — worse — the declared ceiling counted raw rows rather than items, making a
+  PR-heavy repo report *"reached the declared ceiling of 1000 items"* having collected far
+  fewer. The client-side PR filter stays as belt and braces.
+- **`gitea` refused organization-wide labels it would happily have applied.**
+  `GetLabelsByRepoID` backs `/repos/{o}/{r}/labels` with `WHERE repo_id = ?`, so an org label
+  never appears there, yet `NewIssueWithIndex` accepts any label whose `OrgID == repo.OwnerID`.
+  The asymmetry was user-visible and backwards: `get-item` and `list-items` *do* report org
+  labels in `.labels[]`, so the tracker returned a label name it would then refuse to write
+  back, telling the operator to create a label that already exists. `create-item` now merges
+  `/orgs/{owner}/labels`, treating the 404 a user-owned repo returns as "no org labels" rather
+  than an error.
+
+Each fix ships with regression cases verified to fail against the unfixed file. The `gitea` mock
+transport gained `-D` header support so the `X-Total-Count` path is exercised rather than
+silently falling back.
+
+Four Linear behaviours remain unverifiable without a live credential and are recorded rather
+than guessed: whether `assigneeId: null` semantically unassigns (the schema permits the null;
+the resolver's behaviour is not in the schema), Linear's default comment ordering, and the
+instance-configuration-dependent halves of the Gitea findings (`MAX_RESPONSE_ITEMS`,
+`ALLOW_CROSS_REPOSITORY_DEPENDENCIES`). Forgejo parity is still assumed rather than measured.
+
 ## [0.39.8]
 
 ### Changed

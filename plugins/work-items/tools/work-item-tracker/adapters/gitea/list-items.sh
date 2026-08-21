@@ -60,20 +60,40 @@ wit_gitea_scope_parts "$REPO"
 # it passes through. STATE is already constrained to those three by the parse above.
 PAGE=1
 COLLECTED='[]'
+# SEEN counts raw rows returned so far, for comparison against gitea's own X-Total-Count.
+# `services/convert.ToCorrectPageSize` silently clamps `limit` to `[api] MAX_RESPONSE_ITEMS`
+# (stock 50), so on an instance whose cap is below config.gitea.page_size EVERY page comes
+# back short — and "short page means last page" then ended the loop after page 1 and returned
+# a truncated list with nothing said, because the ceiling guard below never fired either.
+# This endpoint's handler calls ctx.SetTotalCountHeader, so when the header is present it is
+# the authoritative end-of-list signal and the clamp stops mattering. The short-page heuristic
+# stays as the fallback for anything that does not send one; it costs no extra request.
+SEEN=0
 while :; do
-  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
+  # `type=issues` is a real query parameter on this endpoint (enum: issues|pulls). Without it
+  # gitea returns pull requests too, which are then dropped below — so PRs consumed the page
+  # budget and, worse, the declared ceiling counted rows rather than items, making a PR-heavy
+  # repo report "reached the declared ceiling of 1000 items" having collected far fewer.
+  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing issues in $REPO"
   GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || {
     printf 'list-items.sh: gitea returned a non-array issue list for %s\n' "$REPO" >&2
     exit "$EX_INTERNAL"
   }
-  # Gitea's issue list includes PULL REQUESTS: a PR is an issue with `pull_request`
-  # populated. The seam's items are issues, and a PR arriving as a work item would be
-  # claimed and worked like one, so they are dropped here rather than downstream.
+  # Belt and braces: `type=issues` should mean gitea sends no PRs, but a PR arriving as a work
+  # item would be claimed and worked like one, so the filter stays.
   COLLECTED="$(jq -c --argjson acc "$COLLECTED" \
     '$acc + [ .[] | select(.pull_request == null) ]' <<<"$WIT_GITEA_BODY")"
-  # A short page is the last page: Gitea sends no total-count header on this endpoint.
-  ((GOT < WIT_GITEA_PAGE_SIZE)) && break
+  SEEN=$((SEEN + GOT))
+  ((GOT == 0)) && break
+  if [[ -n "$WIT_GITEA_TOTAL_COUNT" ]]; then
+    # Authoritative: stop when gitea says we have them all. An EMPTY header is "no count was
+    # sent", never zero — hence the -n test rather than an arithmetic compare, which would
+    # read a missing header as "0 items" and end the listing on its first pass.
+    ((SEEN >= WIT_GITEA_TOTAL_COUNT)) && break
+  else
+    ((GOT < WIT_GITEA_PAGE_SIZE)) && break
+  fi
   PAGE=$((PAGE + 1))
   # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED
   # truncation, not an error (CONTRACT.md "Adapter contract") — but it is never silent.
