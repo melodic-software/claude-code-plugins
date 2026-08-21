@@ -127,7 +127,7 @@ never auto-merges.
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected` — schema in [`reference/ledger.md`](reference/ledger.md)). For route-lane
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
-design exploration, and file the rest via `/work-items:track add` when that plugin is
+design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
 installed, else the repo's own tracker, else present the list to the user. Close by reporting
 the ledger path, what was applied, what was routed where, and the recommended next-run scope.
 

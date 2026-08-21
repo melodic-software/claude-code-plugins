@@ -9,7 +9,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **Cross-skill chains name the Skill tool (#3002).**
   `design`'s early-exit proceed, its two glossary invocations, the `handoff` action, and the
-  handoff-gate delegation; `design-handoff`'s FAIL route back and its hand-off to `/planning:plan`;
+  handoff-gate delegation; all three of `design-handoff`'s FAIL routes back to `/planning:design`
+  (the untagged-thread gate, the no-design-evidence branch, and the missing-rationale gotcha) and
+  its hand-off to `/planning:plan`;
   `devils-advocate`'s incumbent exploration (both sites), its two research routes, and the
   high-risk research bullet; `interview`'s glossary invocation, its blindspot route, and
   `context/loop.md`'s domain check; `plan`'s Karpathy checklist, the measurable-goal baseline

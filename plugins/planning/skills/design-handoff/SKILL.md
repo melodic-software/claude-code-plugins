@@ -29,7 +29,7 @@ Read `design-threads.md` in the topic's resolved design slice (`<contract_dir>/<
 
 A thread that is unresolved AND untagged is a silent gap → **FAIL**: list the offending thread(s), route back by invoking `/planning:design` via the Skill tool (its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. This is a binary check read off `design-threads.md`, not a "did we cover enough?" recap — a producing model rubber-stamps its own recap, so the gate must be read off the file rather than judged from memory.
 
-If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact) — early-exit slices hand off on that artifact alone. Neither present → FAIL: no design evidence; route to `/planning:design`.
+If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact) — early-exit slices hand off on that artifact alone. Neither present → FAIL: no design evidence; route back by invoking `/planning:design` via the Skill tool.
 
 ## Handoff summary (gate passed)
 
@@ -53,6 +53,6 @@ Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` 
 
 ## Gotchas
 
-- A thread marked "decided" without recorded rationale is NOT RESOLVED — the rationale must be in the artifact, or `/planning:plan` inherits an unexplainable decision. FAIL it back to `/planning:design` to record the why
+- A thread marked "decided" without recorded rationale is NOT RESOLVED — the rationale must be in the artifact, or `/planning:plan` inherits an unexplainable decision. FAIL it back by invoking `/planning:design` via the Skill tool to record the why
 - Do not soften a FAIL into a warning because the offending thread "feels minor" — silent gaps are exactly what the binary gate exists to catch
 - `/planning:design`'s `handoff` action is an in-session shortcut that delegates here — this skill is the single canonical gate implementation, so criteria changes land here only
