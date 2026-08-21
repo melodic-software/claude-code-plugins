@@ -113,8 +113,38 @@ wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 # and `|| true` does not contain an exit — only a subshell boundary does. Without it a
 # failing rollback would abort the trap and overwrite the script's exit status,
 # reporting a different failure than the one that actually happened.
+#
+# The test is "does ANY live lease exist", NOT "is the assignee still me". HOLDER is
+# `WIT_LINEAR_VIEWER` — the authenticated user's DISPLAY NAME, not a session identity —
+# so a name compare cannot tell my own assignment from another session of the same user,
+# and same-login racing is exactly what the handle arbitration exists for (the
+# conformance suite exercises it as "Second session, same identity"). Under a name
+# compare, session B rolling back would see its own login in the assignee slot, conclude
+# the assignment was its own, and clear session A's live claim.
+#
+# A live-lease test is identity-independent and targets the actual harm: `lib/frontier.sh`
+# selects on `assignees | length == 0` and never consults leases, so a wrongly-cleared
+# assignee puts an actively-worked item back on the frontier. Leaving a stale NAME in
+# that slot is cosmetic by comparison — the item stays correctly excluded either way.
+#
+# Our OWN lease is excluded from that test. The trap also covers the window after step 3
+# posted our lease, and counting it would make the rollback skip its own cleanup — the
+# opposite of the point. COMMENT_UUID is pre-set to empty so the trap is safe to fire
+# before step 3 has assigned it, which `set -u` would otherwise turn into an aborted
+# rollback that quietly cleans nothing.
+COMMENT_UUID=""
 _wit_linear_claim_rollback() {
   (
+    # BOTH guards must hold before clearing, because each one alone lets a different
+    # assignment through. The live-lease test alone would clear a foreign assignee whose
+    # lease has lapsed; the name test alone cannot tell our own write from another session
+    # of the same login. Their conjunction is strictly safer than either.
+    _rb="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit 0
+    while IFS= read -r _e; do
+      [[ -n "$_e" ]] || continue
+      [[ "$(jq -r '.comment_id' <<<"$_e")" != "$COMMENT_UUID" ]] || continue
+      wit_linear_lease_live "$(jq -c '.lease' <<<"$_e")" && exit 0
+    done < <(jq -c '.[]' <<<"$_rb")
     wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
     [[ "$(jq -r '.assignee.displayName // .assignee.email // ""' <<<"$WIT_LINEAR_ISSUE")" == "$HOLDER" ]] || exit 0
     wit_linear_set_assignee "$ISSUE_UUID" ""
@@ -169,10 +199,27 @@ if [[ -n "$LOSER" ]]; then
   trap - EXIT
   SUPERSEDED="$(jq -c --arg t "$(wit_linear_now_iso)" '. + {superseded_at: $t}' <<<"$LEASE")"
   wit_linear_update_comment "$COMMENT_UUID" "$(wit_linear_lease_marker "$SUPERSEDED")"
-  # Only unassign if we are still the assignee: the winner may already have taken it,
-  # and clearing that would strip a live claim and hand the item back to the frontier.
+  # Unassign only if NOBODY ELSE holds a live lease. Same reasoning as the rollback trap
+  # above: HOLDER is a display name, so comparing it against the assignee cannot tell our
+  # own write from another session of the same login — and losing to a same-login rival is
+  # the ordinary case here, not an exotic one. We know a live lease exists (that is why we
+  # are in this branch), so this normally leaves the assignee for the winner rather than
+  # clearing it. A stale name in the slot is cosmetic; a cleared slot puts an actively
+  # worked item back on the frontier, which `lib/frontier.sh` selects purely on assignee
+  # emptiness with no lease check.
+  LOSER_LIVE=""
   wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
-  if [[ "$(jq -r '.assignee.displayName // .assignee.email // ""' <<<"$WIT_LINEAR_ISSUE")" == "$HOLDER" ]]; then
+  AFTER2="$(wit_linear_lease_comments "$ISSUE_UUID")" || AFTER2='[]'
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    [[ "$(jq -r '.comment_id' <<<"$entry")" != "$COMMENT_UUID" ]] || continue
+    wit_linear_lease_live "$(jq -c '.lease' <<<"$entry")" && {
+      LOSER_LIVE="yes"
+      break
+    }
+  done < <(jq -c '.[]' <<<"$AFTER2")
+  if [[ -z "$LOSER_LIVE" ]] &&
+    [[ "$(jq -r '.assignee.displayName // .assignee.email // ""' <<<"$WIT_LINEAR_ISSUE")" == "$HOLDER" ]]; then
     wit_linear_set_assignee "$ISSUE_UUID" ""
   fi
   printf 'linear: lost the claim race on %s to %s — backed off\n' "$ID" "$LOSER" >&2
