@@ -318,7 +318,7 @@ on to give. `<invocation>` is the skill and action a session can actually run �
 — never a reference-doc path, because a document is not something a relay can invoke. **The
 invocation is written as a code span and a consumer strips the delimiters before matching**; that
 convention is stated once, under "Auto-applicability is settled per rule, at contract time" below,
-and binds the `Action`-cell shortcut here identically.
+and binds the corroborating `Action` lead here identically.
 
 **The declaration is per RULE and lives nowhere else, which is this contract's own settle-once rule
 applied rather than restated.** "Auto-applicability is settled per rule, at contract time" (below)
@@ -381,7 +381,7 @@ different field count, so a sixth column is a gate rewrite before it is a contra
 
 | Remediation | How the row declares it | Consumer route |
 |---|---|---|
-| At `Location`, mechanical and meaning-preserving | `Auto-applicable: Yes — <argument>` | Auto-applied under Step 4's fence |
+| At `Location`, mechanical and meaning-preserving | `Auto-applicable: Yes — <argument>` | The consumer MAY apply it, and that is all `Yes` buys. There is no dedicated auto-apply path: the row takes its ordinary class, and a cleanup row reaches Step 4's cleanup route, which prefers `/simplify` (which reads no findings file) and applies rows itself only when `/simplify` is absent |
 | At `Location`, owned by the producer's own surface | `Auto-applicable` leads ``No, remediated by `<invocation>` `` — necessary, resolved through the row's rule id; an `Action` lead only corroborates | Routed to that surface; surfaced when it is unavailable |
 | Outside `Location`'s file | The off-site rule above; `Action` names the target file | Surface-only (Step 2) |
 
@@ -427,7 +427,7 @@ left to be inferred from the rows because the alternative is the failure mode th
 prevent: a contract showing one byte sequence while every conforming row writes another, so a
 consumer implementing the contract literally matches nothing and the rows only *look* adopted. One
 delimiter to strip is a smaller ask than an unfenced command in a table, and the same convention
-binds the `Action`-cell shortcut in the previous section — ``Remediate with `<invocation>` `` — so
+binds the corroborating `Action` lead in the previous section — ``Remediate with `<invocation>` `` — so
 the two readings agree with each other as well as with this table.
 
 **Never shape a rule to look auto-applicable.** Narrowing `Location` to one file the finding does not

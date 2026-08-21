@@ -62,13 +62,16 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
-   `review:fanout fix` is now a valid route for the whole file, not just one rule: it applies
-   `rule-utm-params` itself and hands every other row to this skill's own `fix` action, which the
-   crosswalk declares as their remediation owner. Recommend it when the operator is already
-   running a fix pass; recommend this skill's `fix` directly when they are not, since it is the
-   shorter path to the same rewrites. Name the one condition that changes the answer — the relay
-   can only hand the rows over when `/ai-slop:audit` is available in that session, and surfaces
-   them otherwise.
+   `review:fanout fix` is now a valid route for the whole file, not just one rule: it hands every
+   row but `rule-utm-params` to this skill's own `fix` action, which the crosswalk declares as
+   their remediation owner. `rule-utm-params` is the one row the relay is *capable* of applying
+   meaning-preservingly — do not promise that it will. It takes its ordinary cleanup class and
+   reaches the relay's cleanup route, which prefers `/simplify`, a code-simplification skill that
+   reads no findings file, and applies rows itself only when `/simplify` is absent. Recommend the
+   relay when the operator is already running a fix pass; recommend this skill's `fix` directly
+   when they are not, since it is the shorter path to the same rewrites. Name the condition that
+   changes the answer — the relay can only hand the rows over when `/ai-slop:audit` is available
+   in that session, and surfaces them otherwise.
 
 ## Fix flow (explicit invocation only)
 

@@ -443,7 +443,7 @@
       "id": 36,
       "name": "fix-pass-producer-owned-routes-to-named-surface",
       "prompt": "[Scenario: a conforming current-branch findings file from ai-slop:audit. Every row leads its Finding cell with a qualified rule id; thirteen rows are prose-rewrite rules whose detector-findings crosswalk row leads its Auto-applicable cell with 'No, remediated by /ai-slop:audit fix', and one row is ai-slop/audit/rule-utm-params, whose crosswalk row is auto-applicable. /ai-slop:audit is available in the session.] /review:fanout fix",
-      "expected_output": "The thirteen producer-owned rows route to /ai-slop:audit fix; only the utm-params row takes the ordinary contained-fix route. /simplify is not invoked for the producer-owned rows.",
+      "expected_output": "The thirteen producer-owned rows route to /ai-slop:audit fix. The utm-params row is not routed there: it takes its ordinary cleanup class and reaches Step 4's cleanup route, which is not a promise that the relay applies it — that route prefers /simplify and applies rows itself only when /simplify is absent. /simplify is not invoked for the producer-owned rows.",
       "files": [],
       "expectations": [
         "Resolves each row's qualified rule id against the detector-findings crosswalk and reads the producer-owned declaration from the rule's Auto-applicable cell — not from the finding's prose",

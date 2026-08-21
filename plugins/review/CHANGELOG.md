@@ -69,7 +69,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   fixer strips the backticks before matching**. A fixer matching the bare form against a
   backticked cell matches nothing and falls through to the ordinary class — the original defect
   wearing the new disposition's clothes. The contract states the convention once and binds both
-  the crosswalk cell and the optional `Action` shortcut to it.
+  the crosswalk cell and the corroborating `Action` lead to it.
 
 ## [0.25.1]
 
