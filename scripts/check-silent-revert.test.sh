@@ -424,6 +424,270 @@ t_rename_pin_is_load_bearing() {
   fi
 }
 
+# --------------------------------------------------------------------------
+# 2c. #2883 / #2884 -- attributes hide hunks; renameLimit decomposes.
+# --------------------------------------------------------------------------
+
+# build_basename_changing_relocation <repo> <n> <lines>
+# Lands n files at src/oldK.txt, then relocates them to dst/newK.txt with
+# the last line touched. That is the shape that consults git's inexact
+# rename pass: a pure `git mv` and a basename-preserving move both pair
+# in cheap pre-passes that `diff.renameLimit` does not gate (#2884).
+build_basename_changing_relocation() {
+  local repo="$1" n="$2" lines="$3" i j
+  mkdir -p "$repo/src"
+  for i in $(seq 1 "$n"); do
+    : >"$repo/src/old${i}.txt"
+    for j in $(seq 1 "$lines"); do
+      printf 'the alpha guard file %s line %s\n' "$i" "$j" >>"$repo/src/old${i}.txt"
+    done
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the corpus"
+  mkdir -p "$repo/dst"
+  for i in $(seq 1 "$n"); do
+    {
+      head -n $((lines - 1)) "$repo/src/old${i}.txt"
+      printf 'the alpha guard file %s line %s touched\n' "$i" "$lines"
+    } >"$repo/dst/new${i}.txt"
+    rm -f "$repo/src/old${i}.txt"
+  done
+  rmdir "$repo/src" 2>/dev/null || true
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: relocate the corpus"
+}
+
+# #2883. A path whose .gitattributes say `-diff` produces "Binary files
+# differ" and zero hunks, so attribute_file used to return without
+# blaming. Blame itself is fine -- the detector just never asked. The
+# issue's own fixture: 320 lock lines + a binary png churn + 25 text
+# lines. As shipped that saw only the 25. `--text` would also see the
+# png as hundreds of fake lines and is forbidden; blob-to-blob recovery
+# sees the lock (text) and not the png (binary content).
+t_minus_diff_lock_file_is_attributed() {
+  local repo sink lock_culprit txt_culprit
+  repo="$(mk_repo)"
+  {
+    printf '*.lock -diff\n'
+    printf '*.png binary\n'
+  } >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs and mark pngs binary"
+
+  add_block "$repo" foo.lock 320 alpha
+  lock_culprit="$(git -C "$repo" rev-parse HEAD)"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the image"
+  add_block "$repo" plain.txt 25 beta
+  txt_culprit="$(git -C "$repo" rev-parse HEAD)"
+
+  grep -v "the alpha guard rejects" "$repo/foo.lock" >"$repo/foo.lock.tmp" || true
+  mv "$repo/foo.lock.tmp" "$repo/foo.lock"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  grep -v "the beta guard rejects" "$repo/plain.txt" >"$repo/plain.txt.tmp" || true
+  mv "$repo/plain.txt.tmp" "$repo/plain.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  sort -o "$sink" "$sink"
+
+  if [[ "$RC" -eq 1 ]] &&
+    grep -qx "${lock_culprit} 320" "$sink" &&
+    grep -qx "${txt_culprit} 25" "$sink" &&
+    printf '%s' "$OUT" | grep -q 'foo.lock' &&
+    printf '%s' "$OUT" | grep -q 'plain.txt' &&
+    ! printf '%s' "$OUT" | grep -q 'img.png'; then
+    ok "a -diff lock file is attributed and a binary png churn is not (#2883)"
+  else
+    fail "lock/png/txt mix: want rc=1 with ${lock_culprit}=320 and ${txt_culprit}=25, no png; rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# The blob-to-blob recovery is the #2883 fix. Break the binary-files
+# detector and the lock file goes back to contributing zero -- a FALSE
+# GREEN at the shipped threshold, the issue's measured outcome.
+t_minus_diff_recovery_is_load_bearing() {
+  local repo intact_sink stripped_sink intact_rc stripped_rc
+  repo="$(mk_repo)"
+  printf '*.lock -diff\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs"
+  add_block "$repo" foo.lock 320 alpha
+  drop_block "$repo" foo.lock alpha "feat: unrelated feature (#99)"
+
+  strip_pin "$repo" no-attr-recover '/grep -q/ s/\^Binary files /^Binary files NEVER /' || return 0
+
+  intact_sink="$(mktemp)"
+  stripped_sink="$(mktemp)"
+  FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
+    run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  FINDINGS_SINK="$stripped_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/no-attr-recover.sh run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 1 ]] && [[ -s "$intact_sink" ]] &&
+    [[ "$stripped_rc" -eq 0 ]] && [[ ! -s "$stripped_sink" ]]; then
+    ok "blob-to-blob recovery is load-bearing: stripped it a -diff lock deletion is a FALSE GREEN"
+  else
+    fail "attr recovery did not discriminate (pinned rc=$intact_rc want 1, stripped rc=$stripped_rc want 0): pinned=[$(tr '\n' ';' <"$intact_sink")] stripped=[$(tr '\n' ';' <"$stripped_sink")]"
+  fi
+  rm -f "$intact_sink" "$stripped_sink"
+}
+
+# `--text` is the one flag that would force hunks through a `-diff` /
+# `binary` attribute, and it is the false-positive machine the issue
+# forbids: a 200 KB random blob is ~800 "lines". The detector must not
+# pass it. Comments may name it; a CODE line must not.
+t_detector_does_not_pass_text() {
+  local code
+  code="$(mktemp)"
+  grep -v '^[[:space:]]*#' "$SCRIPT" >"$code"
+  if grep -Eq -- '(^|[[:space:]])--text([[:space:]]|$)' "$code"; then
+    fail "the detector's code passes --text, which #2883 forbids: $(grep -E -- '--text' "$code")"
+  else
+    ok "the detector does not pass --text (blob-to-blob recovery, not -a)"
+  fi
+  rm -f "$code"
+}
+
+# Whole-file deletion of a `-diff` lock file -- the empty-blob branch,
+# not a truncation. A squash that dropped a sibling's lockfile update
+# is the #2883 impact case.
+t_minus_diff_whole_file_deletion_is_attributed() {
+  local repo sink culprit
+  repo="$(mk_repo)"
+  printf '*.lock -diff\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: hide lock diffs"
+  add_block "$repo" foo.lock 320 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  git_test_config "$repo" rm -q foo.lock >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -qx "${culprit} 320" "$sink"; then
+    ok "a wholly deleted -diff lock file is attributed (320 lines)"
+  else
+    fail "whole-file -diff deletion must fire 320, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# An ASCII-looking file marked `binary` must stay at zero. The pathless
+# blob diff would treat it as text (no NUL); the attribute is what keeps
+# it a non-finding -- the reviewer's 320-line PDF-like fixture.
+t_explicit_binary_ascii_is_not_attributed() {
+  local repo sink
+  repo="$(mk_repo)"
+  printf '*.pdf binary\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: mark pdfs binary"
+  {
+    printf '%%PDF-1.4\n'
+    for i in $(seq 1 320); do
+      printf 'the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+  } >"$repo/doc.pdf"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the ascii pdf"
+  : >"$repo/doc.pdf"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
+    ok "an ASCII file marked binary is not attributed"
+  else
+    fail "explicit binary must stay clean even without NULs, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# A genuine binary churn with the `binary` attribute must stay clean at
+# the shipped threshold. This is the control that keeps `--text` from
+# coming back: the same fixture under `--text` fires on ~800 lines.
+t_binary_asset_churn_is_not_a_finding() {
+  local repo sink
+  repo="$(mk_repo)"
+  printf '*.png binary\n' >"$repo/.gitattributes"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: mark pngs binary"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: land the image"
+  dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 status=none 2>/dev/null ||
+    dd if=/dev/urandom of="$repo/img.png" bs=1024 count=200 2>/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: re-export the image"
+
+  sink="$(mktemp)"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
+    ok "a binary png re-export is not a finding (no --text)"
+  else
+    fail "binary churn must stay clean, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+# #2884. git's default diff.renameLimit is 1000. Above it, a basename-
+# changing content-touched relocation decomposes into A+D and every
+# old-side line is attributed -- a false positive on a clean machine,
+# no hostile config required. -l0 is unlimited (git-diff(1)). N=1001
+# is the measured trip point when src == dst == N.
+t_rename_limit_does_not_decompose_basename_changing_relocation() {
+  local repo
+  repo="$(mk_repo)"
+  build_basename_changing_relocation "$repo" 1001 10
+  SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]]; then
+    ok "a 1001-file basename-changing relocation is not a finding (-l0)"
+  else
+    fail "default renameLimit must not decompose 1001 basename-changing moves, rc=$RC: $OUT"
+  fi
+}
+
+# -l0 is load-bearing against the limit, proven by taking it away.
+# 12 files of 20 lines with renameLimit=1 is the same mechanism as
+# 1001 files at the default 1000, cheap enough to run twice.
+t_rename_limit_flag_is_load_bearing() {
+  local repo cfg intact_rc stripped_rc intact_sink stripped_sink
+  repo="$(mk_repo)"
+  build_basename_changing_relocation "$repo" 12 20
+
+  cfg="$repo/low-rename-limit-gitconfig"
+  printf '[diff]\n\trenameLimit = 1\n' >"$cfg"
+
+  strip_pin "$repo" no-l0-pin '/--name-only/ s/ -l0 / /' || return 0
+
+  intact_sink="$(mktemp)"
+  stripped_sink="$(mktemp)"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
+    run_canary "$repo" --commit HEAD
+  intact_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$stripped_sink" SILENT_REVERT_THRESHOLD=200 \
+    CANARY_SCRIPT=scripts/no-l0-pin.sh run_canary "$repo" --commit HEAD
+  stripped_rc="$RC"
+
+  if [[ "$intact_rc" -eq 0 ]] && [[ ! -s "$intact_sink" ]] &&
+    [[ "$stripped_rc" -eq 1 ]] && [[ -s "$stripped_sink" ]]; then
+    ok "the -l0 flag is load-bearing: stripped it a renameLimit=1 relocation fires, pinned it stays clean"
+  else
+    fail "the -l0 flag did not discriminate (pinned rc=$intact_rc want 0, stripped rc=$stripped_rc want 1): pinned=[$(tr '\n' ';' <"$intact_sink")] stripped=[$(tr '\n' ';' <"$stripped_sink")] out=$OUT"
+  fi
+  rm -f "$intact_sink" "$stripped_sink"
+}
+
 # --no-ext-diff. `diff.external` is what difftastic's and delta's own install
 # instructions tell people to put in their global config, so this is ordinary
 # developer configuration rather than an exotic one -- and it is a FALSE GREEN:
@@ -2074,6 +2338,14 @@ t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
+t_minus_diff_lock_file_is_attributed
+t_minus_diff_whole_file_deletion_is_attributed
+t_minus_diff_recovery_is_load_bearing
+t_detector_does_not_pass_text
+t_explicit_binary_ascii_is_not_attributed
+t_binary_asset_churn_is_not_a_finding
+t_rename_limit_does_not_decompose_basename_changing_relocation
+t_rename_limit_flag_is_load_bearing
 t_ext_diff_pin_is_load_bearing
 t_textconv_pin_is_load_bearing
 t_show_signature_pin_is_load_bearing
