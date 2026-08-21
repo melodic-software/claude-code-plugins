@@ -31,9 +31,22 @@ The "Cursor unslop additions" section was inspired by
 - **Recheck trigger**: each `ai-slop` release and each fleet audit. Per-revision rechecking was
   rejected: the page was measured at 50+ edits/week (2026-08-17), so a per-revision trigger would
   fire continuously.
-- **Known fetch gap**: the page's "Comment-specific indicators" and "Ineffective indicators"
-  sections exceeded the fetch window at catalog time and are recorded as section notes below,
-  without entries. The recheck trigger covers closing this gap.
+- **Known fetch gap**: closed 2026-08-21 for both leftover sections. The catalog-time fetch
+  window missed "Comment-specific indicators" and "Ineffective indicators"; this recheck
+  retrieved them from the catalog pin and from the live page. See those sections below.
+- **Recheck logged (2026-08-21)**:
+  - Live page: <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>, MediaWiki
+    revisions query returned revision
+    [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579)
+    (`timestamp=2026-08-20T23:13:41Z`, user `Superb Owl`). Retrieved via WebFetch of the
+    article URL plus `action=query&prop=revisions`.
+  - Catalog pin: revision
+    [1369699198](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1369699198)
+    (2026-08-16). Retrieved via `action=parse&oldid=1369699198&prop=wikitext` (section 80 =
+    Ineffective indicators; section 62 = Comment-specific indicators; section 29 = Overuse of
+    em dashes).
+  - The inventory pin stays `1369699198`. This recheck closes the two-section gap; it does
+    not re-derive the rest of the inventory.
 
 ## Inventory
 
@@ -258,6 +271,13 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
   plan approval): any occurrence outside code fences and inline code flags. Documents that
   require em dashes opt out per-document via config path-lists or the in-file marker; the rule is
   never threshold-calibrated and is excluded from the `recorded-only` demotion path.
+- The source page's Style section (catalog pin and the 2026-08-21 recheck) treats this as a
+  **valid sign**, not an ineffective one. The same section carries the qualifier *"This sign
+  is most useful when taken in combination with other indicators, not by itself."* That is a
+  corroboration note on a kept tell, not a listing under **Ineffective indicators** (checked
+  explicitly; see that section). The shipped default stays zero-tolerance: this plugin is a
+  house-style detector, not a Wikipedia AI-authorship tribunal. A consuming repo that wants the
+  source's combination reading disables the rule or uses `em_dash_allowed_paths`.
 
 ### rule-emoji-formatting: Emoji as formatting
 
@@ -422,9 +442,21 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 
 ## Comment-specific indicators
 
-Section recorded as a known fetch gap (see the upstream-drift record): the source section exceeded
-the fetch window at catalog time. Its scope is Wikipedia talk-page comments, so its tells are
-expected to classify wikipedia-specific. Entries land when the recheck trigger next fires.
+Fetch gap closed 2026-08-21 (see the upstream-drift record). The source section is Wikipedia
+talk-page comments, so every tell classifies `wikipedia-specific` / `recorded-only`. No new
+rule slugs: the load-bearing overlap is already catalogued under Edit summaries
+(`rule-canned-policy-assurance`, `rule-verbose-edit-summaries`). The seven talk-page tells,
+quoted from the catalog pin (revision 1369699198, parse section 62) and confirmed on the live
+page (revision 1370403579):
+
+- Misquote policies and guidelines and cite made-up shortcuts.
+- Transclude maintenance banners whenever they mention them.
+- Post lengthy comments divided into sections with titles (Markdown, plain text, or
+  level-2/3 subheadings).
+- Downplay AI use by claiming policy adherence or that the comments "reflect their thoughts".
+- Request input from critics to determine what to improve.
+- Dismiss origin concerns as unsubstantiated speculation rather than "concrete" facts.
+- Urge critics to redirect toward improving content instead of worrying about AI generation.
 
 ## Edit summaries
 
@@ -539,10 +571,42 @@ emitted as findings.
 
 ## Ineffective indicators
 
-Section recorded as a known fetch gap (see the upstream-drift record): the source section exceeded
-the fetch window at catalog time. Its content lists signals the page's editors consider UNRELIABLE
-for detection; when the recheck fires, its items land here as guardrails on our own rules (a
-signal listed there must not become a rule).
+Fetch gap closed 2026-08-21 (see the upstream-drift record). This section lists signals the
+page's own editors consider **unreliable** for LLM detection — a guardrail on our roster, not
+a source of new rules. A signal listed here must not become a rule.
+
+**Verdict: no shipped rule appears here.** Compared against all 15 `v1: script` slugs in
+`detect.sh`, including the two candidates named when this gap was filed (`rule-em-dash`,
+`rule-rule-of-three`). Both of those live in other source sections as *valid* signs
+(Style / Language and grammar). The eight ineffective indicators are the same on the catalog
+pin (revision 1369699198, parse section 80, 2026-08-16) and the live recheck (revision
+1370403579, retrieved 2026-08-21 from
+<https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>).
+
+Quoted from the pin (CC BY-SA 4.0; ellipses mark dropped citation/example markup):
+
+> False accusations of AI use can drive away new editors and foster an atmosphere of
+> suspicion. […] Here are several somewhat commonly used indicators that are ineffective
+> in LLM detection—and may even indicate the opposite.
+
+- **Perfect grammar** — skilled human writers also produce this.
+- **Combination of casual and formal registers**, or language that sounds both "clinical"
+  and "emotional" — technical-field casual writing, mixed registers, or multi-editor pages.
+- **"Bland" or "robotic" prose** — LLM output has *specific* traits; "robotic" is not one.
+- **"Fancy", "academic", or "formal" prose** — the page's own wording: LLMs favor *specific
+  words*; "the correlation does not extend to all formal, academic, or 'fancy'-sounding
+  prose." `rule-ai-vocabulary` is the specific-word rule, not a formality detector.
+- **Transition words (in isolation)** — older output overused a few (`Additionally`,
+  `Consequently`, `Notably`); "this is not a strong tell." The shipped vocabulary list
+  already dropped `additionally` for legitimate technical use; there is no standalone
+  transition-words rule.
+- **Unsourced content** — most uncited articles predate LLMs; modern chatbots also cite.
+- **Bizarre wikitext** — random HTML/VisualEditor artifacts are *not* the LLM markup tells
+  already catalogued under Markup.
+- **Correct wikitext** — correct formatting is normal.
+
+None of those eight is a shipped script rule, a shipped rubric tell, or a Cursor-addition
+slug. No drop or re-scope follows.
 
 ## Historical indicators
 

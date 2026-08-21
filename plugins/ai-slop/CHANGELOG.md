@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.3.2]
+
+The catalog's cited source page lists an **Ineffective indicators** section — signals that
+page's own editors consider unreliable for LLM detection. Until this release both that
+section and **Comment-specific indicators** were a recorded fetch gap (the catalog-time
+window ran out before those headings). That left a guardrail question unanswered: if a
+rule we ship appeared there, we would be shipping a tell our own source classifies as
+ineffective.
+
+- **Negative finding, 2026-08-21.** Retrieved
+  <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing> (live revision
+  [1370403579](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1370403579),
+  `2026-08-20T23:13:41Z`) and re-read the catalog pin (revision
+  [1369699198](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1369699198),
+  2026-08-16, parse section 80). Both revisions list the same eight ineffective
+  indicators: perfect grammar; mixed casual/formal registers; "bland"/"robotic" prose;
+  undifferentiated "fancy"/"academic"/"formal" prose; transition words in isolation;
+  unsourced content; bizarre wikitext; correct wikitext.
+- **None of the 15 shipped script rules appear in that list**, including the two
+  candidates the gap was filed to check (`rule-em-dash`, `rule-rule-of-three`). Those
+  two remain valid *Style* / *Language and grammar* signs on the source page. The
+  em-dash entry's "most useful […] in combination with other indicators, not by
+  itself" sentence is a corroboration qualifier on a kept tell, not an Ineffective
+  indicators listing; zero-tolerance stays the shipped house-style default.
+- **Comment-specific indicators** retrieved in the same visit (pin section 62).
+  Wikipedia talk-page scope; the seven tells overlap existing recorded-only edit-summary
+  entries. No new slugs.
+- The inventory pin stays `1369699198`. Detector, emitter, evals, and rewrite guide are
+  untouched: this is the fetch-gap close, not a roster change.
+
 ## [0.3.1]
 
 The audit skill told operators to keep this plugin's findings away from the very relay route that
