@@ -97,6 +97,18 @@
         "Output states not to Skill-tool-invoke a disable-model-invocation / user-invoked-only target; tell the user to run the slash command instead",
         "Output does not claim check-skill.sh currently FAILs that reachability class automatically"
       ]
+    },
+    {
+      "id": 9,
+      "name": "verb-contract-mismatch-warn-is-advisory",
+      "prompt": "The skill-quality check on skill audit returned: `WARN: description/verb-contract mismatch: leaf verb 'audit' is a read-only findings report (PLUGIN-PHILOSOPHY Naming) but the description lead advertises mutation without an explicit override`. What does it mean and what should I do?",
+      "expected_output": "It is check 25, an advisory WARN, not a FAIL — the skill did not fail. It flags a factual-consistency defect in the listing surface: the description lead (or the leaf verb) tells a read-only story while the skill advertises or performs mutation, or the reverse. Hand-verify the lead against the Naming verb contract and the body. --fix in the description is the compliant override shape (claude-config:audit [--fix]). Do not treat the WARN as a mandate to add a --fix path or rename the skill — both are out of scope for this check. It does not block shipping.",
+      "files": [],
+      "expectations": [
+        "Output identifies the line as an advisory WARN (not a FAIL) that does not block shipping the skill",
+        "Output explains the mismatch is between the description/verb contract (read-only vs mutate) and is a factual-consistency defect in the listing surface",
+        "Output does NOT treat the WARN as a mandate to add a --fix path or rename the skill"
+      ]
     }
   ]
 }

@@ -80,6 +80,11 @@
 #  22. metadata.summary <= 100 Unicode codepoints (FAIL; the key is
 #      the generated skill cheat sheet's row source — the cap keeps rows
 #      scannable. Absent key = no finding)
+#  23. Completion-criteria signal on a 3+ step numbered procedure (WARN)
+#  24. disable-model-invocation stated explicitly (FAIL in plugins/; WARN
+#      elsewhere)
+#  25. Description/verb-contract polarity: read-only vs mutate (WARN;
+#      description lead vs Naming verb vs body; #2896)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -90,7 +95,7 @@
 #     clean tree (see above).
 #   - Frontmatter must open with `---` on line 1; content before the fence is
 #     not treated as frontmatter.
-#   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12,
+#   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12/25,
 #     so they see the text rather than the marker. A single-line quoted
 #     description is still preferred (the listing budget encourages this).
 #   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers.
@@ -1396,6 +1401,103 @@ elif [[ "$DMI_VAL" == "true" ]]; then
   fi
 else
   note "invocation mode: model-invoked (fleet default)"
+fi
+
+# --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
+# PLUGIN-PHILOSOPHY Naming fixes verb meanings: audit/scan are read-only
+# findings reports (mutation only behind an explicit override such as --fix);
+# clean/tidy/fix mutate the target. This check flags a description that tells
+# a different story than that verb contract, or than the body — the two
+# directions in #2896. Narrow by design:
+#   - polarity is read from the description LEAD (before "Use when:"), so a
+#     trigger phrase like 'fix the formatting' never advertises mutation;
+#   - override language (--fix, explicit override, never on bare) anywhere in
+#     the listing text is the compliant claude-config:audit [--fix] shape and
+#     clears a report-only verb;
+#   - "read-only by default" is a default-then-override shape, not a
+#     never-mutates claim;
+#   - "remediation" as a noun and a negated "or rewrites" list are not
+#     mutate-advertising.
+# Advisory only: a static scan cannot judge whether an audit skill should
+# gain a --fix path (out of scope) or whether a name should change (no
+# rename campaign). A WARN is a factual-consistency candidate to
+# hand-verify, not a mandate to rewrite the fleet.
+# Fenced code blocks are ignored in the body so a literal example cannot
+# satisfy or trip the body limbs.
+
+vc_lead_readonly() {
+  local t="$1"
+  case "$t" in
+  *"read-only by default"* | *"read only by default"*) return 1 ;;
+  esac
+  printf '%s' "$t" | grep -qE \
+    'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
+}
+
+# Positive action verbs only. "remediation" (noun) and "or rewrites" in a
+# never-does list are not advertising.
+vc_lead_mutate() {
+  printf '%s' "$1" | grep -qE \
+    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
+}
+
+vc_has_override() {
+  printf '%s' "$1" | grep -qE \
+    -- '--fix|explicit[[:space:]]+(user[[:space:]]+)?override|only[[:space:]]+behind|never[[:space:]]+on[[:space:]]+bare|not[[:space:]]+on[[:space:]]+bare|read[- ]only[[:space:]]+on[[:space:]]+bare'
+}
+
+# Body limbs are fence-aware (frontmatter + both CommonMark fence forms).
+# NO ERE INTERVALS — same mawk-portability rule as checks 21 and 23.
+VC_BODY="$(awk '
+  NR == 1 && /^---[ \t]*$/ { fm = 1; next }
+  fm { if (/^---[ \t]*$/) fm = 0; next }
+  /^[[:space:]]*(```|~~~)/ {
+    m = ($0 ~ /```/) ? "b" : "t"
+    if (!fence) { fence = 1; ch = m } else if (m == ch) fence = 0
+    next
+  }
+  fence { next }
+  { print }
+' "$SKILL_MD")"
+
+vc_body_bare_mutate() {
+  printf '%s\n' "$1" | awk '
+    { low = tolower($0) }
+    low ~ /never|does not|do not|not on bare/ { next }
+    low ~ /mutates on bare invocation|edits on bare invocation|writes on bare invocation/ { found = 1 }
+    low ~ /on bare invocation[, ]+(edit|write|apply|rewrite|mutate)([^a-z]|$)/ { found = 1 }
+    END { exit !found }
+  '
+}
+
+vc_body_never_mutate() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | grep -qE \
+    'never[[:space:]]+mutates|does not[[:space:]]+modify|no edits applied|never[[:space:]]+writes|read[- ]only[[:space:]]+on[[:space:]]+bare|does not[[:space:]]+fix[[:space:]]+on[[:space:]]+bare|nothing edits'
+}
+
+VC_LEAF="${SKILL_NAME%%-*}"
+VC_LEAD="$(printf '%s' "$CUR_DESC" | sed -E 's/[Uu]se[[:space:]]+[Ww]hen:.*//')"
+VC_LEAD_LC="$(printf '%s' "$VC_LEAD" | tr '[:upper:]' '[:lower:]')"
+VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')"
+
+VC_HIT=""
+if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
+  vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
+  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (PLUGIN-PHILOSOPHY Naming) but the description lead advertises mutation without an explicit override"
+elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
+  vc_lead_readonly "$VC_LEAD_LC"; then
+  VC_HIT="leaf verb '$VC_LEAF' mutates the target (PLUGIN-PHILOSOPHY Naming) but the description lead claims the skill is read-only/report-only"
+elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
+  VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
+elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
+  vc_body_never_mutate "$VC_BODY"; then
+  VC_HIT="description lead advertises fixing but the body claims the skill never mutates"
+fi
+
+if [[ -n "$VC_HIT" ]]; then
+  warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
+else
+  note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
 fi
 
 # --- Summary ---------------------------------------------------------------

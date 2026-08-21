@@ -3,6 +3,25 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **`check`: Check 25 — description/verb-contract polarity (WARN; advisory; #2896).**
+  Flags a listing-surface mismatch between what the description (lead clause,
+  before `Use when:`) says and what the Naming verb contract or the body does:
+  a report-only leaf (`audit`/`scan`) whose lead advertises mutation without an
+  explicit override, a mutate leaf (`clean`/`tidy`/`fix`) whose lead claims
+  read-only/report-only, a read-only lead whose body mutates on bare invocation,
+  or a mutate-advertising lead whose body claims the skill never mutates.
+  Override language (`--fix`, explicit override, never on bare) anywhere in the
+  listing is the compliant `claude-config:audit [--fix]` shape and clears a
+  report-only verb. "Read-only by default" is a default-then-override shape, not
+  a never-mutates claim; "remediation" as a noun and a negated "or rewrites"
+  list are not mutate-advertising. Trigger phrases stay out of polarity.
+  Advisory only — out of scope: whether any `audit` skill should gain a `--fix`
+  path, and any rename. Ten contract tests plus an eval case.
+
 ## [0.17.4]
 
 ### Fixed
