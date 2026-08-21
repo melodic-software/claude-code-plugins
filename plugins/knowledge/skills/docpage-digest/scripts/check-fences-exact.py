@@ -94,6 +94,11 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
                 f"indented. Indented-fence corruption is a defect; this gate "
                 f"does not strip indent to make it pass.")
             continue
+        if claim.fence.payload == "":
+            failures.add(
+                f"{label}: fence payload is empty. An unfinished "
+                f"placeholder is not a quote.")
+            continue
         if not payload_in_source(claim.fence.payload, source):
             shown = claim.fence.payload.replace("\n", "\\n")
             if len(shown) > 80:

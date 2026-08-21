@@ -202,6 +202,52 @@ this was never in the source
         proc = self.run_gate(text, 1)
         self.assertIn(b"duplicate", proc.stderr)
 
+    def test_empty_fence_payload_fails(self):
+        text = f"""## Key claims (verbatim)
+
+**C1.** `cc-applicable`
+
+```
+```
+"""
+        proc = self.run_gate(text, 1)
+        self.assertIn(b"empty", proc.stderr)
+
+    def test_blockquote_plus_later_fence_still_fails(self):
+        text = f"""## Key claims (verbatim)
+
+**C1.** `cc-applicable`
+
+> fabricated quote
+
+```
+{KEEP}
+```
+"""
+        proc = self.run_gate(text, 1)
+        self.assertIn(b"blockquote", proc.stderr)
+
+    def test_heading_inside_fence_does_not_truncate_section(self):
+        source = write(self.dir, "src2.md", "## Configuration\nkeep me \n")
+        text = f"""## Key claims (verbatim)
+
+**C1.** `cc-applicable`
+
+```
+## Configuration
+```
+
+## Prompt snippets (exact)
+
+none
+"""
+        digest = write(self.dir, "d2.md", text)
+        proc = subprocess.run(
+            [sys.executable, GATE, "--source", source, "--digest", digest],
+            capture_output=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(b"PASS", proc.stdout)
+
     def test_star_list_inside_fence_is_not_rewritten(self):
         # The defect the hook caused in a blockquote; a fence holds "* ".
         proc = self.run_gate(CLEAN, 0)

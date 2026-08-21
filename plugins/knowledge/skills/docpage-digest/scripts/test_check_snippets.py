@@ -141,6 +141,21 @@ this prompt was recalled, not copied
         proc = self.run_gate(text, 1)
         self.assertIn(b"indented", proc.stderr)
 
+    def test_blank_section_is_not_a_none_marker(self):
+        text = "## Prompt snippets (exact)\n\n"
+        proc = self.run_gate(text, 1)
+        self.assertIn(b"blank", proc.stderr)
+        self.assertNotIn(b"PASS", proc.stdout)
+
+    def test_empty_snippet_fence_fails(self):
+        text = """## Prompt snippets (exact)
+
+```
+```
+"""
+        proc = self.run_gate(text, 1)
+        self.assertIn(b"empty", proc.stderr)
+
     def test_key_claims_only_does_not_satisfy_this_gate(self):
         text = f"""## Key claims (verbatim)
 

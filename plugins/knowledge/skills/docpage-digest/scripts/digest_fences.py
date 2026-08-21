@@ -79,10 +79,23 @@ def split_lines(text: str) -> List[str]:
 
 
 def iter_h2_sections(text: str) -> Iterator[Tuple[str, str, int]]:
-    """Yield (heading-rest, section-body, heading-line-number) for each ``## ``."""
+    """Yield (heading-rest, section-body, heading-line-number) for each ``## ``.
+
+    H2-looking lines inside a fence are payload, not section boundaries —
+    a verbatim quote of a docs heading must not truncate Key claims.
+    """
     lines = split_lines(text)
     starts: List[Tuple[int, str]] = []
+    in_fence = False
     for idx, line in enumerate(lines):
+        is_open, _indented = _is_fence_opener(line)
+        if in_fence:
+            if _is_fence_closer(line):
+                in_fence = False
+            continue
+        if is_open:
+            in_fence = True
+            continue
         match = ATX_H2.match(line)
         if match:
             starts.append((idx, match.group(1)))
@@ -164,6 +177,8 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
             unclosed = False
         fence = fences[0] if fences else None
         prose = block if not fences else block.split("```", 1)[0]
+        # Forbidden carriers are defects even when a later fence is valid —
+        # a leftover blockquote/inline quote is still hook-corruptible.
         has_bq = bool(re.search(r"(?m)^>", prose))
         has_inline = bool(re.search(r"(?<!`)`[^`\n]+`(?!`)", prose))
         if unclosed:
@@ -173,17 +188,15 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
             label_line=start_line + idx,
             rest=match.group(2),
             fence=fence,
-            unfenced_blockquote=has_bq and fence is None,
-            unfenced_inline_code=has_inline and fence is None,
+            unfenced_blockquote=has_bq,
+            unfenced_inline_code=has_inline,
         ))
     return claims
 
 
 def is_none_section(body: str) -> bool:
-    text = body.strip()
-    if not text:
-        return True
-    return text.lower() in NONE_MARKERS
+    """True only for an explicit none-marker. Blank is not an assertion."""
+    return body.strip().lower() in NONE_MARKERS
 
 
 def payload_in_source(payload: str, source: str) -> bool:
@@ -193,7 +206,10 @@ def payload_in_source(payload: str, source: str) -> bool:
     spaces/tabs on that line is a *lost trailing space*, not a match —
     ``"keep me" in "keep me \\n"`` is True, and that is the hook defect.
     Mid-line substrings whose remainder is real text still match.
+    An empty payload is never a match (``str.find('')`` is always 0).
     """
+    if not payload:
+        return False
     start = 0
     while True:
         idx = source.find(payload, start)

@@ -53,6 +53,12 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
     _title, body, heading_line = found
     if is_none_section(body):
         return 0
+    if not body.strip():
+        failures.add(
+            f"{path}: Prompt snippets body is blank. A recognised "
+            f"none-marker is the only legal empty form; silence is not "
+            f"an assertion.")
+        return 0
     try:
         fences = extract_fences(body, start_line=heading_line + 1)
     except ValueError as exc:
@@ -73,6 +79,11 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
             failures.add(
                 f"{label}: opener is indented. Indented-fence corruption "
                 f"is a defect; this gate does not strip indent to pass.")
+            continue
+        if fence.payload == "":
+            failures.add(
+                f"{label}: payload is empty. An unfinished placeholder "
+                f"is not a snippet.")
             continue
         if not payload_in_source(fence.payload, source):
             shown = fence.payload.replace("\n", "\\n")
