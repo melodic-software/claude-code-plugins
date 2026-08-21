@@ -37,14 +37,13 @@
 #
 #     unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 #
-# GIT_CONFIG belongs in every clear list and the harnesses here all carry it: it
+# GIT_CONFIG belongs in every clear list and the CREDIT signal requires it: it
 # is a SECOND leak path, not another spelling of the first, because it replaces
 # the file the `git config` subcommand reads and writes rather than redirecting
-# discovery, so it survives `-C` and a cleared GIT_DIR alike. The CREDIT signal
-# below is deliberately narrower than the recommended list — GIT_DIR plus
-# GIT_WORK_TREE — because widening it would retroactively re-violate every suite
-# in the corpus that already clears correctly for the discovery path. Widening
-# it is tracked in #2889 rather than smuggled in here.
+# discovery, so it survives `-C` and a cleared GIT_DIR alike. Official docs
+# (git-config ENVIRONMENT): if no `--file` is given, `GIT_CONFIG` is used as
+# if it were `--file`. That is why a suite that only unsets the discovery
+# pair is still exposed.
 #
 # or if it sources a harness that does — scripts/test-git-helpers.sh is the
 # repo's shared one. Sourced harnesses are resolved by BASENAME against the
@@ -64,8 +63,11 @@
 #         os.environ.pop(_leaked_git_var, None)
 #
 # Because that idiom spans lines, the Python check is FILE-scoped rather than
-# line-scoped: the file must perform an environ pop/delete AND name both
-# load-bearing variables. Python has no `source` equivalent here, so a Python
+# line-scoped: the file must perform an environ pop/delete AND name every
+# load-bearing variable (GIT_DIR, GIT_WORK_TREE, GIT_CONFIG). A module-level
+# name bound to a literal of those names, then iterated into the pop, is the
+# same clear — the loop-variable tie follows that binding, not only an
+# in-header literal. Python has no `source` equivalent here, so a Python
 # suite must carry its own clear; there is no harness-inheritance path to
 # resolve, and that is recorded as a deliberate limit rather than an oversight.
 #
@@ -110,10 +112,15 @@ esac
 # every classification below is ONE bulk awk pass over the whole tracked set
 # rather than a grep per file. Three passes total, not eleven hundred.
 #
-# CLEARS: a shell file that unsets both load-bearing variables on one line, or
-#   a Python file that pops/deletes them from os.environ and names both. The
-#   Python arm is FILE-scoped because the idiom spans lines (a tuple of names
-#   iterated into os.environ.pop), so its verdict is emitted at end-of-file.
+# CLEARS: a shell file that unsets every load-bearing variable (GIT_DIR,
+#   GIT_WORK_TREE, GIT_CONFIG) on one logical line — an `unset` statement or
+#   `env -u`/`--unset` naming each — or a Python file that pops/deletes them
+#   from os.environ and names all three. The Python arm is FILE-scoped because
+#   the idiom spans lines (a tuple of names iterated into os.environ.pop), so
+#   its verdict is emitted at end-of-file. The shell arm joins physical lines
+#   while the previous line ends in an unescaped backslash, so a continued
+#   `git … \` / `unset … \` is one unit (the same recall the Python arm
+#   already had for formatter-wrapped argv).
 # FIXTURE: a suite that runs a repository-creating or identity-writing git
 #   command. Comments are stripped first, so prose about `git init` in a header
 #   does not conscript a suite that never touches a fixture. The command form is
@@ -138,8 +145,9 @@ scan() {
       OPEN  = "[[({]"
       CLOSE = "[]})]"
       # The variables a clear must name to earn credit, shared by both arms so
-      # the two languages cannot drift apart.
-      NREQ = 2; REQ[1] = "GIT_DIR"; REQ[2] = "GIT_WORK_TREE"
+      # the two languages cannot drift apart. GIT_CONFIG is the third because
+      # it is a distinct leak path (git-config ENVIRONMENT: used as --file).
+      NREQ = 3; REQ[1] = "GIT_DIR"; REQ[2] = "GIT_WORK_TREE"; REQ[3] = "GIT_CONFIG"
       # A joined Python logical line is capped. An unbalanced bracket inside a
       # string literal would otherwise accumulate to end of file, and a runaway
       # join is unsafe for CLEARS specifically: it could sweep an unrelated
@@ -218,8 +226,21 @@ scan() {
              s ~ ("del[ \t]+os[ \t]*\\.[ \t]*environ[ \t]*\\[[ \t]*" v "[ \t]*\\]")
     }
 
-    function py_logical(s,   i, v) {
+    function py_logical(s,   i, v, hdr, cname) {
       if (is_fixture(s)) print "FIXTURE\t" FILENAME
+      # A module-level name bound to a literal of the required names is the
+      # other spelling of the in-header tuple. Credit still requires a later
+      # loop over THAT name to perform the pop — a constant that merely
+      # mentions the names, or a pop that never met the constant, cannot
+      # satisfy the tie.
+      if (match(s, /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*[[(]/)) {
+        cname = substr(s, RSTART, RLENGTH)
+        sub(/^[ \t]+/, "", cname)
+        sub(/[ \t]*=.*/, "", cname)
+        for (i = 1; i <= NREQ; i++) delete CONST[cname, REQ[i]]
+        for (i = 1; i <= NREQ; i++)
+          if (s ~ (Q REQ[i] Q)) CONST[cname, REQ[i]] = 1
+      }
       if (match(s, /for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]*[[(]/)) {
         v = substr(s, RSTART, RLENGTH)
         sub(/^for[ \t]+/, "", v)
@@ -232,6 +253,20 @@ scan() {
         for (i = 1; i <= NREQ; i++) delete BOUND[v, REQ[i]]
         for (i = 1; i <= NREQ; i++)
           if (s ~ (Q REQ[i] Q)) BOUND[v, REQ[i]] = 1
+      } else if (match(s, /for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]+[A-Za-z_][A-Za-z0-9_]*/)) {
+        # `for _v in LEAKED:` — the iterable is a name, not a literal. Copy
+        # whatever that name currently binds; a rebound constant has already
+        # cleared CONST above.
+        hdr = substr(s, RSTART, RLENGTH)
+        v = hdr
+        sub(/^for[ \t]+/, "", v)
+        sub(/[ \t]+in[ \t]+.*/, "", v)
+        cname = hdr
+        sub(/^for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]+/, "", cname)
+        LOOPVAR[v] = 1
+        for (i = 1; i <= NREQ; i++) delete BOUND[v, REQ[i]]
+        for (i = 1; i <= NREQ; i++)
+          if (CONST[cname, REQ[i]]) BOUND[v, REQ[i]] = 1
       }
       for (i = 1; i <= NREQ; i++)
         if (pops_literal(s, REQ[i])) CLEARED[REQ[i]] = 1
@@ -251,11 +286,72 @@ scan() {
       print "CLEARS\t" cur
     }
 
+    # A shell physical line continues when the comment-stripped text, trimmed,
+    # ends in an unescaped backslash. `\\` at end of line is an escaped
+    # backslash, not a continuation; an odd trailing run is a continuation.
+    function is_cont(s,   t) {
+      t = s
+      sub(/[ \t]+$/, "", t)
+      return t ~ /(^|[^\\])(\\\\)*\\$/
+    }
+
+    # `env -u NAME` / `env --unset NAME` / `env --unset=NAME` is a correct
+    # per-command clear. Credit requires the clearing call itself to name
+    # every required variable, matching the unset-statement rule: a later
+    # mention on the same line cannot grant it, and naming only the discovery
+    # pair is not enough.
+    function env_clears(s,   i, ok) {
+      if (s !~ /(^|[ \t;|&])env[ \t]/) return 0
+      for (i = 1; i <= NREQ; i++) {
+        ok = (s ~ ("-u[ \t]*" REQ[i] "([^A-Za-z0-9_]|$)") ||
+              s ~ ("--unset=" REQ[i] "([^A-Za-z0-9_]|$)") ||
+              s ~ ("--unset[ \t]+" REQ[i] "([^A-Za-z0-9_]|$)"))
+        if (!ok) return 0
+      }
+      return 1
+    }
+
+    function unset_clears(s,   u, i) {
+      if (s !~ /^[ \t]*unset[ \t]/) return 0
+      u = s
+      sub(/^[ \t]*unset[ \t]+/, "", u)
+      sub(/;.*/, "", u)
+      for (i = 1; i <= NREQ; i++)
+        if (u !~ ("(^|[^A-Za-z0-9_])" REQ[i] "([^A-Za-z0-9_]|$)")) return 0
+      return 1
+    }
+
+    function sh_logical(s,   rest, path) {
+      if (is_fixture(s)) print "FIXTURE\t" FILENAME
+      # Comments are already stripped, and the names are matched inside the
+      # `unset` STATEMENT or the `env -u` FLAGS rather than anywhere on the
+      # line, so neither prose nor an unrelated later command can grant credit.
+      if (unset_clears(s) || env_clears(s)) print "CLEARS\t" FILENAME
+      if (s ~ /^[ \t]*(source|\.)[ \t]+/) {
+        rest = s
+        sub(/^[ \t]*(source|\.)[ \t]+/, "", rest)
+        # Take the first .sh-looking token rather than everything up to the
+        # first space: `. "$(dirname "$0")/lib/harness.sh"` embeds a space
+        # INSIDE the path expression, and truncating there loses the basename
+        # entirely — an under-selection, which is the unsafe direction here.
+        if (match(rest, /[^ \t"();|&]*\.sh/)) {
+          path = substr(rest, RSTART, RLENGTH)
+          sub(/.*\//, "", path)
+          if (path != "") print "SOURCE\t" FILENAME "\t" path
+        }
+      }
+    }
+
+    function sh_drain() {
+      if (sh_pending != "") { sh_logical(sh_pending); sh_pending = ""; sh_joined = 0 }
+    }
+
     FILENAME != cur {
-      py_drain(); flush_py()
+      py_drain(); flush_py(); sh_drain()
       cur = FILENAME
-      split("", CLEARED); split("", BOUND); split("", LOOPVAR)
+      split("", CLEARED); split("", BOUND); split("", LOOPVAR); split("", CONST)
       pending = ""; depth = 0; joined = 0
+      sh_pending = ""; sh_joined = 0
       ispy = (FILENAME ~ /\.py$/)
     }
     { line = $0; gsub(/\r/, "", line); code = line; sub(/#.*/, "", code) }
@@ -280,35 +376,19 @@ scan() {
       next
     }
 
-    # SHELL ARM.
+    # SHELL ARM. Same logical-line join as the Python arm, but the join
+    # signal is a trailing unescaped backslash rather than open brackets:
+    # `git -C "$d" \ init` and `unset GIT_DIR \ GIT_WORK_TREE \ GIT_CONFIG`
+    # are each one unit. A runaway join is capped at MAXJOIN.
     {
-      if (is_fixture(code)) print "FIXTURE\t" FILENAME
-      # Comments are already stripped, and the names are matched inside the
-      # `unset` STATEMENT rather than anywhere on the line, so neither prose nor
-      # a later command on the same line can grant the credit.
-      if (code ~ /^[ \t]*unset[ \t]/) {
-        u = code
-        sub(/^[ \t]*unset[ \t]+/, "", u)
-        sub(/;.*/, "", u)
-        if (u ~ /(^|[^A-Za-z0-9_])GIT_DIR([^A-Za-z0-9_]|$)/ &&
-            u ~ /(^|[^A-Za-z0-9_])GIT_WORK_TREE([^A-Za-z0-9_]|$)/)
-          print "CLEARS\t" FILENAME
-      }
-      if (code ~ /^[ \t]*(source|\.)[ \t]+/) {
-        rest = code
-        sub(/^[ \t]*(source|\.)[ \t]+/, "", rest)
-        # Take the first .sh-looking token rather than everything up to the
-        # first space: `. "$(dirname "$0")/lib/harness.sh"` embeds a space
-        # INSIDE the path expression, and truncating there loses the basename
-        # entirely — an under-selection, which is the unsafe direction here.
-        if (match(rest, /[^ \t"();|&]*\.sh/)) {
-          path = substr(rest, RSTART, RLENGTH)
-          sub(/.*\//, "", path)
-          if (path != "") print "SOURCE\t" FILENAME "\t" path
-        }
-      }
+      piece = code
+      cont = is_cont(code)
+      if (cont) sub(/[ \t]*\\[ \t]*$/, "", piece)
+      sh_pending = (sh_pending == "" ? piece : sh_pending " " piece)
+      sh_joined++
+      if (!cont || sh_joined >= MAXJOIN) sh_drain()
     }
-    END { py_drain(); flush_py() }
+    END { py_drain(); flush_py(); sh_drain() }
   ' "$@"
 }
 

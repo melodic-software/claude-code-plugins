@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The audit and
+  stateless suite helpers already unset the discovery variables; they now
+  also unset `GIT_CONFIG`, the second leak path that replaces the file
+  `git config` reads and writes. Test-only; no skill behavior change.
+
 ## [0.11.1]
 
 ### Changed

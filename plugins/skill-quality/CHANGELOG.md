@@ -3,6 +3,14 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.4]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** `check-skill` and
+  `check-listing-budget` suites already unset the discovery variables; they
+  now also unset `GIT_CONFIG`. Test-only; no skill behavior change.
+
 ## [0.17.3]
 
 ### Changed
