@@ -138,6 +138,12 @@ Present the checkpoint findings, then OFFER the forward routes; act only on the 
 - **Codify a durable learning** → `/session-flow:retro codify` (running-retro never edits
   `CLAUDE.md`, rules, or memory itself).
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
+- **Build the new-skill candidate** → hand it to `/playbooks:skill-authoring` and gate it on
+  `/skill-quality:check`, when those are installed; otherwise say the candidate has no authoring
+  route here and leave it recorded. The checkpoint already emits a "New-skill candidates" line, and
+  a candidate with no named destination is a finding that evaporates. Hand the shape over rather
+  than inventing one inline — a skill drafted ad hoc at the end of a checkpoint is the one most
+  likely to miss the conventions the authoring surface exists to carry.
 - **Nothing actionable** → say so and continue the task.
 
 ## Post-checkpoint checklist

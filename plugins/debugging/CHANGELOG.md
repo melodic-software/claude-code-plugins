@@ -3,6 +3,22 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`debug` phase 5: the red step now has to be red for the right reason.** Step 2 said "Watch it
+  fail (Red)" and stopped there. A test that errors on a typo, a bad import, or an unrelated defect
+  is also red — and the fix that turns *that* red green has not touched the bug, while the loop
+  reports a clean Red→Green cycle. The step now requires reading the failure message against the
+  root cause being targeted, and repairing the test or the reproduction before any implementation
+  edit when they do not match.
+
+  Absorbed from an upstream cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `tdd`
+  section), and the only part of its seven-step workflow that survived: an adversarial audit of the
+  plan confirmed everything else was owned twice over, and would have let this one slip past
+  unnoticed inside a wholesale rejection. Verified absent by reading the phase before landing.
+
 ## [0.6.1]
 
 ### Changed

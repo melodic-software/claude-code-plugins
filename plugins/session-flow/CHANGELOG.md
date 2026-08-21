@@ -1,5 +1,28 @@
 # Changelog — session-flow plugin
 
+## [0.31.0]
+
+### Added
+
+- **`running-retro` and `retro`: a new-skill candidate now has somewhere to go.** Both skills are
+  required to produce skill candidates — `running-retro`'s checkpoint block ends with a
+  "New-skill candidates" line, and `retro`'s skill-candidate analysis is marked REQUIRED — and
+  neither named a destination. `running-retro` offered exactly three routes (codify, tracker,
+  nothing), none of them authoring; `retro` gave a recommendation format and stopped. A candidate
+  with no destination is a finding that evaporates between sessions.
+
+  Both now hand an accepted candidate to `/playbooks:skill-authoring`, gated on
+  `/skill-quality:check`, presence-gated with the stated fallback of recording it and saying there
+  is no authoring route here. Both also say to hand the shape over rather than drafting one inline:
+  a skill written ad hoc at the end of a retro is the one most likely to miss the conventions the
+  authoring surface exists to carry.
+
+  Absorbed from an upstream cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `reflect`
+  section), whose contribution here is routing an accepted learning by edit size. An adversarial
+  audit of the plan widened the fix: the plan had scoped it to `running-retro` on the reasoning that
+  `retro`'s five dimensions are closed, which is a non-sequitur — `retro` closes its *scoring*
+  dimensions, not the improvement analysis that produces the candidates.
+
 ## [0.30.0]
 
 ### Changed

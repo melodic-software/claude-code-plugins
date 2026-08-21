@@ -3,6 +3,33 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`teach`: build a diagram up rather than opening with the finished one, and stop a lesson
+  degenerating into a reference dump.** Two rules absorbed from an upstream cursor/plugins skill
+  (`docs/upstream/cursor-pstack.md`, the `teach` section) into the lesson contract.
+
+  For anything with three or more moving parts, the lesson draws a short series where each picture
+  redraws the last and adds exactly one part, so the learner watches the system assemble — to teach
+  A→B→C, draw A→B, then redraw and add C, then redraw and add the return edge. Three small growing
+  diagrams beat one crowded one, and the series is the opposite of a wall: each step is small and
+  carries one idea. A single all-at-once diagram, especially one saved for the end, is a reference.
+  Verified absent fleet-wide before landing.
+
+  The second rule names the failure the first one prevents in prose: enumerating the functions,
+  constants, or fields a thing has produces something shaped like a lesson that teaches nothing. Say
+  what problem each part solves and how it works; if the draft reads like a changelog it belongs in
+  the concept's `reference.md`.
+
+  Both landed in `context/lessons.md` rather than in `visualization:visualize` or
+  `education:explain`, which an adversarial audit of the plan showed were both wrong homes.
+  `visualize` declares itself a form-and-medium router that "is not a craft teacher" and does not do
+  comprehension work, and the build-up rule is comprehension-driven by upstream's own words. And
+  `explain` is an ELI5 altitude drop that never lists functions in the first place, whereas the
+  Teach/Practice/Go-deeper lesson unit is exactly what can degenerate into one.
+
 ## [0.7.1]
 
 ### Changed
