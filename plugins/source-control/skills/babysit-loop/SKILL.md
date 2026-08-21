@@ -119,7 +119,7 @@ repository gets by *adopting* the lane in its team-tracked config: while the tar
 for that recorded adoption, the lane merges nothing and reports why. Once tracked adoption is in
 place, the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only
 when its work item classifies C2 mechanical, whoever authored it; bot authorship alone never
-qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips, 
+qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips,
 recorded, human-ratified, per the convention's autonomy ladder. The rung composes with the tier,
 never overrides it: a merge happens only when the resolved babysit-prs tier is merge-capable AND
 its deterministic gate proves the PR ready AND the PR's work item sits within the rung. The rung
@@ -335,7 +335,7 @@ sufficient grounds.
 invocation's own argument line typed both the literal `autopilot` tier argument and
 `--merge c3-this-run` (the widening pair above), a merge-eligible (C1-C3) PR blocked on a
 **machine-escalated** `needs-human` item, an open machine-authored finding, or a
-contradictory/unresolved **bot** review thread draws one fresh **frontier-tier** subagent dispatch, 
+contradictory/unresolved **bot** review thread draws one fresh **frontier-tier** subagent dispatch,
 context-independent, and run under the PR's worker lease, before it escalates. A floored dimension
 **withholds that dispatch outright** (flooring rule above); the PR escalates override-constrained.
 **Four blocker classes it never touches**: operator-*parked* items, human blocking feedback (both
