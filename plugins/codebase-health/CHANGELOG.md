@@ -7,11 +7,11 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 
 ### Changed
 
-- **`audit`: the remediation and config-lane routes name the Skill tool (#3002).** The
-  "Route remediation to the dedicated lanes" preamble now states once that each lane
-  (`/implementation:implement`, `/verification:confirm`) is invoked via the Skill tool, and the
-  Claude Code config route-out (`/claude-config:audit`, `/claude-config:audit-automation-gaps`)
-  says so inline. Wording only; presence gates and fallbacks unchanged.
+- **`audit`: the config-lane route-out names the Skill tool (#3002).** The Claude Code
+  config route-out (`/claude-config:audit`, `/claude-config:audit-automation-gaps`) says so
+  inline. The "Route remediation to the dedicated lanes" preamble is a user-driven
+  recommendation — `--fix` still says do not auto-invoke either remediation skill — so it
+  stays a mention. Wording only; presence gates and fallbacks unchanged.
 
 ## [0.8.0]
 
