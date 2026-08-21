@@ -388,9 +388,29 @@ redirect the credential off the intended tenant. Widening it to make a suite run
 real security control for a green check.
 
 Issue #2946 remains open because Linear is SaaS and cannot be self-hosted at any
-permission level. It
-needs a throwaway workspace or team plus an API token supplied through the environment — never
-a coordination workspace, since the suite closes what it creates.
+permission level. It needs a throwaway workspace or team plus an API key supplied through
+the environment as `WIT_LINEAR_API_KEY` (the name `config.linear.auth_env` carries) — never
+a coordination workspace.
+
+**A claim in an earlier draft of this very section was wrong and is corrected here**, which is
+worth recording given the section's subject. It said the target must be disposable "since the
+suite closes what it creates." It does not. `run-conformance.sh` contains no close or delete
+logic at all; cleanup is entirely the binding's `_cb_clean_at_start`, and only two bindings ever
+implemented one — `github` (closing every open issue through `gh`) and `local-markdown` (a fresh
+temp dir per run). The `jira`, `gitea`, and `linear` bindings shipped it as an unfilled `:`
+placeholder, so a live run would have created, claimed, and mutated issues and left every one of
+them behind.
+
+The `linear` binding now implements it for real, archiving every issue in the throwaway team
+through Linear's own GraphQL API rather than through the seam under test, and **failing loudly**
+if that pass errors — a cleanup that quietly does nothing is worse than none, because the suite
+then asserts counts against a previous run's leftovers and flaps for reasons no one can see. The
+`gitea` binding and the generator's template still carry the placeholder and now say so on
+stderr on every run instead of staying silent.
+
+The reason a disposable target is mandatory is therefore stronger than the original wording
+suggested, not weaker: the suite mutates real items, and outside `github` and `local-markdown`
+nothing has ever cleaned them up.
 
 ## Cross-links
 

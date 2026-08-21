@@ -3,6 +3,53 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.4]
+
+### Fixed
+
+- **Conformance left every item it created behind, for three of five bindings.** Caught by a
+  reviewer on a docs claim that said the opposite. `run-conformance.sh` contains no close or
+  delete logic at all — cleanup is entirely the binding's `_cb_clean_at_start`, and only `github`
+  (closing every open issue through `gh`) and `local-markdown` (a fresh temp dir per run) ever
+  implemented one. `jira`, `gitea`, and `linear` shipped it as an unfilled `:` placeholder, so a
+  live run would create, claim, and mutate real issues and leave all of them in the target, with
+  the suite's own count assertions then running against the previous run's leftovers.
+
+  **`linear` now implements it properly** — archiving every issue in the throwaway team through
+  Linear's own GraphQL API rather than through the seam under test (using the seam to prepare its
+  own fixture would let a broken adapter hide its breakage, which is why `github` uses `gh`). It
+  archives rather than deletes, so pointing it at the wrong scope stays recoverable, and the
+  credential goes in through curl's stdin config so it never reaches argv.
+
+  **It fails loudly.** A cleanup that quietly does nothing is worse than none: the suite then
+  flaps for reasons nobody can see. A list failure or a GraphQL error aborts with a message
+  naming the scope, rather than proceeding against an unknown starting state.
+
+  **The `gitea` binding and the generator template still carry the placeholder — but now say so
+  on stderr every run** instead of passing silently for finished work, so every future generated
+  adapter inherits the warning rather than the silence.
+
+  Five regression cases: the archive mutation is really sent; the team key is split out of
+  `<workspace>/<TEAMKEY>` and the workspace-qualified form never sent as the key (sending the
+  whole scope would match nothing and "clean" an empty set, which looks exactly like success);
+  and a provider error fails non-zero. Verified discriminating — reverting to the no-op turns
+  three of them red, and swallowing the GraphQL error turns the fourth red.
+
+  While writing it I reintroduced, by hand, the exact defect the generator's `display_name` guard
+  exists for: an apostrophe inside `${VAR:?word}`, which bash parses as a quote and which broke
+  the file's syntax. ShellCheck caught it immediately; the message is now apostrophe-free with a
+  note saying why.
+
+- **The Linear adapter's 13 GraphQL documents validated against Linear's real published schema**
+  (SDK v90.0.0 SDL, cross-checked against a separately-fetched `master` copy and against Linear's
+  own generated documents). All 13 pass: no unknown field, argument, or type; `String!` correct
+  where `ID!` would have been wrong; `Float!` correct for `Issue.number` where `Int!` would have
+  been wrong; every jq-built input-object field real and every required one set; the `"blocks"`
+  enum legal; relation direction confirmed (`inverseRelations` of type `blocks` on the target
+  means blocked-by, so `blocked_by_count` is oriented correctly). This closes, offline, the whole
+  class of failure Linear would reject regardless of workspace or credential — the class a live
+  conformance run would otherwise be first to hit.
+
 ## [0.39.3]
 
 ### Fixed
