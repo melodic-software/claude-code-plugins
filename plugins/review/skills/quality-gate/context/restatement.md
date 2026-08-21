@@ -21,7 +21,11 @@ When the project ships its own criteria for these concerns (SSOT/restatement rev
 
 ## Artifact
 
-Write a findings artifact to the findings location (SKILL.md "Shared inputs"), named `<UTC-timestamp>-restatement-review.md`, with frontmatter:
+Write a findings artifact to the findings location (SKILL.md "Shared inputs"), named `<UTC-timestamp>-restatement-review.md`.
+
+**Project evidence-contract first.** When the project ships its own evidence-artifact contract — resolved the same way as all criteria in this skill (SKILL.md "Shared inputs"; [criteria.md](criteria.md)) — that contract is the authority for the artifact's frontmatter keys and body shape. Use those fields exactly. Do not merge them with the bundled template below, and do not add `type`, `mode`, or `branch` the contract does not ask for. A hybrid (plugin `type`/`mode`/`branch` plus the project's keys) is the defect this rule exists to prevent.
+
+**Bundled template is the fallback only.** When the project defines no such contract, write this frontmatter:
 
 ```yaml
 ---
@@ -34,6 +38,6 @@ diff_base: <merge-base SHA>
 ---
 ```
 
-Findings table columns: `file:line | class | severity | finding | action`, where `class` is `restatement`, `detail-leak`, or `recorded-external-state`.
+Findings table columns: `file:line | class | severity | finding | action`, where `class` is `restatement`, `detail-leak`, or `recorded-external-state`. The project's contract, when present, owns the body shape too — these columns are the fallback.
 
 **A clean pass still writes the artifact** — scope (base SHA, HEAD SHA, file count) plus an explicit no-findings assertion. The artifact is evidence the lane ran, not just a record of what it found.

@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **`quality-gate` restatement lane: a project's evidence-artifact contract
+  now wins over the bundled frontmatter template (closes #2863).** The
+  Artifact section prescribed `type: restatement-review` plus `mode`/`branch`
+  with no exception, so sessions that followed the skill verbatim emitted
+  that shape even when the consumer already owned the artifact — a quality-gate
+  evidence contract that requires `type: quality-gate-evidence` (literal)
+  plus `date`/`slug`/`reviewed_at_sha`/`diff_base` was overridden, and a
+  scan of one adopter found fourteen hybrid or template-shaped artifacts
+  that its pre-push gate then accepted because it only parses
+  `reviewed_at_sha`. The bundled YAML is now the fallback only: when the
+  project ships its own evidence-contract criteria, those fields and the
+  contract's body shape are authoritative, and the two shapes are not
+  merged. Default consumers with no contract are unchanged.
+
 ## [0.26.2]
 
 ### Fixed
