@@ -1,7 +1,7 @@
 # Save-point engine — produce the save-point and the resume prompt
 
 Shared by `/session-flow:handoff` and `/session-flow:continue-in-background`. This document owns
-the delivery-agnostic machinery: locating the position, choosing the path, producing the (redacted)
+delivery-agnostic machinery: locating the position, choosing the path, producing the (redacted)
 save-point, and emitting the rails resume prompt. The citing skill owns everything after the rails
 prompt — its delivery step (`/clear`-then-paste, or a background-agent launch) and its own STOP
 semantics. Neither skill restates this content; both walk it in order.
@@ -19,12 +19,12 @@ it (announced) when absent; never edit the consumer's root `.gitignore`.
 
 **Worktree caveat.** A save-point written inside a `git worktree` checkout resolves its memory
 root within that worktree, so the handoff file lives there — and dies with `git worktree remove`.
-That is acceptable only when the worktree completes as a merged PR unit: the work is durable in
-merged history by the time the worktree goes. When pausing un-merged worktree work, write the
-handoff from the main checkout instead, or rely on `/session-flow:clean-stop`'s
-preserve-before-remove step — before removing a worktree it inspects the ignored content a plain
-`git status` hides (`git status --ignored`) and preserves or surfaces anything not reproducible,
-generated handoff data included.
+Acceptable only when the worktree completes as a merged PR unit: the work is durable in merged
+history by the time the worktree goes. When pausing un-merged worktree work, write the handoff
+from the main checkout, or rely on `/session-flow:clean-stop`'s preserve-before-remove step —
+before removing a worktree it inspects ignored content a plain `git status` hides
+(`git status --ignored`) and preserves or surfaces anything not reproducible, generated handoff
+data included.
 
 ## Locate the position first
 
@@ -51,13 +51,14 @@ clearly hold:
 - No invariant a resuming session could violate without noticing
 - No side effect already applied that a fresh session would otherwise repeat
 
-The last two are the sharpest: a short, straightforward remainder is exactly the shape that passes
-every other test, and "the migration is already applied — do not re-run" is precisely the fact a
-prompt-only bullet list drops. A single one of them is enough to force the full path.
+The last two are the sharpest: a short, straightforward remainder is the shape that passes every
+other test, and "the migration is already applied — do not re-run" is the fact a prompt-only
+bullet list drops. A single one of them forces the full path.
 
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
-a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but note
-`prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain pointer).
+a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but
+`prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain
+pointer).
 
 ## Redaction pass — mandatory on BOTH paths
 
@@ -102,7 +103,7 @@ a fact to forward.
 
 This governs both paths, not just the full path's body sections. On the full path it shows up
 throughout [`structure.md`](structure.md) — most visibly the met/unmet marks in Completion criteria.
-Prompt-only writes no body sections at all, so the marker attaches directly to whichever inline
+Prompt-only writes no body sections, so the marker attaches directly to whichever inline
 remaining-work bullet carries the inherited status; a bullet that folds in an inherited "done" or
 "blocked" without `UNVERIFIED (<source>)` reproduces the exact failure this rule exists to prevent,
 with no file left behind for a later review to catch it in.
@@ -110,8 +111,8 @@ with no file left behind for a later review to catch it in.
 ## Original goal — mandatory on BOTH paths
 
 The goal in the user's own words travels with every save-point, and a chain of them carries it
-forward unchanged. A save-point serializes the machinery in front of it effortlessly — the phase,
-the checklist, the bundle — and hands the resuming session a mission made of process, which that
+forward unchanged. A save-point serializes the machinery in front of it — the phase, the
+checklist, the bundle — and hands the resuming session a mission made of process, which that
 session then optimizes faithfully. State is what a save-point preserves for free; intent is what it
 drops in silence, and no amount of detail elsewhere replaces it.
 
@@ -182,22 +183,22 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 — walk it while writing the file; never write the section list from memory.
 
 When the target file already exists on disk (extending an earlier turn's write), re-read it from
-disk immediately before writing and append to it — never rewrite the whole file from the in-context
-copy, which goes stale the moment disk moved on without this conversation seeing it.
+disk immediately before writing and append to it — never rewrite the whole file from the
+in-context copy, which goes stale the moment disk moved on without this conversation seeing it.
 
 ## Emit the position panel
 
 A save-point is written for the NEXT session, but a human reads the turn that produces it — and at
-that moment they are deciding two things the save-point never tells them: whether this is a sane
-place to stop, and whether the work is still pointed where they wanted it. Everything needed to
-answer both was already established by "Locate the position first" and the sections above; without
-this step it is all filed into the handoff document, whose stated reader is a session with no prior
-context, and on prompt-only it is written down nowhere at all. The panel renders that state for the
+that moment they decide two things the save-point never tells them: whether this is a sane place
+to stop, and whether the work is still pointed where they wanted it. Everything needed to answer
+both was already established by "Locate the position first" and the sections above; without this
+step it is all filed into the handoff document, whose stated reader is a session with no prior
+context, and on prompt-only it is written down nowhere. The panel renders that state for the
 operator.
 
 **It restates; it never discovers.** Every line comes from what this turn already established. A
 fact not good enough for the file is not good enough here, and the panel never triggers a read the
-save-point did not already need. That is what separates it from `/session-flow:orient`, which sweeps
+save-point did not already need. That separates it from `/session-flow:orient`, which sweeps
 durable and off-thread state on demand; this is the free exit-side view.
 
 **One call is exempt, and only one:** the `TaskList` fetch a FORCED prompt-only save-point never
@@ -226,9 +227,9 @@ Up next — finish the cancellation pass-through, then Phase 3 edge-case tests (
 
 **Every line stands alone — nothing wraps.** One unit per line, and each of the three blocks is a
 single line. When a line runs long, tighten the wording; never continue it onto an indented second
-line. That is the whole reason the rail is vertical rather than a `→`-chained row: a horizontal rail
-wraps at whatever width the terminal happens to be, and the wrap orphans the position marker from
-the unit it marks — destroying the one thing the panel exists to show.
+line. The rail is vertical rather than a `→`-chained row because a horizontal rail wraps at
+whatever width the terminal happens to be, and the wrap orphans the position marker from the unit
+it marks — destroying the one thing the panel exists to show.
 
 Status glyphs are the ones [`structure.md`](structure.md) already uses for the TaskList snapshot
 (`[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked), so a reader who has seen a
@@ -237,14 +238,14 @@ only additions.
 
 **Above 8 units the middle elides; the panel never scrolls.** Keep the first two units, the current
 unit with one neighbour either side, and the last one, replacing each dropped run with a `… N more`
-line. A map keeps its ends and its "you are here" and drops the middle — that is what makes it
-readable at a glance, and a rail long enough to scroll is one the operator will not read.
+line. A map keeps its ends and its "you are here" and drops the middle — readable at a glance. A
+rail long enough to scroll is one the operator will not read.
 
 The whole panel is capped at 16 lines, blocks included.
 
 **The count is of COMPLETED units, and an in-progress unit is not one.** The example above reads
-`2 of 5` with a `[~]` third phase for exactly that reason: `[~]`, `[ ]`, and `[!]` all count against
-the total, and only `[x]` counts toward it. Rounding the current unit up is the one arithmetic a
+`2 of 5` with a `[~]` third phase for that reason: `[~]`, `[ ]`, and `[!]` all count against the
+total, and only `[x]` counts toward it. Rounding the current unit up is the one arithmetic a
 progress read is most tempted into and least allowed — it reports work as landed while the operator
 is looking at the line that says it is not.
 
@@ -513,9 +514,9 @@ required key.
 
 **The position panel sits outside this contract.** It is emitted above every keyed signal and
 outside the copy region, carries no rails, no directive, and no `Prior session:` line, and a
-consumer that ignores it entirely recovers exactly what it recovered before. Adding it is therefore
-not a contract change and needs no `find-handoff` edit — stated explicitly because everything else
-in this section treats a shape change as a knowing break.
+consumer that ignores it entirely recovers exactly what it recovered before. Adding it is
+therefore not a contract change and needs no `find-handoff` edit — stated explicitly because
+everything else in this section treats a shape change as a knowing break.
 
 **Signal 1 carries a rooted path now, and a consumer must still accept the rootless form.** Every
 handoff emitted before this rule shipped states a repo-relative path, and those files and

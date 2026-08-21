@@ -1,5 +1,35 @@
 # Changelog — session-flow plugin
 
+## [0.32.3]
+
+### Changed
+
+- **Handoff instruction walk compressed (#3018).** `docs-hygiene:compress` over the three files
+  loaded at `/session-flow:handoff` invocation — `reference/save-point.md`,
+  `reference/structure.md`, and `skills/handoff/SKILL.md` — dropping flavor (articles, filler,
+  hedging, verbose verbs) and leaving every load-bearing contract intact: the `find-handoff`
+  detection signals (rails, `` `/clear`, then copy everything between the dashed lines ``,
+  `Read @…-handoff-…` directive, `Re-arm <i> of <n> — <L> lines:` length-delimited entries), the
+  redaction rules (git-remote-URL userinfo strip vs shape markers), rooted-path / `Handoff origin:`
+  rationale, and both-path original-goal / claim-provenance / purpose rules. Measured
+  `LC_ALL=C.UTF-8 wc -c` against the pre-compress snapshots: save-point **40831 → 40679** (152 B,
+  0.37%), structure **23296 → 23269** (27 B, 0.12%), SKILL **19641 → 19632** (9 B, 0.05%) — **188 B
+  total, 0.22%**. Line counts are essentially unchanged (one wrap-only extra line on save-point).
+  The walk was already author-time-disciplined; remaining yield sits under the compress skill's
+  2–3% always-loaded bound. Shipped under the issue's explicit `--force` (named-file compress of
+  this walk), not as a claim that the files were verbose.
+
+  **Stop-hook escalation re-reviewed; still deferred.** 0.26.1 recorded a lightweight Stop-hook
+  validator (`last_assistant_message` regex for the detection-contract signals, PostToolUse
+  skill-ran marker, one bounded block, fail-open, hook-budget README share, sibling contract test)
+  as the next step *if the rails prompt goes missing again after that reorder*. This pass found no
+  remaining instruction defect that would cause a rails-drop: STOP still ends the underlying task
+  and never the response before the prompt is on screen; the emit box is still never satisfied by
+  writing the file; output order is still panel → checklist → rails-last. The original deferral
+  grounds still hold — a single observed occurrence, file-mode recovery via `find-handoff` rung 1,
+  and a false-positive block that lands at the degraded occupancy the skill runs under — and a
+  0.22% flavor cut does not change occupancy enough to flip them. No hook shipped.
+
 ## [0.32.2]
 
 ### Fixed

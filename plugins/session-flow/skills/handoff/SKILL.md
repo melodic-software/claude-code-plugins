@@ -19,7 +19,7 @@ this skill hardest, failing it at load in exactly the isolated sessions that mos
 ## Purpose
 
 Context bloat is expensive and quality degrades as context rots. When a task has room left but the
-session should fork anyway, capture a save-point — a handoff document, or just a copy-paste resume
+session should fork anyway, capture a save-point — a handoff document, or a copy-paste resume
 prompt when follow-ups are small — and `/clear`.
 
 **What licenses that judgment matters as much as the judgment.** The trigger is the user's own
@@ -28,15 +28,15 @@ never a self-estimated budget. A remaining-context reading is a measurement, not
 volunteering a handoff on the strength of one interrupts work that was fine.
 
 Based on the canonical pattern Anthropic recommends for the `/clear` workflow: put the rest of the
-plan in a handoff file; explain what you tried, what worked, and what didn't, so the next agent with
-fresh context can load that file and nothing else. The save-point captures a *snapshot* of in-flight
-state — including the approaches already ruled out — so the next session doesn't waste effort
-rediscovering dead ends.
+plan in a handoff file; explain what you tried, what worked, and what didn't, so the next agent
+with fresh context can load that file and nothing else. The save-point captures a *snapshot* of
+in-flight state — including approaches already ruled out — so the next session doesn't waste
+effort rediscovering dead ends.
 
 This skill delivers the save-point for a MANUAL resume: the user `/clear`s and pastes the resume
 prompt themselves. To hand the resume prompt to a fresh background agent that continues the task
-now, invoke the sibling `/session-flow:continue-in-background` via the Skill tool instead — same save-point engine,
-different delivery.
+now, invoke the sibling `/session-flow:continue-in-background` via the Skill tool instead — same
+save-point engine, different delivery.
 
 ## Arguments
 
@@ -176,14 +176,13 @@ ambiguous.
 **Output order is fixed: position panel first, ticked checklist next, rails prompt last.** The panel
 is what the operator actually reads (engine doc, "Emit the position panel"), so it leads; the
 checklist is this skill's own audit trail and follows it; and the rails prompt closes the response.
-The rails resume prompt —
-the copy instruction, the two dashed rails, and every below-the-rails `/loop` re-arm note — is the
-FINAL text of the response, with nothing after it. This order exists because the rails prompt is
-the deliverable the operator copies, and a turn that ends on anything else has been observed to end
-*without the rails prompt at all* under heavy context: the save-point file exists, but the operator
-has nothing to paste after `/clear`. A response whose last text is not the rails block (plus its
-below-rail notes) is a FAILED handoff even when every box above is ticked — emit the rails block
-before ending the turn, always.
+The rails resume prompt — the copy instruction, the two dashed rails, and every below-the-rails
+`/loop` re-arm note — is the FINAL text of the response, with nothing after it. This order exists
+because the rails prompt is the deliverable the operator copies, and a turn that ends on anything
+else has been observed to end *without the rails prompt at all* under heavy context: the
+save-point file exists, but the operator has nothing to paste after `/clear`. A response whose
+last text is not the rails block (plus its below-rail notes) is a FAILED handoff even when every
+box above is ticked — emit the rails block before ending the turn, always.
 
 **Full path:**
 
