@@ -234,6 +234,46 @@ else
   fail "non-md not skipped (rc=$RC_S out=$OUT_S)"
 fi
 
+# --- hooks.json: do not launch on non-Markdown Writes (#2867) ---------------
+# The script's extension skip is defense in depth. The reported failure was a
+# .txt Write that never reached that skip: Claude Code launched the handler
+# (matcher Write|Edit, no if) and recorded hook_non_blocking_error with empty
+# stderr — official semantics for a canceled / non-zero hook with no output.
+# Registration must refuse that launch. Official hooks + permissions (fetched
+# 2026-08-21): if is exactly one permission rule; Edit(path) covers Write;
+# Write(path) is never consulted; shell form without shell: bash falls through
+# to PowerShell on Windows when Git Bash is not detected.
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
+  HANDLERS="$(jq -c '
+    [.hooks.PostToolUse[]? | select(.matcher == "Write|Edit") | .hooks[]?]
+  ' "$HOOKS_JSON")"
+  HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
+  IF_VALUES="$(jq -r '[.[].if] | sort | join(" ")' <<<"$HANDLERS")"
+  WRITE_IF="$(jq '[.[] | select(.if | startswith("Write("))] | length' <<<"$HANDLERS")"
+  ARGS_PRESENT="$(jq '[.[] | select(has("args"))] | length' <<<"$HANDLERS")"
+  SHELL_OK="$(jq '[.[] | select(.shell == "bash")] | length' <<<"$HANDLERS")"
+  CMD_OK="$(jq --arg needle '${CLAUDE_PLUGIN_ROOT}' '
+    [.[] | select(
+      (.command | contains($needle)) and
+      (.command | contains("markdown-format.sh")) and
+      (.command | contains("\"${CLAUDE_PLUGIN_ROOT}\""))
+    )] | length
+  ' <<<"$HANDLERS")"
+  if [[ "$HANDLER_COUNT" == "2" &&
+    "$IF_VALUES" == "Edit(*.md) Edit(*.mdc)" &&
+    "$WRITE_IF" == "0" &&
+    "$ARGS_PRESENT" == "0" &&
+    "$SHELL_OK" == "2" &&
+    "$CMD_OK" == "2" ]]; then
+    ok "hooks.json launches only for Edit(*.md) and Edit(*.mdc), shell form, shell bash"
+  else
+    fail "hooks.json launch gate: count=$HANDLER_COUNT if='$IF_VALUES' write_if=$WRITE_IF args=$ARGS_PRESENT shell=$SHELL_OK cmd=$CMD_OK"
+  fi
+else
+  fail "hooks.json launch-gate assertions need jq and $HOOKS_JSON"
+fi
+
 # --- Fire gate: non-existent .md skips --------------------------------------
 OUT_M="$(run_hook "$REPO/does-not-exist.md")"
 RC_M=$?

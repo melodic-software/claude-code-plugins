@@ -237,16 +237,42 @@ A gets this reach from its `**Integration branch:**` line; Shape B has no such l
 is the only thing standing between a clean-looking close-out and one rendered over a partial
 record.
 
-**An empty rung-1 result is an answer, not a failure.** A *successful* query returning zero merged
-PRs means that sub-item closed without shipping code — investigation and decision items are closed
-by a recorded comment and produce none by design, and a container's journey routinely contains
-them. Classify it `no-code`, keep it out of the basis, and judge its acceptance criteria against
-its closing comment rather than against a diff it never had. Only a *failed* query (non-zero exit)
-falls to rung 2. Collapsing these two into one "nothing found" bucket is what turns a legitimately
-code-free item into a phantom coverage gap.
+**An empty rung-1 result is an answer, not a failure — but it is not yet the `no-code` answer.** A
+*successful* query returning zero merged PRs means only that **no PR named this item with a closing
+keyword**. Two very different things produce that, and they must not be collapsed:
 
-**Rung 2 — scan the default branch for the squash subjects.** The rung-1 query failed: search the
-default branch's history for commits referencing each sub-item. **Flag the whole set as heuristic
+- The sub-item genuinely shipped no code. Investigation and decision items are closed by a recorded
+  comment and produce none by design, and a container's journey routinely contains them.
+- The sub-item shipped code under a PR that referenced it as `Refs #N` rather than `Closes #N`.
+  That is a **sanctioned** opt-out, not an oversight: `work-items`' own
+  [`work/SKILL.md`](../../../../work-items/skills/work/SKILL.md) records that "the closing-keyword
+  linkage is the authoritative signal … so an intentional `Refs #N` opt-out does not exclude its
+  issue." It is the normal shape whenever one PR advances several items but closes only the
+  spin-offs it fully resolves.
+
+**So an empty rung-1 result falls to rung 2 as well** — not only a *failed* query. Classify
+`no-code` only when rung 2 ALSO finds nothing, and say which of the two rungs produced that
+verdict. Reaching for `no-code` on rung 1's silence alone drops every `Refs`-linked item's diff
+from the basis while the report still claims to cover the shipped whole.
+
+This is not hypothetical, and the mode found it by reviewing the container that shipped it.
+Container #2933's own close-out: PR `#3056` carried `Closes` for three spin-offs only, while PRs
+`#3067` and `#3071` carried no closing keyword at all — so rung 1 came back successful-and-empty
+for three sub-items (`#2946`, `#2950`, `#2952`) that between them shipped **83 file-touches** of
+adapter and generator code. (Issue refs are backticked through this paragraph on purpose: a reflow
+that lands a bare `#NNNN` at line start turns it into an H1.)
+Under the previous wording all three would have been classified `no-code` and dropped, and the
+cumulative review would have rendered a verdict over a basis missing most of the container's
+adapter work — while reporting itself complete. `#3027`'s dogfood criterion ("the container can
+run it against itself") is exactly what exposed it.
+
+Rung 2 remains heuristic and must still be **flagged as heuristic** for any item it resolves; an
+item resolved there is not as certain as one the provider linked. That is the honest cost of
+admitting `Refs`-linked work, and it is far cheaper than silently omitting it.
+
+**Rung 2 — scan the default branch for the squash subjects.** The rung-1 query failed **or came
+back empty** — both reach here, per the rule above: search the default branch's history for
+commits referencing each sub-item. **Flag the whole set as heuristic
 in the report** — this matches text, and text can lie:
 
 ```bash
@@ -267,9 +293,19 @@ Three reductions this rung needs, all of them learned from running it:
   describing the journey, not shipping an item.
 - **Prefer the closing-keyword form.** `Closes`/`Fixes`/`Resolves #N` is the provider's own
   closure grammar; a bare `#N` is a mention and ranks below it.
-- A sub-item with **no** surviving hit is `unresolved` — a coverage gap in the review, distinct
-  from rung 1's `no-code`, because this rung cannot tell the two apart. Say which one it is.
-  A sub-item with more than one surviving hit is presented for disambiguation, never guessed.
+- A sub-item with **no** surviving hit here is classified by **why rung 1 was empty**, and the two
+  cases must not be collapsed:
+  - **Rung 1 succeeded and returned nothing, and rung 2 also finds nothing** → `no-code`. Two
+    independent looks agree the item shipped none, which is exactly what an investigation or
+    decision item looks like. Keep it out of the basis and judge its criteria against its closing
+    comment. This does **not** escalate to rung 3.
+  - **Rung 1 *failed*** (non-zero exit — the provider was unreachable or the query errored) **and
+    rung 2 finds nothing** → `unresolved`. Nothing has actually looked successfully, so this is a
+    coverage gap in the review, and it escalates to rung 3.
+
+  Say which of the two it is, every time. Collapsing them either stops a close-out over an item
+  that legitimately shipped no code, or lets a real gap pass as a benign one.
+- A sub-item with more than one surviving hit is presented for disambiguation, never guessed.
 
 **Rung 3 — ask.** Interactive: present the sub-item list with what each rung returned, and ask the
 operator to name the shipping PRs or commits. One question, then proceed.

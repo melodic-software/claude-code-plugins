@@ -425,10 +425,27 @@ expressible. That rule exists so a PR-modifiable binding cannot smuggle URL stru
 redirect the credential off the intended tenant. Widening it to make a suite run would trade a
 real security control for a green check.
 
-Issue #2946 remains open because Linear is SaaS and cannot be self-hosted at any
-permission level. It needs a throwaway workspace or team plus an API key supplied through
-the environment as `WIT_LINEAR_API_KEY` (the name `config.linear.auth_env` carries) — never
-a coordination workspace.
+Issue `#2946` **closed 2026-08-21 with its live-conformance clause descoped**, the same treatment
+`#2950` and `#2952` received. An earlier version of this paragraph said it "remains open"; that was
+true when written and is recorded here rather than quietly overwritten, because this section is the
+durable record of the adapter track's scope decisions.
+
+The reason it could not be met is unchanged: Linear is SaaS and cannot be self-hosted at any
+permission level, so a live run needs a throwaway workspace or team plus an API key supplied
+through the environment as `WIT_LINEAR_API_KEY` (the name `config.linear.auth_env` carries) —
+never a coordination workspace.
+
+What changed is the evidence that replaced it. The adapter was validated against Linear's **real
+published GraphQL schema** (`@linear/sdk` 90.0.0 cross-checked against the published SDL): all 18
+operations validate clean under `graphql-js`, with a negative control catching 10 of 10 injected
+faults, and the pass found and fixed two real defects — a `page_size` above Linear's cap of 250
+that config validation accepted, and label resolution that could see neither workspace-level labels
+nor past its own first page. So what ships is **verified against the provider's schema and a full
+mocked-transport suite, never against a live server** — materially stronger than "unverified", and
+still short of what the criterion asked. Four resolver-level questions stay open and are named on
+the issue: whether `assigneeId: null` semantically unassigns, Linear's default comment ordering,
+whether `Team.labels` really excludes workspace labels, and behaviour under real rate limits and
+concurrent claims.
 
 **A claim in an earlier draft of this very section was wrong and is corrected here**, which is
 worth recording given the section's subject. It said the target must be disposable "since the
