@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Drift check: the citation fields the auditor produces and the audit skill
-# consumes must also appear on the emitted work-item body schema. Issue 2864
-# was exactly this drop — produce and consume required a retrieval channel
-# plus a byte count or line number; config.md's body sections did not.
+# consumes must also appear on the emitted work-item body schema. The
+# emit-schema gap was exactly this drop — produce and consume required a
+# retrieval channel plus a byte count or line number; config.md's body
+# sections did not.
 #
 # Asserts the load-bearing phrases in all three files after normalization
 # (backticks/emphasis stripped, whitespace flattened). A wording change on
