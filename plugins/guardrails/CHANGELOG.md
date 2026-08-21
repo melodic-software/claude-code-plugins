@@ -39,13 +39,20 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   Ambiguity resolves toward NOT deleting, because this is an entry scan where
   leaving text in view can only over-block while deleting it is the fail-open
   above. An unterminated opener emits the rest of its line verbatim; a span never
-  crosses a newline; PowerShell's doubled-quote escape (`'it''s'`) is
-  deliberately over-blocked rather than modeled, since naive pairing never
-  deletes more than the real string does; and smart quotes are not treated as
-  delimiters. The walk also does NOT honor the backtick escape, which is why it
-  does not reuse `ps::_skip_double_quote` — honoring it extends a span past
-  `` "a`" `` to the next real quote and reopens this same bypass in a new
-  spelling, measured at 0 on both git hooks.
+  crosses a newline; and smart quotes are not treated as delimiters.
+
+  Two escape spellings make pairing itself ambiguous, so the walk refuses the
+  question and emits the rest of the line verbatim rather than picking a closer.
+  PowerShell's doubled-quote escape (`'it''s'`, `"say ""hi"""`) is one: a doubled
+  candidate closer is treated as ambiguous, not naively paired. A backtick inside
+  a would-be double-quoted span is the other, and it has two failure modes —
+  honoring the escape (`ps::_skip_double_quote`) extends a span past `` "a`" ``
+  to the next real quote and reopens this same bypass; refusing it ends the span
+  at the backticked quote and leaves the string's real closer as a stray opener
+  that re-pairs far to the right. Review measured
+  ``"a`""; & ('g'+'it') push --force; 'b"c'`` at 0 on all three hooks before the
+  walk started deleting nothing once a backtick is seen. A lone empty string
+  (`""`, `''`) is not doubled and still blanks normally.
 
   No behavior change to the [#2848](https://github.com/melodic-software/claude-code-plugins/issues/2848)
   must-allow shapes: all six stay 0 on all three blocking hooks, including when
