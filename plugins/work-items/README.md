@@ -37,9 +37,18 @@ about work items, tickets, issues, tracked work, or what to do next):
 ## Naming
 
 **Work item** is the canonical term. **Ticket** and **issue** are first-class
-synonyms for invocation — they appear in skill Use-when triggers so phrasing
-like "add a ticket" or "work the next issue" routes here — not a rename of the
-plugin, seam, or surface.
+synonyms for invocation — they appear in the Use-when triggers of the
+**item-facing** skills, so phrasing like "add a ticket" or "work the next
+issue" routes here — not a rename of the plugin, seam, or surface.
+
+"Item-facing" is the precise scope, and it is narrower than every skill in the
+plugin: `track`, `work`, `work-loop`, `triage`, `decompose`, `attend-queue` and
+`scan-todos` carry the synonyms because a user says those words to them. The
+infrastructure skills (`setup`, `onboard-adapter`) speak in provider and tracker
+terms, and `ship` speaks in container and journey terms — nobody says "add a
+ticket" to an adapter generator. Stuffing the tokens into their triggers to
+satisfy a fleet-wide claim would buy a tidier sentence at the cost of worse
+routing, so the claim is scoped instead.
 
 ## `/work-items:track` actions
 
