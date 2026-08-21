@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.3.0]
+
+The audit eval cases described their input in prose. Nothing checked that the described input
+produced the finding the case graded, and it drifted from the detector three times in one PR
+(#3041) — each time a golden answer the scenario could not produce. Seven of the nine cases now
+name a committed fixture instead.
+
+- **Six eval fixtures ship under `skills/audit/evals/fixtures/`**, referenced from each case's
+  `files` array: `report-only.md` (four rules on one file), `fix-guarded-rewrite.md` (two em dashes
+  and two filler phrases), `rubric-boundary.md` (one script finding, promotional register the
+  mechanical rules deliberately miss), `em-dash-substitution.md` (a single em dash),
+  `triads.md` (rule-of-three at 3 hits in 69 words) and `knowledge-cutoff-prose.md` (the recorded
+  false-positive class). Every case's `expected_output` now names the rules, lines and fired
+  thresholds the detector actually emits, measured rather than asserted.
+- **A case names its fixture through `files[]` and in prose, the way every sibling suite does** —
+  `mcp-tools:audit` and `docs-hygiene:compress` both read "`evals/fixtures/<name>.md` relative to the
+  skill directory", and none of the eighteen fixture-backed suites here builds a repository to audit
+  in. These prompts are a *specification* of expected skill behavior, not a script: this repo has 200
+  `evals.json` files and zero of the `case.yaml` / `prompt.md` + `graders/` layout `claude plugin
+  eval` consumes, no manifest declares `experimental.evals`, and the only things that read
+  `evals.json` are lint scripts. Nothing executes a prompt, so a prompt must be readable by a human
+  or an agent working by hand, and environment control belongs nowhere in it. If this repo ever
+  adopts the CLI's format, per-case setup has a first-class home there — a `scaffold_script` run
+  under `--scaffold`.
+- **Cases 2, 6 and 7 tell the reader to work on a copy.** They invoke `fix`, and the fix flow
+  rewrites each flagged line in place, so running one by hand against the committed fixture
+  remediates it and dirties the repo — and a later run then grades already-fixed input, where the
+  declared findings no longer fire. One sentence in the prompt and one expectation per case, both
+  about the outcome rather than the mechanism: the committed fixture is byte-identical after the run,
+  and how the copy gets made is the reader's business. An instruction a case states but never checks
+  is the same defect in miniature as the one this release removes.
+- **Cases 4 and 5 state their premise instead of constructing it.** Both grade the persistence step,
+  which `SKILL.md` gates on the audit having "examined tracked files", so each prompt says the
+  audited file is tracked in the repo under audit and the expectations grade the skill's *decision*:
+  that it treats persistence as applicable, fetches the producer contract first, and — case 4 —
+  refuses to write when that fetch fails, rather than refusing because the target was out of tracked
+  space. A case cannot verify real repository state, and pretending otherwise is what made case 4
+  pass for the wrong reason. Case 5 also asserts the positive half — that the findings file is
+  actually written — because `context/persist-findings.md` permits reporting without writing when the
+  destination cannot be proven outside tracked space, so a negative-only case would be satisfied by a
+  run that persists nothing at all.
+- **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
+  That decision holds for the *unit* suite, whose fixtures are still built inline in a tmpdir. It
+  does not survive contact with the eval suite: an eval case is graded against a deterministic
+  detector run, so its scenario has to satisfy an ERE the eval author does not have in front of
+  them. A committed fixture cannot disagree with the detector; prose describing one can, and did.
+- Cases 3 and 9 keep `narration: true`. They grade repo-wide flow and consuming-repo config, not
+  file content, so there is nothing for a fixture to pin.
+- The fixtures carry real tells, so a repo auditing its own tree has to decline them. Prefer an
+  `excluded_paths` glob over an in-file `ai-slop-ignore-file` marker: a file marker declines
+  unconditionally, including under the empty `HOME` + `CLAUDE_PROJECT_DIR` isolation, so
+  `detect.sh <fixture>` would print nothing and the eval author would be back to trusting prose.
+  An `excluded_paths` entry is a config layer, and that isolation lifts it. This repo's own
+  `.claude/ai-slop.json` carries the glob as the worked example.
+- Consuming repos need no exclusion of their own: the audit scans `git ls-files '*.md'`, and an
+  installed plugin's files are not tracked in the repo that installs it.
+
 ## [0.2.2]
 
 The in-file suppression the fix flow and the catalog both tell operators to reach for now works in
