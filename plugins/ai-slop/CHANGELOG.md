@@ -37,14 +37,21 @@ None changes what the detector finds or what the fix flow rewrites.
   missed. Its prompt now carries the same sentence, and the expectation names the premise it rests
   on so a run that rewrites and re-runs but persists nothing no longer passes.
 
-  **The fix flow's re-emit wording was checked and left alone.** It states re-emission without
-  repeating step 5's gate, which reads at first like the deeper defect — but `persist-findings.md`
-  "Surfaces, and when the file is written at all" is the enumerated list of when a file is written,
-  and tracked-ness is not on it. Step 5's clause is the audit flow's own phrasing of the condition
-  that list does carry (nothing scanned, write nothing), which holds because the audit's default
-  target *is* the repo's tracked markdown. A fix pass always follows a non-empty scan, so the
-  unconditional re-emit is not in conflict with the gate. The defect was in the eval, and only
-  there.
+  **The fix flow's re-emit wording is left alone here, and the question stays open.** It states
+  re-emission without repeating step 5's gate. `persist-findings.md` "Surfaces, and when the file is
+  written at all" enumerates when a file is written and tracked-ness is not on that list, which is
+  the reading under which the two never conflict — but that reading is not established, and this
+  entry does not claim it is. Against it: step 1 scopes "the repo's tracked markdown" to the
+  **empty-target** branch, while every eval case passes a path argument, so "examined tracked files"
+  and "nothing scanned" are not obviously the same condition; and cases 4 and 5 word tracked-ness as
+  gating ("since the audit examined a tracked file"), which an inert precondition would not need.
+  `persist-findings.md`'s precedence clause also names the convention README rather than this
+  `SKILL.md`, so its list is not authoritative over step 5.
+
+  What is settled is the eval: case 2 grades persistence and lacked the premise its siblings carry,
+  which is a gap under either reading. Whether tracked-ness is a substantive gate is a question about
+  this skill's own wording, and if it is, the fix belongs in `context/persist-findings.md` rather
+  than in the fix flow.
 
 ## [0.3.2]
 
