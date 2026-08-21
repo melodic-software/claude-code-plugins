@@ -557,8 +557,11 @@ t_textconv_pin_is_load_bearing() {
   fi
 
   strip_pin "$repo" no-textconv-pin 's/ --no-textconv//g' || return 0
-  strip_pin "$repo" blame-textconv-unpinned '/git blame/ s/ --no-textconv//' || return 0
-  strip_pin "$repo" diff-textconv-unpinned '/git diff --no-ext-diff/,+1 s/ --no-textconv//' || return 0
+  # These address the run_attributing_git argv lines, not a `git blame` /
+  # `git diff` spelling -- the detector now invokes both through a helper
+  # so a failed status cannot hide in a pipe (#2880).
+  strip_pin "$repo" blame-textconv-unpinned '/blame --no-ignore-revs-file/ s/ --no-textconv//' || return 0
+  strip_pin "$repo" diff-textconv-unpinned '/diff --no-ext-diff/ s/ --no-textconv//' || return 0
 
   clean_sink="$(mktemp)"
   intact_sink="$(mktemp)"
