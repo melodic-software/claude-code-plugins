@@ -329,11 +329,9 @@ jobs:
   #   - HandoffVerifyTests.test_stash_must_exist_in_an_independent_checkout
   #     compares path strings; 8.3 `RUNNER~1` != long `runneradmin`
   # Those two are already green on Linux. Do not silently omit a class here
-  # without this comment; the other nine classes gate on disk-hygiene-tests.
-  # plugin-gate also reaches the module via hygiene.test.sh when Python is
-  # present, but that wrapper SKIPs (exit 0) when Python is absent or below
-  # MIN_PYTHON, and plugin-gate is docs-only gated — so it is not this
-  # guarantee.
+  # without this comment; the other nine classes gate on disk-hygiene-tests
+  # (dedicated fast signal; plugin-gate also runs the module on
+  # non-docs-only diffs via hygiene.test.sh).
   disk-hygiene-guard-windows:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -353,16 +351,15 @@ jobs:
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
 
-  # #2871: every TestCase class in test_hygiene.py must gate on a lane
-  # that cannot skip. plugin-gate already runs hygiene.test.sh (the whole
-  # module) when it installs Python, but that wrapper SKIPs exit 0 if
-  # Python is absent or below MIN_PYTHON, and plugin-gate short-circuits
-  # on a docs-only diff. This job always sets up Python 3.14 and always
-  # runs `python -m unittest -v test_hygiene` — the dedicated required
-  # signal, not a second copy of plugin-gate. The Windows job above stays
-  # GuardTests-only (NT allowlist + two Windows failures named there).
-  # Suite is not host-destructive (tempdir fixtures; no live drive-root
-  # scans). Measured 317 tests OK on Linux.
+  # #2871: dedicated required signal for the full test_hygiene module.
+  # plugin-gate already runs hygiene.test.sh on non-docs-only diffs (this
+  # PR's own plugin-gate did). That is the heavy lane (Node, ShellCheck,
+  # every plugins/**/*.test.sh). This job exists so the ten TestCase
+  # classes have a fast, always-on check that does not wait on that
+  # matrix and cannot take hygiene.test.sh's SKIP-when-Python-absent
+  # path. The Windows job above stays GuardTests-only (NT allowlist +
+  # two Windows failures named there). Suite is not host-destructive
+  # (tempdir fixtures; no live drive-root scans). Measured 317 OK.
   disk-hygiene-tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
