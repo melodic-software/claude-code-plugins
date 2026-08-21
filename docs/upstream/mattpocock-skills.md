@@ -162,12 +162,13 @@ triggers stand until the owning lane records the disposition:
   `domain-modeling` rewording is **ALREADY-PRESENT** (ours already name glossary / domain term /
   vocabulary) — one-shot, not a re-evaluation trigger. Same lane's **C21 ADOPTED**:
   one-skill-per-call phrasing (a step needing two skills is two calls, not one call naming
-  two) landed at `playbooks/skills/skill-authoring/SKILL.md:180` and
-  `plugins/skill-quality/skills/check/SKILL.md:161`. Granularity caveat, recorded not
-  resolved: the course SSOT grades lane X only at lane level (verdict-table row X, ADOPTED)
-  and carries no Lane X section, so C21–C23's per-candidate dispositions live here and nowhere
-  upstream of here — and C23's finer ALREADY-PRESENT above sits under that ADOPTED lane row
-  without a lane bullet to reconcile the two.
+  two) landed at `plugins/playbooks/skills/skill-authoring/SKILL.md:180` and
+  `plugins/skill-quality/skills/check/SKILL.md:161`. **Granularity caveat resolved
+  (2026-08-21):** the course SSOT — which owns lane verdicts — now carries a `## Lane X (#2940)`
+  section with a bullet per candidate, and its verdict-table row X was corrected from a flat
+  ADOPTED to `PARTIAL (C21+C22 adopted; C23 already-present)`, matching how every other lane
+  holding an already-present candidate is graded. The two records agree: the course SSOT owns
+  the verdicts, this strand owns the audit detail behind C22 and the re-trigger below.
   Re-trigger (audit-side only; the upstream-release trigger is retired per the lane 8
   disposition above): a repo review/audit surfacing a new Skill-tool or operative
   slash-command invocation of a `disable-model-invocation: true` target re-opens this strand.

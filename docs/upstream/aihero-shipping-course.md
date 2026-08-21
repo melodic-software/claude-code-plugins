@@ -46,7 +46,7 @@ PARTIAL / REJECTED / OPEN.
 | E | Rerouting: tickets disposable, spec editable | — | work-items:decompose (re-decompose flow) | ADOPTED | #2949 |
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | ADOPTED (sixth route-away row: multi-window work routes to spec + decomposed items; advisory, no folklore token figures) | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
-| X | Invocation doctrine (skills-repo delta PRs #878/#880; C23 from #848) | C21–C23 | playbooks:skill-authoring, skill-quality:check | ADOPTED | #2940 |
+| X | Invocation doctrine (skills-repo delta PRs #878/#880; C23 from #848) | C21–C23 | playbooks:skill-authoring, skill-quality:check | PARTIAL (C21+C22 adopted; C23 already-present — corrected 2026-08-21 from a flat ADOPTED, which disagreed with C23's own disposition and with how every other lane holding an already-present candidate is graded) | #2940 |
 | Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`; the glossary deferral has since ENDED — `docs/GLOSSARY.md` landed 2026-08-20 (#3062) and `phase boundary` is promoted there, while `item` and `checkpoint` stay reference-local as seam-specific terms) | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
@@ -323,6 +323,32 @@ withheld; three of five initial answers revised on evidence).
   wrongly scoped item is closed + one Out-of-scope line, with no Decisions-so-far pointer.
 - **C20 ALREADY-PRESENT**: map body is a stable index not a mirror; Decisions-so-far is a
   pointer INDEX; Notes are links not recaps — recorded here, not restated in the skill docs.
+
+## Lane X (#2940)
+
+Landed via PR #2980. This section carries the per-candidate verdicts, which until 2026-08-21
+existed only as a flat lane-level `ADOPTED` in the verdict table above — C21–C23 were the one
+candidate group with no lane bullet, and C23's ALREADY-PRESENT disposition had no place here to
+sit. The audit detail behind C22 (fleet counts, the reworded call sites, the re-trigger
+condition) belongs to the invocation-reach tracked strand in
+[`mattpocock-skills.md`](mattpocock-skills.md), which owns that strand; it is not restated here.
+
+- **C21 ADOPTED**: the one-skill-per-call authoring line — a step needing two skills is two
+  Skill-tool calls, not one call naming two — landed at
+  `plugins/playbooks/skills/skill-authoring/SKILL.md:180` and
+  `plugins/skill-quality/skills/check/SKILL.md:161`.
+- **C22 ADOPTED**: the fleet audit of the invocation-reach invariant enumerated 57 skills
+  carrying `disable-model-invocation: true` and found **zero** explicit "via the Skill tool"
+  violations. A follow-up pass reworded operative slash-command instructions aimed at
+  user-invoked-only targets in `repo-fleet-hygiene:audit` and `claude-ops` (`inventory`,
+  `audit-performance`, `audit-install-state`) to the canonical human-relay form, "tell the user
+  to run /X". Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
+  target resolution is not cheap under the single skills-root model — so the doctrine lines in
+  the two authoring surfaces carry the rule rather than a check.
+- **C23 ALREADY-PRESENT**: `domain-driven-design:curate-language` triggers already key on
+  concrete artifacts (glossary, domain term, vocabulary), so upstream's artifact-anchored
+  `domain-modeling` rewording (`domain-modeling/SKILL.md:3`, PR #848) had nothing to add. A
+  one-shot comparison, not a re-evaluation trigger.
 
 ## Lane E (#2949)
 
