@@ -20,6 +20,18 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `fidelity.sh` immediately earned its place by catching that the harness still expected the
   pre-0.39.9 `team.labels` query.
 
+  **All three exit non-zero on failure, and `fidelity.sh` checks both sides.** The first version
+  of this harness had two defects that review caught, and both were the very failure it exists to
+  prevent. Every script printed `FAIL`/`MISSED`/`MISMATCH` and then **exited 0**, so no caller
+  could tell a passing run from a failing one — a check that cannot go red is the vacuous green
+  this whole seam has spent three PRs eliminating, and I shipped three of them. And `fidelity.sh`
+  matched each operation only against the *adapter*, never against `validate.mjs`, so
+  `validate.mjs` could have validated a different — still schema-valid — query while both scripts
+  stayed green and the adapter's real request went unchecked. Both fixed: all three return 1 on
+  failure, `fidelity.sh` requires each operation on **both** sides, and multi-line operations are
+  covered whitespace-normalized rather than merely printed. Verified by breaking each script
+  deliberately and confirming exit 1, then confirming a clean run still exits 0.
+
 ### Changed
 
 - **`tracker-seam.md` now names the item-content-trust boundary where it teaches body reads.** The

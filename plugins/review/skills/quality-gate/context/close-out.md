@@ -292,9 +292,19 @@ Three reductions this rung needs, all of them learned from running it:
   describing the journey, not shipping an item.
 - **Prefer the closing-keyword form.** `Closes`/`Fixes`/`Resolves #N` is the provider's own
   closure grammar; a bare `#N` is a mention and ranks below it.
-- A sub-item with **no** surviving hit is `unresolved` — a coverage gap in the review, distinct
-  from rung 1's `no-code`, because this rung cannot tell the two apart. Say which one it is.
-  A sub-item with more than one surviving hit is presented for disambiguation, never guessed.
+- A sub-item with **no** surviving hit here is classified by **why rung 1 was empty**, and the two
+  cases must not be collapsed:
+  - **Rung 1 succeeded and returned nothing, and rung 2 also finds nothing** → `no-code`. Two
+    independent looks agree the item shipped none, which is exactly what an investigation or
+    decision item looks like. Keep it out of the basis and judge its criteria against its closing
+    comment. This does **not** escalate to rung 3.
+  - **Rung 1 *failed*** (non-zero exit — the provider was unreachable or the query errored) **and
+    rung 2 finds nothing** → `unresolved`. Nothing has actually looked successfully, so this is a
+    coverage gap in the review, and it escalates to rung 3.
+
+  Say which of the two it is, every time. Collapsing them either stops a close-out over an item
+  that legitimately shipped no code, or lets a real gap pass as a benign one.
+- A sub-item with more than one surviving hit is presented for disambiguation, never guessed.
 
 **Rung 3 — ask.** Interactive: present the sub-item list with what each rung returned, and ask the
 operator to name the shipping PRs or commits. One question, then proceed.

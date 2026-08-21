@@ -36,16 +36,68 @@ declare -a LITERALS=(
 )
 ok=0
 bad=0
+V="$HERE/validate.mjs"
 for e in "${LITERALS[@]}"; do
   f="${e%%|*}"
   lit="${e#*|}"
-  if grep -qF -- "$lit" "$f"; then
+  # BOTH ends, not one. Checking only that the literal is in the adapter proves nothing about
+  # what validate.mjs actually validated: it could hold a different — and still schema-valid —
+  # query, and both scripts would stay green while the adapter's real request went unchecked.
+  # The guarantee this script claims is "the thing validated IS the thing sent", which needs
+  # the literal to appear on both sides.
+  in_src=0
+  in_val=0
+  grep -qF -- "$lit" "$f" && in_src=1
+  grep -qF -- "$lit" "$V" && in_val=1
+  if ((in_src && in_val)); then
     ok=$((ok + 1))
     echo "VERBATIM  $(basename "$f"): ${lit:0:64}..."
   else
     bad=$((bad + 1))
-    echo "MISMATCH  $(basename "$f"): $lit"
+    if ((!in_src)); then
+      echo "MISMATCH  not in adapter source $(basename "$f"): $lit"
+    fi
+    if ((!in_val)); then
+      echo "MISMATCH  not in validate.mjs (so it was never the operation validated): $lit"
+    fi
   fi
 done
+
+# The multi-line operations. These are the ones an eyeball skips, so they are checked by
+# whitespace-normalized containment rather than left to the printout above.
+# The adapter builds these inside double-quoted shell strings, so its `$` sigils are written
+# `\$` in the file while validate.mjs holds them bare. Strip that one escape before comparing,
+# or every multi-line entry mismatches on punctuation rather than on substance.
+unesc() { sed 's/\\\$/$/g'; }
+
+declare -a MULTILINE=(
+  "$A/common.sh|validate.mjs|issues(filter: { team: { key: { eq: \$team } }, number: { eq: \$num } }, first: 1)"
+  "$A/list-items.sh|validate.mjs|issues(filter: { team: { key: { in: \$teams } } }, first: \$first, after: \$after)"
+  "$A/list-sub-items.sh|validate.mjs|children(first: \$first, after: \$after)"
+  "$A/create-item.sh|validate.mjs|issueLabels("
+  "$A/create-item.sh|validate.mjs|filter: { or: [{ team: { id: { eq: \$team } } }, { team: { null: true } }] }"
+)
+for e in "${MULTILINE[@]}"; do
+  f="${e%%|*}"
+  rest="${e#*|}"
+  lit="${rest#*|}"
+  in_src=0
+  in_val=0
+  needle="$(printf '%s' "$lit" | unesc | norm)"
+  unesc <"$f" | norm | grep -qF -- "$needle" && in_src=1
+  unesc <"$V" | norm | grep -qF -- "$needle" && in_val=1
+  if ((in_src && in_val)); then
+    ok=$((ok + 1))
+    echo "VERBATIM  $(basename "$f") [multi-line]: ${lit:0:56}..."
+  else
+    bad=$((bad + 1))
+    ((in_src)) || echo "MISMATCH  not in adapter source $(basename "$f") [multi-line]: $lit"
+    ((in_val)) || echo "MISMATCH  not in validate.mjs [multi-line]: $lit"
+  fi
+done
+
 echo
-echo "single-line operations found verbatim in source: $ok  mismatched: $bad"
+echo "operations found verbatim on BOTH sides: $ok  mismatched: $bad"
+# Exit status, not just a printed count — a fidelity check that reports MISMATCH and exits 0
+# is read as success by every caller, which is the whole failure this script exists to catch.
+((bad == 0)) || exit 1

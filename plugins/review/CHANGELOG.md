@@ -25,6 +25,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   shipped **83 file-touches** of adapter and generator code would have been dropped from the basis
   of the review deciding whether that container could close.
 
+  **Rung 2's own reduction is reconciled with it.** The first version of this fix left rung 2
+  still saying that no surviving hit means `unresolved` — which escalates to rung 3 and can stop a
+  close-out — while the new rung-1 wording said the same outcome is `no-code`. Two sections
+  prescribing opposite results for the exact case the fallback exists to preserve. Rung 2 now
+  classifies by **why rung 1 was empty**: rung 1 *succeeded* and empty plus rung 2 empty is
+  `no-code` and does not escalate; rung 1 *failed* plus rung 2 empty is `unresolved` and does,
+  because in that case nothing has actually looked successfully. The verdict says which.
+
 ## [0.26.2]
 
 ### Fixed

@@ -25,7 +25,7 @@ cd "$(git rev-parse --show-toplevel)/plugins/work-items/tools/work-item-tracker/
 npm install graphql               # or have graphql >= 17 resolvable
 node validate.mjs                 # every operation must PASS
 node negative.mjs                 # every deliberate fault must FAIL
-bash fidelity.sh                  # every operation string must match the adapter VERBATIM
+bash fidelity.sh                  # every operation must match the adapter AND validate.mjs
 ```
 
 ## The three scripts, and why there are three
@@ -40,12 +40,21 @@ broken variants — wrong field name, wrong mutation name, wrong argument, bogus
 variable type, missing required input field, bad `pageInfo` field — and **every one must fail**. A
 validator that cannot fail is not evidence. When this was first run it caught 10 of 10.
 
-**`fidelity.sh`** proves the operations in `validate.mjs` are the adapter's own text rather than a
-paraphrase of it, by extracting each one from the source and matching it as a fixed string. Without
-this, the other two scripts could validate a tidied-up copy while the adapter shipped something
-else. It is also the drift alarm: **if you change an operation in the adapter and do not change it
-here, `fidelity.sh` fails** — which is the intended behaviour, not a nuisance. It caught exactly
-that when the label lookup moved to the root `issueLabels` connection.
+**`fidelity.sh`** proves the operations `validate.mjs` checked are the adapter's own text rather
+than a paraphrase, by matching each one as a fixed string against **both** sides — the adapter
+source *and* `validate.mjs`. Both matter: checking only the adapter would prove the literal exists
+somewhere while `validate.mjs` quietly validated a different, still-schema-valid query, and the
+whole guarantee ("the thing validated IS the thing sent") would be worth nothing. Multi-line
+operations are covered too, whitespace-normalized, since those are the ones an eyeball skips. It is
+also the drift alarm: **change an operation in the adapter and not here, and `fidelity.sh` fails**
+— intended, not a nuisance. It caught exactly that when the label lookup moved to the root
+`issueLabels` connection.
+
+**All three exit non-zero on failure.** That is not decoration: a check that prints `FAIL` and
+exits 0 is read as success by every caller, which is the same vacuous green this harness exists to
+rule out. Verified by breaking each one deliberately — an invalid field in `validate.mjs`, a
+neutered fault in `negative.mjs`, and a `validate.mjs` query that no longer matches the adapter —
+and confirming each returns 1.
 
 ## Provenance
 

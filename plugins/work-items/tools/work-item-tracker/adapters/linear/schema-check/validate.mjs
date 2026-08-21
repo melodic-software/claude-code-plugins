@@ -142,3 +142,7 @@ for (const op of ops) {
   else console.log(`OK          ${op.name}  [${op.loc}]`);
 }
 console.log(`\n${ops.length - fail}/${ops.length} operations validate clean against the real schema.`);
+// Exit status, not just prose. A check that prints FAIL and exits 0 cannot be a regression
+// check: every caller — a shell, CI, a future close-out — reads the status, and a green status
+// over red output is exactly the vacuous pass this harness exists to rule out.
+if (fail > 0) process.exit(1);
