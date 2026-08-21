@@ -1,7 +1,7 @@
 # work-items
 
 A Claude Code plugin that manages **development work items through a
-provider-neutral tracker seam** — a centralized, concurrent-safe alternative to
+provider-neutral tracker seam**, a centralized, concurrent-safe alternative to
 file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
@@ -25,27 +25,27 @@ about work items, tickets, issues, tracked work, or what to do next):
 
 | Skill | What it does |
 |---|---|
-| `/work-items:track` | Backlog CRUD — the sub-action router over `stats`, `list`, `add`, `start`, `done`, `due`, `recheck`, `search`, `audit` (default: the stats dashboard). |
+| `/work-items:track` | Backlog CRUD, the sub-action router over `stats`, `list`, `add`, `start`, `done`, `due`, `recheck`, `search`, `audit` (default: the stats dashboard). |
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
-| `/work-items:triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view. |
+| `/work-items:triage` | Evaluate raw intake, issues and unsolicited PRs (a PR is an item with attached code), through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
-| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step — thin by design, mechanics stay with their owners. |
+| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. Thin by design, mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
-| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model — bundled adapters cover the majors. |
-| `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows — inferring candidate items from the repo and interviewing per item — is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
+| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters cover the majors. |
+| `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows, inferring candidate items from the repo and interviewing per item, is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
 
 ## Naming
 
 **Work item** is the canonical term. **Ticket** and **issue** are first-class
-synonyms for invocation — they appear in the Use-when triggers of the
+synonyms for invocation. They appear in the Use-when triggers of the
 **item-facing** skills, so phrasing like "add a ticket" or "work the next
-issue" routes here — not a rename of the plugin, seam, or surface.
+issue" routes here, not a rename of the plugin, seam, or surface.
 
 "Item-facing" is the precise scope, and it is narrower than every skill in the
 plugin: `track`, `work`, `work-loop`, `triage`, `decompose`, `attend-queue` and
 `scan-todos` carry the synonyms because a user says those words to them. The
 infrastructure skills (`setup`, `onboard-adapter`) speak in provider and tracker
-terms, and `ship` speaks in container and journey terms — nobody says "add a
+terms, and `ship` speaks in container and journey terms. Nobody says "add a
 ticket" to an adapter generator. Stuffing the tokens into their triggers to
 satisfy a fleet-wide claim would buy a tidier sentence at the cost of worse
 routing, so the claim is scoped instead.
@@ -67,9 +67,9 @@ Every tracker operation goes through the **work-item-tracker seam**, which ships
 bundled with this plugin. The skills resolve the seam dispatcher plugin-dir
 canonical with a project-root fallback (`"$TRACKER" <verb>`) and the bound
 provider adapter executes it (contract + resolution:
-`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`). Coordination — create, claim
+`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`). Coordination. Create, claim
 (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier
-selection, single-item fetch — uses seam verbs directly. Operations without a
+selection, single-item fetch. Uses seam verbs directly. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
 (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`;
@@ -84,7 +84,7 @@ and writing a lease comment**, race-safe at the seam via lease-comment identity,
 so multiple concurrent agents never grab the same item. A session-start
 `reclaim` runs idempotently to recover the stale leases of crashed or abandoned
 sessions. Claim assignments always run on the session's own authenticated
-identity — never a shared bot — so the race check stays sound.
+identity, never a shared bot, so the race check stays sound.
 
 ## Revisit condition
 
@@ -96,7 +96,7 @@ enough that one skill no longer predicts its contents.
 ## Requirements
 
 - **Bash + jq.** The skills' inline mechanics are POSIX-shell (`jq`, `mktemp`,
-  `git grep`, `date`) — on native Windows they run under Git Bash (install
+  `git grep`, `date`), on native Windows they run under Git Bash (install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)),
   and `jq` is a separate install there
   ([download](https://jqlang.org/download/)). `jq` is required for
@@ -110,7 +110,7 @@ enough that one skill no longer predicts its contents.
   gitignored `.work-item-tracker.local.json` overlay beside it). A repo
   may add or shadow an adapter consumer-local at
   `<repo root>/tools/work-item-tracker/adapters/<provider>/` (the root being
-  `${CLAUDE_PROJECT_DIR}`, else the git toplevel) — `/work-items:onboard-adapter`
+  `${CLAUDE_PROJECT_DIR}`, else the git toplevel). `/work-items:onboard-adapter`
   generates one, and no vendored copy of the seam is needed for it to run. The seam's
   contract and per-adapter mechanics are documented in
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`.
@@ -140,14 +140,14 @@ enough that one skill no longer predicts its contents.
 `work_dispatch_concurrency_cap` caps the concurrent dispatch waves autonomous
 `/work-items:work` allows per item. When set, `/work-items:work` threads it into
 `/implementation:implement-dispatch` as that skill's `--wave-cap` ceiling; left
-unset (its default state — the key declares no manifest default), it lets
+unset (its default state, the key declares no manifest default), it lets
 `/implementation:implement-dispatch` apply its own internal 3–5 wave default.
-The autonomous per-cycle item budget is a separate, driving-loop concern — the
+The autonomous per-cycle item budget is a separate, driving-loop concern, the
 `work-loop` lane's adaptive item cap (`work_loop_item_cap_start` / `_ceiling` /
 `_floor`, plus `work_loop_frontier_item_cap_ceiling`), enforced by the loop
 body's own arithmetic. `work_loop_no_progress_threshold` (default 3) sets how
 many consecutive no-progress cycles the lane tolerates before raising its
-stall escalation — it escalates and keeps looping, never stops on a stall.
+stall escalation. It escalates and keeps looping, never stops on a stall.
 
 `lane_instance` is this machine's writer identity for loop-lane telemetry. It
 suffixes each lane's telemetry sentinel marker
@@ -155,7 +155,7 @@ suffixes each lane's telemetry sentinel marker
 their own status comment and none can overwrite another's durable state. Absent,
 it is the sanitized lowercased hostname; two lanes on one machine each need an
 explicit value, since the id must be distinct across concurrent instances and
-stable across restarts. It appears verbatim in tracker comments — set an opaque
+stable across restarts. It appears verbatim in tracker comments. Set an opaque
 id if a machine name should not be published in a public tracker.
 
 Everything else is project-specific behavior that routes through the consuming
@@ -167,6 +167,7 @@ and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker
 writes through a bot wrapper) and development workflow. The skills degrade
 gracefully when any of these are absent.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -230,6 +231,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
