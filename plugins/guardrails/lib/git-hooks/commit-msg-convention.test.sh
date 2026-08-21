@@ -7,6 +7,10 @@
 
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 HOOK_DIR_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$HOOK_DIR_SRC/../.." && pwd)"
 TEMPLATE="$PLUGIN_ROOT/lib/git-hooks/commit-msg-convention.sh"

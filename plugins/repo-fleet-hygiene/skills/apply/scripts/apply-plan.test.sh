@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # apply-plan.test.sh — dry-run, confirmation stop, OID drift skip, ordering.
 # shellcheck disable=SC2310 # pass/fail helpers return status in if/||; every false path is handled
+
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
