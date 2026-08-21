@@ -135,4 +135,68 @@ gitea_seed "/issues?" 429 '{"message":"slow down"}'
 rc="$(gitea_run "$S")"
 assert_eq "rate limited → exit 8" "8" "$rc"
 
+# --- the list asks gitea to exclude PRs, rather than fetching and discarding them ---
+# `type` is a real query parameter on this endpoint (enum: issues|pulls). Without it gitea
+# returns pull requests too: they consumed the page budget, and the declared ceiling counted
+# ROWS rather than items, so a PR-heavy repo reported "reached the declared ceiling of 1000
+# items" having collected far fewer than 1000 issues.
+gitea_reset_routes
+gitea_seed "/issues?" 200 '[]'
+gitea_run "$S" >/dev/null 2>&1
+assert_contains "the list requests type=issues" "$(gitea_requests)" "type=issues"
+
+# --- X-Total-Count is authoritative when gitea sends it ---
+# gitea clamps `limit` to [api] MAX_RESPONSE_ITEMS (stock 50). On an instance whose cap is
+# below config.gitea.page_size EVERY page comes back short, so "short page means last page"
+# ended the walk after page 1 and returned a truncated list with nothing said — the ceiling
+# guard never fires either. This endpoint's handler calls ctx.SetTotalCountHeader, so the
+# header settles it. Page 1 is deliberately SHORT (1 row) while the count says 2.
+gitea_reset_routes
+gitea_seed_total "/issues?state=open&type=issues&page=1" 200 \
+  '[{"number":1,"title":"one","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/1","repository":{"full_name":"acme/web"}}]' 2
+gitea_seed_total "/issues?state=open&type=issues&page=2" 200 \
+  '[{"number":2,"title":"two","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/2","repository":{"full_name":"acme/web"}}]' 2
+gitea_seed "/dependencies" 200 '[]'
+rc="$(gitea_run "$S")"
+assert_eq "a clamped short page does not end the walk → exit 0" "0" "$rc"
+assert_eq "both items are collected" "2" "$(jq -r '.items | length' <<<"$(gitea_out)")"
+assert_contains "page 2 was requested" "$(gitea_requests)" "page=2"
+
+# Without the header the short-page heuristic still applies, unchanged — one page, no
+# speculative extra request.
+gitea_reset_routes
+gitea_seed "/issues?state=open&type=issues&page=1" 200 \
+  '[{"number":1,"title":"one","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/1","repository":{"full_name":"acme/web"}}]'
+gitea_seed "/dependencies" 200 '[]'
+rc="$(gitea_run "$S")"
+assert_eq "no header → short page still ends the walk" "0" "$rc"
+assert_eq "exactly one item" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
+if [[ "$(gitea_requests)" == *"page=2"* ]]; then
+  fail "and no extra page was requested" "no page=2" "page=2 requested"
+else
+  pass "and no extra page was requested"
+fi
+
+# --- the declared ceiling counts ROWS RETURNED, not pages × requested size ---
+# These diverge under exactly the clamp this change is about. With page_size 100 against a
+# server capping at 50, `PAGE * page_size` reaches 1000 after ten pages that returned only
+# 500 issues — so the walk stopped half way and announced it had hit a ceiling it never
+# reached. Simulated here by asking for 100 and having the mock answer 50 every time, with a
+# total-count far above the ceiling so only the ceiling can end the walk.
+gitea_reset_routes
+gitea_write_binding '{"page_size":100}'
+CLAMPED_PAGE="$(jq -cn '[range(50)] | map({number: (. + 1), title: "i", state: "open", assignees: [], labels: [], html_url: "https://gitea.example/acme/webapp/issues/1", repository: {full_name: "acme/webapp"}})')"
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed_total "/issues?state=open&type=issues" 200 "$CLAMPED_PAGE" 9999
+rc="$(gitea_run "$S")"
+assert_eq "a clamped walk still reaches the declared ceiling → exit 0" "0" "$rc"
+COLLECTED_N="$(jq -r '.items | length' <<<"$(gitea_out)")"
+if ((COLLECTED_N > 1000)); then
+  pass "more than the ceiling's worth of rows was collected before truncating ($COLLECTED_N)"
+else
+  fail "more than the ceiling's worth of rows was collected before truncating" ">1000" "$COLLECTED_N"
+fi
+assert_contains "and the truncation is announced" "$(gitea_err)" "truncated"
+gitea_write_binding
+
 [[ $FAILED -eq 0 ]] || exit 1

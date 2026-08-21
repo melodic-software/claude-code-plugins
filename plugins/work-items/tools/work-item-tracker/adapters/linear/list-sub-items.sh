@@ -78,13 +78,26 @@ while :; do
     # Every child carries the container as parent_id. The normalizer already derives it
     # from the child's own `parent`, but it is forced here so a child whose selection
     # omitted the parent cannot emit a null and break sub-map traversal.
-    ITEMS="$(jq -c --argjson acc "$ITEMS" --argjson one "$ONE" --arg p "$PARENT_ID" \
-      '$acc + [$one + {parent_id: $p}]' <<<'null')"
+    # Accumulator on stdin, one item in argv. The reverse puts an unboundedly growing array
+    # on jq's command line; past ARG_MAX the exec fails and the unchecked assignment would
+    # leave ITEMS empty — a container with many children reporting none, which the
+    # closed-children invariant would then read as "nothing open under it".
+    ITEMS="$(jq -c --argjson one "$ONE" --arg p "$PARENT_ID" \
+      '. + [$one + {parent_id: $p}]' <<<"$ITEMS")" || {
+      printf 'list-sub-items.sh: could not accumulate a child of %s — refusing to report a partial child list as complete\n' \
+        "$PARENT_ID" >&2
+      exit "$EX_INTERNAL"
+    }
   done < <(jq -c '.nodes[]?' <<<"$PAGE")
   [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$PAGE")" == "true" ]] || break
   CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$PAGE")"
   [[ -n "$CURSOR" ]] || break
 done
 
-jq -cn --arg sv "$WIT_SCHEMA_VERSION" --argjson items "$ITEMS" \
-  '{schema_version: $sv, items: $items}'
+# ITEMS travels on STDIN, not argv — see list-items.sh. An empty envelope emitted because the
+# exec failed would read as "this container has no children", which the closed-children
+# invariant would then treat as "nothing open under it".
+jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
+  printf 'list-sub-items.sh: could not emit the child envelope for %s\n' "$PARENT_ID" >&2
+  exit "$EX_INTERNAL"
+}
