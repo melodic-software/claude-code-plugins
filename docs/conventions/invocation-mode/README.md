@@ -129,8 +129,8 @@ grep -rnE --include='*.md' '`/[a-z0-9-]+:[a-z0-9-]+' plugins/*/skills plugins/*/
   | grep -c 'Skill tool'
 ```
 
-1,634 lines carry the token; 186 of them are operative chains carrying the explicit phrasing. A
-criterion keyed on the token alone would therefore have been **88.6% false positives**. (Both
+1,635 lines carry the token; 189 of them are operative chains carrying the explicit phrasing. A
+criterion keyed on the token alone would therefore have been **88.4% false positives**. (Both
 figures move as the fleet grows — re-run the commands rather than trusting the recorded pair.)
 Narrowing to an unambiguous handoff verb on the same line does not rescue it: run against the
 post-sweep tree, that pattern returns overwhelmingly non-offenders (wrapped lines whose "via the

@@ -16,8 +16,8 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 - **No new check for cross-skill phrasing, deliberately (#3002).** The sweep considered a
   criterion enforcing the rubric's cross-skill phrasing rule and declined it: a static scan
   cannot separate an operative chain from a mention, and the separation is the whole rule.
-  Measured on the post-sweep tree, 1,634 body lines fleet-wide carry a backticked
-  `/plugin:skill` token and 186 of them are operative chains — 88.6% false positives for any
+  Measured on the post-sweep tree, 1,635 body lines fleet-wide carry a backticked
+  `/plugin:skill` token and 189 of them are operative chains — 88.4% false positives for any
   criterion keyed on the token. Both figures are regenerable; the rubric records the exact two
   `grep` commands beside them. The reasoning lives in
   `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"); check 24 is
