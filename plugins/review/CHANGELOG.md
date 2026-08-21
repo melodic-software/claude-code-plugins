@@ -54,6 +54,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   skill owns choosing the assertion a behavior deserves, and its rows are surfaced by Step 4's
   judgment fence exactly as before.
 
+  `ai-slop` 0.3.1 rides along as the producer half of the same claim — a documentation
+  correction, not an emitter change. Its audit skill is the normal entry point that recommends
+  remediation, and it still told operators to keep prose rewrites away from this relay because
+  routing them here "retires the findings without fixing them". Leaving that in place would have
+  made this route unreachable through the documented flow while the contract advertised it.
+
   Producer-side, the declaration and its fixed forms are owned by the detector-findings
   convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
   owned by the producer's own skill". No producer had to change what it emits.
