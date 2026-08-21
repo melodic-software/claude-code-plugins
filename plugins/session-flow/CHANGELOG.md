@@ -55,7 +55,6 @@
   now names `show-options` as the owner of the ranked menu. Behavior at every other trigger is
   unchanged.
 
-
 ## [0.30.0]
 
 ### Changed
