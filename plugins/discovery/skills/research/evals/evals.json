@@ -266,15 +266,16 @@
     {
       "id": 19,
       "name": "matching-token-is-file-identity-not-preload-proof",
-      "prompt": "Research whether our pinned HTTP client still has the connection-pool leak. [The dispatched discovery:researcher returns a well-formed payload: preload_token matching discovery-research-preload-4c1f9a, preload: fallback, topic_as_received matching what you sent, status: complete, persistence: written, coverage: complete, artifact: <the slice>/RESEARCH.md, sidecars: 3. check-dispatch-artifact.sh exits 0. open_questions includes: 'The token is echoed because I read it from the skill file, not because it was preloaded.']",
+      "prompt": "Research whether our pinned HTTP client still has the connection-pool leak. [The dispatched discovery:researcher returns a well-formed payload: preload_token matching discovery-research-preload-4c1f9a, preload: fallback, topic_as_received matching what you sent, status: complete, persistence: written, coverage: complete, artifact: <the slice>/RESEARCH.md, sidecars: 3. The recovered RESEARCH.md records the corpus as unbounded, so no research-checklist.md is owed. check-dispatch-artifact.sh exits 0. open_questions includes: 'The token is echoed because I read it from the skill file, not because it was preloaded.']",
       "files": [],
-      "expected_output": "Accepts the run as a successful fallback recovery. The matching token is file-identity evidence that the discipline body reached the agent, not proof that skills: preload fired. The parent grades preload: fallback as provenance and does not infer fired from the token. Does not discard the run, does not warn as if preload succeeded, and does not treat the open_questions prose as the provenance seam.",
+      "expected_output": "Accepts the run as a successful fallback recovery. The matching token is file-identity evidence that the discipline body reached the agent, not proof that skills: preload fired. The parent grades preload: fallback as provenance and does not infer fired from the token. Does not discard the run, does not warn as if preload succeeded, and does not treat the open_questions prose as the provenance seam. Does not run check-coverage-complete.sh — no ledger is owed on an unbounded corpus.",
       "expectations": [
         "The matching preload_token is treated as file-identity evidence only — the discipline body reached the agent — and is NOT treated as proof that preload fired",
         "preload: fallback is graded as the structured provenance field and is accepted; fallback is the recovery, not a failed dispatch",
         "The parent does not infer preload: fired from a matching token, even when the agent also discloses the fallback in open_questions prose",
         "The run is NOT discarded on the strength of a matching token plus a fallback disclosure; missing or mismatched token remains the discard condition",
-        "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass, the same class as a missing topic_as_received"
+        "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass, the same class as a missing topic_as_received",
+        "check-coverage-complete.sh is NOT run — the recovered index records the corpus as unbounded, so no ledger is owed"
       ]
     }
   ]
