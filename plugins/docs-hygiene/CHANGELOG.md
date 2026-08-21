@@ -1,5 +1,14 @@
 # Changelog — docs-hygiene plugin
 
+## [0.18.3]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
 ## [0.18.2]
 
 ### Fixed
