@@ -1065,6 +1065,12 @@ run_pwsh "PS: equals inside single-quoted text does not trip dynamic-invocation 
 # shellcheck disable=SC2016
 run_pwsh "PS: quoted \$out=pwsh is data, not an assignment (allowed)" \
   'Write-Host '"'"'$out=pwsh $script'"'"'' 0
+# The assignment-shaped call inside quotes is what actually reaches
+# has_dynamic_invocation's quote-blanked confirmation. `pattern=&` has no
+# `$name=` LHS and fails the structural check even unquoted.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted \$a=& \"\$tool\" is data, not a string-literal call (allowed)" \
+  'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' 0
 # A dot-source separator is `.` followed by a QUOTE. A decimal literal and a
 # property access after `=` carry no quote, so neither trips the assignment arm.
 # shellcheck disable=SC2016
@@ -1100,6 +1106,9 @@ pin_predicate "ps::has_launcher: quoted shell=pwsh is not a launcher" \
 # shellcheck disable=SC2016
 pin_predicate "ps::has_dynamic_invocation: quoted pattern=& \"\$tool\" is not a call" \
   ps::has_dynamic_invocation 'Write-Host '"'"'pattern=& "$tool"'"'"'' 1
+# shellcheck disable=SC2016
+pin_predicate "ps::has_dynamic_invocation: quoted \$a=& \"\$tool\" is not a call" \
+  ps::has_dynamic_invocation 'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' 1
 pin_predicate "ps::has_launcher: git -c section.key=cmd is not a launcher assignment" \
   ps::has_launcher 'git -c section.key=cmd log --oneline -n 1' 1
 # shellcheck disable=SC2016
@@ -1111,6 +1120,9 @@ pin_predicate "ps::has_dynamic_invocation: \$a=& \"\$tool\" still is a string-li
 # shellcheck disable=SC2016
 pin_sink_trigger "classify: quoted =pwsh does not enter launcher sink" \
   'Write-Host "shell=pwsh $script"' ""
+# shellcheck disable=SC2016
+pin_sink_trigger "classify: quoted \$a=& \"\$tool\" does not enter dynamic-invocation sink" \
+  'Write-Host '"'"'$a=& "$tool" reset --hard'"'"'' ""
 pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink" \
   'git -c section.key=cmd log --oneline -n 1' ""
 # shellcheck disable=SC2016
