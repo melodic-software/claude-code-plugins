@@ -255,6 +255,21 @@ assert_eq "a same-login rival still wins the race" "7" "$rc"
 assert_eq "…and their live assignment is not stripped by the loser" \
   "0" "$(lin_bodies | grep -c '"assigneeId":null')"
 
+# A FAILED lease re-read in the lost-race branch must not be read as "no live leases".
+# That default fails OPEN: the assignee still carries our login at this point, so the
+# name compare would pass and clear the winner's live assignment — the same bug the
+# branch guards against, arriving via the error path instead of a name collision. The
+# rollback trap fails safe on the identical read, and the two must agree.
+seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
+  --arg theirs "$(lin_lease_body "$((MINE_HANDLE - 1000))" "earlier-rival" "$NOW" 24)" \
+  '[$mine, {id: "uuid-comment-aaa", body: $theirs, createdAt: "2026-08-20T11:59:59.500Z"}]')"
+# Fail only the SECOND lease read (the loser branch's re-read); the first two comment
+# reads must succeed or the race never reaches that branch.
+lin_seed 'comments(' 500 '{"errors":[{"message":"upstream exploded"}]}'
+rc="$(lin_run "$S" "linear:acme/ENG#12")"
+assert_eq "…and an unreadable lease set never clears the assignee" \
+  "0" "$(lin_bodies | grep -c '"assigneeId":null')"
+
 # --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"

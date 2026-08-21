@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.6]
+
+### Fixed
+
+- **The 0.39.5 same-login fix failed OPEN on a read error, reintroducing its own bug.** Two
+  independent reviewers caught it on the same line. The lost-race branch re-read the lease set as
+  `AFTER2="$(wit_linear_lease_comments …)" || AFTER2='[]'` — so a transient GraphQL failure, or the
+  belt-and-braces `EX_INTERNAL` exit added to that same helper one version earlier, was silently
+  read as **"no live leases exist"**. `LOSER_LIVE` then stayed empty, the assignee still carried
+  our own login (nothing had changed it yet), the name compare passed, and the winner's live
+  assignment was cleared — the exact failure the branch exists to prevent, arriving by way of the
+  error path instead of a name collision.
+
+  Worse, the two guards disagreed with each other: the rollback trap ninety lines above fails
+  **safe** on the identical read (`|| exit 0` — treat "cannot tell" as "do not touch"). This site
+  chose the unsafe default.
+
+  A failed re-read now means *unknown*, never *empty*: the unassign is skipped and the reason is
+  printed. A regression case fails only that second read and asserts zero unassigns; removing the
+  guard turns it red.
+
 ## [0.39.5]
 
 ### Fixed

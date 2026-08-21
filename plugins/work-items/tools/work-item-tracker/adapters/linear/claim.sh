@@ -207,17 +207,27 @@ if [[ -n "$LOSER" ]]; then
   # clearing it. A stale name in the slot is cosmetic; a cleared slot puts an actively
   # worked item back on the frontier, which `lib/frontier.sh` selects purely on assignee
   # emptiness with no lease check.
+  # A FAILED re-read means "lease state unknown", never "no live leases". Defaulting it
+  # to an empty list would fail OPEN: the name compare below normally still matches
+  # HOLDER at this point, so an unreadable lease set would clear the winner's live
+  # assignment — reintroducing, on the error path, the very bug this branch guards
+  # against. The rollback trap above fails safe on the identical read (`|| exit 0`), and
+  # these two sites must not disagree about what "cannot tell" means.
   LOSER_LIVE=""
   wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
-  AFTER2="$(wit_linear_lease_comments "$ISSUE_UUID")" || AFTER2='[]'
-  while IFS= read -r entry; do
-    [[ -n "$entry" ]] || continue
-    [[ "$(jq -r '.comment_id' <<<"$entry")" != "$COMMENT_UUID" ]] || continue
-    wit_linear_lease_live "$(jq -c '.lease' <<<"$entry")" && {
-      LOSER_LIVE="yes"
-      break
-    }
-  done < <(jq -c '.[]' <<<"$AFTER2")
+  if AFTER2="$(wit_linear_lease_comments "$ISSUE_UUID")"; then
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      [[ "$(jq -r '.comment_id' <<<"$entry")" != "$COMMENT_UUID" ]] || continue
+      wit_linear_lease_live "$(jq -c '.lease' <<<"$entry")" && {
+        LOSER_LIVE="yes"
+        break
+      }
+    done < <(jq -c '.[]' <<<"$AFTER2")
+  else
+    LOSER_LIVE="unknown"
+    printf 'linear: could not re-read lease state on %s — leaving the assignee alone rather than risking a live claim\n' "$ID" >&2
+  fi
   if [[ -z "$LOSER_LIVE" ]] &&
     [[ "$(jq -r '.assignee.displayName // .assignee.email // ""' <<<"$WIT_LINEAR_ISSUE")" == "$HOLDER" ]]; then
     wit_linear_set_assignee "$ISSUE_UUID" ""
