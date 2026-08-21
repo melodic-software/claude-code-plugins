@@ -50,7 +50,7 @@ The "Cursor unslop additions" section was inspired by
 
 ## Inventory
 
-59 tells catalogued from the Wikipedia source revision, plus 7 in the "Cursor unslop additions"
+65 tells catalogued from the Wikipedia source revision, plus 7 in the "Cursor unslop additions"
 section at the end of this file. Entry marker: `### rule-<slug>: <name>`. The qualified id used
 in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
 
@@ -443,20 +443,60 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 ## Comment-specific indicators
 
 Fetch gap closed 2026-08-21 (see the upstream-drift record). The source section is Wikipedia
-talk-page comments, so every tell classifies `wikipedia-specific` / `recorded-only`. No new
-rule slugs: the load-bearing overlap is already catalogued under Edit summaries
-(`rule-canned-policy-assurance`, `rule-verbose-edit-summaries`). The seven talk-page tells,
-quoted from the catalog pin (revision 1369699198, parse section 62) and confirmed on the live
-page (revision 1370403579):
+talk-page comments, so every tell classifies `wikipedia-specific` / `recorded-only` — they have
+no general-prose analogue worth a script rule. Quoted from the catalog pin (revision
+1369699198, parse section 62) and confirmed on the live page (revision 1370403579).
 
-- Misquote policies and guidelines and cite made-up shortcuts.
-- Transclude maintenance banners whenever they mention them.
-- Post lengthy comments divided into sections with titles (Markdown, plain text, or
-  level-2/3 subheadings).
-- Downplay AI use by claiming policy adherence or that the comments "reflect their thoughts".
-- Request input from critics to determine what to improve.
-- Dismiss origin concerns as unsubstantiated speculation rather than "concrete" facts.
-- Urge critics to redirect toward improving content instead of worrying about AI generation.
+One of the seven tells already has a slug under Edit summaries: downplaying AI use by
+claiming policy adherence is `rule-canned-policy-assurance`. The other six land here.
+
+### rule-misquoted-policies: Misquoted policies and invented shortcuts
+
+- detectability: judgment
+- applicability: wikipedia-specific
+- v1: recorded-only
+- Talk-page comments that cite made-up policy shortcuts or misstate existing ones. Wikipedia
+  project-page namespace; no markdown-corpus analogue.
+
+### rule-maintenance-banner-transclusion: Transcluded maintenance banners in comments
+
+- detectability: mechanical
+- applicability: wikipedia-specific
+- v1: recorded-only
+- Transcluding a maintenance banner whenever the comment mentions it. Wikitext talk-page
+  convention.
+
+### rule-sectioned-comments: Lengthy comments divided into titled sections
+
+- detectability: mechanical
+- applicability: wikipedia-specific
+- v1: recorded-only
+- Talk-page comments split into titled sections in Markdown, plain text, or level-2/3
+  subheadings. Distinct from `rule-verbose-edit-summaries`, which is the edit-summary field.
+
+### rule-request-critic-input: Requests for critics to specify improvements
+
+- detectability: judgment
+- applicability: wikipedia-specific
+- v1: recorded-only
+- Asking critics or other editors to say exactly what to improve, as a deflection. Talk-page
+  register.
+
+### rule-dismiss-origin-speculation: Dismissing AI-origin concerns as speculation
+
+- detectability: judgment
+- applicability: wikipedia-specific
+- v1: recorded-only
+- Treating questions about whether the comment is AI-generated as "unsubstantiated
+  speculation" rather than addressing the content tells. Talk-page register.
+
+### rule-redirect-to-content: Redirecting AI concerns toward content improvement
+
+- detectability: judgment
+- applicability: wikipedia-specific
+- v1: recorded-only
+- Urging critics to improve the content instead of worrying that it is AI-generated.
+  Talk-page register.
 
 ## Edit summaries
 

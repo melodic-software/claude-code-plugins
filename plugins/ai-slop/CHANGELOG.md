@@ -25,8 +25,13 @@ ineffective.
   itself" sentence is a corroboration qualifier on a kept tell, not an Ineffective
   indicators listing; zero-tolerance stays the shipped house-style default.
 - **Comment-specific indicators** retrieved in the same visit (pin section 62).
-  Wikipedia talk-page scope; the seven tells overlap existing recorded-only edit-summary
-  entries. No new slugs.
+  Wikipedia talk-page scope. One of the seven tells already has a slug
+  (`rule-canned-policy-assurance`). The other six land as `recorded-only` /
+  `wikipedia-specific` entries so slug-based rechecks can track them:
+  `rule-misquoted-policies`, `rule-maintenance-banner-transclusion`,
+  `rule-sectioned-comments`, `rule-request-critic-input`,
+  `rule-dismiss-origin-speculation`, `rule-redirect-to-content`. Inventory count
+  59 → 65. No script-roster change.
 - The inventory pin stays `1369699198`. Detector, emitter, evals, and rewrite guide are
   untouched: this is the fetch-gap close, not a roster change.
 
