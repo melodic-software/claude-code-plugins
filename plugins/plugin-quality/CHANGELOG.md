@@ -5,6 +5,20 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7]
+
+### Changed
+
+- **Emitted work-item bodies keep the retrieval channel on every doc citation
+  (#2864).** `reference/config.md`'s markdown-item body schema asked only for
+  "evidence + doc citations". The auditor's output contract and `audit` step 3
+  already require URL, fetch date, retrieval channel, and a byte count or line
+  number, and treat a citation missing either field as unverified — then the
+  emit schema dropped those fields, so a maintainer reading the filed item
+  could not tell a rung-1 `curl` from summarizer output. The body schema now
+  requires the same four citation parts, and a citation that omits the channel
+  or the count is emitted as **unverified**.
+
 ## [0.6.6]
 
 ### Changed
