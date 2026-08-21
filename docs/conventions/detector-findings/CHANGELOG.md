@@ -9,7 +9,7 @@ adopter row is a minor bump; docs-only clarification is a patch.
 A producer can now name the skill that owns its findings' remediation (#3033). New section, "When
 the remediation is owned by the producer's own skill": a rule whose repair is contained to
 `Location` but safe only under discipline the producer owns leads its crosswalk `Auto-applicable`
-cell with `No, remediated by <invocation>`. The consumer resolves that declaration through the
+cell with ``No, remediated by `<invocation>` `` (a code span; a consumer strips the delimiters before matching). The consumer resolves that declaration through the
 qualified rule id every conforming row already leads its `Finding` cell with, and routes those rows
 to that surface instead of the cleanup route's `/simplify`.
 
@@ -23,7 +23,7 @@ time" already says a rule's remediation shape does not vary run to run, and who 
 exactly such a fact. Requiring every emitted row to carry a copy would be the per-finding
 restatement that section forbids, and would make conformance a property of a producer's emitter
 rather than of its rule set. A producer MAY additionally lead an `Action` cell with
-`Remediate with <invocation>` as a self-describing shortcut for a consumer that cannot resolve this
+``Remediate with `<invocation>` `` (same code-span convention) as a self-describing shortcut for a consumer that cannot resolve this
 contract; where the two disagree the crosswalk wins and the row is the defect.
 
 The section opens by ruling out the two cheaper answers, because both were checked first and the

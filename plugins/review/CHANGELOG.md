@@ -27,11 +27,11 @@ All notable changes to the `review` plugin are documented here. Format follows
   heading, so a cleanup row reaches `/simplify` whatever the crosswalk says about it.
 
   - **Step 2** gains one classification rule: a row belonging to a rule whose crosswalk
-    `Auto-applicable` cell leads with `No, remediated by <invocation>` routes to that invocation,
+    `Auto-applicable` cell leads with ``No, remediated by `<invocation>` `` routes to that invocation,
     whatever its class, and never to `/simplify` or the generic fixer. The declaration is
     resolved through the qualified rule id every conforming row already leads its `Finding` cell
     with, so **no producer has to change what it emits** — an `Action` cell leading with
-    `Remediate with <invocation>` is an optional self-describing shortcut, and the crosswalk wins
+    ``Remediate with `<invocation>` `` is an optional self-describing shortcut, and the crosswalk wins
     when they disagree. Off-site is decided first, so a row that is both stays surface-only, and
     a row whose contract cannot be resolved takes its ordinary class as before.
   - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
@@ -50,6 +50,13 @@ All notable changes to the `review` plugin are documented here. Format follows
   Producer-side, the declaration and its fixed forms are owned by the detector-findings
   convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
   owned by the producer's own skill". No producer had to change what it emits.
+
+  One detail is called out in Step 2 rather than left to inference, because this step is the
+  *literal* read and the failure is silent: **the invocation arrives inside a code span and the
+  fixer strips the backticks before matching**. A fixer matching the bare form against a
+  backticked cell matches nothing and falls through to the ordinary class — the original defect
+  wearing the new disposition's clothes. The contract states the convention once and binds both
+  the crosswalk cell and the optional `Action` shortcut to it.
 
 ## [0.25.0]
 

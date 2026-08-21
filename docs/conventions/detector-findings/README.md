@@ -313,13 +313,12 @@ already covers is pure cost.
 
 **Producer obligation — one declaration, in the crosswalk row.** A rule whose remediation is
 contained to `Location` but owned by the producer's own remediation surface **leads its
-`Auto-applicable` cell with** `No, remediated by <invocation>`, before whatever reason it goes on to
-give. `<invocation>` is the skill and action a session can actually run — `/ai-slop:audit fix` —
-never a reference-doc path, because a document is not something a relay can invoke. **Code-fencing
-the invocation is presentation, not part of the token**: the cells below write it as
-`` `/ai-slop:audit fix` `` for legibility, and a reader — or the gate the Enforceability table
-defers — strips the backticks before matching. Saying so here is what keeps that gate and these
-cells from drifting apart on a detail neither would state.
+`Auto-applicable` cell with** ``No, remediated by `<invocation>` ``, before whatever reason it goes
+on to give. `<invocation>` is the skill and action a session can actually run — `/ai-slop:audit fix`
+— never a reference-doc path, because a document is not something a relay can invoke. **The
+invocation is written as a code span and a consumer strips the delimiters before matching**; that
+convention is stated once, under "Auto-applicability is settled per rule, at contract time" below,
+and binds the `Action`-cell shortcut here identically.
 
 **The declaration is per RULE and lives nowhere else, which is this contract's own settle-once rule
 applied rather than restated.** "Auto-applicability is settled per rule, at contract time" (below)
@@ -334,11 +333,13 @@ is the cross-producer registry that id resolves against by exact match — the s
 Enforceability table's tier check is built on. A consumer holding a row therefore holds the route to
 its declaration without a new column, a new field, or a second copy of a rule-level fact.
 
-**A producer MAY also lead its `Action` cell with** `Remediate with <invocation>`, and a consumer MAY
-route on that alone. This is a self-describing convenience for a consumer that cannot resolve the
-contract, never a second declaration: where the two disagree, **the crosswalk row wins** and the row
-is the defect. `ai-slop:audit` writes a near form of it today (`Guarded rewrite via /ai-slop:audit
-fix`) on the rules whose `Action` has nothing more specific to say.
+**A producer MAY also lead its `Action` cell with** ``Remediate with `<invocation>` `` — same
+code-span convention, same delimiter strip — and a consumer MAY route on that alone. This is a
+self-describing convenience for a consumer that cannot resolve the contract, never a second
+declaration: where the two disagree, **the crosswalk row wins** and the row is the defect.
+`ai-slop:audit` writes a near form of it today (`Guarded rewrite via /ai-slop:audit fix`) on the
+rules whose `Action` has nothing more specific to say, which is a near form precisely because it does
+not lead — one more reason the crosswalk path is the load-bearing one.
 
 **Consumer disposition.** `fix-pass-mode.md` "Step 2" routes such a row to the named surface instead
 of `/simplify` or the generic fixer, and "Step 4" invokes that surface only when it is **already
@@ -368,7 +369,7 @@ different field count, so a sixth column is a gate rewrite before it is a contra
 | Remediation | How the row declares it | Consumer route |
 |---|---|---|
 | At `Location`, mechanical and meaning-preserving | `Auto-applicable: Yes — <argument>` | Auto-applied under Step 4's fence |
-| At `Location`, owned by the producer's own surface | `Auto-applicable: No, remediated by <invocation>`, resolved through the row's rule id | Routed to that surface; surfaced when it is unavailable |
+| At `Location`, owned by the producer's own surface | `Auto-applicable` leads ``No, remediated by `<invocation>` ``, resolved through the row's rule id | Routed to that surface; surfaced when it is unavailable |
 | Outside `Location`'s file | The off-site rule above; `Action` names the target file | Surface-only (Step 2) |
 
 A row declaring **none** of them is not in breach — it takes the consumer's own classification, which
@@ -401,9 +402,20 @@ limitation to route around:
 
 **The cell's grammar carries the disposition.** `Auto-applicable` is read by a consumer, not only by
 a human, so the cell leads with one of four forms and argues after it: `Yes — <argument>`,
-`No — <reason>`, `No, remediated by <invocation> — <reason>` (previous section), or
+`No — <reason>`, ``No, remediated by `<invocation>` — <reason>`` (previous section), or
 `Not applicable — no row`. A reason that names an owner only in passing prose is not a declaration;
 the lead is.
+
+**The invocation is written as a code span, and a consumer strips the delimiters before matching.**
+The shipped cells read ``No, remediated by `/ai-slop:audit fix` — …``, with backticks, because every
+other code-ish token in this table carries them and an unfenced slash command inside a markdown table
+reads as prose. **This paragraph is the whole of that convention**, and it is stated here rather than
+left to be inferred from the rows because the alternative is the failure mode this grammar exists to
+prevent: a contract showing one byte sequence while every conforming row writes another, so a
+consumer implementing the contract literally matches nothing and the rows only *look* adopted. One
+delimiter to strip is a smaller ask than an unfenced command in a table, and the same convention
+binds the `Action`-cell shortcut in the previous section — ``Remediate with `<invocation>` `` — so
+the two readings agree with each other as well as with this table.
 
 **Never shape a rule to look auto-applicable.** Narrowing `Location` to one file the finding does not
 actually describe, or lowering `Confidence` to trip the escape clause, each defeats the criterion it
@@ -544,7 +556,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `Tier` is looked up from the rule rather than hand-picked | **Detect-then-judge** when built — narrowed by the crosswalk from where it stood. Every emitted row leads with a rule id, so a gate can check that the id has a crosswalk row and that the row's tier matches the row's own. What no gate can check is whether the run selected the RIGHT rule, which for a judgment-based classifier is not a machine question at all — the fail-safe-toward-emitting criterion is what bounds it instead of a check. |
 | Every crosswalk row argues its disposition from a stated test | **Detect-then-judge**, and **BUILT**: [`scripts/check-detector-findings-crosswalk.sh`](../../../scripts/check-detector-findings-crosswalk.sh) `--check` runs in CI, failing an empty or prose-free test cell, an unqualified or duplicated rule id, and a row whose cells an unescaped pipe has shifted. Whether an argument is *sound* stays judgment — that is what the admission test carries, and no gate replaces it. |
 | A row whose remediation is off-site is surfaced, not applied | **Detect-then-judge** when built — the consumption record names every surfaced row, so an off-site row appearing in the applied list is detectable; whether the fixer surfaced for the right reason is judgment. |
-| An `Auto-applicable` cell uses one of the four leading forms | **Deterministic when built** — a literal-prefix read of a cell the crosswalk gate already parses, and the one that matters most is `No, remediated by <invocation>`, whose invocation must be a runnable `/plugin:skill` form rather than a doc path. A cell that names an owner only in trailing prose is the drift this catches. Unbuilt; it is one condition away in that gate. |
+| An `Auto-applicable` cell uses one of the four leading forms | **Deterministic when built** — a literal-prefix read of a cell the crosswalk gate already parses, and the one that matters most is ``No, remediated by `<invocation>` ``, whose invocation must be a runnable `/plugin:skill` form rather than a doc path. **The gate strips the code-span delimiters before matching**, per the grammar paragraph above; a gate written against the bare form would reject every conforming row, which is exactly the contract-versus-rows divergence this row exists to catch. A cell that names an owner only in trailing prose is the other drift it catches. Unbuilt; it is one condition away in that gate. |
 | A producer-owned row is routed to its named surface, not to `/simplify` | **Reasoning-only** — the consumption record states what the cleanup route changed, not which skill the fixer invoked, so nothing outside the session can tell a routed row from one `/simplify` silently declined to touch. This is the honest limit of the disposition: the declaration is checkable, the honoring is not. |
 | A declined candidate is reported as a count rather than dropped | **Reasoning-only** — a count in `## Surfaces` is greppable, but nothing outside the producer knows what the run examined, so no gate can tell a declined candidate from one never generated. |
 | A producer's coexistence behavior (own file, self-named surface) | **Detect-then-judge** when built — appending into another producer's file is detectable; whether a `Surface(s)` value identifies the producer usefully is judgment. |
@@ -574,7 +586,7 @@ adopter asserts what a reader cannot rely on.
 
 | `testing:audit` | Conforming, opt-in | The first static Tier 1 detector, and the contract's first fully mechanical rule set: selection is a deterministic token/structure scan with no execution and no withholding verdict, so the fail-safe-toward-emitting criterion is met by construction — the one uncertain case (a deliberate interaction-style test matching `rule-mock-only-oracle`) still emits, with `Confidence` omitted per the high-or-omitted rule. Persists behind `--persist-findings`; bare invocation reports and stops. Leads every `Finding` cell with the qualified rule id and the fired threshold in the run's own values; `Confidence` is `high` on the two deterministic-defect rules and omitted on `rule-mock-only-oracle`, never `low`. `Location` is repo-relative (computed through git's own prefix under a narrowed scan root) and IS the remediation site — the repair belongs in the flagged test — but every row is oracle-judgment repair, so none is auto-applicable. It declares **no** remediation owner, and that is correct rather than an omission: no skill owns choosing the assertion a behavior deserves, so its cells keep the plain `No — <reason>` form and Step 4's judgment fence surfaces the rows, exactly as before. Omits `tier:`, `## By dimension`, and `## Unparsed`; keeps `## Surfaces` with per-rule declined-candidate counts, stating honestly that the recomputed-expectation rule's candidate assertions are not tallied v1 rather than inventing a number. A deliberate case is declined at selection by an in-file `cant-fail-ok: <reason>` annotation — the rules' stated decline evidence, counted in `## Surfaces` — which is a recorded decision at the test site (the repo's incumbent test-gate annotation shape), not a suppression of an emitted finding, so the finding-suppression home is not in play. Its `--check` mode is the fail-closed gate the liveness contract's fail-loud limb asks of a gating form: findings exit 1; an unread input, a dead engine, or a scan that examined nothing exits 2 rather than passing. |
 
-| `ai-slop:audit` | Conforming, default-on for repo-examining runs | The first prose detector, and the first with a rule-sourced tier spread (twelve SUGGESTION style rules, three IMPORTANT generation-residue rules — each argued in its crosswalk row). Selection is fully mechanical (byte-sequence, phrase-list, and density scans; no withholding verdict), so the fail-safe criterion is met by construction; its decline evidence is the in-file ignore markers, config path exemptions, and code-fence stripping, counted per rule in `## Surfaces` from the detector's own `Summary` rows. The findings file is model-persisted by the skill (the deterministic `detect.sh` emits a parseable report only), per its `context/persist-findings.md` read of this contract: fetch this contract before the first write and refuse to persist when unreachable. Leads every `Finding` cell with the qualified rule id and the fired condition in the run's own values (the zero-tolerance marker or the density/threshold/hits/words tuple); `Confidence` is `high` on every row. Judgment-rubric findings never enter the file — no crosswalk row, no relay. **The first producer to declare producer-owned remediation**, and the case that section was written from: only `rule-utm-params` is auto-applicable, and its other fourteen rows are contained to `Location` yet safe only under the rewrite discipline in this plugin's own `reference/rewrite-guide.md`. Each of those fourteen rows leads its `Auto-applicable` cell with `No, remediated by /ai-slop:audit fix`, which the relay resolves through the qualified rule id every emitted row already leads its `Finding` cell with — so those rows route to that action instead of the cleanup route's `/simplify`, which reads no findings file and loads no rewrite guide. **The declaration required no change to what this producer emits**, which is the point of siting it in the crosswalk: its emitted `Action` cells already describe the repair and already name the fix action on the rules with nothing more specific to say. After that fix runs the skill re-runs the detector and re-emits, so no stale file survives its own remediation. Omits `tier:`, `## By dimension`, and `## Unparsed`. |
+| `ai-slop:audit` | Conforming, default-on for repo-examining runs | The first prose detector, and the first with a rule-sourced tier spread (twelve SUGGESTION style rules, three IMPORTANT generation-residue rules — each argued in its crosswalk row). Selection is fully mechanical (byte-sequence, phrase-list, and density scans; no withholding verdict), so the fail-safe criterion is met by construction; its decline evidence is the in-file ignore markers, config path exemptions, and code-fence stripping, counted per rule in `## Surfaces` from the detector's own `Summary` rows. The findings file is model-persisted by the skill (the deterministic `detect.sh` emits a parseable report only), per its `context/persist-findings.md` read of this contract: fetch this contract before the first write and refuse to persist when unreachable. Leads every `Finding` cell with the qualified rule id and the fired condition in the run's own values (the zero-tolerance marker or the density/threshold/hits/words tuple); `Confidence` is `high` on every row. Judgment-rubric findings never enter the file — no crosswalk row, no relay. **The first producer to declare producer-owned remediation**, and the case that section was written from: only `rule-utm-params` is auto-applicable, and its other fourteen rows are contained to `Location` yet safe only under the rewrite discipline in this plugin's own `reference/rewrite-guide.md`. Each of those fourteen rows leads its `Auto-applicable` cell with ``No, remediated by `/ai-slop:audit fix` `` — the code-span form the grammar states — which the relay resolves through the qualified rule id every emitted row already leads its `Finding` cell with — so those rows route to that action instead of the cleanup route's `/simplify`, which reads no findings file and loads no rewrite guide. **The declaration required no change to what this producer emits**, which is the point of siting it in the crosswalk: its emitted `Action` cells already describe the repair and already name the fix action on the rules with nothing more specific to say. After that fix runs the skill re-runs the detector and re-emits, so no stale file survives its own remediation. Omits `tier:`, `## By dimension`, and `## Unparsed`. |
 
 `review:fanout` is not an adopter and is deliberately absent from the table: it is the **reference
 writer** whose file format this contract points at, and it sits on the other side of the boundary
