@@ -3,6 +3,43 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.10]
+
+### Added
+
+- **The Linear schema check is committed, so the evidence that replaced a live conformance run is
+  reproducible.** #2946 closed with its live-conformance criterion descoped and a schema-validation
+  pass substituted — but that pass existed only as a session artifact, so the claim justifying the
+  descope could not be re-run or regression-guarded by anyone. It now lives at
+  `adapters/linear/schema-check/`: `validate.mjs` (every operation through `graphql.validate()` plus
+  spec-compliant variable coercion), `negative.mjs` (the control that makes a green run mean
+  something — deliberately broken variants that must all fail), `fidelity.sh` (proves the operations
+  checked are the adapter's own text, not a paraphrase, and doubles as the drift alarm), plus a
+  `fetch-schema.sh` that pulls the SDL on demand rather than vendoring 1.2 MB of upstream text.
+  Current result: **18/18 operations valid, 10/10 injected faults caught, 11/11 strings verbatim.**
+  `fidelity.sh` immediately earned its place by catching that the harness still expected the
+  pre-0.39.9 `team.labels` query.
+
+### Changed
+
+- **`tracker-seam.md` now names the item-content-trust boundary where it teaches body reads.** The
+  file is the SSOT twelve surfaces consult, and it explained how to read an item's body via a
+  provider mechanic without once mentioning that what comes back is untrusted. No live surface was
+  unguarded — `decompose`, `ship`, `work`, `triage` and the review spokes all cite the boundary —
+  but the document a *new* surface reads when adding a body read did not, so the link ran one way
+  only.
+- **The #2945 role-split topology decision is recorded in `CONTRACT.md`.** #2951 (Jira write
+  support) was closed `not_planned` on the strength of that decision, which existed only as a
+  comment on a sub-issue — and under this plugin's own disposable-tickets doctrine a decision
+  resting in a ticket is resting in the wrong place. `CONTRACT.md` § "Multi-provider topology" now
+  carries the shape (one writable coordination provider, N read-only `sources`), states plainly
+  that **nothing implements `sources` today**, and marks building it demand-gated.
+- **The README's synonym claim is scoped to the skills it is true of.** It said ticket/issue
+  "appear in skill Use-when triggers" fleet-wide; `ship`, `onboard-adapter` and `setup` carry
+  neither token. Rather than stuff the tokens into an adapter generator's triggers to satisfy the
+  sentence — buying a tidier claim at the cost of worse routing — the claim now names the
+  item-facing skills and says why the infrastructure and container-journey skills differ.
+
 ## [0.39.9]
 
 ### Fixed

@@ -1,0 +1,8 @@
+# Fetched on demand by fetch-schema.sh — ~1.2 MB of vendored upstream text that would
+# otherwise freeze at whatever day it was copied. See README.md "Provenance".
+schema.graphql
+
+# `npm install graphql` for the validator; not a dependency of the plugin itself.
+node_modules/
+package.json
+package-lock.json

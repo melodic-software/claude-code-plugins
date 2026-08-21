@@ -3,6 +3,28 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **`quality-gate close-out` Shape B dropped code-shipping sub-items from the basis.** Rung 1's
+  empty-result rule read *"a successful query returning zero merged PRs means that sub-item closed
+  without shipping code … Only a failed query falls to rung 2."* But an empty rung-1 result means
+  only that **no PR named the item with a closing keyword**, and two very different situations
+  produce that: the item genuinely shipped nothing, or it shipped under a `Refs #N` reference — a
+  posture `work-items`' own `work/SKILL.md` explicitly sanctions (*"an intentional `Refs #N` opt-out
+  does not exclude its issue"*), and the normal shape whenever one PR advances several items while
+  closing only the spin-offs it fully resolves. Everything in the second case was classified
+  `no-code` and silently excluded, while the report still claimed to cover the shipped whole. An
+  empty rung 1 now falls to rung 2 as well, `no-code` is only reached when both rungs come back
+  empty, and the verdict names which rung produced it.
+
+  Found by the mode reviewing the container that shipped it — #3027's dogfood criterion working as
+  intended. On container #2933's own close-out, PR #3056 carried `Closes` for three spin-offs only
+  and PRs #3067 and #3071 carried no closing keyword at all, so three sub-items that between them
+  shipped **83 file-touches** of adapter and generator code would have been dropped from the basis
+  of the review deciding whether that container could close.
+
 ## [0.26.2]
 
 ### Fixed

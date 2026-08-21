@@ -389,6 +389,29 @@ container producers. Read one container's children with
 `list-frontier --parent <container>`. Aside from that exclusion the frontier is
 label-agnostic and simply never surfaces items that are assigned or blocked.
 
+### Multi-provider topology — the role-split model (recorded decision, not yet built)
+
+A binding names **one** provider, and that provider is the **coordination surface**: the single
+writable tracker where items are created, claimed, and closed. The investigation on
+[#2945](https://github.com/melodic-software/claude-code-plugins/issues/2945) settled the shape for
+consumers whose source of record lives elsewhere — **one writable coordination provider, N
+read-only sources** — with the read-only side to be expressed as an optional `sources: [...]` array
+of providers feeding reads only.
+
+**Nothing in the seam implements `sources` today**, and this paragraph is the recorded deferral
+rather than a promise: no adapter reads it, `lib/binding.sh` does not resolve it, and a binding
+carrying the key would simply be ignored. It is written down here because a live decision already
+rests on it — [#2951](https://github.com/melodic-software/claude-code-plugins/issues/2951) (Jira
+write support) was closed `not_planned` **on the strength of this topology**, on the reasoning that
+under the role-split model Jira's read-only-ness is the feature and the backlog-pollution guarantee
+becomes structural rather than configured.
+
+That decision previously existed only as a comment on a sub-issue. Under this plugin's own
+disposable-tickets doctrine (`decompose`: slices are projections of the spec and are closed and
+regenerated when it moves) a decision resting solely in a ticket is resting in the wrong place, so
+it is graduated here. Building `sources` is demand-gated: a consumer who needs it opens a new item
+citing this section.
+
 ## Capabilities manifest
 
 ```json
