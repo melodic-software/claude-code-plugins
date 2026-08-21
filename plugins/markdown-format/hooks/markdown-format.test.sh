@@ -972,6 +972,46 @@ else
   fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
 fi
 
+# A generic writable $HOME/… PATH entry (mise install tree, nested .bun/bin)
+# is not a named target — only ~/.bun/bin, ~/.local/bin, ~/bin qualify.
+PD_GENERIC="$(mktemp -d "$WORK/pd.XXXXXX")"
+mkdir -p "$FAKE_HOME/share/mise/installs/node/22/bin" "$FAKE_HOME/foo/.bun/bin"
+OUT_GENERIC="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_GENERIC" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/share/mise/installs/node/22/bin:$FAKE_HOME/foo/.bun/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_GENERIC" | jq -e --arg mise "$FAKE_HOME/share/mise/installs/node/22/bin" --arg nested "$FAKE_HOME/foo/.bun/bin" '
+  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $mise)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $nested)) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
+  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+' >/dev/null 2>&1; then
+  ok "out-of-repo notice does not name a generic or nested \$HOME PATH entry"
+else
+  fail "out-of-repo generic PATH fallback leaked into notice: $OUT_GENERIC"
+fi
+
+# Non-git project with package.json: npm i -D still has a place to land.
+printf '{}\n' >"$OUTREPO/package.json"
+PD_PKGJSON="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_PKGJSON="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |
+  env BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
+    CLAUDE_PLUGIN_DATA="$PD_PKGJSON" HOME="$FAKE_HOME" \
+    PATH="$FAKE_HOME/.bun/bin:$PATH" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_PKGJSON" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and
+  (.hookSpecificOutput.additionalContext | contains("is the reliable route")) and
+  ((.hookSpecificOutput.additionalContext | contains("outside a repository")) | not)
+' >/dev/null 2>&1; then
+  ok "non-git project with package.json still names repo-local npm i -D"
+else
+  fail "non-git package.json lost npm i -D guidance: $OUT_PKGJSON"
+fi
+rm -f "$OUTREPO/package.json"
+
 # No durable user-scope PATH entry: do not invent a path or recommend npm i -D.
 PD_NOTARGET="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_NOTARGET="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTREPO/note.md" |

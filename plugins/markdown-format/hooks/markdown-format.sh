@@ -504,20 +504,6 @@ resolve_repo_markdownlint() {
   return 1
 }
 
-# True when $1 (a PATH entry) is a version-manager / session-ephemeral prefix:
-# a global install there is not durably hook-visible (#2748 / #2868).
-path_entry_is_ephemeral() {
-  case "$1" in
-  *fnm_multishells* | */.nvm/* | */nvm/versions/* | */.fnm/* | */.asdf/installs/* | \
-    */.volta/tmp/*)
-    return 0
-    ;;
-  *)
-    return 1
-    ;;
-  esac
-}
-
 # Strip a trailing slash; on Git Bash, fold a drive-letter spelling to POSIX
 # so $HOME and PATH entries compare as the same directory.
 normalize_path_entry() {
@@ -530,8 +516,7 @@ normalize_path_entry() {
 }
 
 # True when the edited file sits inside a git working tree. git is preferred;
-# a .git walk covers a git-less host. CLAUDE_PROJECT_DIR alone is not a repo —
-# a scratch project dir has no package.json / node_modules for `npm i -D`.
+# a .git walk covers a git-less host.
 edit_is_in_git_repo() {
   local dir parent
   dir="$(cd "$(dirname -- "$1")" 2>/dev/null && pwd -P)" || return 1
@@ -546,11 +531,36 @@ edit_is_in_git_repo() {
   done
 }
 
-# Pick a durable user-scope directory already on $PATH. Preference matches
+# True when `npm i -D` has a place to land: a git working tree, or a package.json
+# between the file and REPO_ROOT (an unpacked / non-git Node project whose
+# CLAUDE_PROJECT_DIR last-resort root is exactly that case). A scratch dir
+# with no package.json is not a repo-local install target.
+edit_has_repo_local_install_target() {
+  local dir parent root=""
+  if edit_is_in_git_repo "$FILE"; then
+    return 0
+  fi
+  dir="$(cd "$(dirname -- "$FILE")" 2>/dev/null && pwd -P)" || return 1
+  if [[ -n "${REPO_ROOT:-}" ]]; then
+    root="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || root=""
+  fi
+  while :; do
+    [[ -f "$dir/package.json" ]] && return 0
+    if [[ -n "$root" && "$dir" == "$root" ]]; then
+      return 1
+    fi
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" != "$dir" ]] || return 1
+    dir="$parent"
+  done
+}
+
+# Pick a durable user-scope directory already on $PATH. Only the three
 # directories an operator can put a hook-visible binary in without a
-# repository: ~/.bun/bin (bun's default globalBinDir), ~/.local/bin, ~/bin.
-# Version-manager multishell prefixes are skipped. Prints the chosen PATH
-# entry in the spelling that was on PATH, or returns 1.
+# repository, in preference order: ~/.bun/bin (bun's default globalBinDir),
+# ~/.local/bin, ~/bin. No generic $HOME/* fallback — a version-manager
+# install/shim tree under $HOME is not a durable target (#2868 review).
+# Prints the chosen PATH entry in the spelling that was on PATH, or returns 1.
 select_user_scope_path_target() {
   local home rest entry norm_entry norm_home
   local best_pref=99 best=""
@@ -569,7 +579,6 @@ select_user_scope_path_target() {
       rest=""
     fi
     [[ -n "$entry" ]] || continue
-    path_entry_is_ephemeral "$entry" && continue
     norm_entry="$(normalize_path_entry "$entry")"
     [[ -n "$norm_entry" ]] || continue
     case "$norm_entry" in
@@ -589,12 +598,6 @@ select_user_scope_path_target() {
         best="$entry"
       fi
       ;;
-    "$norm_home"/*)
-      if [[ -d "$entry" && -w "$entry" ]] && ((best_pref > 10)); then
-        best_pref=10
-        best="$entry"
-      fi
-      ;;
     *) ;;
     esac
   done
@@ -602,32 +605,30 @@ select_user_scope_path_target() {
   printf '%s' "$best"
 }
 
-# Remediation sentence(s) for the missing-markdownlint notice. In a repository
-# the node_modules/.bin probe is the reliable route. Outside one, name a
-# user-scope directory already on the probed PATH instead of `npm i -D` (#2868).
+# Remediation sentence(s) for the missing-markdownlint notice. When a
+# repo-local install can land (git tree or package.json), that is the
+# reliable route. Otherwise name a durable user-scope directory already
+# on the probed PATH instead of `npm i -D` (#2868).
 markdownlint_skip_remediation() {
-  local target norm_target
-  if edit_is_in_git_repo "$FILE"; then
+  local target norm_target norm_home bun_bin
+  if edit_has_repo_local_install_target; then
     printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools."
     return 0
   fi
   printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here. This edit is outside a repository, so a repo-local install has no repository to install into"
   if target="$(select_user_scope_path_target)"; then
     norm_target="$(normalize_path_entry "$target")"
-    # bun's documented default globalBinDir is ~/.bun/bin
+    norm_home="$(normalize_path_entry "${HOME:-}")"
+    bun_bin="$norm_home/.bun/bin"
+    # bun's documented default globalBinDir is exactly ~/.bun/bin
     # (https://bun.com/docs/runtime/bunfig, install.globalBinDir, fetched
-    # 2026-08-21). markdownlint-cli2's own install docs name
-    # `npm install markdownlint-cli2 --global` as the global-CLI form
-    # (https://github.com/DavidAnson/markdownlint-cli2#install, fetched
-    # 2026-08-21); cite bun only when the chosen PATH target is that default.
-    case "$norm_target" in
-    */.bun/bin)
+    # 2026-08-21). Cite bun only for that exact directory, never a nested
+    # `*/.bun/bin` suffix.
+    if [[ -n "$norm_home" && "$norm_target" == "$bun_bin" ]]; then
       printf '%s' "; place a user-scope markdownlint-cli2 on the probed PATH (this hook would accept one at ${target}; bun install --global markdownlint-cli2 lands there by default)"
-      ;;
-    *)
+    else
       printf '%s' "; place a user-scope markdownlint-cli2 on the probed PATH (this hook would accept one at ${target})"
-      ;;
-    esac
+    fi
   else
     printf '%s' "; install markdownlint-cli2 onto a durable user-scope directory already on this hook's PATH"
   fi
