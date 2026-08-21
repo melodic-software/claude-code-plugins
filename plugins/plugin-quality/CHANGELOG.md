@@ -5,7 +5,7 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.6]
+## [0.6.7]
 
 ### Changed
 
@@ -18,6 +18,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   could not tell a rung-1 `curl` from summarizer output. The body schema now
   requires the same four citation parts, and a citation that omits the channel
   or the count is emitted as **unverified**.
+
+## [0.6.6]
+
+### Changed
+
+- **Hooks-reference fragment retarget (#2907).** The audit hook checklist cited
+  `code.claude.com/docs/en/hooks#exit-codes`. That heading is gone; the current parent section is
+  `#exit-code-output`. Link only — no audit-step change.
 
 ## [0.6.5]
 
