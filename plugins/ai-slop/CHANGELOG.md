@@ -37,7 +37,10 @@ name a committed fixture instead.
   that it treats persistence as applicable, fetches the producer contract first, and — case 4 —
   refuses to write when that fetch fails, rather than refusing because the target was out of tracked
   space. A case cannot verify real repository state, and pretending otherwise is what made case 4
-  pass for the wrong reason.
+  pass for the wrong reason. Case 5 also asserts the positive half — that the findings file is
+  actually written — because `context/persist-findings.md` permits reporting without writing when the
+  destination cannot be proven outside tracked space, so a negative-only case would be satisfied by a
+  run that persists nothing at all.
 - **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
   That decision holds for the *unit* suite, whose fixtures are still built inline in a tmpdir. It
   does not survive contact with the eval suite: an eval case is graded against a deterministic

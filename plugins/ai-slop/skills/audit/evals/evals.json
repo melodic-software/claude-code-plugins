@@ -65,6 +65,7 @@
         "Reports the promotional-register tell as a rubric finding, quoting the offending text and naming the catalog entry it comes from",
         "Does NOT report the promotional wording as a script finding — the fixture's promotional words sit outside the mechanical vocabulary, so the detector's only finding is the em dash",
         "Treats persistence as applicable, since the audit examined a tracked file, rather than passing over the step as out of scope",
+        "Writes the findings file, on the stated premise that the audited file is tracked — a run that reports the findings and persists nothing does not satisfy this case",
         "Puts NO rubric finding in the findings file — only the em-dash script finding belongs there",
         "States the V1 boundary explicitly rather than silently omitting the rubric verdict from the file"
       ]
