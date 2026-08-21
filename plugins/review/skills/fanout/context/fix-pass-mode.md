@@ -81,6 +81,9 @@ Classification rules:
 - **Classify by finding CONTENT first.** Tier is a signal, not the determinant — a SUGGESTION can be a minor correctness fix; content wins when they disagree.
 - **Ambiguous → correctness (fail-safe).** `/simplify` is cleanup-only; a correctness finding routed there would be silently NOT fixed — dropping exactly the finding that matters most.
 - **Off-site remediation → surface-only, whatever the class.** A finding whose remediation lies outside its `Location`'s file — the `Action` names a different file, or the producing detector's contract declares the rule off-site — cannot be scope-fenced, and Step 4's fence is the whole of what bounds an unattended apply. Route it to surface-only so Step 3's counts state what will actually be applied; the class still describes what the finding IS, and only its route changes. Naming the remediation target is the producer's obligation under the detector-findings contract (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>), which is what makes the condition readable here at all.
+- **Producer-owned remediation → route to the named surface, whatever the class.** A row whose `Action` cell **leads with `Remediate with <invocation>`** declares that its repair is contained to `Location` but is owned by the producing detector's own remediation skill, under that contract's "When the remediation is owned by the producer's own skill". The remediation is at `Location`, so the off-site rule above does not fire and never should — the declaration is about WHO applies the fix, not about where it goes. Route the row to `<invocation>` and **never to `/simplify` or to the generic scope-fenced fixer**. Decide off-site FIRST: an `Action` that both names another file and leads with an invocation is off-site, and surface-only wins, because the fence Step 4 cannot enforce is not made enforceable by naming someone else to breach it. Step 4 owns what happens when the named surface is unavailable.
+
+  **Why this is a route rather than a fence.** These rows are exactly the ones the cleanup route mishandles silently: a prose-rewrite finding classifies as cleanup by content, and `/simplify` is a code-simplification skill that reads no findings file and loads none of the producer's rewrite discipline. It changes nothing, Step 5 retires the file anyway, and the pass reports a clean run over findings nobody fixed. Surfacing them instead would be honest and still lose the fix the producer can actually perform.
 - **`## Unparsed` entries → surface to the user** for manual handling; they cannot be auto-classified.
 
 ## Step 3: Plan + confirmation gate
@@ -94,6 +97,7 @@ Fix-pass plan — consumed <S> findings file(s), <N> findings after merge
 - Surfaces (union) — ran: [...]; returned no result: [...] (with cause when known)
 - Cleanup-class (<n>) → /simplify
 - Correctness-class (<m>) → sequential scope-fenced fix
+- Producer-owned (<p>) → <invocation>, one line per named surface
 - Surface-only (<k>, off-site remediation / need human judgment / unparsed)
 ```
 
