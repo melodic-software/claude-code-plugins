@@ -10,7 +10,10 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 - **The two sibling routes name the Skill tool (#3002).** `methodology`'s "to *run* a workshop"
   route to `/event-storming:simulation` and `simulation`'s "for facilitation knowledge" route to
   `/event-storming:methodology`. The recommendation blockquote `methodology` prints for the user
-  is left as-is — it is sample output, not an instruction to the model. Wording only.
+  is left as-is — it is sample output, not an instruction to the model. The glossary-graduation
+  delegations to `/domain-driven-design:curate-language` carry the phrasing too, in both places
+  that state it: `methodology`'s `reference/glossary-and-tools.md` and `simulation`'s
+  `reference/agentic-simulation.md`. Wording only.
 
 ## [0.6.2]
 

@@ -85,8 +85,8 @@ an interactive session — do not fabricate a map.
    decision item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
    leaves *both* halves of the trigger unmet — every uncertainty is already sharp, or the
    whole effort fits one session — this effort does not need a map. STOP and route out
-   instead of fabricating one, invoking the chosen skill via the Skill tool: a single contract
-   to lock → `/planning:interview`; a set of
+   instead of fabricating one: a single contract to lock → invoke `/planning:interview` via the
+   Skill tool; a set of
    sharp tickets → `/work-items`; small enough to just do → say so. (The trigger is too-big
    AND foggy — both, never either alone.)
 2. **Create or extend the map issue.** On first use in a repo, resolve the container label

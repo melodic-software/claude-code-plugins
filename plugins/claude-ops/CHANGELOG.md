@@ -16,6 +16,22 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `/disk-hygiene:clean`) are `disable-model-invocation: true`, which the rubric's
   invocation-reach invariant puts out of a skill's reach. Wording only.
 
+### Fixed
+
+- **`morning-brief`: `fetch_repo_label_names` was called 116 lines before it was defined.** The
+  live-source probe that short-circuits the parked-decisions section on a fixture label inventory
+  called `fetch_repo_label_names` (and `label_exists_in_repo`) while both definitions still sat
+  further down the file, so at that point in execution the call died with `command not found` and
+  the probe silently never short-circuited. Both definitions now sit immediately after the `jq`
+  presence check, ahead of their first caller, with a comment saying why the order is
+  load-bearing. This is a pre-existing bug — it reproduces unchanged at `origin/main` — surfaced
+  by the new eval suite's sibling test run: `morning-brief.test.sh` went from 2 failing cases
+  (`[41] missing decision label degrades gracefully`, `[43] empty label inventory degrades
+  decision section`) to all 83 passing.
+- **`audit-performance`: the `(settings fix)` gloss re-attached to the skill it describes.**
+  "route a paused sweep to `/claude-config:audit`, invoked via the Skill tool (settings fix)" read
+  as though the Skill tool were the settings fix; the gloss now follows the skill name.
+
 ### Added
 
 - **`morning-brief`: its first eval suite (#3002).** Seven cases pinning the shipped contract —

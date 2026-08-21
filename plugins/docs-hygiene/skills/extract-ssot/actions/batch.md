@@ -21,7 +21,7 @@
 
 Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
 
-Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface — invoke `/docs-hygiene:extract-ssot batch` via the Skill tool, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
+Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface — invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## When to invoke
 

@@ -434,7 +434,8 @@ and implementation families) but the practice was mixed — several operative ch
 bare — and codified nowhere; the doctrine now lives in
 `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"), added by this
 lane and scoped to new/edited text, with the fleet normalization sweep filed as
-[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002).
+[#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002). The sweep landed
+2026-08-21; the scoping note is retired and the rule is now unconditional.
 
 ## Coverage index (the journey's completion gate)
 

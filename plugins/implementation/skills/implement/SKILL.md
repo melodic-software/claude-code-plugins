@@ -194,9 +194,9 @@ When all planned work is done:
 | At every phase boundary | Run the Step 4 ritual (plan marks + handoff entry + status + commit + resume prompt) |
 | Worker-routed phase or autonomous orchestration | Invoke `/implementation:implement-dispatch` via Skill tool |
 | Divergence detected (major) | Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
-| Technical question mid-implementation | `/discovery:research` (when installed), otherwise disciplined multi-source research |
+| Technical question mid-implementation | Invoke `/discovery:research` via the Skill tool (when installed), otherwise disciplined multi-source research |
 | HIGH/CRITICAL change at completion | Call the `advisor` tool — rubber-duck checkpoint before review |
-| All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order — review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm` (else self-verify against intent), then `/source-control:pull-request`, each when its plugin is installed |
+| All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order — review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm` (else self-verify against intent), then `/source-control:pull-request` — each invoked via the Skill tool, each when its plugin is installed |
 
 ## What This Skill Does NOT Do
 

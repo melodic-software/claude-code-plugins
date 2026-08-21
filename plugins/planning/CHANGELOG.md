@@ -7,16 +7,23 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **Cross-skill chains name the Skill tool (#3002).** `brainstorm`'s route-onward step;
+- **Cross-skill chains name the Skill tool (#3002).**
   `design`'s early-exit proceed, its two glossary invocations, the `handoff` action, and the
   handoff-gate delegation; `design-handoff`'s FAIL route back and its hand-off to `/planning:plan`;
   `devils-advocate`'s incumbent exploration (both sites), its two research routes, and the
   high-risk research bullet; `interview`'s glossary invocation, its blindspot route, and
   `context/loop.md`'s domain check; `plan`'s Karpathy checklist, the measurable-goal baseline
-  route, the stress-test dispatch, the targeted-research step, `context/plan-template.md`'s
+  route, the stress-test dispatch, the targeted-research step, the `/tdd:principles` directive in
+  the Plan-structure test-strategy bullet (whose twin in `context/plan-template.md` was rewritten
+  while this one was missed), `context/plan-template.md`'s
   test-strategy note, `context/research-iterate.md`'s research and re-assess steps, and
   `context/tag-decisions.md`'s reversibility escalation and contested-cluster route; `wayfind`'s
-  no-fog bail-out. Left as prose on purpose: `interview`'s and `prd`'s next-step lists and
+  no-fog bail-out — attached to `/planning:interview` alone, since the other two arms of that
+  three-way route are `/work-items` (a plugin name, not an invocable skill; lines 2, 184 and 195
+  have always used it that way) and "small enough to just do → say so", which invokes nothing.
+  Left as prose on purpose: `brainstorm`'s route-onward step, whose own skill body says
+  "**Does not decide** — user reactions drive selection; the skill recommends";
+  `interview`'s and `prd`'s next-step lists and
   `devils-advocate`'s "Suggested Next Steps", all of which end in an explicit
   "Do NOT auto-invoke — recommend; let the user pull the trigger"; `interview`'s
   `/planning:wayfind` pointer, which says to recommend and never auto-switch; and the

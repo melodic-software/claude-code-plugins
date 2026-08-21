@@ -130,8 +130,8 @@ Run `check`, then create or update the config from the supplied arguments.
    Do **not** invoke the collector to verify a write. It is the full fleet walk this skill says it
    never runs — per-repository network queries across every configured root, minutes on a real fleet
    — and it proves nothing about the file that the `check` probes do not already prove. If the user
-   explicitly wants an end-to-end run, say that it is a real audit and hand off to
-   `/repo-fleet-hygiene:audit`.
+   explicitly wants an end-to-end run, say that it is a real audit and hand off by invoking
+   `/repo-fleet-hygiene:audit` via the Skill tool.
 
 6. Report path, inferred/explicit entries, preserved entries, and the config-verification result.
 

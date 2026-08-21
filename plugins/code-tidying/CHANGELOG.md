@@ -10,7 +10,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - **Cross-skill chains name the Skill tool (#3002).** `batch-simplify`'s grounding step
   (`/discovery:explore`, `/discovery:research`), its work-item filing (`/work-items:track add`),
   and its `context/reference.md` verification step (`/toolchain:check`); `tidy`'s explore/research
-  steps, its PR step (`/source-control:pull-request create`), and `reference/scope-budget.md`'s
+  steps, its PR step (`/source-control:pull-request create`), its scope-budget overflow filing
+  (`/work-items:track add`, step 5), and `reference/scope-budget.md`'s
   deferral filing; `dissolve-comments`' `reference/safety.md` commit hand-off
   (`/source-control:commit`). Wording only — presence gates, fallbacks, and step order unchanged.
 

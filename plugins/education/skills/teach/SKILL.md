@@ -150,11 +150,11 @@ Optimize for **storage strength** — long-term retention — not **fluency**, i
 Grounding is graduated — pick the cheapest tier that grounds the claim:
 
 - **Tier 0 — already-verified sources, no dispatch.** Repo files Read this turn (codebase mode) and `RESOURCES.md` citations already verified satisfy grounding for narrow or slow-domain claims. Escalate to tier 1 when a claim is contested, broad, or fast-domain (library APIs, framework syntax, tooling).
-- **Tier 1 — per-lesson research (default for fresh external claims).** invoke `/discovery:research` via the Skill tool when installed; fallback chain when absent: inline fetch of the authoritative source, `/context7:lookup` via the Skill tool (if installed) for library docs, `/firecrawl:firecrawl` via the Skill tool (if installed) when fetches are blocked — terminating at built-in WebSearch/WebFetch. Cap: roughly one research dispatch per session unless the subject shifts — batch open questions into one dispatch.
-- **Tier 2 — workspace seeding / broad subjects.** `/discovery:research-deep` (if installed) or dynamic workflows to seed `RESOURCES.md` when a workspace opens on a broad subject.
-- **Tier 3 — huge-subject corpus.** `/knowledge:map-corpus` plus its digest skills (if installed) to build a corpus map; `RESOURCES.md` points at the produced slices.
+- **Tier 1 — per-lesson research (default for fresh external claims).** Invoke `/discovery:research` via the Skill tool when installed; fallback chain when absent: inline fetch of the authoritative source, `/context7:lookup` via the Skill tool (if installed) for library docs, `/firecrawl:firecrawl` via the Skill tool (if installed) when fetches are blocked — terminating at built-in WebSearch/WebFetch. Cap: roughly one research dispatch per session unless the subject shifts — batch open questions into one dispatch.
+- **Tier 2 — workspace seeding / broad subjects.** Invoke `/discovery:research-deep` via the Skill tool (if installed), or use dynamic workflows, to seed `RESOURCES.md` when a workspace opens on a broad subject.
+- **Tier 3 — huge-subject corpus.** Invoke `/knowledge:map-corpus` via the Skill tool plus its digest skills (if installed) to build a corpus map; `RESOURCES.md` points at the produced slices.
 
-Adjacent intake and sources, each only if installed: `/discovery:blindspot` when the learner doesn't know what they don't know (unknown-territory intake before the mission interview); `/dometrain:grounding` for course-grounded claims; `/x:read` when a resource lives in an X post or thread.
+Adjacent intake and sources, each invoked via the Skill tool and each only if installed: `/discovery:blindspot` when the learner doesn't know what they don't know (unknown-territory intake before the mission interview); `/dometrain:grounding` for course-grounded claims; `/x:read` when a resource lives in an X post or thread.
 
 ### Skills (procedural — how to do it?)
 

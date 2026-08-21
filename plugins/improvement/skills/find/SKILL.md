@@ -157,7 +157,7 @@ reader knows what the ranking could not see.
 4. Hand off to the pipeline, invoking each via the Skill tool: `/discovery:explore` (internal
    unknowns) or `/discovery:research` (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
    output, with the candidate's evidence citation attached.
-5. Offer the remainder: unpicked candidates can be filed via `work-items:track` when installed —
+5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when installed —
    the user decides which, if any.
 
 Where a named pipeline skill is not installed in the consuming project, summarize the equivalent

@@ -24,12 +24,12 @@ Two stages, in order:
 
 | Stage | Question | Mechanism |
 |-------|----------|-----------|
-| 1. Mechanical **prerequisite** | "does it build, pass tests, satisfy linters?" | invoke `/toolchain:check` + `/toolchain:lint` cross-cutting via the Skill tool + architecture-test gate. **STOP the flow if it fails** — can't verify broken code |
+| 1. Mechanical **prerequisite** | "does it build, pass tests, satisfy linters?" | invoke `/toolchain:check` and `/toolchain:lint` cross-cutting via the Skill tool, then the architecture-test gate. **STOP the flow if it fails** — can't verify broken code |
 | 2. Outcome **verification** (the core) | "does the change match the plan/intent and function correctly?" | intent match + evidence + (runtime) `/testing:run-e2e` / live-app observe |
 
 The mechanical pass is a *gate*, not the point. `/toolchain:check` owns build+test+lint; `/toolchain:lint` owns cross-cutting checks. This skill composes them, then does the verification they cannot: did the change accomplish its goal.
 
-**Quick mechanical-only?** Invoke `/toolchain:check` via the Skill tool (not `/verification:confirm`). **Lint-only?** `/toolchain:lint`. **Tests-only?** `/toolchain:check <ecosystem>`. Reach for `/verification:confirm` when you need outcome confirmation — proof, not just a green build.
+**Quick mechanical-only?** Use `/toolchain:check` (not `/verification:confirm`). **Lint-only?** `/toolchain:lint`. **Tests-only?** `/toolchain:check <ecosystem>`. Reach for `/verification:confirm` when you need outcome confirmation — proof, not just a green build.
 
 ## Arguments
 
@@ -107,7 +107,7 @@ When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what w
 
 For "run the live app and watch it behave" — beyond automated `/testing:run-e2e` — `/verification:confirm` delegates rather than reimplementing app-launch:
 
-- **Primary: `/testing:run-e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off — screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
+- **Primary: invoke `/testing:run-e2e` via the Skill tool** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off — screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
 - **Supplementary: Claude Code's bundled `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145). Its sibling `/verify` covers the same ground and shares that `≥2.1.145` availability floor, but **from v2.1.215 it is user-invoked by default** — before v2.1.215 Claude could also run it on its own, and from v2.1.225 invocability is governed by a runtime gate rather than a fixed version cutoff, so two clients on one version can differ. Suggest the user run it on every version rather than probing the client's: the suggestion holds across the whole availability window and across either invocability state, delegation does not — a delegated call is refused at the tool layer, not merely discouraged. Availability floor and invocability are separate axes; both were verified 2026-08-10 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and against the shipped 2.1.223–2.1.226 clients. Recheck trigger: a Claude Code release whose changelog names `/run`, `/verify`, `/run-skill-generator`, or bundled-skill invocability.
 - **Graceful fallback** — if `/run` cannot infer the project's launch (or the CC version lacks it), fall back to invoking `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
 
@@ -142,6 +142,6 @@ For "run the live app and watch it behave" — beyond automated `/testing:run-e2
 - **Stage 1 is a gate, not the deliverable.** A green build is the prerequisite; the deliverable is outcome confirmation. Don't stop at "it builds."
 - **"It passes tests" is not outcome confirmation.** Tests prove behavior; outcome confirmation proves it's the RIGHT behavior. A well-tested feature that misses the intent is still wrong.
 - **Don't skip outcome confirmation for "obvious" changes.** Small changes drift from intent unnoticed; the intent check catches scope creep and missed requirements tests don't cover.
-- **Don't quantify improvement claims here.** "Faster" / "simpler" claims route to `/verification:measure`, invoked via the Skill tool, and its baseline discipline — never assert an improvement from this skill's evidence alone.
+- **Don't quantify improvement claims here.** "Faster" / "simpler" claims route to `/verification:measure` and its baseline discipline — invoke it via the Skill tool; never assert an improvement from this skill's evidence alone.
 - **Don't re-run Stage 1 if it already passed this conversation** and nothing changed since — reuse the results.
 - **Live-app fallback is fidelity-preserving.** If the bundled `/run` can't launch the app, fall back to invoking `/testing:run-e2e` via the Skill tool and say so explicitly — never silently swap live observation for a static check.

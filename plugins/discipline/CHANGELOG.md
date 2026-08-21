@@ -10,7 +10,10 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 ### Changed
 
 - **Corrector-to-corrector routes name the Skill tool (#3002).** `do-your-research-deep` and
-  `recheck-against-upstream-deep`'s "use the lighter sibling" bullets; `mind-your-maxims`'
+  `recheck-against-upstream-deep`'s "use the lighter sibling" bullets, plus the exact reciprocal
+  that was missed the first time — `do-your-research`'s "Escalating to a verification fan-out"
+  route up to `/discipline:do-your-research-deep`; `pick-for-the-problem`'s current-research
+  route to `/discovery:research`; `mind-your-maxims`'
   Delegations section (one preamble line covering both axes); `reuse-or-replace`'s two
   evidence/rationale routes; `scrutinize-dont-coast`'s `/review:quality-gate` route;
   `use-your-skills`' `/skill-quality:check` and `/claude-config:audit` routes. Wording only —

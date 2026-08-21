@@ -102,15 +102,40 @@ A chain whose target carries `disable-model-invocation: true` is not rewritten e
 invocation-reach invariant above makes it unreachable from a skill, so its text must keep
 directing the human (`/plugin:setup` handoffs are the common case).
 
+**A `/plugin:name` token is not automatically a skill.** The rule governs cross-*skill* chains;
+a slash **command** from another plugin is a different surface and is not reached through the
+Skill tool, so text directing one stays as written. Two live cases in this fleet, verified
+2026-08-21 against the upstream sources: `/codex:review` and `/codex:adversarial-review` are
+commands (`openai/codex-plugin-cc`, `plugins/codex/commands/review.md`, itself carrying
+`disable-model-invocation: true`; that plugin's three `skills/` entries are all internal
+`user-invocable: false` helpers), and `/code-review:code-review` is a command
+(`anthropics/claude-plugins-official`, `plugins/code-review/commands/code-review.md`; that
+plugin ships no `skills/` directory at all). Both are correct keeps wherever a skill body names
+them. By contrast `/caveman:compress` **is** a skill — `docs-hygiene:compress` reaches it as
+`Skill(caveman:compress, …)` — so it takes the explicit phrasing. Check the target's surface
+before rewriting a token that names a plugin this repo does not own.
+
 **Enforcement is author-side, and deliberately so.** No `skill-quality:check` criterion enforces
 this phrasing; the decision was taken with the sweep and is recorded here rather than left
 implicit. A static scan cannot separate an operative chain from a mention, and the separation is
-the whole rule. Measured on the fleet at the sweep (2026-08-21): 1,129 body lines in
-`plugins/*/skills/**` and `plugins/*/agents/**` carry a cross-skill `/plugin:skill` token, of
-which ~120 were operative — a criterion keyed on the token would have been ~89% false positives.
+the whole rule. Measured on the post-sweep fleet (2026-08-21) with these two commands, so any
+reader can regenerate both numbers:
+
+```bash
+# denominator — body lines carrying a backticked `/plugin:skill` token
+grep -rnE --include='*.md' '`/[a-z0-9-]+:[a-z0-9-]+' plugins/*/skills plugins/*/agents | wc -l
+# numerator — those same lines that name the Skill tool (the operative set)
+grep -rnE --include='*.md' '`/[a-z0-9-]+:[a-z0-9-]+' plugins/*/skills plugins/*/agents \
+  | grep -c 'Skill tool'
+```
+
+1,634 lines carry the token; 186 of them are operative chains carrying the explicit phrasing. A
+criterion keyed on the token alone would therefore have been **88.6% false positives**. (Both
+figures move as the fleet grows — re-run the commands rather than trusting the recorded pair.)
 Narrowing to an unambiguous handoff verb on the same line does not rescue it: run against the
-post-sweep tree, that pattern returns only non-offenders (wrapped lines whose "via the Skill
-tool" sits on the next line, index rows, self-references, deliberate `true`-target handoffs). The
+post-sweep tree, that pattern returns overwhelmingly non-offenders (wrapped lines whose "via the
+Skill tool" sits on the next line, index rows, self-references, ownership and "Handoff (not
+executed here)" annotations, deliberate `true`-target handoffs). The
 sibling criterion this doc already owns, check 24, sets the precedent for the undecidable half of
 a rule — it emits a hand-verify note rather than a warning nothing can clear — but check 24's
 note fires on the 57-skill `true` subset, whereas this one would fire on nearly every skill in

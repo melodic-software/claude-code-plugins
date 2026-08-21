@@ -65,8 +65,8 @@ as a known-large root it is gated like a home target (see step 1): the scan retu
 target; scan those without the flag.
 
 - Invoke `/repo-hygiene:clean` via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
-- For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off to
-  `/source-control:worktree status`/`cleanup` (if installed), run from the checkout's own main
+- For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off by invoking
+  `/source-control:worktree status`/`cleanup` via the Skill tool (if installed), run from the checkout's own main
   repository — those actions manage the current repository's worktrees and take no target path. The
   engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
   A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the

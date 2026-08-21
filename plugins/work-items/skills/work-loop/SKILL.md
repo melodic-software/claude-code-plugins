@@ -231,7 +231,7 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
    label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
-4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
+4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set on
    `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
    frontier omits `createdAt`) before filling cap slots — `oldest-first` ascending,

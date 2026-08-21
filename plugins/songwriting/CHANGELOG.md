@@ -7,9 +7,10 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ### Changed
 
-- **Two craft-skill routes name the Skill tool (#3002).** `object-writing`'s "a metaphor request
-  routes to `/songwriting:metaphor`" hand-over and `workflow`'s draft-is-diagnosis route to
-  `/songwriting:diagnose`. The per-skill "Related skills" lists and `workflow`'s concern-skill
+- **Three craft-skill routes name the Skill tool (#3002).** `object-writing`'s "a metaphor request
+  routes to `/songwriting:metaphor`" hand-over, `workflow`'s draft-is-diagnosis route to
+  `/songwriting:diagnose`, and `diagnose`'s reciprocal wrong-skill route back to
+  `/songwriting:workflow` for an incomplete fragment or idea. The per-skill "Related skills" lists and `workflow`'s concern-skill
   catalog table are left alone — they are see-also surfaces, not hand-offs. Wording only.
 
 ## [1.4.5]
