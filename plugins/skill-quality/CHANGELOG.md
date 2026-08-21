@@ -20,7 +20,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   a never-mutates claim; "remediation" as a noun and a negated "or rewrites"
   list are not mutate-advertising. Trigger phrases stay out of polarity.
   Advisory only — out of scope: whether any `audit` skill should gain a `--fix`
-  path, and any rename. Ten contract tests plus an eval case.
+  path, and any rename. Negated mutate verbs (`never rewrites the files`) and a
+  scoped `does not modify X` next to a mutate advertisement do not fire.
+  Twelve contract tests plus an eval case.
 
 ## [0.17.4]
 

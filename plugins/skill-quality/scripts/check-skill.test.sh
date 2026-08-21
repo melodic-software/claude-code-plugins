@@ -3214,6 +3214,53 @@ else
   fail "consistent fix skill should not warn (rc=$rc): $out"
 fi
 
+# 25k. "never rewrites the files" is a negation, not a mutate advertisement.
+make_skill audit-never-rewrite '---
+name: audit-never-rewrite
+description: "Reports findings and never rewrites the files. Use when: '"'"'reporting without rewriting'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Negated rewrite clause must not read as mutate-advertising.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-never-rewrite 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "never-rewrites-the-files is silent (negated mutate verb)"
+else
+  fail "never-rewrites-the-files should not warn (rc=$rc): $out"
+fi
+
+# 25l. A mutate lead with a scoped "does not modify X" is not a never-mutates
+#      claim — the restriction is on a particular target.
+make_skill fix-scoped '---
+name: fix-scoped
+description: "Fixes the source files but does not modify vendored dependencies. Use when: '"'"'fixing sources only'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, rewrite the failing source files. The step is done when the gate exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix-scoped 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "scoped does-not-modify next to a mutate lead is silent"
+else
+  fail "scoped does-not-modify should not warn (rc=$rc): $out"
+fi
+
 # Portability guard: no ERE interval expressions in the checker's awk regexes.
 #
 # Every other assertion here is black-box, but this failure mode is invisible to

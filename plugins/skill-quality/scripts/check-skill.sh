@@ -1425,21 +1425,32 @@ fi
 # Fenced code blocks are ignored in the body so a literal example cannot
 # satisfy or trip the body limbs.
 
+# Drop a negated mutate-verb clause so "never rewrites the files" cannot
+# advertise mutation. Scoped to those verbs — a blanket "not ..." strip
+# would eat unrelated lead text.
+vc_strip_negated_mutate() {
+  printf '%s' "$1" | sed -E \
+    's/(never|not|does not|do not)[[:space:]]+(rewrites?|fixes|remediates?|mutates|applies)[^.;]*//g'
+}
+
+vc_lead_mutate() {
+  # Positive action verbs only. "remediation" (noun) is not advertising.
+  printf '%s' "$(vc_strip_negated_mutate "$1")" | grep -qE \
+    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
+}
+
 vc_lead_readonly() {
   local t="$1"
   case "$t" in
   *"read-only by default"* | *"read only by default"*) return 1 ;;
   *) ;;
   esac
+  # A scoped "does not modify X" next to a mutate advertisement is a
+  # restriction, not a never-mutates claim (Fixes the files but does not
+  # modify vendored dependencies).
+  vc_lead_mutate "$t" && return 1
   printf '%s' "$t" | grep -qE \
     'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
-}
-
-# Positive action verbs only. "remediation" (noun) and "or rewrites" in a
-# never-does list are not advertising.
-vc_lead_mutate() {
-  printf '%s' "$1" | grep -qE \
-    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
 }
 
 vc_has_override() {
@@ -1448,6 +1459,9 @@ vc_has_override() {
 }
 
 # Body limbs are fence-aware (frontmatter + both CommonMark fence forms).
+# Close is character-only, same as check 23 — not CommonMark run-length
+# matching. A nested shorter fence of the same character can unmask the
+# rest of an illustrative block; accepted recall limit for an advisory check.
 # NO ERE INTERVALS — same mawk-portability rule as checks 21 and 23.
 VC_BODY="$(awk '
   NR == 1 && /^---[ \t]*$/ { fm = 1; next }
