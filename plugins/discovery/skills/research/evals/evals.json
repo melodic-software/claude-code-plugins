@@ -121,13 +121,13 @@
       "id": 9,
       "name": "dispatch-by-default-and-return-payload",
       "prompt": "Research how Rust edition 2024 changes the behaviour of the `gen` keyword.",
-      "expected_output": "Dispatches the discovery:researcher subagent rather than running the discipline in the main conversation, so the main conversation gains a file pointer plus a short summary rather than the research transcript. The dispatch prompt carries the resolved topic and the memory-slice path, because a preloaded body is not where a dispatched run gets its topic and a non-fork subagent has no conversation to infer from. The returned payload echoes the preload token verbatim, reports verification: pending, and lists any open questions for the parent to re-surface.",
+      "expected_output": "Dispatches the discovery:researcher subagent rather than running the discipline in the main conversation, so the main conversation gains a file pointer plus a short summary rather than the research transcript. The dispatch prompt carries the resolved topic and the memory-slice path, because a preloaded body is not where a dispatched run gets its topic and a non-fork subagent has no conversation to infer from. The returned payload echoes the discipline-liveness token as file-identity evidence, carries preload: fired or fallback, reports verification: pending, and lists any open questions for the parent to re-surface.",
       "files": [],
       "expectations": [
         "Dispatches the discovery:researcher agent by default rather than running the phases inline in the main conversation",
         "Passes the resolved topic and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which a dispatched run may depend on",
         "The main conversation receives an artifact pointer and a short summary, NOT the phase-by-phase research transcript",
-        "The returned payload echoes the preload token discovery-research-preload-4c1f9a verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run rather than downgrading or accepting it",
+        "The returned payload echoes the token discovery-research-preload-4c1f9a verbatim as preload_token (file-identity that the discipline body reached the agent) and carries preload: fired or fallback; a missing or mismatched token is a hard failure that discards the run rather than downgrading or accepting it; a matching token is NOT treated as proof preload fired",
         "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4 or 7 — the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
         "Open questions come back as text in the payload for the parent to surface, rather than being resolved silently or surfaced with AskUserQuestion, which is unavailable to a non-fork subagent",
         "Choosing the inline escape hatch instead is acceptable ONLY when the run names the condition that justifies it — tight turn-by-turn iteration, cost on a trivially small lookup, or an invoking context that is itself a subagent — and running inline relaxes no discipline",
@@ -261,6 +261,20 @@
         "Does NOT mark outcome-gate criterion 11 PASS from a reading of the coverage ledger table — a script exit status is required, and an un-run script is FAIL",
         "Either HALTS after reporting that the gate could not run, or runs check-coverage-complete.py (and/or the .sh form from an open shell lane) and cites that exit status",
         "Does not proceed to planning, a decision, or an edit on research that was not script-graded"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "matching-token-is-file-identity-not-preload-proof",
+      "prompt": "Research whether our pinned HTTP client still has the connection-pool leak. [The dispatched discovery:researcher returns a well-formed payload: preload_token matching discovery-research-preload-4c1f9a, preload: fallback, topic_as_received matching what you sent, status: complete, persistence: written, coverage: complete, artifact: <the slice>/RESEARCH.md, sidecars: 3. check-dispatch-artifact.sh exits 0. open_questions includes: 'The token is echoed because I read it from the skill file, not because it was preloaded.']",
+      "files": [],
+      "expected_output": "Accepts the run as a successful fallback recovery. The matching token is file-identity evidence that the discipline body reached the agent, not proof that skills: preload fired. The parent grades preload: fallback as provenance and does not infer fired from the token. Does not discard the run, does not warn as if preload succeeded, and does not treat the open_questions prose as the provenance seam.",
+      "expectations": [
+        "The matching preload_token is treated as file-identity evidence only — the discipline body reached the agent — and is NOT treated as proof that preload fired",
+        "preload: fallback is graded as the structured provenance field and is accepted; fallback is the recovery, not a failed dispatch",
+        "The parent does not infer preload: fired from a matching token, even when the agent also discloses the fallback in open_questions prose",
+        "The run is NOT discarded on the strength of a matching token plus a fallback disclosure; missing or mismatched token remains the discard condition",
+        "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass, the same class as a missing topic_as_received"
       ]
     }
   ]

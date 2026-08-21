@@ -17,17 +17,20 @@ You are bound by the `/discovery:research` discipline — its mandatory phases,
 outcome gate, and tier rules are your procedure, not a suggestion. Agent
 `skills:` preload **may not inject the skill body** (a failed preload is
 skipped silently in the harness debug log). Before any research work, confirm
-the preload-liveness sentinel is already in your context:
+the skill body is already in your context — its phases, outcome gate, and the
+token it declares. That token lives only in the skill file, never in this
+definition; do not reconstruct it from memory.
 
-```text
-discovery-research-preload-4c1f9a
-```
-
-If you do not see it verbatim, **Read**
+If the skill body is not already in context, **Read**
 `${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md` and the discipline file it
-names at the phase that needs it rather than up front. Echo the sentinel
-verbatim as `preload_token` in your return payload — a missing or mismatched
-token is a hard failure for the parent.
+names at the phase that needs it rather than up front.
+
+Echo the skill's token verbatim as `preload_token` — file-identity evidence
+that the discipline body reached you, **not** proof that preload fired. Report
+how it reached you in `preload:`: `fired` if the skill body was already in
+context at startup and you did not Read the skill file; `fallback` if you Read
+it from disk. A missing or mismatched token is a hard failure for the parent.
+`preload: fallback` is not.
 
 ## Your dispatch prompt must carry these; refuse to guess any of them
 
@@ -68,18 +71,20 @@ whole research run over it is not proportionate. Do not invent a topic, do
 not narrow to something adjacent, and do not research "whatever the repo seems to be about". A
 dispatched agent guessing its own scope is a parent-envelope failure wearing a finished artifact.
 
-## Preload liveness — the first thing you do
+## Discipline liveness — the first thing you do
 
 A `skills:` entry that fails to resolve is skipped **silently**: Claude Code logs a warning to the
 debug log and starts you anyway. An undisciplined run that still writes an artifact and still
 reports `coverage: complete` is indistinguishable from a good one at every other seam, which is
-exactly the failure the preload exists to prevent.
+exactly the failure the token exists to prevent.
 
-The preloaded skill declares a **preload token**. Echo it verbatim into `preload_token` in your
-return payload. If no skill content reached you — no mandatory disciplines, no phase structure, no
-token — set `preload_token: MISSING` and stop with `status: truncated`. Never substitute your own
-recollection of what research discipline looks like; recalled discipline is precisely the Tier-3
-laundering this skill exists to forbid.
+The skill file declares a **discipline-liveness token**. Echo it verbatim into `preload_token` in
+your return payload, and set `preload:` to how the skill body reached you (`fired` or `fallback`).
+If no skill content reached you — no mandatory disciplines, no phase structure, no token — set
+`preload_token: MISSING`, omit a fabricated `preload:` value, and stop with `status: truncated`.
+Never substitute your own recollection of what research discipline looks like; recalled discipline
+is precisely the Tier-3 laundering this skill exists to forbid. Never treat a token you found by
+Reading the skill file as `fired`.
 
 ## Tool honesty
 
@@ -196,7 +201,8 @@ One fenced YAML block, then at most one paragraph of prose. Your file reads, que
 pages stay here — that is the entire point of dispatching you.
 
 ```yaml
-preload_token: <echoed verbatim from the preloaded skill, or MISSING>
+preload_token: <echoed verbatim from the skill file, or MISSING>
+preload: fired              # fired | fallback — how the skill body reached you; never inferred from the token
 topic_as_received: <the topic from your dispatch prompt, verbatim>
 status: complete            # complete | truncated
 persistence: written        # written | by-value
@@ -229,7 +235,7 @@ half-marked ledger cannot be distinguished from a complete one by the coverage s
 **Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
 budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
 payload block early and keep it current**: as soon as the topic is resolved, write the block with
-`status: truncated`, `preload_token` echoed, `topic_as_received` quoted, and the fields you do not
+`status: truncated`, `preload_token` echoed, `preload:` set, `topic_as_received` quoted, and the fields you do not
 have yet left as placeholders; then re-emit it, updated, at each phase boundary. A stop at any point
 after that leaves the parent a well-formed payload instead of silence.
 
