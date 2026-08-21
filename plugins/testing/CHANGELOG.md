@@ -7,11 +7,15 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Fixed
 
-- **"Prefer no new test to a bad one" now carries its attribution.** The phrase 0.7.0 added to
-  `write`'s decline list is Khorikov's, and this marketplace already ships it sourced, in
-  `/tdd:principles`. Shipping it unattributed in a second place both drops the credit and hides
-  that the two surfaces carry one rule, so a reader meeting it here cannot find the argument behind
-  it. Cited inline as `(Khorikov, via /tdd:principles)`.
+- **"Prefer no new test to a bad one" now carries its attribution.** The phrase and the six
+  impracticality triggers 0.7.0 added are the upstream cursor/plugins `tdd` cost branch — the
+  pinned file at `cursor/plugins@60c641e4` `pstack/skills/tdd/SKILL.md` states "Prefer no new test
+  over a bad test" and lists the same six triggers. They are not in `/tdd:principles`: a search of
+  that skill and its routed Khorikov files finds neither the phrase nor the triggers. The nearest
+  sentence is Khorikov's "It's better to not write a test at all than to write a bad test" in
+  `testable-architecture-khorikov.md`, the 2x2 / Humble Object chapter, which this port used as
+  grounds to *reject* upstream's five-item bad-test definition as already owned
+  (`docs/upstream/cursor-pstack.md`). Cited inline as `(upstream cursor/plugins tdd)`.
 
 ## [0.7.0]
 

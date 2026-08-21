@@ -131,7 +131,7 @@ No tests needed for:
 
 The list above is about code that needs no test. A second, different question is whether a test
 worth having is worth *this* test — and the answer is sometimes no even for code that does need
-covering. **Prefer no new test to a bad one** (Khorikov, via `/tdd:principles`), when the only
+covering. **Prefer no new test to a bad one** (upstream cursor/plugins `tdd`), when the only
 available test would need broad harness setup, brittle mocks, slow end-to-end infrastructure,
 production-only state, a reproduction nobody can state precisely, or large unrelated fixture churn.
 A test that mostly exercises its own mocks, encodes today's implementation, or would be deleted the
