@@ -45,11 +45,9 @@ below. **An un-runnable gate is not one of the three reasons**: probe `--help` o
 checker before dispatching, and a denied or errored probe **halts** rather than routing you inline.
 All three reasons in full, and the halt rule: [`context/dispatch.md`](context/dispatch.md).
 
-**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload,
+**Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload,
 and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere
-else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload,
-and a missing or mismatched token is a **hard failure: the parent discards the run**, never
-downgrades or accepts the artifact.
+else. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired. A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery.
 
 ```text
 discovery-trace-intent-preload-7b3e2d

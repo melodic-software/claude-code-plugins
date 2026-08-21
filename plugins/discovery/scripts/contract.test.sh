@@ -264,6 +264,21 @@ assert_present 'research dispatch contract forbids inferring fired from the toke
   'skills/research/context/dispatch.md' 'MUST NOT infer'
 assert_present 'research evals grade matching-token-is-not-preload-proof' \
   'skills/research/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
+if grep -qE 'discovery-trace-intent-preload-7b3e2d' "$PLUGIN_ROOT/agents/intent-tracer.md"; then
+  fail 'agents/intent-tracer.md does not embed the discipline-liveness token'
+else
+  pass 'agents/intent-tracer.md does not embed the discipline-liveness token'
+fi
+assert_present 'intent-tracer payload contract carries preload: fired|fallback' \
+  'agents/intent-tracer.md' 'preload: fired'
+assert_present 'trace-intent SKILL.md demotes the token to file-identity' \
+  'skills/trace-intent/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
+assert_present 'trace-intent SKILL.md requires the structured preload field' \
+  'skills/trace-intent/SKILL.md' 'preload: fired \| fallback'
+assert_present 'trace-intent dispatch contract forbids inferring fired from the token' \
+  'skills/trace-intent/context/dispatch.md' 'MUST NOT infer'
+assert_present 'trace-intent evals grade matching-token-is-not-preload-proof' \
+  'skills/trace-intent/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

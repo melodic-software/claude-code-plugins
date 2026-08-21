@@ -76,6 +76,19 @@
         "If the search returns nothing, that null result is reported rather than the category being omitted",
         "Output does not record 'skipped, user said it was not there' as a valid skip reason"
       ]
+    },
+    {
+      "id": 7,
+      "name": "matching-token-is-file-identity-not-preload-proof",
+      "prompt": "Why was the retry backoff built this way? [The dispatched discovery:intent-tracer returns a well-formed payload: preload_token matching discovery-trace-intent-preload-7b3e2d, preload: fallback, topic_as_received matching what you sent, status: complete, persistence: written, artifact: <the slice>/INTENT.md. check-dispatch-artifact.sh exits 0. open_questions includes: 'The token is echoed because I read it from the skill file, not because it was preloaded.']",
+      "files": [],
+      "expected_output": "Accepts the run as a successful fallback recovery. The matching token is file-identity evidence that the discipline body reached the agent, not proof that skills: preload fired. The parent grades preload: fallback as provenance and does not infer fired from the token.",
+      "expectations": [
+        "The matching preload_token is treated as file-identity evidence only and is NOT treated as proof that preload fired",
+        "preload: fallback is graded as the structured provenance field and is accepted; fallback is the recovery, not a failed dispatch",
+        "The parent does not infer preload: fired from a matching token, even when the agent also discloses the fallback in open_questions prose",
+        "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass"
+      ]
     }
   ]
 }
