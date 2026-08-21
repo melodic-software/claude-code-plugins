@@ -196,6 +196,31 @@ for bad_scope in '""' '"a b"' '"../../etc/passwd"' '"x;id"' '123' 'null'; do
     "$(config_rc "$(jq -c --argjson s "[$bad_scope]" '.scopes = $s' <<<"$GOOD")")"
 done
 
+# page_size is BOUNDED, not merely positive. Linear caps every connection's `first` at 250,
+# so accepting a larger value means config validation passes and the FIRST live call fails —
+# which is the failure mode config validation exists to prevent. Found by validating this
+# adapter's operations against Linear's published schema.
+assert_eq "page_size 250 (the cap) is accepted" "0" \
+  "$(config_rc "$(jq -c '.page_size = 250' <<<"$GOOD")")"
+assert_eq "page_size 251 → exit 3" "3" \
+  "$(config_rc "$(jq -c '.page_size = 251' <<<"$GOOD")")"
+assert_eq "page_size 500 → exit 3" "3" \
+  "$(config_rc "$(jq -c '.page_size = 500' <<<"$GOOD")")"
+assert_contains "and the cap is named in the refusal" \
+  "$(config_err "$(jq -c '.page_size = 500' <<<"$GOOD")")" "250"
+assert_eq "page_size 0 is still refused → exit 3" "3" \
+  "$(config_rc "$(jq -c '.page_size = 0' <<<"$GOOD")")"
+assert_eq "a fractional page_size → exit 3" "3" \
+  "$(config_rc "$(jq -c '.page_size = 12.5' <<<"$GOOD")")"
+assert_eq "a non-numeric page_size → exit 3" "3" \
+  "$(config_rc "$(jq -c '.page_size = "abc"' <<<"$GOOD")")"
+# A JSON *string* holding digits is accepted on purpose, not by oversight: every scalar in
+# this binding is read through `jq -r` and validated by regex, so "50" and 50 are the same
+# value by the time validation sees them. lease_ttl_hours and lease_ttl_minutes are lenient
+# the same way. Asserted so a later reader does not "fix" the leniency in one place only.
+assert_eq "a digit-string page_size is accepted, as elsewhere in the binding" "0" \
+  "$(config_rc "$(jq -c '.page_size = "50"' <<<"$GOOD")")"
+
 # --- the credential itself ---
 
 # Unset env var → exit 4 (auth), never a request with an empty credential.

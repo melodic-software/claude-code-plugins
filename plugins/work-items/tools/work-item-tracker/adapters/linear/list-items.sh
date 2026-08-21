@@ -78,7 +78,13 @@ while :; do
     }
     KEEP="$(jq -r --arg s "$STATE" 'if $s == "all" or .state == $s then "yes" else "no" end' <<<"$ONE")"
     [[ "$KEEP" == "yes" ]] || continue
-    ITEMS="$(jq -c --argjson acc "$ITEMS" --argjson one "$ONE" '$acc + [$one]' <<<'null')"
+    # Accumulator on stdin, one item in argv. The reverse puts an unboundedly growing array
+    # on jq's command line; past ARG_MAX the exec fails and the unchecked assignment would
+    # leave ITEMS empty — a large team silently listing as zero issues while exiting 0.
+    ITEMS="$(jq -c --argjson one "$ONE" '. + [$one]' <<<"$ITEMS")" || {
+      printf 'list-items.sh: could not accumulate a normalized issue — refusing to report a partial list as complete\n' >&2
+      exit "$EX_INTERNAL"
+    }
   done < <(jq -c '.nodes[]?' <<<"$PAGE")
   COUNT=$((COUNT + $(jq '.nodes | length' <<<"$PAGE")))
   [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$PAGE")" == "true" ]] || break
@@ -93,5 +99,10 @@ while :; do
   fi
 done
 
-jq -cn --arg sv "$WIT_SCHEMA_VERSION" --argjson items "$ITEMS" \
-  '{schema_version: $sv, items: $items}'
+# ITEMS travels on STDIN, not argv: this is where the array is largest, so it is the likeliest
+# place to exceed ARG_MAX, and a failed exec here would otherwise emit nothing while the
+# caller read the empty output as "no items".
+jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
+  printf 'list-items.sh: could not emit the item envelope\n' >&2
+  exit "$EX_INTERNAL"
+}
