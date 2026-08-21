@@ -23,6 +23,14 @@
   failure. The prompt now states that the tracker is configured and reachable, isolating
   anticipatory skipping from presence-gating, which the unavailable-category eval already covers
   separately.
+- **`trace-intent` was the one skill in this plugin linking `reference/parent-contract.md` by a
+  relative path.** Its Scope-section link rendered the `${CLAUDE_PLUGIN_ROOT}` token as the link
+  *text* while the href underneath was `../../reference/parent-contract.md`. `explore`,
+  `research` and `research-deep` all cite that same file with the token on both sides, and so does
+  the rest of the fleet by a wide margin. Two spellings of one reference across sibling skills is
+  the divergence `discipline:reuse-or-replace` exists to catch, and the relative form is the one
+  that breaks first — it resolves from the file's own location rather than from the installed
+  plugin root. Brought into line with its siblings.
 
 ## [0.16.0]
 
