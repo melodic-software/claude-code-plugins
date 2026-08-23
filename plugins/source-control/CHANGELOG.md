@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.6]
+
+### Fixed
+
+- **`setup` skill:** the babysit-config guidance now names `claude plugin uninstall`'s
+  `--keep-data` flag. The section already warned against uninstalling in order to reconfigure,
+  citing the lost `pluginConfigs` entry, but stopped there, and `--keep-data` appeared nowhere in
+  the plugin. An operator who uninstalled for any of the other legitimate reasons (troubleshooting,
+  changing scopes, reinstalling a version) had no warning that uninstalling from the **last
+  remaining scope** deletes `${CLAUDE_PLUGIN_DATA}` by default. That directory holds
+  `${CLAUDE_PLUGIN_DATA}/state/babysit-prs`, meaning the babysit-prs queue state, the worker
+  leases, and the feedback ledger, none of which any `userConfig` key relocates. It is also the
+  last resolution rung for both worktree roots, so a `/source-control:worktree` tree holding
+  uncommitted work can sit there too. The added paragraph names the flag, states what the directory
+  holds, and states which rung each root has to fall through to land in it, since "left unset" is
+  necessary but not sufficient for `worktree_root`: a repository's `melodic.worktreeroot` git
+  config outranks it. The existing advice against uninstalling to reconfigure is unchanged. The
+  plugin README carries a parallel warning, but that copy sits inside the generated options block
+  every plugin README shares, so changing it is a marketplace-wide edit to
+  `scripts/sync-plugin-options-docs.py` rather than a source-control one. Follows the marketplace's
+  own `docs/conventions/plugin-data-report-keying/README.md` Rule 4, which asks a component to
+  state its uninstall fragility where its only durable copy lives
+  ([#3131](https://github.com/melodic-software/claude-code-plugins/issues/3131)).
+
 ## [0.55.5]
 
 ### Added
