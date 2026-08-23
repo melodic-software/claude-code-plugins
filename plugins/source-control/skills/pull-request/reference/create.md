@@ -524,7 +524,7 @@ PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 
 **The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing — §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own `pr-issue-linkage` workflow is then the first thing that notices a missing closing keyword or an empty required section.
 
-PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file — `gh` is authoritative source.
+PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file — `gh` is authoritative source. That read is GraphQL-backed like the others, so under the restriction above a sandboxed session takes identity from the create response instead, or re-reads it with `gh api "repos/{owner}/{repo}/pulls/<n>" --jq '{number, html_url}'`.
 
 **All subsequent phases MUST use `<pr_number>` explicitly** — never bare `gh pr view` / `gh pr checks` / `gh pr merge` without PR number argument.
 

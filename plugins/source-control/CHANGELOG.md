@@ -24,7 +24,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   defaultBranchRef` cannot supply, being the same GraphQL surface), `head` needs the
   `<fork-owner>:<branch>` form on a triangular flow, the body goes through `-f` rather than `-F`
   to avoid `--field`'s type conversion and `@`-filename handling, and the response carries
-  `.number` and `.html_url` directly instead of requiring the URL to be parsed back apart.
+  `.number` and `.html_url` directly instead of requiring the URL to be parsed back apart. The
+  paragraph that follows, which sends later phases to `gh pr view --json number,url` for PR
+  identity, now says that read is GraphQL-backed too and gives its REST re-read, so the section
+  no longer offers a sandboxed session two adjacent and contradictory instructions.
 - **§2.7 anchors the substitute.** `gh api`'s `{owner}`/`{repo}` placeholders expand from the
   current directory, which under the out-of-tree orchestrated entry is not the target
   repository — so the REST calls are shown in the same `( cd "$WT" && … )` form the section
