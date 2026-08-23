@@ -236,7 +236,7 @@ carried-forward judgment (merge rule 5), and a status change. They are not keys 
 default — they are not keys at all, and the reasoning is owned by that same section of
 `consumer-config.md`.
 
-The classes a key governs:
+The remaining classes, each named with the key that governs it where one does:
 
 | Class | Disposition | The rule a reader can apply |
 |---|---|---|
