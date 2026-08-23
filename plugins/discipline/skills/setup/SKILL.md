@@ -78,8 +78,17 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    the degraded pass does.
 7. To change or clear any value, direct the user to Claude Code's plugin configuration
    prompt for `discipline` (interactive `/plugin configure discipline@<marketplace>` any time;
-   headless `--config` applies only on a fresh install — uninstall then reinstall to
-   reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
+   headless, rerun `claude plugin install discipline@<marketplace> -s user --config
+   <key>=<value>` (repeatable per key) — against an already-installed plugin it prints
+   `already installed` and still writes the value, verified on Claude Code 2.1.240 for a
+   non-sensitive option at `user` scope, which is the only scope whose `pluginConfigs`
+   these options load from (see above). Never uninstall to reconfigure: that drops the
+   whole stored `pluginConfigs` entry and resets every option to its manifest default).
+   Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
+8. Tell the user to rerun `check` after reconfiguration — **in a fresh session**. The rendered
+   `${user_config.*}` values are injected when this skill loads, so a same-session rerun still
+   reports the OLD values; reading that as a failed write would be wrong. Report the OBSERVED
+   effective values from that fresh run, and never claim a change no rerun has observed.
 
 ## Gotchas
 

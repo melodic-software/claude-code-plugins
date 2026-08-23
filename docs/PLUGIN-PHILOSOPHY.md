@@ -336,6 +336,17 @@ only criterion this definition governs — a plugin whose `userConfig` is trivia
 whenever (a) or (b) holds, which is the ordinary case for a plugin whose real surface is a project
 config file or an external tool and whose manifest carries only a kill switch.
 
+**Stated as fleet coverage:** a plugin declaring `userConfig` ships a `setup` skill **unless every
+declared option is trivial** by the test above *and* neither (a) nor (b) holds. Declaring
+`userConfig` at all is not the trigger, and neither is the option count — the blunter rule
+"declares `userConfig` ⇒ ships a setup skill" reads as a coverage gap wherever a plugin's whole
+manifest is one kill switch, and closing that "gap" ships the ceremony this section forbids. Applied
+to a real case (#3111): `context-budget` and `repo-hygiene` each earn one on (b) — a `node`-launched
+hook and a `git`-dependent tier set whose absence the native prompt cannot see — while
+`visualization`, whose lone `medium` option is a self-contained scalar whose out-of-set values fall
+back to its default and which has no external prerequisite, correctly ships none. A setup skill was
+written for it and deliberately dropped rather than kept for symmetry.
+
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true` — matching
 upstream's own rule for the flag, "for workflows with side effects that you want to trigger
 manually" ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10) —
