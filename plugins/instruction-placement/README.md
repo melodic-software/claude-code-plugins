@@ -132,3 +132,78 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `index_drift_hook_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` | PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree. |
+| `breadth_max` | number | `75` | `CLAUDE_PLUGIN_OPTION_BREADTH_MAX` | Percent of tracked files above which a rule's paths: glob is reported over-broad. Advisory only — never fails the check gate. Raise it in a repository where one extension legitimately covers most files. |
+| `index_max_rows` | number | `40` | `CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS` | Surfaces listed individually in the generated index before the remainder is grouped by directory with a count. The index is always-loaded, so this bounds its own cost. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure instruction-placement@<marketplace>`.
+2. **Headless** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install instruction-placement@<marketplace> -s <scope> --config index_drift_hook_enabled=<value>
+   ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value — verified on Claude Code 2.1.240,
+   for a non-sensitive option at `user` scope, by writing a non-default value to an
+   installed plugin and restoring it. The short-circuit message is about the install,
+   not the config write. That has not been verified for a `sensitive` option or for
+   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin.
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "instruction-placement@<marketplace>": {
+         "options": {
+           "index_drift_hook_enabled": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
