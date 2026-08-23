@@ -101,7 +101,6 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **`track`: cross-reference follows the `bug-report` → `bugs` plugin rename.** The description's
   bug-intake pointer now names `/bugs:write`. Wording only — no behavior change.
 
-
 ## [0.39.18]
 
 ### Fixed
