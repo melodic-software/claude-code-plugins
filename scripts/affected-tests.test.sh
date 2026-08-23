@@ -21,7 +21,28 @@ SCRIPT="$SELF_DIR/affected-tests.sh"
 # failure. See #2914.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" \
+    "$SELF_DIR/lib/sync-cluster.sh" "$1/lib/"
+}
+
+# write_print_manifest <dest> <src> <copies-glob>
+# A fixture sync script that publishes via --print-manifest. The glob is
+# expanded at invocation time so a newly carrying plugin is picked up with
+# no edit to this file — the same derivation the live scripts use.
+write_print_manifest() {
+  local dest="$1" src_path="$2" copies_glob="$3"
+  cat >"$dest" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--print-manifest" ]]; then
+  printf 'src\t%s\n' '${src_path}'
+  shopt -s nullglob
+  for c in ${copies_glob}; do
+    printf 'copy\t%s\n' "\$c"
+  done
+  exit 0
+fi
+EOF
 }
 NO_SUITE="$SELF_DIR/affected-tests-no-suite.txt"
 # shellcheck source=test-git-helpers.sh
@@ -62,18 +83,11 @@ mk_repo() {
   stage_libs "$dir/scripts"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
-  # A sync manifest in the same shape as the real ones: a `src=` line and a
-  # GLOB `copies=(...)` array. The selector must read the copy set out of this
-  # file rather than knowing the plugin names.
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '# Fixture sync manifest.\n'
-    printf 'set -euo pipefail\n'
-    printf 'src="lib/widget.sh"\n'
-    printf 'copies=(plugins/*/hooks/widget.sh)\n'
-    # shellcheck disable=SC2016 # deliberate: the fixture manifest's own body
-    printf 'echo "${src} ${copies[0]}"\n'
-  } >"$dir/scripts/sync-widget.sh"
+  # A sync manifest that publishes via --print-manifest, with a GLOB copy
+  # pattern expanded at invocation time. The selector must read the copy set
+  # from that surface rather than knowing the plugin names.
+  write_print_manifest "$dir/scripts/sync-widget.sh" "lib/widget.sh" \
+    "plugins/*/hooks/widget.sh"
 
   printf 'widget_helper() { echo widget; }\n' >"$dir/lib/widget.sh"
   suite_body lib-widget >"$dir/lib/widget.test.sh"
@@ -165,11 +179,8 @@ fi
 
 # --- an empty derivation is a loud error, not an empty selection -----------
 sedless="$repo/scripts/sync-widget.sh"
-{
-  printf '#!/usr/bin/env bash\n'
-  printf 'src="lib/widget.sh"\n'
-  printf 'copies=(plugins/*/hooks/nothing-matches-this.sh)\n'
-} >"$sedless"
+write_print_manifest "$sedless" "lib/widget.sh" \
+  "plugins/*/hooks/nothing-matches-this.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'ZERO copy paths'; then
@@ -246,40 +257,53 @@ for flag in --base --print-fanout; do
 done
 
 # --- a sync-*.sh that is not a manifest is skipped, not fatal --------------
-# build_sync_map used to exit 2 on ANY scripts/sync-*.sh without a src=. This
-# suite runs in a REQUIRED CI lane, so the first future helper that merely
-# shares the prefix would have turned that lane red repo-wide. Half a manifest
-# (one key, not the other) must still be fatal — that is real shape rot.
+# build_sync_map used to exit 2 on ANY scripts/sync-*.sh without a published
+# src. This suite runs in a REQUIRED CI lane, so the first future helper that
+# merely shares the prefix would have turned that lane red repo-wide. Half a
+# manifest (one published key, not the other) must still be fatal.
 printf '#!/usr/bin/env bash\necho "a helper, not a copy manifest"\n' >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh; then
-  ok "a sync-*.sh declaring neither src= nor copies=() is skipped, not fatal"
+  ok "a sync-*.sh publishing neither src nor copy is skipped, not fatal"
 else
   fail "non-manifest sync-*.sh should be skipped (rc=$RC): $out"
 fi
 
-printf '#!/usr/bin/env bash\ncopies=(plugins/*/hooks/widget.sh)\n' >"$repo/scripts/sync-helper.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
+  printf '  printf "copy\\tplugins/alpha/hooks/widget.sh\\n"\n'
+  printf '  exit 0\n'
+  printf 'fi\n'
+} >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
-  ok "a sync-*.sh with a populated copies=() but no src= is still fatal"
+  ok "a sync-*.sh that publishes copies but no src is still fatal"
 else
   fail "half a manifest should exit 2 (rc=$RC): $out"
 fi
 
-# The skip must key on whether `copies=(` is DECLARED, not on whether it yielded
-# entries. A literally EMPTY `copies=()` parses to zero patterns, so an
-# emptiness test would misread this half-manifest as a helper and skip it
-# silently — and the zero-manifests guard cannot catch that while the fixture's
+# The skip must key on whether a src key is DECLARED, not on whether copies
+# yielded entries. An empty src line is a half-manifest even with no copy
+# lines, and the zero-manifests guard cannot catch that while the fixture's
 # real sync-widget.sh still parses.
-printf '#!/usr/bin/env bash\ncopies=()\n' >"$repo/scripts/sync-helper.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
+  printf '  printf "src\\t\\n"\n'
+  printf '  exit 0\n'
+  printf 'fi\n'
+} >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
-  ok "an EMPTY copies=() with no src= is a half-manifest, not a helper"
+  ok "an empty published src with no copies is a half-manifest, not a helper"
 else
-  fail "empty copies=() with no src= should exit 2 (rc=$RC): $out"
+  fail "empty src with no copies should exit 2 (rc=$RC): $out"
 fi
 rm -f "$repo/scripts/sync-helper.sh"
 
@@ -383,9 +407,12 @@ else
 fi
 rm -rf "$repo" "$marker"
 
-# --- LIVE repo: the derived copy set equals the manifest's glob today ------
+# --- LIVE repo: the derived copy set equals the published manifest today ---
 # The synthetic cases above prove the mechanism; this one proves it is still
-# wired to THIS repository, which is what rots.
+# wired to THIS repository, which is what rots. The oracle is each script's
+# --print-manifest surface (not a transcription of src=/copies=( scraping), so
+# renaming those variables cannot make this assertion go green for the wrong
+# reason.
 for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standards/README.md; do
   derived="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --print-fanout "$src" 2>/dev/null | sort)"
   manifest="scripts/sync-$(basename "${src%.*}").sh"
@@ -393,30 +420,13 @@ for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standar
   docs/conventions/standards/README.md) manifest="scripts/sync-standards-contract.sh" ;;
   *) ;;
   esac
-  # Re-derive the copy set here and compare. Be clear about what this does and
-  # does not prove: the awk below is a TRANSCRIPTION of the selector's own
-  # manifest_copy_patterns (same rules, same order, same sub(/#.*$/)-before-`)`
-  # sequencing), minus its quote-stripping gsub. So it catches ONE-SIDED drift —
-  # the selector's parser changing, or the manifest growing a shape only one
-  # side handles (a quoted entry breaks THIS copy, loudly) — and it pins the
-  # derivation to what the LIVE manifests declare today, which is the rot that
-  # matters. It structurally CANNOT catch a misparse the two share, because
-  # they share the implementation. An independent oracle would have to parse the
-  # manifest by sourcing it, not by re-reading it the same way.
-  expected="$(cd "$REPO_ROOT" && awk '
-    /^copies=\(/ { inarr = 1; line = $0; sub(/^copies=\(/, "", line) }
-    !inarr { next }
-    { if (line == "" && $0 !~ /^copies=\(/) line = $0
-      sub(/#.*$/, "", line)
-      closed = (line ~ /\)/)
-      if (closed) sub(/\).*$/, "", line)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-      if (line != "") print line
-      if (closed) exit
-      line = "" }
-  ' "$manifest" | while IFS= read -r pat; do
-    # shellcheck disable=SC2086 # the manifest entry is a glob by design.
-    for m in $pat; do [[ -e "$m" ]] && printf '%s\n' "$m"; done
+  expected="$(cd "$REPO_ROOT" && bash "$manifest" --print-manifest | awk -F '\t' '$1=="copy" && $2!=""{print $2}' | while IFS= read -r pat; do
+    if [[ -e "$pat" ]]; then
+      printf '%s\n' "$pat"
+    else
+      # shellcheck disable=SC2086 # a published entry may still be a glob.
+      for m in $pat; do [[ -e "$m" ]] && printf '%s\n' "$m"; done
+    fi
   done | sort)"
   if [[ -n "$derived" && "$derived" == "$expected" ]]; then
     ok "live derivation for $src matches $manifest ($(printf '%s\n' "$derived" | wc -l | tr -d ' ') copies)"
@@ -424,6 +434,70 @@ for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standar
     fail "live derivation drifted for $src: derived=[$derived] expected=[$expected]"
   fi
 done
+
+# Every live sync-*.sh (except the test helper) must implement the surface.
+# Capture stdout first: `cmd | grep -q` under pipefail is a race — grep -q
+# closes the pipe on the first match and a still-writing publisher dies
+# SIGPIPE, which this suite's pipefail then treats as a failed assertion.
+live_missing=0
+for manifest in "$REPO_ROOT"/scripts/sync-*.sh; do
+  case "$manifest" in
+  *.test.sh) continue ;;
+  *) ;;
+  esac
+  live_out=""
+  live_out="$(bash "$manifest" --print-manifest)" || {
+    fail "live $manifest --print-manifest exited non-zero"
+    live_missing=1
+    continue
+  }
+  if ! printf '%s\n' "$live_out" | grep -q $'^src\t'; then
+    fail "live $manifest --print-manifest did not emit a src line"
+    live_missing=1
+  fi
+done
+if [[ "$live_missing" -eq 0 ]]; then
+  ok "every live scripts/sync-*.sh implements --print-manifest"
+fi
+
+# --- renaming src/copies in the publisher does not change fan-out ----------
+# The old consumer scraped those spellings out of source text. A publisher
+# that never uses them, but still implements --print-manifest, must fan out
+# the same way — this is the assertion that the parsed contract is gone.
+repo_renamed="$(mk_repo)"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'set -euo pipefail\n'
+  printf 'canonical="lib/widget.sh"\n'
+  printf 'vendored=(plugins/*/hooks/widget.sh)\n'
+  printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
+  printf '  printf "src\\t%%s\\n" "$canonical"\n'
+  printf '  for c in "${vendored[@]}"; do\n'
+  printf '    printf "copy\\t%%s\\n" "$c"\n'
+  printf '  done\n'
+  printf '  exit 0\n'
+  printf 'fi\n'
+} >"$repo_renamed/scripts/sync-widget.sh"
+run_sel "$repo_renamed" lib/widget.sh
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$OUT" lib/widget.test.sh &&
+  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
+  has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
+  ok "a publisher that never spells src=/copies=( still fans out via --print-manifest"
+else
+  fail "renamed-variable publisher should still fan out (rc=$RC): $OUT"
+fi
+rm -rf "$repo_renamed"
+
+# The consumer must not scrape src=/copies=( source text. The old helpers
+# (`manifest_src`, a `/^src=/` awk, a `/^copies=(/` grep) are the scrape.
+if grep -qE 'manifest_src|manifest_copy_patterns|manifest_declares_copies|/\^src=|/\^copies=\(' \
+  "$REPO_ROOT/scripts/affected-tests.sh"; then
+  fail "affected-tests.sh still scrapes src=/copies=( source text"
+else
+  ok "affected-tests.sh no longer scrapes src=/copies=( source text"
+fi
 
 # --- LIVE repo: a real shared-lib change reaches a real carrying plugin ----
 out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh lib/hook-utils.sh 2>/dev/null)"
@@ -701,12 +775,8 @@ fi
 # and the JS copy second, so a last-write-wins bug resolves to "already crossed".
 repo2="$(mk_repo)"
 mkdir -p "$repo2/eco/agg" "$repo2/plugins/alpha/hooks"
-{
-  printf '#!/usr/bin/env bash\n'
-  printf '# Fixture sync manifest whose copies land in ANOTHER language.\n'
-  printf 'src="lib/mixed.sh"\n'
-  printf 'copies=(plugins/*/hooks/mixed.js)\n'
-} >"$repo2/scripts/sync-mixed.sh"
+write_print_manifest "$repo2/scripts/sync-mixed.sh" "lib/mixed.sh" \
+  "plugins/*/hooks/mixed.js"
 printf 'mixed_helper() { echo mixed; }\n' >"$repo2/lib/mixed.sh"
 printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 

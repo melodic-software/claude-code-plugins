@@ -24,12 +24,11 @@
 #   sync_cluster_sync_summary    1 to print a trailing per-run copy count in sync
 #                                mode, 0 for the scripts that never printed one
 #
-# `src` and `copies` keep those exact unprefixed names because they are a parsed
-# contract, not a local style: scripts/affected-tests.sh reads `^src=` and
-# `^copies=(` out of every scripts/sync-*.sh to derive which plugin copies a
-# shared-lib change reaches. Rename them here and that derivation goes quietly
-# empty (its own comment spells out the fail-open), so teach affected-tests.sh
-# the new shape first if they ever have to move.
+# `--print-manifest` is the published surface scripts/affected-tests.sh reads.
+# It emits one `src<TAB><path>` line and zero or more `copy<TAB><path>` lines
+# (already-expanded array values). The consumer invokes this flag; it does not
+# scrape `src=` / `copies=(` out of the script text. Renaming the variables
+# here does not change that output.
 #
 # The `${2:?usage: ...}` diagnostic for a missing <base-ref> stays in each caller:
 # bash prefixes it with the path and line of the expansion, so hoisting it here
@@ -89,6 +88,19 @@ sync_cluster::check_bump() {
   echo "$sync_cluster_noun changed vs $base and every $sync_cluster_carrier plugin bumped its version."
 }
 
+# sync_cluster::print_manifest
+#
+# Emits the cluster's src and copies as data. Tab-separated so a path cannot
+# collide with the field name, and so affected-tests.sh can invoke this instead
+# of parsing the caller's variable declarations.
+sync_cluster::print_manifest() {
+  local _sc_copy
+  printf 'src\t%s\n' "$src"
+  for _sc_copy in ${copies[@]+"${copies[@]}"}; do
+    printf 'copy\t%s\n' "$_sc_copy"
+  done
+}
+
 sync_cluster::run() {
   case "${1:-sync}" in
   sync)
@@ -100,8 +112,11 @@ sync_cluster::run() {
   --check-bump)
     sync_cluster::check_bump "$2"
     ;;
+  --print-manifest)
+    sync_cluster::print_manifest
+    ;;
   *)
-    echo "usage: $sync_cluster_script [--check | --check-bump <base-ref>]" >&2
+    echo "usage: $sync_cluster_script [--check | --check-bump <base-ref> | --print-manifest]" >&2
     exit 2
     ;;
   esac
