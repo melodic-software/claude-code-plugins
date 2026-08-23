@@ -1,0 +1,86 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-read-only-check",
+      "prompt": "/actionlint:setup",
+      "expected_output": "Runs the read-only check action (the default): reads the hook script first as the single source of truth, runs each probe via Bash, and reports a PASS/FAIL/INFO table with one remediation line per FAIL.",
+      "files": [],
+      "expectations": [
+        "Defaults to check when no action argument is given, and never prompts for one",
+        "Reads the plugin's actionlint-check hook script first and probes what it actually does, rather than reciting the setup SKILL.md",
+        "Covers all six probe areas: the Bash version floor, jq, the actionlint binary, actionlint config discovery, the actionlint_enabled toggle with stdin_read_timeout, and hook registration",
+        "Modifies nothing and runs no linter — exercising the hook is editing a workflow file, not a setup action"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-binaries-fail-but-installs-nothing",
+      "prompt": "/actionlint:setup apply — neither `actionlint` nor `jq` is on my PATH. Go ahead and install them with my package manager.",
+      "expected_output": "FAILs both probes and points at the README Requirements guidance and the upstream actionlint install guide, but installs nothing: the plugin never installs system packages and apply has no write path at all.",
+      "files": [],
+      "expectations": [
+        "Runs no package-manager install command and does not offer to run one",
+        "Points at the README Requirements section and the upstream actionlint install guide, and states the plugin ships no actionlint binary of its own",
+        "Names the consequence of each absence: the hook skips workflow lint with a visible once-per-session notice instead of linting",
+        "Writes nothing — not the repository, not Claude Code user settings, not pluginConfigs, not the plugin cache",
+        "After pointing at each remediation, re-runs the relevant probe and reports its actual result rather than accepting the reader's report that they installed something"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "disabled-toggle-downgrades-absences-to-info",
+      "prompt": "/actionlint:setup check — actionlint_enabled is set to false and the actionlint binary is missing.",
+      "expected_output": "Reports the missing binary as INFO rather than FAIL, because the hook exits through its enabled-gate before probing anything, so a deliberately disabled plugin is not broken — and notes that re-enabling restores the FAIL semantics.",
+      "files": [],
+      "expectations": [
+        "Downgrades the prerequisite absence from FAIL to INFO because the toggle is off",
+        "Gives the mechanism: the hook exits through its enabled-gate before probing anything",
+        "Explicitly notes that re-enabling restores FAIL semantics for the downgraded probes",
+        "States that an unexpanded or empty value means the default true, and that any value other than true disables the hook"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "stdin-read-timeout-is-an-idle-bound-and-zero-falls-back",
+      "prompt": "/actionlint:setup check — I set stdin_read_timeout to 0 because I want no timeout at all.",
+      "expected_output": "Reports that 0 is not honored — a value read -t will not accept, or 0, falls back to the default 2 seconds with a minimum of 1 — and corrects the mental model: it is an IDLE bound, not a total budget.",
+      "files": [],
+      "expectations": [
+        "States that 0 falls back to the default of 2 seconds and that the minimum accepted value is 1",
+        "Corrects the model: any arriving byte resets the timer, so it fires only once the pipe has gone silent for that long",
+        "States that the hook fails open when the bound fires",
+        "Reports the finding as INFO and does not edit the option value"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "absent-actionlint-config-is-info-not-the-cause-of-silence",
+      "prompt": "/actionlint:setup check — this repository has no .github/actionlint.yaml. Is that why workflow lint is not happening?",
+      "expected_output": "Separates the two questions: an actionlint config is auto-discovered and optional — actionlint runs with its built-in defaults without one, so its absence is INFO and never a FAIL — and it is not the cause of lint not running.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the absent config as INFO and never as a FAIL, because actionlint runs with its built-in defaults without one",
+        "States that actionlint auto-discovers the config from the repository when present, and that this plugin owns no consumer-project configuration",
+        "Does not create the config file and does not offer to create it",
+        "Names the actual once-per-session skip causes — a missing jq, a missing actionlint binary, or the disabled toggle — instead of accepting the absent config as the explanation"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-change-reruns-install-never-uninstalls",
+      "prompt": "/actionlint:setup apply — re-enable the hook headlessly by setting actionlint_enabled=true. I cannot use the interactive configure prompt from this session.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by re-running the relevant check probe and reporting its actual result.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true` rerun, and states that against an already-installed plugin it prints `already installed` and still writes the value",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
+        "Stamps the --config claim with the CLI version it was verified against — Claude Code 2.1.240, a non-sensitive option at user scope — and says the official docs describe --config only as an install-time flag, so the post-install behavior rests on observation, with a sensitive option and project/local scope not covered",
+        "Tells the operator to pass the scope `claude plugin list` reports for this plugin (user, project, or local) and to run from that project's directory for a project or local scope, or the write lands at a scope that does not load",
+        "Ends by re-running the relevant check probe and reporting its OBSERVED result, never claiming resolved on the reader's report that they changed the value"
+      ]
+    }
+  ]
+}
