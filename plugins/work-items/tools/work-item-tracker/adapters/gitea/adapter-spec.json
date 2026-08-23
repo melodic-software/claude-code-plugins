@@ -1,0 +1,44 @@
+{
+  "spec_version": "1.0",
+  "provider": "gitea",
+  "display_name": "Gitea / Forgejo",
+  "api": {
+    "base_path": "/api/v1",
+    "host_suffix": "",
+    "auth_scheme": "token",
+    "scope_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$",
+    "sample_scope": "acme/webapp",
+    "sample_host": "git.example.com",
+    "sample_id": "gitea:acme/webapp#12",
+    "auth_env_example": "WIT_GITEA_TOKEN"
+  },
+  "verbs": {
+    "create-item": true,
+    "get-item": true,
+    "claim": false,
+    "renew-lease": false,
+    "reclaim": false,
+    "link-blocks": true,
+    "add-sub-item": false,
+    "list-items": true,
+    "list-sub-items": false,
+    "capabilities": true
+  },
+  "features": {
+    "cross_repo_edges": true,
+    "sub_items": false,
+    "leases": false,
+    "labels": true
+  },
+  "limits": {
+    "sub_items_per_parent": 0,
+    "sub_item_depth": 0,
+    "dependencies_per_type": null,
+    "list_items_max": 1000
+  },
+  "deferrals": [
+    "**Lease arbitration is unverified, so `leases` is `false`.** Gitea has the primitives the github adapter's lease is built from (assignees plus issue comments), but whether concurrent assignment is arbitrated or last-write-wins cannot be settled without a live instance and two identities. An emulated lease over last-write-wins loses races silently, which is worse than not having one — so the three lease verbs are gated to exit `6` until a live pass settles it. Enabling them later is a manifest change plus three verb scripts; nothing else in the adapter assumes their absence.",
+    "**`limits.list_items_max` is the adapter's own paging bound, not a provider ceiling.** Gitea caps a single page at `api.MAX_RESPONSE_ITEMS` (default 50) and defaults an unspecified `limit` to `api.DEFAULT_PAGING_NUM` (30) — both instance-configurable, and neither is discoverable through the API. The adapter therefore always sends an explicit `limit` (`config.gitea.page_size`, default 50) and pages to 1000 items. If an instance sets `MAX_RESPONSE_ITEMS` below the configured page size, Gitea silently returns fewer per page; the adapter still terminates correctly because it pages until a short page, but a live pass should confirm the instance's actual cap.",
+    "**Forgejo API parity is assumed, not measured.** Forgejo forked from Gitea and keeps the `/api/v1` surface; the endpoints this adapter uses are the long-stable ones (issues, dependencies). A live pass against a Forgejo instance would turn that from an assumption into a fact."
+  ]
+}

@@ -62,13 +62,48 @@
 # environment error (fail closed — never a silent skip).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/token-scan.sh
+. "$SCRIPT_DIR/lib/token-scan.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
-TOKENS="${SKILL_PORTABILITY_TOKENS:-scripts/skill-portability-tokens.txt}"
-if [[ ! -f "$TOKENS" ]]; then
-  printf 'Error: token list not found: %s\n' "$TOKENS" >&2
+# The `./` prefixing inside require_token_file is the #1513 fail-open guard.
+# It was present in check-shell-portability.sh and MISSING here until #2914
+# (finding 2): a token list reached as `SKILL_PORTABILITY_TOKENS=t=custom.txt`
+# parsed as an awk variable assignment, so no patterns loaded, every skill
+# reported clean, and the gate exited 0 while gating nothing. Sharing one
+# definition with the twin scanner is what stops the two diverging again.
+TOKENS_SRC="${SKILL_PORTABILITY_TOKENS:-scripts/skill-portability-tokens.txt}"
+TOKENS="" # assigned through the nameref below; declared so shellcheck sees it
+if ! token_scan::require_token_file TOKENS "$TOKENS_SRC"; then
   exit 2
 fi
+
+# Active patterns are resolved HERE instead of inside the awk program, so the
+# comment/blank rule is the shared one (#3161) rather than a fifth private copy.
+# `leading`: an entry is an ERE and may legitimately contain a `#`, so only a
+# line that BEGINS with one is a comment — see scripts/lib/read-list.sh.
+#
+# The empty-set guard is the point of doing it here. A token list that loads no
+# active patterns makes every file report clean while awk exits 0 — the gate
+# passing while gating nothing, the #1513 shape. check-shell-portability.sh has
+# refused that since #1513; this scanner did NOT, and an all-comments list was
+# measured returning exit 0 with a violation present. Same twin asymmetry, third
+# instance.
+token_patterns=()
+read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
+if ((${#token_patterns[@]} == 0)); then
+  printf 'Error: token list loaded no active patterns: %s\n' "$TOKENS_SRC" >&2
+  exit 2
+fi
+TOKENS_ACTIVE="$(mktemp)" || exit 2
+trap 'rm -f "$TOKENS_ACTIVE"' EXIT
+printf '%s\n' "${token_patterns[@]}" >"$TOKENS_ACTIVE"
+TOKENS="$(token_scan::awk_operand "$TOKENS_ACTIVE")"
 
 usage() {
   printf 'usage: check-skill-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
@@ -114,17 +149,17 @@ case "$mode" in
   base="$mode"
   shift
   (($# == 0)) || usage
-  if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+  if ! changed_files::verify_base "$base"; then
     printf 'Error: base ref %s is not a valid commit\n' "$base" >&2
     exit 2
   fi
   # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
   # git pathspec does not match under git's default (non-pathname) globbing.
-  # NUL-delimited (-z) so a pathname Git would C-quote (non-ASCII bytes under the
-  # default core.quotePath, or a literal quote/backslash) arrives verbatim: a
-  # quoted `"plugins/…"` would miss the glob below and the file would be silently
-  # dropped — the silent exclusion the contract forbids.
-  while IFS= read -r -d '' f; do
+  # The NUL-safe read and the deletion filter live in the shared resolver; a
+  # failed diff is fatal there rather than arriving here as an empty scope.
+  changed=()
+  changed_files::into changed "$base" -- 'plugins/' || exit 2
+  for f in ${changed[@]+"${changed[@]}"}; do
     case "$f" in
     plugins/*/skills/*) ;;
     *) continue ;;
@@ -132,7 +167,7 @@ case "$mode" in
     is_scannable "$f" || continue
     [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
     files+=("$f")
-  done < <(git diff --name-only --diff-filter=d -z "$base" -- 'plugins/' | sort -z -u)
+  done
   ;;
 esac
 
@@ -163,15 +198,10 @@ scan_file() {
   # awk operand disambiguation: a bare relative operand shaped like
   # identifier=value (e.g. a top-level file literally named FOO=bar.md) is
   # parsed by awk as a command-line variable assignment, not opened as a
-  # file — silently dropping it from the scan. Prefixing an unrooted operand
-  # with `./` breaks the identifier=value shape (`./` is never a valid awk
-  # identifier lead character) so it is unambiguously a filename. Shared fix
-  # with check-shell-portability.sh's identical mechanism — see #1513, #1531.
-  local awk_file="$file"
-  case "$awk_file" in
-  ./* | /*) ;;
-  *) awk_file="./$awk_file" ;;
-  esac
+  # file — silently dropping it from the scan. See #1513, #1531; the rule now
+  # lives in scripts/lib/token-scan.sh, shared with the twin scanner.
+  local awk_file
+  awk_file="$(token_scan::awk_operand "$file")"
   awk '
     function is_annotated(l) { return l ~ /portability-ok:[[:space:]]*[^[:space:]#<\-]/ }
     # Block-level only: a content line that merely happens to carry an inline
@@ -311,12 +341,13 @@ scan_file() {
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.
+    # Pass 1: load the token list. It arrives PRE-FILTERED — trimmed, no blanks,
+    # no comment lines — because scripts/lib/read-list.sh resolved it in the
+    # shell (#3161). Stripping here too would re-create the private copy of the
+    # comment rule that extraction removed, and would apply the wrong one: an
+    # inline `#` is DATA in an ERE.
     FNR == NR {
-      line = $0
-      sub(/^[[:space:]]+/, "", line)
-      sub(/[[:space:]]+$/, "", line)
-      if (line == "" || line ~ /^#/) next
-      patterns[++np] = line
+      patterns[++np] = $0
       next
     }
     # Pass 2: scan the target file.

@@ -3,11 +3,11 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.0]
+## [0.37.0]
 
 ### Added
 
-- **`audit-native-overlap` — an eleventh skill that maps native Claude Code surfaces against this
+- **`audit-native-overlap` — a twelfth skill that maps native Claude Code surfaces against this
   repository's own components.** Claude Code's surface moves every week, and a skill written when
   no bundled equivalent existed can wake up duplicating one with nothing in the product saying so:
   plugin skills are namespaced, so a native surface never shadows ours and the collision is silent.
@@ -46,6 +46,415 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   timed slowness lane. No static availability claim anywhere: bundled surfaces are gated on
   settings and environment, plan, platform, and host surface, so a session where `doctor` does not
   resolve is an ordinary session.
+
+## [0.36.1]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- **README:** deduplicated the hand-written option-scoping preamble against the
+  generated options block, which already states both facts (#2698).
+
+## [0.36.0]
+
+Remediates the `claude-ops:plugins` post-use audit of the `sync` action (#3112). Every claim about
+CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
+
+### Added
+
+- **Catalog-version pre-filter for the Step 3 user-scope sweep.** `marketplace.json` entries carry
+  no version, which is why Step 3 previously called `claude plugin update` for *every* user-scope
+  install and let the CLI no-op. Each plugin's version does exist in the marketplace checkout, at
+  `<installLocation>/<entry.source>/.claude-plugin/plugin.json`, readable with no network call and
+  no CLI invocation. `fleet-state.sh` now exposes it as `catalog_versions`, and a new
+  `--ids update-candidates-user` selector withholds only ids it positively proved already sit at
+  the catalog version. On the authoring machine's own already-current fleet this takes the sweep
+  from 66 `claude plugin update` calls to **0**.
+
+  **The selector fails open by construction, and that is the dominant path, not an edge case.** An
+  id whose catalog version cannot be read — an object-valued `source`, an unmaterialized plugin
+  directory, a manifest with no `version`, unparsable JSON — is emitted as a candidate, exactly as
+  if no pre-filter existed. Measured across the nine marketplaces registered on the authoring
+  machine: the version resolves for **every** entry of five (`melodic-software` 70/70, plus four
+  single-plugin marketplaces), **partially** for two (`claude-plugins-official` 13/53,
+  `dotnet-agent-skills` 1/15), and for **none** of two (`anthropic-agent-skills` 0/5, `caveman`
+  0/1). So a marketplace the pre-filter cannot narrow at all is an ordinary outcome, not a
+  malfunction. `fleet-state.test.sh` proves the degradation as an equality: with no catalog version
+  readable, `update-candidates-user` output is byte-identical to `installed-user`.
+
+  **The manifest it reads must sit inside the marketplace checkout, and that is enforced
+  physically.** A catalog entry's `source` is third-party content, and the only unsafe direction
+  this pre-filter has is *withholding* an update — a foreign manifest that happens to carry the
+  installed version string would suppress a real update. A lexical `../` refusal is not sufficient,
+  because a symlink inside the checkout pointing outside it is reached by an ordinary `./name`
+  source that no string inspection can see. So the resolved manifest path is required to sit under
+  the resolved checkout root, with symlinks followed. `fleet-state.test.sh` covers both: a real
+  symlink escape (created with `MSYS=winsymlinks:nativestrict` so Git Bash emits a link rather than
+  silently deep-copying, and skipped where the platform yields no real symlink) is refused, while an
+  in-checkout directory of the same shape still resolves.
+- **`project_root`** (top level) — the resolved project root, or `null`. Closes the F1 silent no-op:
+  `currentProject` is a tri-state whose `null` collapses "no project context resolved at all"
+  together with "this is a user-scope record", so a run from `$HOME` and a run inside a repo with
+  no in-repo installs produced an identical downstream signal and an identical report.
+- **`user_scope_orphans`** (top level) plus an `--ids user-scope-orphans` selector — ids holding a
+  project/local record and no user-scope record. Structurally invisible before: `divergences[]`
+  discards any id with fewer than two records, and `missing_from_user_install` excludes ids that
+  are installed somewhere, so nothing in the output named them.
+- **`projectPathPresent`** on every project/local `installed[]` record and every
+  `divergences[].scopes[]` entry — advisory only, never a filter.
+- Five eval cases covering the silent-failure paths the suite never reached (skipped in-repo step,
+  `sync all` marketplace coverage, absent-`projectPath` handling, pre-filter fail-open, and the
+  version-capture divergence branch).
+
+### Fixed
+
+- **Step 2 no longer skips silently.** It now branches on `project_root` and the report carries a
+  fixed `In-repo:` row in all three states, including `skipped — no project context resolved`.
+- **`sync all` no longer sweeps one marketplace while reporting as though it covered every one.**
+  Steps 2–5 are the per-marketplace loop body and every `--ids` call carries `--marketplace`.
+- **Divergences are no longer routed to a `converge` command that cannot run.** Records whose
+  `projectPath` is not present get their own report section, outside the actionable Divergences
+  count, and `converge` emits them as *blocked* rather than as runnable commands.
+- **`pluginConfigs` scope claim corrected.** It is read from user settings, `--settings`, and
+  managed settings only — project and local entries are ignored (since v2.1.207) — while
+  `enabledPlugins`, read by this same skill, still honors them. The old text said "some
+  `pluginConfigs` scope", which invited setting `install_new` in a repo where it does nothing.
+- **`/reload-plugins --force` guidance restated as the docs' two-step.** The trigger is prompt-cache
+  invalidation; the MCP-server case is the common cause, not the only one.
+- **Divergence count split** into run-caused versus pre-existing, so the report stops presenting
+  skew the sweep itself just created as discovered drift.
+- **`sync` now reports when it updated `claude-ops` itself**, naming that the algorithm which ran is
+  the pre-update one.
+- **TOCTOU wording matches the implementation**: the re-read boundary is the step, a loop body is
+  deliberately snapshot-driven, and the inert "outcome didn't match the snapshot" detector is
+  replaced with the one signal that is actually distinguishable.
+- **`install_new: all` recurrence** and **unset-`userConfig` install notices** now have report slots
+  instead of living only in prose.
+- **`setup`: the headless `--config` route no longer prescribes an uninstall/reinstall cycle.**
+  Rerunning the install writes the option against an already-installed plugin — it prints
+  `already installed` and still writes the value (verified on Claude Code 2.1.240, for a
+  non-sensitive option at `user` scope; a `sensitive` option and `project`/`local` scope were not
+  covered, and the wording says so). The old cycle was unnecessary and actively destructive:
+  uninstalling drops the whole stored `pluginConfigs` entry, resetting all fifteen options to
+  their manifest defaults (the previous text miscounted them as fourteen, and the
+  `*_audit_enabled` toggles as seven rather than eight).
+
+  It also separates the two claims a reader conflates: the **write** lands, but the **running
+  session's** behavior does not change — `${user_config.*}` is injected at skill load and each
+  hook's `CLAUDE_PLUGIN_OPTION_*` comes from an environment fixed at session start, so a
+  same-session `check` still reports the OLD value and reading that as a failed write is wrong.
+  Verify in a fresh session.
+
+  Wording matches the fleet-wide correction landed in #3115 verbatim apart from this plugin's own
+  option list, so the copies stay identical rather than drifting into a claude-ops variant. This
+  closes a live contradiction on `main`: #3115 regenerated this plugin's README with the corrected
+  guidance while `skills/setup/SKILL.md` still prescribed the destructive cycle, a gap that PR's
+  own reviewer flagged and could not fix because the file sits in this change set's fence.
+
+### Changed
+
+- The `versionsMatch` filter rule now has one origin (`context/scope-semantics.md`); `SKILL.md`,
+  `gotchas.md`, and `converge.md` point at it instead of restating it a fourth time.
+- New gotchas: a `projectPath` outliving its directory, a spoke file never receiving
+  `${user_config.*}` substitution, and `sync` updating its own plugin mid-run.
+- `SKILL.md`'s "index, not a substitute" rule now names its two deliberate exceptions and why they
+  must live in the hub.
+- Version capture now instructs retaining the pre-sweep snapshot for the whole run — it is the sole
+  source of every `<old>`.
+
+### Deferred (audit findings deliberately not closed in this release)
+
+- **`--run-log` written by `fleet-state.sh`** (audit remediation 19, F12's most ambitious tier).
+  The script's own header advertises it as read-only, and the auditor's correction notes the
+  tension. F12's cheapest tier — retain the pre-sweep snapshot — is implemented instead. A durable
+  log, if wanted, belongs in a sibling script that owns it rather than in the read-only inspector.
+- **A fourth `install_new` value with declined-install memory** (remediation 20, F9's durable fix).
+  Needs persistent state the skill does not have today; the recurrence clause narrates the surprise
+  rather than removing it.
+- **F14 (description trigger-phrase trim).** The repo's own `check-changed-skills.sh` gate enforces
+  trigger-keyword preservation against `HEAD` and fails a dropped phrase as an auto-invocation
+  regression. The finding is cosmetic (the skill sets `disable-model-invocation: true`, so the
+  phrases only serve as `/`-menu help) and is not worth fighting a validator for.
+- **A `--selfcheck` that reports whether the rendered `install_new` value is the literal placeholder
+  token** (F8's most ambitious tier). F8 graded the *record*, not the claim — the defect was a stamp
+  with no recheck trigger, and that is fixed. Turning the prose stamp into a runtime observation is
+  a separate enhancement.
+- **An upstream issue for the absent record-reaping verb** (remediation 21) — not a change to this
+  repository.
+
+## [0.35.4]
+
+### Fixed
+
+- **Docs:** README only. The generated options block's headless route no longer implies
+  `--config` applies at install time alone, and now carries the CLI version its claim was
+  verified against
+  ([#3111](https://github.com/melodic-software/claude-codeplugins/issues/3111)); two upstream
+  links that resolved to empty backward-compatibility anchors on the settings page were
+  repointed at the headings that hold the content. Emitted by
+  `scripts/sync-plugin-options-docs.py`, which regenerates every plugin README from one
+  template, so this plugin's README moves with the fleet. This plugin's `setup` skill is NOT
+  touched here — the same correction lands there separately.
+
+## [0.35.3]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.35.2]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `audit-performance`'s paused-sweep route to
+  `/claude-config:audit`; `morning-brief`'s two boundary hand-offs
+  (`/source-control:babysit-prs`, `/claude-ops:observability`); `observability`'s
+  `/claude-ops:known-issues` boundary and its `context/read-routing.md` routing line. The
+  `audit-install-state` handoff tables are deliberately untouched: they are marked
+  "Handoff (not executed here)", and two of their targets (`/claude-ops:plugins`,
+  `/disk-hygiene:clean`) are `disable-model-invocation: true`, which the rubric's
+  invocation-reach invariant puts out of a skill's reach. Wording only.
+
+### Fixed
+
+- **`morning-brief`: `fetch_repo_label_names` was called 116 lines before it was defined.** The
+  live-source probe that short-circuits the parked-decisions section on a fixture label inventory
+  called `fetch_repo_label_names` (and `label_exists_in_repo`) while both definitions still sat
+  further down the file, so at that point in execution the call died with `command not found` and
+  the probe silently never short-circuited. Both definitions now sit immediately after the `jq`
+  presence check, ahead of their first caller, with a comment saying why the order is
+  load-bearing. This is a pre-existing bug — it reproduces unchanged at `origin/main` — surfaced
+  by the new eval suite's sibling test run: `morning-brief.test.sh` went from 2 failing cases
+  (`[41] missing decision label degrades gracefully`, `[43] empty label inventory degrades
+  decision section`) to all 83 passing.
+- **`audit-performance`: the `(settings fix)` gloss re-attached to the skill it describes.**
+  "route a paused sweep to `/claude-config:audit`, invoked via the Skill tool (settings fix)" read
+  as though the Skill tool were the settings fix; the gloss now follows the skill name.
+
+### Added
+
+- **`morning-brief`: its first eval suite (#3002).** Seven cases pinning the shipped contract —
+  run-the-script-and-print-verbatim, the read-only refusal, repo resolved from `gh repo view`
+  rather than hardcoded, per-section degradation when no telemetry issue or queue labels exist,
+  merge-readiness authority routing to `/source-control:babysit-prs`, local telemetry routing to
+  `/claude-ops:observability`, and the post-merge timestamp discriminator behind Stranded
+  findings. Required because the changed-skill gate demands evals for any touched SKILL.md, and
+  this was the one swept skill in the plugin without a suite.
+
+## [0.35.1]
+
+### Fixed
+
+- **`audit-install-state`: the emitted CSV no longer lets a scanned path execute as a spreadsheet
+  formula.** `write_csv` passed `relpath`, `surface`, `number_meaning`, `liveness`,
+  `liveness_reason`, and `evidence` straight through `csv.writer`, and every one of those is derived
+  from walking the install tree. A plugin, project, or worktree directory under `~/.claude` may be
+  named anything — including `=HYPERLINK("http://x","click")` — and a spreadsheet evaluates a cell
+  opening with `=`, `+`, `-`, or `@` as a formula. The skill's whole reason for emitting this file
+  is that it is the artifact where "every file" literally exists and is read row by row, so it lands
+  in a spreadsheet by design. A new `csv_safe` prefixes such a cell with a single quote, which
+  spreadsheets read as "the rest is literal text" while `grep`, `csv.reader`, and the eye still see
+  the original; leading tab, CR, and LF are covered too, because a spreadsheet strips them before
+  deciding, so `\t=cmd()` evaluates exactly as `=cmd()` does. Integer and boolean cells pass through
+  untouched.
+
+  Found while porting an upstream skill whose logging helper carries this guard
+  (`docs/upstream/cursor-pstack.md`, the `show-me-your-work` section); looking for somewhere in the
+  fleet to apply it turned up a live exposure rather than a hypothetical one. Covered by
+  `TestCsvFormulaInjection`, which was confirmed discriminating: with the guard disabled in memory
+  its cases fail, and pass with it restored.
+
+## [0.35.0]
+
+### Added
+
+- **`audit-skill-visibility` gains a pair co-occurrence reading (closes #3048).**
+  `scripts/skill-pair-cooccurrence.sh` answers a question the visibility audit does not: not *can*
+  the model see a skill, but does one skill's run actually coincide with another's — the case being
+  "skill X's instructions tell the model to invoke skill Y; does that happen?"
+
+  **Placement is a correction to the filing.** The item proposed `observability` as the natural
+  home; that plugin's own `context/read-routing.md` already assigns *interpretation* of skill-usage
+  data to `audit-skill-visibility` and keeps only the store, the pipeline, and retention. The
+  routing table was right and the guess was wrong.
+
+  **It is a proxy and refuses to be read as more.** The `SkillUse` record carries no caller
+  attribution — a PostToolUse hook on the Skill tool receives `tool_name`, `tool_input`, and
+  `tool_response`, and nothing in that payload names the skill whose instructions caused the call.
+  So the script observes only that both skills fired in the same `(project_id, branch)` group,
+  ordered by timestamp; a callee the user typed by hand counts identically to one the caller
+  produced. There is no session id either, so that group key merges two sessions on one branch and
+  splits one session across a branch switch. The caveat is printed in **both** renderers — prose
+  and `--json` — because a machine consumer stripping it is the same defect as a human not seeing
+  it.
+
+  It inherits this skill's refusal rather than routing around it: below the 30-day exposure floor
+  (the same constant `audit_skill_visibility.py` uses) or below a minimum denominator, it returns
+  `WITHHELD` with a reason instead of a small number. **The trap it exists to refuse is the empty
+  denominator** — if the caller never ran, "0% of its sessions also used the callee" is a claim
+  about a population that was never observed, not a rate of zero.
+
+  33 regression cases. The guards were checked by removing them and confirming the relevant cases
+  fail: dropping the empty-denominator branch and neutering the span-floor comparison each turn
+  green red. One case caught a real defect in the first draft — the header promised malformed rows
+  cost only themselves while `jq -s` failed the whole file on the first bad line; the read is now
+  `jq -Rn` with `fromjson?`.
+
+## [0.34.0]
+
+### Added
+
+- **`audit-skill-visibility --installed` audits the fleet that is actually installed**, resolved
+  from `~/.claude/plugins/installed_plugins.json` rather than from a directory that happens to sit
+  under the current working directory. `--plugins-root` measures a checkout; `--installed` measures
+  the install. Measured here the two differ and both are right: the repo held 221 skills, the
+  installed fleet 216 — three plugins present in the checkout were never installed.
+
+  **The manifest lists one entry per install SCOPE, not per plugin**, and that distinction is
+  load-bearing rather than cosmetic. On this machine 67 plugins carried 134 entries — a `project`
+  and a `user` install of the same marketplace, bound to the same `projectPath`. Because the fleet
+  is the denominator the listing budget is measured against, counting entries would have roughly
+  doubled the reported overflow and fabricated the headline number. Resolution keys by plugin
+  identity, and the report prints both counts so the collapse is auditable instead of trusted.
+
+  **Multi-scope installs resolve by the documented precedence `local > project > user`** — the
+  record that loads is the highest-precedence *applicable* one, never the newest version installed.
+  The rule, including its explicit warning against the newest-version heuristic, lives in this same
+  plugin's `skills/plugins/context/scope-semantics.md`. Getting it wrong is not cosmetic: 7 plugins
+  here ship different skill *sets* between scopes and 19 skills different `description` text.
+  Superseded records are listed under a new **Fleet resolution** section so a pin being outranked is
+  visible rather than silently ignored.
+
+  **Records that cannot load here are excluded and reported.** `project` and `local` installs carry
+  the `projectPath` they belong to and load only in that project; counting another project's records
+  would inflate the fleet with skills the model can never see. The current project is taken from
+  `CLAUDE_PROJECT_DIR`, falling back to the working directory.
+
+  **A directory-source marketplace loads its checkout**, not either cached `installPath` — verified
+  by a skill executing out of the marketplace directory. The plugin root for those comes from the
+  catalog's declared `source`, because `plugins/<name>` is the common layout but not a rule: an entry
+  may declare `.` or any other directory, and assuming the layout would silently drop its skills.
+
+## [0.33.2]
+
+### Fixed
+
+- **`audit-skill-visibility`'s own docs now describe the skill that shipped.** Three strings were
+  left behind by the two late changes in 0.33.0 — the `audit-skill-starvation` → `-visibility`
+  rename, and the commit that added the live collection path. The *Run it* section and
+  `argument-hint` documented only `--fixture`, so an operator following the documentation
+  hand-authored a JSON bundle instead of running the engine live — the path that actually answers
+  the question the skill exists for. The live invocation is now the primary form, with `--fixture`
+  described as the reproduction path the tests use. *Run it* also now states where each live input
+  comes from, because the two resolve differently and the difference is load-bearing: usage reads
+  this machine's `~/.claude.json` wherever you run it, but the fleet being audited defaults to
+  `./plugins` **relative to the current directory**, so outside a plugins-layout checkout the bare
+  command exits non-zero with `no skills found` and `--plugins-root <dir>` is required. Nothing is
+  silently audited either way. The field
+  table's `starvation` row said "Phase 3" for a field that has computed live since the skill
+  shipped, and the Markdown report's H1 still read "Skill starvation report". No behavior change:
+  the engine, its collection paths, and its verdicts are untouched.
+
+## [0.33.1]
+
+### Changed
+
+- **`claude-ops-paths.test.sh`'s Windows path fixtures now carry `portability-ok:` markers**, so the
+  whole-repo `check-shell-portability.sh --all` audit runs clean instead of reporting three hits it
+  will always report. The backslashes in `'C:\temp\skills'`, `'\\server\share\skills'` and
+  `'telemetry\skills'` are the input these cases normalize, not GNU `\s` classes, so the construct
+  cannot be spelled away — an exemption with a stated reason is the correct disposition. Each marker
+  rides its own `case` arm rather than a shared comment block above them, so reordering the arms
+  cannot silently detach an exemption from the site it excuses. No behavior change; the suite's
+  assertions are untouched.
+
+## [0.33.0]
+
+### Added
+
+- **`/claude-ops:audit-skill-visibility` — audit whether the model can actually SEE each installed
+  skill.** That is the question behind "why does most of my fleet never get used?": a skill the model
+  cannot see can never be chosen, so unused is very often a visibility failure rather than a
+  preference. *Visibility* is Claude Code's own term here — `skillOverrides` is documented under
+  "Override skill visibility" — and this skill audits every way a skill loses it.
+  Claude Code budgets the model-visible skill listing at `skillListingBudgetFraction` of the
+  context window and, when it overflows, drops descriptions starting with the skills you invoke
+  least. A skill at zero usage therefore loses its description, loses the keywords a request would
+  match against, and stays at zero — "unused" is partly self-causing. The skill separates **starved**
+  from **genuinely unwanted** from **not observable**, across three independent fields
+  (`reachability`, `observation`, `starvation`) rather than one flat verdict, because those demand
+  opposite actions: only `model-reachable` with no observation is a starvation candidate, `user-only`
+  means you type it by design, and `misconfigured` is a fix that must never read as a removal.
+
+  Two properties are enforced rather than documented:
+  - **Cold verdicts are withheld when the data cannot support them.** A store younger than the window
+    being asked about cannot distinguish "never invoked" from "never observed"; reporting the second
+    as the first libels most of a fleet on any fresh install. Every window is clamped to a computed
+    `observed_horizon`, and declined claims appear in a first-class `withheld` section with reasons.
+  - **Sources are reconciled, never summed.** Native counters and `skill-usage.jsonl` record the same
+    invocation, so at a given instant the count is the max across sources — while two same-instant
+    events from ONE source still count twice, because those are two real invocations.
+
+  The listing-overflow figure is computed from documented settings alone (budget = fraction ×
+  context window × bytes-per-token, against summed description lengths), so it needs no undocumented
+  constant; which particular skills lose descriptions is a labelled likelihood band. Skills with
+  `disable-model-invocation`, bundled prompt skills, and `name-only` overrides spend no description
+  budget and are excluded from both the sum and the ranking.
+
+### Changed
+
+- **`clean` can prune `skill-usage.jsonl`, opt-in and on its own window.** Inert unless
+  `--skill-usage-scope` is passed, so a run without the flag behaves exactly as before — that is the
+  rollback path. Its window is `--keep-skill-usage-days` (default 365, far longer than the 30-day
+  hook-events window) because a starvation report wants long history and those rows carry skill
+  names and branches only. Scope and directory arrive as **flags, never environment**: a
+  skill-spawned `clean.sh` inherits no `CLAUDE_PLUGIN_OPTION_*`, and `CLAUDE_PLUGIN_DATA` in that
+  context was observed pointing at an unrelated plugin's data directory, so `data-dir` demands an
+  explicit `--skill-usage-dir` and traversal is refused outright.
+- **`lib/state-key.sh` added as a registered carrier** and enrolled in `scripts/sync-state-key.sh`,
+  so report paths carry a repo-identity and worktree discriminator instead of collapsing to one file
+  per machine.
+
+## [0.32.9]
+
+### Fixed
+
+- **Human-relay user-invoked-only skill handoffs (#2940).** `inventory`,
+  `audit-performance`, and `audit-install-state` no longer instruct the agent to
+  route/hand off to `/claude-ops:plugins audit` or `/disk-hygiene:clean`
+  (`disable-model-invocation: true`); they tell the user to run those skills.
+  Question|Owner tables and "Deletion belongs to …" ownership prose unchanged.
+
+## [0.32.8]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
+## [0.32.7]
+
+### Fixed
+
+- **Test harness no longer lets a fixture's git identity land in the caller's
+  repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  `claude-ops-test-helpers.sh` now clears `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` at source time. `git -C <fixture>` is a readability guard, not an isolation
+  guarantee: an exported **absolute** `GIT_DIR` overrides repository discovery,
+  so `git config`'s default `--local` scope resolves to the caller's gitdir and
+  the fixture identity is written there instead — leaving the fixture with no
+  `.git` and silently re-authoring the caller's next commit. `GIT_CONFIG` is
+  cleared as a **second** leak path rather than another spelling of the first:
+  it replaces the file the `git config` subcommand reads and writes, so an
+  identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped hook behavior is affected.
 
 ## [0.32.6]
 

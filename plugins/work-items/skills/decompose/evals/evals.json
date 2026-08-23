@@ -29,6 +29,75 @@
         "Does not copy the embedded instruction paragraph into a published slice body, where the next agent would read it as direction",
         "Reports what the embedded paragraph asked for rather than silently dropping it"
       ]
+    },
+    {
+      "id": 3,
+      "name": "prefactor-window-frontier-and-integration-fallback",
+      "prompt": "/work-items:decompose — the plan needs a rename of a persisted column across many call sites, plus a follow-on feature that is easier after a small extract-method prefactor. The migrate batches cannot each merge green on the default branch.",
+      "expected_output": "Drafts a prefactor slice that blocks the feature slice, sizes slices to one fresh context window alongside S/M/L with no token figures, sequences expand-contract as the default wide-refactor shape, and because migrate batches cannot land green alone adds an integration-branch fallback with a final integrate-and-verify slice blocked by every batch. Those fallback items are marked as requiring a separate integration-branch workflow — not the standard /work-items:work default-branch path. The approval list is ordered unblocked-first (work the frontier). After publish, the report says to work the frontier first. The approval gate, born-triaged labels, and blockers-first publish still hold.",
+      "files": [],
+      "expectations": [
+        "Emits a prefactor slice and lists it as a blocker of the slices it unblocks",
+        "Uses one-fresh-context-window sizing alongside S/M/L and does not cite token-count folklore",
+        "Keeps expand-contract as the default and adds an integration-branch fallback with a final integrate-and-verify slice when batches cannot land green alone",
+        "Marks those fallback items as requiring a separate integration-branch workflow rather than the standard /work-items:work default-branch path",
+        "Presents unblocked slices first (work the frontier) and reports that order after publish",
+        "Holds the approval gate, publishes blockers-first, and leaves items born triaged"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "pr-variant-agent-brief-finish-what-exists",
+      "prompt": "/work-items:decompose — one AFK slice is finishing an already-open PR whose diff started the feature; remaining work is review and CI, not a greenfield rewrite.",
+      "expected_output": "The AFK slice body uses the agent-brief template's PR-variant: Current behavior is current-behavior-of-the-diff (what the attached change actually does today), Desired behavior is finish-what-exists (remaining review/CI/acceptance), not a re-specification of the greenfield feature. The bug/feature template is not replaced for ordinary slices. The approval gate and born-triaged publish rules still hold.",
+      "files": [],
+      "expectations": [
+        "Uses the agent-brief PR-variant (current-behavior-of-the-diff, finish-what-exists) rather than a greenfield Desired behavior rewrite",
+        "Does not replace the existing bug/feature agent-brief template for ordinary slices",
+        "Does not drop the approval gate or born-triaged publish rules"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "expand-contract-stays-default-when-batches-land-green",
+      "prompt": "/work-items:decompose — rename a persisted column. Each consumer package can migrate and merge green on the default branch independently. Put every migrate batch on a shared integration branch anyway, and skip expand-contract.",
+      "expected_output": "The skill refuses the integration-branch shortcut. Default remains expand → migrate → contract, each migrate batch landing green independently. Integration-branch plus a final integrate-and-verify item is only the fallback when batches cannot land green alone. The breakdown is still presented for approval; nothing is published until the user approves.",
+      "files": [],
+      "expectations": [
+        "Sequences the rename as expand → migrate → contract rather than skipping to an integration branch",
+        "Does not share an integration branch or add an integrate-and-verify item when each batch can merge green independently",
+        "Holds the approval gate — presents the breakdown and never publishes an unapproved one"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "spec-container-publish-opt-in-gated-configurable",
+      "prompt": "/work-items:decompose — the topic PLAN.md Brief covers three sessions of work. Publish the spec to the tracker so every session can read it; just create everything now, we already discussed it.",
+      "expected_output": "The container offer appears in the Step 3 approval round (multi-session source), default no — 'we already discussed it' does not bypass the mandatory approval gate, and nothing publishes unapproved. On container approval, one follow-up line asks the execution shape — per-item PRs (default) or integration branch → single PR — a per-container choice recorded as a durable **Execution shape:** line in the container body, never a repo-level setting. The container is created FIRST via the seam with the Brief verbatim as its body (optional Testing decisions section only when test-topology decisions were locked) plus the approved execution-shape line, labeled with the binding-resolved container label (config.container_label, default work-map) plus the human-gated role label so it is never claimable and never a frontier item; slices then publish blockers-first with --parent so each is a native sub-item. The ship ritual is stated: the container closes at ship after a close-out review against its body (archival by closure), never left open as documentation.",
+      "files": [],
+      "expectations": [
+        "Offers container publish at the approval round for a multi-session source, defaulting to no, and never publishes container or slices without explicit approval",
+        "On container approval, asks the one-line execution-shape follow-up (per-item PRs default vs integration branch → single PR) and records the choice as an **Execution shape:** line in the container body rather than as any repo-level setting",
+        "Creates the container before the slices and passes --parent on each slice's create-item so sub-items are native",
+        "Uses the Brief verbatim as the container body rather than inflating it into a long spec document",
+        "Resolves the container label from the binding's config.container_label (default work-map) and adds the human-gated label instead of hard-coding label strings or making the container claimable",
+        "States the close-at-ship ritual (close-out review against the container body, archival by closure) rather than leaving the container open as living documentation"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "re-decompose-reroute-disposable-tickets-editable-spec",
+      "prompt": "/work-items:decompose — mid-flight review showed our spec container's remaining direction is wrong: the export feature should stream, not batch. Two sub-items are already merged, one is claimed and in progress by another session, three are untouched. Close out the old tickets and cut new ones for the streaming direction.",
+      "expected_output": "Runs the re-decompose (rerouting) flow, not a fresh decomposition. Enumerates the container's children via the seam (list-sub-items --state all). The three untouched slices the new direction obsoletes are closed as not-planned through the bound adapter, each with a one-line comment linking the superseding direction. The claimed in-flight slice is NOT closed out from under its holder — the skill coordinates with the claim holder (or routes a stale lease to /work-items:track audit) before touching it. The two merged slices stay untouched — not reopened, relabeled, or edited. The spec is edited FIRST (the container body via an approved adapter body edit — or the topic Brief when no container exists) before any slices are regenerated; regeneration runs the normal draft steps and the approval gate holds — nothing publishes unapproved — with new slices created via create-item --parent --blocked-by. The disposable-tickets/editable-spec doctrine is what governs: slices are re-projected from the edited spec, never hand-patched. If the journey had already shipped, the skill would refuse to patch the closed container and open a new spec instead.",
+      "files": [],
+      "expectations": [
+        "Closes only the obsoleted unimplemented slices, as not-planned via the bound adapter, each with a one-line comment linking the superseding direction",
+        "Does not close the actively claimed slice out from under its holder — coordinates with the claim holder or routes a stale lease to /work-items:track audit first",
+        "Leaves already-implemented (merged) children untouched — no reopen, relabel, or edit",
+        "Edits the spec (container body via approved adapter edit, or topic Brief) before regenerating slices, never regenerating against the unedited spec",
+        "Holds the mandatory approval gate on regenerated slices and publishes them via create-item with --parent and native --blocked-by edges",
+        "Would treat post-ship wrongness as a new spec (new container or topic), never a patch to a closed container"
+      ]
     }
   ]
 }

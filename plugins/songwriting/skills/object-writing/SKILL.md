@@ -19,8 +19,9 @@ Sense-bound raw material: object writing, cliche repair, and point of view. This
 not telling" engine — the source of concrete detail the other skills shape. Metaphor is its own
 discipline and its own skill (`/songwriting:metaphor`); this skill feeds it.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's imagery method
-plugs in at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
@@ -42,7 +43,7 @@ No action → issue one usable timed object-writing prompt immediately (do not a
   90 seconds). Do not assign the full curriculum unless asked — that is `/songwriting:practice`.
 - Keep object-writing sense-bound and personal; its job is to reveal specific, sensory detail, not
   to produce finished lines.
-- A metaphor request routes to `/songwriting:metaphor`. Sensory material mined here is that skill's
+- A metaphor request routes to `/songwriting:metaphor`, invoked via the Skill tool. Sensory material mined here is that skill's
   input — hand over the material, do not generate the metaphor here.
 
 ## `generate` — dispatch, never write it inline

@@ -1,6 +1,7 @@
 ---
 description: "Run polyglot linters and format checks across all affected ecosystems without a full build cycle — auto-detects ecosystems from changed files, honors each tool's config-file opt-in, and supports --fix (format-only) plus a gated --code-fix mode for semantic lint autofixes. Use when: 'lint this', 'run the linter', 'format check', 'fix the formatting', 'is this formatted right', 'run prettier/ruff/eslint', or for quick lint/format feedback during development; for build+test use /toolchain:check, for full outcome verification use /verification:confirm."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files] (e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint --code-fix --yes, /toolchain:lint all)"
 shell: bash
 metadata:

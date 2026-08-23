@@ -3,6 +3,86 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.21]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- **README:** deduplicated the hand-written option-scoping preamble against the
+  generated options block, which already states both facts (#2698).
+
+## [0.7.20]
+
+### Fixed
+
+- **Trust gate: two loader-scan bypasses that produced an approvable verdict (#3110).**
+  Both let a custom-rule module load code the scan never saw, while the gate
+  still offered an approval pinned to a signature that omits it.
+  - `Invoke-Expression` / `iex` were listed among the path loaders, so a
+    CONSTANT string argument was pinned as though it named a file:
+    `Invoke-Expression 'Import-Module ./evil.psm1'` read as pinned while the
+    load it performs was never examined. Its argument is code, not a path, so
+    binding it would mean recursively parsing evaluated text — the state is
+    refused (`UNPINNABLE`) instead.
+  - The loader membership test compared the name `GetCommandName()` returns,
+    which for a module-qualified call is the qualified spelling. A
+    `Microsoft.PowerShell.Core\Import-Module` call therefore matched nothing
+    and the load was skipped outright. The test now runs against the bare name
+    after the last qualifier separator.
+
+  Both are covered by new `evaluated` / `qualified` fixtures in the unpinnable
+  suite, each verified to fail against the previous scan.
+
+## [0.7.19]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+### Added
+
+- **`setup` evals:** the skill now ships `evals/evals.json`, covering trigger and routing, the
+  happy path, the guardrails it must not cross, and the corrected headless reconfiguration
+  guidance ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+
+## [0.7.18]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.7.17]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
 ## [0.7.16]
 
 ### Changed

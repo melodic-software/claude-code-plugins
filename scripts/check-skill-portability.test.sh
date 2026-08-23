@@ -15,7 +15,18 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-skill-portability.sh"
+
+# A fixture runs a COPY of the gate, so it must also carry the shared
+# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
+# fixture a faithful copy; without it the copied gate dies on a missing
+# source at line 1 and every assertion below turns into the same opaque
+# failure. See #2914.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
+}
 REAL_TOKENS="$REPO_ROOT/scripts/skill-portability-tokens.txt"
+. "$SELF_DIR/test-git-helpers.sh"
 
 # Minimal token list: just the active branch class, so a synthetic case is not
 # coupled to the shipping list's staged entries.
@@ -150,6 +161,29 @@ else
   fail "malformed active token should exit 2, not silently treat the file as clean"
 fi
 rm -f "$f" "$BAD_TOKENS"
+
+# --- a token list with NO active patterns fails closed (#3161) --------------
+#
+# An all-comments list loads zero patterns, so every file scans clean and awk
+# exits 0 — the gate passing while gating nothing, the #1513 shape.
+# check-shell-portability.sh has refused this since #1513; this scanner did not,
+# and was measured returning exit 0 on a file carrying a real violation. Third
+# instance of the same twin asymmetry.
+EMPTY_TOKENS="$(mktemp)"
+printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
+f="$(tmpfile 'diff against origin/main here')"
+SKILL_PORTABILITY_TOKENS="$EMPTY_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+rc=$?
+# Discriminating control: the SAME file must flag under a real token list, so a
+# green result above cannot come from the fixture being clean.
+scan_paths "$f" >/dev/null 2>&1
+control=$?
+if [[ "$rc" -eq 2 && "$control" -eq 1 ]]; then
+  ok "a token list with no active patterns exits 2 (fail closed, gate never silently disabled)"
+else
+  fail "empty token list should exit 2 (got $rc); control with real tokens should be 1 (got $control)"
+fi
+rm -f "$f" "$EMPTY_TOKENS"
 
 # --- same-line portability-ok annotation passes ----------------------------
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: fixture asserts the hardcode on purpose -->')"
@@ -298,6 +332,7 @@ rm -f "$f"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 printf 'diff against origin/main\n' >"$fx/FOO=bar.md"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --paths "FOO=bar.md" 2>&1)"
 rc=$?
@@ -305,6 +340,41 @@ if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'COUPLING: FOO=bar\.md:1:'; then
   ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
 else
   fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
+fi
+rm -rf "$fx"
+
+# =============================================================================
+# ...and the same for the TOKEN LIST operand, which is the worse half of #1513
+# and the half this gate was missing until #2914 (finding 2). A token path
+# shaped like identifier=value parses as an awk variable assignment, so the
+# `FNR == NR` loading pass never runs: NO patterns are active, every file
+# reports clean, and awk exits 0. The gate passes while gating nothing, and the
+# scanner-fault check cannot see it because nothing faulted.
+#
+# The path must be RELATIVE for this to bite. The gate cd's to its own parent,
+# and an absolute path begins with `/`, which awk can only read as a filename.
+# =============================================================================
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts"
+cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
+cp "$TEST_TOKENS" "$fx/t=custom.txt"
+printf 'diff against origin/main\n' >"$fx/plain.md"
+out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="t=custom.txt" bash scripts/check-skill-portability.sh --paths "plain.md" 2>&1)"
+rc=$?
+if [[ "$rc" -eq 1 ]] && echo "$out" | grep -q 'COUPLING: plain\.md:1:'; then
+  ok "a token list shaped like identifier=value still loads its patterns"
+else
+  fail "an identifier=value-shaped token list must not silently disable the gate (rc=$rc): $out"
+fi
+# The discriminating half: prove the same fixture DOES flag through an ordinary
+# token path, so a green assertion above cannot come from the file being clean.
+cp "$TEST_TOKENS" "$fx/plain-tokens.txt"
+out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="plain-tokens.txt" bash scripts/check-skill-portability.sh --paths "plain.md" 2>&1)"
+if [[ "$?" -eq 1 ]] && echo "$out" | grep -q 'COUPLING: plain\.md:1:'; then
+  ok "the same fixture flags through an ordinary token path (guard is discriminating)"
+else
+  fail "control case did not flag; the token-list assertion above is not discriminating"
 fi
 rm -rf "$fx"
 
@@ -627,6 +697,7 @@ fi
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/x/vendor" "$fx/plugins/alpha/skills/x/evals"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 printf 'diff against origin/main\n' >"$fx/plugins/alpha/skills/x/SKILL.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/vendor/upstream.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/evals/e.md"
@@ -646,6 +717,7 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts" "$fx/plugins"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 if (cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --all >/dev/null 2>&1); then
   ok "empty skill tree passes"
 else
@@ -666,12 +738,11 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
-    git -C "$fx" init -q &&
-    git -C "$fx" config user.email test@example.com &&
-    git -C "$fx" config user.name test &&
+    git_init_test_repo "$fx" &&
     git -C "$fx" commit -q --allow-empty -m base &&
     base="$(git -C "$fx" rev-parse HEAD)" &&
     mkdir -p 'plugins/p/skills/s' &&

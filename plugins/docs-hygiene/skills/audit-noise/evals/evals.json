@@ -5,12 +5,15 @@
       "id": 1,
       "name": "classify-noise-shapes-with-tiers",
       "prompt": "Declutter this file: read evals/fixtures/noisy-rule-snippet.md relative to the skill directory and audit it for noise.",
-      "expected_output": "Emits a per-file tier table classifying the noise: the dated 'Empirically observed 2026-03-14' line as a citation, the `.work/net-hardening-slice/PLAN.md` reference as a ghost-ref (Tier 2), the 'Path-scoped to ... loads on Read' clause as scope-meta, and the hardcoded 'following three skills' roster as an enum-list. Each finding carries treatment guidance. No edits are applied.",
+      "expected_output": "Emits a per-file tier table classifying the noise: the dated 'Empirically observed 2026-03-14' line as a citation, the `.work/net-hardening-slice/PLAN.md` reference as a ghost-ref (Tier 2), the 'Path-scoped to ... loads on Read' clause as scope-meta, the hardcoded 'following three skills' roster as an enum-list, the 'As you asked' opener as a conversational-antecedent (Tier 1), the 'Task 2 replaces the old ... in this PR we' sentence as a plan-reference (Tier 1), and the 'See PR #45 for the ordering rationale' line as a ticket-pr-residue (Tier 2). Each finding carries treatment guidance. No edits are applied.",
       "files": ["evals/fixtures/noisy-rule-snippet.md"],
       "expectations": [
-        "Output classifies findings by the skill's shape vocabulary (citation, ghost-ref, preamble, enum-list, scope-meta)",
+        "Output classifies findings by the skill's shape vocabulary (citation, ghost-ref, preamble, enum-list, scope-meta, plan-reference, conversational-antecedent, ticket-pr-residue)",
         "The `.work/net-hardening-slice/PLAN.md` reference is flagged as a ghost-ref",
         "The hardcoded 'following three skills' list is flagged as an enum-list with a runtime-derivation / category-citation treatment",
+        "The 'As you asked' opener is flagged as a conversational-antecedent with a delete treatment",
+        "The 'Task 2 replaces the old ... in this PR we' sentence is flagged as a plan-reference with a delete-the-frame treatment",
+        "The 'See PR #45' line is flagged as a ticket-pr-residue at Tier 2 (review — delete the bare provenance or relocate it to a `## Sources` footer)",
         "The output is a classification report with tiers and treatments; no file is edited"
       ]
     },
@@ -54,10 +57,10 @@
       "id": 5,
       "name": "flavor-is-compress-not-audit-noise",
       "prompt": "Declutter docs/wordy.md — it's full of filler like 'basically', 'really', and 'just', plus a lot of hedging. Flag all of that.",
-      "expected_output": "Does NOT classify filler / hedging / articles as any of audit-noise's five noise shapes — that FLAVOR is the sibling /compress's territory. It reports no noise-shape findings for the filler and routes flavor removal to /compress.",
+      "expected_output": "Does NOT classify filler / hedging / articles as any of audit-noise's eight noise shapes — that FLAVOR is the sibling /compress's territory. It reports no noise-shape findings for the filler and routes flavor removal to /compress.",
       "files": [],
       "expectations": [
-        "Filler / hedging words are NOT classified under any of audit-noise's five noise shapes",
+        "Filler / hedging words are NOT classified under any of audit-noise's eight noise shapes",
         "Output routes flavor removal to /compress rather than classifying it as a noise shape"
       ]
     },
@@ -94,8 +97,65 @@
         "Respects the `<!-- markdown-discipline-ignore-line -->` line-scope opt-out — does not flag the citation-shaped content on the wrapped line",
         "Does not flag the `## ADR amendment block` heading or its dated `### … amendment` subsections (amendment-block exemption)",
         "Does not flag `## Recheck triggers`, `## Cross-references`, `## Sources`, or `## History` sections (Section EXEMPTIONS)",
+        "Does not flag the tracker references in the ordinary `## Outstanding work` section — the task-list items and the `TODO(#123)` marker are the `ticket-pr-residue` tracked-work carve-out, which holds outside an exempt section",
         "Reports zero Tier 1 findings overall",
         "Reports zero Tier 2 findings overall"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "markdown-owns-the-shared-residue-shapes",
+      "prompt": "Declutter a README whose body says 'As you asked, this section documents the retry policy.' and 'See PR #45 for the rationale behind the ordering constraint.' Those look like comment-residue shapes — should I run /code-tidying:audit-comment-residue on the README instead?",
+      "expected_output": "Classifies both here: the opener as a conversational-antecedent (Tier 1, delete the address to the requester) and the reference as a ticket-pr-residue (Tier 2, delete the bare provenance or relocate it to a `## Sources` footer). Explains that the boundary between the two skills is the FILE TYPE, not the shape vocabulary — the three shape names are shared deliberately so one authoring failure keeps one name, and markdown has exactly one owner, this skill. Does NOT route the `.md` file to /code-tidying:audit-comment-residue.",
+      "files": [],
+      "expectations": [
+        "The 'As you asked' opener is classified as a conversational-antecedent, not routed elsewhere",
+        "The 'See PR #45' reference is classified as a ticket-pr-residue at Tier 2",
+        "Output does NOT send the markdown file to /code-tidying:audit-comment-residue",
+        "Output states the boundary is by file type (markdown here, code there), with the shape names deliberately shared"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "ticket-reference-carve-out-is-outstanding-work",
+      "prompt": "Declutter a rule file. Its body says 'See PR #45 for the rationale behind the ordering constraint.' Its `## Outstanding work` section (an ordinary section, not `## Sources`) has the items `- [ ] Cap the retry budget, see issue 42 for the acceptance test` and `TODO(#123): see issue 44 before the next release.` Classify every tracker reference.",
+      "expected_output": "Flags only the body line as a ticket-pr-residue (Tier 2): it is bare provenance offered as the reason the prose says what it says. The task-list item and the `TODO(#123)` marker are NOT flagged — both denote outstanding tracked work, where the reference is the actionable part of the line, which is the markdown restatement of the code sibling's sanctioned-`TODO` exception. The treatment for the flagged line is delete-or-relocate to a `## Sources` / `## History` footer, which is itself an exempt section.",
+      "files": [],
+      "expectations": [
+        "The body's 'See PR #45' line IS flagged as a ticket-pr-residue at Tier 2",
+        "The `- [ ]` task-list item is NOT flagged, despite sitting in a non-exempt section",
+        "The `TODO(#123)` marker line is NOT flagged",
+        "Output distinguishes bare provenance from outstanding tracked work as the carve-out's boundary",
+        "The treatment names relocation to a `## Sources` / `## History` footer as the alternative to deletion"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "negation-without-positive-classified-and-guardrails-spared",
+      "prompt": "Declutter this file: read evals/fixtures/negation-shapes.md relative to the skill directory and audit it for noise.",
+      "expected_output": "Flags the three bare prohibitions under the `negation` shape at Tier 2 — 'Do not use markdown in your response.', 'Never call the tool directly.', and 'Avoid restating the rule in the body.' — each with a treatment that rewrites to the positive target rather than deleting the directive. Flags none of the paired-positive sentences, none of the hard guardrails, and not the worked example.",
+      "files": ["evals/fixtures/negation-shapes.md"],
+      "expectations": [
+        "The three bare prohibitions are flagged under the `negation` shape at Tier 2",
+        "Each treatment rewrites to the positive target and explicitly does NOT delete the directive",
+        "Sentences already pairing a positive ('instead', 'prefer', 'in place of') are NOT flagged",
+        "The hard guardrails (secret, force-push, rm -rf against production) are NOT flagged — a prohibition that cannot be phrased positively is the correct form",
+        "The `->` worked-example line is NOT flagged",
+        "No file is edited"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "negation-remediation-never-touches-a-trigger-phrase",
+      "prompt": "Declutter this file: read evals/fixtures/negation-trigger-fence.md relative to the skill directory and audit it for noise, then persist the findings for the review fix relay.",
+      "expected_output": "Reports both negations to the human, but routes only the plain one ('Do not emit a bare summary.') to the findings file. The sentence quoting 'sweep the negation fence' — a trigger phrase appearing in the file's own description — is reported to the human and declined from the relay, counted in `## Surfaces` as `reason=quoted-trigger-phrase`, because a remediation editing a quoted trigger phrase is the auto-invocation regression check-skill.sh hard-FAILs.",
+      "files": ["evals/fixtures/negation-trigger-fence.md"],
+      "expectations": [
+        "The body line quoting the trigger phrase is NOT routed to the findings file",
+        "Its exclusion is counted in `## Surfaces` rather than silently dropped",
+        "The plain negation IS emitted to the findings file",
+        "The reason given ties to the dropped-trigger-phrase auto-invocation regression",
+        "No `description` or `when_to_use` is edited"
       ]
     }
   ]

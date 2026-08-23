@@ -79,8 +79,9 @@ duplicating that responsibility here.
 
 ## What this skill does NOT do
 
-- **Does not produce the `EXPLORE.md` handoff** — that is `/discovery:explore`. Hand off to it when the
-  findings double as stage-1 exploration.
+- **Does not produce the `EXPLORE.md` handoff** — that is `/discovery:explore`. Hand off by invoking
+  `/discovery:explore` via the Skill tool when the findings double as stage-1 exploration.
 - **Does not make changes** — it surfaces blindspots and coaches a prompt. Execution is a separate step.
 - **Does not run open-ended external research** — the domain lane fetches official docs to ground a
-  lightweight vocabulary ladder; anything deeper routes to `/discovery:research`.
+  lightweight vocabulary ladder; anything deeper routes to `/discovery:research`, invoked via the
+  Skill tool.

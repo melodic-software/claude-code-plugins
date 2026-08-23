@@ -18,7 +18,7 @@ readonly _TESTS_LIB_LOADED=1
 
 # Strip inherited git-hook context so fixture `git init` / ref writes never
 # resolve to the real repo when a test runs under a git hook chain.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 : "${FAILED:=0}"
 : "${CASE_NUM:=0}"

@@ -3,6 +3,31 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.6]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.22.5]
+
+### Fixed
+
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against (#3111).
+  Two upstream links that pointed at empty backward-compatibility anchors on the settings page
+  were repointed at the headings that hold the content.
+
+## [0.22.4]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
 ## [0.22.3]
 
 ### Changed

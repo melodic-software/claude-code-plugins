@@ -35,12 +35,12 @@ jobs:
   # inputs (.github/workflows/** and the named manifests) that a diff confined
   # to the docs-only allowlist (scripts/docs-only-paths.txt) cannot touch, so
   # on such a diff they report an honest evaluated-and-not-applicable success.
-  # ShellCheck and exec-bit are NOT
-  # gated: both scan the whole repo extension- and directory-agnostically
-  # (ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every tracked
-  # shebang file recorded 100644), so a shell/shebang file added under an
-  # otherwise docs-only prefix like docs/topics/ is real input they must still
-  # catch — gating them would open a fail-closed hole. The job NEVER skips — only
+  # ShellCheck, exec-bit, and hook-wiring-liveness are NOT
+  # gated: ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every
+  # tracked shebang file recorded 100644, and hook-wiring-liveness greps
+  # .claude/hooks/*.sh against settings.json — a shell/shebang/hook file added
+  # under an otherwise docs-only prefix like docs/topics/ is real input they
+  # must still catch — gating them would open a fail-closed hole. The job NEVER skips — only
   # the path-scoped steps are gated, via the same never-skip, self-test-first,
   # fail-closed detector plugin-gate/miro-plugin use. The detector self-test runs
   # unconditionally so a broken detector cannot mask a regression, and detection
@@ -225,9 +225,16 @@ jobs:
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
 
+      - name: Test the hook-wiring-liveness gate
+        run: bash scripts/check-hook-wiring-liveness.test.sh
+      - name: Check repo-local hooks are wired in settings.json
+        id: hook_wiring
+        continue-on-error: true
+        run: scripts/check-hook-wiring-liveness.sh
+
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck and exec-bit scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, and hook-wiring-liveness scan the whole repo and stay unconditional."
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -243,8 +250,9 @@ jobs:
           # masked. The aggregator stays fail-closed on any real non-`success`
           # (including `skipped`); it is never told to pass on `skipped`. The
           # condition (docs_only == 'true') is the exact inverse of each gate, so
-          # the two can never disagree. ShellCheck and exec-bit are unconditional
-          # (whole-repo scanners), so they feed their raw outcome.
+          # the two can never disagree. ShellCheck, exec-bit, and
+          # hook-wiring-liveness are unconditional (whole-repo scanners), so
+          # they feed their raw outcome.
           CHECK_RESULTS: |
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
@@ -261,6 +269,7 @@ jobs:
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
+            hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
   zizmor:
@@ -319,6 +328,19 @@ jobs:
   # exercise those branches — Path.is_absolute() is True for /usr/bin/ls on
   # POSIX — which is how an inert Windows allowlist shipped green. Keep this
   # job SMALL: GuardTests only, not the full hygiene suite.
+  #
+  # #2871: a dedicated fast signal for the full module
+  # (`python -m unittest -v test_hygiene`) lives on `disk-hygiene-tests`
+  # (Linux). It is not invoked here because two tests fail on windows-2025
+  # (315/317, 9.96s on run 32477560257):
+  #   - HygieneTests.test_preview_allows_root_children_os_managed_snapshot
+  #     expects ready-for-explicit-approval; Windows returns blocked
+  #   - HandoffVerifyTests.test_stash_must_exist_in_an_independent_checkout
+  #     compares path strings; 8.3 `RUNNER~1` != long `runneradmin`
+  # Those two are already green on Linux. Do not silently omit a class here
+  # without this comment; the other nine classes gate on disk-hygiene-tests
+  # (dedicated fast signal; plugin-gate also runs the module on
+  # non-docs-only diffs via hygiene.test.sh).
   disk-hygiene-guard-windows:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -337,6 +359,31 @@ jobs:
       - name: Run disk-hygiene GuardTests on Windows
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
+
+  # #2871: dedicated required signal for the full test_hygiene module.
+  # plugin-gate already runs hygiene.test.sh on non-docs-only diffs (this
+  # PR's own plugin-gate did). That is the heavy lane (Node, ShellCheck,
+  # every plugins/**/*.test.sh). This job exists so the ten TestCase
+  # classes have a fast, always-on check that does not wait on that
+  # matrix and cannot take hygiene.test.sh's SKIP-when-Python-absent
+  # path. The Windows job above stays GuardTests-only (NT allowlist +
+  # two Windows failures named there). Suite is not host-destructive
+  # (tempdir fixtures; no live drive-root scans). Measured 317 OK.
+  disk-hygiene-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Run disk-hygiene tests
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene
 
   # #2834: an MSYS path literal (`/d/...`) handed to a Windows-native consumer
   # re-anchors to the CURRENT drive's root, so the consumer creates a phantom
@@ -548,6 +595,27 @@ jobs:
       - name: Check for unregistered cross-plugin skill leaf-name collisions
         run: scripts/check-skill-leaf-names.sh --check
 
+  # A plugin's prose counts its own skills by hand ("bundling fourteen skills",
+  # "the other thirteen skills are zero-config") and nothing recomputes those
+  # numbers when a skill lands, so adding one silently falsifies every sentence
+  # that counted the old set. Measured: PR #3011 went stale on six such counts,
+  # each caught by a different reviewer rather than by anything mechanical, and
+  # session-flow's CHANGELOG records an "other eleven skills" line that was
+  # already off by one before that PR. Self-test first so a broken detector
+  # cannot mask a regression.
+  skill-count-claim-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run skill-count-claim tests
+        run: bash scripts/check-skill-count-claims.test.sh
+      - name: Check every skill-count claim against the tree
+        run: scripts/check-skill-count-claims.sh --check
+
   # A ${user_config.*} token in a plugin hook config silently drops the whole
   # hook entry whenever the key is unset (the declared userConfig `default` is
   # unimplemented upstream — anthropics/claude-code#46477), so the hook never
@@ -680,6 +748,32 @@ jobs:
         run: bash scripts/check-orphaned-fixtures.test.sh
       - name: Check for orphaned eval fixtures
         run: scripts/check-orphaned-fixtures.sh --check
+
+  # A test suite that BUILDS a git fixture must clear the inherited git
+  # environment, in shell and in Python alike. `git -C <fixture>` is a
+  # readability guard, not an isolation guarantee: an exported ABSOLUTE GIT_DIR
+  # overrides repository DISCOVERY, so the fixture identity lands in the
+  # CALLER's .git/config — shared by every worktree of the clone — and the
+  # caller's next commit is silently re-authored. That failed
+  # required_signatures with `no_user` and cost #2827 -> #2830 (#2840). The
+  # check is repo-wide and static. The grandfathered baseline was drained
+  # in #2872; a new fixture-building suite must isolate itself. The
+  # self-test runs unconditionally so a broken detector cannot mask a
+  # regression behind a green gate.
+  fixture-git-isolation-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the fixture-git-isolation detector
+        run: bash scripts/check-fixture-git-isolation.test.sh
+      - name: Test that the shared git test harness isolates its fixtures
+        run: bash scripts/test-git-helpers.test.sh
+      - name: Check fixture git isolation
+        run: scripts/check-fixture-git-isolation.sh --check
 
   # Every finding kind audit-fleet.sh emits must have a Finding: <kind>
   # collector-output assertion in audit-fleet.test.sh (or be grandfathered).
@@ -978,6 +1072,24 @@ jobs:
       - name: Run affected-suite selector tests
         if: steps.scope.outputs.docs_only != 'true'
         run: bash scripts/affected-tests.test.sh
+      # Same reason again — run-plugin-tests.sh never reaches scripts/. This
+      # suite covers scripts/lib/changed-files.sh, the base-ref and changed-file
+      # resolver the checker gates share. Its NUL-safety cases are the invariant
+      # four of those gates had diverged on (#2914), and no caller suite
+      # exercises a C-quotable pathname, so this is the only place a regression
+      # there turns anything red.
+      - name: Run shared changed-file resolver tests
+        if: steps.scope.outputs.docs_only != 'true'
+        run: bash scripts/lib/changed-files.test.sh
+      # Same reason again — run-plugin-tests.sh never reaches scripts/. This
+      # suite covers scripts/lib/read-list.sh, the list-file reader the gates
+      # share. Its two comment modes are semantically different on purpose
+      # (#3161) and each is asserted against the other's answer, so a change
+      # that quietly collapses them turns this red rather than silently
+      # truncating a token pattern.
+      - name: Run shared list-file reader tests
+        if: steps.scope.outputs.docs_only != 'true'
+        run: bash scripts/lib/read-list.test.sh
       - name: Validate plugin and catalog manifests
         if: steps.scope.outputs.docs_only != 'true'
         run: scripts/validate-plugins.sh
@@ -1346,6 +1458,7 @@ jobs:
       - hook-utils-sync
       - hook-utils-windows
       - disk-hygiene-guard-windows
+      - disk-hygiene-tests
       - windows-path-emit-gate
       - windows-path-emit-windows
       - parse-concern-value-sync
@@ -1356,6 +1469,7 @@ jobs:
       - cross-plugin-source-drift
       - detector-findings-crosswalk-gate
       - skill-leaf-name-gate
+      - skill-count-claim-gate
       - userconfig-argv-gate
       - hook-exec-form-gate
       - plugin-options-docs-gate
@@ -1363,6 +1477,7 @@ jobs:
       - stale-base-overlap-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
+      - fixture-git-isolation-gate
       - fleet-finding-test-coverage-gate
       - fleet-audit-doc-grammar-gate
       - changelog-parity-gate

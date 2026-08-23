@@ -5,6 +5,45 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.8]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.6.7]
+
+### Changed
+
+- **Emitted work-item bodies keep the retrieval channel on every doc citation
+  (#2864).** `reference/config.md`'s markdown-item body schema asked only for
+  "evidence + doc citations". The auditor's output contract and `audit` step 3
+  already require URL, fetch date, retrieval channel, and a byte count or line
+  number, and treat a citation missing either field as unverified — then the
+  emit schema dropped those fields, so a maintainer reading the filed item
+  could not tell a rung-1 `curl` from summarizer output. The body schema now
+  requires the same four citation parts, and a citation that omits the channel
+  or the count is emitted as **unverified**.
+
+## [0.6.6]
+
+### Changed
+
+- **Hooks-reference fragment retarget (#2907).** The audit hook checklist cited
+  `code.claude.com/docs/en/hooks#exit-codes`. That heading is gone; the current parent section is
+  `#exit-code-output`. Link only — no audit-step change.
+
+## [0.6.5]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `audit` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.6.4]
 
 Supersedes an intra-development entry of this same branch that was never published: it described an

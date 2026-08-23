@@ -31,7 +31,7 @@ Present a final report:
 ```text
 ## Batch Simplify Results
 
-Scope: {scope}  (e.g., "48h" or "branch chore/misc-maintenance vs main")
+Scope: {scope}  (e.g., "48h", "branch chore/misc-maintenance vs main", or "repo — whole repository")
 Files scanned: {total_files}
 Groups processed: {group_count}
 
@@ -60,8 +60,8 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 Resolve each group's verification command through the registered ecosystem-command owner —
 do not maintain a command table here. In order:
 
-1. When the `toolchain` plugin is installed, `/toolchain:check` (scoped to the group's
-   files) IS the verification step — it resolves the consuming project's tracked
+1. When the `toolchain` plugin is installed, invoking `/toolchain:check` via the Skill tool
+   (scoped to the group's files) IS the verification step — it resolves the consuming project's tracked
    per-ecosystem command config and its own portable defaults.
 2. Otherwise, the consuming project's own canonical commands (its `CLAUDE.md` / CI config
    usually names them — e.g. warnings-as-errors flags, custom test runners).
@@ -70,3 +70,23 @@ do not maintain a command table here. In order:
    `Makefile`, or manifest to pick them).
 
 Include the group's verification step in each simplifier agent's prompt so the agent self-verifies before returning; Phase 7 re-runs it as the safety net.
+
+## Why narrowing is a path, not a lane (Arguments)
+
+`repo <lane>` was the other candidate narrowing surface, and it is deliberately
+rejected.
+
+A lane in the sibling `/code-tidying:tidy` is a seven-part object: scope globs,
+merge semantics, watch-for patterns, lane-specific extra exclusions,
+verification commands, a Conventional Commits type, and preferred research
+sources. This skill would consume exactly one of those parts — the scope globs
+— and ignore the other six. Reusing the word for "a place to get globs from"
+would leave `lane` meaning two different things in sibling skills of one
+plugin, which is the kind of drift that makes a vocabulary stop carrying
+information.
+
+A path also composes where a lane does not. Lanes are defined per project in
+`.claude/tidy-lanes/`, so a lane-only surface would be unusable in any repo
+that has not set them up, while every repo has paths. Anyone who does want
+lane-shaped sweeps already has the surface for it: `/code-tidying:tidy` owns
+lane rotation under a scope budget, and this skill owns the wide sweep.

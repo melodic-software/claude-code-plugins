@@ -14,6 +14,8 @@ Assessment updates the learner model — what's understood, what's frontier, wha
 | Mission shifted based on learning | Record as mission shift + update MISSION.md |
 | End of session | Prompt reflection, record demonstrated understanding from session |
 
+When assessing via quiz, hold the equal-length answer rule: multiple-choice options carry equal length and formatting weight, so presentation never signals the correct answer (design rules in [context/exercises.md](exercises.md)).
+
 ## Learning Record Format
 
 Records live per [SKILL.md](../SKILL.md) "Workspace layout" (`learning-records/` under the active topic workspace). Scan that directory for the highest existing `NNNN` and increment. Cross-link related records, the mission, and terms with wikilinks (`[[MISSION.md]]`, `[[GLOSSARY.md]]`, `[[0002-<slug>]]`).
@@ -52,4 +54,4 @@ Use learning records to determine what to teach next:
 2. **Current frontier** — concepts one step beyond the floor (user is ready for these)
 3. **Out of reach** — concepts requiring multiple prerequisites the user lacks (defer)
 
-Pick teaching targets from the frontier. Occasionally revisit the floor for spaced practice.
+Pick teaching targets from the frontier. Floor revisits are **scheduled by age × domain velocity**, not occasional whim: a concept whose latest record is old relative to how fast its domain moves is due for spaced retrieval practice, surfaced at `resume`/`status` (SKILL.md "Resume, Status" + "Staleness"). Effortful recall of a due floor concept builds storage strength — a quick retrieval question, not a re-lecture.

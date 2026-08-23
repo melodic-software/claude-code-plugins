@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.30.3",
+  "version": "0.34.3",
   "userConfig": {
     "use_ask_user_question": {
       "type": "boolean",
@@ -12,7 +12,7 @@
     "use_emoji_question_markers": {
       "type": "boolean",
       "title": "Emoji anchors on interview round questions",
-      "description": "When enabled, each inline interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f. Purely presentational \u2014 Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text.",
+      "description": "When enabled, each inline interview round question leads with a ❓ anchor on its Q<N> line and its 'My recommendation:' line leads with ➡️. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text.",
       "default": false
     }
   },

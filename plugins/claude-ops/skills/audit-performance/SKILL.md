@@ -83,7 +83,7 @@ directly.
 **Suspect 3 — component bloat.** Evidence: `plugin_fleet` counts and `processes`. Community-
 confirmed slowness causes cluster here (many MCP servers/plugins each add per-tool-call and
 startup cost). This report only counts; the enablement-and-scope verdict belongs to
-`/claude-ops:plugins audit` — route there rather than eyeballing.
+`/claude-ops:plugins audit` — tell the user to run it rather than eyeballing.
 
 Cross-cutting: `sessions.active_last_hour` (concurrent sessions multiply watcher and I/O load),
 `sessions.largest_transcript` (a very large live transcript in a resumed session grows the
@@ -94,8 +94,8 @@ subsystem).
 
 - **Do not convert this audit into a cleanup.** The single most tempting wrong move is "the tree
   is big, delete it." Big is not the finding — *unswept* is. A healthy sweep bounds the tree by
-  itself; route a paused sweep to `/claude-config:audit` (settings fix) and unmanaged leftovers to
-  `/disk-hygiene:clean`.
+  itself; route a paused sweep to `/claude-config:audit` (settings fix), invoked via the Skill tool, and tell the user to run
+  `/disk-hygiene:clean` for unmanaged leftovers.
 - **A number alone never convicts.** 100k files with `walk_seconds: 4` on an excluded NVMe volume
   is healthy; 20k files with `walk_seconds: 90` behind a scanning filter driver is the problem.
   Pair counts with timings in every claim.

@@ -17,10 +17,11 @@
       "id": 2,
       "name": "apply-mismatch-is-guidance-only",
       "prompt": "Run /knowledge:setup apply where the observed library_dir is a machine-absolute path that contradicts the repository convention. Fix it.",
-      "expected_output": "Routes the fix to Claude Code's own configuration surface — /plugin configure knowledge interactively, or the uninstall-then-reinstall --config sequence headless at the scope claude plugin list reports — and warns that reinstalling must re-supply every non-default option value; it never hand-edits pluginConfigs or Claude Code settings, and defers verification of the new value to a fresh session.",
+      "expected_output": "Routes the fix to Claude Code's own configuration surface — /plugin configure knowledge interactively, or headless a plain claude plugin install ... --config library_dir=<value> rerun at the scope claude plugin list reports — and rules out uninstalling to reconfigure; it never hand-edits pluginConfigs or Claude Code settings, and defers verification of the new value to a fresh session.",
       "expectations": [
         "Does not write library_dir into any settings or pluginConfigs file",
-        "Headless path warns that uninstall drops stored options, so the reinstall re-supplies every non-default key and current values are recorded first",
+        "Headless path is a plain `claude plugin install ... --config` rerun against the already-installed plugin, carrying the CLI version the claim was verified on — the literal 2.1.240 — and scoping it to a non-sensitive option at user scope",
+        "Never prescribes `claude plugin uninstall` as the way to reconfigure, and gives the reason: uninstalling drops the whole stored pluginConfigs entry, resetting every option to its manifest default",
         "Recommends a portable value form (~ prefix or env-var reference) over a literal machine path",
         "Does not claim the changed value is in effect this session"
       ]

@@ -3,6 +3,390 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.6]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.26.5]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.26.4]
+
+### Fixed
+
+- **`quality-gate close-out` Shape B dropped code-shipping sub-items from the basis.** Rung 1's
+  empty-result rule read *"a successful query returning zero merged PRs means that sub-item closed
+  without shipping code … Only a failed query falls to rung 2."* But an empty rung-1 result means
+  only that **no PR named the item with a closing keyword**, and two very different situations
+  produce that: the item genuinely shipped nothing, or it shipped under a `Refs #N` reference — a
+  posture `work-items`' own `work/SKILL.md` explicitly sanctions (*"an intentional `Refs #N` opt-out
+  does not exclude its issue"*), and the normal shape whenever one PR advances several items while
+  closing only the spin-offs it fully resolves. Everything in the second case was classified
+  `no-code` and silently excluded, while the report still claimed to cover the shipped whole. An
+  empty rung 1 now falls to rung 2 as well, `no-code` is only reached when both rungs come back
+  empty, and the verdict names which rung produced it.
+
+  Found by the mode reviewing the container that shipped it — #3027's dogfood criterion working as
+  intended. On container #2933's own close-out, PR #3056 carried `Closes` for three spin-offs only
+  and PRs #3067 and #3071 carried no closing keyword at all, so three sub-items that between them
+  shipped **83 file-touches** of adapter and generator code would have been dropped from the basis
+  of the review deciding whether that container could close.
+
+  **Rung 2's own reduction is reconciled with it.** The first version of this fix left rung 2
+  still saying that no surviving hit means `unresolved` — which escalates to rung 3 and can stop a
+  close-out — while the new rung-1 wording said the same outcome is `no-code`. Two sections
+  prescribing opposite results for the exact case the fallback exists to preserve. Rung 2 now
+  classifies by **why rung 1 was empty**: rung 1 *succeeded* and empty plus rung 2 empty is
+  `no-code` and does not escalate; rung 1 *failed* plus rung 2 empty is `unresolved` and does,
+  because in that case nothing has actually looked successfully. The verdict says which.
+
+## [0.26.3]
+
+### Fixed
+
+- **`quality-gate` restatement lane: a project's evidence-artifact contract
+  now wins over the bundled frontmatter template (closes #2863).** The
+  Artifact section prescribed `type: restatement-review` plus `mode`/`branch`
+  with no exception, so sessions that followed the skill verbatim emitted
+  that shape even when the consumer already owned the artifact — a quality-gate
+  evidence contract that requires `type: quality-gate-evidence` (literal)
+  plus `date`/`slug`/`reviewed_at_sha`/`diff_base` was overridden, and a
+  scan of one adopter found fourteen hybrid or template-shaped artifacts
+  that its pre-push gate then accepted because it only parses
+  `reviewed_at_sha`. The bundled YAML is now the fallback only: when the
+  project ships its own evidence-contract criteria, those fields and the
+  contract's body shape are authoritative, and the two shapes are not
+  merged. A clean pass still writes an artifact, but its body follows
+  the same split: the contract's clean-result shape when one exists,
+  and the bundled scope plus no-findings assertion only as the
+  no-contract fallback. Default consumers with no contract are unchanged.
+
+## [0.26.2]
+
+### Fixed
+
+- **`downstream` mode cited into another plugin's private files.** Its "say plainly what is
+  unverified" step path-cited the `playbooks` plugin's `fable-5` skill inside that skill's own
+  `context/` directory, which the encapsulation contract makes private. (The path is described
+  rather than spelled here on purpose: repeating it would leave the cite standing in this plugin
+  after the fix removed it from the skill body.) It now cites
+  `/playbooks:fable-5 verification` — slash invocation is the only supported handle, and the
+  **chapter argument is load-bearing**: that skill's own argument contract makes a bare invocation
+  arm its entire operating doctrine as standing session instructions for the rest of the run, where
+  a chapter name reads only that chapter. A cite that reaches for one formula must not re-posture
+  the session that follows it. The presence gate and the stands-on-its-own fallback are unchanged.
+
+## [0.26.1]
+
+### Changed
+
+- **`quality-gate`: the PR-review-toolkit composition names the Skill tool (#3002).** In
+  `context/code.md`, the presence-gated `/pr-review-toolkit:review-pr` invocation now says "via
+  the Skill tool". Wording only; the aspect detection and the gate are unchanged.
+
+## [0.26.0]
+
+### Added
+
+- **The fix relay honors a producer's declared remediation owner (closes #3033).** A detector
+  can now tell the relay that its findings' repair, though contained to `Location`, is owned by
+  the detector's own remediation skill — and `fix-pass-mode.md` routes those rows there instead
+  of deciding for itself.
+
+  The gap this closes was silent and total for one adopter. `ai-slop:audit`'s fourteen
+  prose-rewrite rules classify as cleanup by content, and the cleanup route hands that class
+  wholesale to `/simplify` — a **code**-simplification skill that reads no findings file and
+  loads none of the producer's rewrite guide. Step 5 then retired the findings anyway. The pass
+  reported a clean run over findings nobody fixed, applying at most `rule-utm-params`, the one
+  genuinely auto-applicable rule.
+
+  Neither existing disposition reached it. **Off-site is a statement about the SITE** — both of
+  Step 2's limbs ask whether the repair leaves `Location`'s file — and these repairs are at
+  `Location`, so claiming off-site would assert something false and would route to surface-only,
+  trading a wrong apply for no apply. **`Auto-applicable: No` has no path to the cleanup route
+  at all**: Step 4's surface-instead-of-applying fence sits under its *correctness-class*
+  heading, so a cleanup row reaches `/simplify` whatever the crosswalk says about it.
+
+  - **Step 2** gains one classification rule: a row belonging to a rule whose crosswalk
+    `Auto-applicable` cell leads with ``No, remediated by `<invocation>` `` routes to that invocation,
+    whatever its class, and never to `/simplify` or the generic fixer. The declaration is
+    resolved through the qualified rule id every conforming row already leads its `Finding` cell
+    with, so **no producer has to change what it emits**. An `Action` cell leading with
+    ``Remediate with `<invocation>` `` only **corroborates** that declaration and can never be the
+    sole basis for routing: **the crosswalk row is necessary**, and a rule with no crosswalk
+    declaration takes its ordinary class however its `Action` reads. That asymmetry is the trust
+    boundary — the crosswalk lives in the consuming repo's docs, outside the artifact being
+    consumed, while the `Action` cell is inside it; Step 1 already establishes that nothing
+    authenticates a findings file's writer, and this is the one route whose target Step 4 does not
+    re-fence, so `Action`-alone routing would let any component that can write a conforming file
+    hand any installed skill arbitrary rows. Availability is not authentication. Off-site is
+    decided first, so a row that is both stays surface-only, and a pass that cannot resolve the
+    contract has no declaration to read — the no-declaration case, never an `Action` fallback.
+  - **Step 4** gains the route, with no direct-apply fallback — the asymmetry with `/simplify`
+    is the point. Only an invocation already available in the session is invoked; nothing is
+    installed, fetched, or name-matched loosely, because nothing authenticates the writer of a
+    findings file. An unavailable or unrecognized invocation surfaces its rows, naming what the
+    producer asked for so the operator can run it.
+  - **Steps 3 and 5** count and report the route, and an unavailable surface's rows land in the
+    consumption record's "Not applied" table with the invocation as their recovery.
+
+  Neither other adopter changes, and neither had to be touched. `mutation-testing:audit` declares
+  no owner and is off-site, which is decided first; `testing:audit` declares no owner because no
+  skill owns choosing the assertion a behavior deserves, and its rows are surfaced by Step 4's
+  judgment fence exactly as before.
+
+  `ai-slop` 0.3.1 rides along as the producer half of the same claim — a documentation
+  correction, not an emitter change. Its audit skill is the normal entry point that recommends
+  remediation, and it still told operators to keep prose rewrites away from this relay because
+  routing them here "retires the findings without fixing them". Leaving that in place would have
+  made this route unreachable through the documented flow while the contract advertised it.
+
+  Producer-side, the declaration and its fixed forms are owned by the detector-findings
+  convention (`docs/conventions/detector-findings/README.md` 2.4.0), "When the remediation is
+  owned by the producer's own skill". No producer had to change what it emits.
+
+  One detail is called out in Step 2 rather than left to inference, because this step is the
+  *literal* read and the failure is silent: **the invocation arrives inside a code span and the
+  fixer strips the backticks before matching**. A fixer matching the bare form against a
+  backticked cell matches nothing and falls through to the ordinary class — the original defect
+  wearing the new disposition's clothes. The contract states the convention once and binds both
+  the crosswalk cell and the corroborating `Action` lead to it.
+
+## [0.25.1]
+
+### Fixed
+
+- **`quality-gate close-out` Shape B was structurally blind to in-flight work.** Every rung
+  of the commit-set ladder reads the default branch — rung 1 keeps `MERGED` linkage nodes,
+  rung 2 scans `git log <default-branch>` — so work that is written, pushed, and sitting in
+  an **open** PR never entered the basis and was never mentioned. Merged-only is the right
+  reduction for the *basis* (an unmerged diff has not shipped) and the wrong thing to leave
+  unsaid for the *verdict*: a container closed on it closes on evidence that is not on the
+  default branch, which archival-by-closure cannot survive. Shape A reaches its open branch
+  through the `**Integration branch:**` line; Shape B had no analogue. The mode now runs one
+  extra `state=="OPEN"` query plus an open-PR search against the container before rendering,
+  reports whatever it finds as **in-flight, not in the basis**, and treats any open PR
+  carrying container work as a precondition of the close rather than a footnote. Surfaced by
+  running the mode over container #2933, where six behaviour-changing fixes sat in an open PR
+  and the derived basis showed none of them.
+
+## [0.25.0]
+
+### Added
+
+- **`downstream` mode — what a change breaks outside its own diff.** The review lane was entirely
+  diff-scoped: `architecture-guardian` maps which layer each *changed* file belongs to and never
+  enumerates consumers of a changed contract, `code-reviewer` and `doc-drift-detector` carry no
+  caller or ripple item at all, `fanout` fans across surfaces all diffing the same merge-base,
+  `verification:confirm` matches requirements to implementation (inward), and
+  `mutation-testing:audit` is `git diff`-scoped by construction. `planning:devils-advocate` has a
+  literal blast-radius round but reviews plans, not code, before implementation. This mode is the
+  outward-looking lens none of them provide.
+
+  Like `self`, the mode **dispatches rather than judging inline**, and for a sharper reason: the
+  thread that wrote the change is the worst judge of what the change reaches, because its model of
+  "what this touches" is the one it already held while writing — an inline pass re-derives the
+  author's own blast-radius assumption and then confirms it. The mode ships a dispatch policy, an
+  orchestrator sequence, and a worker brief, with the same presence-gated cross-vendor preference and
+  named same-vendor fallback every other delegating surface in this fleet uses. It takes a general
+  read-only subagent rather than a dedicated agent, and says why: its checks are not a fixed
+  per-ecosystem baseline like `architecture`'s or `security`'s but a search shaped by what the diff
+  changed, so the brief carries the specifics. Every finding is verified against the tree before it
+  is presented — this is the one mode whose findings name files the diff never touched, so an
+  unverified one sends a reviewer to the wrong place.
+
+  Reauthored from the `blast-radius` skill in `cursor/plugins` (MIT); provenance and the
+  substantial rejections are recorded in `docs/upstream/cursor-pstack.md`.
+
+  It **adds no grading scale**. Findings carry the existing severity and confidence axes unchanged,
+  and an unverifiable claim is marked in words rather than on a new ladder — the fleet already ships
+  eight evidence ladders, and a ninth would be the silent second way `discipline:reuse-or-replace`
+  exists to catch. `context/severity.md` is deliberately untouched: its own Vocabulary section
+  closes "axis" at severity and confidence, and `context/spec.md` already answered this same
+  question the same way.
+
+  The load-bearing rule is that **an unverified safety fact cannot clear a concern** — it stays in
+  the confirmed-risk list carrying the reason it is unverified. An unchecked assumption sorted into
+  the reassuring column is worse than one nobody looked at, because it now reads as checked.
+
+  Because this skill does not run builds or tests, the deliverable "the cheapest test that would
+  catch this" is a presence-gated handoff to `/testing:write` and `/mutation-testing:audit` rather
+  than an assertion — stronger than the upstream it came from, since the mutant is re-run and the
+  agent that wrote the test does not grade itself into a pass.
+
+  The description carries the "blast radius" trigger phrases deliberately: trigger phrases are
+  behavior, and leaving the noun unclaimed routes it to `/planning:plan`, which advertises
+  "blast-radius assessment" and operates a stage earlier. Negative routing is stated against that
+  skill, against `/planning:devils-advocate`, and against
+  `/docs-hygiene:rename-references audit blast`.
+
+## [0.24.0]
+
+### Added
+
+- **`code-reviewer` gains a tautological-expectation criterion (closes #3046).** The
+  anti-pattern was covered in prose — `tdd`'s `anti-patterns-khorikov.md` and `testing`'s
+  `write.md` checklist — and was *claimed* to be covered executably by `testing:audit`'s
+  `cant-fail-scan.sh`. That claim was false, and the scanner says so in its own header:
+  `testing/audit/rule-recomputed-expectation` "detects the decidable core — textually identical
+  sides — not every recomputation shape." A validator ran it over three canonical tautological
+  tests for **zero** findings, because the canonical Khorikov shape — compute `expected` with the
+  production algorithm in the arrange section, then assert against it — has non-identical sides.
+  Nothing judged the semantic shape.
+
+  The new Code-quality bullet asks the one question that decides it: **what is the expected
+  value's independent source?** A known-good literal, a hand-computed value, a worked example from
+  the spec, or a fixture — as against a re-derivation through the steps the code under test takes.
+  The round-trip/identity case (output compared against its own input) rides in the same criterion,
+  matching how `write.md:78` already pairs them.
+
+  **It cedes ground to the scanner by name rather than overlapping it**, per the plugin's existing
+  skip-what-tooling-enforces posture: where both sides are the same expression,
+  `cant-fail-scan.sh` fires and owns the finding; this criterion covers only what that rule leaves
+  undecided — sides that differ textually but share a derivation. Widening the detector past
+  textually-identical sides is explicitly *not* part of this: the general shape is undecidable.
+
+  Placement went to the agent definition rather than `quality-gate/context/criteria.md`, because
+  that file is a routing doc — it resolves the project's standards index and carries no criteria of
+  its own, and its own "Baseline when the ladder yields nothing" step already points at the agent
+  definitions for the universal checklist.
+
+## [0.23.0]
+
+### Added
+
+- **`quality-gate` gains a tenth lens: `close-out` (#3027).** `spec` mode (0.22.0) judges one
+  branch against its originating item; a spec container is not a branch. Its work lands as many
+  merges over days or weeks, and `work-items:decompose` and `work-items:ship` both routed container
+  close-out at "the review plugin's spec-fidelity machinery" without a container-scoped basis
+  existing anywhere. `context/close-out.md` is that basis. It is **`spec` mode at container scale,
+  not a second spec lens** — the finding-class enum, the spec-line quoting rule, the
+  item-content-trust fence, the dispatch policy, and the both-directions judging all stay owned by
+  `context/spec.md` and are reused by citation. What close-out owns is *what* gets judged: which
+  container, which spec body, and which change set counts as "what the container shipped."
+- **A mode-scoped diff-basis override, because squash-merge destroys the ancestry.** This is the
+  first mode that does not use SKILL.md's single Review diff base at all — it derives its own, per
+  execution shape:
+  - `integration branch → single PR` — one branch, one PR, so the basis is an ordinary range: the
+    PR's `merge-base(base, head)`..head while open, its squash commit once merged.
+  - `per-item PRs` (the default) — the basis is a **commit SET, not a range**, and the reviewer
+    reads the union of the per-commit diffs. A two-dot `<first>..<last>` over the default branch
+    would sweep in every foreign commit merged between the container's first and last item, and the
+    review would then report findings against work the container never shipped. The cost of the set
+    — cross-item interactions must be read *across* diffs rather than in one composite hunk — is
+    stated in the report rather than hidden.
+- **A closing-commit ladder that degrades honestly.** Provider close-linkage
+  (`Issue.closedByPullRequestsReferences`, reduced the **inverse** way from the `work-items` github
+  adapter's in-flight check — that one keeps `OPEN` and drops `MERGED`; close-out wants exactly the
+  `MERGED` nodes and their `mergeCommit.oid`) → a heuristic scan of the default branch's squash
+  subjects, flagged as heuristic → ask → **skip with a note**. A failed query is never read as an
+  empty set, and a sub-item with several hits is disambiguated rather than guessed. The GitHub MCP
+  tools are named as the equivalent mechanic for sessions without `gh`.
+- **`no-code` and `unresolved` are kept apart** — found by dogfooding the mode against container
+  #2933, where an investigation item (#2945) closed on a recorded decision comment with zero PRs. A
+  *successful* close-linkage query returning no merged PRs is an **answer**: that item shipped no
+  code by design, its criteria are judged against its closing comment, and it stays out of the
+  basis. Only a *failed* query falls to the scan, and only the scan produces `unresolved`. The same
+  run showed why the scan needs reductions at all: the board-publishing commit matched **every**
+  sub-item it listed, so a candidate referencing many of the container's sub-items is dropped as
+  journey narration, and closing-keyword forms outrank bare mentions.
+- **Two gates and a dry run.** Close-out is pre-flight gated on its own basis rather than the branch
+  base, plus a rollup check that the container is actually finished — running the cumulative pass at
+  12/20 manufactures `missing` findings for work that is merely not done yet. `--dry-run` exercises
+  container / spec / shape / basis resolution and stops before dispatching, which is how the basis
+  is verified against a container still in flight.
+- **The verdict is posted to the container, not just to the findings directory.** The findings
+  location lives in the contract slice, which is pruned before merge — so the artifact that survives
+  close-out is the comment on the tracker item. The mode produces the verdict; the close itself
+  stays owned by `work-items:decompose`'s ship ritual, and a `missing` or `wrong` finding against a
+  stated acceptance criterion keeps the container open.
+- **Provider degradation stated outright.** The basis derivation is GitHub-only in practice, and the
+  file says so: `jira` declares `list-sub-items: false` (exit 6) and has no merge-commit concept, so
+  it degrades to asking the operator; `local-markdown` is barred from containers entirely and gets
+  no close-out path at all. A provider that cannot answer emits a skip note, never a silent partial
+  pass.
+
+## [0.22.0]
+
+### Added
+
+- **`quality-gate` gains a ninth lens: `spec` (#2937).** The skill had eight modes and no
+  spec-fidelity one — "what was the goal" was a gather input, never the thing under judgment — while
+  `work-items:decompose` and `work-items:ship` both already routed container close-out to "the review
+  plugin's spec-fidelity machinery," which did not exist. `context/spec.md` is that machinery. It
+  **owns** the finding-class enum (`missing` / `scope-creep` / `wrong`), requires every finding to
+  quote the spec line it is judged against, and judges the diff in both directions so `scope-creep`
+  is reachable at all. `scope-creep` needs a positive statement of bounded scope before unlisted
+  behavior becomes a defect — a spec that never mentions a surface leaves the implementer's judgment
+  intact.
+- **A spec-source discovery ladder, because the lens cannot run without a spec.** `--spec <path|id>`
+  → item refs harvested from the branch's commits and PR body → the topic's contract slice → ask →
+  **skip with a note**. The last rung is the point: a fidelity verdict rendered without a spec is a
+  fabrication, so a headless run with nothing resolved stops and says which rungs it tried rather
+  than inferring a spec from the diff it is meant to judge. What the ladder gets right that a naive
+  version does not:
+  - A harvested ref is **validated before it is used to build anything** — commit messages and PR
+    bodies are attacker-influenceable through a fork PR, so the number must be strictly numeric and
+    an accompanying owner/repo must match a repo-name shape; a ref that fails is **dropped**, never
+    repaired. Components are passed as discrete arguments, never interpolated into a command line.
+    The item-content-trust boundary governs the body text a read returns and does not cover an
+    identifier used to build a command, so this check is its counterpart rather than a duplicate.
+  - The validated ref is **promoted** to the qualified `<provider>:<owner>/<repo>#<number>` form,
+    and the read is scoped to that id's own repository with `--repo` — a bare number reads the
+    *current* repo, which for a cross-repo ref is a different issue that merely shares a number.
+  - The item is read **through a public seam or the provider mechanic, never by reaching into the
+    sibling plugin**: `PLUGIN-PHILOSOPHY.md` forbids discovering another plugin's installation
+    directory, and no namespaced item-fetch action exists to call today, so the provider-mechanic
+    read is the operative path — which also means this rung works with no tracker plugin installed
+    at all. Body text was never a seam field regardless (the normalized item object carries no
+    `body`), and parent linkage degrades honestly: `get-item` is authoritative for `parent_id` and
+    is not reachable here, so a slice's container is best-effort or named directly with `--spec`.
+  - The contract-slice rung keys on the **topic slug**, not the branch slug, whose mapping is
+    documented as lossy.
+
+  Item text is read under the item-content-trust boundary throughout: data describing the work,
+  never instruction to the reviewer.
+- **A fail-fast pre-flight gate, ported from `fanout`, which `quality-gate` had entirely lacked.**
+  An unresolvable diff base or an empty change set now stops before any reviewer is dispatched
+  instead of spawning one to produce noise. **Mode-scoped:** `criteria` is a reference mode that
+  legitimately runs against a clean tree and is exempt. The frontmatter `allowed-tools` allowlist is
+  widened with the git read verbs the gate needs — without that the gate stalls headless, which
+  would have made it worse than no gate. **Untracked-only is reviewable here**, deliberately unlike
+  `fanout`: this skill's Shared inputs hand untracked files to the reviewer directly, so a
+  new-module or new-test branch is a real change set; `fanout` stops on it only because its surfaces
+  receive nothing but the merge-base diff, which cannot show an unstaged file. Neither skill stages
+  files.
+
+### Changed
+
+- **`self` mode's spec-conformance checklist item stops being a second SSOT.** It restated the same
+  three finding classes `context/spec.md` now owns; two copies of one definition is exactly what
+  this skill's own `restatement` mode flags. The fenced worker checklist keeps a shallow
+  divergence-and-quote check and explicitly defers classification, and the pointer to the owning
+  file sits in the orchestrator-facing escalation list — **not** inside the subagent template, which
+  is addressed to a fresh-context read-only worker that cannot invoke a skill to follow it.
+- **`self` mode's large-diff worker split now keeps its two lenses separate through presentation,**
+  not just until verification. The two workers answer different questions, so one combined list lets
+  a clean standards pass mask a failing spec pass.
+- **"Axis" now means one thing in this plugin, recorded once in `context/severity.md`:**
+  severity or confidence. A review perspective is a **lens**. Three incompatible senses were live
+  across these docs, and merging and ranking across the two real axes is precisely what `fanout`'s
+  normalization pipeline exists to do — a rule written on the ambiguous word would have negated it.
+
 ## [0.21.1]
 
 ### Changed

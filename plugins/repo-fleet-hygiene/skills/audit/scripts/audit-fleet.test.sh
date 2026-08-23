@@ -1584,7 +1584,6 @@ else
   failures=$((failures + 1))
 fi
 
-
 # --- #2608 / #2609 rollup + fleet action plan ---------------------------------
 assert_contains "rollup section present" "Repository rollup"
 assert_contains "fleet action plan present" "Fleet action plan"
@@ -1597,7 +1596,7 @@ else
   printf 'FAIL: action plan file missing\n' >&2
   failures=$((failures + 1))
 fi
-if PLAN_FILE="$PLAN_FILE" python3 - <<PY
+if PLAN_FILE="$PLAN_FILE" python3 - <<PY; then
 import json, os, sys
 plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
 assert plan.get("schema_version") == 1
@@ -1618,7 +1617,6 @@ for repo in plan.get("repositories") or []:
     assert len(targets) == len(set(targets)), targets
 print("plan-json-ok")
 PY
-then
   printf 'PASS: action plan JSON schema, ordering, and collapsed targets\n'
 else
   printf 'FAIL: action plan JSON validation\n' >&2
@@ -1665,7 +1663,7 @@ else
 fi
 
 # Newline-bearing actionable worktree paths must stay ONE plan target (NUL-delimited packing).
-if PLAN_FILE="$PLAN_FILE" EVIL_PATH="$EVIL_PATH" python3 - <<'PY'
+if PLAN_FILE="$PLAN_FILE" EVIL_PATH="$EVIL_PATH" python3 - <<'PY'; then
 import json, os, sys
 plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
 evil = os.environ["EVIL_PATH"]
@@ -1686,7 +1684,6 @@ if not found:
     sys.exit(1)
 print("nul-targets-ok")
 PY
-then
   printf 'PASS: newline-bearing worktree path stays one action target\n'
 else
   printf 'FAIL: newline-bearing worktree path was split across action targets\n' >&2
@@ -1893,21 +1890,30 @@ else
   failures=$((failures + 1))
 fi
 # Unreadable/non-executable roots are the same false-empty class.
-unreadable_root="$TMP/unreadable-root"
-mkdir -p "$unreadable_root"
-chmod a-rx "$unreadable_root"
-unreadable_out="$TMP/unreadable-root-out.txt"
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$unreadable_root" >"$unreadable_out" 2>&1; then
-  chmod u+rx "$unreadable_root" 2>/dev/null || true
-  printf 'FAIL: unreadable discovery root unexpectedly succeeded\n' >&2
-  failures=$((failures + 1))
-elif grep -Fq "discovery root is not traversable" "$unreadable_out"; then
-  chmod u+rx "$unreadable_root" 2>/dev/null || true
-  printf 'PASS: unreadable discovery root is refused rather than reporting zero repositories\n'
+# Root bypasses the permission bits this case depends on: `chmod a-rx` does not stop uid 0 from
+# traversing the directory, so the discovery root stays readable, the run legitimately succeeds, and
+# the assertion reports a product defect that does not exist. Containers and CI images commonly run
+# as root, so the case is SKIPPED there with its reason named rather than emitting a false FAIL —
+# a check that silently reports the wrong verdict is what the liveness-assertion convention forbids.
+if [[ "$(id -u)" -eq 0 ]]; then
+  printf 'SKIP: unreadable discovery root — running as uid 0, which bypasses the permission bits this case asserts on\n'
 else
-  chmod u+rx "$unreadable_root" 2>/dev/null || true
-  printf 'FAIL: unreadable discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$unreadable_out")" >&2
-  failures=$((failures + 1))
+  unreadable_root="$TMP/unreadable-root"
+  mkdir -p "$unreadable_root"
+  chmod a-rx "$unreadable_root"
+  unreadable_out="$TMP/unreadable-root-out.txt"
+  if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$unreadable_root" >"$unreadable_out" 2>&1; then
+    chmod u+rx "$unreadable_root" 2>/dev/null || true
+    printf 'FAIL: unreadable discovery root unexpectedly succeeded\n' >&2
+    failures=$((failures + 1))
+  elif grep -Fq "discovery root is not traversable" "$unreadable_out"; then
+    chmod u+rx "$unreadable_root" 2>/dev/null || true
+    printf 'PASS: unreadable discovery root is refused rather than reporting zero repositories\n'
+  else
+    chmod u+rx "$unreadable_root" 2>/dev/null || true
+    printf 'FAIL: unreadable discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$unreadable_out")" >&2
+    failures=$((failures + 1))
+  fi
 fi
 
 # Force the portable watchdog and prove a TERM-ignoring gh cannot outlive the finite KILL grace.

@@ -44,6 +44,10 @@
 #   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
 #      counts the literal " - " joiner the harness inserts when when_to_use is
 #      populated)
+#  2b. description alone <= 1024 Unicode codepoints (Agent Skills spec FIELD
+#      maximum — a separate limit at a separate layer from check 2's listing cap;
+#      WARN, since no local validator enforces it and the Skills API rejects it
+#      at upload; counted locale-independently via iconv, as check 22 does)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
 #      a phrase moved verbatim to a sibling skill's listing text — one the
 #      sibling did not carry at the base ref — WARNs, since the marketplace
@@ -80,6 +84,11 @@
 #  22. metadata.summary <= 100 Unicode codepoints (FAIL; the key is
 #      the generated skill cheat sheet's row source — the cap keeps rows
 #      scannable. Absent key = no finding)
+#  23. Completion-criteria signal on a 3+ step numbered procedure (WARN)
+#  24. disable-model-invocation stated explicitly (FAIL in plugins/; WARN
+#      elsewhere)
+#  25. Description/verb-contract polarity: read-only vs mutate (WARN;
+#      description lead vs Naming verb vs body; #2896)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -90,7 +99,7 @@
 #     clean tree (see above).
 #   - Frontmatter must open with `---` on line 1; content before the fence is
 #     not treated as frontmatter.
-#   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12,
+#   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12/25,
 #     so they see the text rather than the marker. A single-line quoted
 #     description is still preferred (the listing budget encourages this).
 #   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers.
@@ -198,8 +207,18 @@ if [[ "$HAVE_GIT" == 1 ]]; then
   SKILL_REL="${SKILL_REL%/}"
 fi
 
-# Tunables (listing description cap; SKILL.md line caps; vendor sync age).
+# Tunables (listing description cap; description field cap; SKILL.md line caps;
+# vendor sync age).
 DESC_CHAR_CAP=1536
+# Agent Skills spec field maximum for `description` ALONE — a different limit at a
+# different layer from DESC_CHAR_CAP above, which bounds the assembled listing entry
+# (description + " - " + when_to_use). The two do not unify and are checked separately.
+# Enforced by the Skills API at package/upload; NOT enforced locally — measured
+# 2026-08-23, `claude plugin validate --strict` (Claude Code 2.1.241) passes a
+# 1248-char description clean. A breach is therefore latent for filesystem/plugin
+# skills and hard for any skill uploaded through the Skills API, which is why this
+# is a WARN and DESC_CHAR_CAP stays a FAIL.
+DESC_FIELD_CAP=1024
 LINE_HARD_CAP=500
 LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
@@ -343,6 +362,34 @@ elif ((WTU_LEN > 0)); then
   note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + joiner $JOINER_LEN + when_to_use $WTU_LEN)"
 else
   note "description length $DESC_LEN/$DESC_CHAR_CAP chars"
+fi
+
+# --- Check 2b: description field alone <= DESC_FIELD_CAP codepoints ----------
+# The spec's per-FIELD maximum, distinct from check 2's listing-entry cap: a
+# description can sit under 1536 combined and still breach 1024 on its own. The
+# Skills API rejects that at upload; nothing local does (see DESC_FIELD_CAP above),
+# so this warns rather than failing — it reports a real spec breach without
+# blocking a fleet that carries pre-existing offenders.
+#
+# Counted in CODEPOINTS, not bytes: the spec says "Maximum 1024 characters", and
+# a byte count would false-positive on any non-ASCII description under a
+# byte-oriented locale — measured, 600 'é' characters report as 1200 under
+# LC_ALL=C. Same UTF-8 -> UTF-32BE iconv form check 22 uses (every codepoint
+# becomes exactly 4 bytes, so byte-count/4 is the codepoint count on any host),
+# with the same UTF-8-locale fallback where iconv is absent. DESC_LEN stays a
+# byte count for check 2, whose 1536 listing cap is a separate measure.
+if command -v iconv >/dev/null 2>&1; then
+  DESC_CP_LEN=$(($(printf '%s' "$CUR_DESC" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+else
+  DESC_CP_LEN="$(
+    LC_ALL=C.UTF-8
+    printf '%s' "${#CUR_DESC}"
+  )"
+fi
+if ((DESC_CP_LEN > DESC_FIELD_CAP)); then
+  warn "description alone is $DESC_CP_LEN codepoints (Agent Skills spec field maximum $DESC_FIELD_CAP) — accepted locally, rejected on Skills API upload"
+else
+  note "description field $DESC_CP_LEN/$DESC_FIELD_CAP codepoints (spec field maximum)"
 fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------
@@ -565,11 +612,19 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # env -u: this gate may run inside git-hook chains where git exports
     # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
     # the real repo. Strip before exec.
-    if env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      bash "$test_sh" >/dev/null 2>&1; then
+    # Output is captured rather than discarded so a FAILURE can be replayed. A test
+    # that only ever reports "it failed" is undiagnosable wherever it cannot be
+    # reproduced by hand — a gate whose one CI-visible signal is its own name sends
+    # the reader guessing at environment differences instead of reading the case that
+    # broke. Success stays silent: the reason to suppress was log noise, and that
+    # reason does not apply to the run that just went red.
+    test_out=""
+    if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      bash "$test_sh" 2>&1)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
+      printf '%s\n' "$test_out" >&2
     fi
   done < <(find "$SKILL_DIR/scripts" -name '*.test.sh' -type f 2>/dev/null | sort)
 fi
@@ -1022,11 +1077,21 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # Start of file counts as a paragraph break, so an indented block opening on
     # line one is recognized as one.
     BEGIN { fe_blank = 1; cm_in_comment = 0 }
+    # NO ERE INTERVALS IN THIS PROGRAM. The three-space indent cap is written as
+    # three optional spaces (" ? ? ?") and the ordered-marker digit cap as one
+    # digit plus eight optional ones, never as {0,3} / {1,9}. Two mawk failures
+    # motivate the rule, and both are silent: mawk 1.3.4 PANICS ("REcompile() -
+    # panic: values still on machine stack") when an interval is immediately
+    # followed by a group, killing the program before it emits a record, so every
+    # malformed directive PASSes; mawk 1.3.3 does not implement intervals at all
+    # and matches them as literal characters, so the same scan quietly never
+    # fires. Both leave check 21 reporting a clean run over a file it never read.
+    # Same portability intent as the [[:space:]] note above, one layer deeper.
     # Blockquote nesting depth of a raw line: the number of leading `>` markers,
     # each optionally followed by one space, under the three-space indent cap.
     function fe_depth_of(s,   d) {
       d = 0
-      while (match(s, /^ {0,3}> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
+      while (match(s, /^ ? ? ?> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
       return d
     }
     { sub(/\r$/, "") }
@@ -1079,8 +1144,8 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       if (!fe_fence || fe_open_pre) {
         do {
           fe_pre = $0
-          sub(/^ {0,3}> ?/, "", $0)
-          sub(/^ {0,3}([-*+]|[0-9]{1,9}[.)])[ \t]+/, "", $0)
+          sub(/^ ? ? ?> ?/, "", $0)
+          sub(/^ ? ? ?([-*+]|[0-9][0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[0-9]?[.)])[ \t]+/, "", $0)
         } while ($0 != fe_pre)
       }
       fe_stripped = ($0 != fe_raw)
@@ -1091,7 +1156,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # it does when it cannot tell are stated once in the Parsing contract section
     # of skills/check/reference/fresh-eyes-declarations.md — that doc is the claim
     # this code implements; do not restate it here.
-    /^ {0,3}(```+|~~~+)/ {
+    /^ ? ? ?(```+|~~~+)/ {
       fe_run = $0
       sub(/^ */, "", fe_run)
       fe_char = substr(fe_run, 1, 1)
@@ -1264,6 +1329,232 @@ if [[ -n "$CUR_SUMMARY" ]]; then
   else
     note "summary $SUMMARY_CP_LEN/$SUMMARY_CP_CAP codepoints"
   fi
+fi
+
+# --- Check 23: completion-criteria signal (WARN; advisory heuristic) ----------
+# Flags a numbered procedure (three or more ordered-list steps outside fenced
+# code blocks) whose text carries no completion-criteria signal — no observable
+# done-condition a reader can test. A step without one invites premature
+# completion: the model marks it done at the first plausible output. Advisory
+# only: a static scan can detect the ABSENCE of any completion signal, never
+# grade the quality of a criterion, and an illustrative list is
+# indistinguishable from an operative one — so the signal tokens are
+# deliberately broad and only genuinely signal-free procedures fire.
+# Write-side doctrine: docs-hygiene:write-for-agents ("Give every step a
+# completion criterion").
+
+CC_SIGNAL='done|complete|verified|verify|confirm|assert|exit|pass|green|criteria|criterion|until|settle|expect|observable|observed|succeed|fail'
+# Blank lines separate LOOSE list items without closing the block — but a
+# numbered item that RESTARTS numbering (its number <= the previous item's)
+# after a blank line is a new, independent list, and merging the two would
+# both fire a spurious warn on adjacent short lists and let one list's signal
+# clear the other. Side effect, accepted: an all-ones-numbered LOOSE list
+# (CommonMark lazy numbering, blank lines between items) closes at every item
+# and so under-reports — consistent with the advisory posture above.
+CC_BLOCKS="$(awk -v sigre="$CC_SIGNAL" '
+  function close_block() {
+    if (steps >= 3 && !sig) bad = bad (bad ? "," : "") start "-" last
+    steps = 0; sig = 0; had_blank = 0
+  }
+  /^[[:space:]]*(```|~~~)/ {
+    m = ($0 ~ /^[[:space:]]*```/) ? "b" : "t"
+    if (!fence) { fence = 1; fence_ch = m } else if (m == fence_ch) fence = 0
+    next
+  }
+  fence { next }
+  {
+    lower = tolower($0)
+    if ($0 ~ /^[[:space:]]*[0-9]+[.)][[:space:]]/) {
+      n = $0
+      sub(/^[[:space:]]*/, "", n)
+      sub(/[.)].*$/, "", n)
+      n = n + 0
+      if (steps > 0 && had_blank && n <= last_n) close_block()
+      if (steps == 0) start = NR
+      steps++; last = NR; last_n = n; had_blank = 0
+      if (lower ~ sigre) sig = 1
+    } else if ($0 ~ /^[[:space:]]*$/) {
+      had_blank = 1
+    } else if (steps > 0 && $0 ~ /^[[:space:]]+[^[:space:]]/) {
+      last = NR; had_blank = 0
+      if (lower ~ sigre) sig = 1
+    } else {
+      close_block()
+    }
+  }
+  END { close_block(); print bad }
+' "$SKILL_MD")"
+if [[ -n "$CC_BLOCKS" ]]; then
+  warn "numbered procedure(s) at lines $CC_BLOCKS carry no completion-criteria signal — steps risk premature completion; give each step an observable done-condition (write-side doctrine: docs-hygiene:write-for-agents)"
+else
+  note "completion-criteria signal present (or no 3+-step numbered procedure)"
+fi
+
+# --- Check 24: explicit invocation mode --------------------------------------
+# Every skill states its invocation mode explicitly. The official default for an
+# absent key is already `false` (docs table row, code.claude.com/docs/en/skills),
+# so this is an auditability rule rather than a behavior change: an explicit key
+# makes the choice reviewable, and a `true` reviewable against the exception
+# classes in the rubric that owns this decision —
+# docs/conventions/invocation-mode/README.md.
+#
+# Severity is scoped by tree, deliberately. A marketplace plugin skill
+# (plugins/*/skills/*) FAILs: the rubric is this fleet's convention and the fleet
+# is normalized to it. A skill outside that tree — a consumer's project or user
+# skill — WARNs instead, because the harness default already makes an absent key
+# behave as `false`, and failing someone else's tree over a house convention
+# would be wrong.
+#
+# The exception class a `true` claims is NOT machine-checkable: a static scan
+# cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
+# is deterministic — the PLUGIN-PHILOSOPHY setup contract names `setup` skills —
+# so every other `true` emits a note for hand-verification against the rubric
+# rather than a warning nothing can clear.
+
+INVOCATION_RUBRIC='docs/conventions/invocation-mode/README.md'
+# Validated as a BARE YAML boolean, deliberately WITHOUT quote stripping: `"false"`
+# is a YAML string, not the boolean this key takes, and normalizing the quotes
+# away would ship malformed invocation metadata while reporting PASS. Only
+# leading/trailing whitespace is trimmed — deleting whitespace wholesale would
+# splice a scalar broken by an internal space back into a passing boolean. A
+# trailing `# comment` is already removed by skill_frontmatter::field, so an
+# author may annotate the exception class inline.
+DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
+DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
+DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
+DMI_VAL="$(printf '%s' "$DMI_TRIMMED" | tr '[:upper:]' '[:lower:]')"
+if [[ -z "$DMI_VAL" ]]; then
+  if [[ "$SKILL_REL" == plugins/*/skills/* ]]; then
+    err "frontmatter has no explicit disable-model-invocation key — every skill in this marketplace states its invocation mode (the absent-key default is false; write it out so the choice is auditable). Rubric: $INVOCATION_RUBRIC"
+  else
+    warn "frontmatter has no explicit disable-model-invocation key — the absent-key default is false, so behavior is unchanged; writing it out makes the choice auditable (marketplace-fleet convention: $INVOCATION_RUBRIC)"
+  fi
+elif [[ "$DMI_VAL" != "true" && "$DMI_VAL" != "false" ]]; then
+  if [[ "$DMI_TRIMMED" == \"*\" || "$DMI_TRIMMED" == \'*\' ]]; then
+    err "disable-model-invocation is the quoted string $DMI_TRIMMED — YAML reads that as a string, not a boolean; write it unquoted as true or false"
+  else
+    err "disable-model-invocation is '$DMI_TRIMMED' — expected the boolean true or false"
+  fi
+elif [[ "$DMI_VAL" == "true" ]]; then
+  if [[ "$SKILL_NAME" == "setup" ]]; then
+    note "invocation mode: user-invoked only — exception class (ii), setup contract"
+  else
+    note "invocation mode: user-invoked only — hand-verify it against an exception class ((i) side-effect/manual-timing, (ii) setup, (iii) maintainer-only) in $INVOCATION_RUBRIC; a static scan cannot attribute the class"
+  fi
+else
+  note "invocation mode: model-invoked (fleet default)"
+fi
+
+# --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
+# PLUGIN-PHILOSOPHY Naming fixes verb meanings: audit/scan are read-only
+# findings reports (mutation only behind an explicit override such as --fix);
+# clean/tidy/fix mutate the target. This check flags a description that tells
+# a different story than that verb contract, or than the body — the two
+# directions in #2896. Narrow by design:
+#   - polarity is read from the description LEAD (before "Use when:"), so a
+#     trigger phrase like 'fix the formatting' never advertises mutation;
+#   - override language (--fix, explicit override, never on bare) anywhere in
+#     the listing text is the compliant claude-config:audit [--fix] shape and
+#     clears a report-only verb;
+#   - "read-only by default" is a default-then-override shape, not a
+#     never-mutates claim;
+#   - "remediation" as a noun and a negated "or rewrites" list are not
+#     mutate-advertising.
+# Advisory only: a static scan cannot judge whether an audit skill should
+# gain a --fix path (out of scope) or whether a name should change (no
+# rename campaign). A WARN is a factual-consistency candidate to
+# hand-verify, not a mandate to rewrite the fleet.
+# Fenced code blocks are ignored in the body so a literal example cannot
+# satisfy or trip the body limbs.
+
+# Drop a negated mutate-verb clause so "never rewrites the files" cannot
+# advertise mutation. Scoped to those verbs — a blanket "not ..." strip
+# would eat unrelated lead text.
+vc_strip_negated_mutate() {
+  printf '%s' "$1" | sed -E \
+    's/(never|not|does not|do not)[[:space:]]+(rewrites?|fixes|remediates?|mutates|applies)[^.;]*//g'
+}
+
+vc_lead_mutate() {
+  # Positive action verbs only. "remediation" (noun) is not advertising.
+  printf '%s' "$(vc_strip_negated_mutate "$1")" | grep -qE \
+    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
+}
+
+vc_lead_readonly() {
+  local t="$1"
+  case "$t" in
+  *"read-only by default"* | *"read only by default"*) return 1 ;;
+  *) ;;
+  esac
+  # A scoped "does not modify X" next to a mutate advertisement is a
+  # restriction, not a never-mutates claim (Fixes the files but does not
+  # modify vendored dependencies).
+  vc_lead_mutate "$t" && return 1
+  printf '%s' "$t" | grep -qE \
+    'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
+}
+
+vc_has_override() {
+  printf '%s' "$1" | grep -qE \
+    -- '--fix|explicit[[:space:]]+(user[[:space:]]+)?override|only[[:space:]]+behind|never[[:space:]]+on[[:space:]]+bare|not[[:space:]]+on[[:space:]]+bare|read[- ]only[[:space:]]+on[[:space:]]+bare'
+}
+
+# Body limbs are fence-aware (frontmatter + both CommonMark fence forms).
+# Close is character-only, same as check 23 — not CommonMark run-length
+# matching. A nested shorter fence of the same character can unmask the
+# rest of an illustrative block; accepted recall limit for an advisory check.
+# NO ERE INTERVALS — same mawk-portability rule as checks 21 and 23.
+VC_BODY="$(awk '
+  NR == 1 && /^---[ \t]*$/ { fm = 1; next }
+  fm { if (/^---[ \t]*$/) fm = 0; next }
+  /^[[:space:]]*(```|~~~)/ {
+    m = ($0 ~ /```/) ? "b" : "t"
+    if (!fence) { fence = 1; ch = m } else if (m == ch) fence = 0
+    next
+  }
+  fence { next }
+  { print }
+' "$SKILL_MD")"
+
+vc_body_bare_mutate() {
+  printf '%s\n' "$1" | awk '
+    { low = tolower($0) }
+    low ~ /never|does not|do not|not on bare/ { next }
+    low ~ /mutates on bare invocation|edits on bare invocation|writes on bare invocation/ { found = 1 }
+    low ~ /on bare invocation[, ]+(edit|write|apply|rewrite|mutate)([^a-z]|$)/ { found = 1 }
+    END { exit !found }
+  '
+}
+
+vc_body_never_mutate() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | grep -qE \
+    'never[[:space:]]+mutates|does not[[:space:]]+modify|no edits applied|never[[:space:]]+writes|read[- ]only[[:space:]]+on[[:space:]]+bare|does not[[:space:]]+fix[[:space:]]+on[[:space:]]+bare|nothing edits'
+}
+
+VC_LEAF="${SKILL_NAME%%-*}"
+VC_LEAD="$(printf '%s' "$CUR_DESC" | sed -E 's/[Uu]se[[:space:]]+[Ww]hen:.*//')"
+VC_LEAD_LC="$(printf '%s' "$VC_LEAD" | tr '[:upper:]' '[:lower:]')"
+VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')"
+
+VC_HIT=""
+if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
+  vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
+  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (PLUGIN-PHILOSOPHY Naming) but the description lead advertises mutation without an explicit override"
+elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
+  vc_lead_readonly "$VC_LEAD_LC"; then
+  VC_HIT="leaf verb '$VC_LEAF' mutates the target (PLUGIN-PHILOSOPHY Naming) but the description lead claims the skill is read-only/report-only"
+elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
+  VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
+elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
+  vc_body_never_mutate "$VC_BODY"; then
+  VC_HIT="description lead advertises fixing but the body claims the skill never mutates"
+fi
+
+if [[ -n "$VC_HIT" ]]; then
+  warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
+else
+  note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
 fi
 
 # --- Summary ---------------------------------------------------------------

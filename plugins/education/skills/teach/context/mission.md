@@ -28,6 +28,7 @@
 
 ## Rules
 
+- **The `# Mission: {Topic}` title is identity, not prose.** `{Topic}` is the recorded raw subject name the slug-collision guard compares (SKILL.md "Path resolution rules") — keep it the exact raw subject; descriptive flourish belongs in Why
 - **One mission per workspace.** Two unrelated topics = two workspaces
 - **Concrete over abstract.** "Ship a Rust CLI to my team" beats "learn Rust." "Write songs with family rhyme" beats "understand songwriting"
 - **Push back on vagueness.** If the user cannot articulate WHY, interview them via the one-question-at-a-time teaching dialog (SKILL.md "Teaching Dialog") before writing anything. A bad mission is worse than no mission
@@ -36,7 +37,7 @@
 
 ## Codebase Mode Additions
 
-For `/education:teach codebase <concept>`, MISSION.md also includes:
+For `/education:teach codebase <topic>`, MISSION.md also includes:
 
 ```markdown
 ## Repo Context

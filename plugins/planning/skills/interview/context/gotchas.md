@@ -16,6 +16,8 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Registering a question only once it is answered** — the register then holds exactly the questions that never needed it, and the gate over it grades nothing. The write belongs at ask-time.
 
+- **Interviewing with plan mode on** — the ask-time register write is a disk write (the ledger's `## Open-question register` section), and plan mode's read-only enforcement blocks it, so the round gets asked with nothing on disk holding it: precisely the failure the register exists to prevent, reintroduced by the permission mode. Plan mode also primes the run to rush toward producing a plan when the job is still resolving *what*. Leave plan mode off while interviewing — it is `/planning:plan`'s mode, not this skill's.
+
 - **Passing `--brief` to the Step 3 gate run** — Step 4 writes PLAN.md, so at Step 3 the file does not exist and a named-but-missing `--brief` exits 2; a first-time interview deadlocks before it can persist anything. Ledger-only at Step 3, `--brief` on the Step 4 re-run.
 
 - **Assuming `lock` never needs a register** — a clean lock synthesis writes none, but its STOP-on-gap and the unattended ladder both produce unresolved questions, and a question outside the register is a question outside the gate.

@@ -2,6 +2,10 @@
 # Self-contained tests for emit-verify-facts.sh (no external test lib — ships with the plugin).
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EMIT="$SCRIPT_DIR/emit-verify-facts.sh"
 TEST_TMPDIR="$(mktemp -d)"

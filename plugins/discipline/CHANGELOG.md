@@ -5,6 +5,73 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.13]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.12.12]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is
+  check-only — it has no `apply` action — so `check` gained a closing step telling the reader to
+  rerun it and report the observed value, rather than asserting an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.12.11]
+
+### Changed
+
+- **Corrector-to-corrector routes name the Skill tool (#3002).** `do-your-research-deep` and
+  `recheck-against-upstream-deep`'s "use the lighter sibling" bullets, plus the exact reciprocal
+  that was missed the first time — `do-your-research`'s "Escalating to a verification fan-out"
+  route up to `/discipline:do-your-research-deep`; `pick-for-the-problem`'s current-research
+  route to `/discovery:research`; `mind-your-maxims`'
+  Delegations section (one preamble line covering both axes); `reuse-or-replace`'s two
+  evidence/rationale routes; `scrutinize-dont-coast`'s `/review:quality-gate` route;
+  `use-your-skills`' `/skill-quality:check` and `/claude-config:audit` routes. Wording only —
+  the axis boundaries, presence gates, and prose-degradation fallbacks are unchanged.
+
+## [0.12.10]
+
+### Changed
+
+- **`reason-dont-recite` disambiguates its shared trigger phrase.** It carries the
+  literal trigger `'why is it this way'`, which the new `/discovery:trace-intent`
+  serves from the opposite direction: this skill challenges whether a convention
+  should STILL hold and re-derives it from first principles, while that one recovers
+  the original reasoning from the historical record. The two are inverse postures on
+  the same words — one treats absent rationale as a finding, the other goes and looks
+  for it — so the description now names the boundary and routes across it.
+
+  The clause is presence-gated with a documented fallback (read the record directly)
+  rather than an unguarded cross-plugin reference, and it is strictly **additive**:
+  every pre-existing single-quoted trigger is preserved byte-identically, because the
+  trigger-preservation check treats a cross-plugin move as a dropped trigger and an
+  auto-invocation regression.
+
 ## [0.12.9]
 
 ### Changed

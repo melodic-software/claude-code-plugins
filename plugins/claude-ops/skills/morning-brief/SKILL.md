@@ -78,5 +78,6 @@ label. When none of the configured queue labels exist, the Queues section report
 ## What this skill does NOT do
 
 - **Does not mutate anything** — no label, comment, merge, or close writes.
-- **Does not classify PR merge-readiness authoritatively** — use `/source-control:babysit-prs`.
-- **Does not read local telemetry stores** — use `/claude-ops:observability`.
+- **Does not classify PR merge-readiness authoritatively** — invoke `/source-control:babysit-prs`
+  via the Skill tool.
+- **Does not read local telemetry stores** — invoke `/claude-ops:observability` via the Skill tool.

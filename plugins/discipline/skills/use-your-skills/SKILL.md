@@ -89,12 +89,14 @@ those:
 
 - **A skill's description quality** — key use case first, natural trigger
   keywords, within the per-entry character cap — is skill-authoring QA. Route
-  to `/skill-quality:check` (degrade to prose guidance when not installed).
+  to `/skill-quality:check`, invoked via the Skill tool (degrade to prose
+  guidance when not installed).
 - **The listing budget across all installed skills** — the listing is capped
   at a fraction of the context window, and on overflow descriptions are dropped
   from the least-invoked skills first, so a real skill can silently lose its
   triggering keywords. That machine-level overflow is a configuration concern;
-  route to `/claude-config:audit` (degrade to prose). `/doctor` estimates the
+  route to `/claude-config:audit`, invoked via the Skill tool (degrade to prose).
+  `/doctor` estimates the
   listing's cost.
 
 The dividing line: if a skill was in the listing and simply went unused, that
@@ -118,7 +120,8 @@ by this corrector.
 
 - **Does not tune descriptions or budgets.** Description hygiene routes to
   `/skill-quality:check`; listing-budget overflow routes to
-  `/claude-config:audit`. This skill audits use, not surfaceability.
+  `/claude-config:audit`. Both are invoked via the Skill tool. This skill
+  audits use, not surfaceability.
 - **Does not force-invoke an ill-fitting skill.** The goal is to use the skill
   that *fits*, not to fire one for its own sake; "no skill fits, proceeding
   directly" is a valid outcome.

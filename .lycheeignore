@@ -13,3 +13,16 @@ CLAUDE_(PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR|SKILL_DIR)
 # Synthetic ai-briefing eval fixtures use a fictional release feed. The URLs
 # are test data for ranking/deduplication behavior, not external dependencies.
 github\.com/meridian-labs/agent-cli/releases/tag/
+
+# Product UI on claude.ai blocks automated clients: 403 even with a browser
+# User-Agent (verified 2026-08-21). Docs on code.claude.com stay checked.
+^https?://claude\.ai/
+
+# ACM Digital Library blocks automated clients outright: 403 even with a
+# browser User-Agent (verified 2026-08-21). Recurring — new DOI citations
+# keep arriving; host-level so the weekly report does not re-file the next one.
+^https?://dl\.acm\.org/
+
+# Reddit blocks automated clients: 403 even with a browser User-Agent
+# (verified 2026-08-21). Community citations stay in the docs.
+^https?://(www\.)?reddit\.com/

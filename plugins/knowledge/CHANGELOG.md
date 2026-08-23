@@ -4,6 +4,122 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.7]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.13.6]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.13.5]
+
+### Changed
+
+- **`docpage-digest` pipeline hardening from the 9-slice cloud-fleet corpus run
+  (#3015).** Fence mandate: every verbatim quote is a column-0 fenced container
+  under a bold `**CN.**` label — blockquotes and inline code spans are forbidden
+  quote carriers (the PostToolUse hook rewrites list markers inside blockquotes
+  and strips a trailing space from a bare code span). Ships
+  `scripts/check-fences-exact.py` and `scripts/check-snippets.py` as standing
+  gates alongside the quote gate; both fail loud on zero-parse and compare
+  payloads without `.strip()`, with negative-control suites that must fail
+  known-bad fixtures before a PASS is believed. Pin the tree on agent-REPORTED
+  completion, never file presence; a hash manifest freezes the tree for the
+  verification window and each arm restates the hashes it audited; a verdict
+  file on disk is an intermediate write, never a report. Subagent-death /
+  usage-limit ladder (retry window → inline-with-disclosure → degraded marker +
+  re-run trigger) sits beside the existing degraded-verifier rule, which covers
+  a missing cross-vendor arm, not a session that cannot spawn. `SKILL.md`
+  enumerates each gate's blind spots. Format and pin-manifest shape live in
+  `context/pipeline-hardening.md`.
+
+## [0.13.4]
+
+### Changed
+
+- **Anthropic publisher profile — interview-ratified amendment bundle from the 9-slice
+  cloud-fleet corpus run (#3014).** Ten contract rules land in
+  `context/anthropic-docs-profile.md`. The `cc-applicable`/`mixed` boundary is now the pure
+  four-surface letter rule (a row is `mixed` only when its own quoted text names an API request
+  parameter, endpoint, SDK call, or model ID) with worked examples: a settings-page "parameter"
+  such as `dangerouslyDisableSandbox` never triggers; a hostname is a name not an endpoint
+  (`prUrlTemplate` / `skipWebFetchPreflight`); header names stay out (`apiKeyHelper`). The
+  vocabulary's evidence burden binds digest prose, not only claim rows. The `code.claude.com`
+  raw-md channel gains a known-artifact register (Documentation-Index banner, `theme={null}`
+  fences, hard-tab expansion, `\&`-escaped URLs) — digest layer reproduce-never-repair;
+  reader-facing layer repair-and-disclose. Hedge preservation gains the wrong-footer trap
+  (server-managed-settings' own "not a security boundary" sentence travels instead of the
+  hallucination footer). Row-local basis accepts subsection-level inheritance when
+  anchor-correct and mechanically recoverable. A settings-style claim is the whole table row
+  including its Example cell. `tag-exempt (consumer-surface)` is a documented-subject test, not
+  a hosting test. Bare "See X" is `navigation-pointer`; a directive pointer is guidance. Digest
+  sections state mechanism, never consuming-org instance. Ranked doc queue recorded, not
+  dispatched: `/docs/en/permissions` first, `/docs/en/self-hosted-environments` second; corpus
+  expansion otherwise STOPPED (operator decision 2026-08-19). The two settings-slice Example-cell
+  retags and the `skipWebFetchPreflight` retag execute only inside a graduation-time verification
+  cycle — never as bare edits to verified slices.
+
+## [0.13.3]
+
+### Changed
+
+- **The pipeline hand-offs name the Skill tool (#3002).** These were the two offenders the sweep
+  issue named. `map-corpus`: the resource-seeds-only route, the queue hand-off to N
+  `/knowledge:docpage-digest` runs, and the `mapper-handoff.md` hand-off to `/planning:interview`.
+  `docpage-digest`: the Phase 5 interview hand-off. `course-digest`: the two freshness-verification
+  steps (`/discovery:explore`, `/discovery:research`). `video-digest`: the optional agent-lane
+  `/x:read` reply-chain harvest, in `SKILL.md` and `reference/sources/x.md`. `video-digest`'s
+  "offer `/planning:interview`" phase line and the `templates/recommendations/` files are
+  deliberately unchanged — they *offer* to the operator rather than invoking, which the pipeline's
+  no-auto-implement rule requires. Wording only; queue contracts and phase order unchanged.
+
+## [0.13.2]
+
+### Added
+
+- **`book-distill`: first eval suite (#2968).** Six cases pinning the Phase 1 setup shape, the
+  read-one-write-one interleave, the untrusted-source-text posture, filename slugification against
+  path traversal, the EPUB package-document/spine path, and the copyright caution that leaves the
+  rights decision with the user. Required because the skill gate demands evals for any skill whose
+  SKILL.md changes.
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `book-distill` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.13.1]
 
 ### Changed

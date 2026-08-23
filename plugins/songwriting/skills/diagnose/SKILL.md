@@ -34,8 +34,9 @@ The review-and-revise layer: name the dominant problem, offer one focused revisi
 checklist as deliberate choice points, and generate labeled alternates. Diagnosis names problems;
 it does not silently rewrite the whole song.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
-at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
@@ -71,7 +72,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   taste — load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists,
   name that as a skipped gate instead of ruling on register anyway.
 - If the user pastes an incomplete fragment/idea/half-song, this is the wrong skill — route to
-  `/songwriting:workflow` (`fragment` / `idea`), not `diagnose`.
+  `/songwriting:workflow` (`fragment` / `idea`) by invoking it via the Skill tool, not `diagnose`.
 
 ## Persistence and template overrides
 

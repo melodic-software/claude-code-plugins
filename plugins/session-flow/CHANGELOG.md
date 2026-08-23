@@ -1,5 +1,491 @@
 # Changelog — session-flow plugin
 
+## [0.32.6]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 2).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  Protocol strings that producers emit or consumers match (`Re-arm <i> of <n> — <L> lines:`,
+  the fenced `ORCHESTRATION BRIEF` title, the workflow glance map) stay as written; the
+  detector declines fenced and inline-code spans.
+
+## [0.32.5]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.32.4]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.32.3]
+
+### Changed
+
+- **Handoff instruction walk compressed (#3018).** `docs-hygiene:compress` over the three files
+  loaded at `/session-flow:handoff` invocation — `reference/save-point.md`,
+  `reference/structure.md`, and `skills/handoff/SKILL.md` — dropping flavor (articles, filler,
+  hedging, verbose verbs) and leaving every load-bearing contract intact: the `find-handoff`
+  detection signals (rails, `` `/clear`, then copy everything between the dashed lines ``,
+  `Read @…-handoff-…` directive, `Re-arm <i> of <n> — <L> lines:` length-delimited entries), the
+  redaction rules (git-remote-URL userinfo strip vs shape markers), rooted-path / `Handoff origin:`
+  rationale, and both-path original-goal / claim-provenance / purpose rules. Measured
+  `LC_ALL=C.UTF-8 wc -c` against the pre-compress snapshots: save-point **40831 → 40679** (152 B,
+  0.37%), structure **23296 → 23269** (27 B, 0.12%), SKILL **19641 → 19632** (9 B, 0.05%) — **188 B
+  total, 0.22%**. Line counts are essentially unchanged (one wrap-only extra line on save-point).
+  The walk was already author-time-disciplined; remaining yield sits under the compress skill's
+  2–3% always-loaded bound. Shipped under the issue's explicit `--force` (named-file compress of
+  this walk), not as a claim that the files were verbose.
+
+  **Stop-hook escalation re-reviewed; still deferred.** 0.26.1 recorded a lightweight Stop-hook
+  validator (`last_assistant_message` regex for the detection-contract signals, PostToolUse
+  skill-ran marker, one bounded block, fail-open, hook-budget README share, sibling contract test)
+  as the next step *if the rails prompt goes missing again after that reorder*. This pass found no
+  remaining instruction defect that would cause a rails-drop: STOP still ends the underlying task
+  and never the response before the prompt is on screen; the emit box is still never satisfied by
+  writing the file; output order is still panel → checklist → rails-last. The original deferral
+  grounds still hold — a single observed occurrence, file-mode recovery via `find-handoff` rung 1,
+  and a false-positive block that lands at the degraded occupancy the skill runs under — and a
+  0.22% flavor cut does not change occupancy enough to flip them. No hook shipped.
+
+## [0.32.2]
+
+### Fixed
+
+- **`running-retro` and `retro` routed a skill candidate to a surface that cannot take one.**
+  0.32.0 had both skills "hand an accepted candidate to `/playbooks:skill-authoring`" and hand the
+  shape over rather than drafting one inline — but that skill takes no arguments and performs no
+  actions: it is a knowledge surface. Handing it a candidate resolves to nothing, so the
+  destination 0.32.0 set out to give a candidate did not exist. Both now say to read it for the
+  doctrine and draft against it, still gated on `/skill-quality:check` and still presence-gated
+  with the recorded-but-no-authoring-route fallback. The reason for not drafting ad hoc is
+  unchanged and now attaches to the right mechanism: the playbook carries the conventions a
+  retro-tail draft is most likely to miss.
+
+  **0.32.1's Skill-tool phrasing is kept, not reverted.** That release respelled
+  `retro/context/session.md`'s route as an explicit Skill-tool invocation and deliberately left
+  `running-retro`'s list alone, because that list sits under "Offer routing — never auto-apply".
+  The two changes compose: 0.32.1 fixed how the invocation is spelled, this one fixes what the
+  invocation was claimed to do. `session.md` therefore still names the Skill tool — it invokes the
+  skill to *read* it — while `running-retro` keeps its offer-shaped wording, so the asymmetry
+  0.32.1 argued for survives.
+
+## [0.32.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `find-handoff`'s deliberate-save-point
+  hand-off to `/session-flow:keep-going`; `handoff`'s route to the
+  `/session-flow:continue-in-background` sibling; `keep-going`'s two hand-backs to
+  `/session-flow:handoff`; `reanchor`'s two hand-offs to `/session-flow:keep-going`;
+  `show-options`' durable-state probe route to `/session-flow:orient`;
+  `workflow/context/spec-first.md`'s mid-stage `/session-flow:handoff` escape hatch;
+  `retro/context/session.md`'s skill-candidate hand-off to `/playbooks:skill-authoring`;
+  `workflow/context/steps.md`'s phase-boundary save-point.
+  `running-retro`'s routing list is untouched — its section is titled
+  "Offer routing — never auto-apply", and so is `workflow/context/wrap-up.md`, whose table
+  column is literally "Suggest" under a heading that says to *suggest* these before the user
+  leaves. Wording only.
+
+## [0.32.0]
+
+### Added
+
+- **`running-retro` and `retro`: a new-skill candidate now has somewhere to go.** Both skills are
+  required to produce skill candidates — `running-retro`'s checkpoint block ends with a
+  "New-skill candidates" line, and `retro`'s skill-candidate analysis is marked REQUIRED — and
+  neither named a destination. `running-retro` offered exactly three routes (codify, tracker,
+  nothing), none of them authoring; `retro` gave a recommendation format and stopped. A candidate
+  with no destination is a finding that evaporates between sessions.
+
+  Both now hand an accepted candidate to `/playbooks:skill-authoring`, gated on
+  `/skill-quality:check`, presence-gated with the stated fallback of recording it and saying there
+  is no authoring route here. Both also say to hand the shape over rather than drafting one inline:
+  a skill written ad hoc at the end of a retro is the one most likely to miss the conventions the
+  authoring surface exists to carry.
+
+  Absorbed from an upstream cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `reflect`
+  section), whose contribution here is routing an accepted learning by edit size. An adversarial
+  audit of the plan widened the fix: the plan had scoped it to `running-retro` on the reasoning that
+  `retro`'s five dimensions are closed, which is a non-sequitur — `retro` closes its *scoring*
+  dimensions, not the improvement analysis that produces the candidates.
+
+## [0.31.0]
+
+### Changed
+
+- **`show-options` is model-invoked (#3024).** It landed a day after course lane 8's fleet grade,
+  so the rubric's table never covered it and its `true` sat un-attributed to any exception class.
+  Graded now against `docs/conventions/invocation-mode/README.md`, none of the three fits: the
+  Spotlight ledger is incidental bookkeeping rather than a side effect whose timing must be a
+  human's, the skill is a one-shot render rather than a persistent mode-entry, and — unlike
+  `discipline:wait-what`, the class-(i) skill it most resembles — its trigger is *uttered*
+  ("what are my options", "what am I forgetting"), not a state only the human can detect. It is
+  also not the rubric's rejected router, which routes **the agent** to hidden skills: this one
+  renders a menu and does not execute the pick, and `claude-ops:inventory` (itself model-invoked)
+  and `docs/SKILL-CHEAT-SHEET.md` already name the hidden set to a human from model-reachable
+  surfaces. The flip was gated on re-checking ADR 0016's latent rationale for shipping V1
+  manual-only, and it does not hold it — see that ADR's two revision notes.
+
+  Unlike the prior flip (`planning:questionnaire`, #2969), **no trigger-phrase work was needed**:
+  this description was written with real phrases from the start, so the flip makes phrases that
+  already existed reachable rather than adding any. What the `true` cost was that a human saying
+  "what are my options" out loud reached nothing, and that `workflow`'s boundary paragraph pointed
+  the model at a target the invocation-reach invariant made unreachable. Both are now paid.
+
+- **`workflow`'s description routes the option-menu ask to `show-options`.** The reciprocal
+  amendment ADR 0016 made — `workflow`'s "never present both" governs **stage** routing and cedes
+  option surfacing — lived only in `workflow`'s body, which is loaded *after* description matching
+  has already picked a skill. With `show-options` now model-invoked, the two are matched against
+  the same user text, and "what comes next" sits one phrasing away from "what should I run next".
+  The disambiguation therefore has to be in the description to fire at all, so it is: `workflow`
+  now names `show-options` as the owner of the ranked menu. Behavior at every other trigger is
+  unchanged.
+
+## [0.30.0]
+
+### Changed
+
+- **`workflow`'s pre-PR sequence cites an owner doc for its order, and its override-boundary
+  paragraph is corrected (closes #3047).** `pre-pr.md` declared its step order "fixed plugin
+  identity … there is no seam to reorder it," while a sibling plugin in the same fleet was
+  reordering it at the handoff point: `implementation:implement`'s completion step, titled *"Hand
+  off to the pre-PR sequence,"* prescribed outcome verification **before** review, where this
+  sequence puts review at step 2 and outcome verification at step 7. That made the
+  no-seam claim inaccurate as written, whichever order won.
+
+  The order is unchanged — it was right. Outcome verification renders on the code that ships, and
+  steps 4–6 (simplify, review the simplify diff, re-test) mutate the diff between review and
+  verification; a verdict rendered before them describes code that no longer exists by step 8. The
+  competing reading ("confirm it works before spending review effort") is already served earlier,
+  by step 1 and by the caller's own build check and test pass.
+
+  What changed is **who owns the order**: `docs/conventions/pre-pr-ordering/` now does, with a
+  registry row in `PLUGIN-PHILOSOPHY.md`. The registry's own trigger — a new cross-plugin
+  convention lands in an owner doc *before a second plugin adopts it* — had already fired. This
+  file keeps ownership of what each step does and cites the owner for the order, and the
+  override-boundary paragraph now says the order is **fleet identity rather than this plugin's
+  identity**: a sibling prescribing a different order at a handoff is a defect against that
+  convention, not a permitted local variation. Consumer gates, commands, and review criteria are
+  honored exactly as before.
+
+## [0.29.0]
+
+### Added
+
+- **Save-point engine — a "You are here" position panel for the operator.** Both save-point skills
+  produced exactly two things a human could see: a ticked enforcement checklist, which is the
+  skill's own audit trail, and the rails resume prompt, which is a block to copy. Everything that
+  answers "what did we do, where are we, what is next" was computed and then filed into the handoff
+  document — whose stated reader is a session with no prior context (`reference/structure.md`) — so
+  the operator never read it. On the prompt-only path there is no file at all, and the recap existed
+  nowhere. At the moment the human is deciding whether this is a sane place to stop and whether the
+  work is still pointed where they wanted it, the skill showed them a compliance checklist.
+
+  **The panel renders state that was already established.** A new engine section, "Emit the position
+  panel", owns it once for both citing skills: a vertical rail with one line per unit, the current
+  position marked in the gutter, a completeness read, and three one-line blocks (done this session /
+  where we are / up next). It restates what "Locate the position first" and the sections above
+  already produced — it triggers no read the save-point did not already need, which is the line
+  between it and `orient`'s on-demand durable + off-thread sweep.
+
+  **The count is of completed units only.** An in-progress unit counts against the total, never
+  toward it — rounding the current unit up reports work as landed while the operator is looking at
+  the line saying it is not, and it is the one arithmetic a progress read is most tempted into.
+
+  **Units are resolved from the work, not assumed.** A first-match ladder takes workflow-checklist
+  stages, then plan/spec/PRD phases, then an issue chain, then live `TaskList` items (full path
+  only, where they are already fetched; prompt-only skips that rung, since "no non-trivial task
+  list to reconstitute" is one of the criteria that selects prompt-only, and makes the one call
+  when that path was forced), then
+  completion criteria — so the panel reads differently on differently-shaped work. Work with none of
+  those gets the three prose blocks and explicitly no rail: inventing phases to have something to
+  draw produces a map of a plan that does not exist, which the operator would then resume against.
+
+  **The rail is vertical because a horizontal one wraps.** One unit per line, one line per block,
+  never a continuation line. A `→`-chained row wraps at whatever width the terminal happens to be,
+  and the wrap orphans the position marker from the unit it marks — destroying the single thing the
+  panel exists to show. Above 8 units the middle elides to a `… N more` line, keeping the ends and
+  the current position; the whole panel is capped at 16 lines.
+
+  **It cannot become a reason to lose the rails prompt.** The one observed failure of this engine is
+  a turn that ends before the prompt reaches the screen, and the panel is new text standing between
+  the start of the response and that prompt. So the caps are load-bearing, an uncertain panel
+  degrades to one abbreviated line rather than growing, and the engine states outright that the
+  panel never gates the rails. `handoff` fixes its order as panel → checklist → rails, keeping the
+  rails-last rule intact; `continue-in-background` emits panel → rails → launch and passes the agent
+  exactly the text between the rails, never a line of the panel.
+
+  Not a detection-contract change: the panel sits above every keyed signal and outside the copy
+  region, so `find-handoff` recovers exactly what it recovered before and needs no edit. Four evals
+  join the two suites, grading the shape — vertical rail, elision above 8 units, prose fallback with
+  no invented units, and the agent payload staying panel-free — rather than mere presence.
+
+## [0.28.0]
+
+### Added
+
+- **`workflow` — eval coverage for the continuation router (refs #2972, AI Hero course lane 2
+  #2900, decision Q23).** The router had zero eval coverage: five cases existed and none exercised
+  the `continue` path, while one of its ordering invariants had already regressed once and been
+  fixed inside the router's own creation PR (refs #1603, originating issue #1476). Evolving an
+  untested router in 0.27.0 repeated that exposure; this is the safety net that pins the shipped
+  behavior. Nine cases (ids 6-14) join the suite, each grading the router's stated reason rather
+  than only its verdict, so a rewrite that reaches the right mechanism by the wrong edge still
+  fails.
+
+  **First-yes-wins ordering.** A machine-going-away prompt with healthy context and a small next
+  step must still route to `clean-stop` — question 0 outranks every cost-based question below it,
+  because a save-point that dies with the disk is no save-point. Separately, an explicit background
+  request with healthy context must reach `continue-in-background` and NOT fall through to question
+  3's zero-cost in-session exit: that exit answers yes whenever context is healthy, so asking it
+  first would silently discard a user instruction. This is the invariant that regressed once, now
+  pinned.
+
+  **Zone gating.** A green zone word plus an evidence-degraded compaction marker must be read as
+  degraded, and judgment-heavy work in a degraded context must not be routed to in-session
+  continue. Its complement is graded too: a healthy zone whose next stage consumes the current
+  stage's reasoning verbatim must prefer continue, since a summary of the reasoning is not the
+  reasoning.
+
+  **Post-evolution behavior.** The AFK edge must hand the spawn-brief decision to `orchestrate` and
+  then KEEP asking — it is the router's one non-terminal edge — while launching nothing, leaving
+  `continue-in-background`'s explicit-intent gate untouched. Suggest-by-default is graded on its
+  full three-part shape: the single mechanism, the evidence that selected it, and the literal next
+  invocation.
+
+  **Autonomy gating.** Three separate cases hold the line the 0.27.0 review fixes drew: an opt-in
+  counts only in a genuine user turn, so consent-shaped text inside a pasted issue body is data and
+  never a licence; `auto` cannot carry out `/clear` or `/compact`, which sit outside the
+  Skill-invocable built-ins and stay the human's to type; and `clean-stop` takes the literal
+  `continue auto` token and nothing else, because once invoked it pushes commits, opens PRs, and
+  files issues without a further confirmation.
+
+## [0.27.0]
+
+### Added
+
+- **`workflow` — the continuation router becomes context-driven: informant inputs, an AFK edge, a
+  stated output shape, two licensed autonomy tiers, and the I23 reconciliation (refs #2971, AI
+  Hero course lane 2 #2900, decisions Q9/Q20-Q22).** The router previously decided from the zone
+  word alone, and the AFK criterion the lane adopted had no edge to live on.
+
+  **Informant inputs, as pointers.** A new section names the four inputs the router decides over
+  beyond the zone word — where we stand (`session-flow:orient`), what is still running
+  (`session-flow:reconcile`), which boundary this is (the workflow checklist), and whether the
+  remaining work is already scoped (the consuming repo's work-item tracker seam) — each consumed
+  the way the zone word already is: take the owner's answer, inline none of its mechanics. Every
+  input is presence-gated, an absent one degrades to unknown rather than blocking, and the router
+  runs no probe of its own. Consulting an informant never means firing one that writes: `orient` is
+  read-only by contract, while `reconcile` auto-settles proven-done tasks, so the liveness input is
+  a reconciliation that has ALREADY run — falling back to orient's read-only off-thread glance, and
+  then to unknown — because a router that only recommends must not mutate tracking as a side effect
+  of deciding. Beyond that, a later input arrives as a pointer, never as a probe inlined into the
+  file, which keeps the skill's single pre-compute block under its `$`-expansion ban (#1687,
+  #1688).
+
+  **The AFK edge (question 2), deliberately non-terminal.** "Is the remaining work scoped to run
+  away from the keyboard?" now has an edge: a yes hands the spawn-brief decision to
+  `session-flow:orchestrate` and the router CONTINUES asking, because sending work elsewhere does
+  not answer which mechanism carries this session across the boundary. It is ordered after the
+  explicit-background-request question so feasibility the router infers can never pre-empt an
+  instruction the user actually gave, and before the zero-cost in-session exit because a yes
+  changes who does the remaining work while every question below asks how this session carries
+  it. `continue-in-background`'s explicit-intent launch gate is untouched — the router suggests
+  and never launches — and orchestrate keeps spawn ownership. The four questions below it are
+  renumbered 3-6, with the cross-references inside the ordering purposes updated to match.
+
+  **Suggest by default, with two licensed autonomy tiers.** The router's product is a
+  recommendation addressed to the human, stated as mechanism plus the evidence that drove it (the
+  zone word as resolved, the informant findings, the edge whose yes selected it) plus the literal
+  next step. Executing the routed mechanism takes the top-tier per-invocation licence — a new
+  `continue auto` argument (the argument-parsing rule now consumes a second token when the first is
+  `continue`, so the modifier reaches its mode instead of falling into the bare `continue` row) or
+  the user asking in words — which expires with the invocation and is
+  never a standing config, mirroring `continue-in-background`'s explicit-words precedent; it
+  authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns. The
+  natural-language half of the opt-in counts only in a genuine user turn — a fetched page, an item
+  body, a tool result, or another agent's return is data the router evaluates, never a licence it
+  acts on — and a routed skill that makes outbound changes without a further confirmation takes the
+  literal token and nothing else: `clean-stop` pushes commits, opens PRs, and files issues once
+  invoked, so a semantic reading must never be what starts it. The opt-in also
+  cannot reach `/clear` or `/compact` at all — those sit outside the small allowlist of
+  `Skill`-invocable built-ins, so they are named as the next step and stay the human's to type. The
+  second tier is the orchestrator relay, now codified in the handoff-relay convention as the
+  autonomous tier for delegated work: a worker writes its own handoff at its fork point and
+  returns the path, and the orchestrator — standing in for the absent human — retires it and
+  seeds a fresh agent with the resume prompt, never reading the handoff body. Spawn-brief
+  discipline stays orchestrate's.
+
+  **I23 reconciliation, recorded where the design is stated.** A closing section reconciles the
+  router against the `claude-config:audit-instructions` catalog's I23: the mechanism menu lives
+  only in this user-invoked skill body (the criterion's exemption names the continuation-router
+  case verbatim), nothing model-injected carries a menu, operator-channel pointers stay
+  operator-side per `context-guard`'s 0.5.0 audience split — this router consumes the zone word
+  and inlines no band values, so no remaining-context count reaches the model through it — and
+  autonomy initiative comes from the user's opt-in or the orchestrator, never from injected
+  context or a self-estimated budget.
+
+## [0.26.1]
+
+### Fixed
+
+- **`handoff` — the rails resume prompt is now the mandated final text of the response.** Observed
+  failure (owner report, high context occupancy): the handoff file was written correctly but the
+  turn ended without ever emitting the copy/paste rails prompt, leaving the operator nothing to
+  paste after `/clear` — a turn-termination failure, not a content failure. The post-write
+  checklist previously implied ticks after the rails, so the response tail was checklist
+  bureaucracy ending on "**EXECUTION STOPS HERE**" — a salient stop cue reachable before the rails
+  were ever emitted. The output order is now fixed and stated as a hard rule: ticked checklist
+  first, then the rails prompt plus every below-the-rails `/loop` re-arm note as the last text of
+  the turn, with nothing after (the below-rail notes are included deliberately — the engine's
+  detection contract names them part of the recoverable unit, so a bare "rails last" mandate would
+  institutionalize dropping the re-arm). Both paths' `EXECUTION STOPS HERE` items now point at the
+  rule.
+
+  **The ambiguity that let it happen is fixed at its source, in the STOP gate itself.** Ordering
+  alone treated the symptom: the deeper defect was that "the skill produces the save-point, THEN
+  STOPS" reads, to a reader under load, as "the save-point is the file" — making STOP the next act
+  once the file lands, in the single most emphatic section of the document. The engine says the
+  opposite ("A resume prompt is ALWAYS emitted. The only decision is whether to ALSO write a
+  durable handoff file"), so the prompt is the MANDATORY half of a save-point and the file the
+  optional one, and the observed failure delivered the optional half while dropping the required
+  one — leaving the operator a `/clear` they cannot resume from, worse than never running the skill
+  because the skill reported success. The hard-rule section now defines what STOP means and the one
+  thing it never means, the gate's emit box is marked as never satisfied by having written the
+  file, and its STOP box as reachable only once that box is genuinely ticked. The failure is
+  recorded in `context/gotchas.md` with its recovery (`find-handoff` rung 1), and eval 12
+  (`rails-prompt-is-the-final-text-not-replaced-by-the-file`) pins the behavior under the
+  high-occupancy condition none of the existing eight exercised.
+
+  **Escalation ladder, recorded here on purpose:** this is the deliberately minimal fix — two
+  fresh-context validators challenged a proposed deterministic Stop-hook enforcement as premature
+  (single observed occurrence; the full path is already recoverable via `find-handoff` rung 1; the
+  false-positive cost of blocking a stop lands at exactly the degraded occupancy the skill runs
+  under). If the rails prompt goes missing again after this reorder, the agreed next step is a
+  lightweight Stop-hook validator: `last_assistant_message` regex for the detection-contract
+  signals, a PostToolUse skill-ran marker (never transcript parsing), one bounded block,
+  fail-open, plus the hook-budget README share and a sibling contract test.
+
+## [0.26.0]
+
+### Added
+
+- **`handoff` — routing-signals table, session-chain use named first-class, do-not-duplicate and
+  promote-content rules, worktree caveat (refs #2956, AI Hero course lane 1 #2899).** "When to
+  invoke" now names the session-chain/retrospective use (save-point, `/clear`, fresh session,
+  with the `session_id`/`previous_handoff` chain `retro` walks) as a first-class owned use case
+  alongside the boundary-crossing taxonomy (colleague, other repo or checkout, other agent,
+  forked side task), and a compact routing-signals table maps situation to form: deep-window
+  escape with chain value takes the full file (the default); small follow-ups with no chain
+  value take prompt-only, accepting the documented retro-gap cost; a differing next-session
+  focus takes either form plus the purpose argument; AFK-but-work-continues routes to the
+  sibling `continue-in-background` skill; a machine that may go away routes to `clean-stop`
+  semantics; boundary crossing takes the full file plus purpose plus the `Handoff origin:` line.
+  The skill body states the general do-not-duplicate rule (content captured in specs, plans,
+  ADRs, issues, commits, or diffs is referenced by path or URL, never restated — the existing
+  "Summarize; never transcribe" guidance stated as a general rule, mirroring upstream) and the
+  promote-content-never-file rule (durable value is promoted into a committed artifact — topic
+  contract, issue, PR body — while the handoff file stays ephemeral and uncommitted; cleanup of
+  `handoffs/` remains user-controlled removal, never silent expiry). The engine doc's
+  destination section (`reference/save-point.md`) gains the worktree caveat: a save-point
+  written inside a worktree checkout lives in that worktree's memory root and dies with
+  `git worktree remove` — acceptable only when the worktree completes as a merged PR unit; when
+  pausing un-merged worktree work, write from the main checkout or rely on `clean-stop`'s
+  preserve-before-remove step. `find-handoff`'s detection contract is untouched. Adopted per the
+  lane 1 decisions (`docs/upstream/aihero-course.md`, lane 1).
+
+## [0.25.0]
+
+### Added
+
+- **`handoff` / `continue-in-background` — optional trailing purpose argument (refs #2955,
+  AI Hero course lane 1 #2899).** Both producers' surface extends from `[file|prompt] [topic]` to
+  `[file|prompt] [topic] [purpose...]`: everything after the topic token is optional
+  natural-language purpose text answering "what will the next session be used for?" — no quoting,
+  no new syntax, and existing invocations parse identically. The engine doc
+  (`reference/save-point.md`, "The purpose argument tailors emphasis only") owns the semantics:
+  purpose tailors emphasis only — the Resumption brief leads with it, Suggested skills are
+  selected for it, Remaining actions are ordered by it where ordering is otherwise free — and it
+  never drops or reorders the mandatory section set, never alters the emitted resume-prompt shape
+  (`find-handoff`'s detection contract is untouched), and never amends the Original goal: a
+  purpose that contradicts the goal is flagged at write time, not silently obeyed. On the
+  prompt-only path — which writes none of the tailoring surfaces and can hand the rails block to
+  a background agent as the only thing it sees — a stated purpose travels inline between the
+  rails as a `Purpose:` line below the goal quote, never discarded (content between the rails,
+  not a detection-contract shape change). Adopted from upstream `mattpocock/skills` `handoff`'s
+  purpose argument per the lane 1 decision (`docs/upstream/aihero-course.md`, lane 1). Three eval
+  cases cover the tailoring bounds, the conflict flag, and the prompt-only carriage.
+
+## [0.24.0]
+
+### Added
+
+- `show-options` — a human-facing menu answering "what should I run next?". Five buckets (Now, Next,
+  Skipped upstream, Later, and a rotating Spotlight of three), each rendered as a ranked shortlist of
+  at most five plus the complete remainder by bare name with an explicit count — except `Later`,
+  which is tier-2 only. `Later` is what makes the never-omit rule true: an in-domain skill beyond the
+  near horizon (testing and review early in a session) fits no other bucket, and rendering it as one
+  counted line catches it without recreating a dumping-ground bucket. Its contract is two
+  rules: never omit a candidate's name, and never invent one; a skill believed to have already run is
+  ranked normally and annotated rather than dropped. Candidates resolve from the full installed
+  catalog rather than the in-context skill listing, which omits every manual-only skill and drops
+  descriptions starting with the least-invoked ones. A pool sourced from that listing discloses its
+  truncation in the output. Durable state is the primary signal, and the skill routes to `orient`
+  for it rather than adding another copy of the probe block seven skills already carry.
+
+### Changed
+
+- `workflow` — its "When two capabilities both fit" precedence section now states that the
+  route-to-exactly-one rule governs **stage** routing, and cedes option surfacing to `show-options`.
+  Without that carve the two skills' contracts read as contradictory: one is required never to
+  present both candidates, the other exists to present the whole set.
+- `setup` and the plugin README — skill counts updated for the fourteenth skill. The README's
+  "other eleven skills are zero-config" line was already off by one before this change and is now
+  correct at thirteen.
+- **`reference/gather.md` — the durable-state probe block is extracted to one owner doc.** Seven
+  skills (`continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`,
+  `workflow`) each carried a near-identical copy of the probe list, the one-command-per-call and
+  treat-failure-as-unknown rules, and the `#1687` no-precompute rationale. Each now names the probe
+  subset it takes and cites the seam. The per-consumer differences are preserved and documented as
+  deliberate rather than normalised away: `orient` reads `git log -8` where the save-point skills
+  read `-5`, `retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state
+  beyond the branch, and `workflow` takes no session id. `continue-in-background`'s warning that this
+  block is never the dirty-tree gate is kept at its call site and generalised in the seam.
+
 ## [0.23.9]
 
 ### Changed

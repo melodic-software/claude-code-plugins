@@ -1,5 +1,5 @@
 ---
-description: "Explore and resolve design decisions — types, contracts, package topology, module boundaries — through collaborative discussion rounds before /planning:plan plans implementation, producing capability-matrix / type-inventory / design-threads / topology artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space first; scales from a single-file early-exit to a multi-session design effort."
+description: "Explore and resolve design decisions. Types, contracts, package topology, module boundaries. Through collaborative discussion rounds before /planning:plan plans implementation, producing capability-matrix / type-inventory / design-threads / topology artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space first; scales from a single-file early-exit to a multi-session design effort."
 argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff)"
 user-invocable: true
 disable-model-invocation: false
@@ -19,13 +19,13 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions — the wrong types, wrong boundaries, wrong package topology: the shape **underspecification** takes once the task contract is set but the design is not. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
+Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions: the wrong types, wrong boundaries, wrong package topology, the shape **underspecification** takes once the task contract is set but the design is not. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
 
-This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough — no chosen approach to design — diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
+This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough and no approach has been chosen, diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
 
 The depth of design exploration scales to the work:
 
-- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason — then proceed to `/planning:plan`
+- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason. Then proceed by invoking `/planning:plan` via the Skill tool
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
@@ -51,23 +51,23 @@ Parse `$ARGUMENTS` for scope and action:
 
 | Argument | Action |
 |----------|--------|
-| *(empty)* | **Auto-detect** — read the PLAN.md Brief + conversation context to determine scope and current phase. Resume if design artifacts exist. Ask if ambiguous |
-| `library` | **Library/API design** — packages, types, contracts, dependency graph |
-| `module` | **Module design** — domain model, boundaries, contracts. Suggest a domain-event workshop (e.g. EventStorming) for domain event discovery when the environment provides one |
-| `data` | **Data model design** — entities, relationships, schema decisions |
-| `integration` | **Integration design** — cross-system contracts, sequence flows, error handling |
-| `system` | **System design** — components, communication patterns, deployment topology |
-| `status` | **Status report** — show resolution state per thread and question |
-| `thread <name>` | **Deep-dive** — focus on one specific design thread |
-| `discuss` | **Discussion round** — systematic gap-finding across all artifacts |
-| `terminology` | **Naming review** — cross-cutting naming pass over the full type inventory (see "Terminology pass") |
-| `handoff` | **Handoff gate** — in-session shortcut; delegates to `/planning:design-handoff` (see "Handoff gate") |
+| *(empty)* | **Auto-detect**. Read the PLAN.md Brief + conversation context to determine scope and current phase. Resume if design artifacts exist. Ask if ambiguous |
+| `library` | **Library/API design**. Packages, types, contracts, dependency graph |
+| `module` | **Module design**. Domain model, boundaries, contracts. Suggest a domain-event workshop (e.g. EventStorming) for domain event discovery when the environment provides one |
+| `data` | **Data model design**. Entities, relationships, schema decisions |
+| `integration` | **Integration design**. Cross-system contracts, sequence flows, error handling |
+| `system` | **System design**. Components, communication patterns, deployment topology |
+| `status` | **Status report**. Show resolution state per thread and question |
+| `thread <name>` | **Deep-dive**. Focus on one specific design thread |
+| `discuss` | **Discussion round**. Systematic gap-finding across all artifacts |
+| `terminology` | **Naming review**. Cross-cutting naming pass over the full type inventory (see "Terminology pass") |
+| `handoff` | **Handoff gate**. In-session shortcut; delegates to `/planning:design-handoff` (see "Handoff gate") |
 
 ## Phases
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/planning:plan`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`). The topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/planning:plan`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
@@ -76,7 +76,7 @@ Break the domain into capabilities or concerns. For each one:
 - Domain concepts (nouns, verbs, relationships)
 - Invariants (rules that must always hold)
 - Storage needs (stateless? persistent? app-specific?)
-- Cross-app reuse potential — decide shared-library-worthy vs app-specific per capability, following the consuming project's own library-organization and dependency-preference conventions when it declares them
+- Cross-app reuse potential. Decide shared-library-worthy vs app-specific per capability, following the consuming project's own library-organization and dependency-preference conventions when it declares them
 
 Produce: `capability-matrix.md` (library scope) or equivalent per scope.
 
@@ -96,7 +96,7 @@ For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: si
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
-For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface — the ideal count is one. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table — when the `testing` plugin is installed, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
+For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface. The ideal count is one. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is installed, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
 
 Produce: `design-threads.md`
 
@@ -106,16 +106,16 @@ Derive types from capabilities:
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures
-- Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions) — read its rules before naming
+- Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions). Read its rules before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:curate-language` (if that plugin is installed) the moment a
+- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed) the moment a
   domain term resolves so the active glossary owner applies the consumer's existing format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts directly
 
 Produce: `type-inventory.md`
 
-Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory — per-type naming during modeling is not a substitute for the whole-inventory pass.
+Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
 
 ### Phase 4: Package/Module Topology
 
@@ -128,18 +128,18 @@ Define the structural layout:
 
 Produce: `library-topology.md` (library scope) or equivalent per scope.
 
-When the dependency graph reads more clearly visually than in markdown, optionally also emit a self-contained HTML topology view — to the topic-docs **ephemeral tier**, never beside `library-topology.md` in the contract slice, which stays the tracked record. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+When the dependency graph reads more clearly visually than in markdown, optionally also emit a self-contained HTML topology view. To the topic-docs **ephemeral tier**, never beside `library-topology.md` in the contract slice, which stays the tracked record. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 ### Phase 5: Discussion Rounds
 
 Systematic gap-finding. For each round:
 
 1. Re-read all design artifacts
-2. Identify underspecified types, missing contracts, boundary friction, pattern concerns, and design-default gaps (configurability, extension axes, observability, testability) — record these as design threads
+2. Identify underspecified types, missing contracts, boundary friction, pattern concerns, and design-default gaps (configurability, extension axes, observability, testability). Record these as design threads
 3. Present findings to user for discussion
 4. When discussion surfaces project-wide principles, suggest codifying them immediately in the project's own rules
 
-Continue rounds until no new gaps surface — then run the `handoff` action to delegate to `/planning:design-handoff` for the binary gate and plan-ready summary.
+Continue rounds until no new gaps surface. Then run the `handoff` action, which invokes `/planning:design-handoff` via the Skill tool for the binary gate and plan-ready summary.
 
 ## Terminology pass (`terminology` action)
 
@@ -149,13 +149,13 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:curate-language` (if installed) to sync resolved terms and
+5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if installed) to sync resolved terms and
    rejected synonyms into the consuming project's active glossary; the terminology table above is
    the standalone fallback
 
 ## Handoff gate (`handoff` action)
 
-The in-session shortcut to the design→plan gate. Delegate to `/planning:design-handoff` — the single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
+The in-session shortcut to the design→plan gate. Invoke `/planning:design-handoff` via the Skill tool. The single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
 
 ## Scope-specific artifacts
 
@@ -167,28 +167,28 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 | `integration` | contract-spec.md, sequence-flows.md, design-threads.md |
 | `system` | component-map.md, communication-patterns.md, design-threads.md |
 
-`design-threads.md` is common across all scopes — cross-cutting decisions always arise.
+`design-threads.md` is common across all scopes. Cross-cutting decisions always arise.
 
 ## Key behaviors
 
-- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds — every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise
+- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds. Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
-- **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write — another turn or agent may have modified them — and prefer appending or refining over wholesale rewrites
+- **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write. Another turn or agent may have modified them. And prefer appending or refining over wholesale rewrites
 - **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/planning:plan` can sequence phases correctly
 - **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
 - **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if installed). When the session tail is reached, suggest the `terminology` then `handoff` actions
-- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes — when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Skip on early-exit, `status`, or trivial single-file work
+- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Skip on early-exit, `status`, or trivial single-file work
 
 ## What this skill does NOT do
 
-- **Implementation planning** — that's `/planning:plan` (phases, sanity checks, file-level work items)
-- **Code writing** — that's the implementation stage
-- **External research** — that's the research capability (this skill synthesizes research results into design decisions)
-- **UI/UX design** — use dedicated frontend design and UI/UX tooling
-- **Domain event workshops** — a dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
-- **Product intent** — that's `/planning:prd` (problem, users, success metrics)
-- **Intent contract** — that's `/planning:interview` (goal, constraints, acceptance criteria)
+- **Implementation planning**. That's `/planning:plan` (phases, sanity checks, file-level work items)
+- **Code writing**. That's the implementation stage
+- **External research**. That's the research capability (this skill synthesizes research results into design decisions)
+- **UI/UX design**. Use dedicated frontend design and UI/UX tooling
+- **Domain event workshops**. A dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
+- **Product intent**. That's `/planning:prd` (problem, users, success metrics)
+- **Intent contract**. That's `/planning:interview` (goal, constraints, acceptance criteria)
 
 ## Relationship to other skills
 

@@ -7,10 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Verify and provision the first-time DeDRM setup. `check` inspects prerequisites and current state
-read-only; `apply` runs the provisioning walkthrough (the router skill's workflow reference), then re-runs `check`.
-No argument or `check` runs the check; `apply` runs the check first, then provisioning; `apply download`
-runs only the gated artifact-download subaction. This plugin has no repo- or consumer-scoped
+Verify and provision the first-time DeDRM setup, per the uniform setup contract
+(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository).
+`check` inspects prerequisites and current state read-only; `apply` runs the provisioning walkthrough
+(the router skill's workflow reference), then re-runs `check`. No argument or `check` runs the check;
+`apply` runs the check first, then provisioning; `apply download` runs only the gated
+artifact-download subaction. This plugin has no repo- or consumer-scoped
 configuration and no `userConfig` scalars/toggles — setup writes no Claude Code user settings, no
 `pluginConfigs`, and nothing into the plugin cache or plugin data directory; it provisions the user's
 machine (installs, firewall rule, ICACLS lock, extracted keys) and every mutation has a compensating
@@ -95,6 +97,6 @@ and lock steps are idempotent — and reports "already provisioned".
 
 - Run `sync`, `update`, `cleanup`, or `status` — those stay on the router skill
   (`/kindle-dedrm:manage`); `check` here is the read-only state report, `apply` is first-time provisioning.
-- Write Claude Code user settings, `pluginConfigs`, the plugin cache, or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the plugin data directory.
 - Send any script, key, or extracted file off the user's machine — personal-use scope only.
 - Auto-uninstall a wrong Kindle for PC version or run the cached auto-update installer.

@@ -1,0 +1,70 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-read-only",
+      "prompt": "/ai-slop:setup check",
+      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (user-global, team, local overlay), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the effective config per key with the winning layer named",
+        "Flags drift such as unknown keys or an unsupported em-dash threshold key",
+        "Writes nothing — check is read-only"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-writes-team-layer-only-with-confirmation",
+      "prompt": "/ai-slop:setup apply — user asks to exempt docs/style-guide.md from the em-dash rule",
+      "expected_output": "A diff of .claude/ai-slop.json adding docs/style-guide.md to em_dash_allowed_paths is shown and explicitly confirmed before writing. The user-global and .local.json layers are named as self-service options, never written by the skill.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Shows the proposed team-layer diff and waits for explicit confirmation before writing",
+        "Writes ONLY .claude/ai-slop.json, never the user-global or local overlay layers",
+        "Adds the exemption under em_dash_allowed_paths rather than excluded_paths (the file should still be scanned by other rules)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "em-dash-default-posture-holds",
+      "prompt": "/ai-slop:setup apply — user asks to raise the em-dash threshold repo-wide",
+      "expected_output": "The skill explains the em-dash rule is zero-tolerance by design with per-document exemption as the supported mechanism, offers em_dash_allowed_paths for the documents that genuinely need em dashes, and does not invent a threshold key for the rule.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Explains the zero-tolerance default and that exemption is per-document, not per-threshold",
+        "Offers em_dash_allowed_paths (or disabled_rules with its trade-off named) as the supported paths",
+        "Does not write a nonexistent em-dash threshold key"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "comment-key-is-not-drift",
+      "prompt": "/ai-slop:setup check — the repo's .claude/ai-slop.json carries a _comment key recording why rule-em-dash is disabled.",
+      "expected_output": "The rationale key is reported as a documented annotation, not flagged as an unknown key. JSON has no comment syntax and the Keys table lists _comment for exactly this purpose, so a config that records its reasoning is conforming.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does NOT flag _comment as unknown-key drift",
+        "Still flags genuinely unknown keys in the same file, so the allowance is scoped to _comment rather than disabling the drift check",
+        "Surfaces the recorded rationale when reporting the disabled rule, so a reader sees why the exemption exists"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "disabling-a-rule-records-its-reason",
+      "prompt": "/ai-slop:setup apply — user asks to disable rule-em-dash repo-wide because the house style uses em dashes deliberately.",
+      "expected_output": "The team-layer diff adds rule-em-dash to disabled_rules AND records the reason in _comment, with the measured scale of the exemption named. The trade-off is stated plainly: disabling turns the rule off for new files too, where em_dash_allowed_paths would not.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the reason alongside the exemption rather than the exemption alone",
+        "Names the trade-off between disabled_rules and em_dash_allowed_paths so the choice is informed",
+        "Does not change the plugin's shipped default — the exemption lives in the consuming repo's config only"
+      ]
+    }
+  ]
+}

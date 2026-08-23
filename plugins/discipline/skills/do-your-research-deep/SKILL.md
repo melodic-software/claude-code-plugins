@@ -121,7 +121,7 @@ Run this in place of the base skill's inline audit and correct-forward steps:
 ## What this skill does NOT do
 
 - **Not a lighter inline pass.** For a single re-anchor + audit without the
-  subagent cost, use the sibling `/discipline:do-your-research`.
+  subagent cost, invoke the sibling `/discipline:do-your-research` via the Skill tool.
 - **Does not fabricate a citation or a violation.** An honest per-item
   "verified", "internal — needs user confirm", or "stays unverifiable" is the
   right output when true; the fan-out never manufactures a finding — or a

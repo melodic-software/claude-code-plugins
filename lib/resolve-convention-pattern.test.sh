@@ -3,6 +3,10 @@
 # convention ENFORCEMENT-pattern resolver. Run: bash lib/resolve-convention-pattern.test.sh
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/resolve-convention-pattern.sh"
 
@@ -69,30 +73,39 @@ assert_eq "ERE alternation unchanged" '^(feat|fix): .+' "$(run "$r")"
 
 # --- PCRE-only constructs are NOT translated -> no enforcement ---
 # The resolver accepts POSIX ERE and rejects PCRE; a team writes [0-9] not \d.
+#
+# Every `\w`, `\s` and `\b` from here down is TEST DATA: a PCRE token written
+# into a fixture config file and handed to the resolver so the case can assert
+# the resolver REJECTS it. None is a pattern this suite passes to grep or sed, so
+# none can behave differently on a BSD userland — and the shorthand cannot be
+# spelled away, because the shorthand is the thing under test. Each hit carries
+# its own `portability-ok:` marker rather than a whole-file declaration: the
+# whole-file escape is reserved for the portability gate's own fixture corpus,
+# and this file is the convention resolver's.
 r="$(newrepo $'## subject_pattern\n^(?:feat|fix): .+')"
 run "$r" >/dev/null 2>&1
 assert_exit "(?: non-capturing group -> exit 1" 1 $?
 r="$(newrepo $'## subject_pattern\n^[A-Z]+-\\d+: .+')"
 run "$r" >/dev/null 2>&1
 assert_exit "\\d -> exit 1 (use [0-9])" 1 $?
-r="$(newrepo $'## subject_pattern\n^\\w+\\s: .+')"
+r="$(newrepo $'## subject_pattern\n^\\w+\\s: .+')" # portability-ok: PCRE shorthand as fixture data
 run "$r" >/dev/null 2>&1
-assert_exit "\\w \\s -> exit 1" 1 $?
+assert_exit "\\w \\s -> exit 1" 1 $? # portability-ok: PCRE shorthand named in an assertion label
 
 # --- lookahead has no ERE equivalent -> no enforcement, exit 1, empty stdout ---
-r="$(newrepo $'## subject_pattern\n^(?=.{1,50}$)\\w+: .+')"
+r="$(newrepo $'## subject_pattern\n^(?=.{1,50}$)\\w+: .+')" # portability-ok: PCRE shorthand as fixture data
 out="$(run "$r")"
 rc=$?
 assert_exit "lookaround -> exit 1" 1 "$rc"
 assert_eq "lookaround -> empty stdout" "" "$out"
 
 # --- word-boundary \b is non-ERE -> no enforcement ---
-r="$(newrepo $'## subject_pattern\n^\\bfeat: .+')"
+r="$(newrepo $'## subject_pattern\n^\\bfeat: .+')" # portability-ok: PCRE word boundary as fixture data
 run "$r" >/dev/null 2>&1
-assert_exit "\\b -> exit 1" 1 $?
+assert_exit "\\b -> exit 1" 1 $? # portability-ok: PCRE word boundary named in an assertion label
 
 # --- backreference is non-ERE -> no enforcement ---
-r="$(newrepo $'## subject_pattern\n^(\\w+): \\1')"
+r="$(newrepo $'## subject_pattern\n^(\\w+): \\1')" # portability-ok: PCRE shorthand as fixture data
 run "$r" >/dev/null 2>&1
 assert_exit "backref -> exit 1" 1 $?
 
@@ -117,7 +130,7 @@ run "$r" >/dev/null 2>&1
 assert_exit "escaped backslash -> exit 1" 1 $?
 
 # --- a \d/\w/\s shorthand INSIDE a bracket expression -> no enforcement ---
-r="$(newrepo $'## subject_pattern\n^[\\w-]+: .+')"
+r="$(newrepo $'## subject_pattern\n^[\\w-]+: .+')" # portability-ok: PCRE shorthand as fixture data
 run "$r" >/dev/null 2>&1
 assert_exit "shorthand inside bracket -> exit 1" 1 $?
 

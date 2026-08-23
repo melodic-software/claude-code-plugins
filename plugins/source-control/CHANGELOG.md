@@ -3,6 +3,233 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.4]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 4).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  Protocol strings in fences and inline code (commit message placeholders, the smart-default
+  glance map, `no — report`) stay as written.
+
+## [0.55.3]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.55.2]
+
+### Fixed
+
+- **`worktree` skill:** the orphaned-directory normalization in `cleanup` Step 4b now shows the
+  rule as executable code instead of half of it as a comment. The snippet was
+  `path="${path%/}"` plus a comment saying to run it "again for a Windows-style trailing
+  backslash" — but Step 4b is prose an agent executes literally, so the backslash half never ran,
+  and one `%/` pass also strips only a single separator. A trailing `\` (the common
+  Explorer/`dir`-pasted form on the platform the original measurement came from) or a doubled
+  separator therefore still defeated the `test -L` symlink disqualifier this normalization
+  exists to protect. The snippet is now a platform-gated loop: on Windows shells
+  (MINGW/MSYS/CYGWIN, where `\` is a separator) it strips both separator styles until none
+  remain; off Windows it strips forward slashes only, because there a trailing `\` is a legal
+  filename byte — the same gated rule `worktree-create.sh` applies to its root normalization —
+  and stripping it would re-point the qualifying tests, the reap, and the `rm -rf` at a
+  different sibling path. `audit`'s "check it the way `cleanup` does" pointer carries the same
+  snippet instead of prose only, and `reap-project-plugin-records.test.sh` pins the expression
+  per platform — doubled slashes always strip, a trailing backslash strips on Windows shells
+  and survives on POSIX — as a pure string case that runs even where the symlink fixture must
+  skip ([#3163](https://github.com/melodic-software/claude-code-plugins/issues/3163); the
+  unshipped remainder of the final security-review finding on
+  [#3116](https://github.com/melodic-software/claude-code-plugins/pull/3116), with the POSIX
+  filename-byte gate from Codex review on
+  [#3165](https://github.com/melodic-software/claude-code-plugins/pull/3165)).
+
+## [0.55.1]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.55.0]
+
+### Fixed
+
+- **A failed post-reap enumeration no longer reads as a clean reap (#3113 review).**
+  `reap-project-plugin-records.sh` verifies its own pass by re-enumerating after
+  the uninstall calls. That second `claude plugin list --json` failure was being
+  absorbed into an empty survivor list, so the script printed
+  `ok: every … is gone` and exited 0 having confirmed nothing — while the
+  identical *pre*-reap failure already degraded with `warn:` and exit 3. The
+  asymmetry was the defect: both mean "unknown outcome". A post-reap enumeration
+  failure now reports `surviving UNKNOWN`, says the pass is UNVERIFIED, names how
+  many calls reported success, and exits 3. It is the one outcome a caller acts on
+  by deleting the directory, so certainty it does not have was the most dangerous
+  thing the script could report.
+- **A trailing separator no longer defeats the symlink disqualifier.** `cleanup`'s
+  orphaned-directory qualification now normalizes the path before all four tests.
+  POSIX resolves a trailing-slash path *through* a symlink, so `test -L "link/"`
+  answers about the target: measured on this plugin's host, `test -L link` → true,
+  `test -L "link/"` → **false**, and `find link -mindepth 1` → **empty** because
+  `find` does not descend a symlinked start point either. One trailing character
+  made a live directory look like an empty non-symlink and sail into `rm -rf`.
+  `audit`'s mirrored guidance carries the same rule, and
+  `reap-project-plugin-records.test.sh` now pins all three measurements.
+
+### Added
+
+- **`worktree cleanup` reaps the project-scope plugin install records a torn-down
+  worktree leaves behind (#3113).** Claude Code keys a project-scope install to a
+  literal `projectPath` in `~/.claude/plugins/installed_plugins.json` and nothing
+  reaps it when that path goes away, so every worktree this plugin created and
+  destroyed left one record per installed plugin behind permanently — measured on
+  the author's machine: 108 records across 8 marketplaces, all naming a single
+  worktree directory that no longer exists, and every project-scope record on that
+  machine an orphan. `cleanup` Step 4b now runs
+  `scripts/reap-project-plugin-records.sh` from inside the candidate, after the
+  stranded-work and carried-file guards clear and before the directory is removed.
+  The trigger is the teardown, never path non-resolution: a record for a live
+  repository on an unmounted share is indistinguishable from a dead worktree to an
+  existence check.
+- **`scripts/reap-project-plugin-records.sh`.** Enumerates through
+  `claude plugin list --json` and removes through
+  `claude plugin uninstall <id> -s project`; it never edits
+  `installed_plugins.json`, never runs `-s user` (the CLI's own failure text
+  suggests it, and following that would uninstall the plugin fleet-wide), and never
+  passes `--prune`. It refuses unless `--worktree-path` names the directory it is
+  already standing in, which is the cwd boundary rendered in code rather than in
+  prose. `--dry-run` supported; degrades visibly (exit 3) when the CLI or `jq` is
+  absent.
+- **`worktree audit` Step 2b reports pre-existing orphaned records.** Records left by
+  worktrees removed before the reap existed are unreachable by it, so audit makes
+  them visible, in four buckets: *live here*, *live elsewhere*, *candidate orphan*,
+  and *other project records* (information only, no remedy). The *live elsewhere*
+  bucket is load-bearing: the worktree root is shared across repositories
+  (`<root>/<owner>-<repo>-<slug>`), so "not in this repository's `git worktree
+  list`" is true of every other repository's live worktree under it — a liveness
+  test (`git -C <path> rev-parse --is-inside-work-tree`) is required alongside the
+  registration test before anything is called an orphan. `cleanup`'s
+  orphaned-directory candidate — the only candidate class with no stranded-work
+  row to read, since the engine enumerates from `git worktree list` — is held to
+  a stricter bar still: *not a symlink*, *not a work tree*, *no `.git` entry*,
+  and *empty* — all four. The `.git` test is the load-bearing one and the
+  work-tree test does not imply it,
+  because a live worktree whose main clone was moved, deleted, or unmounted keeps
+  its `.git` file while `rev-parse` fails. Both surfaces also stop scanning a
+  configured root that does not resolve. Read-only: removal needs the
+  directory recreated first, which the audit emits for the user (plain `mkdir`, so
+  it fails rather than no-ops on a live directory; every step `&&`-chained so a
+  failed reap leaves the directory in place) and never performs.
+- **`skills/worktree/fixtures/project-scope-reap-probe.sh`** plus its
+  `fixtures/README.md` record. Six arms establish that `-s project` has no path flag
+  and resolves strictly against the resolved absolute cwd, that `plugin list --json`
+  enumeration is cwd-independent, and that a record outlives its directory but is
+  reachable from an empty directory recreated at the same path. Claude Code
+  **2.1.240**, re-run unchanged on **2.1.241**, Windows.
+
+## [0.54.16]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.54.15]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The plugin test
+  helper already unset the discovery variables at source time; it now also
+  unsets `GIT_CONFIG`. Test-only; no skill behavior change.
+
+## [0.54.14]
+
+### Changed
+
+- **Three cross-skill chains name the Skill tool (#3002).** `babysit-loop`'s per-cycle invocation
+  of `/source-control:babysit-prs`, `pull-request`'s commit-step delegation to
+  `/source-control:commit` in `reference/create.md`, and its post-merge retrospective step in
+  `reference/merge.md`, which said "invoke it" of a `/session-flow:retro`-shaped capability
+  without naming the mechanism. The `/source-control:setup` references stay
+  prose: `setup` is `disable-model-invocation: true`, so the rubric's invocation-reach invariant
+  keeps it human-only. Wording only; tier semantics, gates, and the inline-commit fallback are
+  unchanged.
+
+## [0.54.13]
+
+### Added
+
+- **`babysit-prs` `stuck-checks.md` now covers checks that never SCHEDULE, not
+  only checks that never settle.** A conflicted PR has no computable merge ref,
+  so `pull_request` workflows are never created — absent rather than pending or
+  failing, and therefore invisible to `checks.stuck`. Because
+  `pull_request_target` lanes run against the base and still pass, the PR
+  presents a short all-green list with no failures while most gates are simply
+  missing. The section says to read `mergeStateStatus` before reasoning about a
+  short check list, and names the misdiagnosis (trigger or App-token problem)
+  that this repository has already spent time on once. Documentation only.
+- **The load condition for `stuck-checks.md` now admits the conflicting case.**
+  `runbook-cycle.md` gated the file on a non-empty `checks.stuck`, which is
+  empty by construction in the scenario above, so the new guidance would never
+  have been read when it applies. The gate now also fires on
+  `branch_freshness.state == "conflicting"`, and `SKILL.md`'s one-line
+  description covers both directions rather than the UNSTABLE signal alone.
+
+## [0.54.12]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` (comment-only; no behavior change).
+- `babysit_delta.py` drops a duplicated navigational comment and a
+  history-narration docstring clause (comment-only; suite green).
+
+## [0.54.11]
+
+### Fixed
+
+- **`babysit-prs` worktree-pruner tests no longer let their fixture identity
+  land in the caller's repository
+  ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  `test_prune_babysit_worktrees.py` clears `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and
+  `GIT_CONFIG` from `os.environ` at import. An exported **absolute** `GIT_DIR` overrides
+  repository discovery, so `git config`'s default `--local` scope resolves to
+  the caller's gitdir and the fixture identity is written there instead. This
+  suite is doubly exposed because it also builds a **linked worktree**, whose
+  config writes land in the main clone's **shared** `.git/config`. `GIT_CONFIG`
+  is cleared as a **second** leak path rather than another spelling of the
+  first: it replaces the file the `git config` subcommand reads and writes, so
+  an identity write follows it past `-C`, past a cleared `GIT_DIR`, and past the
+  working directory. Test-only change; no shipped skill or script behavior is
+  affected.
+
 ## [0.54.10]
 
 ### Changed

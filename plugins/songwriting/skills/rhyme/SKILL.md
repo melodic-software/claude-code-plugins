@@ -20,8 +20,9 @@ mosaic (multi-word) rhyme, and rhyme worksheets. Internal Pat-framed generation 
 live Datamuse lookup supplements only for vocabulary breadth, syllable verification, or
 semantic-field mining.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's rhyme method
-plugs in at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 

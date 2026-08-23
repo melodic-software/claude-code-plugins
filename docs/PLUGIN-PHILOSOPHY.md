@@ -16,6 +16,38 @@ consumer tiers, explicit adoption — is owned by `melodic-software/standards`
 `conventions/engineering/shareable-artifact-design.md`; this document specializes it for Claude Code
 plugins and adds only what is plugin-specific.
 
+**Org-agnosticism** names the publisher half of that boundary, and it governs *tokens in shipped
+content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
+repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
+or schema content. One use is sanctioned — a citation that *names a source rather than a target the
+plugin acts on*: a documentation URL, or a cross-plugin reference to this marketplace's own published
+files, cited for a reader to consult. Whether that sanctioned citation is forfeited turns on the
+target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
+publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
+dependency, so fetching one does not forfeit the citation — this rule reaches publisher-owned targets
+only. For publisher-owned targets, distinguishing
+an instruction to fetch from a citation offered for a reader remains genuinely hard, and this
+statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case.
+(`plugin.json` publisher metadata sits outside
+this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
+the manifest is for.)
+
+Like the setup contract below, **this is a normative target, not a description of the fleet**, and
+enforcement reaches a strict subset of it.
+`scripts/validate-plugin-contracts.mjs` gates the
+marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
+content, and holds the `autonomy` plugin to a stricter token set;
+`plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's
+prose only — as its "agnostic conformance" check, a sibling of that file's D4 zero-vendored-knowledge
+checks, not one of them. The
+bare organization name in skill prose is gated nowhere *fleet-wide* — only inside `autonomy` and
+`github`, each by a sweep scoped to that one plugin — and agent content is gated nowhere at all, so
+shipped skills predating this statement are nonconforming until brought into conformance rather than
+absolved by a green build. A fleet-wide edit answers to two independent mechanisms, each running in
+its own step of the same `plugin-gate` CI job and neither aware of the other; consolidating them
+behind this statement, and
+settling that conformance gap deliberately, is tracked in issue #3136.
+
 Keep plugins horizontally decoupled:
 
 - A plugin owns its skills, hooks, agents, scripts, dependencies, and state.
@@ -59,6 +91,7 @@ Verb meanings are fixed:
 | `audit`, `scan` | Read-only findings report. Mutation only behind an explicit user override such as an autofix argument, never on bare invocation; safety qualifiers may narrow what an override touches. |
 | `check` | Deterministic pass/fail gate. |
 | `clean`, `tidy`, `fix` | Mutates the target. |
+| `realign` | Consumes a findings artifact a sibling `audit` produced and drives the human-gated realignment it recommends; never re-judges the surface itself. Mutation only behind explicit per-item user acceptance, never on bare invocation and never under a blanket approval. |
 | `setup` | Configures the plugin for a consumer, per the setup section below. |
 | `update` | Refreshes vendored upstream material. |
 
@@ -258,8 +291,11 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use — note
-  in that same documentation that this flag only seeds a value on a fresh install; re-running it
-  against an already-installed plugin does not update the stored value (empirically verified); and
+  in that same documentation that re-running it against an already-installed plugin prints
+  `already installed` **and still writes the value**: the short-circuit is about the install, not the
+  config write. **Empirically verified on Claude Code 2.1.240** (a non-sensitive option at `user`
+  scope: a non-default value written to an installed plugin, then restored) — a `sensitive` option
+  and `project`/`local` scope were not covered, so re-verify before relying on it there; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E —
@@ -335,10 +371,24 @@ only criterion this definition governs — a plugin whose `userConfig` is trivia
 whenever (a) or (b) holds, which is the ordinary case for a plugin whose real surface is a project
 config file or an external tool and whose manifest carries only a kill switch.
 
+**Stated as fleet coverage:** a plugin declaring `userConfig` ships a `setup` skill **unless every
+declared option is trivial** by the test above *and* neither (a) nor (b) holds. Declaring
+`userConfig` at all is not the trigger, and neither is the option count — the blunter rule
+"declares `userConfig` ⇒ ships a setup skill" reads as a coverage gap wherever a plugin's whole
+manifest is one kill switch, and closing that "gap" ships the ceremony this section forbids. Applied
+to a real case (#3111): `context-budget` and `repo-hygiene` each earn one on (b) — a `node`-launched
+hook and a `git`-dependent tier set whose absence the native prompt cannot see — while
+`visualization`, whose lone `medium` option is a self-contained scalar whose out-of-set values fall
+back to its default and which has no external prerequisite, correctly ships none. A setup skill was
+written for it and deliberately dropped rather than kept for symmetry.
+
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true` — matching
 upstream's own rule for the flag, "for workflows with side effects that you want to trigger
 manually" ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10) —
-and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. The
+and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
+contract is exception class (ii) of the fleet's invocation-mode rubric
+([`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md)), which owns the
+default and the other reasons a skill may set the flag. The
 rest of the shape is house doctrine, and says so: upstream documents native *initialization*
 surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
 split and the criteria above rest on the reasoning given here rather than on upstream backing. This
@@ -349,8 +399,33 @@ is closed. Setup must be:
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
-- safe for existing files, preserving unrelated user content; and
+- safe for existing files, preserving unrelated user content;
+- evidence-bearing: after making or routing a change, it reports the stored value it *observed*,
+  and says plainly where it could not observe one — never an unobserved change; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
+
+The readback is a property of the `setup` skill, not of the `apply` verb: it belongs to whichever
+action made or routed the change, so a check-only skill (below) carries it in `check`. Where the
+change was routed to a surface setup may not write — Claude Code's native configuration flow, an
+edit left to the operator — the rule is unchanged.
+
+**Keep two claims apart:** that the write was issued and stored, and how the *running* session
+behaves. They can legitimately disagree, so a naive readback reports false failures — and reporting
+one as a failed write is the specific error this clause exists to prevent. Verify the effective value
+by re-checking in a **fresh session**, and never claim an unobserved change. A same-session `check`
+therefore satisfies the bullet above by reporting the stored value it observed *and* naming the
+running session's behaviour as not yet established, not by pretending that session already reflects
+the write. The stored value read in-session is current; it is the behaviour that lags.
+
+Two mechanisms are offered across the fleet as the reason the two diverge: that a `${user_config.*}`
+value is substituted into skill content at load, and that a hook's `CLAUDE_PLUGIN_OPTION_*` mirror
+comes from an environment fixed at session start. Both timings are **untested here**.
+[Smoke-test D](extensibility-contract-smoke-tests.md) records the rendered *result* in skill content
+on Claude Code 2.1.212, not when substitution happens; smoke-test B records only a negative on
+2.1.207, that a skill-spawned Bash subprocess receives no mirror at all, and sources the
+agent-content half of that seam to upstream spec rather than to an observation. The rule does not
+rest on either: a fresh-session re-check is correct whichever way they resolve, which is why it is
+the prescription and they are only the explanation.
 
 Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
 follows install granularity: a plugin installs and is configured as a unit, and its configuration
@@ -490,6 +565,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
+| Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
@@ -500,6 +576,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 | Windows path emission across the Git Bash → native boundary | [`docs/conventions/windows-path-emit/`](conventions/windows-path-emit/README.md) |
+| Pre-PR step order (where outcome verification sits) | [`docs/conventions/pre-pr-ordering/`](conventions/pre-pr-ordering/README.md) |
 
 ## Cross-platform contract
 
@@ -553,7 +630,9 @@ per concern, cross-platform operation, and stress-testing before presentation.
 
 Every standing instruction this marketplace ships — a CLAUDE.md line, a hook that corrects model
 behavior, a skill's always-loaded listing text — is a per-session tax on every consumer, paid
-whether or not the instruction ever fires. Official doctrine is explicit: "CLAUDE.md is loaded
+whether or not the instruction ever fires. (Whether a skill's description enters that
+always-loaded listing at all is the invocation-mode choice — owned by the rubric at
+[`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md).) Official doctrine is explicit: "CLAUDE.md is loaded
 every session, so only include things that apply broadly… For each line, ask: 'Would removing this
 cause Claude to make mistakes?' If not, cut it," and "If Claude already does something correctly
 without the instruction, delete it or convert it to a hook"
@@ -561,7 +640,9 @@ without the instruction, delete it or convert it to a hook"
 applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
 Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
 ([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
-verified 2026-08-08). Four rules follow:
+verified 2026-08-08). Context load is not the only budget: the human maintainer's cognitive load
+is its sibling constraint, and the write-time doctrine budgeting both lives in
+`docs-hygiene:write-for-agents`. Four rules follow:
 
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model — the same failure seen more than once — never anticipation

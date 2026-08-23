@@ -61,6 +61,20 @@ For content in the wrong layer:
 3. Remove from current location
 4. Verify no cross-references break
 
+### C5 (Non-obvious Only) fixes
+
+For flagged codebase-description content, in preference order:
+
+1. **Delete** — a file-by-file inventory Claude can rebuild with `ls`/Glob goes first.
+2. **Curate into a navigation pointer** — when the section exists to route to something
+   genuinely non-obvious and load-bearing, compress it to the pointer form C5's KEEP branch
+   describes: where to look, and when to look there.
+3. **Restructure before pointing** — a pointer that exists because changes must be mirrored
+   across distant folders can mask low cohesion; consider restructuring so the things that
+   change together live together, and keep a pointer only for what remains genuinely distant.
+   (Write-side doctrine for authoring the pointer itself: `docs-hygiene:write-for-agents`, if
+   that plugin is installed.)
+
 ### C6 (Consistency) fixes
 
 For contradictions:

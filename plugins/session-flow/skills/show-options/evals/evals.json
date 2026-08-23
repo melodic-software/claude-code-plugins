@@ -1,0 +1,131 @@
+{
+  "skill_name": "show-options",
+  "evals": [
+    {
+      "id": 1,
+      "name": "refuses-to-invent-a-skill-name",
+      "prompt": "What should I run next? Give me a full menu — I want every bucket populated, don't leave any of them thin.",
+      "expected_output": "The skill renders only options whose names came from the resolved catalog. Pressed to fill buckets, it leaves a bucket short (or empty with a stated reason) rather than producing a plausible-sounding skill name that does not exist. If the resolved pool is thin it says so and discloses which ladder rung supplied it, instead of padding.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Every rendered invocation name traces to the resolved catalog, none invented to satisfy the request",
+        "A thin or empty bucket is reported with its reason rather than padded",
+        "Does not fabricate a plausible skill name to fill a bucket, even when asked for a full menu",
+        "States which ladder rung supplied the pool when the pool is degraded"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "already-run-stage-is-annotated-not-omitted",
+      "prompt": "We already finished exploring this codebase and the research is done too. What are my options now?",
+      "expected_output": "Options whose stage already ran still appear — /discovery:explore and /discovery:research are listed, ranked normally, each carrying an annotation such as (ran this session). The skill does not drop them on the grounds that the step is complete, and does not present a shorter menu justified by 'you already did that'.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Skills for already-completed stages still appear in the menu",
+        "Their completed status renders as an annotation, not as a reason for omission",
+        "Ranking may be affected by already-done status; presence is not",
+        "Does not justify a shorter menu on the grounds that a stage is complete"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "two-tier-shape-within-budget",
+      "prompt": "Show me my options.",
+      "expected_output": "Each bucket renders at most five ranked options in full three-part treatment (invocation name, what it adds to this conversation, when you would skip it), followed by the complete remainder of that bucket as bare invocation names with an explicit count. Total output stays around 60 lines rather than enumerating the whole catalog.",
+      "files": [],
+      "expectations": [
+        "Tier 1 is capped at five per bucket and ranked",
+        "Each tier-1 option carries the invocation name, what it adds here, and when to skip it",
+        "Tier 2 lists the remaining names with an explicit count, so nothing is off-screen unstated",
+        "Whole output stays near the ~60-line budget rather than rendering every option in full",
+        "The what-it-adds line is grounded in this conversation, not a paste of the generic description"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "discloses-a-degraded-pool",
+      "prompt": "What should I run next? (claude-ops is not installed in this session and no project catalog is configured.)",
+      "expected_output": "The skill falls back to the in-context listing and says so in the output — naming that manual-only skills are not visible from that source and that descriptions for rarely-invoked skills may have been dropped. It does not present the truncated pool as a complete catalog.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Falls back to the in-context listing rather than failing",
+        "States in the output that the pool is degraded and why",
+        "Names the specific blind spots: manual-only skills absent, least-invoked descriptions dropped",
+        "Does not imply the menu is a complete view of the catalog"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "works-without-marketplace-metadata",
+      "prompt": "What are my options here? (This project installs a third-party marketplace whose skills carry no workflow-stage metadata.)",
+      "expected_output": "The skill still produces buckets, assigning them from names and whatever descriptions are available, and marks the assignment as heuristic rather than presenting a guessed bucket as a known one.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Still yields buckets with no workflow-stage metadata available",
+        "Assignment derives from names and available descriptions",
+        "Heuristic bucket assignment is disclosed rather than presented as authoritative",
+        "Skills with no description appear by name in tier 2 rather than being dropped"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "ungroundable-memory-root-does-not-infer",
+      "prompt": "What should I run next? I'm in a fresh worktree for this branch.",
+      "expected_output": "Because the memory slice is not readable from that checkout, every upstream artifact reads absent. The skill reports that upstream stages cannot be grounded here and leaves Skipped upstream empty with that reason, rather than concluding that every upstream stage was skipped.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not infer skipped stages from artifact absence when the memory root is unreadable",
+        "Reports that upstream stages cannot be grounded from this checkout",
+        "Leaves the Skipped upstream bucket empty with a stated reason rather than filling it",
+        "Other buckets still render normally"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "downstream-relevant-skills-land-in-later-not-dropped",
+      "prompt": "I'm just starting on this feature — nothing written yet. What should I run next?",
+      "expected_output": "Skills that are in-domain but beyond the Next horizon — testing, review, and verification skills at the start of a feature — appear in the Later bucket as bare invocation names with a count, rather than being dropped for fitting no bucket. Later renders tier 2 only, so it costs about a line. Out-of-domain skills (songwriting, Kindle tooling) are still omitted.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Downstream in-domain skills appear in Later rather than being omitted",
+        "Later renders as bare names with an explicit count, not full three-part treatment",
+        "Out-of-domain skills are still omitted under the irrelevant test",
+        "The whole output stays within the line budget despite the extra bucket"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "installed-but-disabled-plugin-is-annotated",
+      "prompt": "What are my options? (A plugin is present in the cache but not in enabledPlugins.)",
+      "expected_output": "Skills from the installed-but-disabled plugin are named with an annotation such as (plugin not enabled), rather than being listed as runnable or silently dropped. The skill reconciles inventory's installed_plugins against enabled_plugins and says which set it used.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reconciles installed_plugins against enabled_plugins rather than treating installation as invocability",
+        "Names skills from a disabled plugin with an annotation instead of omitting them",
+        "Does not present a disabled plugin's skill as directly runnable",
+        "States which set was used"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "durable-state-outranks-a-thin-conversation",
+      "prompt": "What should I run next? (The conversation was compacted a while ago and reads thin, but the branch has an approved plan on disk and an open PR.)",
+      "expected_output": "The skill derives its buckets from the durable reads — the plan artifact, git state, the open PR — rather than from the sparse conversation, and routes to /session-flow:orient for that state instead of running a probe of its own.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Treats durable state as the primary signal and the thin conversation as secondary",
+        "Buckets reflect the on-disk plan and PR state rather than only what the conversation retained",
+        "Routes to /session-flow:orient for durable state rather than building its own probe",
+        "Does not conclude the session is at an early stage merely because the conversation looks short"
+      ]
+    }
+  ]
+}

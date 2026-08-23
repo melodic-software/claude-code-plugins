@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling thirteen **safety guards** that catch risky agent
+A Claude Code plugin bundling fourteen **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -14,6 +14,7 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **block-dangerous-git** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms, and the unsafe `--force-with-lease` spellings, in the two kinds git itself treats differently. **No expected value** (bare `--force-with-lease` or `=<refname>`) leases against the remote-tracking ref, which git documents as "trivially defeated" by a background fetch — blocked unless `--force-if-includes` is present, which git documents as the mitigation for exactly this form. **A movable `=<refname>:<expect>`** — `origin/main`, `HEAD`, a tag, an *abbreviated* object id, or hex of the wrong width for this repository's hash format, all of which git resolves at push time, and gitrevisions resolves a short hex word as a ref before trying it as an object-id prefix — is blocked unconditionally, because git declares `--force-if-includes` a no-op alongside an explicit `:<expect>`. A lease passes only when `<expect>` is immutable: a **literal** object id of the pushed repository's own hash width (detection never evaluates substitutions, so resolve it with `git rev-parse` as a separate step and pass the result) (40 hex under SHA-1, 64 under SHA-256, read from `git rev-parse --show-object-format` with the command's own `-C`/`--git-dir`/`--work-tree`/`--namespace` replayed onto it; undeterminable fails closed) or the empty string asserting the ref must not exist. The other width is a ref name there, not an object id — git ignores a ref whose name is full-width hex for its own format, but resolves one of the other width like any name. git scopes a pin to its own ref, so a bare fallback alongside a pinned entry still governs every other ref being updated; where the same ref carries several lease entries, git consults the first, and so does this guard. A trailing `--no-force-with-lease` cancels every previous lease, and a push dry-run disarms the check. Also blocked: `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)` — path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
 | **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, inline python code with file-write indicators (`python`/`python3`/`py`/`pypy`, with `-c` or reading the program from stdin as `python3 - <<PY`), and a same-command staged write whose effective redirect target is reused as an `mv`/`cp` source toward a non-scratch destination. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **block-windows-drive-tmp** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Windows-only: write targets that are a drive-root temp path — POSIX `/tmp`, MSYS `/c/tmp`, `C:\tmp`, or drive-root `\tmp` — which resolve to `<drive>:\tmp` instead of `%TEMP%` and accumulate at the volume root. Redirects and write utilities (`mkdir`/`mktemp`/`tee`/`cp`/`Set-Content`/`Out-File`/…) are blocked with a redirect-to-`%TEMP%` message. Does not fire on non-Windows hosts; leaves `%TEMP%` / `$TEMP` / `$TMPDIR` / `$env:TEMP` / `/var/tmp` alone. |
+| **block-exported-msys-pathconv** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Windows-only: an **exported** `MSYS_NO_PATHCONV` / `MSYS2_ARG_CONV_EXCL` (also the `declare -x` / `typeset -x` spellings), which switches off MSYS argv rewriting for every *later* command in the same command string. A later path argument then reaches a Windows-native program unconverted and git resolves its leading `/` against the current drive, so `git worktree add /d/worktrees/x` creates `<current-drive>:\d\worktrees\x` (#2870). Deliberately keys on the environment, not on a path shape: the incident command's path argument was identical to one that had already worked. A prefix whose command word is a **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env … sh -c '…'`) blocks too: the prefix scopes to one *process*, and when that process is an interpreter, one process is every command inside it. A prefix on a **non-shell** command word (`MSYS_NO_PATHCONV=1 git show …`) and a bare assignment are not matched — the first scopes to exactly that command, and the second has no effect at all because the MSYS runtime reads the environment. Does not fire on non-Windows hosts. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. **Opt-in — default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message actually contains a newline — a multi-line `-m` flattens newlines unpredictably across shells; pipe it via `-F -` / `--file -` instead (narrowed in 0.20.0 per #2021: single-line `-m`, bare `git commit`, and repeated single-line `-m` paragraphs all pass). On the PowerShell tool a here-string `-m` value blocks too — its content is uninspectable and multi-line by construction of the form. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
@@ -22,13 +23,13 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **skill-reference-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own — a reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 | **stale-path-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the working tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. Surfaces via `additionalContext`, never blocks. |
 
-The eight blocking guards feed their stderr message back to Claude as
+The nine blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The five advisory guards surface their findings the same
 way but always allow the operation.
 
 ### Enforceability tiers
 
-Eleven guards are **deterministic** — their oracle is a mechanical test with no
+Twelve guards are **deterministic** — their oracle is a mechanical test with no
 judgment step. Two are **detect-then-judge**, where the oracle is mechanical but
 the conclusion is a human verdict, never an auto-fix: `skill-reference-verify`,
 because globbing a plugins tree is exact only inside a marketplace repo that owns
@@ -200,6 +201,7 @@ others.
 | block-dangerous-git | `block_dangerous_git_enabled` |
 | block-hook-bypass | `block_hook_bypass_enabled` |
 | block-windows-drive-tmp | `block_windows_drive_tmp_enabled` |
+| block-exported-msys-pathconv | `block_exported_msys_pathconv_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
 | block-convention-violation | `block_convention_gate_enabled` |
 | cli-flag-verify | `cli_flag_verify_enabled` |
@@ -215,9 +217,8 @@ install command:
 claude plugin install guardrails@<marketplace> --config hardcoded_path_check_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings, not the
-project's). To turn guards off for a single repository, disable the whole
-plugin in that project's `enabledPlugins` instead.
+Option scoping (user vs project settings, and the per-repository escape hatch)
+per "How to set these" below.
 
 One further option tunes the hooks' shared plumbing rather than a single guard:
 
@@ -340,6 +341,7 @@ reads it from.
 | `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, push --force-with-lease leasing against a value git resolves at push time — either no expected value, or an expectation that is not an object id of the repository's own hash width — reset --hard, clean -f, worktree-wide checkout/restore discards) |
 | `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
 | `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block Bash/PowerShell writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP% |
+| `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Block a leaking MSYS path-conversion suppressor on Windows: an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, or a prefix on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). Either switches off conversion for later commands, letting an unconverted /d/... reach git as <current-drive>:\d\...; a prefix on a non-shell command word and a bare assignment are not matched |
 | `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells — pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
 | `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Block a commit subject or `gh pr create --title` that violates the team-tracked convention pattern in .claude/source-control.md (no tracked pattern = no enforcement; same exemptions as block-noncanonical-commit) |
 | `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advise on hallucinated CLI flags written to files (never blocks) |
@@ -361,12 +363,27 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure guardrails@<marketplace>`.
-2. **Headless, at install time** — repeat `--config` for each option. Replace
+2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install guardrails@<marketplace> --config secret_pattern_detection_enabled=<value>
+   claude plugin install guardrails@<marketplace> -s <scope> --config secret_pattern_detection_enabled=<value>
    ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value — verified on Claude Code 2.1.240,
+   for a non-sensitive option at `user` scope, by writing a non-default value to an
+   installed plugin and restoring it. The short-circuit message is about the install,
+   not the config write. That has not been verified for a `sensitive` option or for
+   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin.
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -394,8 +411,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

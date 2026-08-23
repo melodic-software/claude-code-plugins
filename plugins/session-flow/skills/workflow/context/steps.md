@@ -53,7 +53,7 @@ Structured execution with incremental validation and commit checkpoints.
 - Commit after green — small, frequent commits are save points
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
-- At phase boundaries on long work, write a save-point (`/session-flow:handoff`) so a fresh session can resume
+- At phase boundaries on long work, write a save-point by invoking `/session-flow:handoff` via the Skill tool so a fresh session can resume
 
 ## 5. Test
 
@@ -70,8 +70,9 @@ and review criteria, or delegate to a fresh-context reviewer.
 
 - A reviewer in a fresh context sees only the diff and the criteria — it is not anchored by the
   reasoning that produced the change; prefer that over pure self-audit for non-trivial diffs
-- For a high-stakes diff, prefer a cross-vendor reviewer when one is installed and set up — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback,
+- For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the stated fallback,
   never a route to a command that may not resolve
+  (per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository)
 
 ## 7. Verify outcome
 

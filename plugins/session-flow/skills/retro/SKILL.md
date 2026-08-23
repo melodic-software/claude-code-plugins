@@ -9,44 +9,38 @@ metadata:
   summary: Structured session retrospective with codified learnings
 ---
 
-## Context — gather first
+## Context. Gather first
 
-Collect these with **individual** Bash calls, one command per call:
-
-- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
-- Current branch — `git branch --show-current`
-- Recent commits — `git log --oneline -5`
-- Working tree status — `git status --porcelain`, reading **at most the first 20 entries**
-- Changed files (staged+unstaged) — `git diff --name-only HEAD`
-
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
-fail at load — keep `$`-expansion out of the pre-compute block (#1687).
+Take `session-id`, `branch`, `status`, `recent-commits` at `-5`, and `changed-files`, the only
+consumer taking that last one, since a retrospective reasons over what the session actually touched.
+Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
+rationale for gathering at run time rather than pre-computing:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
 
 The self-improvement loop. Answers: "What happened, what did we learn, and how do we prevent the
 same mistakes next time?" Every other workflow stage is about the current task; this skill is about
-the next task — and every task after that.
+the next task, and every task after that.
 
 **Three concepts this skill enforces:**
 
-1. **Analyze** — examine what happened with evidence (transcript metrics, conversation context,
+1. **Analyze**. Examine what happened with evidence (transcript metrics, conversation context,
    feedback regressions)
-2. **Identify** — find errors, behavioral adjustments, process improvements, and skill/tool
+2. **Identify**. Find errors, behavioral adjustments, process improvements, and skill/tool
    candidates
-3. **Codify** — persist learnings durably (the consuming repo's instruction files and rules, or
+3. **Codify**. Persist learnings durably (the consuming repo's instruction files and rules, or
    Claude Code auto-memory for contributor-specific facts)
 
 **What this skill is NOT:** not a code review (design judgment on current work), not outcome
 verification (does the change match intent), and not Claude Code's built-in `/insights`
-(cross-session usage analytics) — this is structured quality analysis with codification.
+(cross-session usage analytics); this is structured quality analysis with codification.
 
 ## Paths
 
-Resolve at runtime — never hardcode machine-specific paths:
+Resolve at runtime, never hardcode machine-specific paths:
 
-- **Session data root** — `~/.claude/projects/<project-slug>/`, where `<project-slug>` is the
+- **Session data root**. `~/.claude/projects/<project-slug>/`, where `<project-slug>` is the
   project's absolute path with every character outside `[A-Za-z0-9]` replaced by `-`:
 
   ```bash
@@ -59,9 +53,9 @@ Resolve at runtime — never hardcode machine-specific paths:
   current session's JSONL: `ls "$HOME/.claude/projects"/*/"${CLAUDE_CODE_SESSION_ID}.jsonl"`.
 - Transcript: `<SESSION_DATA_DIR>/<session-id>.jsonl`; subagents:
   `<SESSION_DATA_DIR>/<session-id>/subagents/`
-- **Auto-memory** (feedback regression check): `<SESSION_DATA_DIR>/memory/` — present only when the
+- **Auto-memory** (feedback regression check): `<SESSION_DATA_DIR>/memory/`. Present only when the
   consumer uses Claude Code auto-memory; degrade gracefully when absent
-- **Score history** (plugin state): `${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md` — survives
+- **Score history** (plugin state): `${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md`. Survives
   plugin updates, never lands in the consumer's repo
 - Parser: `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py` (stdlib-only,
   Python 3.10+)
@@ -70,10 +64,10 @@ Resolve at runtime — never hardcode machine-specific paths:
 
 | Signal | Mode | Context file |
 |--------|------|-------------|
-| End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md` — full 5-phase analysis |
-| "codify", "save learnings", mid-session learning | **codify** | `context/codify.md` — targeted codification only |
-| "trends", "scores", "how am I doing" | **trends** | `context/trends.md` — cross-session score history |
-| "quick retro", short session, limited context | **quick** | `context/quick.md` — abbreviated pass |
+| End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
+| "codify", "save learnings", mid-session learning | **codify** | `context/codify.md`, targeted codification only |
+| "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history |
+| "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
 If `$ARGUMENTS` specifies a mode, use it. Otherwise infer from context; when the session is long or
 degraded, or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context
@@ -105,7 +99,7 @@ backwards from the newest handoff file and aggregates metrics across every chain
 `context/session.md` Phase 1.
 
 **State the discovery basis, and never present a low-coverage chain retro silently.** The walk
-follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file —
+follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file,
 a chain linked by hand-pasted continuation prompts instead of save-points can end after one hop.
 The parser reports what it saw in `chain_coverage` (`requested` / `found` / `available` / `ratio`,
 where `available` counts the transcripts present for this project). When `ratio` is below ~0.5, say
@@ -115,23 +109,23 @@ one.
 
 ## What this skill does NOT do
 
-- **Does not run builds or tests** — that's the consuming repo's verify stage
-- **Does not review code quality** — that's its review stage
-- **Does not write scores or reports into the consumer's repo** — plugin state stays in
+- **Does not run builds or tests**. That's the consuming repo's verify stage
+- **Does not review code quality**. That's its review stage
+- **Does not write scores or reports into the consumer's repo**. Plugin state stays in
   `${CLAUDE_PLUGIN_DATA}`; only user-approved codifications (rule edits, memory entries) land
   outside it
-- **Does not read a consumer-supplied scoring rubric** — the five dimensions are fixed plugin
+- **Does not read a consumer-supplied scoring rubric**. The five dimensions are fixed plugin
   identity, not consumer config, and there is no seam to swap them. What adapts is what each
   dimension scores *against* (your repo's conventions, session-type calibration), never the
   dimensions themselves.
 
 ## Gotchas
 
-- **Run all phases by default** in session mode — skip metrics only when the parser fails or the
+- **Run all phases by default** in session mode. Skip metrics only when the parser fails or the
   user asks
-- **Always include skill-candidate and follow-up-candidate analysis** — even when the conclusion is
+- **Always include skill-candidate and follow-up-candidate analysis**, even when the conclusion is
   "no candidates this session"
-- **Codify follows the workflow too** — adding a bullet to a rules file requires verification, not
+- **Codify follows the workflow too**. Adding a bullet to a rules file requires verification, not
   just pasting
-- **Phase 4 is an interactive checkpoint** — never persist codifications without explicit user
+- **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user
   approval

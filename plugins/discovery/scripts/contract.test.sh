@@ -38,8 +38,8 @@ fail() {
 surface() {
   find "$PLUGIN_ROOT" -type f \( -name '*.md' -o -name '*.json' \) \
     ! -name 'CHANGELOG.md' \
-    ! -path '*/.claude-plugin/*' \
-    | sort
+    ! -path '*/.claude-plugin/*' |
+    sort
 }
 
 # assert_absent <label> <extended-regex>
@@ -199,8 +199,8 @@ fi
 # than the spoke it delegates to pays that cost on every dispatch. This pins the
 # direction, not a byte count.
 # ---------------------------------------------------------------------------
-hub_words="$(wc -w < "$PLUGIN_ROOT/skills/research/SKILL.md" | tr -d ' ')"
-spoke_words="$(wc -w < "$PLUGIN_ROOT/skills/research/context/discipline.md" | tr -d ' ')"
+hub_words="$(wc -w <"$PLUGIN_ROOT/skills/research/SKILL.md" | tr -d ' ')"
+spoke_words="$(wc -w <"$PLUGIN_ROOT/skills/research/context/discipline.md" | tr -d ' ')"
 if [[ "$hub_words" -lt "$spoke_words" ]]; then
   pass "research/SKILL.md ($hub_words words) is smaller than context/discipline.md ($spoke_words words)"
 else
@@ -236,10 +236,49 @@ assert_absent 'no agent restates the write boundary as a closed two-destination 
   'exactly two permitted destinations'
 assert_absent 'no agent restates the write boundary as a single destination' \
   'write destination is exactly one place'
-for agent in explorer researcher; do
+for agent in explorer researcher intent-tracer; do
   assert_present "agents/$agent.md defers to the single write boundary" \
     "agents/$agent.md" 'single write boundary'
 done
+
+# ---------------------------------------------------------------------------
+# 11. Matching token is file-identity, not preload proof (#2895)
+#
+# The #2374 fallback Reads SKILL.md, so a recovered agent can echo the same
+# token a preloaded agent would. Embedding the token in the agent definition
+# made that worse: the agent could echo it without seeing the skill at all.
+# Provenance is the structured `preload:` field.
+# ---------------------------------------------------------------------------
+if grep -qE 'discovery-research-preload-4c1f9a' "$PLUGIN_ROOT/agents/researcher.md"; then
+  fail 'agents/researcher.md does not embed the discipline-liveness token'
+else
+  pass 'agents/researcher.md does not embed the discipline-liveness token'
+fi
+assert_present 'researcher payload contract carries preload: fired|fallback' \
+  'agents/researcher.md' 'preload: fired'
+assert_present 'research SKILL.md demotes the token to file-identity' \
+  'skills/research/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
+assert_present 'research SKILL.md requires the structured preload field' \
+  'skills/research/SKILL.md' 'preload: fired \| fallback'
+assert_present 'research dispatch contract forbids inferring fired from the token' \
+  'skills/research/context/dispatch.md' 'MUST NOT infer'
+assert_present 'research evals grade matching-token-is-not-preload-proof' \
+  'skills/research/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
+if grep -qE 'discovery-trace-intent-preload-7b3e2d' "$PLUGIN_ROOT/agents/intent-tracer.md"; then
+  fail 'agents/intent-tracer.md does not embed the discipline-liveness token'
+else
+  pass 'agents/intent-tracer.md does not embed the discipline-liveness token'
+fi
+assert_present 'intent-tracer payload contract carries preload: fired|fallback' \
+  'agents/intent-tracer.md' 'preload: fired'
+assert_present 'trace-intent SKILL.md demotes the token to file-identity' \
+  'skills/trace-intent/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
+assert_present 'trace-intent SKILL.md requires the structured preload field' \
+  'skills/trace-intent/SKILL.md' 'preload: fired \| fallback'
+assert_present 'trace-intent dispatch contract forbids inferring fired from the token' \
+  'skills/trace-intent/context/dispatch.md' 'MUST NOT infer'
+assert_present 'trace-intent evals grade matching-token-is-not-preload-proof' \
+  'skills/trace-intent/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

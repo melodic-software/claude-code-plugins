@@ -3,6 +3,67 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.11.1]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.11.0]
+
+### Added
+
+- **`environment-health` detect-only Windows check (#2866).** Eighteenth catalog check.
+  Reads persisted User (`HKCU:\Environment`) and Machine environment values and emits
+  mechanical shapes only: `DISABLE_AUTOUPDATER`, missing PATH directories, duplicate
+  PATH entries, shadowed executables (WARN when the winner is a lower-precedence scope
+  than User), User Path stored as `REG_SZ` rather than `REG_EXPAND_SZ`, User Path
+  length against the 2047-character legacy-editor ceiling (WARN at 1800, CRIT at 2047),
+  and credential-pattern variable **names** (`*_TOKEN`, `*_API_KEY`, `*_SECRET`,
+  `*_PASSWORD`) with scope only. Credential values are never read. Missing-dir
+  and scope checks expand `%VAR%` tokens; `user_path_length` still measures the
+  unexpanded stored string. The check is trend-tracked as `user_path_length` but
+  is not in the generic upward-worsens upgrade list (composite WARN causes).
+  No remediation entry — registry writes remain unauthorized. Rubric:
+  `references/windows/check-catalog.md` § 18.
+
+## [0.10.6]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `audit` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.10.5]
 
 ### Changed

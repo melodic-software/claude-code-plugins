@@ -16,7 +16,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 ## Checks
 
-`check` runs `check-skill.sh` — twenty-two checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh` — twenty-five checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant — the field defaults to the directory).
@@ -44,6 +44,13 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
   reason-less directives fail. Contract: `skills/check/reference/fresh-eyes-declarations.md`.
 - `metadata.summary` within 100 Unicode codepoints — the key is the generated skill cheat
   sheet's row source; the cap keeps rows scannable. An absent key is no finding.
+- Completion-criteria signal (advisory) — a numbered procedure of three or more steps with
+  no observable done-condition token.
+- Explicit invocation mode — marketplace plugin skills must state
+  `disable-model-invocation`; elsewhere a missing key warns.
+- Description/verb-contract polarity (advisory) — the description lead contradicts the
+  Naming verb contract or the body (read-only vs mutate). `--fix` in the listing is the
+  compliant override shape.
 
 `listing-budget` runs `check-listing-budget.sh` — an always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
@@ -108,7 +115,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-one still gate.
+  twenty-four still gate.
 
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -128,12 +135,27 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure skill-quality@<marketplace>`.
-2. **Headless, at install time** — repeat `--config` for each option. Replace
+2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install skill-quality@<marketplace> --config skills_root=<value>
+   claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<value>
    ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value — verified on Claude Code 2.1.240,
+   for a non-sensitive option at `user` scope, by writing a non-default value to an
+   installed plugin and restoring it. The short-circuit message is about the install,
+   not the config write. That has not been verified for a `sensitive` option or for
+   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin.
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -161,8 +183,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

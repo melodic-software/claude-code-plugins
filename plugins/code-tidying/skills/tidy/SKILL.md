@@ -34,7 +34,7 @@ This skill encapsulates the agentic application of three converging ideas:
 **What tidy is NOT** — read carefully, differentiation matters:
 
 - **Not `/simplify`** (Claude Code's bundled skill) — that takes the conversation's recent diff and tightens it. Tidy hunts a lane independent of recent activity.
-- **Not `batch-simplify`** (this plugin's sibling skill) — that processes a time-window or branch diff in waves. Tidy targets a glob-scoped lane and stops when the scope budget is hit.
+- **Not `batch-simplify`** (this plugin's sibling skill) — that sweeps an entire scope in waves: a time-window diff, a branch diff, or the whole repository. Tidy targets a glob-scoped lane and stops when the scope budget is hit. On documentation specifically: batch-simplify owns factual staleness across the whole doc set in one pass; tidy's `docs-prose` lane owns incremental structural prose work under a scope budget.
 - **Not issue-tracker work** — tidy never starts from a filed item; it discovers improvements not yet filed, and files overflow as deferred items.
 - **Not a docs fact-checker** — tidy improves *structure*, not factual accuracy.
 
@@ -108,8 +108,8 @@ Run in order. Each phase has one job. Don't skip phases for "small" tidyings —
 
 Understand before changing. No exceptions for "small" tidyings — workflow discipline is what keeps tidy runs safe.
 
-1. Explore the lane's scope globs: if the `discovery` plugin is installed, invoke `/discovery:explore` on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
-2. Research current best practice for the lane's stack: if the `discovery` plugin is installed, invoke `/discovery:research` using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
+1. Explore the lane's scope globs: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
+2. Research current best practice for the lane's stack: if the `discovery` plugin is installed, invoke `/discovery:research` via the Skill tool using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
 
 ### Phase D — Hunt + prioritize + scope-budget enforce
 
@@ -117,7 +117,7 @@ Understand before changing. No exceptions for "small" tidyings — workflow disc
 2. Hunt: walk the lane's scope globs, looking for instances of the lane's watch-for tidyings. For each candidate, classify: tidying type, file, line range, estimated LOC delta, confidence.
 3. Build a prioritized findings table.
 4. Apply the scope budget (`reference/scope-budget.md`): target ≤200 LOC + ≤8 files; hard cap ≤400 LOC + ≤15 files. Take the highest-priority subset that fits.
-5. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: via `/work-items:track add` when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead — dry-run never files tracker items or causes any other external side effect.**
+5. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead — dry-run never files tracker items or causes any other external side effect.**
 
 If the hunt finds zero applicable improvements after thorough exploration: clean exit, NO PR. Do not produce empty-PR churn.
 
@@ -144,7 +144,7 @@ Self-review by the producing context is enough here — a fresh-context verifier
 
 Never call `git commit` or `gh pr create` directly — Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
 
-If the `source-control` plugin is installed, invoke `/source-control:pull-request create`. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content — the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content — the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
 
 Title:
 
@@ -187,7 +187,7 @@ Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot
 
 Three exclusion tiers gate every lane. The full lists live in `reference/exclusions.md` — read it at the start of every run; the summary below is orientation only.
 
-1. **GLOBAL HARD EXCLUSIONS** — paths NEVER touched, regardless of lane: agent/CI/hook configuration surfaces (`.claude/settings*`, `.claude/agents/**`, `.claude/hooks/**`, `.claude/rules/**`, `.github/workflows/**`, git-hook manager config, `.mcp.json`, lint configs like `.editorconfig`) plus every path the consuming project's own rules declare protected (build/analyzer infrastructure, solution/workspace files, architecture-test suites, bootstrap scripts are typical).
+1. **GLOBAL HARD EXCLUSIONS** — paths NEVER touched, regardless of lane: agent/CI/hook configuration surfaces (`.claude/**` in full, any script wired as a hook command in `.claude/settings.json` or `.claude/settings.local.json` wherever it lives, `.github/workflows/**`, git-hook manager config, `.mcp.json`, lint configs like `.editorconfig`) plus every path the consuming project's own rules declare protected (build/analyzer infrastructure, solution/workspace files, architecture-test suites, bootstrap scripts are typical).
 2. **GLOBAL SOFT EXCLUSIONS** — areas where edits are technically allowed but an autonomous run cannot verify safely (browser-rendered UI, interactive auth flows, DB migrations against real instances, IDE-only flows, and any areas the consuming project marks as unverifiable). Routed to the deferred-items list during Phase D unless an interactive user explicitly overrides.
 3. **SELF-UPDATE EXTRA HARD** — additional restrictions when `<lane>=self-update`. Protects the skill's contract surface: frontmatter, the Action Router / Workflow / Lane-catalog sections, lane-file `## Scope` / `## Watch-for patterns` / `## Lane-specific extra exclusions` blocks, and `reference/scope-budget.md` numeric values (research-derived).
 

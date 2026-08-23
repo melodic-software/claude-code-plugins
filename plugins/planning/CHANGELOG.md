@@ -3,6 +3,283 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.3]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 1).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  The `use_emoji_question_markers` option description no longer carries one, so a later
+  generator rewrite will not put it back. `tests/interview-defenses.test.sh` pins were
+  retargeted onto the rewritten defense lines and step headings; the defenses themselves
+  are unchanged.
+
+## [0.34.2]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.34.1]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.34.0]
+
+### Added
+
+- **The two behavioral defenses licensing `interview`'s synthesize-directly paths now have a gate
+  behind them (#2997).** The course lane 4 audit graded `lock` and auto-detect as a LICENSED
+  exception to the asset-rush failure mode, resting on four structural defenses. Two of them —
+  `lock`'s STOP-on-gap rule and the Step 1.5 auto-guard — were prose with nothing enforcing them,
+  so the audit's "the defenses hold" was a claim, not a check. Two new eval cases pin them, each
+  over a planted fixture rather than a narrated scenario: `lock-halts-on-planted-open-decision`
+  (id 15) locks a brief over a task whose one open decision — the disposition of export artifacts
+  a deleted workspace already produced — has real tradeoffs both ways and, per the shipped survey
+  fixture, no answer anywhere in the codebase; `auto-residue-asked-or-user-reserved-never-assumed`
+  (id 16) is an `auto` invocation whose context closes four decisions outright and leaves exactly
+  one interactive design choice, and it accepts EITHER licensed outcome — the residue asked as a
+  one-question round, or, when the caller declared the run unattended, recorded `blocked` with
+  `arbiter: USER-RESERVED` — while rejecting the silent capture as an assumption. Both fixtures
+  state findings only (what the user said, what the survey searched, what it found and did not) and
+  never label an item a fact or a decision — that sorting is what the case grades, so it cannot be
+  read off the input. Fixtures live in `skills/interview/evals/fixtures/`. The three older narrative
+  cases over the same rules — `auto-guard-never-folds-user-choice` (2),
+  `lock-mode-does-not-fudge-gap` (3), `unattended-run-emits-named-blockers-not-assumptions` (13) —
+  are KEPT, not superseded: they state each rule in the abstract with no fixtures, the cheap surface
+  a reader scans. The coverage is deliberately doubled, and all five cases are gated — a sibling
+  advertised as kept coverage that has been rewritten to say the opposite is worse than no sibling.
+  Cases 1, 8, and 12 are gated for the same reason one step removed: they rest on the fact-vs-
+  decision line the auto-guard draws, or on the no-silent-resolution rule.
+- **`tests/interview-defenses.test.sh` makes those cases bite (#2997).** The marketplace has no
+  model-graded eval runner, so an `evals.json` case is a rubric a human reads, not a gate CI runs.
+  The new tripwire suite is the gate: it pins both cases — including that case A still invokes
+  `lock`, that case B still routes through `auto`, and that each still carries its defense as a
+  CHECKABLE expectation rather than only as rubric prose — plus the load-bearing rule text in
+  `SKILL.md` and `context/loop.md` those cases grade against. It gates in three layers, each closing
+  an attack the one inside it is blind to. **Phrase pins** anchored on the clause carrying each
+  rule's meaning (several structural — the auto-guard must sit inside Step 1.5, the router's
+  STOP-on-gap clause inside the Action Router) catch deletion and rewording, and name which clause
+  went. **Byte-exact whole-line pins** catch a clause NEUTRALIZED IN PLACE — an `**Exception:**`
+  appended to the auto-guard licensing `### Captured assumptions`, or a sentence after the `lock`
+  routing line redefining a "real" gap as one that blocks the Brief entirely — which leaves every
+  pinned phrase intact and inverts the rule. **Digests** over thirteen sections, the whole YAML
+  frontmatter, the eight cases that speak to these rules, the case roster, and the four fixtures
+  catch what is added BESIDE a pinned line rather than to it. Fourteen such shapes were demonstrated
+  passing an earlier revision at FAIL=0, each closed by the layer added in response: an adjacent
+  paragraph qualifying both rules; the same paragraph in a neighbouring section; the same shifted
+  one line up into Step 1 where it reads as their preamble; a governing preamble in the
+  interview-loop intro three lines above that; a qualifier in the frontmatter `description`; a
+  qualifier in a different frontmatter key (`metadata.summary`), short enough to clear the
+  cheatsheet's cap, which pinning `description` alone did not reach; an append-only inversion of a
+  defense line carrying only a phrase pin, in a section no digest covered; a criterion added to a
+  case contradicting one already pinned; a sibling case added; an existing sibling rewritten in
+  place, keeping its name and so the roster hash; a non-pinned case that nonetheless rests on the
+  fact-vs-decision line rewritten in place; a rewritten fixture answering case A's planted gap from
+  the codebase so the case grades nothing; a crafted heading that moved a digested region's own
+  boundary; and an append-only inversion of `context/loop.md`'s twin of a byte-pinned `SKILL.md`
+  line, leaving the pinned original standing. Every line the suite phrase-pins as a defense, and
+  every loop.md twin of a byte-pinned line, now sits inside a digested region — an unpinned twin or
+  a phrase pin without an enclosing digest is append-invertible, and that is the invariant to
+  preserve when adding one. What is still NOT gated, stated so nobody reads more into a green run than is
+  there: prose outside the digested regions — among them `SKILL.md`'s Purpose, Emit checklist,
+  Step 2 and Step 5, the undigested parts of `context/loop.md`, `context/gotchas.md`,
+  `templates/checklist.md`, the plugin README; an in-place rewrite of one of this file's other eval
+  cases; and anything semantic. The distance a qualifier needs is not large — one demonstrated
+  escape was a single paragraph abutting a digest boundary. The gate proves the rule text and the
+  case inputs are intact; it cannot prove the skill obeys them, which needs a model-graded runner
+  the marketplace does not have. Rewording, extending, or qualifying a pinned line is EXPECTED to
+  fail, a typo fix included, and so is any edit inside a digested region — re-read the defense,
+  confirm it still holds, then update the skill body and the suite in one change.
+
+## [0.33.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).**
+  `design`'s early-exit proceed, its two glossary invocations, the `handoff` action, and the
+  handoff-gate delegation; all three of `design-handoff`'s FAIL routes back to `/planning:design`
+  (the untagged-thread gate, the no-design-evidence branch, and the missing-rationale gotcha) and
+  its hand-off to `/planning:plan`;
+  `devils-advocate`'s incumbent exploration (both sites), its two research routes, and the
+  high-risk research bullet; `interview`'s glossary invocation, its blindspot route, and
+  `context/loop.md`'s domain check; `plan`'s Karpathy checklist, the measurable-goal baseline
+  route, the stress-test dispatch, the targeted-research step, the `/tdd:principles` directive in
+  the Plan-structure test-strategy bullet (whose twin in `context/plan-template.md` was rewritten
+  while this one was missed), `context/plan-template.md`'s
+  test-strategy note, `context/research-iterate.md`'s research and re-assess steps, and
+  `context/tag-decisions.md`'s reversibility escalation and contested-cluster route; `wayfind`'s
+  no-fog bail-out — attached to `/planning:interview` alone, since the other two arms of that
+  three-way route are `/work-items` (a plugin name, not an invocable skill; lines 2, 184 and 195
+  have always used it that way) and "small enough to just do → say so", which invokes nothing.
+  Left as prose on purpose: `brainstorm`'s route-onward step, whose own skill body says
+  "**Does not decide** — user reactions drive selection; the skill recommends";
+  `interview`'s and `prd`'s next-step lists and
+  `devils-advocate`'s "Suggested Next Steps", all of which end in an explicit
+  "Do NOT auto-invoke — recommend; let the user pull the trigger"; `interview`'s
+  `/planning:wayfind` pointer, which says to recommend and never auto-switch; and the
+  `templates/checklist.md` artifacts. Wording only — no gate, threshold, or step order changed.
+
+## [0.33.0]
+
+### Added
+
+- **The interview can stop grilling and go build one (#2998).** Some questions are ungrillable: the
+  user has to see a thing and react to it before they know what they think, and another round of
+  framing will not produce the answer. `interview` now carries that escape. "Mid-interview
+  composition" routes a look-and-feel question to `/prototype:explore-directions` and a
+  logic/state/data-shape question to `/prototype:pressure-test` (invoked via the Skill tool when
+  installed), then returns and answers it in one line; the categorization taxonomy in
+  `context/loop.md` gains a **Needs-an-artifact** arm beside resolvable / blocked / defer, marked
+  explicitly as a route rather than a deferral. The prototype is the instrument that produces the
+  answer, not a deliverable. The detour honors the prototype skills' own model-initiated entry gate:
+  confirm the spike's scope and checkpoint the interview before handing off, which the ask-time
+  register write and the per-lock-in ledger/Brief persistence already supply. Adopted from the grilling-family upstream at the course lane 5 audit,
+  where both validators grep-confirmed the route existed in our fleet only downstream, in
+  `wayfind` / `plan` / `brainstorm`.
+
+### Changed
+
+- **Leave plan mode off while interviewing (#2998).** New `interview` gotcha covering a mechanical
+  edge beyond upstream's taste point: the ask-time open-question register is a disk write (the
+  ledger's `## Open-question register` section), and plan mode's read-only enforcement blocks it,
+  so a round asked under plan mode leaves nothing on disk holding it — the exact failure the
+  register exists to prevent, reintroduced by the permission mode.
+- **`plan`'s plan-mode round is a scoping confirm, not a substitute for the interview (#2998).**
+  "Plan Mode Integration" previously licensed open-ended clarifying questions inside plan mode,
+  which sat in tension with lane 4's asset-rush doctrine. That round is now scoped to what the plan
+  covers, and substantive *what are we building* questions route to `/planning:interview` outside
+  plan mode — on the register-write mechanics above and on the doctrine that plan mode primes the
+  run toward producing the asset while the job is still reaching shared understanding. Exiting is
+  the user's move, stated symmetrically to how the section already handles entering: the skill
+  toggles no permission mode, so it asks the user to exit (`shift+tab`) and invokes the interview
+  once they have.
+
+## [0.32.0]
+
+### Added
+
+- **`plan` names its test boundaries (#2936).** The Test strategy element — and its template
+  placeholder — now asks for the public interfaces the tests will drive, each marked existing or
+  newly introduced, with a preference for driving an existing interface over introducing one for
+  testability alone. Naming them is what lets the Step 5 approval settle them, so implementation
+  writes no test against a boundary the plan never named. Upstream's version of this is a hard
+  consent gate ("no test is written at an unconfirmed seam"); it is softened deliberately, because
+  an unattended run cannot obtain confirmation — there, a boundary implementation picks that the
+  plan did not name is a deviation logged for PR-time review (`DEVIATIONS.md` beside `PLAN.md`),
+  not a blocking stop. Two placements were rejected on validation: the word `seam` (fleet-registered
+  vocabulary in `docs/conventions/seam-phrasing/`, with a second controlled-vocabulary sense in
+  `architecture:improve` that forbids substitution) and `implementation:phase-verifier` (it grades
+  binary criteria against a final diff and is told to refuse to guess its inputs — a
+  stated-before-the-first-test ordering claim is not observable there).
+
+## [0.31.0]
+
+### Changed
+
+- **`questionnaire` is model-invoked (#2969).** Course lane 8's fleet grade found it was the one
+  `disable-model-invocation: true` skill matching none of the rubric's three exception classes: it
+  has no side effects beyond writing a Markdown document, is not a setup skill, and is not
+  maintainer-only. The flip was gated on re-checking for a latent rationale the grade could not see
+  — a trigger collision with `interview` — and there is none: the two are separated by who holds
+  the knowledge, and each description already routes to the other on that axis. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+- **`questionnaire` gains real trigger phrases.** 0.30.1 deliberately left them unoptimized because
+  a hidden skill's description is never matched against user text. Now that it is model-invoked,
+  the description carries phrases a user would actually type ("I don't know, that's the client's
+  call", "send this to someone else to answer", "write up questions for our security team") beside
+  the ones it already had. Every phrase already present is preserved verbatim.
+
+## [0.30.7]
+
+### Added
+
+- **`plan` close-out: spec-container ship ritual (#2934).** Close-out gains a
+  presence-gated step 4: when the `work-items` plugin is installed and the
+  topic's decomposition published a spec container, route the container's
+  close-at-ship ritual through `/work-items:decompose` "Container lifecycle"
+  (that path owns the mechanics; close-out only sequences it). Partial ships
+  leave the container open; no container or no plugin skips silently.
+
+### Changed
+
+- **`wayfind`: container label resolved from the seam's binding key, not hardcoded
+  (#2934 review).** The map marker previously appeared as a literal `work-map` in the
+  bootstrap check, the create command, the open-maps pre-compute, and prose. Now that
+  `config.container_label` is a live per-repo remap in the work-item tracker seam, a
+  hardcoded literal would strand wayfind maps on the old string after a remap — no longer
+  matching the seam's frontier exclusion, so `/work-items:work-loop` would surface a map
+  as a claimable item. `tracker-mechanics.md` gains a resolve-once snippet (same key,
+  shipped default `work-map` when no binding/key/jq) that also repeats the seam's type rule
+  on wayfind's own read path — a present non-string value is a configuration error that
+  stops the create, never a silent fallback (wayfind never routes through the seam's
+  loader, so it cannot assume that validation ran); the create/bootstrap snippets use
+  `"$CONTAINER_LABEL"`; the `SKILL.md` pre-compute resolves the label inline with a
+  string-typed read (non-string or empty → default; display-only, fail-soft).
+
+## [0.30.6]
+
+### Changed
+
+- **`wayfind`: refer-by-name narration and out-of-scope ledger semantics.** Human-facing
+  reports name items by title (number as a link or suffix). Out-of-scope is for scope, not
+  sharpness; a wrongly scoped item closes with an Out-of-scope line and does not enter
+  Decisions-so-far. C20 map-as-index was already present (#2939).
+- **`wayfind`: graduate recipe qualifies wrongly scoped closes.** Tracker mechanics and
+  map-anatomy invariant 2: in-scope stays comment → Decisions-so-far → close; wrongly
+  scoped uses one Out-of-scope line and `gh issue close --reason "not planned"` (#2939).
+
+## [0.30.5]
+
+### Added
+
+- **`draft-goal-condition` ships evals covering Step 0 routing** — multi-window /
+  multi-ticket work routes to `/work-items`, interval-driven work still routes to
+  `/loop`, and a single-window measurable intent still proceeds to draft (#2938).
+
+### Changed
+
+- **`draft-goal-condition` Step 0** routes multi-window / multi-ticket work to
+  `/work-items` — already-decomposed backlogs to `/work-items:work` (or the
+  work-loop), undecomposed plans to `/work-items:decompose` then work — instead
+  of `/goal`. When `work-items` is not installed, advise installing it (or draft
+  only if the user insists on one-session completion). Advisory default;
+  single-session drafting is unchanged (#2938).
+
+## [0.30.4]
+
+### Changed
+
+- `check-open-questions.sh` drops a comment that restated the adjacent
+  field-count check and its error message (comment-only; no behavior change).
+
 ## [0.30.3]
 
 ### Changed

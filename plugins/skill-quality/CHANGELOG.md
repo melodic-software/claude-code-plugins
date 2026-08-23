@@ -3,6 +3,205 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.19.0]
+
+### Added
+
+- **`check`: Check 2b — description field cap (1024; WARN; #3119).** The gate
+  carried one description limit, `DESC_CHAR_CAP=1536`, and treated it as the only
+  one. That value is Claude Code's in-context listing truncation for the assembled
+  entry (`description` + `" - "` + `when_to_use`). The Agent Skills spec states a
+  separate, smaller maximum for the `description` **field alone**: "Must be
+  non-empty / Maximum 1024 characters / Cannot contain XML tags"
+  (platform.claude.com Agent Skills overview, fetched 2026-08-23). Two limits at
+  two layers, and only the looser one was checked — so a description could sit
+  under 1536 combined, breach 1024 on its own, and pass clean. Nineteen skills in
+  this marketplace did (lower bound; measured with an independent extractor that
+  reads slightly short of the gate's own).
+
+  Check 2b reports the field breach separately from check 2, with its own message.
+
+  Counted in **codepoints**, not bytes — the spec says "Maximum 1024 characters",
+  and `${#var}` degrades to byte counting under a byte-oriented locale, so 600
+  `é` characters report as 1200 under `LC_ALL=C` and a valid multilingual
+  description would false-warn. Uses the same UTF-8 → UTF-32BE `iconv` form as
+  check 22, with the same UTF-8-locale fallback where `iconv` is absent.
+  `DESC_LEN` stays a byte count for check 2, whose 1536 listing cap is a separate
+  measure. Caught in review by the Codex reviewer on this PR.
+
+  **WARN, not FAIL, on measured evidence.** No local validator enforces the field
+  maximum: `claude plugin validate --strict` (Claude Code 2.1.241) passes a
+  1248-char description clean — verified against a throwaway fixture plugin on
+  2026-08-23, the only warning raised being an unrelated missing `author`. The
+  breach is latent for filesystem and plugin skills, and hard only for a skill
+  uploaded through the Skills API. Failing the build on it would block a fleet
+  over a limit nothing in the local toolchain applies.
+
+  Numbered `2b` rather than `26`: it is the same concern as check 2 at a second
+  layer, and renumbering would break the identity of checks 3–25, which are cited
+  by number across this repo and in tracker items. The plugin's "twenty-five
+  deterministic checks" claim is left standing on that reading.
+
+## [0.18.1]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.18.0]
+
+### Added
+
+- **`check`: Check 25 — description/verb-contract polarity (WARN; advisory; #2896).**
+  Flags a listing-surface mismatch between what the description (lead clause,
+  before `Use when:`) says and what the Naming verb contract or the body does:
+  a report-only leaf (`audit`/`scan`) whose lead advertises mutation without an
+  explicit override, a mutate leaf (`clean`/`tidy`/`fix`) whose lead claims
+  read-only/report-only, a read-only lead whose body mutates on bare invocation,
+  or a mutate-advertising lead whose body claims the skill never mutates.
+  Override language (`--fix`, explicit override, never on bare) anywhere in the
+  listing is the compliant `claude-config:audit [--fix]` shape and clears a
+  report-only verb. "Read-only by default" is a default-then-override shape, not
+  a never-mutates claim; "remediation" as a noun and a negated "or rewrites"
+  list are not mutate-advertising. Trigger phrases stay out of polarity.
+  Advisory only — out of scope: whether any `audit` skill should gain a `--fix`
+  path, and any rename. Negated mutate verbs (`never rewrites the files`) and a
+  scoped `does not modify X` next to a mutate advertisement do not fire.
+  Twelve contract tests plus an eval case.
+
+## [0.17.4]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** `check-skill` and
+  `check-listing-budget` suites already unset the discovery variables; they
+  now also unset `GIT_CONFIG`. Test-only; no skill behavior change.
+
+## [0.17.3]
+
+### Changed
+
+- **`setup`: the post-reconfiguration verification names the Skill tool (#3002).** "verify with
+  `/skill-quality:check`" became "verify by invoking `/skill-quality:check` via the Skill tool".
+  Wording only.
+
+### Notes
+
+- **No new check for cross-skill phrasing, deliberately (#3002).** The sweep considered a
+  criterion enforcing the rubric's cross-skill phrasing rule and declined it: a static scan
+  cannot separate an operative chain from a mention, and the separation is the whole rule.
+  Measured on the post-sweep tree, 1,635 body lines fleet-wide carry a backticked
+  `/plugin:skill` token and 189 of them are operative chains — 88.4% false positives for any
+  criterion keyed on the token. Both figures are regenerable; the rubric records the exact two
+  `grep` commands beside them. The reasoning lives in
+  `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"); check 24 is
+  unchanged.
+
+## [0.17.2]
+
+### Changed
+
+- **`check-skill` replays a failed script test's output instead of discarding it.** Check 7 ran each
+  `scripts/*.test.sh` with stdout and stderr sent to `/dev/null` and reported only
+  `script test failed: <name>`. That is undiagnosable wherever the failure cannot be reproduced by
+  hand — a gate whose one CI-visible signal is its own name sends the reader guessing at
+  environment differences instead of reading the case that broke. Found the hard way: a generator
+  test that passed locally under a fresh clone, the PR merge result, a minimal environment, four
+  working directories, and with and without the optional lint tools, while failing only in CI. With
+  the output replayed, the cause was one line — an older ShellCheck rejecting `--rcfile` and exiting
+  3 ("invoked with bad syntax"), which the test was reading as a lint failure. Success stays silent:
+  the reason to suppress was log noise, and that reason does not apply to the run that just went red.
+
+## [0.17.1]
+
+### Fixed
+
+- **`check`: Check 21 no longer silently passes under mawk (#3005).** The fresh-eyes scanner's
+  embedded awk program used ERE interval expressions, two of them immediately followed by a group
+  (`^ {0,3}(...)`). mawk 1.3.4 panics on that construct — `REcompile() - panic: values still on
+  machine stack` — and dies before emitting a single record, so on a stock Debian/Ubuntu box every
+  malformed `fresh-eyes-exempt` directive PASSed and the whole check reported a clean run over a
+  file it never scanned. mawk 1.3.3, which does not implement intervals at all, degrades the same
+  way for the same regexes by matching the braces as literal text. The scanner is now written
+  interval-free throughout — the three-space indent cap as three optional spaces, the ordered-marker
+  digit cap as one digit plus eight optional ones — preserving the exact CommonMark bounds it
+  already enforced. This is the portability shape Check 23 was written to in `#2963`; gawk behavior
+  is unchanged, and `check-skill.test.sh` gains 21 passing assertions on mawk with no regressions.
+  A source-level guard assertion now fails the suite if an interval returns to any awk-consumed
+  regex — the embedded programs' regex literals and the judge regex passed with `-v` — in `{n}`,
+  `{n,}` or `{n,m}` form, since mawk panics on an exact-count interval before a group exactly as it
+  does on a bounded one. It is scoped to awk rather than the whole file because Bash's own `[[ =~ ]]`
+  regexes may use intervals freely, and it is deliberately source-level rather than behavioral
+  because a gawk CI runner cannot observe this class of break any other way.
+
+## [0.17.0]
+
+### Added
+
+- **`check`: Check 24 — explicit invocation mode (#2968).** Every skill states
+  `disable-model-invocation` explicitly. A marketplace plugin skill (`plugins/*/skills/*`) that
+  omits the key FAILs; anywhere else it WARNs, since the absent-key default is already `false` and
+  a consumer skill should be informed by this fleet convention rather than broken by it. A
+  non-boolean value FAILs everywhere. Class attribution stays hand-verified against
+  `docs/conventions/invocation-mode/README.md`: only a `setup` skill's `true` is decidable by a
+  static scan (class (ii), setup contract), so every other `true` emits a note rather than a
+  warning no scan could clear.
+
+## [0.16.0]
+
+### Added
+
+- **`check`: Check 23 — completion-criteria signal (WARN; advisory heuristic; #2963).** Flags a
+  numbered procedure of three or more steps (outside fenced code blocks) whose text carries no
+  completion-criteria signal token — the premature-completion shape where a step is markable
+  done at the first plausible output. Detects only the absence of any done-condition, never
+  grades a stated criterion; broad token set, so only genuinely signal-free procedures fire.
+  Fence-aware for both CommonMark fence forms with matching-marker close semantics;
+  independent lists split at a numbering restart across a blank line (loose ascending lists
+  stay one block). Seven test cases: signal-free warns, done-condition silent, both fence
+  forms ignored, mixed fence markers stay masked, adjacent short lists split, loose list
+  still warns.
+  The audit-side half of the course lane 7 completion-criteria adoption — the write-side
+  doctrine is `docs-hygiene:write-for-agents` 0.17.0 (#2962), and the check's SKILL.md gotcha
+  entry points authors there via the Skill tool.
+
+## [0.15.13]
+
+### Added
+
+- **`check`: cross-skill invocation doctrine (#2940).** Documents one-skill-per-call and the
+  invocation-reach invariant (do not Skill-tool-invoke `disable-model-invocation: true`
+  targets — tell the user to run `/plugin:skill`). Standing automated check deferred; eval
+  coverage extended.
+
 ## [0.15.12]
 
 ### Changed

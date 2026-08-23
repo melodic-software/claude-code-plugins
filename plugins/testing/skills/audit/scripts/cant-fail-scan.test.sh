@@ -4,6 +4,10 @@
 # each is consumed by a grader (check-orphaned-fixtures.sh's contract).
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCAN="$SCRIPT_DIR/cant-fail-scan.sh"
 FIX="$SCRIPT_DIR/../evals/fixtures"
@@ -35,6 +39,17 @@ assert_not_contains() {
     *"$3"*) fail "$1" "expected output NOT to contain: $3" ;;
     *) pass "$1" ;;
   esac
+}
+assert_matches() {
+  # assert_matches <name> <haystack> <ERE>. Use this wherever the assertion is
+  # about the SHAPE of a field's value: a substring check on a prefix of that
+  # value passes for every malformed value sharing the prefix, which is the
+  # can't-fail shape this scanner exists to find.
+  if printf '%s\n' "$2" | LC_ALL=C grep -qE "$3"; then
+    pass "$1"
+  else
+    fail "$1" "expected output to match ERE: $3"
+  fi
 }
 count_lines() { printf '%s\n' "$1" | grep -c "$2"; }
 
@@ -140,7 +155,14 @@ out="$(CANT_FAIL_SCAN_ROOT="$REPO" bash "$SCAN" --findings 2>/dev/null)" || rc=$
 assert_exit "--findings completes in a git repo" 0 "$rc"
 assert_contains "frontmatter declares the findings type" "$out" "type: review-findings"
 assert_contains "branch frontmatter is the checked-out branch, verbatim" "$out" "branch: findings-branch"
-assert_contains "date frontmatter is present" "$out" "date: 20"
+# The `date:` value is a contract SHAPE, not a presence flag. `date: 20` also
+# matches `date: 2026-08-21T13-36-00Z` — a hyphenated time that is ISO-8601 in
+# neither the extended nor the basic profile — so it is the same assertion that
+# pinned ai-slop's emitter bug instead of catching it (#3097). Anchoring the
+# full extended form with an explicit `Z` makes a format-string regression in
+# the emitter fail here.
+assert_matches "date frontmatter is ISO-8601 extended UTC (YYYY-MM-DDThh:mm:ssZ)" "$out" \
+  '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 assert_not_contains "tier: is omitted (no lifecycle-tier analogue)" "$out" "tier:"
 assert_contains "table header matches the consumed shape" "$out" "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |"
 assert_contains "row carries tier and confidence" "$out" "| IMPORTANT | high |"

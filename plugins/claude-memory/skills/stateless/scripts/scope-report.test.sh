@@ -32,7 +32,7 @@ assert_contains() {
 
 # Fixture git repos must never inherit an outer hook chain's exported git env.
 make_repo() {
-  unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR
+  unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
   mkdir -p "$1"
   (cd "$1" && git init -q && git config user.email "test@example.com" && git config user.name "test" && git commit -q --allow-empty -m init)
 }

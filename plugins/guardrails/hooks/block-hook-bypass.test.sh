@@ -613,6 +613,320 @@ run_pwsh "PS: & \$w positional Path+Value (blocked)" \
   "& \$w f.txt x" 2
 run_pwsh "PS: pipeline into & \$w path (blocked)" \
   "\$data | & \$w out.txt" 2
+
+# --- #2848: grouping is not a write signal --------------------------------------
+# The computed-target branch above used to gate on a blanket
+# ps::has_special_constructs, so ANY grouping construct anywhere in the command
+# counted as a write signal — and ordinary PowerShell that resolves an interpreter
+# into a variable and then loops was reported as a "file-write cmdlet bypass" for
+# a command that writes no file. Grouping is out; the shapes that gate actually
+# needed to carry are named directly and pinned individually below.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
+  '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
+# The previously unpinned single-factor allowance: grouping with a LITERAL target.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
+  "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
+# Fail-OPEN guard rails: every write signal must still fire with the same grouping
+# present. These four are the #2722 block-side pins re-run inside a `foreach`.
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + & \$w -Value (still blocked — #2848)" \
+  "foreach (\$x in @('a')) { & \$w -Path f.txt -Value \$x }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + & \$w > file (still blocked — #2848)" \
+  "foreach (\$x in @('a')) { & \$w > f.txt }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + & \$w positional Path+Value (still blocked — #2848)" \
+  "foreach (\$x in @('a')) { & \$w f.txt \$x }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + pipeline into & \$w path (still blocked — #2848)" \
+  "foreach (\$x in @('a')) { \$x | & \$w out.txt }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + subexpression writer target (still blocked — #2848)" \
+  "foreach (\$x in @('a')) { & ('Set-'+'Content') f.txt \$x }" 2
+# ISOLATING pin for the subexpression arm: ONE positional, no grouping, no
+# redirect, no -Value, and the writer name is split across two quoted fragments
+# so the quote-blanked cmdlet scan below cannot see it either. Every other probe
+# in this branch is therefore silent, and only ps::call_target_is_bare_subexpression
+# can carry this row. Without it the row above passes on the positional signal and
+# the new arm would be untested.
+# shellcheck disable=SC2016
+run_pwsh "PS: subexpression writer target, single positional (blocked — isolates the arm, #2848)" \
+  "& ('Set-'+'Content') f.txt" 2
+# A NESTED computed call inside a script block. The outer target's first token is
+# a flag, so the outer site contributes zero positionals; only measuring EVERY
+# `& \$var` site in the command reaches the inner write (#2848). While the gate
+# was a blanket ps::has_special_constructs the script block alone carried this,
+# which is why the first-site-only measurement was invisible.
+# shellcheck disable=SC2016
+run_pwsh "PS: nested computed write inside a script block (blocked — #2848)" \
+  "& \$ic -ScriptBlock { & \$w f.txt \$x }" 2
+# The three shapes that replaced the blanket grouping test, each pinned on its own
+# so a later pass cannot drop one silently. The SPLAT rows matter most: `& $w @p`
+# supplies -Path/-Value from a hashtable none of the probes above can see. Before
+# #2848 it was caught only by accident, and only when the hashtable literal sat in
+# the same command; naming it closes the pre-built-`$p` form too, so replacing the
+# grouping test is not a net loosening of this branch.
+# shellcheck disable=SC2016
+run_pwsh "PS: splat into a computed writer, hashtable literal inline (blocked)" \
+  "\$p = @{Path='f.txt';Value='x'}; & \$w @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: splat into a computed writer, hashtable built earlier (blocked — #2848)" \
+  "& \$w @p" 2
+# The splat is scoped to its OWN call's operands, not matched anywhere in the
+# command (#2848 review). A whole-command `@name` scan made an unrelated splat
+# the write signal for a call it has nothing to do with — the same
+# signal-detected-anywhere over-block this issue closes, one shape narrower.
+# Both rows are the reviewers' verbatim reproductions; the second is the control
+# they paired it with, allowed before and after, which is what makes the first
+# row's block attributable to the splat scope rather than to the call itself.
+# shellcheck disable=SC2016
+run_pwsh "PS: unrelated splat in an earlier statement (allowed — #2848 review)" \
+  'Write-Output @args; & $py script.py' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: same command without the splat (allowed — control for the row above)" \
+  'Write-Output; & $py script.py' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: unrelated Copy-Item splat beside a computed call (allowed — #2848 review)" \
+  'Copy-Item @copyParams; & $tool status' 0
+# The scoped probe deliberately does NOT stop at the first dash-flag the way its
+# positional sibling does: a splat supplies parameters wherever it sits, so this
+# row is the same write hypothesis as `& $w @p` and must keep blocking. It is the
+# one place the two probes diverge, so it is pinned on its own.
+# shellcheck disable=SC2016
+run_pwsh "PS: splat after a flag on the same computed call (blocked — #2848 review)" \
+  "& \$w -Encoding utf8 @p" 2
+# A splat reached only by measuring EVERY call site: the outer target's operands
+# hold no splat, the nested one's do.
+# shellcheck disable=SC2016
+run_pwsh "PS: splat on a nested computed call inside a script block (blocked — #2848 review)" \
+  "& \$ic -ScriptBlock { & \$w @p }" 2
+# ...and the converse: a splat inside a script block operand is NOT claimed by the
+# enclosing call. Only the nested call site owns it, and there is no nested call
+# here, so nothing writes. This is what keeps the per-call-site scoping honest in
+# both directions rather than trading one over-block for another.
+# shellcheck disable=SC2016
+run_pwsh "PS: splat inside a script block with no nested computed call (allowed — #2848 review)" \
+  "& \$tool -ScriptBlock { Write-Output @args }" 0
+# BRACED CALL TARGETS. `${env:w}` and `$env:w` are the SAME reference
+# (about_Variables; `${env:t} -eq $env:t` is True), and the gate predicate
+# ps::call_target_is_bare_computed admits both because it only looks for the `$`.
+# When only the bare spelling was recognized by the measuring probes, a braced
+# target entered the computed-target gate and then matched no call site at all —
+# every arm stayed silent and the command fell through ALLOWED, while the
+# identical bare spelling blocked. Each row is paired with its bare twin so the
+# two spellings are pinned to the same verdict and cannot drift apart again.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target, positional Path+Value (blocked — #2848 verifier)" \
+  '& ${env:writer} f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: bare twin of the row above (blocked — same reference)" \
+  "& \$env:writer f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target, splat (blocked — #2848 verifier)" \
+  '& ${env:writer} @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced dot-source target, splat (blocked — #2848 verifier)" \
+  '. ${env:w} @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced script-scope call target (blocked — #2848 verifier)" \
+  '& ${script:w} f.txt x' 2
+# A braced name containing a SPACE — legal PowerShell, and the shape a bare-name
+# character class can never reach, so it isolates the braced alternative.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target whose name contains a space (blocked — #2848 verifier)" \
+  '& ${my writer} f.txt x' 2
+# The braced target must not become a write signal on its own: an ordinary
+# interpreter call spelled with braces stays allowed, exactly like its bare twin.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target, single positional (allowed — #2848 verifier)" \
+  '& ${env:py} script.py' 0
+# ESCAPED CLOSERS inside a braced name. `${my`}writer}` names the variable
+# `my}writer` (about_Variables). The library deletes backticks to recover an
+# obfuscated cmdlet name, which turned that text into `${my}writer}` — genuinely
+# indistinguishable from `${my}` followed by a literal `writer}`, so the braced
+# scanner's `[^}]*` stopped at the injected brace, the whitespace boundary failed,
+# and the call site vanished: both measuring probes returned false and the gate
+# fell through ALLOWED. The escape is now consumed BEFORE the deletion
+# (ps::fold_escaped_brace_closers), and the target token may carry non-space text
+# glued after its closing brace. Blocked pre-0.28.33; these pin the recovery.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped closer in a braced call target, positional Path+Value (blocked — #2908 review)" \
+  '& ${my`}writer} f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped closer in a braced call target, splat (blocked — #2908 review)" \
+  '& ${my`}writer} @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped closer in a braced dot-source target, splat (blocked — #2908 review)" \
+  '. ${my`}writer} @p' 2
+# TWO escaped closers in one name — a single-pass scanner that stops after the
+# first escape would lose the second and re-open the same hole.
+# shellcheck disable=SC2016
+run_pwsh "PS: two escaped closers in one braced name (blocked — #2908 review)" \
+  '& ${my`}w`}x} f.txt x' 2
+# An escaped BACKTICK followed by a REAL closer: the name is `my``, the brace
+# terminates it, and `writer}` is glued to the target token. The escaped backtick
+# must not lend its second backtick to the brace, and the glued text must not make
+# the call site unmatchable.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped backtick then a real closer, glued operand text (blocked — #2908 review)" \
+  '& ${my``}writer} f.txt x' 2
+# The same glue with no escape at all — `& ${env:w}riter` concatenates.
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target with glued trailing text (blocked — #2908 review)" \
+  '& ${env:w}riter f.txt x' 2
+# An escaped OPENING brace needs no special handling: deleting its backtick leaves
+# `${my{writer}`, which `[^}]*` matches and the real closer still terminates.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped opening brace in a braced call target (blocked — #2908 review)" \
+  '& ${my`{writer} f.txt x' 2
+# The allowed side of the escaped-closer shape: consuming the escape must not turn
+# an ordinary one-positional interpreter call into a write signal.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped closer in a braced call target, single positional (allowed — #2908 review)" \
+  '& ${my`}py} script.py' 0
+# DOLLAR-SPELLED SUBEXPRESSION CALL TARGETS. `$( … )` and `( … )` are the same
+# construct — each evaluates an expression into the command name — so they must
+# reach the same verdict. Recognizing only the paren spelling let `& $( … )`
+# ENTER the computed-target gate (ps::call_target_is_bare_computed matches
+# `[.&][[:space:]]*[$(]`, so the `$` admits it) and then match no call site in
+# any measuring probe: both the positional and the splat probe require a `$name`
+# or `${name}` target, and `$(` is neither. Every arm stayed silent and the
+# command fell through ALLOWED, so `& $($w) f.txt x` — a working
+# Set-Content Path+Value — was waved past while `& ($w) f.txt x` blocked
+# (#2924). Same "gate admits, probes cannot see" mechanism as the braced
+# spelling above. Each row is PAIRED with its paren twin so the two spellings
+# are pinned to one verdict and cannot drift apart again.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target, positional Path+Value (blocked — #2924)" \
+  "& \$(\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the row above (blocked — same construct)" \
+  "& (\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target, splat (blocked — #2924)" \
+  "& \$(\$w) @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the splat row above (blocked — same construct)" \
+  "& (\$w) @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() dot-source target (blocked — #2924)" \
+  ". \$(\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the dot-source row above (blocked — same construct)" \
+  ". (\$w) f.txt x" 2
+# No space between the call operator and the subexpression, and extra space —
+# the operator prefix already allows both, so these pin that widening the target
+# token did not disturb it.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target glued to the call operator (blocked — #2924)" \
+  "&\$(\$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target after extra whitespace (blocked — #2924)" \
+  "&   \$(\$w) f.txt x" 2
+# Nested and member-access spellings of the same computed target.
+# shellcheck disable=SC2016
+run_pwsh "PS: nested \$(\$()) call target (blocked — #2924)" \
+  "& \$(\$(\$w)) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target wrapping a call operator (blocked — #2924)" \
+  "& \$(& \$w) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$().Member call target (blocked — #2924)" \
+  "& \$(Get-Command x).Source f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the member row above (blocked — same construct)" \
+  "& (Get-Command x).Source f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target holding a braced reference (blocked — #2924)" \
+  "& \$(\${env:w}) f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target with a scoped variable (blocked — #2924)" \
+  "& \$(\$script:w) f.txt x" 2
+# A SUBEXPRESSION target is refused BY SHAPE — regardless of its operands — so a
+# single-positional interpreter call spelled this way blocks too. That is not the
+# grouping-as-write-signal over-block #2848 removed: #2848 dropped grouping
+# ANYWHERE ELSE in the command as a signal and deliberately KEPT the
+# target-is-subexpression arm, which is why the paren twin below has always
+# blocked and still does. The two spellings agreeing is the invariant; allowing
+# the dollar one would be a new instance of the same defect one construct over.
+# shellcheck disable=SC2016
+run_pwsh "PS: \$() call target, single positional (blocked by shape — #2924)" \
+  "& \$(\$py) script.py" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: paren twin of the row above (blocked by shape, unchanged)" \
+  "& (\$py) script.py" 2
+# The literal-assembly shape the subexpression arm exists for, in both spellings.
+# It is also the tripwire for the escaped `\$` in the predicate: an unescaped
+# `\$?` would expand to the last exit status and silently stop matching the paren
+# spelling, a fail-OPEN on exactly this row.
+# shellcheck disable=SC2016
+run_pwsh "PS: assembled writer name in parens (blocked — pre-existing)" \
+  "& ('Set-'+'Content') f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assembled writer name in a \$() subexpression (blocked — #2924)" \
+  "& \$('Set-'+'Content') f.txt x" 2
+# DECOY BRACES. Scoping a call's operands by truncating at the first `}` assumed
+# no `}` can appear inside the call's OWN operands before a token of interest —
+# false for `${scope:name}`, a `{…}` script block, and a `@{…}` hashtable literal.
+# Each row below is a working write whose real splat sits AFTER such an operand;
+# under a first-`}` truncation the splat was cut away and the command was allowed,
+# a full bypass of this hook. The operand region is bracket-depth aware instead.
+# shellcheck disable=SC2016
+run_pwsh "PS: \${scope:name} operand before a splat (blocked — #2848 review)" \
+  "& \$w \${script:Path} @Body" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: empty script block before a splat (blocked — #2848 review)" \
+  "& \$w {} @Body" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: hashtable literal before a splat (blocked — #2848 review)" \
+  "& \$w @{a=1} @Body" 2
+# The same decoy blinded the POSITIONAL probe, which shares the operand region:
+# `${script:Path}` is one computed operand, `f.txt` and `x` are the Path+Value pair.
+# shellcheck disable=SC2016
+run_pwsh "PS: \${scope:name} operand before positional Path+Value (blocked — #2848 review)" \
+  "& \$w \${script:Path} f.txt x" 2
+# A bracket pair INSIDE a single token (an index) is balanced, so the token stays
+# one operand and is still a visible literal — the Path+Value shape holds.
+# shellcheck disable=SC2016
+run_pwsh "PS: indexed literal path beside a positional (blocked — #2848 review)" \
+  "& \$w logs[0].txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: stop-parsing token after a computed target (blocked)" \
+  "& \$w --% f.txt x" 2
+# The positional signal CLASSIFIES operands rather than merely counting them
+# (#2848): a parenthesized subexpression is one operand however many words it
+# spans, and the two-positional arm fires only when at least one operand is a
+# visible literal. `& $py $script (Join-Path …)` — every operand computed — is
+# the ordinary interpreter-over-computed-paths call the issue de-blocks, with or
+# without the enclosing foreach; `& $py $script out.jsonl` still blocks, because
+# a visible literal beside another positional is exactly the Path+Value shape
+# (`& $w f.txt x`) the #2722 signal exists for. The pins sit together so the
+# next reader can see the line is drawn at a visible-literal operand, not at
+# grouping.
+# shellcheck disable=SC2016
+run_pwsh "PS: bare-computed target, literal beside a positional (blocked — #2722 signal)" \
+  "& \$py \$script out.jsonl" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: bare-computed target, all operands computed (allowed — #2848)" \
+  "& \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
+  "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
+# The concession the visible-literal line makes, pinned so it is deliberate: a
+# writer name, path, AND value all staged into variables inside one command
+# string is a deliberately evasive shape of the same class as the `node -e`
+# writes this hook's scope note already excludes — while a pipeline into the
+# call keeps failing closed on ANY operand, computed or not, because the content
+# demonstrably arrives via `|`.
+# shellcheck disable=SC2016
+run_pwsh "PS: all-variable staged positional call (allowed — outside scope, #2848)" \
+  "& \$w \$path \$value" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: pipeline into & \$w computed operand (still blocked — #2848)" \
+  "\$data | & \$w \$out" 2
+
 # Quoted `>` / `-value` text must not trip the write-signal probes.
 run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
   "& \$tool -Message \"CPU > 90%\"" 0
@@ -640,6 +954,120 @@ run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
   "& { Write-Output secret } > creds.txt" 2
 run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
+
+# --- fd-dup merge must not hide a computed writer's operands (#2927) ---------
+# The `&` inside `2>&1` sits at bracket depth ZERO, and ps::call_site_operand_region
+# ends a call's operand region at a depth-zero `;` `|` `&`. So the region of
+# `& $w 2>&1 f.txt x` was truncated to `" 2>"`, both measuring probes went silent,
+# and a working `Set-Content <path> <value>` — verified as a real write under
+# pwsh — fell through ALLOWED. The strip that already existed for the redirect
+# probe now runs before EVERY probe in the branch, so the remaining `&`
+# characters really are separators. Each row is a shape the truncation hid.
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup before positional Path+Value (blocked — #2927)" \
+  "& \$w 2>&1 f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup before a splat (blocked — #2927)" \
+  "& \$w 2>&1 @p" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup with an env: target (blocked — #2927)" \
+  "& \$env:w 2>&1 f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup on a piped computed call (blocked — #2927)" \
+  "'x' | & \$w 2>&1 f.txt" 2
+# The walk measures EVERY call site, so the fd-dup on a NON-leftmost one is
+# reached too — an earlier bare `& $w` must not consume the scan.
+# shellcheck disable=SC2016
+run_pwsh "PS: fd-dup on a non-leftmost call site (blocked — #2927)" \
+  "& \$w; & \$w2 2>&1 f.txt x" 2
+# The deliberately ACCEPTED behavior change: once the merge is stripped, one
+# literal positional before it and one after it read as the Path+Value pair. That
+# is consistent with `& $py script.py arg`, which already blocked, so the class is
+# narrow — it needs BOTH sides of the merge to carry a positional.
+# shellcheck disable=SC2016
+run_pwsh "PS: positional on each side of an fd-dup (blocked — accepted #2927 change)" \
+  "& \$py a.py 2>&1 b.txt" 2
+# The protective half of the strip, which the fix must not undo: a merge with no
+# operands after it is plumbing, and a tool's own capture-and-redirect is a tool
+# producer, not a content author.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed call with a bare fd-dup (still allowed — #2927)" \
+  "& \$tool 2>&1" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: computed call, flag-first, trailing fd-dup (still allowed — #2927)" \
+  "& \$py -m pip install x 2>&1" 0
+
+# --- call-site boundaries PowerShell's tokenizer honors (#2928) -------------
+# The separator classes were derived from bash character classes rather than from
+# PowerShell's tokenizer, so any spelling PowerShell separates and bash does not
+# made the call site vanish from every measuring probe — a fail-OPEN. Two members
+# were proven with real writes under pwsh; both are pinned here.
+#
+# The Unicode separators are built from BYTE ESCAPES, never pasted as literal
+# characters. A raw U+00A0 in this file is one formatter or `.gitattributes` rule
+# away from becoming a plain space, at which point the row degrades to
+# `& $w f.txt x` — which blocks anyway, so the case would pass while pinning
+# nothing.
+# U+00A0 NO-BREAK SPACE and U+2003 EM SPACE.
+PS_NBSP=$'\xc2\xa0'
+PS_EMSP=$'\xe2\x80\x83'
+# Gap 1: `=` was absent from the separator class, so an assignment with no space
+# before the call operator never entered the gate — while the spaced form did.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a computed writer call (blocked — #2928)" \
+  "\$a=& \$w f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment, spaced contrast (blocked — pre-existing)" \
+  "\$a = & \$w f.txt x" 2
+# The `=` widening has to reach the QUOTED-writer and SUBEXPRESSION-target
+# predicates too, not just the bare-variable one: entry and measurement moving
+# apart is what produced #2922 and #2924.
+run_pwsh "PS: unspaced assignment before a quoted writer name (blocked — #2928)" \
+  "\$a=& 'Set-Content' f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment before a subexpression target (blocked — #2928)" \
+  "\$a=& (\$w) f.txt x" 2
+# Gap 2: PowerShell's tokenizer treats U+00A0 as token-separating whitespace and
+# bash's `[[:space:]]` does not, so the whole call site disappeared. Normalized at
+# intake instead of widened into the classes — under a single-byte locale the two
+# bytes of U+00A0 inside a bracket expression become independent members, and
+# `\xa0` is the second byte of `à`, which would over-block ordinary accented
+# paths.
+# shellcheck disable=SC2016
+run_pwsh "PS: U+00A0 between a computed target and its positionals (blocked — #2928)" \
+  "& \$w${PS_NBSP}f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: U+00A0 before a splat (blocked — #2928)" \
+  "& \$w${PS_NBSP}@p" 2
+# U+2003 is the same defect, not a separate one: the whole measured set of
+# PowerShell-separating Unicode spaces is normalized, so a second member proves
+# the class moved rather than one character.
+# shellcheck disable=SC2016
+run_pwsh "PS: U+2003 between a computed target and its positionals (blocked — #2928)" \
+  "& \$w${PS_EMSP}f.txt x" 2
+# Both gaps at once.
+# shellcheck disable=SC2016
+run_pwsh "PS: unspaced assignment plus U+00A0 (blocked — #2928)" \
+  "\$a=& \$w${PS_NBSP}f.txt x" 2
+# THE OVER-BLOCK GUARD ON THE NORMALIZATION. If the U+00A0 bytes had gone into a
+# character class, `\xa0` would match on its own under a single-byte locale and
+# split an accented literal into two operands — reopening #2848 one shape
+# narrower. These stay allowed.
+# shellcheck disable=SC2016
+run_pwsh "PS: accented single positional after a computed target (allowed — #2928 guard)" \
+  "& \$py café.py" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: accented flag operand after a computed target (allowed — #2928 guard)" \
+  "& \$py -m café" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: accented single positional, writer-shaped target (allowed — #2928 guard)" \
+  "& \$w café.txt" 0
+# U+200B and U+FEFF are deliberately NOT normalized. They measured as ZERO-width
+# under `[System.Management.Automation.Language.Parser]::ParseInput` — the token
+# does not split, so the call target never resolves and there is no write to hide.
+# shellcheck disable=SC2016
+run_pwsh "PS: U+200B does not separate tokens (allowed — #2928 scope)" \
+  "& \$w"$'\xe2\x80\x8b'"f.txt x" 0
 
 # Interpreter-producer writes under the PowerShell tool: PowerShell is not
 # faithfully bash-tokenizable, so this lane follows the SINK DOCTRINE — block on
@@ -1316,5 +1744,123 @@ assert_contains "#2731: scope names other movers residual" "$scopeout" "install,
 nul_rc=0
 bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
 assert_exit "NUL in command (blocked)" 2 "$nul_rc"
+
+# --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
+# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# expressions, neither aware of which style opened first. The single-quote
+# expression matched from the apostrophe inside one double-quoted string to the
+# apostrophe inside the next and DELETED everything between them, so a computed
+# writer call flanked by two ordinary strings was ALLOWED even though the same
+# call blocks on its own. The controls are load-bearing: without them an
+# all-blocked column is equally consistent with a guard that refuses every
+# command containing an apostrophe.
+# shellcheck disable=SC2016
+run_pwsh "PS: computed Set-Content call (control, blocked)" \
+  "& ('set-'+'content') f.txt x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: same call straddled by apostrophe-bearing strings (blocked — #2965)" \
+  "Write-Host \"a'b\"; & ('set-'+'content') f.txt x; Write-Host \"c'd\"" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: natural-prose spelling of the straddle (blocked — #2965)" \
+  "Write-Host \"Kyle's build\"; & ('set-'+'content') f.txt x; Write-Host \"that's all\"" 2
+# A bare-computed writer target with a -Value write signal is the other shape the
+# deletion hid — it reaches write_bypass through a different gate than the
+# subexpression target above, so it is pinned separately.
+# shellcheck disable=SC2016
+run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
+  "Write-Host \"it's\"; & \$w f.txt -Value x; Write-Host \"won't\"" 2
+# The escape cases have a SECOND failure mode that the first cut of this fix
+# shipped and review caught: ending a span AT the backticked quote leaves the
+# string's REAL closer behind as a stray opener, which then pairs with a quote
+# far to the right and deletes the writer call anyway. Both the backtick and the
+# doubled-quote escape therefore delete NOTHING on their line. This spelling
+# reaches write_bypass through `lcq_bt` — the backtick-intact copy built before
+# backticks are stripped from `lcq` — so `ps::blank_quoted_spans` sees the
+# backtick and the backtick-ambiguity branch emits the line verbatim. The
+# doubled-quote arm is not what catches this pinned case.
+# shellcheck disable=SC2016
+run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
+  "\"a\`\"\"; & ('set-'+'content') f.txt x; 'b\"c'" 2
+# A lone EMPTY string is not a doubled quote, so it must still blank normally
+# rather than fall into the delete-nothing branch and start over-blocking.
+# shellcheck disable=SC2016
+run_pwsh "PS: empty string still blanks normally (allowed — #2965)" \
+  "& \$py \$script \"\"" 0
+# Over-block rails. Message text naming a write must stay inert — quote blanking
+# is what makes it inert, and this change makes MORE text visible to every probe.
+run_pwsh "PS: redirect inside message text stays inert (allowed — #2965)" \
+  "Write-Host 'example > out.txt'" 0
+run_pwsh "PS: -Value inside a commit message stays inert (allowed — #2965)" \
+  "git commit -m 'use -Value x'" 0
+run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; Write-Host \"that's all\"" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
+  "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
+
+# --- #2906: quoting an operand is not a free escape from the positional signal --
+# ps::blank_quoted_spans DELETES quoted spans, so the two-positional arm of
+# ps::computed_call_has_positional_write_signal saw `& $w 'f.txt' 'x'` as a
+# zero-operand call. Quoting is the idiomatic Path+Value spelling, not an
+# obscure one. The contained fix keeps those operands present-but-opaque for
+# that probe only; blank_quoted_spans is unchanged, so a quoted `>` / `-value`
+# in message text stays inert for the other arms.
+#
+# The unquoted control is already pinned above (`& $w f.txt x`). Each blocked
+# row here is that same write with quotes on one or both operands. The
+# `#2965` pairing is load-bearing: without it the apostrophe in "it's fine"
+# still ate the call site and these rows could not see the command.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value both operands (blocked — #2906)" \
+  "& \$w 'f.txt' 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted path, bare value (blocked — #2906)" \
+  "& \$w 'f.txt' x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: grouped computed path, quoted value (blocked — #2906)" \
+  "& \$w (Join-Path \$d f.txt) 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted Path+Value flanked by an apostrophe-bearing string (blocked — #2906)" \
+  "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 2
+# Double-quoted operands are expandable (about_Quoting_Rules) but still
+# present. A `$`-free double-quoted pair is two visible literals, same as the
+# unquoted `& $py script.py arg` already blocked by the #2722 signal.
+# shellcheck disable=SC2016
+run_pwsh "PS: unquoted two-positional computed call (blocked — #2722 control for #2906)" \
+  "& \$py script.py arg" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted two-positional computed call (blocked — #2906)" \
+  "& \$py \"script.py\" \"arg\"" 2
+# A SINGLE-quoted `$x` is verbatim, not a variable (about_Quoting_Rules), so
+# both operands are present-but-opaque literals — the Path+Value shape.
+# shellcheck disable=SC2016
+run_pwsh "PS: single-quoted dollar path is a literal (blocked — #2906)" \
+  "& \$w '\$file' 'x'" 2
+# An interpolating double-quoted operand is computed, not a visible literal.
+# `& $w "$p" "$v"` is the quoted twin of the all-variable staged pin above.
+# shellcheck disable=SC2016
+run_pwsh "PS: interpolating path beside a literal (blocked — #2906)" \
+  "& \$w \"\$path\" x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: both operands interpolating (allowed — quoted twin of all-variable, #2906)" \
+  "& \$w \"\$path\" \"\$value\"" 0
+# Interpolating-dash FIRST: only a DOUBLE-quoted token that both starts with
+# `-` and interpolates is a flag, matching the unquoted `-Path$x` stop.
+# A merely dash-prefixed quoted literal is still an argument (about_Parsing:
+# quoted strings are never parameters) and must keep blocking, or a hyphen
+# on the path reopens the #2906 evasion.
+# shellcheck disable=SC2016
+run_pwsh "PS: quoted interpolating dash-flag stops the positional scan (allowed — #2906)" \
+  "& \$w \"-Path\$x\" y" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: single-quoted dash-prefixed path is a literal (blocked — #2906)" \
+  "& \$w '-file.txt' 'x'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted dash-prefixed path is a literal (blocked — #2906)" \
+  "& \$w \"-file.txt\" 'x'" 2
+# Containment: the other write-signal probes still delete quotes, so a quoted
+# `>` or `-value` in message text cannot become a signal. These already exist
+# above; the empty-string #2965 pin (`& $py $script ""`) must also keep
+# passing — an empty span is still deleted, not counted as a literal.
 
 report

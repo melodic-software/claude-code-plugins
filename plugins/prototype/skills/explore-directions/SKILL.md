@@ -1,5 +1,5 @@
 ---
-description: "Builds throwaway UI variations — several radically different visual layouts on one route, switchable from a floating control bar — to answer 'what should this look like' before committing to a design. Use when: 'mock up a UI', 'try a few designs', 'what should this page look like', 'show me options for this dashboard', 'try a different layout for the settings screen', 'prototype this screen', 'explore design options'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup; you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions — use /prototype:pressure-test for those."
+description: "Builds throwaway UI variations — several radically different visual layouts on one route, switchable from a floating control bar — to answer 'what should this look like' before committing to a design. Use when: 'mock up a UI', 'try a few designs', 'what should this page look like', 'show me options for this dashboard', 'try a different layout for the settings screen', 'prototype this screen', 'explore design options'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup (or, where the bundled design skill is available, an editable design-canvas Artifact); you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions — use /prototype:pressure-test for those."
 argument-hint: "[scope] (e.g., /prototype:explore-directions settings page)"
 user-invocable: true
 disable-model-invocation: false
@@ -30,7 +30,7 @@ The shared throwaway rules, the auto-invoke gate, and how to capture the answer 
 [`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md) — read it before you
 start. This file covers only the UI facet.
 
-If the question is about logic/state rather than appearance — wrong facet. Use `/prototype:pressure-test`.
+If the question is about logic/state rather than appearance — wrong facet. Invoke `/prototype:pressure-test` via the Skill tool.
 
 ## When this is the right shape
 
@@ -112,17 +112,9 @@ Constraints:
   `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"` — then writing to
   `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
   calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
-  the file. Carry the temp root in the positional template rather than reaching for a flag:
-  `-p` (which GNU also spells `--tmpdir`) exists in both dialects but means different things. GNU
-  treats the template as
-  relative to that directory and lets the flag beat `TMPDIR`; BSD/macOS consult it only as a
-  fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
-  nothing there and the template resolves against the **current directory**, silently writing into
-  the consumer's repo. GNU also marks `-t` deprecated, and BSD's `-t` takes a prefix rather than a
-  template. An absolute path in the positional template is reinterpreted by neither. The generated
-  `XXXXXX` must also be **trailing** — BSD `mktemp` substitutes only trailing Xs, so
-  `explore-directions-XXXXXX.html` cannot be created at all on macOS — which is why the page takes
-  a fixed name inside the generated directory instead of an extension on the template. On Windows,
+  the file. Carry the temp root in the positional template — the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing** — BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository).
+  That is why the page takes a fixed name inside the generated directory rather than an
+  `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
   a user-scoped temp under
   `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
   so do not delete it — it must still be readable when they open it.
@@ -134,6 +126,42 @@ Constraints:
   rationale — and make it differ from its siblings on that axis as well as structurally. Generic
   steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
   declaration is what produces variety.
+
+### Design-canvas alternative (bundled `design` skill, when available)
+
+When the intent selector lands on the HTML mockup substrate AND the bundled `design` skill
+appears in this session's skill list with a description that is the design canvas (a local
+skill named `design` at any level silently overrides the bundled one — if the listed
+description is something else, treat the canvas as absent), offer the user a choice before
+building — never switch silently; the HTML mockup stays the default:
+
+- **HTML mockup (default)** — the throwaway `file://` page above; nothing persists.
+- **Design canvas** — invoke the bundled `design` skill to draft the variants as artboards on
+  one pan/zoom canvas, published as an Artifact. Name the lifecycle difference in the offer:
+  the canvas is a published, versioned, persistent Artifact — default-private, shareable with
+  teammates at the user's choice — unlike the throwaway local mockup, and losing variants
+  persist on it unless the user deletes or re-seeds the canvas. Hand-editing (click-to-select,
+  properties panel, inline text) applies where saving is enabled for the user's account;
+  otherwise the canvas is view-plus-PNG/PDF-export.
+
+The fallbacks are two distinct states, not one:
+
+- `design` **absent from the skill list** — do not offer or mention it; the HTML mockup covers
+  the same ground (a user whose session lacks the skill has no `/design` command either).
+- `design` **listed but the invocation is refused** (a future invocability gate) — suggest the
+  user run `/design <scope>` themselves; user invocation survives such gates.
+
+The capture discipline is unchanged either way: record the winning-variant key and notes in
+your durable answer; the canvas may live on under the user's account, but nothing tracked in
+the repo references it.
+
+> Verified 2026-08-18: the bundled `design` skill (an early preview of Claude Design inside
+> Claude Code) is model-invocable where enabled — its registration carries no
+> model-invocation gate — per the shipped v2.1.234 client and
+> <https://code.claude.com/docs/en/skills>. It is feature-flag-, account-, and platform-gated
+> (absent on non-first-party platforms and in headless contexts) and unnamed in the changelog,
+> so no version floor is statable. Recheck when a release changelog or the commands reference
+> first names the design canvas skill, or when bundled-skill invocability changes.
 
 ## Process
 
@@ -189,12 +217,18 @@ the sidebar from C" — that's the actual design discovered.
 
 ### 6. Capture the answer and clean up
 
-Per the shared discipline — record which variant won and why.
+Per the shared discipline — record which variant won and why, and record the directions that lost
+with their reasons. When the verdict is a graft rather than a single winner, say which piece came
+from where **and what the discarded parts held that the graft deliberately left behind**. The
+deletions below are irreversible: whatever is not written down now is gone.
 
 - **Sub-shape A** — delete losing variants and the switcher; fold the winner into the existing page.
 - **Sub-shape B** — promote the winner to a real route; delete the throwaway route and switcher.
 - **HTML mockup substrate** — discard the mockup file once the winning-variant key and notes are
   captured; nothing tracked is left behind.
+- **Design canvas** — capture the winning-variant key and notes the same way; then ask whether
+  the user wants the canvas kept (it persists under their account) or cleared. Nothing tracked
+  references it either way.
 
 Don't leave variant components or the switcher lying around. They rot fast.
 

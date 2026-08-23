@@ -38,6 +38,7 @@ not a fleet editor (bare invocation mutates nothing at all).
 | What changed in the last CLI release? | `/claude-ops:changelog` |
 | Do our MCP tools duplicate each other or the built-ins? | `/mcp-tools:audit` |
 | Is this SKILL.md structurally sound, and is the listing over budget? | `/skill-quality:check` |
+| Is each installed skill actually VISIBLE to the model right now, and why not? | `/claude-ops:audit-skill-visibility` |
 
 The line that matters most: `inventory` enumerates **what resolves**; this skill compares that
 surface against **what we ship** and produces a routing verdict. Inventory never judges; this skill

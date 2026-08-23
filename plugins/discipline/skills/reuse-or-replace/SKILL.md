@@ -51,7 +51,8 @@ obedience to the incumbent way. Replacing the established way is a
 established way *should* be replaced when:
 
 - **evidence backs an improvement** — research or measurement shows a better
-  way (route the evidence-gathering to `/discipline:do-your-research`);
+  way (route the evidence-gathering to `/discipline:do-your-research`, invoked via the
+  Skill tool);
 - **its rationale is missing** — nobody can say why it is done this way ("I
   don't know, it just is");
 - **it rests on incumbency only** — "we've always done it this way" is the
@@ -133,7 +134,7 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
 - an established way reused only because it is there, where its rationale
   is missing, incumbency-only, or stale — a challenge that was owed and
   skipped (route to `/discipline:reason-dont-recite` /
-  `/discipline:do-your-research`).
+  `/discipline:do-your-research`, invoked via the Skill tool).
 
 Correct each forward now: reuse the established way for the new work; or,
 where replacement is warranted, record the rationale at the blast-radius-

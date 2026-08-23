@@ -83,6 +83,65 @@ printf '%s\n' '{"schema_version":"1.0","provider":"ghost","config":{"lease_ttl_h
 (WORK_ITEM_TRACKER_BINDING="$NOPROV" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" capabilities >/dev/null 2>&1)
 assert_eq "missing adapter dir → exit 3" "3" "$?"
 
+# --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
+# Adapters resolve consumer-local first, so a shadowing/generated adapter can skew
+# from the engine: major skew refuses (exit 3, direction-appropriate fix named);
+# newer-minor proceeds with a stderr notice (tolerant reader).
+
+# make_skew_adapter <provider> <schema_version-json> — fake adapter + binding for
+# handshake cases; capabilities.sh present so a passing handshake can dispatch.
+make_skew_adapter() {
+  local provider="$1" version_json="$2"
+  local dir="$TEST_TMPDIR/adapters/$provider"
+  mkdir -p "$dir"
+  printf '%s\n' "{$version_json\"provider\":\"$provider\",\"verbs\":{\"capabilities\":true}}" \
+    >"$dir/capabilities.json"
+  cat >"$dir/capabilities.sh" <<EOF
+#!/usr/bin/env bash
+jq -c . "$dir/capabilities.json"
+EOF
+  printf '%s\n' "{\"schema_version\":\"1.0\",\"provider\":\"$provider\",\"config\":{\"lease_ttl_hours\":24}}" \
+    >"$TEST_TMPDIR/$provider-binding.json"
+}
+
+# run_skew <provider> <args…> — dispatcher against the skew provider's binding.
+run_skew() {
+  local provider="$1"
+  shift
+  WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/$provider-binding.json" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" \
+    bash "$DISPATCHER" "$@"
+}
+
+make_skew_adapter "noversion" ""
+ERR="$(run_skew noversion capabilities 2>&1 >/dev/null)"
+assert_eq "manifest without schema_version → exit 3" "3" "$?"
+assert_contains "unversioned-manifest error names schema_version" "$ERR" "schema_version"
+
+make_skew_adapter "newermajor" "\"schema_version\":\"2.0\","
+ERR="$(run_skew newermajor capabilities 2>&1 >/dev/null)"
+assert_eq "newer-major manifest → exit 3" "3" "$?"
+assert_contains "newer-major error says update the plugin" "$ERR" "update the work-items plugin"
+
+make_skew_adapter "oldermajor" "\"schema_version\":\"0.9\","
+ERR="$(run_skew oldermajor capabilities 2>&1 >/dev/null)"
+assert_eq "older-major manifest → exit 3" "3" "$?"
+assert_contains "older-major error says regenerate the adapter" "$ERR" "update or regenerate the adapter"
+
+# Leading-zero components must be read base-10, not octal: "08.0" is major 8,
+# which must refuse — a bare (( )) would error on octal 08 and, with the errored
+# condition read as false, wave the incompatible adapter through.
+make_skew_adapter "leadingzero" "\"schema_version\":\"08.0\","
+ERR="$(run_skew leadingzero capabilities 2>&1 >/dev/null)"
+assert_eq "leading-zero major manifest → exit 3" "3" "$?"
+assert_contains "leading-zero error says update the plugin" "$ERR" "update the work-items plugin"
+
+make_skew_adapter "newerminor" "\"schema_version\":\"1.99\","
+OUT="$(run_skew newerminor capabilities 2>/dev/null)"
+assert_eq "newer-minor manifest proceeds → exit 0" "0" "$?"
+assert_eq "newer-minor capabilities passthrough intact" "newerminor" "$(jq -r '.provider' <<<"$OUT")"
+ERR="$(run_skew newerminor capabilities 2>&1 >/dev/null)"
+assert_contains "newer-minor proceeds with a stderr notice" "$ERR" "newer than core"
+
 # --- capability gate: declared-false verb → exit 6, clear stderr ---
 
 ERR="$(run_dispatcher create-item --title x 2>&1 >/dev/null)"
@@ -162,5 +221,135 @@ assert_eq "plugin-bundled adapter is the fallback" "local-markdown" "$(jq -r '.p
 # WIT_ADAPTERS_DIR still short-circuits both roots (single explicit override).
 OUT="$(WORK_ITEM_TRACKER_BINDING="$BINDING" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "WIT_ADAPTERS_DIR override wins over consumer-local" "fake" "$(jq -r '.provider' <<<"$OUT")"
+
+# --- F3.8: consumer-local resolution in a bare shell (no CLAUDE_PROJECT_DIR) ---
+# The consumer-local root anchors at the git toplevel when CLAUDE_PROJECT_DIR is
+# unset — the same anchor the binding read uses — so a bare shell that finds the
+# binding also finds consumer-local adapters instead of silently skipping them (#2941).
+git init -q "$PROJECT"
+mkdir -p "$PROJECT/deep"
+OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
+assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
+
+# --- gh version gate is scoped to the native sub-issue/dependency surface ---
+# gh >= 2.94 buys `--parent` / `--blocked-by` / `--add-blocked-by` and the
+# blockedBy / parent / subIssues --json fields, and nothing else. Verbs that
+# never read that surface must dispatch on an older gh: the lease trio (claim,
+# renew-lease, reclaim) and capabilities, which invokes no gh at all. A blanket
+# dispatcher gate cost an older-gh session race-safe claiming for a prerequisite
+# it never used.
+#
+# Provider is "github" so the gate applies, while WIT_ADAPTERS_DIR points at
+# stub verb scripts — the gate keys on the bound provider, not on adapter
+# content, so this stays offline and never invokes real gh.
+GH_ADAPTERS="$TEST_TMPDIR/gh-adapters"
+mkdir -p "$GH_ADAPTERS/github"
+printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"capabilities":true}}' \
+  >"$GH_ADAPTERS/github/capabilities.json"
+for v in capabilities claim renew-lease reclaim get-item list-items list-sub-items link-blocks add-sub-item create-item; do
+  cat >"$GH_ADAPTERS/github/$v.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '{"schema_version":"1.0","items":[]}\n'
+EOF
+done
+GH_BINDING="$TEST_TMPDIR/github.json"
+printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$GH_BINDING"
+
+# Stub gh reporting a version BELOW the 2.94 minimum, first on PATH.
+STUB_BIN="$TEST_TMPDIR/stub-bin"
+mkdir -p "$STUB_BIN"
+cat >"$STUB_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh version 2.45.0 (2025-07-18)\n'
+EOF
+chmod +x "$STUB_BIN/gh"
+
+run_gh_verb() {
+  PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+    WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" "$@" >/dev/null 2>&1
+  printf '%s\n' "$?"
+}
+
+# Verbs that never touch the native surface dispatch on gh 2.45.
+for v in capabilities claim renew-lease reclaim; do
+  assert_eq "old gh: $v dispatches (not gated)" "0" "$(run_gh_verb "$v" "github:o/r#1")"
+done
+
+# Verbs that DO touch it still fail closed with the config exit and its message.
+for v in get-item create-item list-sub-items link-blocks add-sub-item; do
+  assert_eq "old gh: $v still gated → exit 3" "3" "$(run_gh_verb "$v" "github:o/r#1")"
+done
+
+# list-frontier gates through whichever list verb it resolves to — including the
+# --parent form, which dispatches list-sub-items rather than carrying its own entry.
+assert_eq "old gh: list-frontier gated via list-items" "3" "$(run_gh_verb list-frontier)"
+assert_eq "old gh: list-frontier --parent gated via list-sub-items" \
+  "3" "$(run_gh_verb list-frontier --parent "github:o/r#9")"
+
+ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" get-item "github:o/r#1" 2>&1 >/dev/null)"
+assert_contains "old gh: gate names the minimum" "$ERR" "2.94"
+
+# A conforming gh lifts the gate for every verb.
+cat >"$STUB_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh version 2.94.0 (2026-01-01)\n'
+EOF
+for v in get-item create-item add-sub-item; do
+  assert_eq "gh 2.94: $v dispatches" "0" "$(run_gh_verb "$v" "github:o/r#1")"
+done
+
+# A non-github provider is never version-gated, whatever gh reports.
+cat >"$STUB_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh version 1.0.0 (2020-01-01)\n'
+EOF
+RC="$(
+  PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$BINDING" \
+    WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" get-item "fake:o/r#1" >/dev/null 2>&1
+  printf '%s\n' "$?"
+)"
+assert_eq "non-github provider is not version-gated" "0" "$RC"
+
+# --- gh ABSENT stays a clean exit 3 (CONTRACT.md "Degradation without gh") ---
+# Narrowing the VERSION floor must not let a gh-less session dispatch a verb that
+# shells out and die on `gh: command not found` inside the adapter. Presence is
+# still required for every github verb that invokes gh; only capabilities, which
+# reads the manifest and never shells out, answers without the binary.
+# A PATH that genuinely lacks gh: symlink every system binary EXCEPT gh into one
+# dir. Shadowing gh with a non-executable stub would not work — `command -v`
+# skips it and keeps searching — and dropping the system dirs outright would take
+# jq and git with it, so the dispatcher would fail for the wrong reason.
+NOGH_BIN="$TEST_TMPDIR/nogh-bin"
+mkdir -p "$NOGH_BIN"
+for _d in /usr/bin /bin /usr/local/bin; do
+  [[ -d "$_d" ]] || continue
+  for _f in "$_d"/*; do
+    _b="${_f##*/}"
+    [[ "$_b" == "gh" ]] && continue
+    [[ -e "$NOGH_BIN/$_b" ]] || ln -s "$_f" "$NOGH_BIN/$_b" 2>/dev/null || true
+  done
+done
+# Guard only on what these cases actually need: that gh does not resolve inside
+# NOGH_BIN. Requiring an ambient gh as well would skip the whole block on a
+# runner that has none — the exact environment the cases exist to cover.
+[[ -z "$(PATH="$NOGH_BIN" command -v gh 2>/dev/null)" ]] ||
+  skip_suite "could not build a gh-free PATH for the presence-gate cases"
+
+run_gh_verb_no_gh() {
+  PATH="$NOGH_BIN" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+    WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" "$@" >/dev/null 2>&1
+  printf '%s\n' "$?"
+}
+
+for v in claim renew-lease reclaim get-item add-sub-item; do
+  assert_eq "no gh: $v → exit 3" "3" "$(run_gh_verb_no_gh "$v" "github:o/r#1")"
+done
+assert_eq "no gh: capabilities still answers" "0" "$(run_gh_verb_no_gh capabilities)"
+
+ERR="$(PATH="$NOGH_BIN" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" claim "github:o/r#1" 2>&1 >/dev/null)"
+assert_contains "no gh: message names the missing binary" "$ERR" "prerequisite missing: gh"
+assert_not_contains "no gh: presence error quotes no version floor" "$ERR" "2.94"
 
 [[ $FAILED -eq 0 ]] || exit 1

@@ -43,7 +43,10 @@
 # injection).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 BASELINE="${FIXTURES_BASELINE:-scripts/orphaned-fixtures-baseline.txt}"
 
@@ -56,11 +59,13 @@ discover | --check) ;;
   ;;
 esac
 
-# Active baseline entries: strip inline comments and surrounding blank lines.
-# Each entry is one exact fixture path, matched by full-string equality below.
+# Active baseline entries. `inline`: each entry is one exact fixture path, never
+# a regex, so a `#` anywhere on the line is a comment (scripts/lib/read-list.sh
+# owns the two comment families and why they must stay distinct). Matched by
+# full-string equality below.
 entries=()
 if [[ -f "$BASELINE" ]]; then
-  mapfile -t entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$')
+  read_list::into entries "$BASELINE" --comments inline || exit 2
 fi
 
 # matched_baseline <fixture-path> -> print the baseline entry that grandfathers
@@ -95,10 +100,10 @@ consumed() {
   while [[ "$fixtures_dir" == */* && "${fixtures_dir##*/}" != "fixtures" ]]; do
     fixtures_dir="${fixtures_dir%/*}"
   done
-  evals_dir="${fixtures_dir%/fixtures}"   # …/evals
-  skill_dir="${evals_dir%/evals}"         # dir that owns evals/
+  evals_dir="${fixtures_dir%/fixtures}" # …/evals
+  skill_dir="${evals_dir%/evals}"       # dir that owns evals/
   evals_json="$evals_dir/evals.json"
-  rel="${fixture#"$skill_dir"/}"          # evals/fixtures/<sub>
+  rel="${fixture#"$skill_dir"/}" # evals/fixtures/<sub>
   base="${fixture##*/}"
 
   # Basename matches are bounded by NON-FILENAME characters on both sides:

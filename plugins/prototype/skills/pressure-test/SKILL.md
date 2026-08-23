@@ -31,7 +31,7 @@ The shared throwaway rules, the auto-invoke gate, and how to capture the answer 
 [`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md) — read it before you
 start. This file covers only the logic facet.
 
-If the question is "what should this look like" — wrong facet. Use `/prototype:explore-directions`.
+If the question is "what should this look like" — wrong facet. Invoke `/prototype:explore-directions` via the Skill tool.
 
 ## When this is the right shape
 

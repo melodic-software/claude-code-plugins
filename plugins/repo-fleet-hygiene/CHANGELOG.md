@@ -3,6 +3,69 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.9]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.23.8]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.23.7]
+
+### Changed
+
+- **`setup`: the real-audit hand-off names the Skill tool (#3002).** Step 5's "hand off to
+  `/repo-fleet-hygiene:audit`" — the route taken when the user wants the end-to-end fleet walk
+  this skill deliberately never runs — became "hand off by invoking `/repo-fleet-hygiene:audit`
+  via the Skill tool". The target is `disable-model-invocation: false`, so the rubric's
+  invocation-reach invariant permits it. Wording only: the refusal to run the collector for
+  verification, and the reason for it, are unchanged. The `audit` skill's own
+  "Handoff (not executed here)" integration table is deliberately untouched — its column heading
+  says it does not execute, which the rubric classes as a mention. Rule:
+  `docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"), now
+  unconditional after the fleet sweep.
+
+## [0.23.6]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `audit` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
+## [0.23.5]
+
+### Fixed
+
+- `audit-fleet.test.sh` — the unreadable-discovery-root case no longer reports a false FAIL when the
+  suite runs as uid 0. Root bypasses the permission bits the case asserts on, so `chmod a-rx` leaves
+  the directory traversable, the run legitimately succeeds, and the assertion reported a product
+  defect that does not exist. The case is now skipped as root with its reason named. CI is unaffected
+  — GitHub-hosted Ubuntu runners execute as a non-root user, so the assertion still discriminates
+  there; only root containers (a common local and cloud-session shape) see the skip.
+
+## [0.23.4]
+
+### Fixed
+
+- **`audit` human-relays `/repo-fleet-hygiene:apply` (#2940).** Apply is
+  `disable-model-invocation: true`; operative instructions that told the agent to execute,
+  prefer, or hand execution to `:apply` now tell the user to run
+  `/repo-fleet-hygiene:apply`. Ownership prose ("Actual fleet mutation belongs to …")
+  unchanged.
+
 ## [0.23.3]
 
 ### Changed

@@ -3,6 +3,27 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3]
+
+### Changed
+
+- **The two sibling routes name the Skill tool (#3002).** `methodology`'s "to *run* a workshop"
+  route to `/event-storming:simulation` and `simulation`'s "for facilitation knowledge" route to
+  `/event-storming:methodology`. The recommendation blockquote `methodology` prints for the user
+  is left as-is — it is sample output, not an instruction to the model. The glossary-graduation
+  delegations to `/domain-driven-design:curate-language` carry the phrasing too, in both places
+  that state it: `methodology`'s `reference/glossary-and-tools.md` and `simulation`'s
+  `reference/agentic-simulation.md`. Wording only.
+
+## [0.6.2]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `methodology` and `simulation` (#2968).** Both skills now state the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.6.1]
 
 ### Fixed

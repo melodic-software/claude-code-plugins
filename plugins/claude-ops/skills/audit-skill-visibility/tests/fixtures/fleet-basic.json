@@ -1,0 +1,19 @@
+{
+  "_comment": "Phase 1 fixture. A fresh install: the observable span (3 days) is far below the 30-day exposure floor, so every row must resolve not-observable and every declined verdict must appear in `withheld`. This is the shape that produced the audit's headline defect -- 210 of 213 skills reported as 'never used' when the truth was 'no data'.",
+  "now": "2026-08-18T00:00:00+00:00",
+  "horizons": {
+    "native": "2026-08-15T00:00:00+00:00"
+  },
+  "config": {
+    "active_days": 30,
+    "dormant_days": 90,
+    "exposure_floor_days": 30
+  },
+  "denominator": [
+    { "qualified_name": "planning:interview", "source": "plugin" },
+    { "qualified_name": "claude-ops:inventory", "source": "plugin" },
+    { "qualified_name": "discovery:explore", "source": "plugin" },
+    { "qualified_name": "songwriting:rhyme", "source": "plugin" }
+  ],
+  "events": []
+}

@@ -289,8 +289,9 @@ Both exist in cloud sessions and don't conflict — they serve different callers
 
 ### Maintenance caveats
 
-- Some bootstrap pin sources are materialized from `melodic-software/standards` (see
-  [`AGENTS.md`](../AGENTS.md)) — of the files the bootstrap reads, `.node-version` is in the
+- Some bootstrap pin sources are materialized from `melodic-software/standards` (see the
+  [sync manifest](https://github.com/melodic-software/standards/blob/main/distribution/sync-manifest.yml))
+  — of the files the bootstrap reads, `.node-version` is in the
   synced set (verified against the `chore: sync standards components` history on 2026-07-30), so
   its Node pin updates arrive via sync. `.claude/settings.json` and the bootstrap script itself
   are repo-owned.

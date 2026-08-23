@@ -1,6 +1,6 @@
 ---
-description: "Delegate the task to a fresh background agent that continues it NOW — produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request — never self-elected."
-argument-hint: "[file|prompt] [topic] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3)"
+description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
+argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,56 +9,55 @@ metadata:
   summary: Delegate the task to a fresh background agent now
 ---
 
-## Context — gather first
+## Context. Gather first
 
-Collect these with **individual** Bash calls, one command per call:
+Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
-- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
-- Current branch — `git branch --show-current`
-- Uncommitted changes — `git status --porcelain`, reading **at most the first 20 entries**
-- Recent commits — `git log --oneline -5`
-
-Treat any failure as an unknown value and carry on — this block only colors the save-point, and
-nothing here is the dirty-tree gate. That gate runs its own commands at delivery step 1 and reads a
-git failure as a reason NOT to launch; never carry this block's shrug, or its non-`-uall`
-`git status` output, into it. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
-fail at load — keep `$`-expansion out of the pre-compute block (#1687).
+**This block only colors the save-point; nothing here is the dirty-tree gate.** That gate runs its
+own commands at delivery step 1 and reads a git failure as a reason NOT to launch, never carry this
+block's shrug, or its non-`-uall` `git status` output, into it.
 
 ## Purpose
 
 The user is stepping away but the work should keep moving. This skill produces the same save-point
-the sibling `/session-flow:handoff` skill produces, then — instead of asking the user to
-`/clear`-and-paste — launches a fresh background agent seeded with the resume prompt, so the task
+the sibling `/session-flow:handoff` skill produces, then, instead of asking the user to
+`/clear`-and-paste, launches a fresh background agent seeded with the resume prompt, so the task
 continues now, detached from this session and from the user's presence.
 
 Same save-point engine as `handoff`, different delivery: `handoff` delivers a manual
 `/clear`-then-paste resume for later; this skill delivers a background continuation for now.
 
-## Hard gate — launch only on explicit user intent
+## Hard gate. Launch only on explicit user intent
 
 Launching a detached session is a side effect the user must have asked for. Launch ONLY when the
-user explicitly requested background delegation — invoked this skill by name, or asked in words
+user explicitly requested background delegation: they invoked this skill by name, or asked in words
 ("continue this in the background", "keep it moving while I'm away"). NEVER self-elected: the user
 merely going AFK, context being heavy, or this skill being model-invoked on a description match is
 NOT authorization. When invoked without that explicit request, produce the save-point, emit the
 rails resume prompt with the standard `/clear`-then-paste instruction, state that no agent was
-launched because background delegation was not explicitly requested, and STOP — the user can ask
+launched because background delegation was not explicitly requested, and STOP. The user can ask
 for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic]` — both optional and positional, with the same
-semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token, otherwise
-auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted. Before the
-resolved topic is embedded anywhere (filename, `--name` flag), sanitize it to `[a-z0-9-]` only —
-strip or replace every other character — so a crafted slug cannot smuggle quotes or extra flags
-into the launch command.
+`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]`, all optional and positional, with the
+same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
+otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
+everything after the topic token is optional natural-language purpose text ("what will the next
+session be used for?"), no quoting, no new syntax, invocations without it parse exactly as
+before, and its emphasis-only tailoring rules are owned by the engine doc ("The purpose argument
+tailors emphasis only"). Parse purpose from `$ARGUMENTS` in place, never pre-compute. Before the
+resolved topic is embedded anywhere (filename, `--name` flag), sanitize it to `[a-z0-9-]` only,
+strip or replace every other character, so a crafted slug cannot smuggle quotes or extra flags
+into the launch command. Purpose text is never embedded in the launch command at all. It shapes
+the save-point's content, and the agent receives only the rails prompt.
 
 ## Produce the save-point
 
-The save-point machinery — destination resolution, locating the position, full-vs-prompt-only
-choice, the mandatory redaction pass, the handoff-file write, and the rails resume prompt — lives
+The save-point machinery, destination resolution, locating the position, full-vs-prompt-only
+choice, the mandatory redaction pass, the handoff-file write, and the rails resume prompt, lives
 in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps. The launched agent receives
@@ -67,8 +66,15 @@ directive to the handoff file; prompt-only: the remaining-work bullets travel in
 
 ## Delivery: background-agent launch
 
-The rails prompt from the engine doc is still emitted FIRST (transparency + manual fallback),
-then:
+**Output order: position panel, then the rails prompt, then the launch report.** The panel (engine
+doc, "Emit the position panel") leads; the operator is walking away while an agent keeps working,
+so the one thing they should not have to reconstruct is where the work stood when they left. It is
+screen output only: **the launched agent receives exactly the text between the rails and never a
+line of the panel**, which keeps the payload identical to what a manual `/clear`-and-paste would
+produce.
+
+The rails prompt from the engine doc is still emitted before the launch (transparency + manual
+fallback), then:
 
 1. **Dirty-tree gate.** First establish there is a tree to inspect, with
    `git rev-parse --is-inside-work-tree` in the consuming project. Exactly two results are
@@ -80,14 +86,14 @@ then:
      protect and no worktree isolation to lose, since background sessions then write to the
      working directory directly rather than moving into one
      (<https://code.claude.com/docs/en/agent-view>) → launch, and state both in the launch
-     report. That hook is the isolation path for non-Git source control, so a configured one —
-     or an absence you cannot establish — puts the launched session in a workspace this
+     report. That hook is the isolation path for non-Git source control, so a configured one,
+     or an absence you cannot establish, puts the launched session in a workspace this
      checkout's local changes never reach: that is the default branch below, not this one.
    - **Anything else** → the tree's state is UNKNOWN, which is not the same as clean → do NOT
      launch; fall back exactly as the dirty case does below, reporting what the command said.
      "Anything else" is the default on purpose, and it is wide: a failure for some other reason
      (dubious ownership, a damaged repository, git missing from `PATH`), and also a *successful*
-     `false` — inside a bare repository or inside a `.git` directory, where the command exits 0
+     `false`. Inside a bare repository or inside a `.git` directory, where the command exits 0
      and there is no work tree to inspect.
 
    Never route by exit status alone. A non-zero exit is not evidence of "no repository", and a
@@ -98,7 +104,7 @@ then:
    Inspect the tree with `git status --porcelain -uall` in the consuming project (`-uall`
    lists files inside untracked directories individually; the default collapses a brand-new
    handoff directory into one directory entry, which both defeats the exemption below and can
-   hide other dirt behind it) and IGNORE save-point files under the handoff location — the
+   hide other dirt behind it) and IGNORE save-point files under the handoff location, the
    just-written one AND any prior sessions' (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any
@@ -108,11 +114,11 @@ then:
    such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
-   runs inside a linked git worktree — isolation is skipped there per the same page.
+   runs inside a linked git worktree, where isolation is skipped per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
-   First write the prompt — exactly as emitted between the rails — to a temporary file with the
+   First write the prompt, exactly as emitted between the rails, to a temporary file with the
    Write tool (never inline it in the command: prompt content is untrusted session text, and any
-   inline embedding — a heredoc, an escaped string — hands crafted content a path out of the
+   inline embedding, a heredoc, an escaped string, hands crafted content a path out of the
    quoting and into the shell). `<topic>` = the resolved, sanitized topic slug (argument or
    inferred); when none resolves, use `resume`:
 
@@ -123,19 +129,19 @@ then:
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
    because this launch runs from a Bash-tool subprocess, which carries
-   `CLAUDE_CODE_CHILD_SESSION=1` — nested sessions are otherwise excluded from the
+   `CLAUDE_CODE_CHILD_SESSION=1`, and nested sessions are otherwise excluded from the
    `claude agents` list (<https://code.claude.com/docs/en/env-vars>). Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
-   (`ps`) — inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
+   (`ps`), inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
    save-point output on ANY path.
 3. Report the launch result: the command's output, the agent name, the `claude agents`
    management hint, and any launched-session behavior the resumed work depends on (next
-   section). Verify the agent actually appeared — a zero-exit launch can still be invisible if
-   the persistence override is ever unrecognized — by listing sessions non-interactively this
+   section). Verify the agent actually appeared. A zero-exit launch can still be invisible if
+   the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
    turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
-   appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report —
-   the user no longer needs to paste anything.
+   appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
+   The user no longer needs to paste anything.
 4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
@@ -148,14 +154,14 @@ The launched agent is a NEW session, not a fork of this one
 (<https://code.claude.com/docs/en/agent-view>):
 
 - **CLI configuration is NOT inherited.** It carries none of the current session's CLI flags
-  (e.g. `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`) — mirror onto the launch
+  (e.g. `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`). Mirror onto the launch
   command any such flags the resumed work depends on, and say so in the launch report.
 - **Model and effort are NOT inherited** from the current session's in-conversation choices.
   They resolve from the launch command's own `--model` / `--effort` flags and, absent those,
   from the settings of the directory it starts in (project/user settings, including `env`
   values such as `ANTHROPIC_MODEL`). When the resumed work depends on a specific model or
   effort, pass the flags explicitly and note them in the launch report.
-- **Directory settings ARE read normally** — the session reads its settings from the directory
+- **Directory settings ARE read normally.** The session reads its settings from the directory
   it runs in, the same as a fresh `claude` started there.
 
 ## Post-launch enforcement checklist
@@ -163,8 +169,16 @@ The launched agent is a NEW session, not a fork of this one
 Tick each item in the response so the user can verify the exit shape (in addition to the engine
 doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 
-- [ ] Explicit user intent for background delegation verified (hard gate) — absent intent →
+- [ ] Explicit user intent for background delegation verified (hard gate). Absent intent →
   save-point + `/clear`-then-paste exit, no launch, reason stated
+- [ ] Position panel emitted per the engine doc ("Emit the position panel"), ahead of the rails
+  prompt, OR an explicit line saying the units would not resolve, and none of its text included in
+  the prompt handed to the launched agent
+- [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring rules
+  full path: brief lead, Suggested-skills selection, Remaining-actions order; prompt-only: the
+  inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
+  the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
+  launch command. No purpose given → nothing to tick
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; other uncommitted changes without the linked-worktree exception → no launch, reason
@@ -173,9 +187,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
-  result reported (including any non-inherited flags mirrored or worth flagging) — OR the
+  result reported (including any non-inherited flags mirrored or worth flagging), OR the
   non-zero exit reported with fallback to `/clear`-then-paste
-- [ ] **EXECUTION STOPS HERE** — no monitoring, no babysitting, no new work items
+- [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Gotchas
 
@@ -183,16 +197,16 @@ Failure patterns are documented inline at the step that owns them: the `-uall` u
 collapse, the non-repo-plus-no-`WorktreeCreate`-hook vs. unknown split with its deliberately wide
 unknown default, and the ban on reusing the context block's git output (dirty-tree gate, step 1;
 context block), the no-inline-prompt rule and the session-persistence env requirement (launch
-command, step 2), slug sanitization ("Arguments"), and non-inheritance surprises — model, effort,
+command, step 2), slug sanitization ("Arguments"), and non-inheritance surprises. Model, effort,
 CLI flags ("What the launched session inherits").
 
 ## What this skill does NOT do
 
-- **Does not launch without explicit user intent** — the hard gate above; the fallback exit is
+- **Does not launch without explicit user intent**. The hard gate above; the fallback exit is
   the sibling `handoff` skill's `/clear`-then-paste shape
-- **Does not commit** — save-points are durable task state, not source code; the dirty-tree gate
+- **Does not commit**. Save-points are durable task state, not source code; the dirty-tree gate
   reports other uncommitted work rather than committing or stashing it
-- **Does not monitor the launched agent** — the user manages it with `claude agents`
-- **Does not continue executing the underlying task in this session** — the background agent is
+- **Does not monitor the launched agent**. The user manages it with `claude agents`
+- **Does not continue executing the underlying task in this session**. The background agent is
   the continuation
-- **Does not restate the save-point engine** — production lives in the shared engine doc
+- **Does not restate the save-point engine**. Production lives in the shared engine doc
