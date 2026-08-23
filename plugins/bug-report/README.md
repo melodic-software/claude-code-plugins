@@ -1,10 +1,16 @@
 # bug-report
 
-A Claude Code plugin that turns an informal defect description into a structured,
-five-field bug report — **read-only by default**. It captures; it does not fix,
-open a PR, or file an issue on its own.
+A Claude Code plugin for the front of the bug lifecycle — **read-only by default**.
+It finds defects and captures them in a structured, five-field report; it does not
+fix them, open a PR, or file an issue on its own.
 
-Invoke it with `/bug-report:write <description>` (or let Claude reach for it
+| Skill | What it does |
+|---|---|
+| `/bug-report:write` | Turns an informal defect description — one you already observed — into the five-field report. |
+| `/bug-report:scan` | Hunts for defects **nobody has observed yet** in resting code, verifies each candidate adversarially, and reports what survives. |
+| `/bug-report:setup` | `check` inspects both configuration surfaces read-only; `apply` writes the tracked lane config `scan` reads. |
+
+Invoke `/bug-report:write <description>` (or let Claude reach for it
 when you describe a defect). The five fields are:
 
 1. **Title** — present tense, one line
@@ -39,17 +45,62 @@ when you describe a defect). The five fields are:
 | `--no-survey` | Trust the description; ask only when a field would otherwise be invented |
 | `--file` | Persist the report to a file (see Configuration), then offer to file it in a tracker |
 
+## Hunting bugs nobody has reported yet
+
+`/bug-report:write` needs a defect you already noticed. `/bug-report:scan` needs nothing —
+no diff, no failing test, no stack trace, no comment marker. It reads resting code and
+looks for what is wrong in it.
+
+```text
+/bug-report:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run]
+```
+
+| Flag | Effect |
+|------|--------|
+| (none) | Rotate: self-select the next lane from the tracked lane config, hunt it, report |
+| `<path\|feature\|diff>` | Hunt exactly that scope — no rotation |
+| `--lane <name>` | Hunt the named lane's globs |
+| `--track` | File the verified findings as raw intake through the `work-items` seam |
+| `--dry-run` | Report to stdout only — persists nothing, advances no rotation |
+
+One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
+or as a daily routine. Two properties are worth knowing before you rely on it:
+
+- **Recall and precision are separated.** Per-lens hunter subagents are told to be generous;
+  a separate fresh-context gate is then told to *refute* every candidate they produced. Only
+  survivors reach the report, each labeled `reproduced` or `verified-by-reading`, and refuted
+  candidates stay in the report with the argument that killed them.
+- **A bare run is read-only toward your repository and stays within a budget** — it stops at
+  three verified findings or a complete lane sample. Filing happens only when you pass
+  `--track`, and a complete lane sample is never reported as the lane being bug-free.
+
+Verified findings are handed off, not fixed here: root-causing routes to `/debugging:debug`,
+and anything security-relevant routes to the `review:security-review` lane.
+
 ## Configuration
 
-One optional personal `userConfig` value, prompted by Claude Code at enable time:
+Two surfaces with two different owners.
+
+**Personal — one optional `userConfig` value**, prompted by Claude Code at enable time:
 
 | Option | Type | Effect |
 |--------|------|--------|
 | `output_dir` | directory | Where `--file` writes reports. **Leave unset** and reports go to the plugin's own persistent data directory. Set it to a path in your repository if you want bug reports committed alongside your code. |
 
-Run `/bug-report:setup` to validate this choice interactively. It reads the rendered option,
-recommends the uncommitted default, and routes changes through Claude Code's plugin configuration
-prompt. Current releases ignore plugin `userConfig` values placed in project or local settings.
+Claude Code owns this value: current releases ignore plugin `userConfig` values placed in
+project or local settings, and changes route through Claude Code's own configuration prompt.
+
+**Team — the tracked `.claude/bug-report.md`**, which `/bug-report:scan` reads for its lanes
+(`lanes`) and its filing policy (`filing_posture`). It is layered per the marketplace's
+config-cascade convention — a user-global file, this tracked team file, and a gitignored local
+overlay. All layers are optional: with no config at all, `scan` rotates over bundled generic
+default lanes. Keys, defaults, layer order, and per-key merge semantics live in
+[`reference/config.md`](reference/config.md), their single home.
+
+Run `/bug-report:setup` to work on either surface. `check` (the default) reports both read-only:
+the rendered `output_dir` and which layer supplied each lane config value. `apply` writes the
+tracked file and nothing else — it drafts lane candidates from your repository, confirms them one
+at a time, and never touches settings, `pluginConfigs`, the local overlay, or your `.gitignore`.
 
 Project-specific conventions — naming, areas, tracker choice, priority labels — are
 read from the **consuming project's own `CLAUDE.md` / rules**; the plugin imposes

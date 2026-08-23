@@ -3,6 +3,55 @@
 All notable changes to the `bug-report` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`scan` — proactive bug hunting over resting code.** A third skill,
+  `/bug-report:scan`, that looks for defects **nobody has observed yet**: no diff, no failing test,
+  no stack trace, no comment marker required. One invocation is one bounded pass — hunt a target
+  (`/bug-report:scan <path|feature|diff>`) or, bare, the next lane in a rotation, then stop. Findings
+  come out in this plugin's existing five-field shape, each labeled `reproduced` or
+  `verified-by-reading`.
+- **Recall and precision are separated into two stages.** Per-lens hunter subagents are told to be
+  generous; a **separate fresh-context verification gate** is told to refute, and only candidates
+  that survive it reach the report. The agent that discovers a candidate never grades it, refuted
+  candidates are retained in the report with their refuting argument rather than silently dropped,
+  and refill waves after a fully refuted wave are capped. Five V1 lenses ship in
+  `skills/scan/context/lenses.md`: contract-vs-body mismatch, boundary and edge cases, cross-file
+  consistency drift, state and concurrency hazards, and git-hotspot-guided reads.
+- **Bare invocation is read-only toward the repository; filing needs `--track`.** A bare run never
+  edits, branches, pushes, or files. `--track` files verified findings through the `work-items` seam
+  as **raw intake** — duplicate search first, `needs-triage` resolved from the consumer's live label
+  set across both label axes, no label creation, and a body provenance line the lane cursor later
+  reads. It degrades to report-only with a printed notice when no tracker resolves. `--dry-run`
+  persists nothing and advances nothing.
+- **Rotation state is derived statelessly, never from `.work/`.** Bare runs pick their lane down a
+  three-rung ladder — tracker filing history, then the cursor block in the newest persisted report
+  under `${CLAUDE_PLUGIN_DATA}`, then a deterministic date-derived floor — so a fresh clone rotates
+  correctly with zero stored state. The run reports which rung it used. Per-run budget: stop at 3
+  verified findings or a complete lane sample, at most 10 candidates per wave, at most 2 refill
+  waves. A lane sample being complete is never reported as the lane being bug-free.
+- **`reference/config.md` — the single home for the `.claude/bug-report.md` key contract.** Layers
+  and resolution order, per-key merge semantics declared beside the keys they govern (`lanes`
+  concatenate with an explicit empty-list opt-out; `filing_posture` is a nearest-wins scalar), the
+  file format, and the key partition rule that keeps `output_dir` a native `userConfig` value and out
+  of the cascade file. Both `scan` and `setup` cite it; neither restates it.
+
+### Changed
+
+- **`setup` is no longer check-only: it is now `check | apply`.** The plugin gained a second
+  configuration surface — the tracked, cascade-layered `.claude/bug-report.md` that `scan` reads for
+  its lanes and filing posture — which dissolves the check-only carve-out 0.5.0 adopted. `check`
+  still inspects both surfaces read-only; `apply` writes or updates that one tracked file and
+  nothing else, drafting lane candidates from the repository, confirming them one decision at a
+  time, updating conservatively rather than overwriting, and verifying against the file on disk
+  afterward. `output_dir` is unchanged: it stays a personal `userConfig` value that Claude Code's
+  own configuration prompt owns, and this skill still never writes it.
+- **Convention registries record the new surfaces.** The config-cascade convention gains a
+  `bug-report` implementers row, and the plugin-data report-keying row now covers `scan` as a
+  slug-keyed producer of findings reports and cursor metadata alongside `write`'s `--file` reports.
+
 ## [0.7.4]
 
 ### Changed

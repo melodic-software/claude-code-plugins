@@ -228,6 +228,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | Cadence | What it does |
 | --- | --- | --- | --- |
+| [`/bug-report:scan`](../plugins/bug-report/skills/scan/SKILL.md) | `bug-report` | daily | Proactively hunt resting code for unobserved bugs, verify adversarially, report read-only |
 | [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory — what is there, what the product manages, what is stale |
 | [`/claude-ops:audit-performance`](../plugins/claude-ops/skills/audit-performance/SKILL.md) | `claude-ops` | continuous | Capture slowness evidence while slow — version, sweep health, tree walk, sessions, fleet |
 | [`/claude-ops:audit-skill-visibility`](../plugins/claude-ops/skills/audit-skill-visibility/SKILL.md) | `claude-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
