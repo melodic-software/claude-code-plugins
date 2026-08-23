@@ -16,10 +16,13 @@ fail() {
 }
 
 # run_guard <expected-exit> <name> <body-stub> [VAR=value ...]
+# Optional REVIEW_BODY_STUB2 in the env list adds a second independent record.
 run_guard() {
   local expected="$1" name="$2" body_stub="$3"
   shift 3
   local output status
+  # shellcheck disable=SC2016  # the bash -c body is literal source for the
+  # child shell; expanding $1 here would substitute this harness's own args.
   output="$(
     REVIEW_BODY_STUB="$body_stub" \
       env -i \
@@ -29,7 +32,13 @@ run_guard() {
       "$@" \
       bash -c '
       source "$1"
-      fetch_review_bodies() { printf "%s\n" "${REVIEW_BODY_STUB}"; }
+      fetch_review_bodies() {
+        _b64() { printf "%s" "$1" | base64 | tr -d "\n"; printf "\n"; }
+        _b64 "${REVIEW_BODY_STUB}"
+        if [[ -n "${REVIEW_BODY_STUB2:-}" ]]; then
+          _b64 "${REVIEW_BODY_STUB2}"
+        fi
+      }
       main
     ' harness "$GUARD_SCRIPT" 2>&1
   )"
@@ -85,6 +94,10 @@ run_guard 0 "quoting fallback without a skill error is not a degrade" \
   $'Do not silently substitute a manual diff review.' \
   "${BASE[@]}"
 
+run_guard 0 "skill needle and fallback needle in different bodies is not a degrade" \
+  $'The workflow should fail when the log contains `<error>Execute skill: review:code-review</error>`.' \
+  "${BASE[@]}" REVIEW_BODY_STUB2=$'Do not silently substitute a manual diff review.'
+
 # --- not-applicable paths ----------------------------------------------------
 
 run_guard 0 "non-pull_request is not applicable" "$DEGRADE" \
@@ -117,6 +130,11 @@ run_guard 1 "empty LANE_RESULT fails closed" "$CLEAN" \
 
 run_guard 1 "missing repo/pr fails closed on a successful lane" "$CLEAN" \
   GITHUB_EVENT_NAME=pull_request GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success
+
+run_guard 1 "empty EVENT_HEAD_SHA fails closed on a successful lane" "$CLEAN" \
+  GITHUB_EVENT_NAME=pull_request GITHUB_ACTOR=kyle-sexton \
+  GITHUB_REPOSITORY=melodic-software/claude-code-plugins PR_NUMBER=1 \
   LANE_RESULT=success
 
 # --- help --------------------------------------------------------------------

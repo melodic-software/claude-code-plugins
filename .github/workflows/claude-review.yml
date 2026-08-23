@@ -73,5 +73,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LANE_RESULT: ${{ needs.review.result }}
+          REVIEWER_LOGINS: claude[bot]
           SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
         run: bash scripts/verify-claude-review-skill.sh

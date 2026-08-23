@@ -20,7 +20,9 @@
 #   LANE_RESULT          needs.review.result
 #   GITHUB_REPOSITORY    owner/repo
 #   PR_NUMBER            pull request number
-#   EVENT_HEAD_SHA       the head SHA this run was triggered at
+#   EVENT_HEAD_SHA       the head SHA this run was triggered at (required)
+#   REVIEWER_LOGINS      comma-separated logins whose reviews count
+#                        (default: claude[bot])
 #   GH_TOKEN             token for the review-body read
 #
 # Exit: 0 evidence OK or not applicable; 1 silent skill-degrade detected.
@@ -28,6 +30,7 @@
 set -euo pipefail
 
 SKIP_ACTORS="${SKIP_ACTORS:-dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]}"
+REVIEWER_LOGINS="${REVIEWER_LOGINS:-claude[bot]}"
 
 usage() {
   cat <<'EOF'
@@ -40,14 +43,35 @@ the Skill invocation failed and a manual review was substituted (#3147).
 EOF
 }
 
-# fetch_review_bodies — review + issue-comment bodies on this PR. Defined as a
+# fetch_review_bodies — one base64 body per line, reviews only. Defined as a
 # function so the self-tests can substitute it without an API call.
+#
+# Issue comments are not evidence: any account can comment on a public PR and
+# trip a fail-closed substring guard. Older reviews at a prior head are not
+# evidence either — a corrected push must be judged by the review posted for
+# this EVENT_HEAD_SHA. REVIEWER_LOGINS defaults to the lane's bot.
 fetch_review_bodies() {
   local repo="${GITHUB_REPOSITORY:?}" pr="${PR_NUMBER:?}"
-  {
-    gh api --paginate "repos/${repo}/pulls/${pr}/reviews" --jq '.[] | .body // empty'
-    gh api --paginate "repos/${repo}/issues/${pr}/comments" --jq '.[] | .body // empty'
-  }
+  local sha="${EVENT_HEAD_SHA:?}"
+  local allow="${REVIEWER_LOGINS:-claude[bot]}"
+  # shellcheck disable=SC2016  # the jq program is literal; $sha/$allow bind via --arg
+  gh api --paginate "repos/${repo}/pulls/${pr}/reviews" \
+    --jq --arg sha "$sha" --arg allow "$allow" '
+      ($allow | split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length > 0))) as $logins
+      | .[]
+      | select((.commit_id // "") == $sha)
+      | select(.user.login as $u | ($logins | index($u)) != null)
+      | (.body // "")
+      | @base64
+    '
+}
+
+# decode_review_body — GNU `base64 -d`, BSD `base64 -D`. Prints the decoded
+# body on stdout. A failed decode yields empty (classified as `ok`).
+decode_review_body() {
+  local encoded="$1" body=""
+  body="$(printf '%s' "$encoded" | base64 -d 2>/dev/null)" || body="$(printf '%s' "$encoded" | base64 -D 2>/dev/null)" || body=""
+  printf '%s' "$body"
 }
 
 # Process-language the degrade path writes about itself. A code review of this
@@ -115,23 +139,33 @@ main() {
     exit 1
   fi
 
-  local bodies verdict
+  if [[ -z "${EVENT_HEAD_SHA:-}" ]]; then
+    echo "ERROR: EVENT_HEAD_SHA is empty — this guard cannot tell which reviews belong to this run, so it can determine nothing about it (#3147)" >&2
+    exit 1
+  fi
+
   # Assigned, not `cmd || fail`: an `||` / `if` around a function disables
   # `set -e` for its whole dynamic extent (SC2310; same split as
   # verify-security-review-evidence.sh).
-  bodies="$(fetch_review_bodies)"
-  verdict="$(classify_silent_degrade "$bodies")"
-  case "$verdict" in
-  degrade)
-    echo "ERROR: claude-review posted a green review that reports a Skill-tool failure and a manual fallback. The maintained /review:code-review chain did not run (#3147)" >&2
-    exit 1
-    ;;
-  ok) ;;
-  *)
-    echo "ERROR: classify_silent_degrade returned an unrecognised verdict: ${verdict}" >&2
-    exit 1
-    ;;
-  esac
+  local encoded body verdict
+  local records
+  records="$(fetch_review_bodies)"
+  while IFS= read -r encoded || [[ -n "${encoded}" ]]; do
+    [[ -n "${encoded}" ]] || continue
+    body="$(decode_review_body "$encoded")"
+    verdict="$(classify_silent_degrade "$body")"
+    case "$verdict" in
+    degrade)
+      echo "ERROR: claude-review posted a green review that reports a Skill-tool failure and a manual fallback. The maintained /review:code-review chain did not run (#3147)" >&2
+      exit 1
+      ;;
+    ok) ;;
+    *)
+      echo "ERROR: classify_silent_degrade returned an unrecognised verdict: ${verdict}" >&2
+      exit 1
+      ;;
+    esac
+  done <<<"$records"
 
   echo "claude-review skill evidence OK (no silent Skill-tool fallback in posted review bodies)"
   exit 0
