@@ -19,13 +19,13 @@ Mode: `me` (relentless). Domain: engineering (new skill/plugin component in this
 - Q3 | answered | round 1 | Scope of "dead" for V1? | unreferenced code symbols + orphaned files; deps/config/assets/flags deferred to V2
 - Q4 | answered | round 1 | Output posture? | report-only, removal delegated to /tidy, /simplify, work-items
 - Q5 | answered | round 1 | Detection strategy? | tool-first, model-verified; grep fallback where no tool exists; every finding survives a verification pass
-- Q6 | open | round 2 | Verdict vocabulary / confidence tiers? |
-- Q7 | open | round 2 | Suppression write-back — apply, propose, or omit? |
-- Q8 | open | round 2 | Missing-tool behavior — never install, degrade, or prompt? |
-- Q9 | open | round 2 | Scan scope — whole repo, path arg, or tidy-lane reuse? |
-- Q10 | open | round 2 | Findings persistence — stdout, persisted file, work-items handoff? |
-- Q11 | open | round 2 | Setup skill / project config, or zero-config V1? |
-- Q12 | open | round 2 | Eval fixture strategy for the skill? |
+- Q6 | answered | round 2 | Verdict vocabulary / confidence tiers? | three verdicts: `dead` (T1) / `uncertain` (T2) / `alive` (T3, reported with saving evidence, not work) — carried in the flat record protocol
+- Q7 | answered | round 2 | Suppression write-back? | propose, never apply — report emits ready-to-paste native suppression entries per tool; read-only guarantee preserved
+- Q8 | answered | round 2 | Missing-tool behavior? | never auto-install; detect presence, label which detectors ran/skipped, grep fallback marked reduced-confidence; partial sweep must never read as complete
+- Q9 | answered | round 2 | Scan scope? | whole-repo default + optional path/glob arg; reuse `.claude/tidy-lanes/` globs as named scopes when present, never inherit lane rotation
+- Q10 | answered | round 2 | Findings persistence? | markdown to stdout + persisted findings file in `.work/` slice + opt-in `work-items:track` handoff
+- Q11 | answered | round 2 | Setup skill / config? | zero-config V1, no setup skill; suppression lives in each tool's own native config
+- Q12 | answered | round 2 | Eval fixture strategy? | per-ecosystem fixtures each pairing a known-dead symbol with a known-alive-via-dynamic-reference trap (DI registration, getattr, string dispatch); plus detect.test.sh unit suite
 
 ## Decision tree (`me` mode)
 
@@ -34,14 +34,21 @@ Mode: `me` (relentless). Domain: engineering (new skill/plugin component in this
 - [ ] Scope of "dead" for V1 (Q3)
 - [ ] Output posture: report-only vs --fix (Q4)
 - [ ] Detection strategy: tool-first vs model-first (Q5)
-- [ ] Confidence-tier model (blocked by: Q4)
-- [ ] Findings persistence / work-items handoff (blocked by: Q4)
-- [ ] Verification discipline — what every finding must pass before report (blocked by: Q5)
-- [ ] Per-ecosystem tool roster + fallback when no tool exists (blocked by: Q1, Q5)
-- [ ] Setup skill / project config (lanes-style) or zero-config (blocked by: Q2, Q1)
-- [ ] Composition contract with tidy/simplify/work-items (blocked by: Q2, Q4)
-- [ ] Evals plan for the skill (blocked by: most of the above)
-- [ ] Acceptance criteria for V1 (blocked by: all of the above)
+- [x] Confidence-tier model (Q6) — dead / uncertain / alive
+- [x] Findings persistence / work-items handoff (Q10) — stdout + .work file + opt-in track
+- [x] Verification discipline (Q5, Q6) — every candidate adjudicated; `alive` cites saving evidence
+- [x] Per-ecosystem tool roster + fallback (Q1, Q8) — knip / vulture / Roslyn+inspectcode / shellcheck; grep fallback, never auto-install
+- [x] Suppression write-back posture (Q7) — propose-only
+- [x] Scan scope (Q9) — whole-repo default, optional path/glob, tidy-lane globs as named scopes
+- [x] Setup skill / project config (Q11) — zero-config V1
+- [x] Composition contract with tidy/simplify/work-items (Q2, Q4, Q10)
+- [x] Evals plan (Q12) — paired dead/alive-trap fixtures per ecosystem + unit suite
+- [x] Acceptance criteria for V1 — written into the Brief (Step 4)
+
+## Deferred (recorded in the Brief)
+
+- Q13 | deferred | round 2 | V2: add unused-dependency reporting first? | after V1 ships — Brief Deferred questions, arbiter USER-RESERVED
+- Q14 | deferred | round 2 | Does a known-alive/entry-point config become necessary? | after V1 FP data — Brief Deferred questions, arbiter USER-RESERVED
 
 ## Session-shorthand glossary
 
