@@ -3,6 +3,49 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3]
+
+### Fixed
+
+Four defects raised in review on #3225, each reproduced before it was fixed.
+
+- **The index-drift kill switch read a variable nothing sets, so the option did nothing.** The hook
+  called `hook::check_enabled "INSTRUCTION_PLACEMENT_INDEX_DRIFT"`, which resolves to
+  `CLAUDE_PLUGIN_OPTION_INSTRUCTION_PLACEMENT_INDEX_DRIFT_ENABLED`. The declared userConfig key is
+  `index_drift_hook_enabled`, which Claude Code mirrors as
+  `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` -- the name `README.md` already documented.
+  `hook::is_enabled` treats an unset variable as enabled, so setting the option `false` had no
+  effect. The suite hid it twice over: the case set the same wrong name the implementation read, and
+  it ran against a repository an earlier case had already brought in sync, so the hook was silent
+  either way. Now `INDEX_DRIFT_HOOK`, tested on a freshly drifted fixture, with a control case
+  proving the fixture drifts and a negative case proving the old spelling does **not** silence it.
+
+- **`validate` pooled the brace budget across unrelated `--glob` flags.** Every CLI glob was tagged
+  with the same `<cli>` source, and the budget resets on a source change, so two independently legal
+  512-expansion globs in one invocation charged 1,024 against one budget and the first was reported
+  `over-budget`. The budget belongs to a rule's whole `paths:` list; a standalone `--glob` is nobody's
+  list. Budget grouping is now a key distinct from the displayed source.
+
+- **The symlink backfill re-admitted files the corpus exclusions had just rejected.** `detect.sh`
+  skips an excluded path in the tracked walk, then the backfill loop that recovers symlink-only rules
+  added it back because it only asked whether the path was already in the file list -- emitting a
+  `SKIP` row *and* a `FILE` row for one path and counting it in both summary totals. `context/corpus.md`
+  states exclusions are absolute and applied before any classification; the second entry point now
+  enforces the same rule.
+
+- **An absolute index target outside `--root` was reported as not existing.** `ip_index_target_loaded`
+  prefixed the root unconditionally, building `<root>//abs/path`, which collapses to a path under the
+  root that is not there -- so `reachable` and `write`'s post-write check both said "does not exist"
+  about a file plainly present. Easy to hit with the default `--root .` and a `--file` elsewhere.
+
+### Known issue, not fixed here
+
+- `lib/state-key.sh`'s `sha256` helper runs as a non-last pipeline stage, so its `exit 2` on a host
+  with neither `sha256sum` nor `shasum` exits only that stage: `cut` reads nothing and the caller
+  returns a malformed key with status 0 instead of failing cleanly. The file is byte-identical to the
+  canonical `plugins/claude-config/lib/state-key.sh` and shared by six plugins, so the fix belongs
+  with the canonical copy and its sync cluster rather than in this plugin's PR. Raised on #3225.
+
 ## [0.11.2]
 
 ### Fixed

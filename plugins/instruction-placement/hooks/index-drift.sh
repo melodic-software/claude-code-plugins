@@ -25,7 +25,14 @@ set -uo pipefail
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
-hook::check_enabled "INSTRUCTION_PLACEMENT_INDEX_DRIFT"
+# The argument is the userConfig key MINUS its `_enabled` suffix, upper-cased:
+# `index_drift_hook_enabled` -> INDEX_DRIFT_HOOK, which hook::is_enabled turns
+# back into CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED -- the variable Claude
+# Code actually sets, and the one README.md documents. It is NOT the plugin name
+# plus the hook name; that spelling names a variable nothing ever sets, and
+# hook::is_enabled's unset default is `true`, so the kill switch would be dead
+# in the one direction anybody would notice.
+hook::check_enabled "INDEX_DRIFT_HOOK"
 
 # Read inherited fd0 directly. stdin is read ONCE — reading it twice drains the
 # pipe, and on Windows Git Bash `</dev/stdin` cannot resolve the Win32 pipe CC

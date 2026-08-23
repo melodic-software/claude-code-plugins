@@ -192,11 +192,24 @@ else
 
   # Rules reached through a symlink are not tracked by design; discovery owns
   # that asymmetry, so pull them in from there rather than from the git listing.
+  #
+  # The exclusion and tier filters run again here. Skipping them let this loop
+  # UNDO the one above: a tracked rule under an excluded subtree was written to
+  # SKIP_ROWS and left out of FILES, then re-added here because it was "not
+  # already in FILES" -- emitting a SKIP row and a FILE row for the same path and
+  # counting it in both summary totals. `context/corpus.md` states exclusions are
+  # absolute and applied before any classification, so nothing below can reach
+  # the candidate set; a second entry point into that set has to enforce the same
+  # rule or the invariant is only true of the first one.
   while IFS= read -r r; do
     [[ -z "$r" ]] && continue
     for existing in "${FILES[@]}"; do
       [[ "$existing" == "$r" ]] && continue 2
     done
+    # Already SKIP-rowed by the loop above, so this is a silent drop rather than
+    # a second row for the same path.
+    is_excluded "$r" && continue
+    [[ "$TIER" == "core" && "$(classify_tier "$r")" != "core" ]] && continue
     FILES+=("$r")
   done < <(ip_discover_rules .)
 fi

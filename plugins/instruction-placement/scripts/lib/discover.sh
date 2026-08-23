@@ -302,8 +302,17 @@ ip_index_target_loaded() {
     return 1
   }
 
+  # An ALREADY-ABSOLUTE target is used as-is. Prefixing the root unconditionally
+  # produced `.//abs/path`, which collapses to `./abs/path` -- a path under the
+  # root that does not exist -- so a real, loadable file outside `--root` was
+  # reported "does not exist". Callers legitimately pass an absolute target when
+  # `--file` is not under `--root`, which is easy to do by accident with the
+  # default `--root .`.
   local abs_target
-  abs_target="$(ip_realpath "$root/$target")"
+  case "$target" in
+  /*) abs_target="$(ip_realpath "$target")" ;;
+  *) abs_target="$(ip_realpath "$root/$target")" ;;
+  esac
   if [[ ! -f "$abs_target" ]]; then
     printf 'UNREACHABLE\t%s does not exist\n' "$target"
     return 1

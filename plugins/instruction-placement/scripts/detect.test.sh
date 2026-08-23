@@ -204,6 +204,31 @@ assert_has "node_modules is skipped" "$out_c" "$(printf 'SKIP\tnode_modules/y/CL
 assert_has "a named contributor surface is tiered" "$out_c" "$(printf 'FILE\tCONTRIBUTING.md\tnamed\t1')"
 assert_has "a docs tree file is tiered" "$out_c" "$(printf 'FILE\tdocs/guide.md\tdocs\t1')"
 
+# An excluded path that ALSO lives in a `.claude/rules` tree reaches the file
+# list by two routes: the tracked walk (which skips it) and the symlink backfill
+# from ip_discover_rules (which used to re-add it, because it only asked "is this
+# already in FILES"). The result was a SKIP row and a FILE row for one path, and
+# a double count in the summary. `context/corpus.md` says exclusions are absolute
+# and applied before any classification, so this pins BOTH halves: skipped, and
+# not silently re-admitted.
+excl="$(mktemp -d)"
+git -C "$excl" init -q .
+mkdir -p "$excl/vendor/pkg/.claude/rules"
+printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# Vendored rule\n' \
+  >"$excl/vendor/pkg/.claude/rules/v.md"
+printf '# Root\n' >"$excl/CLAUDE.md"
+commit_all "$excl"
+
+out_x="$(run --root "$excl")"
+assert_has "a rule inside an excluded tree is skipped" "$out_x" \
+  "$(printf 'SKIP\tvendor/pkg/.claude/rules/v.md\texcluded by corpus rules')"
+if [[ "$out_x" == *"$(printf 'FILE\tvendor/pkg/.claude/rules/v.md')"* ]]; then
+  fail "and the backfill does not re-admit it" "no FILE row for the excluded rule" "$out_x"
+else
+  pass "and the backfill does not re-admit it"
+fi
+rm -rf "$excl"
+
 out_core="$(run --root "$corp" --tier core)"
 assert_has "core tier keeps the instruction layer" "$out_core" "$(printf 'FILE\tCLAUDE.md\tcore\t1')"
 assert_has "core tier skips ordinary documentation" "$out_core" "$(printf 'SKIP\tdocs/guide.md\toutside the core tier')"

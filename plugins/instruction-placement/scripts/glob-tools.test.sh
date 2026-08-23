@@ -309,6 +309,21 @@ out="$(run rules --root "$split_repo")"
 over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
 assert_eq "the budget does not leak across separate rules" "0" "$over"
 
+# The same separation for `validate`. Every CLI --glob used to be tagged with the
+# same `<cli>` source, so the running total carried from one flag to the next and
+# two independently-legal globs in one invocation reported the first
+# over-budget. A --glob is nobody's `paths:` list; each is its own unit of one.
+out="$(run validate --root "$split_repo" --glob "$nine/x.ts" --glob "$nine/y.ts")"
+over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+assert_eq "the budget does not leak across separate --glob flags" "0" "$over"
+
+# ...and the real ceiling still fires, so the fix above cannot be a way of
+# never reporting over-budget at all.
+eleven="src/{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}"
+out="$(run validate --root "$split_repo" --glob "$eleven.ts")"
+assert_eq "a single glob over the ceiling is still over-budget" \
+  "over-budget" "$(row_field "$out" "$eleven.ts" 6)"
+
 # --------------------------------------------------------------------------
 # Declared userConfig reaches the script
 # --------------------------------------------------------------------------

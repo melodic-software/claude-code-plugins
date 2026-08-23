@@ -247,6 +247,29 @@ assert_eq "an imported AGENTS.md is reachable" "0" "$?"
 ip_index_target_loaded "$chain" "CLAUDE.md" >/dev/null 2>&1
 assert_eq "a root CLAUDE.md target is reachable" "0" "$?"
 
+# An ABSOLUTE target must not be re-anchored under the root. Prefixing it
+# unconditionally built `<root>//abs/path`, which collapses to a path under the
+# root that does not exist, so a real file was reported "does not exist" —
+# an easy invocation to reach with the default `--root .` and a --file elsewhere.
+ip_index_target_loaded "$chain" "$chain/AGENTS.md" >/dev/null 2>&1
+assert_eq "an absolute target that exists is reachable" "0" "$?"
+reason="$(ip_index_target_loaded "$chain" "$chain/AGENTS.md" 2>&1)"
+if [[ "$reason" == *"does not exist"* ]]; then
+  fail "an absolute target is not reported missing" "no 'does not exist'" "$reason"
+else
+  pass "an absolute target is not reported missing"
+fi
+
+# ...and a genuinely absent absolute target still says so.
+ip_index_target_loaded "$chain" "$chain/nope.md" >/dev/null 2>&1
+assert_eq "an absolute target that is absent is still unreachable" "1" "$?"
+reason="$(ip_index_target_loaded "$chain" "$chain/nope.md" 2>&1)"
+if [[ "$reason" == *"does not exist"* ]]; then
+  pass "and the reason is that it does not exist"
+else
+  fail "and the reason is that it does not exist" "contains: does not exist" "$reason"
+fi
+
 # The documented symlink alternative to the import.
 symlinked="$(mktemp -d)"
 git -C "$symlinked" init -q .

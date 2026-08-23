@@ -138,12 +138,39 @@ expect_eq "a path outside any repository produces no output" "" "$out"
 
 # --------------------------------------------------------------------------
 # Kill switch
+#
+# The variable name is the assertion. hook::is_enabled defaults an UNSET
+# variable to enabled, so a test that sets whatever name the implementation
+# happens to read passes for both a working switch and a dead one -- which is
+# exactly what happened: the hook read
+# CLAUDE_PLUGIN_OPTION_INSTRUCTION_PLACEMENT_INDEX_DRIFT_ENABLED, nothing sets
+# that, and this case pinned the typo instead of the contract. So the positive
+# case uses the name README.md documents and Claude Code derives from the
+# `index_drift_hook_enabled` userConfig key, and a negative case asserts the old
+# spelling has no effect, so it cannot come back unnoticed.
 # --------------------------------------------------------------------------
-out="$(printf '%s' "$(payload_for "$repo/.claude/rules/csharp.md")" |
-  CLAUDE_PLUGIN_OPTION_INSTRUCTION_PLACEMENT_INDEX_DRIFT_ENABLED=false bash "$HOOK" 2>&1)"
-expect_lacks "the kill switch silences the hook" "$out" "stale"
+# A FRESH drifted repo. `$repo` was brought in sync above, so a hook run against
+# it is silent whatever the switch says -- which is the second half of why the
+# original case proved nothing.
+killrepo="$(build_drifted)"
+kill_payload="$(payload_for "$killrepo/.claude/rules/csharp.md")"
 
-rm -rf "$repo" "$noindex"
+out="$(printf '%s' "$kill_payload" | bash "$HOOK" 2>&1)"
+expect_has "control: the fixture really is drifted with no switch set" "$out" "stale"
+
+out="$(printf '%s' "$kill_payload" |
+  CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED=false bash "$HOOK" 2>&1)"
+expect_lacks "the documented kill switch silences the hook" "$out" "stale"
+
+out="$(printf '%s' "$kill_payload" |
+  CLAUDE_PLUGIN_OPTION_INSTRUCTION_PLACEMENT_INDEX_DRIFT_ENABLED=false bash "$HOOK" 2>&1)"
+expect_has "a variable Claude Code never sets does NOT silence the hook" "$out" "stale"
+
+out="$(printf '%s' "$kill_payload" |
+  CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED=true bash "$HOOK" 2>&1)"
+expect_has "an explicit true leaves the hook running" "$out" "stale"
+
+rm -rf "$repo" "$noindex" "$killrepo"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]] || exit 1

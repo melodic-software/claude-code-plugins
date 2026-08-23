@@ -375,11 +375,22 @@ else
 fi
 TRACKED_TOTAL=$(wc -l <"$TRACKED_FILE" | tr -d ' ')
 
-# Build the (source, pattern) work list.
-declare -a SOURCES=() PATTERNS=()
+# Build the (source, budget key, pattern) work list.
+#
+# BUDGET_KEY is deliberately NOT the displayed source. The budget belongs to a
+# rule's whole `paths:` list, and a standalone `--glob` is not part of anyone's
+# list -- each is its own unit of one. Tagging every CLI glob with the same
+# `<cli>` source made them share one budget, so two independently-legal
+# 512-expansion globs in one invocation reported the first `over-budget`. The
+# key carries the index for validate; for `rules` it is the rule path, which is
+# what groups a real `paths:` list.
+declare -a SOURCES=() BUDGET_KEYS=() PATTERNS=()
 if [[ "$SUBCOMMAND" == "validate" ]]; then
+  cli_i=0
   for g in "${CLI_GLOBS[@]}"; do
     SOURCES+=("<cli>")
+    BUDGET_KEYS+=("<cli>#$cli_i")
+    cli_i=$((cli_i + 1))
     PATTERNS+=("$g")
   done
 else
@@ -388,6 +399,7 @@ else
     while IFS= read -r pat; do
       [[ -z "$pat" ]] && continue
       SOURCES+=("$rule")
+      BUDGET_KEYS+=("$rule")
       PATTERNS+=("$pat")
     done < <(ip_parse_paths "$rule")
   done < <(ip_discover_rules .)
@@ -408,19 +420,20 @@ trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE"' EXIT
 # Tracked with a running counter rather than an associative array: `declare -A`
 # is bash 4+, and macOS still ships 3.2. The work list groups every pattern of a
 # rule contiguously, so resetting on a source change is equivalent and portable.
-PREV_SOURCE=""
+PREV_BUDGET_KEY=""
 RUNNING_EXPANDED=0
 
 for idx in "${!PATTERNS[@]}"; do
   pattern="${PATTERNS[$idx]}"
   source="${SOURCES[$idx]}"
+  budget_key="${BUDGET_KEYS[$idx]}"
   status="ok"
   expanded_count=0
   match_count=0
   expansions=()
 
-  if [[ "$source" != "$PREV_SOURCE" ]]; then
-    PREV_SOURCE="$source"
+  if [[ "$budget_key" != "$PREV_BUDGET_KEY" ]]; then
+    PREV_BUDGET_KEY="$budget_key"
     RUNNING_EXPANDED=0
   fi
 
