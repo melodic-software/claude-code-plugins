@@ -1223,6 +1223,14 @@ jobs:
       - name: Run shared test-harness tests
         if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/lib/test-harness.test.sh
+      # Same reason again — run-plugin-tests.sh never reaches scripts/. The
+      # self-test runs first so a broken validator cannot mask a regression
+      # behind a green gate: no shipping plugin violates the check-only
+      # carve-out assertions, so the shipping tree alone proves nothing about
+      # them and only these fixtures show the gate still goes red (#3137).
+      - name: Run plugin-contract validator tests
+        if: needs.scope.outputs.run_full == 'true'
+        run: bash scripts/validate-plugin-contracts.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.scope.outputs.run_full == 'true'
         run: scripts/validate-plugins.sh
