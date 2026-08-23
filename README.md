@@ -110,7 +110,7 @@ convention: shell `*.test.sh`, Node `*.test.js` and `*.test.mjs`, Python
 be derived from a suite path; those are named as `NOT RUN` and `--run` exits 3
 rather than reporting success over suites that never executed.
 
-A changed file that maps to nothing is an **error**, not an empty selection. 
+A changed file that maps to nothing is an **error**, not an empty selection.
 "zero suites" must never be read as "nothing to run". Path classes that
 genuinely carry no suite are recorded, with the CI lane that does cover them, in
 [`scripts/affected-tests-no-suite.txt`](scripts/affected-tests-no-suite.txt);
