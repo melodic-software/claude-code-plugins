@@ -3,6 +3,29 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.25]
+
+### Fixed
+
+- **hook:** notebook edits are spell-checked. The `PostToolUse` matcher listed only
+  `Write|Edit`, which the harness reads as exact-string alternation rather than a regex, so a
+  `NotebookEdit` never reached the hook and notebook content went unchecked
+  ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)). Registering
+  the tool alone would not have been enough: `NotebookEdit` carries its target as
+  `tool_input.notebook_path`, not `file_path`, so the hook would have fired and found no path
+  to check. The hook now accepts either key — an explicit `file_path` still wins — and normalizes
+  before the shared reader, which keeps that reader's project-membership and temp-tree scoping
+  the single gate a path passes through. `.ipynb` is not on the write allowlist, so a notebook
+  is scanned and disclosed, never rewritten in place.
+- **hook:** the agent-channel disclosure ceiling is 8,000 characters, down from 12,000. The
+  hooks reference caps hook output strings — `additionalContext` included — at 10,000, and
+  saves anything past that to a file, replacing it with a preview and a path. The old ceiling
+  sat 2,000 characters above that cap, so the hook's own truncation — which keeps the finding
+  counts and says that it truncated — could never fire first: a disclosure in that band was
+  demoted to a file pointer *after* write mode had already rewritten the file, which is the
+  outcome the ceiling exists to prevent
+  ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)).
+
 ## [0.6.24]
 
 ### Changed

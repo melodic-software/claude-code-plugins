@@ -905,6 +905,111 @@ else
   ok "stub/long: long tokens are elided in the rendered report"
 fi
 
+# --- The agent-channel ceiling must sit under the documented channel cap -----
+# Asserted on the CONSTANT, not on a rendered message: per-entry elision caps
+# the rendered report near 1,100 characters, so any "the emitted disclosure is
+# under N" assertion passes for every N above that and would stay green with
+# the ceiling put back over the cap. The hooks reference caps hook output
+# strings — additionalContext included — at 10,000 characters; a ceiling above
+# that is the channel truncating or dropping a disclosure the hook believed it
+# had delivered. Read the same way this suite already reads MAX_REPORT.
+# shellcheck disable=SC2016  # the sed script matches the hook's literal source text
+CTX_CEIL="$(sed -n 's/^CTX=$(truncate_to "\$CTX" \([0-9][0-9]*\)).*/\1/p' "$HOOK" | head -1)"
+# shellcheck disable=SC2016  # ditto
+SYS_CEIL="$(sed -n 's/^SYSMSG=$(truncate_to "\$SYSMSG" \([0-9][0-9]*\)).*/\1/p' "$HOOK" | head -1)"
+if [[ -z "$CTX_CEIL" || -z "$SYS_CEIL" ]]; then
+  fail "stub/ceiling: could not read the truncate_to ceilings from the hook (ctx='$CTX_CEIL' sys='$SYS_CEIL')"
+else
+  if ((CTX_CEIL <= 10000)); then
+    ok "stub/ceiling: the agent-channel ceiling ($CTX_CEIL) is at or under the documented 10,000-character cap"
+  else
+    fail "stub/ceiling: the agent-channel ceiling is $CTX_CEIL — above the documented 10,000-character cap"
+  fi
+  if ((SYS_CEIL <= 10000)); then
+    ok "stub/ceiling: the user-channel ceiling ($SYS_CEIL) is at or under the documented 10,000-character cap"
+  else
+    fail "stub/ceiling: the user-channel ceiling is $SYS_CEIL — above the documented 10,000-character cap"
+  fi
+fi
+
+# --- NotebookEdit reaches the hook, and reaches it with a usable path --------
+# NotebookEdit carries its target as tool_input.notebook_path; every other
+# tool this hook matches carries file_path. Registering NotebookEdit in the
+# matcher without teaching the hook that key fires the hook and produces
+# nothing, so both halves are pinned here: the registration (read out of
+# hooks.json, which no behavioral case can see) and the payload handling.
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+if jq -e '[.hooks.PostToolUse[].matcher] | any(. == "Write|Edit|NotebookEdit")' "$HOOKS_JSON" >/dev/null 2>&1; then
+  ok "notebook/matcher: hooks.json registers NotebookEdit alongside Write and Edit"
+else
+  fail "notebook/matcher: NotebookEdit is not in the PostToolUse matcher: $(jq -c '[.hooks.PostToolUse[].matcher]' "$HOOKS_JSON" 2>&1)"
+fi
+
+# Same stub, same file, two payload shapes: a NotebookEdit carrying only
+# notebook_path must produce the byte-identical disclosure a Write carrying
+# file_path does.
+run_stub_notebook() {
+  local notebook_path="$1"
+  shift
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"stub-1","tool_input":{"notebook_path":"%s","new_source":"x"},"tool_name":"NotebookEdit"}' "$notebook_path" |
+      env -u CLAUDE_PROJECT_DIR PATH="$STUB_BIN:$PATH" \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true "$@" bash "$HOOK"
+  )
+}
+
+NB="$STUB_REPO/notebook.ipynb"
+printf '{"cells":[{"source":["this has teh typo"]}]}\n' >"$NB" # spellchecker:disable-line
+NB_BEFORE="$(cat "$NB")"
+OUT_NB=$(run_stub_notebook "$NB")
+RC_NB=$?
+CTX_NB=$(printf '%s' "$OUT_NB" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+OUT_NBW=$(run_stub "$NB")
+CTX_NBW=$(printf '%s' "$OUT_NBW" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ $RC_NB -eq 0 ]]; then
+  ok "notebook/payload: exit 0 (advisory)"
+else
+  fail "notebook/payload: exit $RC_NB"
+fi
+if [[ -n "$CTX_NB" ]] && printf '%s' "$CTX_NB" | grep -qF 'teh'; then # spellchecker:disable-line
+  ok "notebook/payload: a notebook_path-only payload produces the finding disclosure"
+else
+  fail "notebook/payload: no disclosure for a notebook_path-only payload (the hook saw no path): '$CTX_NB'"
+fi
+if [[ "$CTX_NB" == "$CTX_NBW" ]]; then
+  ok "notebook/payload: the notebook_path disclosure matches the file_path disclosure for the same file"
+else
+  fail "notebook/payload: notebook_path and file_path disagree:\n  notebook: $CTX_NB\n  file:     $CTX_NBW"
+fi
+# .ipynb is not on the write allowlist, so write mode degrades to report-only
+# for it: a notebook is scanned and disclosed, never rewritten in place (a
+# whole-file dictionary rewrite of notebook JSON would reach cell ids and
+# encoded outputs, not only prose).
+if [[ "$(cat "$NB")" == "$NB_BEFORE" ]]; then
+  ok "notebook/payload: write mode leaves the notebook byte-identical (extension not write-allowlisted)"
+else
+  fail "notebook/payload: the notebook was rewritten: $(cat "$NB")"
+fi
+
+# An explicit file_path always wins; a payload carrying both is not rerouted.
+printf 'this has teh typo\n' >"$STUB_REPO/both.txt" # spellchecker:disable-line
+OUT_BOTH=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"stub-1","tool_input":{"file_path":"%s","notebook_path":"%s"},"tool_name":"NotebookEdit"}' \
+    "$STUB_REPO/both.txt" "$NB" |
+    env -u CLAUDE_PROJECT_DIR PATH="$STUB_BIN:$PATH" \
+      CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+      CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true bash "$HOOK"
+)
+CTX_BOTH=$(printf '%s' "$OUT_BOTH" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_BOTH" | grep -qF 'both.txt' && ! printf '%s' "$CTX_BOTH" | grep -qF 'notebook.ipynb'; then
+  ok "notebook/precedence: an explicit file_path wins over notebook_path"
+else
+  fail "notebook/precedence: expected both.txt in the disclosure, got: $CTX_BOTH"
+fi
+
 # --- A broken write pass must not be read as "everything was applied" --------
 printf 'this has teh typo and wnat too\n' >"$STUB_REPO/break.txt" # spellchecker:disable-line
 OUT_BR=$(run_stub "$STUB_REPO/break.txt" STUB_BREAK=1)

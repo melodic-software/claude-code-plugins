@@ -1,7 +1,8 @@
 # typos-format
 
 A Claude Code plugin that spell-checks the moment you edit any file. On every
-`Write` or `Edit` it runs [typos](https://github.com/crate-ci/typos) and
+`Write`, `Edit`, or `NotebookEdit` it runs
+[typos](https://github.com/crate-ci/typos) and
 surfaces findings back to Claude as advisory context — including remediation
 guidance for allowlisting a false positive. It is **report-only by default**;
 with the `typos_format_write_changes` opt-in it applies typos' safe
