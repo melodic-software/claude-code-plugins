@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.4]
+
+- **The README now points back at the upstream ledger.** `docs/upstream/cursor-pstack.md` names
+  this plugin's catalog and rewrite guide as where the Cursor `unslop` skill landed, but nothing
+  under `plugins/ai-slop/` pointed the other way — the only derived plugin in the marketplace with
+  no citation of that file, so a reader who arrived at the catalog through the README had no route
+  to what the port took, deduplicated, or rejected, nor to the row that decides the next drift
+  recheck. The README's existing sentence naming Cursor's skill now carries that link. The pointer
+  belongs here rather than appended to the earlier entry that recorded the port, because a published
+  changelog entry is history and is not edited. Documentation only.
+
 ## [0.3.3]
 
 Three corrections found by re-reading what 0.3.1 and the 2.4.0 contract release actually shipped.
