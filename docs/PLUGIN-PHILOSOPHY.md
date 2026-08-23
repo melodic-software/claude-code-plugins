@@ -44,19 +44,19 @@ this rule entirely, being neither skill, agent, nor schema content — identifyi
 the manifest is for.)
 
 Like the setup contract below, **this is a normative target, not a description of the fleet**, and
-the fetch limb has live instances rather than none. The clearest are the three `persist-findings`
-files under `ai-slop/skills/audit/context/`,
-`claude-config/skills/audit-instructions/context/`, and `mutation-testing/skills/audit/context/`:
-each instructs the agent to read a publisher-owned contract and each is fail-closed on it — "if the
-contract cannot be fetched, do not write." That is a deliberate publisher runtime dependency, and
-the rule above says it is nonconforming.
+the fetch limb has live instances rather than none. Four are unambiguous, because each pairs an
+imperative to read a publisher-owned contract with a fail-closed guard — "if the contract cannot be
+fetched, do not write": the three `persist-findings` files under `ai-slop/skills/audit/context/`,
+`claude-config/skills/audit-instructions/context/`, and `mutation-testing/skills/audit/context/`,
+plus `testing/skills/audit/SKILL.md`. A guard that refuses to proceed without the fetch is a
+deliberate publisher runtime dependency, and the rule above says it is nonconforming.
 
 No exhaustive list is offered, and that is not an omission: separating an imperative to fetch from a
 citation is the same judgement the paragraph above calls not cleanly separable, so any enumeration
-would be asserting a boundary this statement declines to draw. `testing/skills/audit/SKILL.md`,
-`work-items/skills/triage/SKILL.md`, `docs-hygiene/skills/write-for-agents/SKILL.md`, and
-`playbooks/skills/skill-authoring/SKILL.md` all sit near that boundary. The three named above do not,
-which is why they are the ones named. Enforcement reaches a strict subset of the whole. `scripts/validate-plugin-contracts.mjs` gates the
+would be asserting a boundary this statement declines to draw. `work-items/skills/triage/SKILL.md`,
+`docs-hygiene/skills/write-for-agents/SKILL.md`, and `playbooks/skills/skill-authoring/SKILL.md`
+each direct the agent at a publisher-owned document without a fail-closed guard, and sit near that
+boundary rather than across it. Enforcement reaches a strict subset of the whole. `scripts/validate-plugin-contracts.mjs` gates the
 marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
 content, and holds the `autonomy` plugin to a stricter token set;
 `plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's
