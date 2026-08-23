@@ -102,37 +102,11 @@ when this pass must stop instead of guessing.
    at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
    rule covers it and append that line to the consumer's `.gitignore` when none does, **announcing
    the edit** (the ADR 0015 declared exception; touch nothing else there). A *tracked* overlay in the
-   index is a finding to stop and report, never ignore.
-
-   "Rule missing" and "tracked anyway" are **two independent probes**, and a bare `git check-ignore`
-   cannot tell them apart. It consults the index first and reports nothing (exit 1, no output) for a
-   path that is already tracked, because gitignore rules do not apply to tracked files — so the
-   tracked case, the one this step exists to stop on, is invisible to it, and appending the line
-   would announce a duplicate `.gitignore` entry as the fix while the overlay stays in team history.
-   Sibling `source-control` documents the same trap for its own local overlay
-   (`plugins/source-control/skills/setup/reference/apply-convention.md`, `layer=local`); this is that
-   pattern. Run both probes as one Bash tool call and branch on the pair:
-
-   ```bash
-   REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-   OVERLAY=".work-item-tracker.local.json"
-   # --no-index answers "does a matching ignore rule exist?" on its own terms, independent of the
-   # index. Without it, a rule that exists but was overridden by a past commit is indistinguishable
-   # from no rule at all.
-   IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")" && HAS_RULE=1 || HAS_RULE=0
-   # An ignore rule does not untrack an already-committed file, so ask the index separately.
-   TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
-   ```
-
-   - `TRACKED` non-empty → **STOP and report**, whatever `HAS_RULE` says. The overlay is in team
-     history and may carry per-user auth identity; the remediation is
-     `git rm --cached .work-item-tracker.local.json` plus a secret rotation if one was committed.
-     Never append the ignore line here — it changes nothing about a tracked file and would report
-     success over exactly the failure this step exists to catch.
-   - `TRACKED` empty and `HAS_RULE=0` → append `.work-item-tracker.local.json` to the consumer's
-     `.gitignore` and announce the edit.
-   - `TRACKED` empty and `HAS_RULE=1` → already covered; report the matching rule (`$IGNORE_MATCH`)
-     and change nothing.
+   index is a finding to stop and report, never ignore. Ignored and untracked are **two independent
+   probes** and a bare `git check-ignore` cannot tell them apart: it is silent for an already-tracked
+   path, so the tracked case is invisible to it. Run the probes and branch exactly as
+   [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md) specifies, including
+   why the ignore verdict must NOT come from `check-ignore -v`'s exit code.
 
 Example (`github`; `local-markdown` adds `"storage_dir": ".work-items"`):
 
@@ -166,12 +140,12 @@ check.
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
    A present overlay (`.work-item-tracker.local.json`) must parse as JSON, carry only allowlisted
    keys (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
-   Ignored and untracked are **two independent probes** — use the same
-   `check-ignore --no-index -v` plus `ls-files` pair as `apply` step 5, and for the same reason: a
-   bare `git check-ignore` reports nothing for an already-tracked overlay, so reading its silence as
-   "no rule" would report a missing-rule FAIL (remediation: add the line) over a tracked overlay
-   (remediation: `git rm --cached`), and reading it as PASS would miss the tracked overlay entirely.
-   A tracked overlay is the more serious FAIL of the two; name it as such when both hold.
+   Ignored and untracked are **two independent probes**: run the same pair `apply` step 5 uses, per
+   [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md). A bare
+   `git check-ignore` is silent for an already-tracked overlay, so reading that silence as "no rule"
+   raises a missing-rule FAIL (remediation: add the line) over a tracked one (`git rm --cached`),
+   and reading it as PASS misses the tracked overlay entirely. Tracked is the more serious FAIL;
+   name it as such when both hold.
    A `github` binding must additionally be **addressable from this checkout**, because everything
    above is shape and owner/repo are never recorded in the binding, every repo-scoped verb derives
    them here (`gh repo view --json owner,name`, per the tracker CONTRACT's "Setup (binding file)"),

@@ -225,6 +225,32 @@
         "Does not stage or commit the overlay",
         "Does not raise the tracked-overlay stop condition when the index probe comes back empty"
       ]
+    },
+    {
+      "id": 18,
+      "name": "apply-treats-a-negated-overlay-as-uncovered-not-as-already-ignored",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root and is untracked. The consumer's .gitignore carries `*.json` on one line and `!.work-item-tracker.local.json` on the next, so a pattern matches the overlay but the net effect is that git does NOT ignore it.)",
+      "expected_output": "Takes the ignore verdict from the bare exit code of git check-ignore --no-index, not from git check-ignore --no-index -v. With -v, git reports negation patterns as matches and exits 0, so the -v exit code means 'some pattern matched' rather than 'the path is ignored', and reading it as the verdict here would report the overlay as already covered while git leaves it exposed to git add -A. The bare probe exits non-zero, so setup treats this as the uncovered case: it appends the .work-item-tracker.local.json line to .gitignore and announces the edit, which is the correct remediation because the last matching rule wins. It uses -v only to render a matching rule in its report, never to decide.",
+      "files": [],
+      "expectations": [
+        "Derives the ignored/not-ignored verdict from git check-ignore --no-index WITHOUT -v",
+        "Does not report the overlay as already covered merely because a negation pattern matched",
+        "Appends the ignore line and announces the edit, relying on last-matching-rule-wins",
+        "Uses -v output only for the human-readable report"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "check-fails-on-a-tracked-overlay-that-no-rule-covers",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json is committed to the repository and no .gitignore rule matches it.)",
+      "expected_output": "Probe 2 runs both probes and reports FAIL. With the index probe reporting the path and no rule covering it, both conditions are wrong at once, and the report names the TRACKED condition as the finding because it is the more serious of the two: the overlay is in team history and may carry per-user auth identity, so the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential, after which the missing ignore rule is what apply adds. check modifies nothing and does not append the .gitignore line itself.",
+      "files": [],
+      "expectations": [
+        "Reports FAIL rather than PASS when the overlay is tracked",
+        "Names the tracked condition as the finding when both the rule is missing and the file is tracked",
+        "Gives git rm --cached as the remediation, not just adding an ignore line",
+        "Writes nothing, since check is read-only"
+      ]
     }
   ]
 }

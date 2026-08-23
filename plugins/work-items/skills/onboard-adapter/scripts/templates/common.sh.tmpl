@@ -185,7 +185,7 @@ wit_need_@@PROVIDER_FUNC@@_config() {
     }
   ejson="$(wit_effective_binding_json "$binding")" ||
     {
-      printf '%s: invalid binding at %s — see CONTRACT.md Setup\n' "$name" "$binding" >&2
+      printf '%s: invalid binding at %s — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup\n' "$name" "$binding" >&2
       exit "$EX_CONFIG"
     }
   WIT_@@PROVIDER_UPPER@@_HOST="$(jq -r '.config.@@CONFIG_KEY@@.host // empty' <<<"$ejson")"
