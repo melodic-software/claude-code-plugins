@@ -1,0 +1,199 @@
+{
+  "schema": 1,
+  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/NATIVE-SURFACES.md is generated from this file and is never the source. Seeded candidates live in plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
+  "rows": [
+    {
+      "native": { "name": "code-review", "class": "bundled-skill", "markers": [] },
+      "component": { "plugin": "review", "skill": "code-review", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "Same object, different invocation surface. The bundled skill is a session-driven review of the current diff or a named PR, with mutating flags (--fix writes the working tree, --comment posts to the PR). review:code-review is a non-interactive CI lane a reusable workflow invokes for one pull request, deliberately scoped out of security when a security lane exists. Neither replaces the other: a CI lane cannot be typed into a session, and the session surface has no workflow contract.",
+      "evidence": [
+        "`code-review` present in the extraction as bundled-skill",
+        "aliases: review",
+        "native description: Review the current diff or a PR for bugs and cleanups",
+        "our description: CI code-review lane for a GitHub pull request — high-signal correctness and maintainability findings only, scoped out of security when a security lane exists",
+        "the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode — the alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "simplify", "class": "bundled-skill", "markers": [] },
+      "component": { "plugin": "code-tidying", "skill": "tidy", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "Different trigger, not a different job. The bundled skill refines the code a change already touched; tidy proactively hunts unfiled structural drift across a rotated, glob-scoped lane and ships one structure-only PR per invocation. tidy's own description already routes current-diff work away to the native surface, which is the routing this row records rather than replaces.",
+      "evidence": [
+        "`simplify` present in the extraction as bundled-skill",
+        "native description: Clean up the changed code without changing behavior",
+        "our description already carries `Skip when: /simplify refines the current diff`",
+        "seeded rationale: both clean up code without changing behavior"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "simplify", "class": "bundled-skill", "markers": [] },
+      "component": { "plugin": "code-tidying", "skill": "batch-simplify", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "Scale is the whole difference. The bundled skill handles the change in front of it; batch-simplify fans the same job across a time- or branch-scoped window of changed files, grouped by ecosystem and dependency order, for the catch-up case after a multi-session sprint. Its description already sends single-file cleanup to the native surface.",
+      "evidence": [
+        "`simplify` present in the extraction as bundled-skill",
+        "native description: Clean up the changed code without changing behavior",
+        "our description already carries `Skip for single-file cleanup — use /simplify instead`",
+        "seeded rationale: same cleanup job at batch scale across many files"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release gives the bundled `simplify` skill a multi-file or time-window argument form, which would collapse this pair's only distinction",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "security-review",
+        "class": "plugin-backed-builtin",
+        "markers": []
+      },
+      "component": { "plugin": "review", "skill": "security-review", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "The native side is not a bundled skill at all — the extraction reports it under `plugin_backed`, backed by the `security-review` plugin — and it runs in-session over the change at hand. review:security-review is the CI lane a reusable workflow invokes for a pull request, targeting logic, trust-boundary, and Actions findings static analysis misses. Reading the wrong extraction key is the failure this row exists to prevent: under `builtin_commands` the surface looks absent.",
+      "evidence": [
+        "`security-review` present in the extraction as plugin-backed-builtin",
+        "the extraction's `plugin_backed` map reports {\"security-review\": \"security-review\"}; the name appears in neither `builtin_commands` nor `bundled_skills`",
+        "our description: CI security-review lane for a GitHub pull request — logic, trust-boundary, and Actions security findings static analysis misses"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "an extraction stops reporting `security-review` under `plugin_backed` — it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "run", "class": "bundled-skill", "markers": [] },
+      "component": { "plugin": "testing", "skill": "run-e2e", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "The bundled skill answers 'did this change work when I ran the app'; run-e2e drives named UI and API flows, captures evidence (screenshots, responses, logs), and carries a non-UI smoke playbook for libraries, MCP servers, hooks, and scripts — surfaces that have no app to launch. Prefer the native surface for the quick look; ours where the verification has to be reproducible or the target is not an app.",
+      "evidence": [
+        "`run` present in the extraction as bundled-skill",
+        "native description: Launch this project's app to see your change working",
+        "our description: End-to-end live app verification — check prerequisites, start the app, drive UI/API flows, and capture evidence; includes a non-UI smoke-test playbook",
+        "the non-UI smoke lane has no native counterpart in this extraction"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "doctor", "class": "bundled-skill", "markers": ["gated"] },
+      "component": {
+        "plugin": "claude-ops",
+        "skill": "audit-install-state",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "reason": "Bundled `doctor` is the quick native health-and-fix pass over an installation — and it offers to fix, which puts it outside the read-only contract audit-install-state holds. audit-install-state is the deep read-only inventory of the install tree: every file classified, product-managed retention separated from genuinely unmanaged state, filename schemes resolved before any liveness check, and a deliberate-or-experimental state detected before anything is called stale. Prefer the native pass for a fast check; ours when the question is what is actually in the tree and what nothing manages.",
+      "evidence": [
+        "`doctor` present in the extraction as bundled-skill",
+        "markers: gated",
+        "aliases: checkup",
+        "native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions",
+        "the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree",
+        "shared listing budget measured at ~13.0x over the documented 8,000-char default across 153 listing-eligible skills (check-listing-budget.sh, 2026-08-23), so the baked phrase is the best available routing surface, not a guaranteed one"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch — it became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": true, "boundary_section": true },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "doctor", "class": "bundled-skill", "markers": ["gated"] },
+      "component": { "plugin": "claude-ops", "skill": "audit-performance", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow — CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, a process census — interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Registry-row only: the routing line for this pair lives on audit-install-state, which owns the shared surface description for the plugin.",
+      "evidence": [
+        "`doctor` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions",
+        "our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors)",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "morning", "class": "session-skill", "markers": [] },
+      "component": { "plugin": "claude-ops", "skill": "morning-brief", "kind": "skill" },
+      "verdict": "defer",
+      "reason": "Undetermined, and deliberately so. `morning` was observed in a session roster, not in any binary extraction, so the only evidence available is one environment's roster on one day — not a basis for a routing line shipped to every consumer. The overlap is real enough to record and too thin to rule on: nothing is known about what the session-provided skill reads, whether it is gh-based, or whether it exists outside the surface it was seen on. Observation-only, never baked, until an in-session capture protocol exists.",
+      "evidence": [
+        "`morning` is absent from this extraction — absence from the extraction is a statement about the extraction, not the product",
+        "observed in this repository's cloud session roster on 2026-08-23, alongside other session-provided skills (docx, pdf, pptx, xlsx, design, artifact-*) that the local-CLI bundled roster does not carry",
+        "our description: prints the operator's read-only morning view for the current GitHub repo in one pass — queue-label counts, merge-ready PRs, parked decisions, loop-lane telemetry freshness"
+      ],
+      "observation": {
+        "class": "live-roster",
+        "detail": "observed in a Claude Code cloud session's own skill roster; one environment, one day, no second observation",
+        "date": "2026-08-23"
+      },
+      "recheck": {
+        "trigger": "an in-session roster capture protocol lands and can observe this surface repeatably, or `morning` appears in a binary extraction's bundled-skill set",
+        "verified": "2026-08-23"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": false
+    }
+  ]
+}

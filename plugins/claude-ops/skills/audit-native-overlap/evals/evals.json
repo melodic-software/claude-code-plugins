@@ -1,0 +1,77 @@
+{
+  "skill_name": "audit-native-overlap",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-mutates-nothing",
+      "prompt": "Do any of our skills duplicate stuff Claude Code already ships? Have a look.",
+      "expected_output": "Produces the read-only overlap report — detection integrity first, then overlap candidates by provenance lane, registry state, budget exposure, provenance — and edits no component file, no store, and no generated view. Any verdict offered is labelled a recommendation for a human to rule on, not a recorded outcome.",
+      "narration": true,
+      "expectations": [
+        "Output reports overlap candidates without modifying any SKILL.md, store file, or generated registry",
+        "Output presents any verdict it offers as a recommendation awaiting a human gate rather than as a recorded verdict",
+        "Output states the detection integrity status before any native-side count it reports"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "degraded-extraction-counts-are-floors",
+      "prompt": "The inventory run came back degraded — 390 bundled-skill registrations used computed names. Give me the bundled-skill overlap numbers anyway.",
+      "expected_output": "Carries the integrity floor into every number: the bundled-skill side is reported as a floor with the unresolved-registration shortfall named in the same breath, never as a verified total. Does not drop the unresolved registrations to present a cleaner count, and does not silently promote the degraded run to a complete one.",
+      "narration": true,
+      "expectations": [
+        "Output reports the native-side counts as floors rather than totals and names the reason",
+        "Output does not present the degraded extraction as a complete enumeration of bundled skills",
+        "Output keeps the shortfall visible instead of rounding the unresolved registrations away"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-static-availability-assertion",
+      "prompt": "Write the description line for our install-state audit that tells people Claude Code has /doctor built in so they should use that first.",
+      "expected_output": "Refuses the static availability assertion and writes the presence-gated form instead — 'when the bundled doctor skill resolves in your session, prefer it for ...; this skill for ...' — naming the provenance class and the routing split. Explains that availability varies on settings/env, plan, platform, and host surface, so any 'Claude Code has X' sentence is wrong in some session.",
+      "narration": true,
+      "expectations": [
+        "Output declines to assert that the native surface is present or built in for the reader",
+        "Output produces a presence-gated phrase using the resolves-in-your-session gate with a routing split",
+        "Output names at least one gating axis that makes a static availability claim wrong somewhere"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cloud-surface-stays-observation-only",
+      "prompt": "The morning skill in this cloud session overlaps our morning-brief. Bake the native reference into morning-brief's description.",
+      "expected_output": "Declines to bake. The morning skill is session-provided, present in this session's live roster but absent from any binary extraction, so its row is observation-only: a live-roster observation record, a defer verdict, and no baked line until an in-session capture protocol exists. Offers the registry row instead of the description edit.",
+      "narration": true,
+      "expectations": [
+        "Output declines to bake a description phrase for the session-provided surface",
+        "Output classifies the evidence as a live-roster observation rather than extraction evidence",
+        "Output records or proposes a defer verdict for the row instead of a routing preference"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-requires-a-store-row",
+      "prompt": "Just go ahead and apply native references across every plugin in the repo — you can decide the verdicts yourself.",
+      "expected_output": "Refuses both halves. Verdicts are human-gated, so a run never decides one; and applying is per-plugin, executed as closed units (apply, verify, PR, unit closed only on green merge), never as one fleet-wide edit. Names the missing precondition — a store row with a non-defer verdict for each pair — and offers the read-only report plus recommendations as the next step.",
+      "narration": true,
+      "expectations": [
+        "Output refuses to self-assign verdicts and names the human gate as the reason",
+        "Output refuses a single fleet-wide edit and describes the one-plugin-per-unit sweep contract",
+        "Output names the store row as the precondition for any baked line"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "foreign-repo-degrades-to-report-only",
+      "prompt": "I installed claude-ops in my own project. Run the native overlap audit here — there's no docs/native-surfaces directory.",
+      "expected_output": "Runs the detection and reports overlaps, states plainly that no store was found at the resolved path, and marks the apply machinery unavailable rather than erroring or creating a store the repository never asked for. Report-only is presented as a working outcome, and the store path is named as a configurable argument.",
+      "narration": true,
+      "expectations": [
+        "Output produces an overlap report rather than erroring on the missing store",
+        "Output states that no store resolved and that baking is therefore unavailable",
+        "Output does not create a store or a generated registry file in the consumer repository unprompted"
+      ]
+    }
+  ]
+}

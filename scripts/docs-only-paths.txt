@@ -16,7 +16,11 @@
 #        cheat-sheet validation (reads docs/CATALOG.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
 #        docs/CATALOG-TAXONOMY.md, docs/SKILL-CHEAT-SHEET.md — the sheet
 #        deliberately lives OUTSIDE docs/topics/ so an edit to it is never
-#        docs-only and its drift gate always runs);
+#        docs-only and its drift gate always runs), plus the native-overlap
+#        registry checks, which read docs/native-surfaces/** and
+#        docs/NATIVE-SURFACES.md — both likewise OUTSIDE docs/topics/, so the
+#        store and its generated view are code inputs to this lane and an edit
+#        to either always runs it;
 #      - miro-plugin: reads only plugins/miro/**;
 #      - video-extraction: reads only plugins/knowledge/skills/video-digest/**
 #        and plugins/knowledge/vendor/**;
