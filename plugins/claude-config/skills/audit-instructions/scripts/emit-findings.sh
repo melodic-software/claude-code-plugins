@@ -144,7 +144,7 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # One directory has several SPELLINGS on Git Bash, and matching the wrong one
 # silently declines a real in-repo finding — this producer FAILS CLOSED, so a
 # path it cannot prove is under the root never reaches the relay. Measured:
-# `git rev-parse --show-toplevel` answers `C:/Users/u/AppData/Local/Temp/t/repo`
+# `git rev-parse --show-toplevel` answers Git Bash's Windows spelling of the same temp repo
 # while the caller reached the same directory as `/tmp/t/repo`.
 #
 # The PRIMARY anchor is derived from the caller's own `pwd` by removing the
@@ -195,13 +195,35 @@ LC_ALL=C awk \
   # `a \| b` becomes `a \\| b`, which GFM reads as a literal backslash followed
   # by a LIVE delimiter — the cell splits and the fix action misreads the row.
   # This repo writes literal `\|` in its own tables, so the case is real rather
-  # than theoretical. Already-escaped pipes are parked on a sentinel first, then
-  # restored single-escaped. (Defect identified in #3180; fan-out from #3202.)
-  function esc(s) {
-    gsub(/\\\|/, "\001", s)
-    gsub(/\|/, "\\|", s)
-    gsub(/\001/, "\\|", s)
-    return s
+  # than theoretical. Escape by the parity of the complete backslash run before
+  # each pipe: an odd count already escapes the delimiter; an even count
+  # (including zero, and `\\|`) leaves it live in GFM and needs one more `\`.
+  function esc(s,    out, i, n, c, bs) {
+    out = ""
+    n = length(s)
+    i = 1
+    while (i <= n) {
+      c = substr(s, i, 1)
+      if (c == "\\") {
+        bs = 0
+        while (i <= n && substr(s, i, 1) == "\\") { bs++; i++ }
+        if (i <= n && substr(s, i, 1) == "|") {
+          if (bs % 2 == 0) bs++
+          while (bs--) out = out "\\"
+          out = out "|"
+          i++
+        } else {
+          while (bs--) out = out "\\"
+        }
+      } else if (c == "|") {
+        out = out "\\|"
+        i++
+      } else {
+        out = out c
+        i++
+      }
+    }
+    return out
   }
 
   # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.

@@ -13,6 +13,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   in #3202; this copy was not reached. A naive `gsub(/\|/, "\\|")` turns `a \| b` into
   `a \\| b`, which GFM reads as a literal backslash followed by a live delimiter, so the row
   splits and the fix action misreads it. `esc()` now walks each backslash run and adds a
+<<<<<<< HEAD
   delimiter escape only when the run length is even. Separately, `git rev-parse --show-toplevel`
   can answer Git's Windows-drive spelling while the caller is at `/tmp/…` (Git Bash). This
   producer failed CLOSED: a path it could not prove was under the root was counted as
@@ -38,6 +39,17 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   Restores 23 failing checks across three suites (`permission-merge` 19/51, `automode-entry-diff`
   3/63, `managed-conformance` 1/37); all seven `audit-permission-state` suites are green again at
   347 checks. Found while diagnosing a `plugin-gate` failure that reproduced on a clean `main`.
+=======
+  delimiter escape only when the run length is even, so `a\\|b` stays a single cell.
+  Separately, `git rev-parse --show-toplevel` can answer Git's Windows-drive spelling while
+  the caller is at `/tmp/…` (Git Bash). This producer failed CLOSED: a path it could not
+  prove was under the root was counted as `outside-repo-root` and silently missed the
+  relay. Root resolution now prefers the caller's own `pwd` (minus git's `--show-prefix`)
+  and keeps git's two spellings as fallbacks, then applies the same fail-closed fence.
+  Shared code was considered and declined: plugins are portable and there is no existing
+  cross-plugin emit-findings library; the three copies now agree on the same two helpers
+  instead.
+>>>>>>> 620fff76 (fix(ai-slop, claude-config): escape even-length backslash-pipe runs)
 
 ## [0.39.2]
 

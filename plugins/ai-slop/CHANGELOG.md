@@ -7,8 +7,10 @@
   identified in #3180 and fixed for `docs-hygiene:audit-noise` in #3202; this copy was not
   reached. A naive `gsub(/\|/, "\\|")` turns `a \| b` into `a \\| b`, which GFM reads as a
   literal backslash followed by a live delimiter, so the row splits and the fix action
-  misreads it. `esc()` now parks an already-escaped pipe on a sentinel first. Separately,
-  `git rev-parse --show-toplevel` can answer `C:/Users/…` while the caller is at `/tmp/…`
+  misreads it. `esc()` now walks each backslash run and adds a delimiter escape only when
+  the run length is even, so `a\\|b` (even) becomes a live-safe `a\\\|b` instead of
+  restoring the original. Separately,
+  `git rev-parse --show-toplevel` can answer Git's Windows-drive spelling while the caller is at `/tmp/…`
   (Git Bash). This producer failed OPEN: Location stayed absolute and nothing reported it,
   because an absolute path is still a well-formed cell. Root resolution now prefers the
   caller's own `pwd` (minus git's `--show-prefix`) and keeps git's two spellings as
