@@ -19,8 +19,10 @@ The marketplace covers the bug lifecycle everywhere except its start: every exis
 - Read-only on bare invocation (verb-table contract for `scan`); mutation (filing) only behind an explicit argument.
 - No sibling-plugin imports; composition with `work-items`, `debugging`, `review` is presence-gated with graceful degradation.
 - The two-stage precision shape is mandatory: the discovering agent never grades its own findings (fresh-eyes rule); default-refute; "if uncertain, it is NOT a finding."
-- Filing conforms to the dogfood-filing contract: raw intake only, labels resolved through the consumer's `.work-item-tracker.json` `role_labels` map; no label creation.
-- Durable cross-run state must not live in `.work/` (checkout-local); lane cursor derives from filed-finding/tracker history; `.work/` is a per-checkout cache only.
+- Filing conforms to the dogfood-filing contract: raw intake only; the `needs-triage` marker resolves from the consumer's live label set per the label-taxonomy dual-axis rule (priority axis: `--priority needs-triage` replaces the filing floor; status axis: label applied post-creation) — `role_labels` holds only the three canonical roles and never `needs-triage`; no label creation.
+- Durable cross-run state must not live in `.work/` (checkout-local); the lane cursor derives statelessly via a documented ladder — tracker filing history when filing is in play → persisted-report metadata under `${CLAUDE_PLUGIN_DATA}` → deterministic date-derived lane selection as the zero-state floor; `.work/` is a per-checkout cache only, with reset semantics documented.
+- The persisted findings report must NOT declare detector-findings `type: review-findings` frontmatter (that alone routes it into the `review:fanout fix` relay); refuted candidates are retained in the report marked `refuted`, never silently discarded, and refill rounds after a full-refute pass are capped.
+- Cross-plugin composition is by skill invocation or artifact contract only — never by dispatching another plugin's agents; the scan description must disambiguate its triggers from `claude-ops:known-issues` ("scan repo for issues") and `bug-report:write` ("file a bug").
 - Lane globs and filing posture are team config in a tracked project file (config-cascade-governed, written by setup) — not `userConfig`.
 - No scheduler in the skill; loop-friendly single-pass semantics with `cadence: daily` metadata.
 - Skill fences (skip-when) must name: `review:*` (diff review), `review:security-review` (security-focused auditing), `debugging:debug` (observed failures), `codebase-health:audit` (doc/config/code-quality/arch claim drift — all its dimensions), `code-tidying:tidy` (structure), `work-items:scan-todos` (comment markers), `testing:audit` / `mutation-testing:audit` (coverage gaps).
@@ -31,10 +33,12 @@ The marketplace covers the bug lifecycle everywhere except its start: every exis
 - `/bug-report:scan <path|feature|diff>` runs a targeted hunt and emits verified findings in the 5-field bug-report shape, each labeled `reproduced` or `verified-by-reading`; bare `/bug-report:scan` self-selects a lane via the stateless cursor and stays within the per-run budget (default: stop at 3 verified findings or lane exhausted).
 - Every reported finding passed a separate fresh-context default-refute verification subagent; unverified candidates never appear in the report.
 - V1 hunting lenses shipped: in-code contract-vs-body mismatch (same-unit signature/types/docstring/named invariants only), boundary/edge-case, cross-file consistency drift, state/concurrency hazards, git-hotspot-guided reads.
-- Filing happens only with the explicit filing argument, produces raw-intake work items through the tracker seam with `role_labels`-resolved labels, and runs a tracker duplicate-search first.
+- Filing happens only with the explicit filing argument, produces raw-intake work items through the tracker seam per dogfood-filing beat 4 (live-label-set resolution, dual-axis `needs-triage`), and runs a tracker duplicate-search first.
 - Execution contract (per-unit close-out): each hunted lane/target is processed one unit at a time — hunt, verify, report (optionally file), advance cursor; a unit is closed when its verified findings are reported and deduped.
 - Setup skill writes/updates the tracked project config file (lane globs, filing posture) and degrades gracefully when absent (bundled generic lane fallback).
-- New skill passes `skill-quality:check`, ships `evals/evals.json`, all repo CI gates pass, and `plugin.json` is version-bumped per convention.
+- New skill passes `skill-quality:check`, ships `evals/evals.json`, all repo CI gates pass, and `plugin.json` is version-bumped per convention (0.7.1 → 0.8.0 with CHANGELOG entry; `docs/CATALOG.md` + `docs/SKILL-CHEAT-SHEET.md` regenerated).
+- Same-PR obligations land together: setup's check-only self-description rewritten (the tracked file dissolves its carve-out and `apply` becomes mandatory, bounded to that file); a `bug-report` row added to the config-cascade Implementers table with merge semantics declared beside the keys; `output_dir` stays userConfig-only and is never duplicated into the cascade file.
+- This Brief (`docs/topics/bug-finding-skill/PLAN.md`) is pruned in the final pre-merge commit (contract-slice-prune gate keys on the net PR diff).
 - Skip-when fences for all eight named neighbors present in the skill description.
 
 ### Captured assumptions
