@@ -431,8 +431,10 @@ fi
 
 invoker_jobs=""
 invoker_count=0
+invoke_count=0
 while IFS="$TAB" read -r ijob _; do
   [[ -n "$ijob" ]] || continue
+  invoke_count=$((invoke_count + 1))
   has_line "$invoker_jobs" "$ijob" && continue
   invoker_jobs+="$ijob"$'\n'
   invoker_count=$((invoker_count + 1))
@@ -440,6 +442,8 @@ done <<<"$REC_INVOKE"
 
 if [[ "$invoker_count" -ne 1 ]]; then
   report "SINGLE RESOLUTION: the docs-only detector is invoked from $invoker_count job(s) [$(uniq_list "$invoker_jobs")]. It must be resolved exactly once, in '$RESOLVER_JOB', and read from there."
+elif [[ "$invoke_count" -ne 1 ]]; then
+  report "SINGLE RESOLUTION: the docs-only detector is invoked $invoke_count times in job [$(uniq_list "$invoker_jobs")]. Count invocation records; the sole invocation must belong to the resolver's detect step, not a second call that can overwrite docs_only."
 elif ! has_line "$invoker_jobs" "$RESOLVER_JOB"; then
   report "SINGLE RESOLUTION: the docs-only detector is invoked from [$(uniq_list "$invoker_jobs")], not from the resolving job '$RESOLVER_JOB'."
 fi
@@ -480,11 +484,11 @@ fi
 
 detect_job=""
 detect_ordinal=""
-while IFS="$TAB" read -r sjob sord sid; do
+while IFS="$TAB" read -r sjob step_ord sid; do
   [[ "$sid" == "$DETECT_STEP_ID" ]] || continue
   [[ -n "$detect_job" ]] && continue
   detect_job="$sjob"
-  detect_ordinal="$sord"
+  detect_ordinal="$step_ord"
 done <<<"$REC_STEPID"
 
 if [[ -z "$detect_job" ]]; then
@@ -503,10 +507,10 @@ fi
 # --- 4. SELF-TEST INTACT ----------------------------------------------------
 
 selftest_ordinal=""
-while IFS="$TAB" read -r sjob sord; do
+while IFS="$TAB" read -r sjob step_ord; do
   [[ "$sjob" == "$RESOLVER_JOB" ]] || continue
   [[ -n "$selftest_ordinal" ]] && continue
-  selftest_ordinal="$sord"
+  selftest_ordinal="$step_ord"
 done <<<"$REC_SELFTEST"
 
 if [[ -z "$selftest_ordinal" ]]; then
@@ -595,10 +599,10 @@ done <<<"$REC_REF"
 # aligned by eye.
 
 gated_ids=""
-while IFS="$TAB" read -r gjob gord; do
+while IFS="$TAB" read -r gjob gate_ord; do
   [[ -n "$gjob" ]] || continue
-  while IFS="$TAB" read -r sjob sord sid; do
-    [[ "$sjob" == "$gjob" && "$sord" == "$gord" ]] || continue
+  while IFS="$TAB" read -r sjob step_ord sid; do
+    [[ "$sjob" == "$gjob" && "$step_ord" == "$gate_ord" ]] || continue
     gated_ids+="${gjob}${TAB}${sid}"$'\n'
   done <<<"$REC_STEPID"
 done <<<"$gated_ordinals"

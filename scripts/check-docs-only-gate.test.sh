@@ -175,6 +175,13 @@ f="$scratch/second-resolution-scalar.yml"
 xform_insert_after "$base" 'echo "      - name: neither is this"' '          bash scripts/check-docs-only.sh origin/main' "$f"
 expect "a re-resolution inside a block scalar is still seen" 1 "invoked from 2 job(s)" --check "$f"
 
+# Two invocations in the SAME job used to pass: the loop deduplicated by job
+# and reported one resolution, while the last write to docs_only won.
+f="$scratch/second-invocation-same-job.yml"
+# shellcheck disable=SC2016 # `$BASE_REF` is fixture text, not a shell variable.
+xform_insert_after "$base" 'run: scripts/check-docs-only.sh "origin/$BASE_REF"' '        run: scripts/check-docs-only.sh "origin/HEAD"' "$f"
+expect "a second invocation in the resolver job is a second resolution" 1 "invoked 2 times" --check "$f"
+
 f="$scratch/step-output.yml"
 # shellcheck disable=SC2016 # `${{ }}` must reach the fixture verbatim.
 xform_replace_line "$base" "run: echo not-applicable" '        run: echo ${{ steps.detect.outputs.docs_only }}' "$f"
