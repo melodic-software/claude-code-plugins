@@ -7,7 +7,8 @@ disable-model-invocation: true
 
 ## Purpose
 
-Inspect and customize `/machine-health:audit` on this host per the uniform setup contract:
+Inspect and customize `/machine-health:audit` on this host per the uniform setup contract
+(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` reads the effective configuration and reports, `apply` writes it. The machine-local
 surface is the catalog overlay at `<StateBase>/catalog/checks.local.jsonc` and the remediation
 approvals at `<StateBase>/state/approvals.json`. Configuration here is machine-local by design —

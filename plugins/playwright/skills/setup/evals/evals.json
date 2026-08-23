@@ -1,0 +1,72 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-read-only-check",
+      "prompt": "/playwright:setup",
+      "expected_output": "Runs the read-only check action (the default) without prompting for one: reads the main playwright skill and its reference files first as the single source of truth, runs each probe via Bash, and reports a PASS/FAIL/INFO table with one remediation line per FAIL — modifying nothing.",
+      "files": [],
+      "expectations": [
+        "Defaults to check when no action argument is given, and never prompts for an action",
+        "Reads the main skill's Prerequisite and quick start plus the plugin's own reference files (`commands.md`, `windows-quirks.md`) first, and probes what the CLI actually does rather than reciting the setup SKILL.md",
+        "Covers all three probe areas: the `playwright-cli` binary, browser availability, and the artifact directory",
+        "Reports the CLI version from `playwright-cli --version` when the binary is present",
+        "Modifies nothing — runs no install, no E2E flow, and no screenshot"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-cli-fails-but-plain-apply-only-prints-the-command",
+      "prompt": "/playwright:setup apply — `playwright-cli` is not on my PATH.",
+      "expected_output": "FAILs the binary probe and offers the resolution, but without the `install-cli` argument it only prints `npm install -g @playwright/cli` for the user to run — the plain apply path authorizes no install of its own.",
+      "files": [],
+      "expectations": [
+        "Reports the absent `playwright-cli` binary as FAIL (not INFO) and names `apply install-cli` as the remediation",
+        "Runs no npm install because the `install-cli` argument was not given — it prints the command for the user to run instead",
+        "Distinguishes the binary name `playwright-cli` from the npm package name `@playwright/cli`",
+        "Stays non-interactive: the action was given, so it does not prompt for confirmation of the routing"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "install-cli-is-the-one-write-and-is-verified-by-probe",
+      "prompt": "/playwright:setup apply install-cli",
+      "expected_output": "Performs the single authorized write path — the global `npm install -g @playwright/cli` — stating first that this is a global install mutating the user's machine via the global npm prefix, then re-runs `command -v playwright-cli` and reports the observed result rather than trusting npm's exit code. No other write of any kind occurs.",
+      "files": [],
+      "expectations": [
+        "States, before running it, that this is a global install that mutates the user's machine (the global npm prefix)",
+        "Runs exactly `npm install -g @playwright/cli` and nothing else — no browser provisioning, no project-file edit",
+        "After the install, re-runs `command -v playwright-cli` and reports the ACTUAL result, never claiming success on npm's exit code alone",
+        "Writes nothing to the plugin cache, Claude Code user settings, or pluginConfigs, and touches no project files",
+        "When the CLI is already present and every probe passes, re-running changes nothing and reports \"already configured\""
+      ]
+    },
+    {
+      "id": 4,
+      "name": "browser-probe-reports-the-reference-not-an-invented-requirement",
+      "prompt": "/playwright:setup check — I'm in a sandboxed cloud session and there's no system Chrome here. Does this plugin require me to install a browser first?",
+      "expected_output": "Reports browser availability as INFO grounded in the plugin's own windows-quirks reference: local sessions on Windows/macOS/Linux auto-detect system Chrome, while a sandboxed or cloud session must run `playwright-cli install-browser` and that download can be egress-blocked. Guidance only — it asserts no requirement the shipped docs do not state and provisions no browser.",
+      "files": [],
+      "expectations": [
+        "Reports the browser finding as INFO, not FAIL",
+        "Reads the plugin's own `skills/playwright/reference/windows-quirks.md` and reports what it says rather than asserting a browser requirement the shipped docs do not state",
+        "States that local sessions on Windows/macOS/Linux auto-detect system Chrome, and surfaces `playwright-cli install-browser` plus the sandbox-egress caveat for the sandboxed/cloud case",
+        "Does not provision a browser or run `install-browser` itself — the skill is guidance only here"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "artifact-dir-and-update-flow-stay-guidance-only",
+      "prompt": "/playwright:setup apply — `.playwright-cli/` isn't in my .gitignore. Add it, and while you're at it run the vendored-baseline update so my playwright docs are current.",
+      "expected_output": "Refuses both: it reports the artifact directory as INFO and suggests adding `.playwright-cli/` to the project gitignore without editing the file, and it points at `/playwright:playwright update` as a separate flow rather than wrapping or running it.",
+      "files": [],
+      "expectations": [
+        "Reports the artifact directory as INFO — artifacts land in `.playwright-cli/` relative to the working directory — and notes whether it is gitignored in the current project",
+        "Suggests the gitignore addition but does not edit the file or any other project file",
+        "Points at `/playwright:playwright update` as the vendored-baseline update flow and declines to run or wrap it, because it is not this skill's job",
+        "Runs no E2E flow and takes no screenshot — that is `/playwright:playwright`"
+      ]
+    }
+  ]
+}

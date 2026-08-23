@@ -120,16 +120,26 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       line="${line//$'\r'/}"
       [[ -z "$line" ]] && continue
       # XY + space + path; rename shows "old -> new" — take the new path.
+      # Gate the split on the status letter in either column, not on the path
+      # text: an ordinary path containing " -> " is not a rename record, and
+      # splitting it yields a name that resolves to nothing, so the file drops
+      # out of the audit silently.
       local_path="${line:3}"
-      if [[ "$local_path" == *" -> "* ]]; then
+      if [[ "${line:0:1}" == [RC] || "${line:1:1}" == [RC] ]]; then
         local_path="${local_path##* -> }"
       fi
       # Untracked / quoted paths: git may wrap as "path with spaces.md"
       if [[ "$local_path" == \"*\" ]]; then
         local_path="${local_path#\"}"
         local_path="${local_path%\"}"
+        # git C-quotes both " and \, so both need undoing. \" first, then \\.
         local_path="${local_path//\\\"/\"}"
+        local_path="${local_path//\\\\/\\}"
       fi
+      # Residual: git's octal escapes (\NNN) for control and non-ASCII bytes are
+      # not decoded, so those paths still miss. Converging this parse on
+      # `git status --porcelain -z` would close the class outright — NUL-delimited
+      # and unquoted — at the cost of reading renames as two fields, not "old -> new".
       [[ "$local_path" == *.md ]] || continue
       TARGETS+=("$local_path")
     done < <(git status --porcelain 2>/dev/null)

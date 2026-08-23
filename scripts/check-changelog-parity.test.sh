@@ -8,6 +8,15 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changelog-parity.sh"
+
+# A fixture runs a COPY of the gate, so it must also carry the shared libraries
+# that copy sources (scripts/lib/*.sh). Without it the copied gate dies on a
+# missing source at line 1 and every assertion below turns into the same opaque
+# failure. See #3161.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
+}
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
@@ -27,6 +36,7 @@ mk_repo() {
   dir="$(mktemp -d)"
   mkdir -p "$dir/scripts"
   cp "$SCRIPT" "$dir/scripts/check-changelog-parity.sh"
+  stage_libs "$dir/scripts"
   printf '%s' "${1:-}" >"$dir/scripts/changelog-parity-baseline.txt"
   printf '%s' "$dir"
 }

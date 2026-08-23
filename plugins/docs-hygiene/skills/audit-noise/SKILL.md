@@ -1,5 +1,5 @@
 ---
-description: "Classify tracked markdown for six noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, scope/loading meta-commentary, and bare prohibitions that name no positive alternative — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; never edits an audited document. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'find bare negations', 'prompt the positive', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress) or structural markdown lint (your repo's markdown linter)."
+description: "Classify tracked markdown for nine noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, scope/loading meta-commentary, bare prohibitions that name no positive alternative, plan/changeset references, conversational antecedents (\"as you asked\", \"per our discussion\"), and tracker/PR/branch back-references — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; never edits an audited document. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'find bare negations', 'prompt the positive', 'strip conversational residue from a doc', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress), structural markdown lint (your repo's markdown linter), or the same residue shapes inside code comments (use /code-tidying:audit-comment-residue, which owns non-markdown files)."
 argument-hint: "[audit] [target] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -7,18 +7,20 @@ allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Classify markdown for stale citations, ghost refs, and meta-commentary
+  summary: Classify markdown for citations, ghost refs, meta-commentary, negation, plan/conversational/tracker residue
 ---
 
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep '\.md$' | head -10 || echo "none"`
+Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep -E '\.md"?$' | head -10 || echo "none"`
 Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose
 
-Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates six NOISE shapes distinct from FLAVOR (owned by the sibling `/docs-hygiene:compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
+Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates nine NOISE shapes distinct from FLAVOR (owned by the sibling `/docs-hygiene:compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
+
+Three of the nine — `plan-reference`, `conversational-antecedent`, `ticket-pr-residue` — carry the same names the code-side sibling `/code-tidying:audit-comment-residue` uses, because they are the same authoring failure landing in a different file type. Ownership splits by file type, not by shape: markdown is this skill's, everything else is the sibling's, and neither scans the other's files. The patterns are **not** shared code. The sibling classifies only the extracted comment portion of a line; this skill classifies whole prose, where the same words are load-bearing far more often, so its patterns are tightened accordingly and several of the sibling's cues are deliberately not carried over.
 
 ## Existence pre-check (before in-page noise)
 
@@ -42,7 +44,7 @@ resolve and defer to it via `/discipline:follow-our-standards`'s resolution
 ladder (repo-declared source → repo's own conventions → this portable
 baseline) instead of the default above.
 
-Only a page that passes admission proceeds to the six in-page NOISE shapes below.
+Only a page that passes admission proceeds to the nine in-page NOISE shapes below.
 
 ## Noise shapes and treatments
 
@@ -54,6 +56,9 @@ Only a page that passes admission proceeds to the six in-page NOISE shapes below
 | `enum-list` — hard-coupled consumer lists | Tables/lists hardcoding N specific consumers that drift on every add/remove ("the following five skills…", bulleted `/skill — role` rosters) | 1 | Replace with a runtime derivation (a grep/list command cited inline) or a category citation; hardcode only when both fail |
 | `scope-meta` — scope/loading meta-commentary | Body prose restating loading mechanics that config/frontmatter already owns ("Path-scoped to X", "Loads on Read of Y", "Auto-loads when…") | 1 | Strip the clause — the frontmatter/config is the single source of truth; keep a genuine cross-ref riding the same sentence. Files with no scoping frontmatter MAY state scope in one sentence |
 | `negation-without-positive` — bare prohibitions | A line-initial imperative negation (`Do not …`, `Don't …`, `Never …`, `Avoid …`) whose own sentence names nothing to do in its place. The write-side rule this audits is `/docs-hygiene:write-for-agents` "Prompt the positive"; only a sentence-terminating line is decidable, so a hard-wrapped continuation is never selected | 2 | Rewrite to the positive target the prohibition implies. Keep the negation only where the positive form genuinely loses the constraint, and then pair it with the positive in the same sentence. A hard guardrail that cannot be phrased positively is NOT a finding — dismiss it, or wrap the line in an opt-out marker when the dismissal should persist across runs |
+| `plan-reference` — plan/changeset narration | Prose pointing at the work that produced the page instead of the page's subject: `replaces the old …`, `in this PR we …`, `Task 2 of the plan` | 1 | Delete the plan/changeset frame and keep whatever the sentence asserts about the present subject, rewritten without it. A doc citing a plan artifact that still exists is a live cross-reference, not this shape — matching requires a first-person actor behind `in this PR`, so `the files changed in this PR` is not flagged |
+| `conversational-antecedent` — asides to the requester | Prose addressed to the person who asked for the page or to the conversation that produced it: `As you asked, …`, `As requested, …`, `Per our discussion, …`, `per your request`, `like you said` | 1 | Delete the address — the conversation is invisible to every future reader, and the assertion behind it survives verbatim once the clause is cut. Two followers stand the shape down, because both name something a future reader can still open: an anaphoric adverb (`as we discussed above`), and `in` ahead of a **document locator** — a `§` or `#anchor`, a section/chapter/step/table, a link or path, or a named durable document (`as we decided in §3`, `in the ADR`). `in` ahead of anything else is matched, so `as we discussed in yesterday's meeting` and `as we decided in favor of X` are residue; tracker nouns are deliberately not locators, since `decided in issue 88` is provenance that `ticket-pr-residue` owns. The actor-less `as requested` matches only as a clause-final adverbial, so the attribution `as requested by the client` is not matched |
+| `ticket-pr-residue` — tracker/PR back-references | Bare provenance offered as the reason the prose says what it says: `See PR #45 for the rationale`, `Tracked in JIRA-123`, `decided in issue 88`, `from the feature branch` | 2 | Review — delete a bare provenance reference, or relocate it to the `## Sources` / `## History` footer (already an exempt section, so a relocated reference stops flagging). **Carve-out:** a markdown task-list item (`- [ ] … #123`, `- [x] … #123`) and a `TODO(#123)`-family marker are never flagged — both denote OUTSTANDING tracked work, where the reference is the actionable part of the line, which is the markdown restatement of the sibling's sanctioned-`TODO` exception. Nothing else is carved out: an inline parenthetical (`… (tracked in #482)`) stays Tier 2 so a reviewer rules on it rather than the scanner |
 
 Consumers with their own ephemeral-path or noise conventions can refine these defaults in their repo's `CLAUDE.md` / rules; the classifier's shapes and tiers above are the skill's built-in baseline.
 
@@ -93,7 +98,7 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 
 - **Read-only ON THE AUDITED DOCUMENT — the distinction is the rule, not an exception to it.** No `Edit`, no `Write`, and no `Bash` op that changes any file this skill audits or any other tracked file. The author owns every treatment edit. What this rule has always been about is TARGET MUTATION; it is not a vow of total inertness, and the two are separated here in the text because a rule that forbade every byte written would forbid the findings artifact below while intending nothing of the kind. **ARTIFACT EMISSION is permitted and bounded:** exactly one file, written only under `--persist-findings`, only to the destination the detector-findings contract resolves, and only as a `type: review-findings` proposal for a relay a human still gates. It is never an applied treatment, and it never lands inside the audited corpus. Nothing else may be written, and a bare invocation still writes nothing at all.
 - **Tier semantics.** Tier 1 = definite noise; Tier 2 = review needed; Tier 3 = likely legitimate (surfaced for awareness). Tier 3 carries NO treatment — a finding whose ruling includes an edit ("strip", "relocate", "replace") is Tier 2 or 1 by definition.
-- **Section EXEMPTIONS never flagged:** `## Recheck triggers`, `## Cross-references`, `## Sources` / `## History` / `## External authority` footers (any ATX heading level — `### Sources` counts; a later non-exempt heading of any level ends the exemption), ADR amendment blocks, `CHANGELOG.md` entries and release notes (detect.sh skips `CHANGELOG.md` by basename), YAML frontmatter (`---` … `---`), and fenced code blocks. Inline `` `code` `` spans are stripped before citation/enum/scope matching (ghost-ref still sees unwrapped path text).
+- **Section EXEMPTIONS never flagged:** `## Recheck triggers`, `## Cross-references`, `## Sources` / `## History` / `## External authority` footers (any ATX heading level — `### Sources` counts; a later non-exempt heading of any level ends the exemption), ADR amendment blocks, `CHANGELOG.md` entries and release notes (detect.sh skips `CHANGELOG.md` by basename), YAML frontmatter (`---` … `---`), and fenced code blocks. Inline `` `code` `` spans are stripped before every shape match EXCEPT ghost-ref, which still sees unwrapped path text — so a shape-definition or worked example written in backticks does not self-match, and an example written in plain quotes does.
 - **Dismissal grounds the judgment pass may use** (recurring, sanctioned; the scanner cannot see them): a fictional slug instantiated by a worked example (nothing can dangle), a vendored-verbatim upstream baseline that is never hand-edited by policy, a delete/prune instruction whose target is the path being removed (a record, not a followable reference), and a shape-definition or output-schema example matching its own pattern.
 - **Opt-out markers respected.** A well-formed HTML comment line `<!-- markdown-discipline-ignore -->` (covers the next paragraph, through the next blank line or heading) and `<!-- markdown-discipline-ignore-line -->` (exactly the next physical line — a blank line consumes it, so place the marker directly above the content line) skip the wrapped content. A prose mention of the marker name is not a live marker.
 - **Convention-path exemptions apply per matched path, never per line.** An angle-bracket slot variable (`.work/<slug>/…`, `docs/topics/<slug>/…`) is a schema placeholder, not a literal path; the reserved concern-scoped roots (`.work/handoffs/`, `.work/reviews/`, `.work/running-retros/`, `.work/overengineering/` — roster SSOT: topic-docs Memory, concern-scoped tier) are citable only bare or with a placeholder child — a concrete child under them flags. A convention token on a line never exempts a concrete ghost ref sharing that line; the tracked concern file (`.claude/topic-docs.yaml`) matches no ghost-ref pattern and needs no exemption. Exception: the retired `.claude/notes/` location flags even in placeholder form.
@@ -120,6 +125,8 @@ A FAIL skips the in-page tier table below; a PASS proceeds to it:
 | 2    | ghost-ref | 87 | ".work/foo-slice/PLAN.md cites..." | 3-way classify (promote / SHA-permalink / strip) |
 | 2    | preamble | 7  | "## Why this file exists" | Diataxis classify (KEEP if Explanation; STRIP if Reference) |
 | 3    | preamble | 1  | (top-of-file orientation paragraph) | Likely legitimate; surfaced for awareness |
+| 1    | conversational-antecedent | 9 | "As you asked, this section..." | Delete the address to the requester |
+| 2    | ticket-pr-residue | 55 | "See PR #45 for the rationale" | Review (delete bare provenance / relocate to ## Sources) |
 ```
 
 Batch aggregate at end:
@@ -128,11 +135,12 @@ Batch aggregate at end:
 Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 ```
 
-`shape` values: `citation`, `ghost-ref`, `preamble`, `enum-list`, `scope-meta`, `negation-without-positive`.
+`shape` values: `citation`, `ghost-ref`, `preamble`, `enum-list`, `scope-meta`, `negation-without-positive`, `plan-reference`, `conversational-antecedent`, `ticket-pr-residue`.
 
 ## What this skill is NOT
 
-- **Not `/docs-hygiene:compress`.** The sibling `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/docs-hygiene:audit-noise` owns NOISE (the six shapes above). Different concerns; both may apply to the same target iteratively.
+- **Not `/docs-hygiene:compress`.** The sibling `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/docs-hygiene:audit-noise` owns NOISE (the nine shapes above). Different concerns; both may apply to the same target iteratively.
+- **Not `/code-tidying:audit-comment-residue`.** The boundary is the FILE TYPE, not the shape vocabulary: three shape names (`plan-reference`, `conversational-antecedent`, `ticket-pr-residue`) are deliberately shared, so the same authoring failure gets the same name whichever file it lands in, and each file type keeps exactly one owner — markdown here, everything else there, no dedup or precedence rule needed. That split is also why the code skill is not simply widened to `.md`: on markdown its `history-narration` would fire on the same lines as this skill's `citation` with the opposite treatment (delete vs. relocate to a `## Sources` footer), and a conflict between two treatments is resolved by ownership, not by scope. The two detectors do not share pattern code, and this skill's are tighter — see Purpose.
 - **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/docs-hygiene:audit-noise` is semantic noise classification.
 - **Not an Edit operation.** It surfaces findings; the author applies treatments. The one file it may write is the opt-in findings artifact, which proposes to a human-gated relay and never touches the audited document.
 - **Not a content deduplicator.** When the noise is the same concept repeated across files, that is the sibling `/docs-hygiene:extract-ssot`'s territory at any multiplicity — sub-three repetition lands in its non-abstracting buckets, and only minting a new SSOT artifact waits for 3+.

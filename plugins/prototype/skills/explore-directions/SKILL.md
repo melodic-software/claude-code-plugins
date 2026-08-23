@@ -112,17 +112,9 @@ Constraints:
   `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"` — then writing to
   `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
   calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
-  the file. Carry the temp root in the positional template rather than reaching for a flag:
-  `-p` (which GNU also spells `--tmpdir`) exists in both dialects but means different things. GNU
-  treats the template as
-  relative to that directory and lets the flag beat `TMPDIR`; BSD/macOS consult it only as a
-  fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
-  nothing there and the template resolves against the **current directory**, silently writing into
-  the consumer's repo. GNU also marks `-t` deprecated, and BSD's `-t` takes a prefix rather than a
-  template. An absolute path in the positional template is reinterpreted by neither. The generated
-  `XXXXXX` must also be **trailing** — BSD `mktemp` substitutes only trailing Xs, so
-  `explore-directions-XXXXXX.html` cannot be created at all on macOS — which is why the page takes
-  a fixed name inside the generated directory instead of an extension on the template. On Windows,
+  the file. Carry the temp root in the positional template — the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing** — BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository).
+  That is why the page takes a fixed name inside the generated directory rather than an
+  `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
   a user-scoped temp under
   `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
   so do not delete it — it must still be readable when they open it.

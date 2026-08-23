@@ -5,6 +5,18 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.13]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.12.12]
 
 ### Fixed

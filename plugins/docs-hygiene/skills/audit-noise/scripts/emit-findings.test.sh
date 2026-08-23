@@ -160,17 +160,20 @@ assert_contains "Surface(s) names this producer" "$FOUT" "docs-hygiene:audit-noi
 # --- 6. Roster agreement: only tabled rules reach the relay ---------------------------
 #
 # The emitter declares itself a MIRROR of the severity crosswalk, and a mirror
-# nothing compares drifts silently. detect.sh ships SIX shapes and exactly one
-# has a crosswalk row, so the other five must be counted as declined rather than
+# nothing compares drifts silently. detect.sh ships NINE shapes and exactly one
+# has a crosswalk row, so the other eight must be counted as declined rather than
 # emitted. Both halves are checked: the emitted set, and the roster itself — a
-# seventh shape fails here until it is tabled or explicitly declined.
+# tenth shape fails here until it is tabled or explicitly declined.
 
 EXPECTED_ROSTER="citation
+conversational-antecedent
 enum-list
 ghost-ref
 negation-without-positive
+plan-reference
 preamble
-scope-meta"
+scope-meta
+ticket-pr-residue"
 ALL_SHAPES_FIX="$TEST_TMPDIR/all-shapes.md"
 cat >"$ALL_SHAPES_FIX" <<'EOF'
 # every shape
@@ -186,12 +189,18 @@ The following five skills consume this rule.
 Path-scoped to `src/**` so it loads there.
 
 Do not use markdown in your response.
+
+Task 2 of the plan covers this.
+
+As requested, see the appendix.
+
+See PR #45 for the rationale.
 EOF
 ROSTER="$(bash "$DETECT" "$ALL_SHAPES_FIX" | LC_ALL=C sed -n 's/^Finding shape: //p' | sort -u)"
 if [[ "$ROSTER" == "$EXPECTED_ROSTER" ]]; then
-  pass "roster agreement: detect.sh ships exactly the six tabled shapes"
+  pass "roster agreement: detect.sh ships exactly the nine tabled shapes"
 else
-  fail "roster agreement: detect.sh ships exactly the six tabled shapes" "$EXPECTED_ROSTER" "$ROSTER"
+  fail "roster agreement: detect.sh ships exactly the nine tabled shapes" "$EXPECTED_ROSTER" "$ROSTER"
 fi
 
 bash "$EMIT" --from "$TEST_TMPDIR/mixed-out.txt" --out "$TEST_TMPDIR/f/mixed.md" --branch test-branch >/dev/null 2>&1

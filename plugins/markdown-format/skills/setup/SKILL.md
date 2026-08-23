@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — rules come from the
-repository's own markdownlint config, and the only tunable is the native `userConfig`
-toggle — so `apply` is guidance-and-verify, with exactly one write path: the explicitly
-invoked `apply install-lint` dependency install described below.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — rules
+come from the repository's own markdownlint config, and the only tunable is the native
+`userConfig` toggle — so `apply` is guidance-and-verify, with exactly one write path:
+the explicitly invoked `apply install-lint` dependency install described below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 remediation; `apply install-lint` additionally authorizes the consumer-repo dependency
@@ -20,9 +21,10 @@ install described below. All are non-interactive — never prompt when the actio
 ## `check` (read-only)
 
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh`) is the single source of
-truth for what it requires and how it resolves things. **Read it first** — probe what it
-actually does, don't recite this file. Then run each probe via Bash and report a
-PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+truth for what it requires and how it resolves things.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately

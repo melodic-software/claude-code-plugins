@@ -14,11 +14,11 @@ producer-owned field's rule, coexistence obligation, or enforceability verdict c
   as `rule-em-dash`: a shipped default names no stated rule of the consuming repo, and a prohibition
   and its positive restatement carry the same constraint, so no degradation trigger is nameable.
 - **It is the first producer whose emitted set is a strict SUBSET of its own classifier.** The skill
-  detects six shapes; five have no crosswalk row and therefore no tier to look up, so they are
+  detects nine shapes; eight have no crosswalk row and therefore no tier to look up, so they are
   counted per rule id in `## Surfaces` with `reason=no-severity-crosswalk-row` rather than emitted.
   "A rule failing the admission test is not a row with a missing cell" now has a worked instance
   where the same run both emits and declines — the boundary is which findings reach the RELAY, not
-  which are found, and the declined five still reach the human through the ordinary report.
+  which are found, and the declined eight still reach the human through the ordinary report.
 - **The adoption forced the adopting skill to amend its own read-only rule**, recorded here because
   it is a consequence of this contract rather than of that skill: a hard rule reading "No `Edit`, no
   `Write`, no mutating `Bash` ops" forbids the producer contract as written. The amendment separates

@@ -21,8 +21,8 @@ as before. Never describe the findings file to an operator as a treatment that h
 
 ## One rule reaches the relay
 
-Of this skill's six shapes, exactly one carries a severity-crosswalk row —
-`docs-hygiene/audit-noise/rule-negation-without-positive`. The other five have no row, so they
+Of this skill's nine shapes, exactly one carries a severity-crosswalk row —
+`docs-hygiene/audit-noise/rule-negation-without-positive`. The other eight have no row, so they
 have no tier to look up and never enter the file: the contract's "a rule failing the admission
 test is not a row with a missing cell — it is a rule this contract does not admit". They are
 counted per rule id in `## Surfaces` with `reason=no-severity-crosswalk-row`, so the boundary is
@@ -81,7 +81,7 @@ repository the point is moot: `REVIEW.md` resolves to the same three names.)
 ## Surfaces, and when the file is written at all
 
 `## Surfaces` names `docs-hygiene:audit-noise` once and carries a declined count per rule id for
-the five shapes that have no crosswalk row. Omit `tier:`, `## By dimension`, and `## Unparsed`
+the eight shapes that have no crosswalk row. Omit `tier:`, `## By dimension`, and `## Unparsed`
 (one dimension; nothing unparsed).
 
 **The negation rule's OWN declined candidates are not tallied in v1, and the honest thing is to

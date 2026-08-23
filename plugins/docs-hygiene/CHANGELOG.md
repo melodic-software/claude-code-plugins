@@ -1,10 +1,10 @@
 # Changelog — docs-hygiene plugin
 
-## [0.20.0]
+## [0.21.0]
 
 ### Added
 
-- **`audit-noise` gains a sixth shape, `negation-without-positive`, and becomes a
+- **`audit-noise` gains a ninth shape, `negation-without-positive`, and becomes a
   detector-findings producer (#3123).** The shape is the audit-side completion of a doctrine
   this plugin already ships on the write side: `write-for-agents` "Prompt the positive" tells
   authors to write what to do rather than what to avoid, and nothing checked it afterwards.
@@ -55,8 +55,8 @@
 
 - **`--persist-findings` emits a conforming `type: review-findings` artifact** for
   `review:fanout fix`, per `docs/conventions/detector-findings/README.md`. Opt-in: a bare
-  invocation reports and stops. **Exactly one of the six shapes reaches the relay** — only
-  `rule-negation-without-positive` has a severity-crosswalk row, so the other five have no tier
+  invocation reports and stops. **Exactly one of the nine shapes reaches the relay** — only
+  `rule-negation-without-positive` has a severity-crosswalk row, so the other eight have no tier
   to look up and are counted per rule id in `## Surfaces` with `reason=no-severity-crosswalk-row`
   rather than emitted. They still reach the human through the ordinary report; the boundary is
   which findings reach the RELAY, not which are found.
@@ -78,6 +78,139 @@
   relay a human still gates. It is never an applied treatment and never lands inside the audited
   corpus. Shipping a detector that quietly violated its own stated hard rule was the alternative,
   and the rule is not widened past what the findings write requires.
+
+## [0.20.1]
+
+### Fixed
+
+- **`audit-noise`'s `SKILL.md` preview line dropped the same paths `detect.sh` used to
+  drop (#3143).** 0.19.1 fixed the porcelain parse in `detect.sh` and left the
+  `Uncommitted .md files:` pre-computed-context line in `SKILL.md` untouched. That line
+  previews the same discovery with `grep '\.md$'` rather than with the parse, so it shared
+  the defect *class* without sharing the code — and it survived the fix that removed the
+  class everywhere else.
+
+  Git C-quotes any path it treats specially, and a quoted porcelain record ends with the
+  closing quote, not `.md`. So `grep '\.md$'` matched nothing for a file named
+  `my notes.md`, `notes -> draft.md`, or `back\-slash.md`, and the preview reported those
+  files as absent with no signal — the same silent false negative, reaching the model one
+  surface earlier. Now `grep -E '\.md"?$'`.
+
+  The regression test **extracts the grep out of `SKILL.md` and executes it** rather than
+  restating it. A restatement would keep passing while the real line rotted, which is how
+  the two surfaces came apart in the first place: `detect.sh` was fixed and its preview
+  was not. Verified as a discriminator — reverting only the `SKILL.md` line fails exactly
+  the quoted-path assertion while the ordinary-path assertion still passes, so the case
+  cannot pass vacuously.
+
+## [0.20.0]
+
+### Added
+
+- **`audit-noise` gains the three residue shapes markdown had no owner for (#3125).** The code-side
+  sibling `/code-tidying:audit-comment-residue` detects four residue shapes; this skill detected
+  five noise shapes; the two sets did not tile the space. Only `history-narration` had a markdown
+  counterpart (this skill's `citation`). `plan-reference`, `conversational-antecedent`, and
+  `ticket-pr-residue` had **no detector on either side of the boundary**, so a README, rule body, or
+  `CLAUDE.md` saying "as you asked, retry three times" or "see PR #45 for the rationale" was
+  invisible to the whole fleet — not because a file type was skipped, but because of a gap behind an
+  otherwise correct boundary. `audit-noise` is now an eight-shape classifier: `plan-reference` and
+  `conversational-antecedent` at Tier 1, `ticket-pr-residue` at Tier 2.
+
+  **The shapes went to `audit-noise` rather than widening the code skill to `.md`**, and the reason
+  is a treatment conflict, not a preference. On a markdown line the code skill's `history-narration`
+  and this skill's `citation` fire together with opposite rulings — `citation` says relocate to a
+  `## Sources` footer, `history-narration` says delete. Two owners for one line is a precedence
+  problem; one owner per file type is not. So the boundary is now explicitly by FILE TYPE, with the
+  three shape *names* deliberately shared so one authoring failure keeps one name wherever it lands.
+  The shapes also inherit this skill's more mature target router (`--paths-file`, offset/limit
+  pagination, space-safe porcelain parsing) for free.
+
+  **The patterns are adapted, not copied, and the adaptation is the substance of the change.** The
+  code lib classifies only the extracted *comment* portion of a line; this one classifies whole
+  prose, where the same words are load-bearing far more often. Measured against this repository's
+  own 1136-file tracked-markdown corpus, four of the sibling's cues had to go: `per the plan`
+  prefix-matches "per the planning chapter" (and a doc citing a plan artifact that still exists is a
+  live cross-reference, not residue); `as planned` is a substring of "was planned", so "what was
+  planned, what was done instead" self-matched; `in this change` and `in this session` are ordinary
+  domain vocabulary in an agent-tooling corpus. `in this PR` survives only with a first-person actor
+  behind it, which is what separates narration ("in this PR we switch the default") from a live
+  referent ("the files changed in this PR"). `as we discussed` stands down in front of an anaphoric
+  follower (`above`, `below`, `in §3`), which makes it an intra-document cross-reference. Those
+  tightenings cut the corpus delta from 32 findings to 12.
+
+  **`conversational-antecedent`'s follower test asks what the reference points AT**, rather than
+  which preposition introduces it. A bare `in` exemption would have spared "as we decided in the
+  ADR" (right) and "as we decided in favor of X" or "as we discussed in yesterday's meeting"
+  (wrong — the referent there is the conversation, not a document), so `in` stands the shape down
+  only ahead of a document locator: a `§` or `#anchor`, a section/chapter/step/table, a link or
+  path, an inline-code reference the strip removed, or a named durable document. Tracker nouns are
+  deliberately absent from that set — a decision parked in an issue is provenance, which
+  `ticket-pr-residue` owns and this shape must not launder — as are nouns for the conversation
+  itself. Followers are compared case-insensitively, so a capitalised `Above` no longer falls
+  through. Both first-person actor tests — this one and `plan-reference`'s `in this PR` — admit a
+  contracted pronoun in either the straight or the typographic (U+2019) apostrophe, so
+  "in this PR we've already switched the default" and "as we've discussed" no longer escape the
+  shape they are; `conversational-antecedent` admits only `'ve` and `'d`, the two auxiliaries its
+  past-participle follower can take, which keeps the present-tense passive "as you're asked" out.
+
+  **The actor-less passive `As requested, …` is the same shape without the pronoun**, and it is
+  matched only as a clause-final adverbial. That bound is what keeps the live attribution "as
+  requested by the client" and the ordinary verb phrase "was requested" out, without a second
+  pattern to maintain; a closing quote does not count as the clause break, because behind one the
+  words are a quoted voice rather than the page's own address to its reader.
+
+  **`ticket-pr-residue`'s carve-out is restated in markdown terms** rather than inherited: a task-list
+  checklist item (`- [ ] … #123`) and a `TODO(#123)`-family marker are never flagged, because both
+  denote OUTSTANDING tracked work — the reference is the actionable part of the line — which is what
+  the code skill's sanctioned-`TODO` exception is actually about. Nothing further is carved out: the
+  sanctioned home for a *provenance* citation is a `## Sources` / `## History` footer, and the
+  existing section exemptions already skip those (as they skip `CHANGELOG.md`, fenced blocks, and
+  frontmatter) before any shape runs, so re-implementing that as a pattern would duplicate a rule
+  that already holds. An inline parenthetical (`… (tracked in #482)`) stays Tier 2 on purpose, so a
+  reviewer rules on it rather than the scanner.
+
+## [0.19.2]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.19.1]
+
+### Fixed
+
+- **`audit-noise` no longer loses files whose paths git treats specially (#3143).**
+  Two defects in `detect.sh`'s `git status --porcelain` parse, both of the
+  silent-false-negative class: a file that should have been audited simply
+  disappeared from the target list.
+
+  The rename split fired on any record whose path contained `" -> "`, not only on
+  a rename, so a file literally named `notes -> draft.md` was reduced to
+  `draft.md` — a name that resolves to nothing. The split is now gated on the
+  status letter in either column (`[RC]`), which is both narrower and complete.
+
+  Separately, the unquote step undid `\"` but not `\\`. Git C-quotes a path for an
+  embedded backslash too, so `back\-slash.md` stayed escaped and resolved to
+  nothing. Both escapes are now undone, `\"` before `\\`.
+
+  Regression cases cover a path containing a literal `" -> "` and a path
+  containing a backslash — a plain path passes either implementation, so neither
+  case is redundant — plus a genuine rename, to show the new gate does not cost
+  the `old -> new` handling it narrows. The suite also picks up the
+  `unset GIT_DIR GIT_WORK_TREE GIT_CONFIG` isolation line that 0.18.3's sweep
+  missed here.
+
+  This lands the same gate and the same two-step unescape that #3140 gave
+  `code-tidying/audit-comment-residue`, so the two porcelain parsers now agree
+  rather than failing in opposite directions on renames.
+
+  Known residual, recorded at the parse site: git's octal escapes (`\NNN`) for
+  control and non-ASCII bytes are still not decoded, so those paths continue to
+  miss. Converging the parse on `git status --porcelain -z` would close the class
+  outright rather than extending the string parse again.
 
 ## [0.19.0]
 

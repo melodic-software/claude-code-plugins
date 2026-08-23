@@ -13,8 +13,8 @@
 # that table is the source of truth — a tier change lands there first and is
 # copied here, never the reverse.
 #
-# ONE of this detector's six shapes has a crosswalk row
-# (rule-negation-without-positive). The other five are counted as declined with
+# ONE of this detector's nine shapes has a crosswalk row
+# (rule-negation-without-positive). The other eight are counted as declined with
 # reason=no-severity-crosswalk-row rather than emitted: "no crosswalk row, no
 # relay" made visible in `## Surfaces` instead of enforced by silence.
 #
@@ -274,11 +274,11 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROO
     if (nrows == 0)
       ran = ran " Returned no result: [docs-hygiene/audit-noise/rule-negation-without-positive]."
     print ran
-    # Deterministic order: the five shapes that carry no crosswalk row, in the
+    # Deterministic order: the eight shapes that carry no crosswalk row, in the
     # order the skill tables them.
     # Count from split(), never a literal: a hardcoded bound silently drops a
-    # shape the day a seventh is added.
-    nshapes = split("citation ghost-ref preamble enum-list scope-meta", order, " ")
+    # shape the day a tenth is added.
+    nshapes = split("citation ghost-ref preamble enum-list scope-meta plan-reference conversational-antecedent ticket-pr-residue", order, " ")
     for (i = 1; i <= nshapes; i++)
       if (declined[order[i]] > 0)
         printf "Declined candidates: docs-hygiene/audit-noise/rule-%s count=%s reason=no-severity-crosswalk-row\n", \

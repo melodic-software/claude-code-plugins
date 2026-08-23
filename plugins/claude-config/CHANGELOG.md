@@ -3,6 +3,101 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.39.0]
+
+### Added
+
+- **`audit-instructions`: I28 findings reach the apply relay, body-scoped (#3120).** The skill is
+  now a conforming `detector-findings` producer — the first in this plugin. `--persist-findings`
+  writes the run's I28 findings as a `type: review-findings` file that `review:fanout`'s `fix`
+  action consumes, via the new `scripts/emit-findings.sh`. Off by default; a bare invocation
+  reports and stops, so the read-only contract is unchanged — the file is a proposal artifact for a
+  relay the human still gates, never an applied edit.
+- **`instruction-scan.sh --body-only`.** Skips YAML frontmatter, so no candidate row can point at a
+  `description`, a `when_to_use`, or a trigger phrase quoted in one. Opt-in: the human-facing audit
+  legitimately reports on frontmatter content, and what must never happen is such a row reaching an
+  apply relay. An unclosed leading `---` fences the whole file (fail-safe); a mid-document `---`
+  opens nothing.
+- **Eval fixtures for the body-scope fence and the protected-content categories** —
+  `frontmatter-emphasis.md`, `quoted-trigger.md`, `protected-content.md` (one line per category the
+  container spec names as never-flag).
+
+### Changed
+
+- **I28 carries two crosswalk rule ids** — `rule-coercive-emphasis` and `rule-blanket-tool-default`,
+  both `IMPORTANT`, argued from `severity.md`'s degradation-with-a-named-trigger limb in the
+  detector-findings severity crosswalk. It is the only check in the catalog that routes to the
+  relay; every other check stays report-only, and the eight non-crosswalk scanner families are
+  counted as declined in `## Surfaces` rather than silently dropped.
+- **I28's remediation is documented as a downgrade, never a deletion.** The directive survives
+  verbatim and only its volume changes; no emitted `Action` may instruct removal. **One byte may
+  legitimately differ** — dropping a *leading* wrapper promotes the next word to sentence-initial
+  position (`…MUST resolve` → `Resolve`), so verbatim survival is asserted apart from that forced
+  capitalization. The official source's own worked example makes the same change (`use` → `Use`).
+  Found by running the end-to-end proof rather than by inspection: a strict byte-for-byte assertion
+  fails on every leading-wrapper case.
+- **I28's V1 selection scope is recorded as deliberately narrower than its Detect prose.** Whole
+  bolded sentences and general all-caps imperative runs are judged by the model lane but not
+  mechanically selected — both are too common in ordinary technical prose to select without
+  swamping the relay. The deferral is written down rather than left as a silent gap.
+
+- **`emit-findings.sh` refuses when no branch resolves**, rather than writing a file the relay can
+  never match. `branch:` is load-bearing for the consumer (`fix-pass-mode.md` "Step 1" admits a
+  candidate only on an exact branch match), so with no `--branch` and no current branch the script
+  exits 2 and writes nothing. This is the normal state on a detached-HEAD CI checkout of a PR merge
+  ref, and it is now covered by its own test rather than discovered through an unrelated case.
+
+- **Out-of-repo surfaces never reach the relay.** Phase A inventories user-level surfaces under
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, but `Location` is contractually repo-relative and the fix
+  action fences each remediation to it. `emit-findings.sh` declines any row whose path is not under
+  the repo root, counted as `reason=outside-repo-root`; those findings stay in the human report.
+  Without this, a hit in a user `CLAUDE.md` entered the relay with an absolute `Location` and the
+  fix pass could try to mutate a file outside the working tree.
+- **`--declined-carveout <n>`** records how many I28 candidates the model lane dropped for a
+  criteria carve-out before the writer ran, so that exclusion is counted in `## Surfaces` instead of
+  going unrecorded. Dropping the rows silently would have made the section report fewer candidates
+  examined than were actually looked at.
+- **Branch names that are YAML indicators are quoted.** git accepts `@foo`, `!foo`, `#foo`; emitted
+  as plain scalars, `#foo` reads as a comment and the others as indicators, so the consumer — which
+  admits a candidate only on an exact `branch:` match — silently dropped every finding for such a
+  branch. Quoting is conditional, so an ordinary branch name stays a byte-identical plain scalar.
+
+### Fixed
+
+- **The body-scope fence now agrees with the repo's authoritative frontmatter parser (measured).**
+  All three delimiter checks — `instruction-scan.sh`'s `frontmatter_end`, and `emit-findings.sh`'s
+  `fm_end` and `descr` — matched `---` by exact equality, which is **stricter** than
+  `skill_frontmatter::extract`'s `^---[[:space:]]*$`, the pattern `check-skill.sh` (the hard-FAIL
+  gate this fence exists to satisfy) actually parses frontmatter with. The mismatch ran the
+  dangerous way: a delimiter carrying a CR or trailing whitespace is real frontmatter to the gate
+  but was invisible to the fence, so the block read as body content and `description` /
+  `when_to_use` rows became emittable. A CRLF fixture emitted a finding pointing at its own
+  `description` line before the fix, and because `descr` shares the detection, the quoted-trigger
+  fence was disabled in the same case. All three now use the authoritative pattern, so the three
+  readers agree rather than the fence being only as strong as the loosest one. Both layers carry
+  regression cases for CRLF, trailing space, trailing tab, and the unclosed-frontmatter variant.
+
+### Security
+
+- **The body-scope fence is recomputed by the writer, not trusted from the caller.**
+  `emit-findings.sh` re-derives the frontmatter boundary over its own input and additionally
+  declines any body row quoting a trigger phrase present in the file's own `description`. A fence
+  living only in the caller is one caller away from being bypassed, and
+  `skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped trigger phrase versus the base
+  ref — so a remediation editing one is an auto-invocation regression, not a debatable suggestion.
+
 ## [0.38.9]
 
 ### Changed

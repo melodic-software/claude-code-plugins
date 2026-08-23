@@ -3,6 +3,10 @@
 # plugin; fixtures are built inline in a tmpdir).
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECT="$SCRIPT_DIR/detect.sh"
 TEST_TMPDIR="$(mktemp -d)"
@@ -461,6 +465,188 @@ assert_contains "H1 closes Sources exemption" "$leak_out" "after an H1 closed So
 assert_not_contains "H3 Sources is exempt" "$leak_out" "under H3 Sources"
 assert_not_contains "H2 Sources body stays exempt" "$leak_out" "in Sources"
 
+# --- 11. Prose residue shapes: plan / conversational / tracker ------------------------
+
+RESIDUE="$TEST_TMPDIR/prose-residue.md"
+cat >"$RESIDUE" <<'EOF'
+# Prose residue fixture
+
+As you asked, this section documents the retry policy.
+Per our discussion, the timeout is 30s.
+Task 2 replaces the old buffering approach described below.
+In this PR we switch the default to streaming.
+See PR #45 for the rationale behind the ordering constraint.
+Tracked in JIRA-123.
+EOF
+res_out="$(bash "$DETECT" "$RESIDUE")"
+assert_contains "plan-reference detected" "$res_out" "Finding shape: plan-reference"
+assert_contains "conversational-antecedent detected" "$res_out" "Finding shape: conversational-antecedent"
+assert_contains "ticket-pr-residue detected" "$res_out" "Finding shape: ticket-pr-residue"
+assert_contains "plan-reference is tier 1" "$res_out" $'Finding tier: 1\nFinding shape: plan-reference'
+assert_contains "conversational-antecedent is tier 1" "$res_out" $'Finding tier: 1\nFinding shape: conversational-antecedent'
+assert_contains "ticket-pr-residue is tier 2" "$res_out" $'Finding tier: 2\nFinding shape: ticket-pr-residue'
+assert_contains "project-key tracker reference detected" "$res_out" "JIRA-123"
+assert_contains "prose residue file summary" "$res_out" "| T1=4 T2=2 T3=0"
+
+# --- 11b. ticket-pr-residue carve-outs: outstanding tracked work ----------------------
+
+CARVEOUT="$TEST_TMPDIR/tracked-work.md"
+cat >"$CARVEOUT" <<'EOF'
+# Tracked-work fixture
+
+- [ ] Cap the retry budget, see issue 42 for the acceptance test
+- [x] Land the streaming default, see issue 43 for the acceptance test
+TODO(#123): see issue 44 for the acceptance test.
+Bare provenance instead: see issue 45 for the rationale.
+EOF
+carve_out="$(bash "$DETECT" "$CARVEOUT")"
+assert_not_contains "unchecked task-list item is not ticket residue" "$carve_out" "issue 42"
+assert_not_contains "checked task-list item is not ticket residue" "$carve_out" "issue 43"
+assert_not_contains "tracked-work marker is not ticket residue" "$carve_out" "issue 44"
+assert_contains "the same phrasing without a carve-out still flags" "$carve_out" "issue 45"
+
+# --- 11c. Section exemptions cover the prose residue shapes too -----------------------
+
+RES_EXEMPT="$TEST_TMPDIR/residue-exempt.md"
+cat >"$RES_EXEMPT" <<'EOF'
+# Residue exemption fixture
+
+## Sources
+
+See PR #45 for the rationale behind the ordering constraint.
+As you asked, this footer records the provenance.
+
+# Body resumes
+
+As you asked, this line sits outside the exempt section.
+EOF
+res_ex_out="$(bash "$DETECT" "$RES_EXEMPT")"
+assert_not_contains "Sources footer suppresses ticket residue" "$res_ex_out" "ordering constraint"
+assert_not_contains "Sources footer suppresses conversational antecedent" "$res_ex_out" "footer records"
+assert_contains "residue after the exempt section still flags" "$res_ex_out" "outside the exempt section"
+
+# --- 11d. Prose negatives: the tightenings that keep live prose out ------------------
+
+RES_NEG="$TEST_TMPDIR/prose-negatives.md"
+cat >"$RES_NEG" <<'EOF'
+# Prose negatives fixture
+
+As we discussed above, the resolver reads the team-tracked file only.
+Scope the review to the files changed in this PR before reading further.
+Budget deliberation by reversibility tier, per the planning chapter.
+The template records what was planned and what was done instead.
+The shape definition quotes `As you asked` as its own example.
+EOF
+res_neg_out="$(bash "$DETECT" "$RES_NEG")"
+assert_not_contains "anaphoric cross-reference is not a conversational antecedent" \
+  "$res_neg_out" "Finding shape: conversational-antecedent"
+assert_not_contains "live 'in this PR' referent is not a plan reference" \
+  "$res_neg_out" "Finding shape: plan-reference"
+assert_contains "prose negatives file is clean" "$res_neg_out" "| T1=0 T2=0 T3=0"
+
+# --- 11e. conversational-antecedent: passive form and the `in` follower ---------------
+
+ANTE_POS="$TEST_TMPDIR/antecedent-positive.md"
+cat >"$ANTE_POS" <<'EOF'
+# Antecedent positives fixture
+
+As requested, retry the shard sweep three times.
+As we discussed in yesterday's meeting, cap the retry budget.
+As we decided in favor of streaming, the buffer is gone.
+The change was requested by the operator, so the default flipped.
+Fields come back as requested by the client.
+EOF
+ante_pos_out="$(bash "$DETECT" "$ANTE_POS")"
+assert_contains "actor-less 'As requested,' flags" "$ante_pos_out" "retry the shard sweep three times"
+assert_contains "'in' ahead of a conversation flags" "$ante_pos_out" "cap the retry budget"
+assert_contains "'in favor of' is not a document locator" "$ante_pos_out" "the buffer is gone"
+assert_not_contains "'was requested' is not the passive antecedent" "$ante_pos_out" "the default flipped"
+assert_not_contains "'as requested by' attribution is not the passive antecedent" \
+  "$ante_pos_out" "come back as requested"
+assert_contains "antecedent positives count" "$ante_pos_out" "| T1=3 T2=0 T3=0"
+
+ANTE_NEG="$TEST_TMPDIR/antecedent-negative.md"
+cat >"$ANTE_NEG" <<'EOF'
+# Antecedent exemptions fixture
+
+As we discussed above, the resolver reads the team-tracked file only.
+As we agreed Above, follower case does not decide the match.
+As we decided in §3, the resolver reads the team-tracked file only.
+As we decided in the ADR, the resolver reads the team-tracked file only.
+As we decided in the previous section, the resolver reads it.
+EOF
+ante_neg_out="$(bash "$DETECT" "$ANTE_NEG")"
+assert_not_contains "document locators keep the antecedent unflagged" \
+  "$ante_neg_out" "Finding shape: conversational-antecedent"
+assert_contains "antecedent exemptions file is clean" "$ante_neg_out" "| T1=0 T2=0 T3=0"
+
+# --- 11f. Contracted first-person actors, straight and curly apostrophes -------------
+# A contraction is the same actor and the same shape; requiring a literal space
+# after the pronoun let it escape silently. Both apostrophe forms must work: `’`
+# (U+2019) is what most editors produce, and matching only `'` would close half
+# the gap while looking fixed.
+
+CONTRACT_POS="$TEST_TMPDIR/contracted-positive.md"
+cat >"$CONTRACT_POS" <<'EOF'
+# Contracted actors fixture
+
+In this PR we've already switched the default to streaming.
+In this PR we’ve already switched the default to streaming.
+In this commit I'm switching the default to streaming.
+In this commit I’d already switched the default to streaming.
+In this PR we’ll switch the default to streaming.
+As we've discussed, the timeout is 30s.
+As we’ve discussed, the timeout is 30s.
+As we'd agreed, the timeout is 30s.
+As you’d requested, the timeout is 30s.
+EOF
+contract_pos_out="$(bash "$DETECT" "$CONTRACT_POS")"
+assert_contains "straight-apostrophe plan-reference flags" "$contract_pos_out" "Finding shape: plan-reference"
+assert_contains "curly-apostrophe plan-reference flags" "$contract_pos_out" "Finding line: 4"
+assert_contains "contracted 'I'm' plan-reference flags" "$contract_pos_out" "Finding line: 5"
+assert_contains "curly 'I’d' plan-reference flags" "$contract_pos_out" "Finding line: 6"
+assert_contains "curly 'we’ll' plan-reference flags" "$contract_pos_out" "Finding line: 7"
+assert_contains "contracted antecedent flags" "$contract_pos_out" "Finding shape: conversational-antecedent"
+assert_contains "curly-apostrophe antecedent flags" "$contract_pos_out" "Finding line: 9"
+assert_contains "'we'd agreed' antecedent flags" "$contract_pos_out" "Finding line: 10"
+assert_contains "curly 'you’d requested' antecedent flags" "$contract_pos_out" "Finding line: 11"
+assert_contains "every contracted actor line flags" "$contract_pos_out" "| T1=9 T2=0 T3=0"
+
+# The follower test still runs behind a contraction: widening the actor must not
+# smuggle past the document-locator and anaphoric-adverb stand-downs.
+CONTRACT_FOLLOWER="$TEST_TMPDIR/contracted-follower.md"
+cat >"$CONTRACT_FOLLOWER" <<'EOF'
+# Contracted follower fixture
+
+As we've discussed above, the resolver reads the team-tracked file only.
+As we’ve decided in §3, the resolver reads the team-tracked file only.
+As we'd agreed in the ADR, the resolver reads the team-tracked file only.
+EOF
+contract_fol_out="$(bash "$DETECT" "$CONTRACT_FOLLOWER")"
+assert_not_contains "anaphoric follower still stands a contracted antecedent down" \
+  "$contract_fol_out" "Finding shape: conversational-antecedent"
+assert_contains "contracted follower file is clean" "$contract_fol_out" "| T1=0 T2=0 T3=0"
+
+# Negatives: widening the actor must add no new false-positive surface. `'re` is
+# deliberately absent from the antecedent set — its follower is a past
+# participle, and "as you're asked" is a present-tense passive addressing the
+# reader generically, not a pointer at a prior exchange.
+CONTRACT_NEG="$TEST_TMPDIR/contracted-negative.md"
+cat >"$CONTRACT_NEG" <<'EOF'
+# Contracted negatives fixture
+
+Do it as you're asked to, then record the result.
+Do it as you’re asked to, then record the result.
+Scope the review to the files we've changed in this PR before reading further.
+The weave is the same as we'd expect from the sibling detector.
+EOF
+contract_neg_out="$(bash "$DETECT" "$CONTRACT_NEG")"
+assert_not_contains "\"as you're asked\" passive is not an antecedent" \
+  "$contract_neg_out" "Finding shape: conversational-antecedent"
+assert_not_contains "contracted actor after a live 'in this PR' referent is not a plan reference" \
+  "$contract_neg_out" "Finding shape: plan-reference"
+assert_contains "contracted negatives file is clean" "$contract_neg_out" "| T1=0 T2=0 T3=0"
+
 # --- Chunk affordance: --offset / --limit over the sorted target list ----------------
 
 CHUNK_A="$TEST_TMPDIR/chunk-a.md"
@@ -650,6 +836,62 @@ Never run this on a dirty tree.
 EOF
 neg_fm_ctl_out="$(bash "$DETECT" "$NEG_FM_CTL")"
 assert_contains "the same lines outside frontmatter DO fire" "$neg_fm_ctl_out" "| T1=0 T2=2 T3=0"
+
+# --- Porcelain discovery: tricky paths survive the parse (#3143) ----------------------
+# A plain path passes either implementation, so each case below needs a path git
+# treats specially: one containing a literal " -> ", and one containing a backslash.
+
+PORC_REPO="$TEST_TMPDIR/porcelain-repo"
+mkdir -p "$PORC_REPO"
+git -C "$PORC_REPO" init -q
+git -C "$PORC_REPO" config user.email fixture@example.invalid
+git -C "$PORC_REPO" config user.name fixture
+
+printf '# arrow\n\nEmpirically observed in the arrow file.\n' >"$PORC_REPO/notes -> draft.md"
+printf '# plain\n\nEmpirically observed in the plain file.\n' >"$PORC_REPO/plain.md"
+
+porc_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+assert_contains "untracked path containing ' -> ' is not split as a rename" "$porc_out" "notes -> draft.md"
+assert_contains "ordinary untracked path still discovered" "$porc_out" "plain.md"
+
+# The gate must not cost us real renames: a genuine R record still yields the NEW path.
+printf '# renamed\n\nEmpirically observed in the renamed file.\n' >"$PORC_REPO/before.md"
+git -C "$PORC_REPO" add before.md
+git -C "$PORC_REPO" commit -qm 'seed rename fixture'
+git -C "$PORC_REPO" mv before.md after.md
+rename_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+assert_contains "rename record resolves to the new path" "$rename_out" "after.md"
+assert_not_contains "rename record does not keep the old path" "$rename_out" "before.md"
+
+# git C-quotes a path containing a backslash, so \\ needs undoing as well as \".
+if printf '# backslash\n\nEmpirically observed in the backslash file.\n' >"$PORC_REPO/back\\-slash.md" 2>/dev/null; then
+  bs_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "backslash path is unescaped and discovered" "$bs_out" 'back\-slash.md'
+else
+  printf 'SKIP: filesystem rejects a backslash in a filename\n'
+fi
+
+# SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep rather
+# than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git
+# C-quotes a path it treats specially, and a quoted record ends with the closing quote, not
+# `.md`. A bare `grep '\.md$'` therefore dropped every spaced, arrowed, backslashed or
+# quoted markdown file from the preview with no signal at all — the same silent false
+# negative the parse fix above removes from detect.sh. The grep is EXTRACTED from SKILL.md
+# and executed here rather than restated, because a restatement keeps passing while the real
+# line rots, which is exactly how the two surfaces drifted apart in the first place.
+SKILL_MD="$SCRIPT_DIR/../SKILL.md"
+if [[ -f "$SKILL_MD" ]]; then
+  skill_grep="$(sed -n 's/^Uncommitted \.md files: !`git status --porcelain 2>\/dev\/null | \(grep [^|]*\) | head.*/\1/p' "$SKILL_MD")"
+  if [[ -n "$skill_grep" ]]; then
+    skill_out="$(cd "$PORC_REPO" && eval "git status --porcelain 2>/dev/null | $skill_grep")"
+    assert_contains "SKILL.md preview keeps a quoted .md path" "$skill_out" 'notes -> draft.md'
+    assert_contains "SKILL.md preview still keeps an ordinary .md path" "$skill_out" 'plain.md'
+  else
+    fail "SKILL.md preview grep is extractable" "a grep expression" "no match in $SKILL_MD"
+  fi
+else
+  fail "SKILL.md exists for the parity check" "$SKILL_MD" "missing"
+fi
 
 # --- Final report --------------------------------------------------------------------
 

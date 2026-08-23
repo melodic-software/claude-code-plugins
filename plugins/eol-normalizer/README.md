@@ -74,10 +74,6 @@ the install command:
 claude plugin install eol-normalizer@<marketplace> --config eol_normalizer_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings, not the
-project's). To turn the plugin off for a single repository, disable it in that
-project's `enabledPlugins` instead.
-
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

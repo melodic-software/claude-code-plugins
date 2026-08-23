@@ -3,6 +3,33 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.17]
+
+### Removed
+
+- **Ceremonial `## Purpose` section in the `work` skill (#3122).** The section read
+  "Auto-select one work item and execute it, following the project's development workflow",
+  which is the first sentence of this skill's own `description` restated verbatim. The
+  description is always in context, so the section carried no information the reading agent
+  did not already have. Found by the #3122 content review, which sampled 44 ceremonial
+  sections across 24 skills and classified 37 load-bearing, 6 restatement, and this one as
+  the sole pure-ceremony instance in the sample. The review's verdict was that the
+  ceremonial-section convention stands as-is, so this is a single evidence-backed removal,
+  not a convention change and not a sweep: no other heading or file is touched, and
+  `docs-hygiene:audit-noise`'s section-exemption list is unchanged.
+
+## [0.39.16]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.39.15]
 
 ### Fixed

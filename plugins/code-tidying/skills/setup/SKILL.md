@@ -16,10 +16,12 @@ own `## Merge semantics` section (see the `tidy` skill's Lane resolution): a lan
 per-section with the bundled lane; a lane without it resolves project-only.
 
 Project lanes are optional: with none, `/code-tidying:tidy` uses the bundled lanes, so their absence is
-a reported INFO, never a FAIL. `check` inspects read-only; `apply` scaffolds or retunes lanes, then
-re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then the scaffold
-flow. `apply <lane>` targets a single lane. Idempotent: re-running reads the existing lane files and
-proposes additions or edits against that baseline rather than overwriting a consumer lane blind.
+a reported INFO, never a FAIL. Check-centric per the uniform setup contract
+(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+`check` inspects read-only; `apply` scaffolds or retunes lanes, then re-runs `check`. No argument or
+`check` runs the check; `apply` runs the check first, then the scaffold flow. `apply <lane>` targets a
+single lane. Idempotent: re-running reads the existing lane files and proposes additions or edits
+against that baseline rather than overwriting a consumer lane blind.
 
 ## Lanes vs. templates — the distinction this skill turns on
 
@@ -141,6 +143,7 @@ to add or retune lanes.
 ## What this skill does NOT do
 
 - Run a tidy sweep — that is `/code-tidying:tidy`. `check` only inspects config.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Ship its own template copies — lane files scaffold from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/`;
   duplicating those into this skill would drift from the source.
 - Write machine-local state — lane configuration lives in the consumer's tracked `.claude/tidy-lanes/`,
