@@ -54,6 +54,8 @@ The following five skills consume this rule.
 - `/skill-b` — does another
 
 Path-scoped to `src/**` so it loads there.
+
+Do not use markdown in your response.
 EOF
 
 CLEAN="$TEST_TMPDIR/clean.md"
@@ -112,8 +114,29 @@ assert_contains "citation finding" "$out" "Finding shape: citation"
 assert_contains "enum-list finding" "$out" "Finding shape: enum-list"
 assert_contains "scope-meta finding" "$out" "Finding shape: scope-meta"
 assert_contains "preamble finding" "$out" "Finding shape: preamble"
+assert_contains "negation-without-positive finding" "$out" "Finding shape: negation-without-positive"
 assert_contains "preamble tier 2" "$out" "Finding tier: 2"
 assert_contains "file summary" "$out" "Summary file: $ALL_SHAPES"
+
+# --- 2b. negation-without-positive: tier, and BOTH tier functions -------------------
+#
+# The shape lands in Tier 2, and asserting it through the emitted record is only
+# half the check: detect.sh calls audit_noise_shape_tier_into exclusively, so a
+# shape registered in the nameref arm but missed in the printf arm passes every
+# end-to-end assertion and silently returns Tier 3 to any other caller. Both
+# arms are exercised directly here, against the same expected value.
+
+neg_tier_line="$(bash "$DETECT" "$ALL_SHAPES" | grep -B1 'Finding shape: negation-without-positive' | head -1)"
+assert_contains "negation-without-positive is Tier 2 end to end" "$neg_tier_line" "Finding tier: 2"
+
+tier_probe="$(
+  # shellcheck source=lib/noise-shapes.sh
+  source "$SCRIPT_DIR/lib/noise-shapes.sh"
+  t_into=""
+  audit_noise_shape_tier_into 'negation-without-positive' t_into
+  printf 'into=%s printf=%s' "$t_into" "$(audit_noise_shape_tier 'negation-without-positive')"
+)"
+assert_contains "both tier functions agree on Tier 2" "$tier_probe" "into=2 printf=2"
 
 # --- 3. Clean fixture: slot-variable not flagged; exempt section skipped -----------
 
@@ -455,6 +478,82 @@ assert_contains "chunk still emits findings for selected file" "$chunk_out" "chu
 bad_chunk_exit=0
 bash "$DETECT" --offset -1 "$CLEAN" >/dev/null 2>&1 || bad_chunk_exit=$?
 assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
+
+# --- 12. negation-without-positive: the lines that must NOT be reported --------------
+#
+# Two distinct no-flag claims, kept apart because they discharge different bars.
+#
+#   12a PAIRED — the doctrine's own conforming form. A negation that states its
+#       positive alternative in the same sentence is what `write-for-agents`
+#       asks for, so reporting it would flag compliance as a defect.
+#   12b GUARDRAIL — a prohibition that cannot be phrased positively. Deciding
+#       that a given guardrail cannot be is a JUDGMENT, which is why the shape
+#       is Tier 2 and why an unmarked bare guardrail still emits for a reviewer
+#       to rule on. What the scanner owes is a way to make that ruling STICK:
+#       the documented opt-out marker, asserted here on exactly such a line.
+#       12a alone would not prove this bar — an unpaired guardrail does fire.
+
+NEG_PAIRED="$TEST_TMPDIR/neg-paired.md"
+cat >"$NEG_PAIRED" <<'EOF'
+# Paired negations keep their negation
+
+Do not use markdown; write smoothly flowing prose paragraphs.
+
+Never force-push to a shared branch — push with `--force-with-lease` to your own.
+
+Avoid deep nesting: prefer an early return.
+
+Do not hand-edit the generated block. Regenerate it instead.
+
+Don't diagnose yet. Just mark.
+
+The script does not read the config file.
+
+- Never audits a target that is not a git repository. It refuses.
+EOF
+neg_paired_out="$(bash "$DETECT" "$NEG_PAIRED")"
+assert_not_contains "a paired negation is not reported" "$neg_paired_out" "Finding shape: negation-without-positive"
+assert_contains "paired-negation file is clean" "$neg_paired_out" "| T1=0 T2=0 T3=0"
+
+NEG_GUARD="$TEST_TMPDIR/neg-guardrail.md"
+cat >"$NEG_GUARD" <<'EOF'
+# A hard guardrail the positive form cannot carry
+
+<!-- markdown-discipline-ignore-line -->
+Never force-push to a shared branch.
+
+<!-- markdown-discipline-ignore -->
+Never commit a credential to tracked source. Never weaken this rule for a
+one-off, and never route around it with a second remote.
+EOF
+neg_guard_out="$(bash "$DETECT" "$NEG_GUARD")"
+assert_not_contains "a marked hard guardrail is not reported" "$neg_guard_out" "Finding shape: negation-without-positive"
+assert_contains "hard-guardrail file is clean" "$neg_guard_out" "| T1=0 T2=0 T3=0"
+
+# --- 13. negation-without-positive: no remediation touches a trigger surface ----------
+#
+# check-skill.sh:414 hard-FAILs a dropped 'trigger phrase' against the base ref,
+# so a finding whose Location is a skill's frontmatter would route an edit at the
+# one surface that must not move. The scanner cannot emit one: detect.sh skips
+# YAML frontmatter wholesale, which is where `description`, `when_to_use` and
+# every quoted trigger phrase live. Asserted against a frontmatter carrying all
+# three, each a bare negation that would otherwise fire.
+
+NEG_FM="$TEST_TMPDIR/neg-frontmatter.md"
+cat >"$NEG_FM" <<'EOF'
+---
+description: "Do not use markdown. Use when: 'never force-push', 'avoid deep nesting'."
+when_to_use: "Never run this on a dirty tree."
+---
+
+# Body
+
+Body prose is in scope.
+EOF
+neg_fm_out="$(bash "$DETECT" "$NEG_FM")"
+assert_not_contains "no finding lands in frontmatter (description/when_to_use/triggers)" \
+  "$neg_fm_out" "Finding shape: negation-without-positive"
+assert_contains "frontmatter-only negations leave the file clean" "$neg_fm_out" "| T1=0 T2=0 T3=0"
 
 # --- Final report --------------------------------------------------------------------
 

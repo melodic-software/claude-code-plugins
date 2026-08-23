@@ -1,9 +1,9 @@
 ---
-description: "Classify tracked markdown for five noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, and scope/loading meta-commentary — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; read-only, no edits applied. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress) or structural markdown lint (your repo's markdown linter)."
-argument-hint: "[audit] [target]"
+description: "Classify tracked markdown for six noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, scope/loading meta-commentary, and bare prohibitions that name no positive alternative — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; never edits an audited document. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'find bare negations', 'prompt the positive', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress) or structural markdown lint (your repo's markdown linter)."
+argument-hint: "[audit] [target] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -18,7 +18,7 @@ Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | g
 
 ## Purpose
 
-Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates five NOISE shapes distinct from FLAVOR (owned by the sibling `/docs-hygiene:compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a read-only classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
+Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates six NOISE shapes distinct from FLAVOR (owned by the sibling `/docs-hygiene:compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
 
 ## Existence pre-check (before in-page noise)
 
@@ -42,7 +42,7 @@ resolve and defer to it via `/discipline:follow-our-standards`'s resolution
 ladder (repo-declared source → repo's own conventions → this portable
 baseline) instead of the default above.
 
-Only a page that passes admission proceeds to the five in-page NOISE shapes below.
+Only a page that passes admission proceeds to the six in-page NOISE shapes below.
 
 ## Noise shapes and treatments
 
@@ -53,6 +53,7 @@ Only a page that passes admission proceeds to the five in-page NOISE shapes belo
 | `preamble` — "Why this file exists" openers | Opening section explaining motivation/history/rationale | 2 | Diataxis classify: KEEP on Explanation-quadrant files (rule bodies, ADRs, convention rationale); STRIP on Reference-quadrant files (data tables, registries, cheat-sheets), replacing with a 1-sentence orientation |
 | `enum-list` — hard-coupled consumer lists | Tables/lists hardcoding N specific consumers that drift on every add/remove ("the following five skills…", bulleted `/skill — role` rosters) | 1 | Replace with a runtime derivation (a grep/list command cited inline) or a category citation; hardcode only when both fail |
 | `scope-meta` — scope/loading meta-commentary | Body prose restating loading mechanics that config/frontmatter already owns ("Path-scoped to X", "Loads on Read of Y", "Auto-loads when…") | 1 | Strip the clause — the frontmatter/config is the single source of truth; keep a genuine cross-ref riding the same sentence. Files with no scoping frontmatter MAY state scope in one sentence |
+| `negation-without-positive` — bare prohibitions | A line-initial imperative negation (`Do not …`, `Don't …`, `Never …`, `Avoid …`) whose own sentence names nothing to do in its place. The write-side rule this audits is `/docs-hygiene:write-for-agents` "Prompt the positive"; only a sentence-terminating line is decidable, so a hard-wrapped continuation is never selected | 2 | Rewrite to the positive target the prohibition implies. Keep the negation only where the positive form genuinely loses the constraint, and then pair it with the positive in the same sentence. A hard guardrail that cannot be phrased positively is NOT a finding — dismiss it, or wrap the line in an opt-out marker when the dismissal should persist across runs |
 
 Consumers with their own ephemeral-path or noise conventions can refine these defaults in their repo's `CLAUDE.md` / rules; the classifier's shapes and tiers above are the skill's built-in baseline.
 
@@ -62,6 +63,7 @@ Consumers with their own ephemeral-path or noise conventions can refine these de
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files from git; file path → single-file; dir path → batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on targets; map the emitted facts to the per-file tier table using the treatments above |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
+| `--persist-findings` (flag on either form) | — | after reporting, also emit a `type: review-findings` artifact for `review:fanout fix`, per [`context/persist-findings.md`](context/persist-findings.md). Opt-in: a bare invocation reports and stops |
 
 Single action v1; `relocate` and `generalize` actions are deferred until real demand surfaces — author hand-edits driven by audit output cover the sweep workflow.
 
@@ -89,7 +91,7 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 
 ## Hard rules
 
-- **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops. The author owns every treatment edit.
+- **Read-only ON THE AUDITED DOCUMENT — the distinction is the rule, not an exception to it.** No `Edit`, no `Write`, and no `Bash` op that changes any file this skill audits or any other tracked file. The author owns every treatment edit. What this rule has always been about is TARGET MUTATION; it is not a vow of total inertness, and the two are separated here in the text because a rule that forbade every byte written would forbid the findings artifact below while intending nothing of the kind. **ARTIFACT EMISSION is permitted and bounded:** exactly one file, written only under `--persist-findings`, only to the destination the detector-findings contract resolves, and only as a `type: review-findings` proposal for a relay a human still gates. It is never an applied treatment, and it never lands inside the audited corpus. Nothing else may be written, and a bare invocation still writes nothing at all.
 - **Tier semantics.** Tier 1 = definite noise; Tier 2 = review needed; Tier 3 = likely legitimate (surfaced for awareness). Tier 3 carries NO treatment — a finding whose ruling includes an edit ("strip", "relocate", "replace") is Tier 2 or 1 by definition.
 - **Section EXEMPTIONS never flagged:** `## Recheck triggers`, `## Cross-references`, `## Sources` / `## History` / `## External authority` footers (any ATX heading level — `### Sources` counts; a later non-exempt heading of any level ends the exemption), ADR amendment blocks, `CHANGELOG.md` entries and release notes (detect.sh skips `CHANGELOG.md` by basename), YAML frontmatter (`---` … `---`), and fenced code blocks. Inline `` `code` `` spans are stripped before citation/enum/scope matching (ghost-ref still sees unwrapped path text).
 - **Dismissal grounds the judgment pass may use** (recurring, sanctioned; the scanner cannot see them): a fictional slug instantiated by a worked example (nothing can dangle), a vendored-verbatim upstream baseline that is never hand-edited by policy, a delete/prune instruction whose target is the path being removed (a record, not a followable reference), and a shape-definition or output-schema example matching its own pattern.
@@ -126,13 +128,13 @@ Batch aggregate at end:
 Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 ```
 
-`shape` values: `citation`, `ghost-ref`, `preamble`, `enum-list`, `scope-meta`.
+`shape` values: `citation`, `ghost-ref`, `preamble`, `enum-list`, `scope-meta`, `negation-without-positive`.
 
 ## What this skill is NOT
 
-- **Not `/docs-hygiene:compress`.** The sibling `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/docs-hygiene:audit-noise` owns NOISE (the five shapes above). Different concerns; both may apply to the same target iteratively.
+- **Not `/docs-hygiene:compress`.** The sibling `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/docs-hygiene:audit-noise` owns NOISE (the six shapes above). Different concerns; both may apply to the same target iteratively.
 - **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/docs-hygiene:audit-noise` is semantic noise classification.
-- **Not an Edit operation.** Read-only: it surfaces findings; the author applies treatments.
+- **Not an Edit operation.** It surfaces findings; the author applies treatments. The one file it may write is the opt-in findings artifact, which proposes to a human-gated relay and never touches the audited document.
 - **Not a content deduplicator.** When the noise is the same concept repeated across files, that is the sibling `/docs-hygiene:extract-ssot`'s territory at any multiplicity — sub-three repetition lands in its non-abstracting buckets, and only minting a new SSOT artifact waits for 3+.
 
 ## Sources
@@ -140,3 +142,4 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 - [Diataxis Explanation](https://diataxis.fr/explanation/) — the Diataxis classifier behind the preamble treatment
 - [markdownlint configuration](https://github.com/DavidAnson/markdownlint?tab=readme-ov-file#configuration) — opt-out marker HTML-comment form precedent
 - [topic-docs convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md) — Memory, concern-scoped tier roster (bare-root ghost-ref exemption)
+- [Prompting best practices, "Control the format of responses"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) — "Tell Claude what to do instead of what not to do", with the worked pair the `negation-without-positive` shape audits for: *"Do not use markdown in your response"* → *"Your response should be composed of smoothly flowing prose paragraphs."*

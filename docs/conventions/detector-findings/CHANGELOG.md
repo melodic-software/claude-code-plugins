@@ -4,6 +4,27 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.5.0 — 2026-08-23
+
+Minor under this contract's own rule: a new crosswalk row and a new adopter row, with no
+producer-owned field's rule, coexistence obligation, or enforceability verdict changed.
+
+- **`docs-hygiene:audit-noise` joins the adopters**, with one crosswalk row —
+  `docs-hygiene/audit-noise/rule-negation-without-positive`, argued to SUGGESTION on the same walk
+  as `rule-em-dash`: a shipped default names no stated rule of the consuming repo, and a prohibition
+  and its positive restatement carry the same constraint, so no degradation trigger is nameable.
+- **It is the first producer whose emitted set is a strict SUBSET of its own classifier.** The skill
+  detects six shapes; five have no crosswalk row and therefore no tier to look up, so they are
+  counted per rule id in `## Surfaces` with `reason=no-severity-crosswalk-row` rather than emitted.
+  "A rule failing the admission test is not a row with a missing cell" now has a worked instance
+  where the same run both emits and declines — the boundary is which findings reach the RELAY, not
+  which are found, and the declined five still reach the human through the ordinary report.
+- **The adoption forced the adopting skill to amend its own read-only rule**, recorded here because
+  it is a consequence of this contract rather than of that skill: a hard rule reading "No `Edit`, no
+  `Write`, no mutating `Bash` ops" forbids the producer contract as written. The amendment separates
+  target mutation from artifact emission. Producers whose skills carry an absolute no-write rule
+  should expect the same reconciliation, and should make it in the rule's own text.
+
 ## 2.4.1 — 2026-08-21
 
 Two clarifications to prose this contract already had. **Patch under its own rule**: no

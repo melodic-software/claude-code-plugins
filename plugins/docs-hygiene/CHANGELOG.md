@@ -1,5 +1,74 @@
 # Changelog — docs-hygiene plugin
 
+## [0.20.0]
+
+### Added
+
+- **`audit-noise` gains a sixth shape, `negation-without-positive`, and becomes a
+  detector-findings producer (#3123).** The shape is the audit-side completion of a doctrine
+  this plugin already ships on the write side: `write-for-agents` "Prompt the positive" tells
+  authors to write what to do rather than what to avoid, and nothing checked it afterwards.
+  Official guidance names the technique directly — *"Do not use markdown in your response"* →
+  *"Your response should be composed of smoothly flowing prose paragraphs."*
+
+  **Scope is the decidable core, and the two narrowings are the whole reason the rate is
+  survivable.** The cue must be LINE-INITIAL (after list, blockquote and emphasis markers), so
+  descriptive negations — "the script does not read the config" — never select; and the line
+  must END its sentence, because this corpus hard-wraps prose and a continuation line cannot be
+  shown to lack a positive that sits on the next line. A table row ends in `|` and is excluded by
+  the same test. A mid-sentence prohibition ("Prefer X; never Y") is out of scope by
+  construction: correctly paired prose puts the cue after the positive.
+
+  Tier 2, deliberately. A prohibition is sometimes the correct form, and deciding that a given
+  hard guardrail cannot be phrased positively is a judgment — so the scanner surfaces and a
+  reviewer rules, which is what Tier 2 means. The documented opt-out markers make a dismissal
+  stick across runs.
+
+  **Calibrated against this repository's own 1136-file tracked-markdown corpus**, and two cue
+  classes were dropped after reading every finding rather than guessed at up front:
+
+  - A THIRD-PERSON `-s` verb after `Never`/`Avoid` is a capability roster describing a component
+    ("Never audits a target that is not a git repository"), not an instruction to anyone. An
+    imperative never takes that form. Imperatives ending in a doubled or vowel-led `s` — process,
+    discuss, focus, bypass — are excluded from the test rather than caught by it.
+  - Emphasis runs sit BETWEEN a sentence terminator and its following space
+    (`…dialog.** Leave it open.`), so the sentence split never saw that boundary and reported the
+    positive as absent. Stripping emphasis before splitting is what lets it be seen.
+
+  A closed function-word stoplist decides whether a clause after a separator names an
+  alternative, rather than an allow-list of imperative verbs: testing what a clause is NOT
+  generalizes, where a verb list only ever covers the verbs its author thought of. Leading
+  adverbs ("Just mark.", "Simply re-run it.") are looked THROUGH rather than stopped on.
+
+  Corpus effect: 43 findings → 108, the 65 new ones all of the new shape; no shape's existing
+  behavior changes, and the run cost is unmoved (9m26s → 9m39s over 1140 files).
+
+- **`--persist-findings` emits a conforming `type: review-findings` artifact** for
+  `review:fanout fix`, per `docs/conventions/detector-findings/README.md`. Opt-in: a bare
+  invocation reports and stops. **Exactly one of the six shapes reaches the relay** — only
+  `rule-negation-without-positive` has a severity-crosswalk row, so the other five have no tier
+  to look up and are counted per rule id in `## Surfaces` with `reason=no-severity-crosswalk-row`
+  rather than emitted. They still reach the human through the ordinary report; the boundary is
+  which findings reach the RELAY, not which are found.
+
+  `emit-findings.sh` resolves the repo root in THREE spellings, and that is load-bearing rather
+  than defensive: on Git Bash `git rev-parse --show-toplevel` answers
+  `C:/Users/u/AppData/Local/Temp/t/repo` while the caller reached the same directory as
+  `/tmp/t/repo`, so matching only the git form leaves every `Location` absolute — and nothing
+  reports it, because an absolute path is still a well-formed cell.
+
+### Changed
+
+- **`audit-noise`'s read-only hard rule now distinguishes target mutation from artifact
+  emission, in the rule's own text.** It read "No `Edit`, no `Write`, no mutating `Bash` ops",
+  which forbids the producer contract as written — emitting a findings file IS a write. The
+  rule's intent was always that the audit never edits the DOCUMENT under audit, and it now says
+  so: target mutation stays absolute, while artifact emission is permitted and bounded to one
+  file, at the convention-resolved destination, under `--persist-findings`, as a proposal for a
+  relay a human still gates. It is never an applied treatment and never lands inside the audited
+  corpus. Shipping a detector that quietly violated its own stated hard rule was the alternative,
+  and the rule is not widened past what the findings write requires.
+
 ## [0.19.0]
 
 ### Changed
