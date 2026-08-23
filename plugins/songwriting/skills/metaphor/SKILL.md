@@ -1,11 +1,11 @@
 ---
-description: "Generate and diagnose metaphor with Pat Pattison's methods — the three types (expressed identity, qualifying, verbal), the three expressed-identity forms, collision drills (noun×verb, noun×noun, adjective×noun), playing in keys (fundamental → diatonic family → collisions), the two metaphor-finder questions, participles, transitive vs intransitive, simile as focus control, and grounded-metaphor diagnosis. Use when: 'I need a metaphor for X', 'generate metaphor options', 'metaphor or simile here', 'this metaphor feels dead', 'my song has no metaphor', 'sustain this image across the song', 'collide these words', 'what else has these characteristics'. For sensory raw material use /songwriting:object-writing; for cliche repair use /songwriting:object-writing cliche."
-argument-hint: "[action] [args] (e.g., /songwriting:metaphor collide rain, /songwriting:metaphor keys tide, /songwriting:metaphor simile) — full actions in body"
+description: "Generate and diagnose metaphor with Pat Pattison's methods, the three types (expressed identity, qualifying, verbal), the three expressed-identity forms, collision drills (noun×verb, noun×noun, adjective×noun), playing in keys (fundamental → diatonic family → collisions), the two metaphor-finder questions, participles, transitive vs intransitive, simile as focus control, and grounded-metaphor diagnosis. Use when: 'I need a metaphor for X', 'generate metaphor options', 'metaphor or simile here', 'this metaphor feels dead', 'my song has no metaphor', 'sustain this image across the song', 'collide these words', 'what else has these characteristics'. For sensory raw material use /songwriting:object-writing; for cliche repair use /songwriting:object-writing cliche."
+argument-hint: "[action] [args] (e.g., /songwriting:metaphor collide rain, /songwriting:metaphor keys tide, /songwriting:metaphor simile). Full actions in body"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-## Mandatory pre-flight — Response Filter
+## Mandatory pre-flight. Response Filter
 
 Before emitting any metaphor, simile, or collision, run **§7 Image filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (add **§2 Line-writing**
@@ -20,7 +20,7 @@ seeing one thing as another, and it is the craft dimension most often missing en
 rather than merely done badly.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
-author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+author's method plugs in at `context/<author>/` without changing this skill, the author seam per
 the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Two rules that bind before anything else
@@ -29,7 +29,7 @@ the plugin-root `../../README.md` "Method content and the author seam".
 is a definition, not a metaphor. Conflict is the mechanism, not a side effect: put things that do
 not belong together in one room and work with the friction.
 
-**Noun+verb beats adjective+noun.** Verbs are the power amplifiers of language — they drive a line
+**Noun+verb beats adjective+noun.** Verbs are the power amplifiers of language. They drive a line
 and set it in motion. Collision drills reliably produce better results from noun×verb pairings than
 from adjective×noun ones. This is the correction that matters most here, because the default
 reach is always for an adjective.
@@ -62,13 +62,13 @@ No action → route on context (a subject named → `collide`; an existing metap
 - **Weight the collisions toward verbs.** In any mixed batch, noun×verb candidates should outnumber
   adjective×noun ones.
 - **Take object-writing output as input.** The mined world vocabulary of a song is the raw material
-  for playing in keys — a fundamental drawn from the song's own world produces a diatonic family
+  for playing in keys, a fundamental drawn from the song's own world produces a diatonic family
   the song can actually use.
 - For `simile`, apply the focus rule rather than the like/as surface test: metaphor transfers focus
   to the second term and you must commit to it across the song; simile keeps focus on the first
   term, which makes it the right choice for a one-time comparison or a list of them.
 
-## Boundary — what this skill must NOT emit
+## Boundary. What this skill must NOT emit
 
 This skill produces figurative language and judgements about it. It does not write the finished
 lyric line the metaphor lives in.
@@ -89,7 +89,7 @@ Write generated files to the paths in
 consuming project's own songwriting layout when it defines one. Metaphor menus go to the song's
 `worksheets/` as a labeled menu, not an inline dump. Before loading any bundled
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first — a project-level override wins over the bundled default.
+first, a project-level override wins over the bundled default.
 
 ## Related skills
 

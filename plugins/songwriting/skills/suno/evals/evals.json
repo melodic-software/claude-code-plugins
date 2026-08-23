@@ -1,0 +1,42 @@
+{
+  "skill_name": "suno",
+  "evals": [
+    {
+      "id": 1,
+      "name": "trigger-suno-prompt",
+      "prompt": "suno prompt for a nostalgic synth-pop track about leaving town at dusk",
+      "expected_output": "Routes to the prompt action. Builds a complete style prompt using the 6-layer formula (genre, mood, instrumentation, vocal direction, numeric BPM, production) plus tagged lyrics. Does not generate audio.",
+      "files": [],
+      "expectations": [
+        "Recognizes a Suno prompt-craft request and routes to `prompt`",
+        "Emits a style prompt that uses the 6-layer order rather than a free-form paragraph",
+        "Includes tagged lyrics or offers the lyrics companion rather than skipping the lyrics field",
+        "Does not claim to produce or play audio"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "trigger-write-suno-lyrics",
+      "prompt": "write suno lyrics for a folk chorus titled 'Red River Coat'",
+      "expected_output": "Routes to the lyrics action. Emits section-tagged lyrics with vocal and performance tags, not an untagged poem. Stays inside prompt-craft: no audio generation.",
+      "files": [],
+      "expectations": [
+        "Routes to `lyrics` rather than the full `prompt` style+lyrics builder unless the user also asked for a style prompt",
+        "Uses Suno section tags such as [Verse] / [Chorus]",
+        "Does not dump an untagged lyric block as the only output"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "trigger-fix-garbled-lyrics",
+      "prompt": "fix garbled lyrics, Suno swallowed the pre-chorus and the BPM is ignored",
+      "expected_output": "Routes to the troubleshoot action. Diagnoses the named symptoms (absorbed section, BPM ignored) from context/troubleshoot.md and proposes a prompt-side rewrite, not a new audio render.",
+      "files": [],
+      "expectations": [
+        "Routes to `troubleshoot`",
+        "Addresses both named symptoms rather than only one",
+        "Proposes prompt or tag changes rather than offering to regenerate audio in Suno"
+      ]
+    }
+  ]
+}

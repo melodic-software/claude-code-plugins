@@ -3,6 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.9]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 10).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. Quoted heading citations and fenced lyric/protocol templates
+  keep their original punctuation. Added `suno` trigger-routing evals so the
+  changed `SKILL.md` satisfies the require-evals gate.
+
 ## [1.4.8]
 
 ### Changed
