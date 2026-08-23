@@ -7,10 +7,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`pull-request create`: the two GraphQL-backed steps on the create path now carry REST
-  substitutes.** Sandboxed sessions (Claude Code on the web, remote execution) serve only a
-  pinned set of GraphQL operations and refuse the rest with `HTTP 403`, which takes out both
-  `gh issue view --json` and `gh pr create`. The §2.4.0 linkage check was the more dangerous of
+- **`pull-request create`: every GraphQL-backed step on the create path now carries a REST
+  substitute.** Sandboxed sessions (Claude Code on the web, remote execution) serve only a
+  pinned set of GraphQL operations and refuse the rest with `HTTP 403`, which takes out the
+  §2.2 default-branch read, the §2.4.0 issue-state check, `gh pr create` itself, and the
+  `gh pr view --json` identity read after it. The §2.4.0 linkage check was the most dangerous of
   the two, because it fails with a *misleading diagnosis* rather than an error: its
   `2>/dev/null || true` swallows the 403, leaving `ISSUE_STATE` empty, so a live open issue is
   reported as "missing or not open" and the flow falls through to the orphan-PR prompt. Taking
@@ -21,19 +22,26 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **§2.4.3 states the REST PR-open form.** `gh pr create` sends a `RepositoryInfo` GraphQL
   preamble before it touches the pull-request API, so it 403s having created nothing. The
   section now documents `POST /repos/{owner}/{repo}/pulls` with the four differences that make
-  the swap non-mechanical: REST requires `base` (which §2.2's own `gh repo view --json
-  defaultBranchRef` cannot supply, being the same GraphQL surface), `head` needs the
-  `<fork-owner>:<branch>` form on a triangular flow, the body goes through `-f` rather than `-F`
+  the swap non-mechanical: REST requires `base` (which §2.2 must now resolve over REST itself,
+  its `gh repo view --json defaultBranchRef` being the same GraphQL surface), `head` needs the
+  namespaced `<fork-owner>:<branch>` form on a triangular flow, plus `head_repo` when both
+  repositories share an organization, the body goes through `-f` rather than `-F`
   to avoid `--field`'s type conversion and `@`-filename handling, and the response carries
   `.number` and `.html_url` directly instead of requiring the URL to be parsed back apart. The
   paragraph that follows, which sends later phases to `gh pr view --json number,url` for PR
   identity, now says that read is GraphQL-backed too and gives its REST re-read, so the section
   no longer offers a sandboxed session two adjacent and contradictory instructions.
-- **§2.7 anchors the substitute.** `gh api`'s `{owner}`/`{repo}` placeholders expand from the
-  current directory, which under the out-of-tree orchestrated entry is not the target
-  repository — so the REST calls are shown in the same `( cd "$WT" && … )` form the section
-  already uses for `resolve-remote.sh`, including a `$BASE` resolution of its own, since §2.7
-  skips the §2.2 step that would otherwise have set one.
+- **§2.2 carries its own substitute.** It is the first step on the normal `create` path to 403,
+  so a sandboxed session died there long before reaching §2.4.3's fallback. It now shows
+  `gh api "repos/{owner}/{repo}" --jq '.default_branch'` in place of `gh repo view --json`.
+- **§2.7 anchors the substitute, and names the triangular trap.** `gh api`'s `{owner}`/`{repo}`
+  placeholders expand from the current directory, which under the out-of-tree orchestrated entry
+  is not the target repository — so the REST calls are shown in the same `( cd "$WT" && … )` form
+  the section already uses for `resolve-remote.sh`, including a `$BASE` resolution of its own,
+  since §2.7 skips the §2.2 step that would otherwise have set one. Anchoring to the worktree is
+  not sufficient where the worker pushed to a fork: the placeholders then resolve to the fork, so
+  the section also gives a `GH_REPO="<base-owner>/<repo>"` form with a namespaced `head`, which
+  would otherwise have opened the pull request against the fork's own default branch silently.
 - **The REST path's missing hook backstop is recorded.** `pr-body-linkage-gate.sh` matches
   `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately
   does not see. Within the skill this costs nothing — §2.4.2's gates run against the body first

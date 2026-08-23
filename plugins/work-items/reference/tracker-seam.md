@@ -98,8 +98,8 @@ the provider's REST equivalent otherwise), and a surface that shows a body read 
 such rather than folding it into a seam snippet. That GitHub form is GraphQL-backed and returns
 `HTTP 403` in a sandboxed session (Claude Code on the web, remote execution), which serves only a
 pinned set of GraphQL operations; the adapter's operations reference carries the REST substitute
-under "View item"
-(`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`). Provider mechanics run unbound, so the read still
+under "View item" (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`).
+Provider mechanics run unbound, so the read still
 works where no binding resolves; where the provider exposes no body concept at all
 (`local-markdown` stores the item text as the file itself), say so rather than implying parity.
 

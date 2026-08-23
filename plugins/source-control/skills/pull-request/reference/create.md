@@ -609,7 +609,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
     -f base="$BASE" -f body="$BODY")
   ```
 
-  `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. Resolve `$BASE` against `$BASE_REPO` the same way when the flow is triangular.
+  `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a triangular flow resolve `$BASE` through `GH_REPO` too — `BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')` — not through the `cd "$WT"` form above, which would read the fork's default branch.
 
 - **§2.5 / §2.6:** unchanged — record expected workflows, report the PR URL + number, and stop.
 

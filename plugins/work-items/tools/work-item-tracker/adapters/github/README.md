@@ -35,6 +35,13 @@ PREFIX="$(gh repo view --json owner,name -q '"github:\(.owner.login)/\(.name)"' 
 ID="${PREFIX}#<N>"
 ```
 
+`gh repo view --json` is GraphQL-backed, so it 403s in a sandboxed session for the reason given
+under "View item" below. The REST form produces the same string:
+
+```bash
+PREFIX="$(gh api "repos/{owner}/{repo}" --jq '"github:" + .full_name' | tr -d '\r')"
+```
+
 ## List items
 
 Arbitrary filter projection (bare `gh`):
@@ -114,6 +121,11 @@ directory, or from `GH_REPO`. Run it from the target clone, or prefix `GH_REPO=<
 `comments` is the one projected field that does not carry over — REST returns it as an integer
 count, not the list `--json comments` gives. Take comments from "List item comments" below, which
 is already REST and paginates for the reason documented there.
+
+**What this substitute does not cover.** The list, search, and aggregate projections below run on
+`gh issue list --json`, which posts to `/graphql` like the reads above and carries no REST form
+here. Under this restriction they are unavailable, as are the seam verbs named at the end of
+"Edit labels / assignees".
 
 ## List item comments
 
