@@ -5,6 +5,22 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6]
+
+### Fixed
+
+- **Engine:** the additivity verifier no longer coerces a null bucket delta to `0`. A combined
+  deny can empty `System tools` or `System tools (deferred)` out of the snapshot; the snapshot
+  comparison correctly records that bucket's delta as `null`, but the verifier summed it with
+  `?? 0` and published a fabricated `combinedSaved: 0` as `comparable: true`. The additivity
+  record (and each per-tool row, which had the same coercion) now reports the saving as `null`
+  with `comparable: false` and a reason naming the vanished bucket
+  ([#3197](https://github.com/melodic-software/claude-code-plugins/issues/3197)). A bucket
+  absent from *both* runs remains a non-event — outside that binary's category vocabulary, not
+  a missing measurement. In sdk mode, where numbers are exact and the category vocabulary is
+  known, an omitted bucket is now recorded as an explicit `0` at snapshot time, so a combined
+  deny that empties a bucket yields a real measured delta instead of an incomparable record.
+
 ## [0.6.5]
 
 ### Changed

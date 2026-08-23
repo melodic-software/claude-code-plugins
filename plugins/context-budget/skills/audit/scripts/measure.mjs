@@ -51,6 +51,10 @@ const ERROR_SCHEMA = 'context-budget.error/1';
 
 const SPAWN_TIMEOUT_MS = 180000;
 
+// The two /context buckets a bare-name tool deny moves — the buckets the
+// attribute pipeline sums per-tool and for the additivity check.
+const SYSTEM_TOOL_BUCKETS = ['System tools', 'System tools (deferred)'];
+
 function usageError(msg) {
   process.stderr.write(`ERROR: ${msg}\n`);
   process.stderr.write('Run with --help for usage.\n');
@@ -322,6 +326,15 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   const { init, usage } = result;
   const categories = {};
   for (const c of usage.categories ?? []) categories[c.name] = c.tokens;
+  // A deny that empties a bucket makes the SDK omit it rather than report 0.
+  // sdk mode's numbers are exact and its category vocabulary is known, so for
+  // the attributed buckets that absence IS a measured zero — record it, or a
+  // combined deny that empties a bucket yields a null delta downstream where
+  // a real one was measured. cli-parse absence stays genuinely ambiguous
+  // (format drift vs emptied bucket) and is deliberately not zero-filled.
+  for (const bucket of SYSTEM_TOOL_BUCKETS) {
+    if (!(bucket in categories)) categories[bucket] = 0;
+  }
 
   const skillFrontmatter = usage.skills?.skillFrontmatter ?? [];
   const skillRows = skillFrontmatter.map((s) => ({ name: s.name, source: s.source }));
@@ -529,6 +542,26 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
 // attribute — per-tool attribution by bare-name deny differencing
 // ---------------------------------------------------------------------------
 
+// Saving across the attributed buckets of one comparison, honoring the
+// three states a bucket delta can be in:
+//   number     measured in both runs — use it;
+//   null       present in one run only (a deny can empty a bucket out of the
+//              snapshot entirely) — a missing measurement, NEVER zero;
+//   undefined  absent from both runs — outside this binary's category
+//              vocabulary, a non-event that contributes nothing.
+// `saved` is null when any needed bucket vanished; callers publish that as
+// incomparable with `vanished` naming the buckets, never coerce it to 0.
+function systemBucketSaving(cmp) {
+  const vanished = SYSTEM_TOOL_BUCKETS.filter((b) => b in cmp.delta && cmp.delta[b] === null);
+  if (vanished.length) return { vanished, saved: null };
+  return { vanished, saved: -SYSTEM_TOOL_BUCKETS.reduce((s, b) => s + (cmp.delta[b] ?? 0), 0) };
+}
+
+function vanishedReason(vanished) {
+  return `${vanished.join(' and ')} present in only one run — the bucket was emptied out of one `
+    + 'snapshot, so its delta is unmeasured, not zero';
+}
+
 async function runAttribute(args) {
   if (!args.tools) usageError('attribute needs --tools <T1,T2,...|from-baseline>');
   const baseline = await takeSnapshot({ ...args, deny: undefined, label: 'baseline' });
@@ -550,17 +583,19 @@ async function runAttribute(args) {
   for (const tool of tools) {
     const run = await takeSnapshot({ ...args, deny: tool, label: `deny:${tool}` });
     const cmp = compareSnapshots(baseline, run, { lever: `deny:${tool}` });
-    const prefixDelta = cmp.delta['System tools'] ?? null;
-    const deferredDelta = cmp.delta['System tools (deferred)'] ?? null;
+    const { vanished, saved } = systemBucketSaving(cmp);
     perTool.push({
       tool,
       // A deny that saves prints as a NEGATIVE delta (after minus before);
-      // savedTokens flips the sign for ranking and readability.
-      prefixDelta,
-      deferredDelta,
-      savedTokens: -((prefixDelta ?? 0) + (deferredDelta ?? 0)),
-      comparable: cmp.comparability.systemToolsComparable,
-      reasons: cmp.comparability.reasons,
+      // savedTokens flips the sign for ranking and readability. A vanished
+      // bucket makes it null — an unmeasured saving, never a zero.
+      prefixDelta: cmp.delta['System tools'] ?? null,
+      deferredDelta: cmp.delta['System tools (deferred)'] ?? null,
+      savedTokens: saved,
+      comparable: cmp.comparability.systemToolsComparable && !vanished.length,
+      reasons: vanished.length
+        ? [...cmp.comparability.reasons, vanishedReason(vanished)]
+        : cmp.comparability.reasons,
     });
   }
   perTool.sort((x, y) => (y.savedTokens ?? 0) - (x.savedTokens ?? 0));
@@ -571,15 +606,22 @@ async function runAttribute(args) {
     if (savers.length >= 2) {
       const combined = await takeSnapshot({ ...args, deny: savers.join(','), label: 'deny:combined' });
       const cmp = compareSnapshots(baseline, combined, { lever: `deny:${savers.join('+')}` });
-      const combinedSaved = -(((cmp.delta['System tools'] ?? 0)) + ((cmp.delta['System tools (deferred)'] ?? 0)));
+      // Denying every saver at once can empty a bucket out of the combined
+      // snapshot; its delta is then null and the combined saving is
+      // unmeasured — published as incomparable, never coerced to zero.
+      const { vanished, saved: combinedSaved } = systemBucketSaving(cmp);
+      const comparable = cmp.comparability.systemToolsComparable && !vanished.length;
       const sumOfParts = perTool.filter((t) => savers.includes(t.tool))
         .reduce((s, t) => s + t.savedTokens, 0);
       additivity = {
         tools: savers,
         sumOfParts,
         combinedSaved,
-        additive: cmp.comparability.systemToolsComparable && combinedSaved === sumOfParts,
-        comparable: cmp.comparability.systemToolsComparable,
+        additive: comparable && combinedSaved === sumOfParts,
+        comparable,
+        reasons: vanished.length
+          ? [...cmp.comparability.reasons, vanishedReason(vanished)]
+          : cmp.comparability.reasons,
       };
     }
   }
