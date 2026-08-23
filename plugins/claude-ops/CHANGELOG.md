@@ -3,6 +3,79 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.0]
+
+### Added
+
+- **`audit-performance` gains a fourth suspect: the fan-out layer.** The engine measured what an
+  installation accumulates, which version it runs, and how many components it carries, but
+  nothing about what the machine pays per process spawn. That left hooks, the statusline,
+  subagent concurrency ceilings, and orphan attribution entirely invisible, so an audit could
+  clear every suspect it knew about while the real cause went unreported. A new `fan_out` report
+  section carries five probes:
+  - **`spawn_cost`**: a trivial no-op spawn timed repeatedly and reduced to min, median, and max,
+    each reading labelled with the concurrent-process load at sample time. The floor moves with
+    load, so an unlabelled single number invites the wrong conclusion; a wide spread whose slow
+    mode is itself slow is reported as the contention signature rather than as noise.
+  - **`hooks`**: every hook that will fire, resolved across `settings.json`, an optional
+    project-scope settings file, and each enabled plugin's `hooks.json`, bucketed into
+    per-tool-call and per-turn. Per-turn hooks are what make a long conversation degrade and are
+    the bucket most audits never look at. Invocation shapes that cost extra process creations,
+    the `Git\bin\bash.exe` wrapper and any nested-shell command line, are named per hook.
+  - **`statusline`**: the configured command and refresh interval, reported and never rendered.
+  - **`config_liveness`**: the settings file's mtime against each running session's start time.
+    Plugin enablement is read at startup, so a toggle no running session has loaded does not
+    describe the running state, and reporting it as though it did is how a confidently incorrect
+    diagnosis gets written.
+  - **`concurrency_ceilings`**: effective subagent concurrency and spawn depth against their
+    documented defaults, with a variable that is set but undocumented upstream reported as such.
+    Carries the trap that these flags are read through a truthiness test on the raw string, where
+    `"0"` is truthy, so setting one to 0 is a silent no-op and only absence disables it.
+
+### Changed
+
+- **`audit-performance` orphan attribution resolves parent liveness instead of convicting on
+  age.** A long-lived process with a live parent is working software, and age alone routes it to
+  a kill. Each candidate now reports `parent_alive`, guarded against PID reuse by comparing start
+  times, with an unreadable parent left `unknown` rather than guessed. Attribution is scoped to
+  the shells, console hosts, and runtimes the fan-out layer spawns, because a top-level
+  application normally outlives its launcher and is not debris for having done so. A second
+  process sample taken seconds after the first separates accumulation from churn, which look
+  identical in one sample and mean opposite things.
+- **`audit-performance` process collection now carries pid, parent pid, and start time.**
+  `tasklist` supplies none of the last two and they are load-bearing for three of the new probes,
+  so the Windows collector reads the toolhelp snapshot and process times through `ctypes` and the
+  POSIX collector reads `ps` elapsed time. Standard library only, as before.
+- **`audit-performance`'s content-read allowlist widens to four non-secret config files** and is
+  now enforced in code rather than only in prose: `settings.json`, `.last-cleanup`, a plugin's
+  `hooks/hooks.json`, and `plugins/installed_plugins.json`. The last two are what make hook
+  enumeration possible; both hold event, matcher, command, and install-path strings and no
+  credential material. `~/.claude.json` values and `history.jsonl` contents remain closed.
+- **`audit-performance` states that it never executes a discovered hook or statusline command.**
+  Timing a hook by running it is the obvious way to attribute per-hook cost and is the one move
+  the skill refuses: a hook is third-party code with arbitrary side effects, so running one would
+  turn a read-only capture into a mutation. The engine supplies the enumeration and the spawn
+  baseline; attribution is the operator's deliberate step.
+- **`audit-performance` gains flags for a machine too contended to finish a full pass.**
+  `--project-dir` counts project-scope hooks, `--subprocess-timeout` raises a per-probe bound the
+  default of 20 s cannot always meet under a storm, and `--spawn-samples`, `--population-gap`,
+  and `--skip-fan-out` trade coverage for wall-clock time. A probe that times out is recorded as
+  a finding rather than dropped.
+- **`audit-performance`'s bundled reference records the fan-out mechanisms and the causes tested
+  and cleared.** A plausible cause ruled out by measurement is a finding, and antivirus,
+  third-party EDR, the filesystem, and the shell have each looked like the cause and been wrong.
+  The reference also carries the measurement method (monotonic in-process clock, bracket rather
+  than single-sample, verify config is live before attributing cost to it) and states that every
+  timing in it is CLI-only, with desktop coverage unmeasured.
+
+### Fixed
+
+- **`audit-performance` ships its first tests.** The engine had none, so a change to it was
+  unguarded. 45 unit cases cover each fan-out classifier against fixtures carrying the defect it
+  must catch, plus an end-to-end contract asserting the shipped report actually contains the
+  fan-out section, because asserting that the audit runs is not the same as asserting that it
+  sees the layer.
+
 ## [0.37.4]
 
 ### Fixed
