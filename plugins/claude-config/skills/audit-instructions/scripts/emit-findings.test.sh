@@ -9,6 +9,15 @@
 # one caller away from being bypassed.
 set -uo pipefail
 
+# Fixture git isolation: this suite builds a throwaway repository (case 9c), and
+# `git -C` is a readability guard, not isolation — an inherited ABSOLUTE GIT_DIR
+# overrides repository discovery outright and GIT_CONFIG redirects what `git
+# config` writes, so the fixture identity would land in the CALLER's .git/config,
+# shared by every worktree of the clone. Cleared unconditionally, before any
+# fixture command. Case 3b's per-command `GIT_DIR=...` prefix is unaffected: it
+# scopes to that one invocation and is set deliberately, not inherited.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EMIT="$SCRIPT_DIR/emit-findings.sh"
 SCAN="$SCRIPT_DIR/instruction-scan.sh"
