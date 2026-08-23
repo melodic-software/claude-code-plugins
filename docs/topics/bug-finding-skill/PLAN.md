@@ -83,7 +83,7 @@ Decisions made under the Brief's arbiter delegation, tagged per contract:
 
 **Sanity Check:** `git rev-list --count HEAD..origin/main` = 0 at Phase 5 entry.
 
-### Phase 1: `/bug-report:scan` skill [TODO]
+### Phase 1: `/bug-report:scan` skill [DONE]
 
 Create `plugins/bug-report/skills/scan/` and the shared config reference:
 
