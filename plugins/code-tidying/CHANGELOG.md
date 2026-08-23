@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.3]
+
+### Fixed
+
+- **`audit-comment-residue` shape-definition examples no longer self-match
+  `audit-noise` (#3191).** Three rows of the residue-shape table wrote their
+  illustrative phrases in plain double quotes (`"Task 2 replaces the old…"`,
+  `"per your request"`, `"see PR #45"`). `audit-noise` strips inline-code spans
+  before matching, so the sibling skill's backticked examples stay invisible
+  while these three rows flagged against their own definitions. The quoted
+  phrases are now wrapped in backticks. Detector behavior is unchanged.
+
 ## [0.14.2]
 
 ### Fixed

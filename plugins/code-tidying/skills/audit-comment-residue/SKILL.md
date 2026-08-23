@@ -35,9 +35,9 @@ is left to the author; the shapes below are the comments that fail it.
 | Shape | What it looks like | Default tier | Treatment |
 |---|---|---|---|
 | `history-narration` | The comment narrates the code's past: "used to…", "no longer…", "previously", "renamed from X", "we switched from…", "now returns…" | 1 | Delete — version control owns history. Keep only if the *reason* for the change is a load-bearing constraint, rewritten as present-tense rationale ("must stay ordered because…") |
-| `plan-reference` | References a work plan, session, or changeset rather than the code: "Task 2 replaces the old…", "as planned", "in this PR/commit/refactor" | 1 | Delete — the plan is not part of the code's meaning. Fold any surviving intent into a present-tense why-comment |
-| `conversational-antecedent` | Addresses the requester or the producing conversation: "per your request", "as you asked", "like you said", "per our discussion" | 1 | Delete — the conversation is invisible to every future reader |
-| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: "see PR #45", "from the feature branch", "JIRA-123" | 2 | Review — delete a bare provenance reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
+| `plan-reference` | References a work plan, session, or changeset rather than the code: `"Task 2 replaces the old…"`, `"as planned"`, `"in this PR/commit/refactor"` | 1 | Delete — the plan is not part of the code's meaning. Fold any surviving intent into a present-tense why-comment |
+| `conversational-antecedent` | Addresses the requester or the producing conversation: `"per your request"`, `"as you asked"`, `"like you said"`, `"per our discussion"` | 1 | Delete — the conversation is invisible to every future reader |
+| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: `"see PR #45"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review — delete a bare provenance reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
 
 Consumers with their own comment conventions can refine these defaults in their repo's `CLAUDE.md` /
 rules; the classifier's shapes and tiers above are the skill's built-in baseline.
