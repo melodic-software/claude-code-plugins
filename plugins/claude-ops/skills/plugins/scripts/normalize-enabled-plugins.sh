@@ -110,8 +110,10 @@ report_project() {
     exit 2
   fi
   n=$(key_count "$path")
-  sorted_rc=0
-  is_sorted "$path" || sorted_rc=$?
+  set +e
+  is_sorted "$path"
+  sorted_rc=$?
+  set -e
   if [[ "$sorted_rc" -eq 0 ]]; then
     echo "project-sorted keys=$n"
     return 0
@@ -143,8 +145,10 @@ if ! jq -e . "$FILE" >/dev/null 2>&1; then
 fi
 
 n=$(key_count "$FILE")
-sorted_rc=0
-is_sorted "$FILE" || sorted_rc=$?
+set +e
+is_sorted "$FILE"
+sorted_rc=$?
+set -e
 if [[ "$sorted_rc" -eq 0 ]]; then
   echo "already-sorted keys=$n"
   exit 0
