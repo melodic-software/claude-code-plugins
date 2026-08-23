@@ -1,17 +1,29 @@
 name: pr-issue-linkage
 
 # Validates the PR body carries a native closing keyword (Closes/Fixes/Resolves
-# #N, including owner/repo#N, or a no-issue marker when the PR closes
-# nothing) and four non-empty contract sections — `## Summary`, `## Fix`,
-# `## Verification`, `## Related` — via the shared
-# pr-issue-linkage reusable from ci-workflows. `pull_request_target` runs the
-# base-branch definition, so a head-branch edit cannot bypass the gate — safe
-# here because the reusable reads PR body metadata from the event payload only
-# and runs no head code. `edited` re-validates on a body edit. `merge_group`
-# reports the check green in the queue (the body was validated at PR time; inert
-# without a queue). The emitted required-check context is
-# `pr-issue-linkage / pr-issue-linkage`. Public repo: runs on the reusable's
-# hosted default runner.
+# #N, including owner/repo#N, or a no-issue marker when the PR closes nothing —
+# a case-insensitive regex matching the phrase "no linked issue" or "no related
+# issue", not a literal string) and four non-empty contract sections —
+# `## Summary`, `## Fix`, `## Verification`, `## Related` — via the shared
+# pr-issue-linkage reusable from ci-workflows. Both body scans run with fenced
+# code blocks and any 4-space- or tab-indented line blanked, inline code spans
+# masked, and HTML-commented text discarded, so a marker inside a fence, an
+# indented line, or a comment does not count.
+# `pull_request_target` runs the base-branch definition, so a head-branch edit
+# cannot bypass the gate — safe here because no head-branch code ever executes:
+# the pinned reusable checks out nothing, holds read-only pull-request/actions
+# permissions only, and passes the body into its script step through
+# env/GITHUB_ENV rather than splicing it into script text. The reusable reads
+# the body via a live `gh api` re-fetch, falling back to the event payload if
+# that call fails; at the pinned SHA no token reaches that step, so the re-fetch
+# fails auth every time and the payload fallback is the path that actually runs
+# — payload-only in effect as a side effect of the failed re-fetch, not by
+# design. `edited` re-validates on a body edit. `merge_group` reports the check
+# green in the queue (the body was validated at PR time; inert without a queue).
+# The emitted required-check context is `pr-issue-linkage / pr-issue-linkage`.
+# Public repo: GitHub-hosted runners are free here, and the `with:` block pins
+# `runner: ubuntu-24.04` explicitly, which coincides with the reusable's
+# default.
 on:
   # zizmor: ignore[dangerous-triggers] metadata-only gate; rationale in the header comment
   pull_request_target:
