@@ -274,8 +274,17 @@ enables; the cloud bootstrap installs (see
   this set wholesale. The cloud bootstrap provisions every tool the format/lint-on-edit hooks
   (`markdown-format`, `bash-format`, `biome-format`, `typos-format`, `actionlint`,
   `eol-normalizer`) shell out to.
+- The `plugin-catalog-enablement-gate` CI lane holds that whole-catalog claim to the file, in both
+  directions: every `.claude-plugin/marketplace.json` entry must carry an `enabledPlugins` key, and
+  every key for this marketplace must name a catalogued plugin. It exists because the claim was
+  prose for three plugin releases that shipped catalogued but never enabled — a silent failure,
+  since the bootstrap computes its install set from the same map and a session simply comes up
+  without those skills. `claude-config`'s `check-plugin-drift.sh` cannot cover it: that detector
+  resolves each marketplace through `source.repo` and records SKIP for one declaring none, which
+  is precisely this repo's relative `directory` source.
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
-  without disturbing the rest. Two entries carry required `userConfig` credentials that are unset
+  without disturbing the rest — a state the gate accepts, since an explicit `false` is a recorded
+  decision where an absent key is drift. Two entries carry required `userConfig` credentials that are unset
   here — `miro` (`miro_api_token`) and `dometrain` (`dometrain_api_key`) — so their bundled MCP
   servers exit at startup until configured; set them with `/plugin configure`, or flip those two
   to `false` if a session shouldn't try.
