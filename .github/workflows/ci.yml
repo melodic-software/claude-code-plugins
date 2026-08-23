@@ -1216,6 +1216,13 @@ jobs:
       - name: Run shared list-file reader tests
         if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/lib/read-list.test.sh
+      # Same reason again — run-plugin-tests.sh never reaches scripts/. This
+      # suite covers scripts/lib/test-harness.sh, the ok/fail/report contract
+      # the scripts/*.test.sh suites share. A recorded failure that still
+      # exits 0 is the false-green this library exists to refuse (#3160).
+      - name: Run shared test-harness tests
+        if: needs.scope.outputs.run_full == 'true'
+        run: bash scripts/lib/test-harness.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.scope.outputs.run_full == 'true'
         run: scripts/validate-plugins.sh

@@ -20,16 +20,8 @@ stage_libs() {
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 mk_repo() {
   local dir
@@ -1197,5 +1189,4 @@ else
 fi
 rm -rf "$repo"
 
-printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
-((FAIL == 0))
+test_harness::report

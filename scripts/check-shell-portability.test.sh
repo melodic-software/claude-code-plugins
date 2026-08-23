@@ -14,9 +14,8 @@
 # reference implementation, and the shipping list's staged-class inertness —
 # to prove the shipping config, not just the mechanism.
 #
-# Bespoke PASS/FAIL counters by design, not drift: this is repo tooling, not a
-# plugin, so no plugin assertion library applies here — see
-# docs/conventions/shell-test-helpers/README.md.
+# Assertion scaffolding lives in scripts/lib/test-harness.sh — repo tooling,
+# not a plugin library. See docs/conventions/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal shell content in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -36,16 +35,8 @@ stage_libs() {
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # scan_paths <tokens-file> <file>... — run the gate over explicit paths.
 scan_paths() {
@@ -3257,6 +3248,4 @@ else
 fi
 rm -f "$f"
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

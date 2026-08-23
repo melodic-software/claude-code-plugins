@@ -21,16 +21,8 @@ case "$REAL_SCRIPTS_DIR" in
   *) REAL_CONFIG_URL="file:///$REAL_SCRIPTS_DIR/cheatsheet-config.mjs" ;;
 esac
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # write_skill <dir> <plugin> <skill> [metadata lines...]
 write_skill() {
@@ -276,6 +268,4 @@ printf '## 3. Blueprint (renamed upstream)\n' \
   >"$tree/plugins/session-flow/skills/workflow/context/steps.md"
 assert_fails "spine-drift assertion fires on renamed stage" "$tree" "spine drift"
 
-echo
-echo "passed=$PASS failed=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

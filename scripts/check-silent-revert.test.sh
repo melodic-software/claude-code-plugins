@@ -23,16 +23,8 @@ SCRIPT="$SELF_DIR/check-silent-revert.sh"
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 TMPDIRS=()
 cleanup() {
@@ -2374,6 +2366,4 @@ t_restoration_binds_a_marker_to_exactly_one_file
 t_restoration_and_replay_share_the_corpus
 t_shipped_data_files_are_wellformed
 
-echo
-echo "check-silent-revert.test.sh: $PASS passed, $FAIL failed"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

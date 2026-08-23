@@ -6,9 +6,8 @@
 # silent-skip suite does. Two cases run against the REAL corpus to prove the
 # bare-vs-guarded discrimination on live files, not only synthetic ones.
 #
-# Bespoke PASS/FAIL counters by design, not drift: this is repo tooling, not a
-# plugin, so no plugin assertion library applies here — see
-# docs/conventions/shell-test-helpers/README.md.
+# Assertion scaffolding lives in scripts/lib/test-harness.sh — repo tooling,
+# not a plugin library. See docs/conventions/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal skill content in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -34,16 +33,8 @@ TEST_TOKENS="$(mktemp)"
 printf 'origin/(main|master)\n' >"$TEST_TOKENS"
 trap 'rm -f "$TEST_TOKENS"' EXIT
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # scan_paths <file>... — run the gate over explicit paths with the test tokens.
 scan_paths() {
@@ -1037,6 +1028,4 @@ else
   ok "no ACTIVE token carries a backslash-b word-boundary escape"
 fi
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

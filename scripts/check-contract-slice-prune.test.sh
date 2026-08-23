@@ -14,16 +14,8 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-contract-slice-prune.sh"
 PARSE_LIB="$SELF_DIR/../lib/parse-concern-value.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # Fixture git commands must not spawn background maintenance. On git >= 2.46,
 # `git commit` and `git merge` fork `git maintenance run --auto --quiet
@@ -471,6 +463,4 @@ repo="$(mk_repo)"
 if (($? == 2)); then ok "unknown mode exits 2"; else fail "unknown mode must exit 2"; fi
 rm -rf "$repo"
 
-echo ""
-echo "check-contract-slice-prune.test.sh: $PASS passed, $FAIL failed"
-((FAIL == 0))
+test_harness::report
