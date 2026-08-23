@@ -80,11 +80,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Full history: the canary blames the lines a merge deleted against
-          # its parent, and replays the recorded incidents from 2026-08. A
-          # shallow clone cannot do either, and the script exits 2 rather than
-          # reporting a clean run it did not earn.
-          fetch-depth: 0
+      # Full history: the canary blames the lines a merge deleted against
+      # its parent, and replays the recorded incidents from 2026-08. A
+      # shallow clone cannot do either, and the script exits 2 rather than
+      # reporting a clean run it did not earn. fetch-base is off because
+      # this job never diffs against origin/$BASE_REF.
+      - name: Deepen history
+        uses: ./.github/actions/checkout-with-base
+        with:
+          fetch-base: "false"
 
       # Self-test first, unconditionally: a broken detector must not be able to
       # mask a real regression behind a green canary. Same never-skip,
