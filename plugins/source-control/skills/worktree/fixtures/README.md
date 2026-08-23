@@ -169,43 +169,57 @@ refresh the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift c
 
 ## `project-scope-reap-probe.sh` — what `plugin uninstall -s project` acts on
 
-**Claim.** `claude plugin uninstall <id> -s project` has no path flag and resolves strictly against
-the **resolved absolute current directory**. From any other directory it exits 1 and touches
-nothing. From the recorded directory — whether that is the live original or an empty one recreated
-at the same path — it exits 0 and removes the record from `installed_plugins.json`. Enumeration is
-the other half: `claude plugin list --json` reports **every** project-scope record on the machine
-regardless of cwd, so a reap can enumerate through the documented CLI and never needs to read
-`installed_plugins.json` at all.
+**Claim.** `claude plugin uninstall <id> -s project --keep-data` has no path flag and resolves
+strictly against the **resolved absolute current directory**. From any other directory it exits 1
+and touches nothing. From the recorded directory — whether that is the live original or an empty
+one recreated at the same path — it exits 0 and removes the record from `installed_plugins.json`.
+`--keep-data` is required: the probe writes and removes its own project-scope records and must
+never delete a plugin's `${CLAUDE_PLUGIN_DATA}` directory as a last-scope side effect.
+Enumeration is the other half: `claude plugin list --json` reports **every** project-scope record
+on the machine regardless of cwd, so a reap can enumerate through the documented CLI and never
+needs to read `installed_plugins.json` at all.
 
 **Basis.** Six arms of `claude plugin install|list|uninstall` against throwaway directories under
 the platform temp, with the record store read (never written) between arms. No network beyond
 installing from an already-configured marketplace; no `claude -p` turns.
 
-**As-of.** 2026-08-22, Claude Code **2.1.240**, re-run unchanged on **2.1.241**, Windows (Git Bash).
-The CLI self-updated between the first and last run of this probe; both versions produced the same
-outcome on every arm, which is recorded here rather than collapsed into one version.
+**As-of.** Originally 2026-08-22, Claude Code **2.1.240**, re-run unchanged on **2.1.241**, Windows
+(Git Bash). Re-run 2026-08-23 on Claude Code **2.1.238**, Linux, after adding `--keep-data` to every
+uninstall the probe issues (the command the script now runs). Path-resolution outcomes match on
+every arm. Counts differ because this machine's baseline was not 108. Failure text on arms 3 and 6
+names "not installed in project scope" rather than "installed in user scope" when the plugin has
+no user-scope record; the cwd-mismatch / no-record-here no-op is the same.
 
 **Recheck trigger.** A Claude Code release note naming plugin scopes, `plugin uninstall`,
-`installed_plugins.json`, or project-scope resolution; or a `--project`/`--path` flag appearing on
-`plugin uninstall --help`, which would retire the cwd constraint this design is built on.
+`installed_plugins.json`, `--keep-data`, or project-scope resolution; or a `--project`/`--path`
+flag appearing on `plugin uninstall --help`, which would retire the cwd constraint this design is
+built on.
 
 ### Recorded outcome
 
 | Arm | Question | Result |
 |---|---|---|
-| 1 | does `install -s project` write a record, keyed by what? | Yes — one record per plugin, `scope: "project"`, `projectPath` set to the **resolved native absolute cwd**, backslash-separated. A plain non-git directory is enough; it also writes `<cwd>/.claude/settings.json`. Count 108 → 111 |
-| 2 | is `plugin list --json` enumeration cwd-independent? | Yes — run from two unrelated directories, the project-scope record set was identical (111 records, same `cksum`) |
-| 3 | does `uninstall -s project` reach another path's record? | **No** — exit 1, count unchanged at 111 |
-| 4 | from the recorded directory? | Exit 0, record removed (111 → 109 over two ids) |
-| 5 | after the directory is deleted? | The record **survives** the directory. Recreating an **empty** directory at the same path and running the uninstall from inside it exits 0 and removes it (109 → 108). The recreated directory is left holding `<path>/.claude/settings.json` |
+| 1 | does `install -s project` write a record, keyed by what? | Yes — one record per plugin, `scope: "project"`, `projectPath` set to the **resolved native absolute cwd** (backslash-separated on Windows, forward-slash on POSIX). A plain non-git directory is enough; it also writes `<cwd>/.claude/settings.json`. Windows 2026-08-22: 108 → 111. Linux 2026-08-23 (`--keep-data`): 1 → 4 |
+| 2 | is `plugin list --json` enumeration cwd-independent? | Yes — run from two unrelated directories, the project-scope record set was identical (same `cksum`). Windows: 111 records. Linux: 4 records |
+| 3 | does `uninstall -s project --keep-data` reach another path's record? | **No** — exit 1, count unchanged (Windows: 111. Linux: 4) |
+| 4 | from the recorded directory? | Exit 0, record removed (Windows: 111 → 109 over two ids. Linux: 4 → 2) |
+| 5 | after the directory is deleted? | The record **survives** the directory. Recreating an **empty** directory at the same path and running the uninstall from inside it exits 0 and removes it (Windows: 109 → 108. Linux: 2 → 1). The recreated directory is left holding `<path>/.claude/settings.json` |
 | 6 | where no record exists here? | Exit 1, no-op |
 
 Verbatim failure text, arms 3 and 6 — the same message for "belongs to another path" and "no record
-here":
+here". When the plugin also has a user-scope install (Windows 2026-08-22, `caveman@caveman`):
 
 ```text
 ✘ Failed to uninstall plugin "caveman@caveman": Plugin "caveman@caveman" is installed in user
 scope, not project. Use --scope user to uninstall.
+```
+
+When the plugin has no user-scope record (Linux 2026-08-23, a project-scope-only install):
+
+```text
+✘ Failed to uninstall plugin "<id>@<marketplace>": Plugin
+"<id>@<marketplace>" is not installed in project scope. Use --scope to specify
+the correct scope.
 ```
 
 **A trap this fixture exists to stop.** That message names a remedy — `--scope user` — that would

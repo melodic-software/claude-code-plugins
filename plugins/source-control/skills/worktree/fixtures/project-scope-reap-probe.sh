@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # project-scope-reap-probe.sh — measure what `claude plugin uninstall <id>
-# -s project` actually acts on, so the teardown reap in context/cleanup.md
-# rests on a measurement rather than on an inference from the flag's name.
+# -s project --keep-data` actually acts on, so the teardown reap in
+# context/cleanup.md rests on a measurement rather than on an inference from
+# the flag's name. `--keep-data` is required: this probe writes and removes
+# its own project-scope records; it must never delete a plugin's persistent
+# data directory as a last-scope side effect.
 #
 # The whole reap design turns on one question: `-s project` has no path flag,
 # so WHICH directory's records does it remove, and does it still work once the
@@ -90,16 +93,16 @@ done
 
 printf '\n=== ARM 3: uninstall -s project from a DIFFERENT cwd ===\n'
 printf 'Q: does the flag reach a record belonging to another path?\n'
-out="$( (cd "$OTHER" && claude plugin uninstall "$PLUGIN_A" -s project) 2>&1 )"
+out="$( (cd "$OTHER" && claude plugin uninstall "$PLUGIN_A" -s project --keep-data) 2>&1 )"
 printf '  exit: %s\n' "$?"
 printf '  output: %s\n' "$(printf '%s' "$out" | tr -d '\r' | tr '\n' ' ')"
 snap
 
 printf '\n=== ARM 4: uninstall -s project from the recorded directory ===\n'
-out="$( (cd "$LIVE" && claude plugin uninstall "$PLUGIN_A" -s project) 2>&1 )"
+out="$( (cd "$LIVE" && claude plugin uninstall "$PLUGIN_A" -s project --keep-data) 2>&1 )"
 printf '  exit: %s\n' "$?"
 printf '  output: %s\n' "$(printf '%s' "$out" | tr -d '\r' | tr '\n' ' ')"
-out="$( (cd "$LIVE" && claude plugin uninstall "$PLUGIN_B" -s project) 2>&1 )"
+out="$( (cd "$LIVE" && claude plugin uninstall "$PLUGIN_B" -s project --keep-data) 2>&1 )"
 printf '  exit: %s\n' "$?"
 snap
 
@@ -111,7 +114,7 @@ printf '  directory exists after rm -rf: %s\n' "$([[ -d "$DEAD" ]] && echo yes |
 printf '  record after rm -rf:\n'
 snap
 mkdir -p "$DEAD"
-out="$( (cd "$DEAD" && claude plugin uninstall "$PLUGIN_A" -s project) 2>&1 )"
+out="$( (cd "$DEAD" && claude plugin uninstall "$PLUGIN_A" -s project --keep-data) 2>&1 )"
 printf '  exit: %s\n' "$?"
 printf '  output: %s\n' "$(printf '%s' "$out" | tr -d '\r' | tr '\n' ' ')"
 snap
@@ -120,7 +123,7 @@ printf '  residue the recreated directory is left holding: %s\n' \
 
 printf '\n=== ARM 6: uninstall -s project where NO record exists here ===\n'
 printf 'Q: what does a no-op look like, and what does it advise?\n'
-out="$( (cd "$OTHER" && claude plugin uninstall "$PLUGIN_A" -s project) 2>&1 )"
+out="$( (cd "$OTHER" && claude plugin uninstall "$PLUGIN_A" -s project --keep-data) 2>&1 )"
 printf '  exit: %s\n' "$?"
 printf '  output: %s\n' "$(printf '%s' "$out" | tr -d '\r' | tr '\n' ' ')"
 

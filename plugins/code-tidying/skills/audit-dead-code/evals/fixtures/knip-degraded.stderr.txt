@@ -1,0 +1,2 @@
+ERROR: Error loading vitest.config.ts (Cannot find module 'vitest/config')
+ERROR: Please fix or visit https://knip.dev/reference/known-issues

@@ -112,7 +112,36 @@ mkdir -p "$(dirname "$OUT")"
 # elsewhere binds the FILE NAME (Windows-safe), never this frontmatter field.
 DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" '
+# Repo root, for relativizing Location when detect.sh handed us an absolute
+# path. One directory has several SPELLINGS on Git Bash, and matching the
+# wrong one leaves every Location absolute — an absolute path is still a
+# well-formed cell, so the fail-open producer never reports it. Measured:
+# `git rev-parse --show-toplevel` answers Git Bash's Windows spelling of the same temp repo
+# while the caller reached the same directory as `/tmp/t/repo`.
+#
+# The PRIMARY anchor is derived from the caller's own `pwd` by removing the
+# sub-path git reports for it. The git-reported forms stay as fallbacks.
+# (This producer FAILs OPEN: a path that matches no spelling is left as-is.
+# The claude-config sibling fails closed on the same mismatch.)
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+REPO_ROOT_ALT=""
+REPO_ROOT_PWD=""
+if [[ -n "$REPO_ROOT" ]]; then
+  REPO_ROOT_ALT="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || REPO_ROOT_ALT=""
+  [[ "$REPO_ROOT_ALT" == "$REPO_ROOT" ]] && REPO_ROOT_ALT=""
+  git_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+  git_prefix="${git_prefix%/}"
+  cwd_now="$(pwd)"
+  if [[ -z "$git_prefix" ]]; then
+    REPO_ROOT_PWD="$cwd_now"
+  elif [[ "$cwd_now" == */"$git_prefix" ]]; then
+    REPO_ROOT_PWD="${cwd_now%/"$git_prefix"}"
+  fi
+  [[ "$REPO_ROOT_PWD" == "$REPO_ROOT" || "$REPO_ROOT_PWD" == "$REPO_ROOT_ALT" ]] && REPO_ROOT_PWD=""
+fi
+
+LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" \
+  -v repo_root="$REPO_ROOT" -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" '
   # Tier/Action mirror of the severity crosswalk (see header comment).
   function rule_tier(slug) {
     if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts" ||
@@ -136,7 +165,54 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" '
     return "Guarded rewrite via /ai-slop:audit fix (judgment; see crosswalk row)"
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
-  function esc(s) { gsub(/\|/, "\\|", s); return s }
+  #
+  # IDEMPOTENT. A naive gsub double-escapes a pipe the SOURCE already escaped:
+  # `a \| b` becomes `a \\| b`, which GFM reads as a literal backslash followed
+  # by a LIVE delimiter — the cell splits and the fix action misreads the row.
+  # This repo writes literal `\|` in its own tables, so the case is real rather
+  # than theoretical. Escape by the parity of the complete backslash run before
+  # each pipe: an odd count already escapes the delimiter; an even count
+  # (including zero, and `\\|`) leaves it live in GFM and needs one more `\`.
+  function esc(s,    out, i, n, c, bs) {
+    out = ""
+    n = length(s)
+    i = 1
+    while (i <= n) {
+      c = substr(s, i, 1)
+      if (c == "\\") {
+        bs = 0
+        while (i <= n && substr(s, i, 1) == "\\") { bs++; i++ }
+        if (i <= n && substr(s, i, 1) == "|") {
+          if (bs % 2 == 0) bs++
+          while (bs--) out = out "\\"
+          out = out "|"
+          i++
+        } else {
+          while (bs--) out = out "\\"
+        }
+      } else if (c == "|") {
+        out = out "\\|"
+        i++
+      } else {
+        out = out c
+        i++
+      }
+    }
+    return out
+  }
+
+  # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.
+  # Fail OPEN: a path matching no spelling is returned unchanged (absolute
+  # Location stays well-formed). That was this producer pre-fix mode.
+  function relativize(p) {
+    if (repo_root_pwd != "" && index(p, repo_root_pwd "/") == 1)
+      return substr(p, length(repo_root_pwd) + 2)
+    if (repo_root != "" && index(p, repo_root "/") == 1)
+      return substr(p, length(repo_root) + 2)
+    if (repo_root_alt != "" && index(p, repo_root_alt "/") == 1)
+      return substr(p, length(repo_root_alt) + 2)
+    return p
+  }
 
   /^Finding: / {
     # Split the excerpt off FIRST, on the first " excerpt=" occurrence, then
@@ -157,7 +233,7 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" '
     lno = substr(head, ix + 6)
     head = substr(head, 1, ix - 1)
     ix = index(head, " file=")
-    file = substr(head, ix + 6)
+    file = relativize(substr(head, ix + 6))
     slug = substr(head, 1, ix - 1)
     t = rule_tier(slug)
     row = "| " t " | high | " file ":" lno " | ai-slop:audit | " \

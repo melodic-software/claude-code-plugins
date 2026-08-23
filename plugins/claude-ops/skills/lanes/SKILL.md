@@ -207,7 +207,7 @@ only for a configured lane name.
   has no prompts until they are authored there (or `prompt_dir` is pointed at a
   committed dir). This is the #480 dependency, not a bug.
 - **Name is the identity.** Lanes are matched by session `name` **and** `kind:
-  background` — every lane is launched with `--bg`, so an interactive window sharing
+  background`: every lane is launched with `--bg`, so an interactive window sharing
   a lane name is never matched or stopped. Two lanes must not share a name; a
   hand-started *background* session sharing a lane name would still be treated as
   that lane, so keep lane names distinct from ad-hoc background session names.

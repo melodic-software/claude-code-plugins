@@ -215,7 +215,9 @@ unchanged**:
    assessment, the walk, its own inline summary. **Do not re-derive any of it here.**
 4. **Read the post-run artifact**: its spine, its `## Closed since last run` section, its
    `## Suppressed` section, its evidence-availability tokens, and any verdict the audit's own merge
-   flagged as having moved under a carried-forward judgment.
+   flagged as having moved under a carried-forward judgment. **On a cycle whose branch identity never
+   resolved there is no post-run artifact** — the audit declines that write too — so this step and
+   step 5 have nothing to read, and the cycle ends after reporting what the audit found inline.
 5. **Compare** this run's post-audit spine against the baseline from step 2, per "Delta classes"
    below.
 6. **Apply the noise budget**, and report.
@@ -257,8 +259,12 @@ When the branch identity does not resolve:
   own. This is the one no-baseline state that does **not** establish a baseline for the next cycle,
   and the report says so rather than implying the next run will have one.
 
-The audit still runs, exactly as it otherwise would; what is declined is the comparison and the
-capture, not the pass.
+The audit still runs and still reports; what is declined here is the comparison and the capture, not
+the pass. **It does not, however, persist an artifact on such a cycle** — `audit` declines its own
+write on an unresolved identity for the same reason this lane declines its capture, so step 4 below
+has no post-run artifact to read and the audit's inline summary is the cycle's whole output. That is
+the expected shape, not a fault: with nothing compared and nothing captured, a persisted artifact
+would be a file keyed by something every ref shares and read by no later cycle.
 
 ## No baseline — a first-class state, not an error
 

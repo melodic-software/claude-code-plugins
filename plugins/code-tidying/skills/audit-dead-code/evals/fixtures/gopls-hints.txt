@@ -1,0 +1,1 @@
+/gopls-fixture/dead-and-dynamic.go:17:6-17: function "deadHandler" is unused

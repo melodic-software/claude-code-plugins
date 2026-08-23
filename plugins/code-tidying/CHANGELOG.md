@@ -3,6 +3,50 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.4]
+
+### Added
+
+- **`/code-tidying:audit-dead-code`** — a read-only, whole-repo dead-code hunter for the
+  category lane-rotated tidying and diff-scoped simplification structurally cannot see:
+  code nothing has reached in a long time. Four lanes ship with **honestly unequal**,
+  individually labelled confidence — `knip` (TS/JS: unused files, exports, types, enum
+  members; not class members, which knip 6 rejects), `vulture` (Python, symbol-level,
+  high-recall/low-precision with the FP-class suppressions that measurably work
+  pre-applied), `gopls check -severity=hint` (Go, **unexported symbols only**, a stated
+  coverage limit rather than a defect), and a portable `grep -w -F` lane (shell and other
+  symbol languages, high-precision/acknowledged-low-recall). No lane builds or executes
+  project code, no package runner is ever allowed to fetch, detector presence is proven by
+  invocation rather than `command -v`, and run health is read from stderr instead of exit
+  status — so a run reports one of ran / skipped / degraded / scanned-zero-files instead of
+  passing a broken run off as clean. Every candidate is adjudicated against the
+  dynamic-usage evidence static analyzers are blind to under a `--max` cap ordered by git
+  recency (oldest-untouched first), landing as `dead`, `uncertain`, or `alive` with every
+  `alive` citing the evidence that saved it. Suppressions are emitted as ready-to-paste
+  text in each detector's native format. The skill never edits source and V1 writes no file.
+
+### Changed
+
+- **README roster repaired.** The prose said "Three skills" while four were on disk and
+  `audit-comment-residue` had no bullet at all; the roster now lists all six.
+- **Beck tidying #2 ("Dead Code") routes both ways.** `skills/tidy/reference/tidyings.md`
+  now points at `audit-dead-code` for finding candidates repo-wide, and the new skill
+  points back at `tidy` for applying the deletion.
+
+### Fixed
+
+- **knip findings honor the requested target.** The lane still invokes knip at the
+  project root (no per-file input mode preserves cross-file usage) but now drops
+  any finding whose path is outside the scoped `TS_FILES` set, so
+  `--lane knip src/one-file.ts` no longer emits every owned file's unused
+  exports.
+- **Hoisted workspace installs are restored.** The knip restore probe walks
+  ancestors for a nonempty `node_modules` the same way the binary locator does,
+  so a nested package with no local cache is not marked degraded when the
+  hoisted ancestor install is present.
+- **Documented Bash floor matches namerefs.** `audit-dead-code` uses `local -n`
+  (Bash 4.3+). The plugin README now states **Bash 4.3+** instead of "Bash 4+".
+
 ## [0.14.3]
 
 ### Fixed

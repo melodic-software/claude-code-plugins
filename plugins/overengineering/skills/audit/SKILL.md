@@ -11,7 +11,7 @@ metadata:
 
 ## Pre-computed context
 
-- Branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown (no checkout)"`
+- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
 - Shallow clone: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown (no checkout)"`
 
 ## Purpose
@@ -51,6 +51,11 @@ there is not a mutation of the repo. State this rather than leaving it to be inf
 *"Read-only pass; the only file written is the findings artifact at `<resolved path>`."* That path
 exists only once the home is resolved, so the line is emitted **immediately after that resolution** —
 step 1 of "Before the walk" — and before any layer is walked.
+
+**A run with no branch identity writes nothing at all**, and says that instead of naming a path:
+*"Read-only pass; no branch identity resolved, so no findings artifact is written."* See "A detached
+checkout has no branch identity" below for when that holds and why a guessed home is worse than
+none.
 
 **Writing the artifact from a delegated run.** Some harnesses refuse a report-shaped filename from a
 delegated or dispatched executor — the `unattended` caller below is exactly that. The sanctioned
@@ -92,7 +97,15 @@ Parse `$ARGUMENTS`:
 
 ## Before the walk
 
-1. **Resolve the artifact home** by running the whole rung order in
+1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
+   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
+   not the source of truth** — a worktree-isolated or dispatched executor may decline to inject it at
+   all, which is exactly the `unattended` context where a detached checkout is most likely, so where
+   the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read its exit status
+   rather than assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is
+   the sentinel — "A detached checkout has no branch identity" below governs what an unresolved
+   identity declines, and it is decided here, before a home is composed. With an identity in hand,
+   resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md` — resolve it, never assume the documented
    default's shape. A hardcoded path writes where `realign` never looks. **Then emit the read-only
    opening line**, naming the path just resolved.
@@ -193,8 +206,60 @@ findings artifact as the single source of truth, an inline terminal summary alwa
 HTML view only as a presence-gated extra. Field-level contents, ids, ordering, the spine/prose split,
 and merge semantics belong to `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`.
 
+## A detached checkout has no branch identity
+
+`git rev-parse --abbrev-ref HEAD` answers `HEAD` on a detached checkout. That is a string, not an
+identity, and writing it into the artifact breaks the seam in two places at once: every ref keys to
+the same `<branch-slug>` home, so unrelated refs share one `findings.md`; and `realign`'s
+branch-match refusal compares `HEAD` to `HEAD`, passes, and executes another ref's findings against
+this one. Scheduled runners very commonly check out detached, so this is an ordinary case rather
+than an exotic one, which is why the precompute uses `git symbolic-ref` and refuses to invent a
+name. The sibling `delta` lane resolves identity the same way, on the same reasoning.
+
+When the branch identity does not resolve:
+
+- **Prefer a logical ref where the environment supplies one**, only after it is a real
+  branch name. Some execution environments hand the run the ref it was launched for even
+  though the checkout is detached. **No vendor's variables are named here or assumed.**
+  Before that value may key a home or fill `branch:`:
+  1. **Normalize** it to the same short form `git symbolic-ref --short` would emit: strip a
+     leading `refs/heads/` (and only that prefix). `refs/heads/main` and `main` must produce
+     the same home key, or a later attached `realign` on `main` will miss the artifact.
+  2. **Validate** the result as a git branch name. Refuse it if it is empty, if any path
+     segment is `.` or `..`, or if `git check-ref-format --branch -- <value>` exits
+     non-zero. The topic-docs slug leaves `.` untouched, so an unvalidated `..` would
+     compose `.work/overengineering/../findings.md` and escape the home. An unvalidated
+     string is also the same cross-ref mutation this section closes for `HEAD`: it keys
+     one checkout's findings to another name.
+  A value that fails either step is treated as absent — fall through to the refusal
+  below. A value that passes is the branch identity for both the home key and `branch:`,
+  and the report names that it came from the environment.
+- **Otherwise, persist nothing and say why** — "detached checkout, no logical ref supplied; no branch
+  identity, so no findings artifact is written". Do not fall back to `HEAD`, to the commit sha, or to
+  whatever home the slug happens to produce. A home keyed by something every ref shares is a home the
+  next detached run of a *different* ref reads as its own, and `realign` cannot tell the two apart
+  afterwards, because the artifact's own `branch:` is what binds it and there is none to write.
+- **Never write `branch: HEAD`, and never write the key empty or absent as a workaround.** The
+  refusal is the whole artifact, not the one field — an artifact without a resolved identity is one
+  `realign` must refuse anyway, so writing it only moves the failure later and leaves a file behind
+  that the next run merges into.
+
+**Detached-in-a-repo vs no checkout are different stops.** The precompute sentinel covers both,
+but they are not the same case. **No checkout** (no project root, `git rev-parse --show-toplevel`
+fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
+the run does not walk an arbitrary working directory and report it as the repository. A
+**detached checkout inside a repository** is the case this section governs: the walk still runs
+and the inline summary is still emitted. What is declined is the persisted write, not the pass
+— the report says so in place of the read-only opening line's resolved path, so the operator
+learns the run produced no artifact at the moment it would otherwise have been told where one
+lives. When that summary is the only record, it lists **every** finding, not the capped "top
+findings" the template uses when an artifact will carry the rest.
+
 ## Gotchas
 
+- **`HEAD` is not a branch name.** A detached checkout — the normal shape for a scheduled runner —
+  makes `rev-parse --abbrev-ref` answer `HEAD`, which keys every ref to one home and compares equal
+  to itself. Resolve a logical ref where the environment supplies one; otherwise decline to persist.
 - **A layer-scoped pass is not a retirement of what it did not look at.** Findings in unwalked layers
   are carried forward untouched and marked not re-evaluated this run.
 - **A zero is not a measurement.** For hook-, transform-, and gate-shaped items, no recorded

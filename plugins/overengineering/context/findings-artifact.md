@@ -48,6 +48,10 @@ Two properties the contract does fix:
   branches, worktrees, and clones never clobber each other's runs. What proves an artifact belongs
   to a branch is its own `branch:` frontmatter, never the directory it sits in — the branch-slug
   mapping is lossy by design and two branch names can slug to one directory.
+  **A branch identity that does not resolve therefore keys no home at all.** A detached checkout has
+  no branch name, and every substitute collapses the axis this segment exists to separate: `HEAD` is
+  the same string for every ref, and the commit sha is a different one every commit. The producer
+  writes nothing rather than writing somewhere shared — see "No branch identity, no artifact" below.
 - **One stable filename per home, rewritten in place.** A re-audit merges into the existing file
   (see "Re-run merge semantics") rather than depositing a timestamped sibling. A per-run filename
   would turn the merge into a search problem and make the artifact's history a guess; the run's
@@ -65,7 +69,7 @@ type: overengineering-findings
 schema: 1
 date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
 scope: <the layers actually walked this run>
-branch: <branch at audit time>
+branch: <branch at audit time; never `HEAD`, and never written at all when the branch identity is unresolved>
 ---
 ```
 
@@ -75,7 +79,33 @@ branch: <branch at audit time>
 | `schema` | yes | Integer contract version, currently `1`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
 | `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
-| `branch` | yes | The branch at audit time. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch. |
+| `branch` | yes | The branch at audit time, resolved with `git symbolic-ref` — **never the literal `HEAD`**, which is what `git rev-parse --abbrev-ref HEAD` answers on a detached checkout. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch, and equally refuses one whose `branch:` is absent, empty, or `HEAD`. The field is required because the artifact is: where no branch identity resolves, there is no artifact to carry it (below). |
+
+## No branch identity, no artifact
+
+Every skill in this plugin resolves the branch with `git symbolic-ref`, which **fails** on a detached
+checkout rather than answering the literal string `HEAD` the way `git rev-parse --abbrev-ref HEAD`
+does. `HEAD` is not an identity: it is the same string for every ref, so it keys every ref to one
+home and compares equal to itself. Scheduled and dispatched runners commonly check out detached, so
+this is an ordinary condition for this artifact, not an exotic one.
+
+Where the identity does not resolve, and no logical ref is supplied by the environment:
+
+- **`audit` writes no artifact.** Not the file with `branch:` omitted, not the file with a placeholder
+  value, not the file at a home keyed by something else — none of it. The walk still runs and the
+  inline summary is still emitted; only the persisted write is declined, and the run says so.
+- **`realign` refuses**, both when its own checkout has no identity and when an artifact it finds
+  carries `branch:` absent, empty, or `HEAD`. It never reaches the comparison, because a degenerate
+  `HEAD`-to-`HEAD` match passes by construction and would authorize mutations from another ref's
+  findings.
+- **`delta` compares nothing and captures nothing**, per its own section on the same condition.
+
+**Omitting the key is deliberately not the remedy.** An artifact whose identity cannot be established
+is one `realign` must refuse anyway, so writing it moves the failure later, leaves a file the next
+run merges into, and puts a partial record where the operator reasonably reads a complete one. The
+asymmetry decides it: refusing costs a re-run on an attached checkout, while accepting costs evidence
+and verdicts from one ref presented as another's, silently and with nothing in the report to reveal
+it.
 
 ## Layer vocabulary
 
@@ -468,6 +498,7 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Writes `Status` | `OPEN` on new findings; carries the rest forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
 | Leads with the evidence-availability assessment | yes, before any finding | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
+| Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
 | Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's

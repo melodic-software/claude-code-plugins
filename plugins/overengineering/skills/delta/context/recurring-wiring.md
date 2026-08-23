@@ -62,6 +62,12 @@ Two things to get right:
 - **The run needs a checkout on the branch it is auditing.** The findings artifact is branch-keyed,
   and this lane treats an artifact whose `branch:` does not match as no baseline at all. A scheduler
   that lands on a different branch than the last cycle will report "no baseline" every time.
+  **A scheduler that lands *detached* gets less than that**: with no branch identity, the audit writes
+  no artifact, this lane compares nothing and captures nothing, and the cycle's whole output is the
+  inline report. Many schedulers check out a commit rather than a branch by default, so this is the
+  common misconfiguration, not a rare one. Either check out the branch itself, or have the runner
+  supply the logical ref it was launched for — any value naming a branch is accepted, and the report
+  names where the identity came from.
 - **Ephemeral runners have no baseline, ever.** A fresh container each cycle loses the memory-tier
   artifact, so every cycle is a first run and every report says so. Either persist the memory root
   across runs, or use shape 4 instead, where the durable record is a tracker item rather than a file.

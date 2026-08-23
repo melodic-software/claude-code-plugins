@@ -3,6 +3,26 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.4]
+
+### Fixed
+
+- **`audit-instructions` `emit-findings.sh` double-escaped a pipe the source already escaped,
+  and declined every in-repo finding when git and `pwd` spelled the same repo root
+  differently.** Both defects were identified in #3180 and fixed for `docs-hygiene:audit-noise`
+  in #3202; this copy was not reached. A naive `gsub(/\|/, "\\|")` turns `a \| b` into
+  `a \\| b`, which GFM reads as a literal backslash followed by a live delimiter, so the row
+  splits and the fix action misreads it. `esc()` now walks each backslash run and adds a
+  delimiter escape only when the run length is even, so `a\\|b` stays a single cell.
+  Separately, `git rev-parse --show-toplevel` can answer Git's Windows-drive spelling while
+  the caller is at `/tmp/…` (Git Bash). This producer failed CLOSED: a path it could not
+  prove was under the root was counted as `outside-repo-root` and silently missed the
+  relay. Root resolution now prefers the caller's own `pwd` (minus git's `--show-prefix`)
+  and keeps git's two spellings as fallbacks, then applies the same fail-closed fence.
+  Shared code was considered and declined: plugins are portable and there is no existing
+  cross-plugin emit-findings library; the three copies now agree on the same two helpers
+  instead.
+
 ## [0.39.3]
 
 ### Fixed

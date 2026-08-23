@@ -5,7 +5,7 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under a research-backed scope
 budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 
-Five skills, one capability:
+Six skills, one capability:
 
 - **`/code-tidying:dissolve-comments`** — enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
@@ -31,6 +31,13 @@ Five skills, one capability:
   inventory, runs a mandatory per-group refutation verifier, and delivers one
   independently mergeable PR per wave. Use it when you forgot to run
   `/simplify` after each task, or to sweep a repository that never had one.
+- **`/code-tidying:audit-dead-code`** — a read-only, whole-repo hunt for code
+  nothing reaches any more, across four labelled lanes of deliberately unequal
+  confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
+  symbols, and a portable grep lane for shell and other symbol languages). Every
+  candidate is adjudicated against the dynamic-usage evidence static analyzers
+  are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
+  writes nothing and deletes nothing.
 - **`/code-tidying:setup`** — `check` inspects the tracked
   `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
   sections, leftover placeholders, tracked-not-ignored); `apply` interviews the
@@ -73,8 +80,8 @@ personal variation is limited to lane names the team does not track — an uncom
 
 - Self-contained: taxonomy, scope-budget research, exclusion lists, lane
   templates, and the throttle script all ship inside the plugin under
-  `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4+** (they use
-  `mapfile` and case-conversion expansions) — on native Windows, install
+  `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4.3+** (they use
+  `mapfile`, case-conversion expansions, and namerefs) — on native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
   so they run under Git Bash; the scripts already handle CRLF and
   drive-letter paths.
