@@ -95,7 +95,7 @@ skill's namespace during review.
 
 ### 1c — the "looks scoped but isn't" case, named so it is not repeated
 
-`plugins/bug-report/skills/write/SKILL.md:97` keys on the **kebab-cased basename of the project
+`plugins/bugs/skills/write/SKILL.md:97` keys on the **kebab-cased basename of the project
 root**:
 
 > `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/` … The plugin data directory is per-plugin, not
@@ -108,7 +108,7 @@ duplicate scan cross-matches between them. It escapes *overwrite* only because i
 timestamped. `plugins/claude-config/skills/unhobble/SKILL.md:53-62` names the same insufficiency in
 prose: "`${CLAUDE_PLUGIN_DATA}` is machine-global, so two checkouts sharing a basename…".
 
-**This is recorded here as the worked example, not filed as a `bug-report` defect.** A basename is
+**This is recorded here as the worked example, not filed as a `bugs` defect.** A basename is
 not project identity. Nothing here obliges an immediate migration of an existing keyed-by-basename
 writer; it obliges the next one not to repeat it.
 
@@ -165,8 +165,8 @@ holds every project's artifact under the same deletable root.
 | `claude-config:audit-prompting-postures` | Keyed (#2250) |
 | `claude-config:audit-instructions` | Keyed, plus rule 3 on the delta computation |
 | `claude-memory:audit` | Keyed on write **and** on both read paths (`report`, `fix`), plus rule 3 |
-| `bug-report:write` / `bug-report:setup` | Keyed by project-root **basename** — rule 1c's worked example; not migrated |
-| `bug-report:scan` | Same key, same tree, one timestamped file per run — it reuses `write`'s Step 4 path precedence rather than resolving its own, so it inherits rule 1c's basename collision unmigrated instead of introducing a second scheme (and, like `write`, lands outside this tree entirely when the operator configures `output_dir`). Its reports carry a cursor metadata block the next bare run reads back to pick a lane: a read-back artifact under rule 2, and a rule 3 surface, since the newest report at the derived key is the cursor's only authority and a colliding key would rotate lanes off another checkout's history. Absent at the key is the documented zero state — rotation falls through to the date-derived lane floor, never to an unkeyed path |
+| `bugs:write` / `bugs:setup` | Keyed by project-root **basename** — rule 1c's worked example; not migrated |
+| `bugs:scan` | Same key, same tree, one timestamped file per run — it reuses `write`'s Step 4 path precedence rather than resolving its own, so it inherits rule 1c's basename collision unmigrated instead of introducing a second scheme (and, like `write`, lands outside this tree entirely when the operator configures `output_dir`). Its reports carry a cursor metadata block the next bare run reads back to pick a lane: a read-back artifact under rule 2, and a rule 3 surface, since the newest report at the derived key is the cursor's only authority and a colliding key would rotate lanes off another checkout's history. Absent at the key is the documented zero state — rotation falls through to the date-derived lane floor, never to an unkeyed path |
 | `claude-config:unhobble` | Different solution, same problem: keys by `<experiment-id>` whose basename is *a label*, and records the canonical checkout identity (absolute worktree path, and the origin URL when one exists) **in the manifest**, verifying it before every later phase. Verification instead of a keyed path; acceptable because the artifact is never *served* — a mismatch aborts and names the conflicting path |
 | `docs/conventions/topic-docs/` non-repo fallback | Keyed by **topic slug**, not project (`${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/`, the non-interactive branch when no project root resolves) — an instance of the gap, recorded here rather than silently declared conformant |
 | `machine-health:audit` | Not keyed — roots are passed in by the caller, deliberately, per that skill's own inherited-variable hazard. Cited above for retention shape only |

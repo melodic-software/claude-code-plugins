@@ -29,7 +29,7 @@
     "autonomy@melodic-software": true,
     "bash-format@melodic-software": true,
     "biome-format@melodic-software": true,
-    "bug-report@melodic-software": true,
+    "bugs@melodic-software": true,
     "claude-config@melodic-software": true,
     "claude-memory@melodic-software": true,
     "claude-ops@melodic-software": true,

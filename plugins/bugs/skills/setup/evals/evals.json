@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "validates-rendered-option-without-settings-edits",
-      "prompt": "/bug-report:setup",
+      "prompt": "/bugs:setup",
       "expected_output": "Reports the rendered output_dir or the private plugin-data fallback, asks whether reports should remain private or use a portable repository location, and never reads or edits settings files or pluginConfigs.",
       "files": [],
       "expectations": [
@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "routes-changes-through-claude-configuration",
-      "prompt": "/bug-report:setup\n\nCommit --file reports into this repository.",
+      "prompt": "/bugs:setup\n\nCommit --file reports into this repository.",
       "expected_output": "Inspects the repository's declared artifact conventions, recommends a portable location, directs the user to Claude Code's plugin configuration prompt, and requires a rerun before claiming the value changed.",
       "files": [],
       "expectations": [
@@ -28,13 +28,13 @@
     {
       "id": 3,
       "name": "apply-scaffolds-the-tracked-lane-config",
-      "prompt": "/bug-report:setup apply",
-      "expected_output": "Reports the effective lane config per layer first, drafts lanes from the repository layout, settles filing_posture, writes only .claude/bug-report.md in the documented format, then re-reads it and confirms it is tracked rather than gitignored.",
+      "prompt": "/bugs:setup apply",
+      "expected_output": "Reports the effective lane config per layer first, drafts lanes from the repository layout, settles filing_posture, writes only .claude/bugs.md in the documented format, then re-reads it and confirms it is tracked rather than gitignored.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs the check probes before writing anything",
-        "Writes only the tracked .claude/bug-report.md team layer",
+        "Writes only the tracked .claude/bugs.md team layer",
         "Uses the key contract in reference/config.md instead of inventing keys",
         "Verifies the written file by re-reading it and by git check-ignore"
       ]
@@ -42,7 +42,7 @@
     {
       "id": 4,
       "name": "apply-stays-off-user-config-and-gitignore",
-      "prompt": "/bug-report:setup apply\n\nAlso point output_dir at docs/bug-reports/ and add the ignore line for my personal overlay.",
+      "prompt": "/bugs:setup apply\n\nAlso point output_dir at docs/bug-reports/ and add the ignore line for my personal overlay.",
       "expected_output": "Writes the lane config only, routes the output_dir change to Claude Code's plugin configuration prompt, and recommends the recursive .claude ignore line for the .local.md overlay without editing .gitignore.",
       "files": [],
       "narration": true,
@@ -55,7 +55,7 @@
     {
       "id": 5,
       "name": "check-reports-every-cascade-layer",
-      "prompt": "/bug-report:setup check\n\nWhich lanes does scan actually use here?",
+      "prompt": "/bugs:setup check\n\nWhich lanes does scan actually use here?",
       "expected_output": "Reports each cascade layer separately with the layer that supplied each value, names an empty-list opt-out as an opt-out, treats all layers absent as a working state served by the bundled default lanes, and changes nothing.",
       "files": [],
       "narration": true,

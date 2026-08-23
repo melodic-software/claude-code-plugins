@@ -51,12 +51,12 @@
       "id": 5,
       "name": "own-code-bug-routes-away",
       "prompt": "I found a bug in my own app's applyLateFee billing function (not a Claude Code bug) — does /claude-ops:known-issues track that, or should I file it elsewhere?",
-      "expected_output": "This is a defect in the user's own code, not a Claude product issue. The skill declines to add it to the Claude-product registry or search Claude repos for it, and routes to /bug-report:write (or a manual defect write-up when that plugin is absent).",
+      "expected_output": "This is a defect in the user's own code, not a Claude product issue. The skill declines to add it to the Claude-product registry or search Claude repos for it, and routes to /bugs:write (or a manual defect write-up when that plugin is absent).",
       "files": [],
       "expectations": [
         "The response recognizes this as a bug in the user's own code, not a Claude product issue",
         "The response does NOT add the user's own-code bug to the Claude-product registry",
-        "The response routes to `/bug-report:write` (or a manual defect write-up if that plugin is unavailable)"
+        "The response routes to `/bugs:write` (or a manual defect write-up if that plugin is unavailable)"
       ]
     },
     {

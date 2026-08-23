@@ -20,7 +20,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-`/bug-report` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only** — it captures, it does not fix, and it does not file (unless you explicitly ask).
+`/bugs` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only** — it captures, it does not fix, and it does not file (unless you explicitly ask).
 
 This is the **bug-intake** stage. It sits upstream of filing the report into a work-item tracker, and it is independent of any downstream fix workflow — when the report itself is the deliverable (a Slack message, a PR comment, a verbal handoff), that is all this skill needs to do.
 
@@ -46,7 +46,7 @@ Invoke when ANY hold:
 
 If it is ambiguous, surface the question once and let the user pick.
 
-## The bug-report process
+## The bugs process
 
 ### Step 1 — Skip-condition check (MANDATORY)
 
@@ -91,7 +91,7 @@ Stop conditions: every required field has a backed answer OR an explicit `(unkno
 
 Default: emit Markdown to stdout (read-only). Follow the 5-field template — see [`context/template.md`](context/template.md) for the full structure with a worked example.
 
-`--file` mode: write the report to a file with frontmatter `type: bug-report`. Resolve the output directory in this precedence, and always tell the user the final path:
+`--file` mode: write the report to a file with frontmatter `type: bugs`. Resolve the output directory in this precedence, and always tell the user the final path:
 
 1. If the consumer configured `output_dir`, write to `${user_config.output_dir}`.
 2. Otherwise, write to `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/`, where `<project-slug>` is the kebab-cased basename of the project root (`${CLAUDE_PROJECT_DIR}`, or the git toplevel when unset). The plugin data directory is per-plugin, not per-project — without the slug, Step 2's duplicate scan would match another repository's report on the same symbol.

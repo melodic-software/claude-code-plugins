@@ -1,7 +1,20 @@
 # Changelog
 
-All notable changes to the `bug-report` plugin are documented here. Format follows
+All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+
+## [0.9.0]
+
+### Changed
+
+- **BREAKING: the plugin is renamed `bug-report` → `bugs`.** With `scan` beside `write`, the plugin's
+  identity is the full front half of the bug lifecycle — find them, report them — and the old name
+  described only the second half. Skills are now `/bugs:scan`, `/bugs:write`, `/bugs:setup`; the
+  tracked team config surface renames with it (`.claude/bug-report.md` → `.claude/bugs.md`, same keys,
+  same cascade, per `reference/config.md`); the plugin-data root moves with the plugin name, so
+  previously persisted reports and cursor metadata are not read by the renamed plugin (re-created on
+  the next run). No aliasing or migration shim is shipped — consumers update the enabled-plugin name
+  and, where present, rename the tracked config file. Historical entries below retain the old name.
 
 ## [0.8.0]
 

@@ -1,6 +1,6 @@
-# Hunter lenses — the recall stage of `/bug-report:scan`
+# Hunter lenses — the recall stage of `/bugs:scan`
 
-Loaded on demand by `/bug-report:scan` Step 2. Each lens below is a **dispatch contract for one
+Loaded on demand by `/bugs:scan` Step 2. Each lens below is a **dispatch contract for one
 fresh-context hunter subagent**, written in the four-part shape that keeps a fan-out from duplicating
 work or leaving gaps: **objective**, **output format**, **tool and source guidance**, **task
 boundaries**.
