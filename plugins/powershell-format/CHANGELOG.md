@@ -3,6 +3,28 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.19]
+
+### Fixed
+
+- **Trust gate: two loader-scan bypasses that produced an approvable verdict (#3110).**
+  Both let a custom-rule module load code the scan never saw, while the gate
+  still offered an approval pinned to a signature that omits it.
+  - `Invoke-Expression` / `iex` were listed among the path loaders, so a
+    CONSTANT string argument was pinned as though it named a file:
+    `Invoke-Expression 'Import-Module ./evil.psm1'` read as pinned while the
+    load it performs was never examined. Its argument is code, not a path, so
+    binding it would mean recursively parsing evaluated text — the state is
+    refused (`UNPINNABLE`) instead.
+  - The loader membership test compared the name `GetCommandName()` returns,
+    which for a module-qualified call is the qualified spelling. A
+    `Microsoft.PowerShell.Core\Import-Module` call therefore matched nothing
+    and the load was skipped outright. The test now runs against the bare name
+    after the last qualifier separator.
+
+  Both are covered by new `evaluated` / `qualified` fixtures in the unpinnable
+  suite, each verified to fail against the previous scan.
+
 ## [0.7.18]
 
 ### Changed
