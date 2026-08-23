@@ -51,6 +51,39 @@
   character classes. The class form leaves a truncated word behind it that the repo's `typos` linter
   reads as a misspelling and FAILs the file on; found by running the linter.
 
+### Fixed
+
+Seven review findings on the shape as first written, all reproduced before being fixed:
+
+- **Every marker is fenced to a whole word.** The withholding predicates matched bare substrings, so
+  `secretary` satisfied the `secret` guardrail and `preferentially` satisfied the `prefer` pairing —
+  each **silently dropping a real finding**, which is the one direction this rule set is built to
+  make impossible. Inflections of `prefer` are enumerated so the verb still pairs; `vulnerab` stays
+  deliberately stemmed but is now bounded on the left.
+- **The contraction pattern is an apostrophe class, not `.`.** `don.t` matched `donut`, emitting
+  ordinary prose as a Tier 2 finding.
+- **The fired marker comes from the sentence that triggered.** On `Never commit a secret. Do not use
+  markdown.` the first sentence is carved out, but the emitted row reported `prohibition="never"` and
+  pointed review at the guardrail. `detect.sh` now carries a `Finding marker:` field, which keeps ONE
+  implementation of the sentence walk instead of a second copy in the writer free to drift.
+- **The out-of-repo fence fails closed on a traversing path.** The prefix test is lexical, so
+  `<repo>/../outside.md` passed it while resolving outside the repository. A `..` segment now
+  declines. Residual recorded at the site: a symlink inside the repo pointing out still resolves past
+  a lexical test.
+- **`branch:` is quoted when YAML would implicitly type it.** Git accepts `true`, `null`, `no`, `123`
+  and `2026-08-23` as branch names; left plain, a consumer reads back a boolean, null, number or date
+  and the relay's exact-string admission never matches the file. (The sibling
+  `claude-config:audit-instructions` producer shares this gap in its own copy of `yaml_scalar` — out
+  of scope here, worth a follow-up.)
+- **`allowed-tools` no longer grants unscoped `Bash(git:*)`.** The scripts need exactly
+  `git branch --show-current` and `git rev-parse --show-toplevel`; the blanket grant also authorized
+  `git reset --hard`, `git clean -fd` and `git push --force` — mutating operations the read-only hard
+  rule added in this same release disclaims, enforced in prose only. Narrowed to the two subcommands.
+- **Deferred, and filed rather than dropped (#3195):** `negation` is scoped to one physical line, so
+  a sentence markdown soft-wraps is judged in pieces and a positive alternative on the next line does
+  not suppress the finding. The direction is a false positive, never a silent withhold. Recorded as a
+  known limitation in `SKILL.md` "Hard rules" until #3195 lands.
+
 ## [0.20.1]
 
 ### Fixed

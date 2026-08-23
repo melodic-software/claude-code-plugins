@@ -171,8 +171,21 @@ LC_ALL=C awk \
   # comment (branch becomes empty), and "@foo" / "!foo" / "&foo" / "*foo" and
   # friends are indicators too. The consumer admits a candidate only on an EXACT
   # branch match, so a misparse silently drops every finding for that branch.
+  # A plain scalar YAML implicitly TYPES is also unsafe: git accepts branch
+  # names like `true`, `null`, `no`, `123` and `2026-08-23`, and a consumer
+  # reading those back gets a boolean, a null, a number or a date rather than
+  # the exact branch string the relay matches on. Quote them too.
+  function yaml_implicit_typed(s,   l) {
+    l = tolower(s)
+    if (l ~ /^(true|false|yes|no|on|off|null|~)$/) return 1
+    if (s ~ /^[+-]?[0-9]+$/) return 1
+    if (s ~ /^[+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$/) return 1
+    if (s ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}/) return 1
+    if (s ~ /^0[xXoObB][0-9a-fA-F_]+$/) return 1
+    return 0
+  }
   function yaml_scalar(s) {
-    if (s ~ /^[-?:,\[\]{}#&*!|>%@`"\x27]/ || s ~ /: / || s ~ / #/ || s ~ /^$/ || s ~ /[ \t]$/) {
+    if (s ~ /^[-?:,\[\]{}#&*!|>%@`"\x27]/ || s ~ /: / || s ~ / #/ || s ~ /^$/ || s ~ /[ \t]$/ || yaml_implicit_typed(s)) {
       gsub(/\\/, "\\\\", s)
       gsub(/"/, "\\\"", s)
       return "\"" s "\""
@@ -258,6 +271,7 @@ LC_ALL=C awk \
   /^Finding shape: /  { cur_shape = substr($0, 16); next }
   /^Finding line: /   { cur_line = substr($0, 15); next }
   /^Finding excerpt: /{ cur_excerpt = substr($0, 18); next }
+  /^Finding marker: / { cur_marker = substr($0, 17); next }
   /^Finding tier: /   { next }
   /^Summary /         { next }
 
@@ -278,25 +292,42 @@ LC_ALL=C awk \
     # action fences each remediation to it. A path outside the working tree
     # would have the fix pass either edit a file outside it or consume the
     # finding without applying it.
+    #
+    # The prefix test is LEXICAL, so a `..` segment defeats it: `/repo/../x.md`
+    # starts with `/repo/` while resolving outside the repository, and the row
+    # would enter the relay carrying a traversing Location. Any path holding a
+    # `..` segment is therefore declined outright — fail closed, since this
+    # fence exists to be defensive about its own input. Residual, recorded
+    # rather than implied: a symlink INSIDE the repo pointing outside it still
+    # resolves past this test, which needs a canonicalizing syscall awk has no
+    # portable access to.
     abs = cur_file
     if (substr(abs, 1, 1) != "/") abs = repo_root "/" cur_file
+    if (abs ~ /(^|\/)\.\.(\/|$)/) { declined_outofrepo[cur_shape]++; reset(); next }
     if (repo_root == "" || index(abs, repo_root "/") != 1) { declined_outofrepo[cur_shape]++; reset(); next }
     loc = substr(abs, length(repo_root) + 2)
 
     rows[++nemit] = "| " rule_tier() " | high | " loc ":" cur_line " | docs-hygiene:audit-noise | " \
-      esc("docs-hygiene/audit-noise/rule-negation-without-positive prohibition=\"" fired_marker(text) "\" with no positive alternative in the sentence -- " trim(cur_excerpt)) \
+      esc("docs-hygiene/audit-noise/rule-negation-without-positive prohibition=\"" fired_marker(cur_marker, text) "\" with no positive alternative in the sentence -- " trim(cur_excerpt)) \
       " | " esc(rule_action()) " |"
     seen++
     reset()
     next
   }
 
-  function reset() { cur_file = ""; cur_shape = ""; cur_line = ""; cur_excerpt = "" }
+  function reset() { cur_file = ""; cur_shape = ""; cur_line = ""; cur_excerpt = ""; cur_marker = "" }
 
   # Which prohibition fired, in the run own values (never the rule restated).
-  function fired_marker(text,   i, pats, n, lower) {
+  # PREFER the marker the scanner supplied: it comes from the sentence that
+  # actually triggered, so a line whose FIRST sentence is carved out
+  # ("Never commit a secret. Do not use markdown.") reports the second
+  # sentence marker rather than pointing review at the guardrail. The
+  # whole-line scan below is only the fallback for detector output predating
+  # the `Finding marker:` field, and carries that first-match imprecision.
+  function fired_marker(supplied, text,   i, pats, n, lower) {
+    if (supplied != "") return supplied
     lower = tolower(text)
-    n = split("never|do not|do not|avoid|must not|should not", pats, "|")
+    n = split("never|do not|must not|should not|avoid", pats, "|")
     for (i = 1; i <= n; i++) if (index(lower, pats[i]) > 0) return pats[i]
     if (index(lower, "don") > 0) return "dont"
     return "(prohibition)"

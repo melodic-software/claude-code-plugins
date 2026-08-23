@@ -3,7 +3,7 @@ description: "Classify tracked markdown for nine noise shapes — historical cit
 argument-hint: "[audit] [target] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git branch --show-current:*)", "Bash(git rev-parse --show-toplevel:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -122,7 +122,16 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
   `data loss`, `production`, `security`, `vulnerab`, `rewrite history`), or a **worked example**
   (a `->` / `→` demonstration). Absence of that evidence selects the finding — a judgment call can
   make a run noisier but can never silently withhold one. The carve-out lives in the shared scanner,
-  so the human report and any persisted findings file give one candidate one disposition.
+  so the human report and any persisted findings file give one candidate one disposition. Every
+  marker matches as a **whole word**: a bare substring would let a longer word (`secretary` for
+  `secret`, `preferentially` for `prefer`) satisfy a *withholding* boundary and lose a real finding
+  silently.
+- **`negation` is scoped to one physical line (known limitation).** `detect.sh` classifies line by
+  line, so a sentence markdown soft-wraps is judged in pieces: `Do not use markdown;` on one line
+  with `compose prose instead.` on the next is reported even though the positive is paired in the
+  same sentence. The error direction is a false positive, never a silent withhold, so it costs
+  reviewer attention rather than coverage. Accumulating sentence state across soft line breaks is
+  deferred, not assumed away.
 - **Opt-out markers respected.** A well-formed HTML comment line `<!-- markdown-discipline-ignore -->` (covers the next paragraph, through the next blank line or heading) and `<!-- markdown-discipline-ignore-line -->` (exactly the next physical line — a blank line consumes it, so place the marker directly above the content line) skip the wrapped content. A prose mention of the marker name is not a live marker.
 - **Convention-path exemptions apply per matched path, never per line.** An angle-bracket slot variable (`.work/<slug>/…`, `docs/topics/<slug>/…`) is a schema placeholder, not a literal path; the reserved concern-scoped roots (`.work/handoffs/`, `.work/reviews/`, `.work/running-retros/`, `.work/overengineering/` — roster SSOT: topic-docs Memory, concern-scoped tier) are citable only bare or with a placeholder child — a concrete child under them flags. A convention token on a line never exempts a concrete ghost ref sharing that line; the tracked concern file (`.claude/topic-docs.yaml`) matches no ghost-ref pattern and needs no exemption. Exception: the retired `.claude/notes/` location flags even in placeholder form.
 - **Output deterministic.** Filenames sort lexically; per-file tier rows sort by line number; no timestamps in output.

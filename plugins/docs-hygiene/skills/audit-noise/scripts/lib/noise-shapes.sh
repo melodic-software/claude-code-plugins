@@ -432,26 +432,40 @@ audit_noise_split_sentences_into() {
 # spell whole words. Writing them with a leading either-case character class
 # instead would leave a truncated word after the class, and the repo's typos
 # linter reads that remainder as a misspelling and FAILs the file.
-# `don.t` matches the ASCII and the typographic apostrophe alike, and keeps a
-# literal quote out of the pattern.
+#
+# EVERY alternative is fenced by non-alphanumeric boundaries. Bare substrings
+# collide with longer words, and on the two WITHHOLDING predicates that
+# collision is silent finding loss — the exact direction this rule set is built
+# to avoid: `secretary` contains `secret` (guardrail) and `preferentially`
+# contains `prefer` (pairing), so an unfenced pattern withholds ordinary prose.
+# The boundary is spelled out rather than using `\b`, which is a GNU-grep
+# extension and not portable ERE.
+AUDIT_NOISE_APOS="['’]"
+
+# The contraction wildcard has to be an apostrophe CLASS, never `.`: `don.t`
+# matches `donut`, so ordinary prose was emitted as a Tier 2 finding.
 audit_noise_sentence_has_prohibition() {
   local s="${1,,}"
-  [[ "$s" =~ (^|[^[:alnum:]])(never|do[[:space:]]+not|don.t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn.t)([^[:alnum:]]|$) ]]
+  [[ "$s" =~ (^|[^[:alnum:]])(never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t)([^[:alnum:]]|$) ]]
 }
 
 # Evidence that the positive alternative is already paired in this sentence.
+# Inflections of `prefer` are enumerated so the verb still matches while
+# `preferentially` / `preference` do not.
 audit_noise_sentence_has_positive_pairing() {
   local s="${1,,}"
-  [[ "$s" =~ (instead|rather[[:space:]]+than|prefer|in[[:space:]]+place[[:space:]]+of|in[[:space:]]+favou?r[[:space:]]+of) ]]
+  [[ "$s" =~ (^|[^[:alnum:]])(instead|rather[[:space:]]+than|prefer(s|red|ring)?|in[[:space:]]+place[[:space:]]+of|in[[:space:]]+favou?r[[:space:]]+of)([^[:alnum:]]|$) ]]
 }
 
 # Hard guardrails a positive form cannot carry: the prohibition IS the correct
 # shape. Kept deliberately TIGHT to safety-critical markers — a generic verb
 # ("delete", "merge", "force") would withhold ordinary prose and turn a
-# fail-safe-toward-emitting rule into a silent one.
+# fail-safe-toward-emitting rule into a silent one. `vulnerab` stays stemmed on
+# purpose (vulnerable / vulnerability); the stem is bounded on the left so it
+# cannot match inside a longer unrelated word.
 audit_noise_sentence_has_hard_guardrail() {
   local s="${1,,}"
-  [[ "$s" =~ (secret|credential|token|password|api[[:space:]]+key|force-push|force[[:space:]]+push|--force|rm[[:space:]]+-rf|destructive|irreversible|data[[:space:]]+loss|production|security|vulnerab|rewrite[[:space:]]+history) ]]
+  [[ "$s" =~ (^|[^[:alnum:]])(secrets?|credentials?|tokens?|passwords?|api[[:space:]]+keys?|force-push(es|ed|ing)?|force[[:space:]]+push(es|ed|ing)?|--force|rm[[:space:]]+-rf|destructive|irreversible|data[[:space:]]+loss|production|security|vulnerab[a-z]*|rewrite[[:space:]]+history)([^[:alnum:]]|$) ]]
 }
 
 # A before -> after demonstration is a worked example (protected content), not
@@ -460,14 +474,29 @@ audit_noise_sentence_is_worked_example() {
   [[ "$1" == *'→'* || "$1" == *'->'* ]]
 }
 
+# Which prohibition fired, in the run's own values. Reported from the sentence
+# that ACTUALLY triggered: a line whose first sentence is carved out
+# ("Never commit a secret. Do not use markdown.") would otherwise report the
+# carved-out marker and point review at the guardrail rather than the finding.
+AUDIT_NOISE_FIRED_MARKER=""
+
 audit_noise_line_has_negation_without_positive() {
-  local sentences=() s
+  local sentences=() s lower m
+  AUDIT_NOISE_FIRED_MARKER=""
   audit_noise_split_sentences_into sentences "$1"
   for s in "${sentences[@]}"; do
     audit_noise_sentence_has_prohibition "$s" || continue
     audit_noise_sentence_has_positive_pairing "$s" && continue
     audit_noise_sentence_has_hard_guardrail "$s" && continue
     audit_noise_sentence_is_worked_example "$s" && continue
+    lower="${s,,}"
+    for m in never "do not" "must not" "should not" avoid; do
+      if [[ "$lower" == *"$m"* ]]; then
+        AUDIT_NOISE_FIRED_MARKER="$m"
+        break
+      fi
+    done
+    [[ -n "$AUDIT_NOISE_FIRED_MARKER" ]] || AUDIT_NOISE_FIRED_MARKER="dont"
     return 0
   done
   return 1

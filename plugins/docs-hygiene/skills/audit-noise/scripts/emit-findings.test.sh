@@ -175,6 +175,50 @@ else
   fail "a colliding --out takes the -2 suffix rather than clobbering" "${OUT1%.md}-2.md exists" "absent"
 fi
 
+# --- Out-of-repo fence: a traversing path is fail-closed --------------------------------
+
+# The prefix test is lexical, so `/repo/../x.md` starts with `/repo/` while
+# resolving outside it. A `..` segment must decline rather than emit a row whose
+# Location traverses out of the working tree.
+TRAVERSE="$TEST_TMPDIR/traverse.txt"
+{
+  printf 'File: %s\n' "$REPO/../outside.md"
+  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 3\n'
+  printf 'Finding excerpt: Do not use markdown.\n---\n'
+} >"$TRAVERSE"
+OUT6="$TEST_TMPDIR/out/traverse.md"
+(cd "$REPO" && bash "$EMIT" --from "$TRAVERSE" --out "$OUT6") >/dev/null
+trav_body="$(cat "$OUT6")"
+assert_not_contains "a traversing path never reaches the relay" "$trav_body" ".."
+assert_contains "and is declined as out-of-repo" "$trav_body" "reason=outside-repo-root"
+
+# --- branch: quoting for YAML-implicit-typed names --------------------------------------
+
+# Git accepts `true`, `null` and `123` as branch names. Left plain, a consumer
+# reads them back as a boolean/null/number and the relay's exact-string match
+# never admits the file.
+for bad_branch in true null 123 2026-08-23 no; do
+  OUTB="$TEST_TMPDIR/out/branch-$bad_branch.md"
+  (cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUTB" --branch "$bad_branch") >/dev/null
+  assert_contains "YAML-implicit branch '$bad_branch' is quoted" "$(cat "$OUTB")" "branch: \"$bad_branch\""
+done
+OUTP="$TEST_TMPDIR/out/branch-plain.md"
+(cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUTP" --branch "feature/ordinary-name") >/dev/null
+assert_contains "an ordinary branch stays an unquoted plain scalar" "$(cat "$OUTP")" "branch: feature/ordinary-name"
+
+# --- The fired marker is carried from the scanner ---------------------------------------
+
+MARKER_IN="$TEST_TMPDIR/marker.txt"
+{
+  printf 'File: %s\n' "$TARGET"
+  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 7\n'
+  printf 'Finding excerpt: Never commit a secret. Do not use markdown.\n'
+  printf 'Finding marker: do not\n---\n'
+} >"$MARKER_IN"
+OUT7="$TEST_TMPDIR/out/marker.md"
+(cd "$REPO" && bash "$EMIT" --from "$MARKER_IN" --out "$OUT7") >/dev/null
+assert_contains "the scanner-supplied marker wins over a whole-line scan" "$(cat "$OUT7")" 'prohibition="do not"'
+
 # --- Counted carve-out -----------------------------------------------------------------
 
 OUT5="$TEST_TMPDIR/out/carve.md"

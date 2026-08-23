@@ -299,6 +299,13 @@ audit_file() {
         printf 'Finding shape: %s\n' "$shape"
         printf 'Finding line: %s\n' "$line_num"
         printf 'Finding excerpt: %s\n' "$excerpt"
+        # The fired prohibition travels with the finding so the relay writer
+        # reports the marker from the sentence that actually triggered. Keeping
+        # it here leaves ONE implementation of the sentence walk; re-deriving it
+        # in the writer would be a second copy free to drift from this one.
+        if [[ "$shape" == 'negation' && -n "${AUDIT_NOISE_FIRED_MARKER:-}" ]]; then
+          printf 'Finding marker: %s\n' "$AUDIT_NOISE_FIRED_MARKER"
+        fi
         printf '%s\n' '---'
         case "$tier" in
         1) t1=$((t1 + 1)) total_t1=$((total_t1 + 1)) ;;

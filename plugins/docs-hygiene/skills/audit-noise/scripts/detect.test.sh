@@ -767,6 +767,60 @@ EOF
 fm_out="$(bash "$DETECT" "$NEG_FM")"
 assert_not_contains "frontmatter prohibitions never flag" "$fm_out" "Finding shape: negation"
 
+# SUBSTRING COLLISIONS ON THE WITHHOLDING BOUNDARIES. Both carve-outs suppress a
+# candidate, so an unfenced alternative that matches inside a longer word loses a
+# real finding SILENTLY — the direction this rule set exists to avoid. Each
+# alternative is fenced by non-alphanumeric boundaries; these are the cases that
+# regress if a future edit drops one.
+NEG_SUBSTR="$TEST_TMPDIR/negation-substrings.md"
+cat >"$NEG_SUBSTR" <<'EOF'
+# Substring-collision fixture
+
+Do not preferentially select the first item.
+
+Do not send it to the secretary.
+
+Never tokenize the payload by hand.
+EOF
+substr_out="$(bash "$DETECT" "$NEG_SUBSTR")"
+substr_count="$(printf '%s\n' "$substr_out" | grep -c '^Finding shape: negation')"
+assert_contains "a longer word never satisfies a withholding marker" "count=$substr_count" "count=3"
+
+# The contraction wildcard must be an apostrophe CLASS: a bare `.` matches
+# `donut`, emitting ordinary prose as a Tier 2 finding.
+NEG_DONUT="$TEST_TMPDIR/negation-donut.md"
+cat >"$NEG_DONUT" <<'EOF'
+# Contraction fixture
+
+Choose a donut for breakfast.
+
+The shouldnt token is not a contraction either.
+EOF
+donut_out="$(bash "$DETECT" "$NEG_DONUT")"
+assert_not_contains "a word containing the contraction letters is not a prohibition" "$donut_out" "Finding shape: negation"
+
+APOS="$TEST_TMPDIR/negation-apostrophe.md"
+cat >"$APOS" <<'EOF'
+# Apostrophe fixture
+
+Don't add a preamble.
+EOF
+apos_out="$(bash "$DETECT" "$APOS")"
+assert_contains "a real contraction still flags" "$apos_out" "Finding shape: negation"
+
+# The reported marker comes from the sentence that TRIGGERED, not the first
+# prohibition on the line — otherwise a carved-out leading sentence points
+# review at the guardrail instead of the finding.
+NEG_MARKER="$TEST_TMPDIR/negation-marker.md"
+cat >"$NEG_MARKER" <<'EOF'
+# Marker fixture
+
+Never commit a secret. Do not use markdown.
+EOF
+marker_out="$(bash "$DETECT" "$NEG_MARKER")"
+assert_contains "marker comes from the triggering sentence" "$marker_out" "Finding marker: do not"
+assert_not_contains "marker is not the carved-out sentence's" "$marker_out" "Finding marker: never"
+
 # SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep rather
 # than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git
 # C-quotes a path it treats specially, and a quoted record ends with the closing quote, not
