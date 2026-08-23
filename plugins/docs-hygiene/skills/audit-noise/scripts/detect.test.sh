@@ -648,6 +648,22 @@ assert_not_contains "'on disk' is not an antecedent" "$ante_prep_out" "after the
 assert_not_contains "'on the other hand' is not an antecedent" "$ante_prep_out" "current default"
 assert_contains "three new preposition residues and nothing else" "$ante_prep_out" "| T1=3 T2=0 T3=0"
 
+# An inline-code locator the strip removes, followed by punctuation, must
+# still count as a document locus after the clause cut — otherwise `on` /
+# `at` / `under` newly flag a real path cite.
+ANTE_TICK="$TEST_TMPDIR/antecedent-inline-locator.md"
+cat >"$ANTE_TICK" <<'EOF'
+# Inline-code locator fixture
+
+As we discussed on `docs/design.md`, retain the fallback.
+As we decided at `§3`, keep the resolver.
+As we agreed under `the ADR`, ship the narrower form.
+EOF
+ante_tick_out="$(bash "$DETECT" "$ANTE_TICK")"
+assert_not_contains "an inline-code locator after on/at/under stays exempt" \
+  "$ante_tick_out" "Finding shape: conversational-antecedent"
+assert_contains "inline-code locator file is clean" "$ante_tick_out" "| T1=0 T2=0 T3=0"
+
 # --- 11f. Contracted first-person actors, straight and curly apostrophes -------------
 # A contraction is the same actor and the same shape; requiring a literal space
 # after the pronoun let it escape silently. Both apostrophe forms must work: `’`

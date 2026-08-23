@@ -126,6 +126,11 @@ audit_noise_follower_is_document_locator() {
   head="${head%%,*}"
   head="${head%%;*}"
   head="${head%%. *}"
+  # Recheck after the clause cut: an inline-code locator the strip removed
+  # leaves only the punctuation that followed it (`on `path`, …` → `, …` →
+  # empty). Empty-before-cut already counts as a locator; empty-after-cut is
+  # the same signal and must not fall through to a "not a locator" miss.
+  [[ -z "${head//[[:space:]]/}" ]] && return 0
   # A markdown link, a section sign, or a path is a locus outright. `#` counts
   # only ahead of a letter: `#anchor` is an anchor, `#482` is a tracker ref.
   [[ "$head" == '['* || "$head" == *'§'* || "$head" == '#'[a-z]* ]] && return 0
