@@ -28,6 +28,9 @@
   and untouched; that line still previews via `grep`, and a quoted record it now
   keeps is still displayed octal-escaped.
 
+  Sort and dedup stay NUL-delimited (`sort -uz` into `mapfile -d ''`) so a
+  newline recovered by `-z` is not split into two nonexistent targets.
+
   Regression cases cover a non-ASCII path, a control-byte (tab) path, a quoted
   spaced path, a rename whose new path is octal-escaped, and a rename whose origin
   record must be consumed. The rename-origin fixture renames `abcsecret.md`

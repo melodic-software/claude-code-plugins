@@ -169,7 +169,10 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   exit 0
 fi
 
-mapfile -t SORTED < <(printf '%s\n' "${TARGETS[@]}" | LC_ALL=C sort -u)
+# Keep NUL delimiters through sort/dedup so a path that itself contains a
+# newline (a control byte the -z read just recovered) is not split into two
+# nonexistent targets.
+mapfile -d '' -t SORTED < <(printf '%s\0' "${TARGETS[@]}" | LC_ALL=C sort -uz)
 
 # Chunk affordance: slice the sorted list so a parent can fan out without a
 # per-file shell loop (hook-bypass-safe single process per chunk).

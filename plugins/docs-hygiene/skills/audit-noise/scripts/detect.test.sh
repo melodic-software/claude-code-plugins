@@ -1166,6 +1166,26 @@ rename_origin_out="$(cd "$RENAME_REPO" && bash "$DETECT" 2>/dev/null)"
 assert_contains "rename resolves to the new path" "$rename_origin_out" "Summary file: moved.md"
 assert_not_contains "rename origin is consumed, not sliced into a clean committed file" "$rename_origin_out" "Summary file: secret.md"
 
+# A newline in a filename is a control byte the -z read recovers intact. If
+# sort/dedup then serializes TARGETS with newline delimiters, mapfile splits
+# the name into two nonexistent targets and the file drops out again.
+NL_REPO="$TEST_TMPDIR/newline-name-repo"
+mkdir -p "$NL_REPO"
+git -C "$NL_REPO" init -q
+git -C "$NL_REPO" config user.email fixture@example.invalid
+git -C "$NL_REPO" config user.name fixture
+nl_name="$(printf 'new\nline.md')"
+printf '# newline\n\nEmpirically observed in the newline file.\n' >"$NL_REPO/$nl_name" 2>/dev/null || true
+if fixture_landed "$NL_REPO" "$nl_name"; then
+  nl_out="$(cd "$NL_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "newline-bearing path survives sort/dedup" "$nl_out" "Empirically observed in the newline file"
+else
+  # discriminating-skip-ok: the tab and non-ASCII cases already prove the
+  # escape class; this pins the post-parse sort, which not every filesystem
+  # can hold a name for.
+  skip_case "filesystem rejects a newline in a filename"
+fi
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
