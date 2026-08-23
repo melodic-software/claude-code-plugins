@@ -18,6 +18,5 @@
 # now ships evals/evals.json — so the list can only shrink. NEVER add a row
 # because CI is red on a skill that warrants evals. Write the evals.
 
-plugins/playbooks/skills/fable-5  # pure-reference: Fable 5 operating doctrine loaded as standing instructions; no decision contract to regress
 plugins/tdd/skills/principles  # pure-reference: answers test-design questions from a knowledge corpus; no decision contract
 plugins/evals/skills/methodology  # pure-reference: answers eval-design questions from Anthropic's guidance; no decision contract

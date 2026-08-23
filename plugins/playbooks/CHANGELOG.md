@@ -4,6 +4,20 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.10]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, playbooks cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The `fable-5` description keeps its em dashes so
+  skill-quality trigger preservation (check 3) does not treat apostrophe-bounded
+  spans as dropped triggers. Added `fable-5/evals/evals.json` so the rewritten
+  skill still satisfies `--require-evals`, and dropped that skill from
+  `scripts/evals-warrant-exemptions.txt`.
+
 ## [0.8.9]
 
 ### Changed

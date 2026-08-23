@@ -9,9 +9,9 @@ no work of its own.
 
 | Skill | Invoke | What it provides |
 |---|---|---|
-| `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com) — 127 tips across 115 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, and context engineering, routed through a hub + topic reference files. |
-| `skill-authoring` | `/playbooks:skill-authoring` | Anthropic's internal skill-authoring playbook — 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
-| `fable-5` | `/playbooks:fable-5` | Claude Fable 5's operating doctrine — twelve trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries) plus per-model-version adaptation chapters. Bare arms the session; `full` preloads every common chapter plus only the adaptation chapter routed to the session's model version (sibling versions' chapters carry deliberately reversed counter-steers, so they never co-load); a chapter name reads one. |
+| `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com). 127 tips across 115 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, and context engineering, routed through a hub + topic reference files. |
+| `skill-authoring` | `/playbooks:skill-authoring` | Anthropic's internal skill-authoring playbook. 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
+| `fable-5` | `/playbooks:fable-5` | Claude Fable 5's operating doctrine. Twelve trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries) plus per-model-version adaptation chapters. Bare arms the session; `full` preloads every common chapter plus only the adaptation chapter routed to the session's model version (sibling versions' chapters carry deliberately reversed counter-steers, so they never co-load); a chapter name reads one. |
 | `update` | `/playbooks:update` | Maintainer-facing drift-check and upstream sync for the vendored packs. `--check` (default) reports drift read-only; `--apply` refreshes the vendored baselines. Not for consumers. |
 
 ## Updating the packs
@@ -21,7 +21,7 @@ no work of its own.
 script: `--check` (default) reports upstream version and vendor SHA drift
 read-only; `--apply` refreshes the vendored baseline and frontmatter metadata.
 Integrating upstream deltas into the distilled skill bodies stays a manual,
-reviewed step. Run it in a working-tree checkout of this plugin — consumers
+reviewed step. Run it in a working-tree checkout of this plugin, consumers
 receive updates through `/plugin marketplace update` once a new plugin version is
 published.
 
