@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-probes-only-the-current-os-family",
+      "prompt": "/desktop-notification:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the os_toast dependency for THIS OS family only, all four channel toggles, and hook registration — one remediation line per FAIL, nothing modified.",
+      "files": [],
+      "expectations": [
+        "Detects the OS family with `uname -s` and probes only that family's requirement, mirroring the hook's own case statement — it does not probe notify-send on macOS or osascript on Linux",
+        "Reports missing jq as FAIL and states the consequence precisely: the hook can neither classify the notification nor emit its terminal sequence, so it surfaces a once-per-session systemMessage notice and drops every notification for the session",
+        "Reports a Bash below 5.0 as INFO, not FAIL — EPOCHREALTIME is unset there so the opt-in telemetry envelope is skipped while notifications still fire",
+        "Reports the effective value of all four native booleans and treats unexpanded or empty as the default true"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "windows-has-no-os-toast-branch-nothing-to-install",
+      "prompt": "/desktop-notification:setup check\n\nI'm on Windows and I never get a desktop toast. What do I need to install?",
+      "expected_output": "Answers that nothing needs installing: the hook has no os_toast branch on Windows because a fire-and-forget process leaves no live activator host for a WinRT toast, so the terminal_notify OSC 9 channel carries attention here. Reported as INFO, a configuration answer rather than a missing prerequisite.",
+      "files": [],
+      "expectations": [
+        "States there is no os_toast branch on this platform and gives the reason: a fire-and-forget process leaves no live activator host for a WinRT toast",
+        "Names terminal_notify (OSC 9) as the channel carrying attention on Windows rather than prescribing a toast package",
+        "Reports the state as INFO, never FAIL, and does not offer to install or repair anything for it",
+        "Does not prescribe notify-send or libnotify, which belong to the Linux branch only"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "linux-notify-send-is-conditional-and-guidance-only",
+      "prompt": "/desktop-notification:setup apply\n\nUbuntu box, notify-send is missing. Install it for me.",
+      "expected_output": "Declines to install: states the apt/dnf command for the reader to run, and FAILs on the absent notify-send only when the os_toast channel is actually enabled — otherwise INFO, since an absent libnotify makes os_toast a documented silent no-op while the terminal channels stay unaffected.",
+      "files": [],
+      "expectations": [
+        "Does not run sudo apt install or any other system package manager — the install command is printed as guidance for the user to run",
+        "Conditions the FAIL on the os_toast channel being enabled; with that channel disabled the absence is INFO",
+        "States that an absent libnotify makes os_toast a documented silent no-op and leaves the terminal channels unaffected",
+        "Does not write Claude Code user settings, pluginConfigs, or the plugin cache — apply has no write path at all"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "muted-master-toggle-is-reported-not-repaired",
+      "prompt": "/desktop-notification:setup check\n\nEvery prerequisite passes but nothing ever notifies me.",
+      "expected_output": "Calls out the toggle state as the answer: whether the master desktop_notification_enabled toggle is off (the whole hook is muted) or the only channel that would fire on this OS is disabled, and notes that a disabled toggle downgrades every prerequisite absence from FAIL to INFO because the hook exits through its enabled-gate before probing anything.",
+      "files": [],
+      "expectations": [
+        "Names the master toggle being off as muting the whole hook, distinct from a single channel toggle being off",
+        "Calls out the case where the only channel that would fire on this OS is the disabled one",
+        "States that under a disabled toggle prerequisite absences downgrade from FAIL to INFO, and that re-enabling restores the FAIL semantics",
+        "Treats the toggle state as a configuration answer and does not flip it — these are personal userConfig values the skill never writes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/desktop-notification:setup apply\n\nRan this a minute ago and it was all green. Run it once more.",
+      "expected_output": "Re-runs check, finds nothing actionable, reports \"already configured\", and changes nothing.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not fire a test notification — a permission_prompt or idle_prompt is what exercises the hook end-to-end",
+        "Does not prompt interactively — the action was given in the invocation"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-channel-toggle-reruns-install-never-uninstalls",
+      "prompt": "/desktop-notification:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install desktop-notification@<marketplace> -s <scope> --config desktop_notification_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective values.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config desktop_notification_enabled=false` rerun, naming the master key rather than a generic placeholder, and notes the flag is repeatable for the three per-channel keys",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting all four toggles to their manifest defaults rather than only the one being flipped",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the install scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle values rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

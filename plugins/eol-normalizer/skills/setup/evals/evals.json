@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-surfaces-the-silent-git-dependency",
+      "prompt": "/eol-normalizer:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, git, the consumer .gitattributes eol= policy, the eol_normalizer_enabled toggle, and hook registration — with the git row explicitly flagged as the only visibility into a failure mode that emits no notice.",
+      "files": [],
+      "expectations": [
+        "Reports the asymmetry between the two FAIL-class tools: a missing jq makes the hook skip with a visible once-per-session notice, while a missing git produces NO notice at all — check-attr and repo-root resolution silently fail and the hook no-ops",
+        "States that this probe is the only visibility into the missing-git case",
+        "Reads both the entry script and the sourced normalize-eol library as the source of truth, since the check-attr calls, repo-root anchoring, and the NUL-byte binary guard live in the sourced library",
+        "Modifies nothing and confirms hook registration via /plugin Installed rather than parsing settings files"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-eol-rule-is-the-opt-out-not-a-defect",
+      "prompt": "/eol-normalizer:setup check\n\ngit is installed, we're inside a git repo, and line endings are never normalized. Is the plugin broken?",
+      "expected_output": "Answers no: with no eol=lf or eol=crlf rule governing any path, resolution is entirely .gitattributes-driven, so the plugin is inert by design — reported as INFO, not FAIL, matching the README's \"ships no policy of its own\" stance.",
+      "files": [],
+      "expectations": [
+        "Classifies the absent eol= rule as INFO (inert by design), never FAIL, and states the plugin is not broken",
+        "Distinguishes it from the other non-failure case the hook treats differently: git present but the path is not inside a git repository, which is not-applicable rather than un-opted-in",
+        "Does not offer to repair the state, and does not write .gitattributes",
+        "Notes that resolution is entirely .gitattributes-driven, so the repository's own policy is the whole opt-in"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "never-writes-gitattributes-or-installs-tools",
+      "prompt": "/eol-normalizer:setup apply\n\nWe want LF everywhere. Add the eol rule and install whatever else is missing.",
+      "expected_output": "Declines both writes: it never writes .gitattributes, because that would impose a repo-wide line-ending policy the plugin has no mandate to choose, and it never installs jq, git, or Bash — every prerequisite is a system tool resolved with platform install guidance only.",
+      "files": [],
+      "expectations": [
+        "Does not write .gitattributes, and gives the reason: doing so would impose a repo-wide line-ending policy the plugin has no mandate to choose",
+        "Does not install jq, git, or Bash — it points at the README's platform install instructions instead",
+        "Does not write Claude Code user settings, pluginConfigs, or the plugin cache",
+        "Points at the repository's own .gitattributes as the place the consumer declares policy"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "probes-candidate-paths-not-a-tracked-files-listing",
+      "prompt": "/eol-normalizer:setup check\n\nDoes the eol rule cover a brand-new file I haven't committed yet?",
+      "expected_output": "Yes — check-attr answers for ANY candidate path, tracked or not, and the hook normalizes a first write to a brand-new file the same as an edit to a tracked one. States that the probe therefore uses representative candidate paths or the declared patterns, never a tracked-files listing that would miss untracked matches.",
+      "files": [],
+      "expectations": [
+        "States that check-attr answers for any candidate path, tracked or untracked",
+        "States that the hook normalizes a first write to a brand-new file the same as an edit to a tracked one",
+        "Explicitly rejects a tracked-files listing as the probe method, because it would miss untracked matches",
+        "Anchors the resolver at the repo root, matching the hook's own `git check-attr eol` invocation"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/eol-normalizer:setup apply\n\nAll green last time. Run it again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not normalize any file — editing a file is what exercises the hook end-to-end",
+        "Does not prompt interactively — the action was given in the invocation"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/eol-normalizer:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install eol-normalizer@<marketplace> -s <scope> --config eol_normalizer_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config eol_normalizer_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

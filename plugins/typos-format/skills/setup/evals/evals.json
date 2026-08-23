@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-write-mode-as-info-not-pass",
+      "prompt": "/typos-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, the informational consumer config, the typos_format_enabled toggle, the write-mode switch, and hook registration — with write mode reported as INFO, not PASS, when it is at the shipped default.",
+      "files": [],
+      "expectations": [
+        "Resolves the typos binary on PATH only, matching the hook — no .venv-style per-repo convention — and reports the resolved path plus `typos --version` output when found",
+        "Reports the effective typos_format_write_changes value and states that unexpanded or empty means the shipped default false, with only the literal true enabling writes",
+        "Reports write mode as INFO, not PASS, when writes are off, on the stated grounds that every prerequisite can pass while the one behavior the consumer came here for was never turned on",
+        "Names the remediation in the same line rather than leaving the reader to infer it"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "report-only-is-a-configuration-answer-not-a-repair",
+      "prompt": "/typos-format:setup apply\n\nThe hook is clearly running — I see the findings — but it never actually fixes the typos in my files.",
+      "expected_output": "Answers that the hook is working as shipped: writes were never turned on, so this is a configuration answer rather than a repair. Offers the /plugin configure route (or the headless install rerun with --config typos_format_write_changes=true) and states what turning it on accepts.",
+      "files": [],
+      "expectations": [
+        "States plainly that report-only is the shipped default and the hook is working as intended — a configuration answer, not a defect to repair",
+        "Names typos_format_write_changes as the specific key, and that only the literal true enables writes while any other value stays report-only",
+        "States what turning writes on accepts: last-writer-wins ordering against any sibling hook that rewrites the same file",
+        "For the opposite case — writes already on and a few corrections unwanted — routes to allow-listing those words in the repository's typos config rather than switching the whole hook back to report-only"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "consumer-config-never-gates-whether-the-hook-runs",
+      "prompt": "/typos-format:setup check\n\nWe have no typos config in this repo. Does that mean the hook is inert until we add one?",
+      "expected_output": "No: the hook runs unconditionally and never gates on a config existing — typos resolves its own governing config, if any, directly from the file path it is given — so the config row is purely INFO and its presence or absence never changes whether the hook runs.",
+      "files": [],
+      "expectations": [
+        "States that the hook runs unconditionally and never gates on a config existing, so absence does not make it inert",
+        "States that typos resolves its own governing config directly from the file path it is given",
+        "Reports the config row as INFO only, and does not present the absence as the reason nothing is happening",
+        "Enumerates the config shapes it looked for — typos.toml, _typos.toml, .typos.toml, a Cargo.toml with a typos metadata table, or a pyproject.toml with [tool.typos] — rather than checking a single filename"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-installs-typos-and-never-writes-a-config",
+      "prompt": "/typos-format:setup apply\n\ntypos isn't installed and we have no config. Install the binary and add a config for us.",
+      "expected_output": "Declines both: there is no `apply install-typos` write path, because typos is a standalone Rust binary installed at the machine level with no clean per-repo dependency-manager story, so it points at the official install methods; and a minimal config is created only when explicitly asked.",
+      "files": [],
+      "expectations": [
+        "Does not install typos — it surfaces the platform-appropriate official install method (cargo, Homebrew, Conda, pacman, or a pre-built binary) for the consumer to choose",
+        "Gives the reason there is no install write path here, contrasting with the sibling plugins that do have one: typos has no per-repo dependency-manager story and is never a project dependency",
+        "Does not create a config unless explicitly asked, because the plugin imposes no rules of its own",
+        "Never installs system packages and never writes Claude Code user settings, pluginConfigs, or the plugin cache"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/typos-format:setup apply\n\nEverything passed on the last run. Run it again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not re-print install guidance for the binary once it resolves",
+        "Runs the spell-checker on no file — editing a file is what exercises the hook end-to-end"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/typos-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config typos_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for, and notes the flag is repeatable for typos_format_write_changes",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting both the toggle and the write-mode switch to their manifest defaults",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

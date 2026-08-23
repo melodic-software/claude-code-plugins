@@ -59,19 +59,18 @@ reports "already configured".
 
 1. **`library_dir` mismatch — guidance only.** `library_dir` is a personal `userConfig` scalar;
    never hand-edit `pluginConfigs` or write Claude Code settings. Direct the user to
-   `/plugin configure knowledge` (interactive, any time). Headless: `--config` only applies on a
-   fresh install (ignored once installed), so reconfigure via
-   `claude plugin uninstall knowledge -s <scope>` then
-   `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`. Both
-   commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin,
-   and run from that project's directory for a `project`/`local` scope. Defaulting instead
-   uninstalls a separate user-scope record while the effective install stays in place, so the
-   reinstall lands at a scope that does not load. Uninstalling also drops the stored
-   `pluginConfigs` entry, so the reinstall must re-supply **every** key whose value should stay
-   non-default — passing only `library_dir` silently resets `max_concurrent_acquires`,
-   `yt_dlp_cookies_file`, `yt_dlp_cookies_from_browser`, and `yt_dlp_js_runtimes` to their
-   manifest defaults, which can break extraction on a machine that needed them. Record the current
-   values before uninstalling; afterwards there is nothing left to read them from.
+   `/plugin configure knowledge` (interactive, any time). Headless: rerun the install with the new
+   value — `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`.
+   Against an already-installed plugin it prints `already installed` **and still writes the value**
+   — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value
+   written to an installed plugin, then restored). The short-circuit is about the install, not the
+   config write. Re-verify before relying on it outside those conditions — a `sensitive` option, or
+   `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
+   drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
+   Options reference table to its manifest default, which can break extraction on a machine that
+   needed non-default acquisition or `yt-dlp` values. `-s` defaults to `user`, so pass the scope
+   `claude plugin list` reports for this plugin, and run from that project's directory for a
+   `project`/`local` scope, or the write lands at a scope that does not load.
    The rendered value is injected at skill load,
    so a change takes effect in a fresh session — report the observed value and defer verification
    to that fresh session; do not claim a change this session.
