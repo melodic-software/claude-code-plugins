@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.16]
+## [0.39.17]
 
 ### Fixed
 
@@ -37,6 +37,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   and a GraphQL surface that answers only a pinned operation set. 0.39.15 took GraphQL out
   of the lease path; this release stops the version floor refusing that path in the first
   place. Either alone leaves `claim` unreachable there; together the lease trio runs.
+
+## [0.39.16]
+
+### Changed
+
 - **setup:** normalized restated setup-contract prose (preamble, probe-ladder
   opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
