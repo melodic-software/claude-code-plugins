@@ -9,7 +9,7 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 - **Docs:** the generated options block's headless route no longer implies `--config`
   applies only at install time, and now carries the CLI version its claim was verified
-  against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
+  against (#3111). Two upstream links that pointed at empty backward-compatibility
   anchors on the settings page were repointed at the headings that hold the content.
 
 ## [0.3.2]
