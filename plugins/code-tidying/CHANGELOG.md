@@ -3,6 +3,31 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2]
+
+### Fixed
+
+- **`audit-comment-residue` decodes the paths v1 porcelain escapes (#3126).** `0.13.3` fixed the
+  spaced-path false negative by slicing the v1 record, and recorded at the parse site that git's
+  octal escapes for control and non-ASCII bytes were still not decoded, so such a path continued
+  to miss. `detect.sh` now reads the NUL-delimited `--porcelain -z` form instead, which git
+  documents as performing no quoting or backslash-escaping, so there is nothing left to decode:
+  `café.py`, a name holding a tab or a backslash, and a name literally containing `" -> "` all
+  reach the audit. Under `-z` a rename emits the new path first and the original as a following
+  record — the reverse of v1's display order — and that second record is consumed and dropped, so
+  the intent-to-add rename `0.13.3` gated on the worktree status letter resolves structurally
+  rather than by string-matching an arrow.
+
+  The skill's `Uncommitted code files` pre-computed context moves to `-z` with it. `0.13.3` brought
+  that line to parity with the v1 slice and added a test that extracts and runs it, so leaving it
+  behind would have reopened the divergence that test exists to prevent — the audit would find
+  `café.py` while the preview shown to the model still listed nothing. That test now reads the
+  porcelain invocation out of `SKILL.md` as well as the awk program, rather than hardcoding a
+  form: feeding `-z` input to a v1 program makes the v1 program look correct, because `-z` output
+  carries no quoting for it to fail at decoding, so a hardcoded harness would have masked exactly
+  the mismatch it was checking for. Its fixture set gains a non-ASCII name, the only one of the
+  cases that both parses do not already agree on.
+
 ## [0.14.1]
 
 ### Changed
