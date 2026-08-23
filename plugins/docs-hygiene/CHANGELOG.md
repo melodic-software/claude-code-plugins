@@ -43,7 +43,14 @@
   generalizes, where a verb list only ever covers the verbs its author thought of. Leading
   adverbs ("Just mark.", "Simply re-run it.") are looked THROUGH rather than stopped on.
 
-  Corpus effect: 43 findings → 108, the 65 new ones all of the new shape; no shape's existing
+  **Independent review then found four more precision defects, all fixed and all with a test.**
+  The third-person `-s` decline is scoped to `Never`, because applied to `Avoid` it read a
+  plural NOUN as a verb; the contrast test is word-anchored, because unanchored it declined on
+  "preferred" and "preference"; trailing emphasis is peeled before the sentence-terminator test,
+  so a fully bolded directive fires; and a clause is re-stripped after the adverb peel so
+  `_Read it_ from the environment.` is seen as the alternative it is.
+
+  Corpus effect: 43 findings → 109, the 66 new ones all of the new shape; no shape's existing
   behavior changes, and the run cost is unmoved (9m26s → 9m39s over 1140 files).
 
 - **`--persist-findings` emits a conforming `type: review-findings` artifact** for
