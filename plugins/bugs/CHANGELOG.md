@@ -13,8 +13,12 @@ All notable changes to the `bugs` plugin are documented here. Format follows
   tracked team config surface renames with it (`.claude/bug-report.md` → `.claude/bugs.md`, same keys,
   same cascade, per `reference/config.md`); the plugin-data root moves with the plugin name, so
   previously persisted reports and cursor metadata are not read by the renamed plugin (re-created on
-  the next run). No aliasing or migration shim is shipped — consumers update the enabled-plugin name
-  and, where present, rename the tracked config file. Historical entries below retain the old name.
+  the next run). No aliasing or migration shim is shipped. Migration: the two names are distinct
+  plugin installations, so install `bugs@<marketplace>` (declare + enable + install), then disable
+  and uninstall `bug-report@<marketplace>`; and rename every configured cascade layer, not just the
+  team file — `~/.claude/bug-report.md` → `~/.claude/bugs.md`, `.claude/bug-report.md` →
+  `.claude/bugs.md`, and `.claude/bug-report.local.md` → `.claude/bugs.local.md`, keeping the
+  overlay gitignored. Historical entries below retain the old name.
   The persisted report frontmatter keeps `type: bug-report` unchanged — storage-format identifiers
   stay stable across renames (ADR 0013).
 
