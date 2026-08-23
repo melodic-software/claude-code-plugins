@@ -14,6 +14,7 @@ allowed-tools:
     "Grep",
     "Glob",
     "Write",
+    "Skill",
   ]
 shell: bash
 metadata:
@@ -137,6 +138,15 @@ is one file per **machine**: a later run in a different repository would read th
 its own. Never skip the key. If a prior artifact exists for this key, merge per the contract's
 re-run semantics rather than overwriting — an operator's `declined` decision must survive a re-audit.
 
+## Routing out
+
+A candidate can raise a question placement does not answer — whether the model still needs the
+instruction, whether it is duplicated, whether the whole file should exist. Those belong to sibling
+plugins, and each route is presence-gated with a documented fallback.
+
+Read [`context/routing-out.md`](context/routing-out.md) when a candidate raises one, for the route
+table and the two rules that keep routing from becoming silent dropping.
+
 ## Reporting honestly
 
 - **Say what was not swept.** The detector's `SKIP` records and `SUMMARY` are the source — report
@@ -165,33 +175,7 @@ re-run semantics rather than overwriting — an operator's `declined` decision m
 
 ## Gotchas
 
-Observed failure modes. Each one produces a proposal that reads as correct and is not.
-
-- **"Move it to `.claude/rules/`" is not a saving on its own.** An unscoped rule loads at launch
-  with the same priority as `.claude/CLAUDE.md`. The reflex to propose a file move because a file
-  is long produces a reorganization billed as a context win. Only `paths:` changes the cost.
-- **A glob that looks obviously right can match zero files.** `**/*.ts` in a repo that vendors its
-  TypeScript, `src/**` in a repo whose source lives in `lib/`. Always run the validator; never
-  reason about match counts from the directory listing in your head.
-- **`over-broad` is not a validation failure, and `zero-match` is not a style nit.** They land in
-  the same output column and mean opposite things: one is a judgment call the operator may
-  legitimately overrule, the other is a rule that can never fire.
-- **A section can be path-local and still be a safety rail.** "Never force-push a shared branch"
-  names a git command and looks like it belongs with the git conventions. Gate 0 keys on
-  consequence, not on subject matter. Ask what breaks when the line is absent at the moment it was
-  needed.
-- **Content about creating files fails path scoping even with a perfect glob.** The trigger is a
-  read. Re-deriving the glob does not help, and the resulting rule looks healthy in every check.
-- **A rule whose body is just `@import` defeats its own scoping.** The import inlines at session
-  start while the rule body defers, so the move reads as a saving and is not one. This is the
-  opposite of a nested `CLAUDE.md`'s import, which does defer — do not generalize between them.
-- **The expanded corpus tier is mostly noise.** Design rationale, tutorials, and ADR narrative all
-  mention conventions without being one. The normative-signal bar exists because promoting an
-  explanation into a rule adds always-loaded cost and teaches nothing.
-- **A promote candidate that duplicates a live human document is a drift seed.** The pointer
-  variant exists for exactly this; reflexively copying the section is the easy wrong answer.
-- **A line range you read rather than took from a `SECTION` record is a guess.** It will look right
-  and excise the wrong text, and the diff lands in a file that steers the agent's behavior.
-- **An empty detector result means "no sections found", which is itself suspicious.** A markdown
-  file with headings that reports none is a detector problem, not a clean file — say so instead of
-  reporting the file as having nothing to move.
+Ten observed failure modes, each producing a finding that survives review by eye: the saving that is
+not a saving, globs that look right and match nothing, safety rails that look path-local, and line
+ranges that were read rather than measured. Read [`context/gotchas.md`](context/gotchas.md) before
+finalizing a finding set.

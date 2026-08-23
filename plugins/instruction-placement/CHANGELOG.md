@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Changed
+
+- **Route-out is operative, not decorative.** The six sibling-plugin boundaries were prose in the
+  README and nothing in the skill. They are now presence-gated Skill-tool invocations with a
+  documented fallback each, owned by
+  [`skills/audit/context/routing-out.md`](skills/audit/context/routing-out.md), plus two rules that
+  keep routing from degrading into silent dropping: a routed candidate is reported *as routed*, and
+  routing one question never cancels a placement finding on the same section — a section can be both
+  misplaced and duplicated.
+
+- **The audit skill practices the disclosure it preaches.** Adding the routing table pushed
+  `SKILL.md` to 224 lines, past the soft target, in a plugin whose entire subject is progressive
+  disclosure. The routing table and the gotchas moved to spokes behind conditioned pointers; the hub
+  is back to 181 lines. `context/gotchas.md` remains a recognized gotchas surface, so the signal is
+  relocated rather than lost.
+
 ## [0.8.0]
 
 ### Added

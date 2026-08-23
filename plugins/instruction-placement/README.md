@@ -107,6 +107,13 @@ The dividing line: those audits ask whether a piece of content is *good*, *neede
 This plugin asks only where it should **live**, and owns the one capability none of them has — the
 validated move, including glob derivation and the index that keeps the result reachable.
 
+These routes are **operative, not decorative**. When a candidate raises one of these questions, the
+audit invokes the named skill via the Skill tool if its plugin is installed, and otherwise keeps the
+observation in the report as an unjudged note. A routed candidate is reported as routed — never
+silently dropped, and never re-classified as a placement finding just because the sibling was
+missing. A section can be both misplaced and duplicated; routing one question does not cancel the
+other finding.
+
 Two rungs of this plugin's own ladder are deliberately report-only. Content that a linter should
 enforce, and content that should become a skill, are routed rather than executed: authoring the
 replacement mechanism is separate work, and deleting an instruction before its replacement exists
