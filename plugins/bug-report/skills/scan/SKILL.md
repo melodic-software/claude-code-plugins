@@ -59,7 +59,7 @@ cursor from rungs 1–3 without it, and never treats a cache note as authority.
 | `<path>` / `<feature>` / `<diff-ish ref>` | **Targeted** | Hunt exactly that scope. No lane rotation, no cursor advance. |
 | `--lane <name>` | **Named lane** | Hunt the named lane's globs. Advances the cursor to that lane. |
 | *(empty)* | **Rotation** | Self-select the next lane via the cursor ladder, then hunt it. |
-| `--track` | **Filing** | After reporting, file verified findings as raw intake (see below). Composable with any mode. |
+| `--track` | **Filing** | After reporting, file verified findings as raw intake (see below), subject to the team's `filing_posture`. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 
 Lane definitions (`lanes`, `filing_posture`) resolve from `.claude/bug-report.md` per the cascade
@@ -77,9 +77,15 @@ Which lane comes next is derived **statelessly**, first rung that answers wins:
    The most recently filed lane is the previous lane; take the next one in declaration order. Confirm
    the search actually ran against a bound tracker before trusting an empty result — an unbound
    tracker returns nothing, which is not the same answer as "no prior scan filings".
-2. **Persisted-report cursor.** Otherwise read the newest report under
-   `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/` and use its cursor metadata block (see
-   [`context/findings-report.md`](context/findings-report.md)) the same way.
+2. **Persisted-report cursor.** Otherwise resolve the report directory by the **same precedence
+   persistence uses** — Step 4 below defers to `/bug-report:write`'s Step 4, and so does this rung;
+   reading a directory reports no longer land in is how a configured `output_dir` silently strands the
+   cursor. Then search **backward from the newest report** for the newest one carrying a *valid*
+   rotation cursor block — one that names the rotation lane (see
+   [`context/findings-report.md`](context/findings-report.md)) — and use it the same way. Reports
+   without such a block are skipped, not read as a cursor: `/bug-report:write`'s reports share that
+   directory and carry none, and a targeted scan's report must never advance rotation. If no report
+   carries one, fall through to rung 3.
 3. **Date-derived floor.** Otherwise pick deterministically: index the declared lane list by
    `(days since 1970-01-01 UTC) mod (lane count)`. Zero state, no history, still rotates daily.
 
@@ -162,8 +168,15 @@ fallback). Do not reinvent either mechanism here. Under `--dry-run`, skip persis
 
 ### Step 5 — `--track` filing (explicit only)
 
-Presence-gated on `work-items`. Follow the dogfood-filing beats by invoking `/work-items:track add` —
-never by pathing into another plugin's files:
+**Posture gate first.** Resolve `filing_posture` from the config cascade — see
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md), whose bundled default is
+`manual-only` when no layer declares it. When it resolves to `manual-only`, file nothing: print one
+notice — "filing skipped: filing_posture is manual-only (<layer, or bundled default>); report-only" —
+and stop at the report, the same degrade shape as an absent `work-items`. Only `allowed` reaches the
+beats below.
+
+Then presence-gated on `work-items`. Follow the dogfood-filing beats by invoking
+`/work-items:track add` — never by pathing into another plugin's files:
 
 1. **Dedupe.** Search items over `--state all` first; sameness is judged by underlying cause, not
    wording. An open match gets a comment instead of a second item; a closed match is reopened or

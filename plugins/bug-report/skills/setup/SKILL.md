@@ -75,11 +75,15 @@ Anchor at the repo root — `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev
    empty-list opt-out, which is reported as an opt-out, not as a broken layer. All layers absent is
    a valid, fully working state: INFO, never FAIL — `/bug-report:scan` falls through to its bundled
    generic default lanes.
-3. **Per-layer version-control verdict.** A present team file must be tracked: run
-   `git check-ignore -v .claude/bug-report.md`; a non-empty result is FAIL, naming the matching
-   pattern — teammates would never receive it. The `.local.md` overlay must be gitignored; staged or
-   unignored is FAIL. The user-global layer sits outside the worktree, so no git verdict applies to
-   it — say so rather than running a command whose answer is meaningless.
+3. **Per-layer version-control verdict.** A present team file must be tracked, which takes **two**
+   probes — not-ignored and actually-tracked. Run `git check-ignore -v .claude/bug-report.md`; a
+   non-empty result is FAIL, naming the matching pattern — teammates would never receive it. Then run
+   `git ls-files --error-unmatch .claude/bug-report.md`; a non-zero exit on a present file is also
+   FAIL — "present but untracked — commit it so teammates receive it". The ignore probe alone cannot
+   see this: an untracked, unignored file returns the same empty output as a healthy tracked one, so
+   `check` would bless a config nobody else ever receives. The `.local.md` overlay must be
+   gitignored; staged or unignored is FAIL. The user-global layer sits outside the worktree, so no git
+   verdict applies to it — say so rather than running a command whose answer is meaningless.
 4. **Unreachable layers.** When a layer cannot be read (the user-global one often is not), WARN that
    it was not considered rather than presenting the rest as the whole effective config.
 5. **Unknown keys.** Report them as inert, naming their layer — including `output_dir`, which is not
@@ -111,8 +115,10 @@ requested here is routed to the native flow in `check` step A4, never written.
    you cannot reconcile. Never overwrite blind, and never rewrite a file you did not first read.
 5. **Verify after writing.** Re-run the `check` B probes against the file on disk: it parses, every
    lane declares `name` and `globs`, the globs match real paths (a lane matching nothing is reported
-   as skipped), and `git check-ignore -v .claude/bug-report.md` confirms it is tracked, not ignored.
-   Report the values you observed, never an unobserved change.
+   as skipped), and `git check-ignore -v .claude/bug-report.md` confirms it is not ignored. A file
+   just scaffolded here is legitimately untracked until it is staged, so
+   `git ls-files --error-unmatch` will not match yet — that is not a FAIL at this point; state the
+   commit obligation instead (step 7). Report the values you observed, never an unobserved change.
 6. **Recommend the overlay line, do not write it.** Personal deviations belong in
    `.claude/bug-report.local.md`; recommend the consumer add the recursive `.gitignore` line the
    reference names if it is not already covered. Their ignore file is their artifact.

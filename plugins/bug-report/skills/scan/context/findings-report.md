@@ -91,8 +91,9 @@ saying the lane produced no verified findings.
 
 ## Cursor metadata block
 
-The last section of every persisted report, and rung 2 of the cursor ladder. Keep the key names and
-the fenced-YAML shape stable — a later run parses this, not the prose.
+The last section of every persisted **rotation-mode** report — a bare invocation or `--lane`, the two
+modes that advance rotation — and rung 2 of the cursor ladder. Keep the key names and the fenced-YAML
+shape stable — a later run parses this, not the prose.
 
 ````markdown
 ## Scan cursor
@@ -115,6 +116,17 @@ lenses-skipped: [<lens ids skipped, with reason in prose above>]
 the zero-state date floor. `--dry-run` writes no report and therefore no cursor block — that is what
 "neither persists nor advances the cursor" means in practice.
 
+**A targeted run omits this section entirely**, and says so in one line where it would have sat:
+
+```markdown
+*No scan cursor — targeted run; rotation not advanced.*
+```
+
+Its `lane`, `lane-index`, and `rung` keys have no rotation meaning, and a later run reading it as a
+cursor would skip a lane. Rung 2 therefore searches backward for the newest report that *does* carry
+this block, skipping targeted-run reports and `/bug-report:write`'s reports — which share the
+directory and never carry one — rather than trusting the newest file blindly.
+
 ## Stdout form
 
 The same document minus the frontmatter, exactly as `/bug-report:write` emits to stdout without
@@ -132,4 +144,5 @@ visible:
 **Cursor**: advanced to <next lane>
 ```
 
-Followed by the refuted tail and the cursor block. Do not pad an empty run with speculative findings.
+Followed by the refuted tail and the cursor block — or, for a targeted run, the no-cursor line above.
+Do not pad an empty run with speculative findings.
