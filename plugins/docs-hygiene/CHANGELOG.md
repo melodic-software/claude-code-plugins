@@ -46,7 +46,7 @@
 
 ### Fixed
 
-Three defects in the bucket design above, surfaced by automated review of the shipping PR
+Four defects in the bucket design above, surfaced by automated review of the shipping PR
 (#3114):
 
 - **`trim-to-citation` is part of the N=2 permitted-remedy set.** The bucket contract and the
@@ -74,6 +74,10 @@ Three defects in the bucket design above, surfaced by automated review of the sh
   the reading-derived canonical-truth roster for semantic ones) and gained a semantic Tier 0
   evidence form; Gate 0's `REFUSE-not-found` fires only when neither grep nor reading resolves
   any instance.
+- **The `batch` per-dispatch verdict enum covers completed non-abstracting remedies.** Step 8's
+  schema offered only `EXTRACTED` / `REFUSED-*` / `DEFERRED`, none of which fits a sub-three
+  bucket that finished its work without creating an artifact; it gains `REMEDIED-{remedy}`, so
+  the schema and the Step 10 batch-summary example agree.
 
 ## [0.18.3]
 

@@ -188,11 +188,16 @@ Each subagent return value contains:
 
 ```yaml
 candidate: <name>
-verdict: EXTRACTED | REFUSED-{reason} | DEFERRED
+verdict: EXTRACTED | REMEDIED-{remedy} | REFUSED-{reason} | DEFERRED
 files-modified: [...]
 new-lessons: [free-form patterns observed]
 sanity-check-evidence: [...]
 ```
+
+`REMEDIED-{remedy}` is the verdict for a completed non-abstracting remedy, `{remedy}` one of
+`trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule` — the outcome a
+sub-three bucket produces, since none of those creates an artifact. `EXTRACTED` remains the N≥3
+artifact-creation outcome.
 
 `new-lessons` is the field where empirical patterns surface for the orchestrator to codify.
 
@@ -227,7 +232,7 @@ batch-size: <N>
 | 1 | C1 | N≥3 | PROCEED | EXTRACTED | 1 | path1, path2 |
 | 2 | C2 | N≥3 | PROCEED | REFUSED-low-roi | 1 | (none) |
 | 3 | C3 | N=1 | REFUSE-already-cites-canonical | (skipped) | (n/a) | (none) |
-| 4 | C4 | N=2 | PROCEED | OWNER-NAMED | 2 | path3, path4 |
+| 4 | C4 | N=2 | PROCEED | REMEDIED-name-an-owner | 2 | path3, path4 |
 | ... | | | | | | |
 
 ## File-overlap matrix
