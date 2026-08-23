@@ -103,6 +103,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   enumeration is cwd-independent, and that a record outlives its directory but is
   reachable from an empty directory recreated at the same path. Claude Code
   **2.1.240**, re-run unchanged on **2.1.241**, Windows.
+
 ## [0.54.16]
 
 ### Changed
