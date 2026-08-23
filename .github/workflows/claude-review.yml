@@ -39,3 +39,39 @@ jobs:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Repo-owned fail-closed supplement for #3147: the reusable workflow stays
+  # green when the session succeeds but the Skill tool cannot load
+  # /review:code-review and the agent substitutes a manual diff review.
+  # This job reads the posted review body (never the job log — #2517) and
+  # reddens that silent degrade so the check row cannot stay unconditionally
+  # green through a broken skill chain.
+  review-skill-evidence:
+    needs: review
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.review.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run claude-review skill-evidence guard tests
+        run: bash scripts/verify-claude-review-skill.sh.test.sh
+      - name: Verify claude-review invoked the skill
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LANE_RESULT: ${{ needs.review.result }}
+          SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
+        run: bash scripts/verify-claude-review-skill.sh
