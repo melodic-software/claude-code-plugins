@@ -3,6 +3,28 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0]
+
+### Added
+
+- **`audit-instructions`: I29 restatement detector, wired to the findings relay
+  (#3186).** Body prose that restates the skill's own always-in-context
+  `description` (I29-a) or a sibling H2 section of the same file (I29-b). The
+  finding keys on a section whose content is *wholly* recoverable — a Purpose
+  that echoes the description and then names a failure mode is silent, and a
+  bolded inline "What this is NOT" sub-block is not a section. The remediation
+  is always "cut the body restatement"; no finding proposes editing a
+  `description`, `when_to_use`, or quoted trigger phrase.
+- **`restatement-scan.py`**, plus fixtures for both sub-shapes, partial overlap,
+  inline fencing, and the quoted-trigger fence.
+
+### Changed
+
+- **`--persist-findings` now emits I28 and I29.** The writer concatenates
+  `instruction-scan.sh --body-only` with `restatement-scan.py` onto one
+  `--from` stream. I29 carries `rule-description-restatement` and
+  `rule-sibling-restatement`, both IMPORTANT.
+
 ## [0.39.4]
 
 ### Fixed

@@ -8,11 +8,13 @@
 # its fetch-and-refuse gate, then hands the resolved path in as --out. This
 # script owns only the deterministic composition.
 #
-# ONLY the two I28 families are emitted. Every other check id instruction-scan.sh
-# marks (I6, I8-a/b/c, I10, I23, I25, I27) has no severity-crosswalk row, and the
-# detector-findings contract admits no row whose tier cannot be looked up from
-# one — those stay in the human report. Rows for them are counted as declined,
-# never silently dropped.
+# ONLY the I28 and I29 families are emitted. Every other check id
+# instruction-scan.sh marks (I6, I8-a/b/c, I10, I23, I25, I27) has no
+# severity-crosswalk row, and the detector-findings contract admits no row
+# whose tier cannot be looked up from one — those stay in the human report.
+# Rows for them are counted as declined, never silently dropped. I29 rows
+# come from restatement-scan.py and are concatenated onto the same --from
+# stream.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
 # docs/conventions/detector-findings/README.md ("The severity crosswalk"); that
@@ -50,12 +52,13 @@ Usage:
 --from is instruction-scan.sh output (`file:line:check-id` rows); run it with
 --body-only. --out is the CONVENTION-RESOLVED destination; if it exists, a
 -2/-3 suffix is appended (non-overwrite naming). --branch defaults to the
-current git branch. --declined-carveout records how many I28 candidates the
+current git branch. --declined-carveout records how many I28/I29 candidates the
 model lane dropped for a criteria carve-out before this script ran, so that
 exclusion is counted in ## Surfaces instead of going unrecorded.
 
-Only I28-a / I28-b rows are emitted (the families carrying severity-crosswalk
-rows); all other check ids are counted as declined and left to the human report.
+Only I28-a / I28-b / I29-a / I29-b rows are emitted (the families carrying
+severity-crosswalk rows); all other check ids are counted as declined and left
+to the human report.
 EOF
 }
 
@@ -179,15 +182,19 @@ LC_ALL=C awk \
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
     if (id == "I28-b") return "claude-config/audit-instructions/rule-blanket-tool-default"
+    if (id == "I29-a") return "claude-config/audit-instructions/rule-description-restatement"
+    if (id == "I29-b") return "claude-config/audit-instructions/rule-sibling-restatement"
     return ""
   }
-  # Tier mirror of the severity crosswalk (see header comment). Both families are
-  # IMPORTANT on the degradation-with-a-named-trigger limb.
+  # Tier mirror of the severity crosswalk (see header comment). I28 and I29
+  # are IMPORTANT on the degradation-with-a-named-trigger limb.
   function rule_tier(id) { return "IMPORTANT" }
   function rule_action(id) {
     if (id == "I28-a")
       return "Downgrade the emphasis, never the directive: restate as normal conditional phrasing (\"Use this tool when ...\"). The directive must survive the edit verbatim, apart from capitalization forced by dropping a leading wrapper; only its volume changes."
-    return "Replace the blanket default with the targeted condition it stood in for (\"Use [tool] when it would ...\"). The condition is the payload; do not delete the instruction."
+    if (id == "I28-b")
+      return "Replace the blanket default with the targeted condition it stood in for (\"Use [tool] when it would ...\"). The condition is the payload; do not delete the instruction."
+    return "Cut the body restatement. Do not edit the description, when_to_use, or any quoted trigger phrase — the always-in-context field stays; only the body copy that restates it is removed."
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
   #
@@ -322,9 +329,13 @@ LC_ALL=C awk \
       for (i = 1; i <= n; i++) if (index(text, pats_a[i]) > 0) return "marker=\"" pats_a[i] "\""
       return "marker=(forced-compliance emphasis)"
     }
-    n = split("default to using|default to running|default to calling|if in doubt, use|if in doubt use|always use|use even when", pats_b, "|")
-    for (i = 1; i <= n; i++) if (index(tolower(text), pats_b[i]) > 0) return "phrase=\"" pats_b[i] "\""
-    return "phrase=(blanket tool default)"
+    if (id == "I28-b") {
+      n = split("default to using|default to running|default to calling|if in doubt, use|if in doubt use|always use|use even when", pats_b, "|")
+      for (i = 1; i <= n; i++) if (index(tolower(text), pats_b[i]) > 0) return "phrase=\"" pats_b[i] "\""
+      return "phrase=(blanket tool default)"
+    }
+    if (id == "I29-a") return "shape=\"description-restatement\""
+    return "shape=\"sibling-section-restatement\""
   }
 
   # A body line that quotes a trigger phrase also present in the description or
@@ -397,6 +408,10 @@ LC_ALL=C awk \
     if (!("I28-a" in seen)) zero = "claude-config/audit-instructions/rule-coercive-emphasis"
     if (!("I28-b" in seen))
       zero = zero (zero == "" ? "" : ", ") "claude-config/audit-instructions/rule-blanket-tool-default"
+    if (!("I29-a" in seen))
+      zero = zero (zero == "" ? "" : ", ") "claude-config/audit-instructions/rule-description-restatement"
+    if (!("I29-b" in seen))
+      zero = zero (zero == "" ? "" : ", ") "claude-config/audit-instructions/rule-sibling-restatement"
     if (zero != "") ran = ran " Returned no result: [" zero "]."
     print ran
     printf "Scan rows read: %d. Emitted: %d.\n", nrows, nemit

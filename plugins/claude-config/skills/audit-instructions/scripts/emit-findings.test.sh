@@ -438,6 +438,34 @@ assert_contains "a pwd-spelled in-repo path is emitted, not declined" "$SPELL_OU
 assert_not_contains "and is not counted as out-of-repo" "$SPELL_OUT" "reason=outside-repo-root"
 assert_not_contains "Location carries no absolute prefix" "$SPELL_OUT" "$SPELL_LINK/doc.md"
 
+# --- Case 14: I29 description-restatement emits, sibling emits, fences hold --
+RESTATE="$TEST_TMPDIR/restate-repo"
+mkdir -p "$RESTATE"
+git -C "$RESTATE" init -q
+# Copy fixtures into the repo so Location is repo-relative.
+cp "$FIXTURES/description-restatement.md" "$RESTATE/desc.md"
+cp "$FIXTURES/sibling-restatement.md" "$RESTATE/sib.md"
+cp "$FIXTURES/quoted-trigger-restatement.md" "$RESTATE/trig.md"
+cp "$FIXTURES/partial-overlap.md" "$RESTATE/partial.md"
+SCANNER="$SCRIPT_DIR/restatement-scan.py"
+python3 "$SCANNER" "$RESTATE/desc.md" "$RESTATE/sib.md" "$RESTATE/trig.md" \
+  "$RESTATE/partial.md" >"$TEST_TMPDIR/i29.txt"
+(cd "$RESTATE" && bash "$EMIT" --from "$TEST_TMPDIR/i29.txt" \
+  --out "$TEST_TMPDIR/i29.md" --branch testbranch >/dev/null 2>&1)
+I29_OUT=$(cat "$TEST_TMPDIR/i29.md")
+assert_contains "description-restatement reaches the findings file" \
+  "$I29_OUT" "rule-description-restatement"
+assert_contains "sibling-restatement reaches the findings file" \
+  "$I29_OUT" "rule-sibling-restatement"
+assert_contains "Action names a body cut, never a description edit" \
+  "$I29_OUT" "Do not edit the description"
+assert_not_contains "Action never proposes editing when_to_use" \
+  "$I29_OUT" "trim the description"
+assert_contains "quoted-trigger restatement is declined, not emitted" \
+  "$I29_OUT" "reason=quoted-trigger-phrase"
+assert_not_contains "partial-overlap is not a finding" \
+  "$I29_OUT" "partial.md"
+
 # --- Summary -----------------------------------------------------------------
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then
