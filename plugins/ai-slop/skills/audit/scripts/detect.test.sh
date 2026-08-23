@@ -467,6 +467,45 @@ EOF
 bash "$EMIT" --from "$SYNTH" --out "$TEST_TMPDIR/findings/synth.md" --branch test-branch >/dev/null 2>&1
 assert_contains "emit: pipe escaped in cell" "$(cat "$TEST_TMPDIR/findings/synth.md")" 'zero\|tolerance'
 
+# A naive gsub double-escapes a pipe the SOURCE already escaped (`a \| b` ->
+# `a \\| b`), which GFM reads as a literal backslash plus a LIVE delimiter.
+# This repo writes literal `\|` in its own tables, so the case is real.
+ALREADY="$TEST_TMPDIR/already-esc.txt"
+cat >"$ALREADY" <<'EOF'
+Finding: rule=ai-slop/audit/rule-em-dash file=doc.md line=1 fired=a\|b excerpt=text
+Summary rule=ai-slop/audit/rule-em-dash findings=1 declined=0 disabled=0
+EOF
+ALREADY_OUT="$TEST_TMPDIR/findings/already-esc.md"
+bash "$EMIT" --from "$ALREADY" --out "$ALREADY_OUT" --branch test-branch >/dev/null 2>&1
+already_row="$(LC_ALL=C grep -m1 '^| 1 ' "$ALREADY_OUT")"
+assert_not_contains "emit: an already-escaped pipe is not double-escaped" "$already_row" '\\\|'
+assert_contains "emit: and survives as a single-escaped literal" "$already_row" 'a\|b'
+already_delims="$(printf '%s' "$already_row" | sed 's/\\|//g' | awk -F'|' '{print NF - 1}')"
+assert_contains "emit: so the row still parses as exactly 7 cells" "delims=$already_delims" "delims=8"
+
+# Repo-root spelling mismatch: git's toplevel and the caller's pwd can name
+# the same directory differently (Git Bash). This producer fails OPEN — a
+# mismatch used to leave Location absolute. A symlink makes pwd and
+# --show-toplevel disagree on Linux too.
+SPELL_REAL="$TEST_TMPDIR/spell-real"
+SPELL_LINK="$TEST_TMPDIR/spell-link"
+mkdir -p "$SPELL_REAL"
+(
+  cd "$SPELL_REAL" || exit 1
+  git init -q .
+  git config user.email t@example.com
+  git config user.name Test
+)
+ln -s "$SPELL_REAL" "$SPELL_LINK"
+printf 'Finding: rule=ai-slop/audit/rule-em-dash file=%s/doc.md line=1 fired=zero excerpt=text\n' "$SPELL_LINK" >"$TEST_TMPDIR/spell.txt"
+printf 'Summary rule=ai-slop/audit/rule-em-dash findings=1 declined=0 disabled=0\n' >>"$TEST_TMPDIR/spell.txt"
+SPELL_OUT="$TEST_TMPDIR/findings/spell.md"
+(cd "$SPELL_LINK" && bash "$EMIT" --from "$TEST_TMPDIR/spell.txt" --out "$SPELL_OUT" --branch test-branch) >/dev/null 2>&1
+spell_body="$(cat "$SPELL_OUT")"
+assert_contains "emit: a pwd-spelled absolute path is relativized" "$spell_body" "| doc.md:1 |"
+assert_not_contains "emit: Location carries no absolute prefix" "$spell_body" "$SPELL_LINK/doc.md"
+assert_not_contains "emit: Location carries no git-toplevel prefix either" "$spell_body" "$SPELL_REAL/doc.md"
+
 # An excerpt that itself contains file=/line= tokens (a doc describing this
 # format) must not spoof the Location cell — first-occurrence parsing.
 SPOOF="$TEST_TMPDIR/spoof.md"
