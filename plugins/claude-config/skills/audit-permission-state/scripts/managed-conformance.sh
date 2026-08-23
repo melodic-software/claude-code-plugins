@@ -92,7 +92,13 @@ $1 == "rule" {
     }
   } else {
     lk = $4 SUBSEP text_of(5)
-    lower[lk] = (lk in lower) ? lower[lk] "," $2 : $2
+    # Guarded by a counter rather than `(lk in lower)`: mawk creates the element
+    # named by an assignment target before evaluating the right-hand side, so
+    # the membership test is already true on the first contributor and the scope
+    # list comes out with a leading empty element ("in scope(s) ,user"). See the
+    # same fix in permission-merge.sh.
+    lower[lk] = (n_lower[lk] > 0) ? lower[lk] "," $2 : $2
+    n_lower[lk]++
   }
   next
 }
