@@ -223,8 +223,11 @@ audit_noise_record_finding() {
 
 audit_noise_print_findings() {
   local file="$1"
+  # nameref to the caller's finding_rows; the string assignment is the name,
+  # not a scalar overwrite of the array.
+  # shellcheck disable=SC2178
   local -n _rows="$2"
-  local row at_line tier shape excerpt marker
+  local at_line tier shape excerpt marker
   ((${#_rows[@]})) || return 0
   while IFS=$'\x1f' read -r at_line tier shape excerpt marker; do
     printf 'File: %s\n' "$file"
@@ -252,6 +255,8 @@ audit_file() {
   local in_ignored_para=0 skip_next=0
   local in_frontmatter=0 in_fence=0
   local fence_char="" fence_len=0
+  # finding_rows is written via nameref in audit_noise_record_finding.
+  # shellcheck disable=SC2034
   local -a shapes=() finding_rows=()
   local shape tier excerpt line heading_text
   local fence_delim fence_dchar fence_dlen

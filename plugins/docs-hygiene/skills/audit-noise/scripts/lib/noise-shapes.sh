@@ -659,13 +659,11 @@ audit_noise_line_ends_sentence() {
 # ("Never commit a secret. Do not use markdown.") would otherwise report the
 # carved-out marker and point review at the guardrail rather than the finding.
 AUDIT_NOISE_FIRED_MARKER=""
-AUDIT_NOISE_FIRED_SENTENCE=""
 
 audit_noise_line_has_negation_without_positive() {
   local sentences=() s lower m
   local mode="${2:-line}"
   AUDIT_NOISE_FIRED_MARKER=""
-  AUDIT_NOISE_FIRED_SENTENCE=""
   # Line-level gate first — cheapest, and genuinely a property of the LINE when
   # the caller has not already accumulated a wrapped sentence. Paragraph mode
   # skips it: a hard-wrapped prohibition with no positive must emit, and the
@@ -691,7 +689,6 @@ audit_noise_line_has_negation_without_positive() {
       fi
     done
     [[ -n "$AUDIT_NOISE_FIRED_MARKER" ]] || AUDIT_NOISE_FIRED_MARKER="dont"
-    AUDIT_NOISE_FIRED_SENTENCE="$s"
     return 0
   done
   return 1

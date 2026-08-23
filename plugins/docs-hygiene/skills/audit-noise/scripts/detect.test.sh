@@ -1226,8 +1226,6 @@ Do not use markdown
 in the summary. Empirically observed later.
 EOF
 order_out="$(bash "$DETECT" "$NEG_ORDER")"
-order_neg_line="$(printf '%s\n' "$order_out" | awk '/Finding shape: negation/{getline; if($1=="Finding" && $2=="line:") print $3}')"
-order_cit_line="$(printf '%s\n' "$order_out" | awk '/Finding shape: citation/{getline; if($1=="Finding" && $2=="line:") print $3}')"
 # The printed order must be negation (line 3) then citation (line 4).
 order_shapes="$(printf '%s\n' "$order_out" | awk '/^Finding shape:/{print $3}')"
 assert_contains "findings print in line-number order" \
