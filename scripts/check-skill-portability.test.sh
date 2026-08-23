@@ -23,7 +23,7 @@ SCRIPT="$SELF_DIR/check-skill-portability.sh"
 # failure. See #2914.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
 }
 REAL_TOKENS="$REPO_ROOT/scripts/skill-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
@@ -161,6 +161,29 @@ else
   fail "malformed active token should exit 2, not silently treat the file as clean"
 fi
 rm -f "$f" "$BAD_TOKENS"
+
+# --- a token list with NO active patterns fails closed (#3161) --------------
+#
+# An all-comments list loads zero patterns, so every file scans clean and awk
+# exits 0 — the gate passing while gating nothing, the #1513 shape.
+# check-shell-portability.sh has refused this since #1513; this scanner did not,
+# and was measured returning exit 0 on a file carrying a real violation. Third
+# instance of the same twin asymmetry.
+EMPTY_TOKENS="$(mktemp)"
+printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
+f="$(tmpfile 'diff against origin/main here')"
+SKILL_PORTABILITY_TOKENS="$EMPTY_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+rc=$?
+# Discriminating control: the SAME file must flag under a real token list, so a
+# green result above cannot come from the fixture being clean.
+scan_paths "$f" >/dev/null 2>&1
+control=$?
+if [[ "$rc" -eq 2 && "$control" -eq 1 ]]; then
+  ok "a token list with no active patterns exits 2 (fail closed, gate never silently disabled)"
+else
+  fail "empty token list should exit 2 (got $rc); control with real tokens should be 1 (got $control)"
+fi
+rm -f "$f" "$EMPTY_TOKENS"
 
 # --- same-line portability-ok annotation passes ----------------------------
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: fixture asserts the hardcode on purpose -->')"

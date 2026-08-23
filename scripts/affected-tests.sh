@@ -126,6 +126,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 
@@ -565,18 +567,15 @@ select_for() {
 
 declare -a NO_SUITE_PATTERNS=()
 load_no_suite_patterns() {
-  local line
   if [[ ! -f "$NO_SUITE_LIST" ]]; then
     echo "error: missing $NO_SUITE_LIST — the no-suite classification cannot be applied," >&2
     echo "       and without it every doc and manifest change would report as unmapped." >&2
     exit 2
   fi
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -n "$line" ]] && NO_SUITE_PATTERNS+=("$line")
-  done <"$NO_SUITE_LIST"
+  # `inline`: these are glob patterns over repo paths, never regexes, so a `#`
+  # anywhere on the line is a comment (scripts/lib/read-list.sh owns the two
+  # comment families and why they must stay distinct).
+  read_list::into NO_SUITE_PATTERNS "$NO_SUITE_LIST" --comments inline || exit 2
   if [[ ${#NO_SUITE_PATTERNS[@]} -eq 0 ]]; then
     echo "error: $NO_SUITE_LIST has no active patterns." >&2
     exit 2

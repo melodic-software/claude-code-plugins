@@ -31,6 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 emit() {
   printf 'docs_only=%s\n' "$1"
@@ -54,8 +56,15 @@ if ! changed_files::verify_base "$BASE"; then
   exit 0
 fi
 
-# Active prefixes: strip inline comments and surrounding blank lines.
-mapfile -t prefixes < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$ALLOWLIST" | grep -v '^$')
+# Active prefixes. `inline` is this file's family: a path prefix never contains a
+# `#`, so a `#` anywhere on the line is a comment. The token lists take the other
+# mode — see scripts/lib/read-list.sh for why the two must stay distinct.
+prefixes=()
+if ! read_list::into prefixes "$ALLOWLIST" --comments inline; then
+  echo "check-docs-only: could not read the allowlist ($ALLOWLIST) — running full suite" >&2
+  emit false
+  exit 0
+fi
 
 if [[ ${#prefixes[@]} -eq 0 ]]; then
   echo "check-docs-only: allowlist has no active entries — running full suite" >&2
