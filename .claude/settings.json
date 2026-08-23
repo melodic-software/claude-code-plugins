@@ -56,6 +56,7 @@
     "go-format@melodic-software": true,
     "guardrails@melodic-software": true,
     "implementation@melodic-software": true,
+    "instruction-placement@melodic-software": true,
     "kindle-dedrm@melodic-software": true,
     "knowledge@melodic-software": true,
     "machine-health@melodic-software": true,
