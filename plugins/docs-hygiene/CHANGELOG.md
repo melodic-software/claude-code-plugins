@@ -28,6 +28,14 @@
   **The cost is stated, not hidden:** a subject-led instruction ("The agent must not emit a bare
   summary") no longer selects. Pinned by an assertion so a future widening cannot pass silently.
 
+- **`emit-findings.sh`'s cell escaping is now idempotent.** A naive `gsub` double-escaped a pipe the
+  source had already escaped — `a \| b` became `a \\| b`, which GFM reads as a literal backslash
+  followed by a **live** delimiter, splitting the row so the fix action misreads it. This repo writes
+  literal `\|` in its own tables, so the case is real rather than theoretical. Already-escaped pipes
+  are parked on a sentinel and restored single-escaped. **Also identified in #3180**, which notes the
+  sibling producers (`ai-slop`, `claude-config:audit-instructions`) carry the same latent defect in
+  their own copies — out of scope here, worth its own sweep.
+
 ## [0.21.0]
 
 ### Added

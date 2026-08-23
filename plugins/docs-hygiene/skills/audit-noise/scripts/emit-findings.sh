@@ -164,7 +164,19 @@ LC_ALL=C awk \
     return "Rewrite to the positive target the prohibition implies (\"Do not use markdown\" -> \"Compose your response as smoothly flowing prose paragraphs\"). Keep a negation only where the positive form genuinely loses the constraint, and then pair it with the positive in the same sentence. The constraint must survive the edit; only its framing changes."
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
-  function esc(s) { gsub(/\|/, "\\|", s); return s }
+  #
+  # IDEMPOTENT. A naive gsub double-escapes a pipe the SOURCE already escaped:
+  # `a \| b` becomes `a \\| b`, which GFM reads as a literal backslash followed
+  # by a LIVE delimiter — the cell splits and the fix action misreads the row.
+  # This repo writes literal `\|` in its own tables, so the case is real rather
+  # than theoretical. Already-escaped pipes are parked on a sentinel first, then
+  # restored single-escaped. (Defect identified in #3180.)
+  function esc(s) {
+    gsub(/\\\|/, "\001", s)
+    gsub(/\|/, "\\|", s)
+    gsub(/\001/, "\\|", s)
+    return s
+  }
 
   # Emit a YAML scalar, quoting ONLY when the plain form would misparse. Git
   # accepts branch names beginning with a YAML indicator: "#foo" reads as a

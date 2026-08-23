@@ -219,6 +219,35 @@ OUT7="$TEST_TMPDIR/out/marker.md"
 (cd "$REPO" && bash "$EMIT" --from "$MARKER_IN" --out "$OUT7") >/dev/null
 assert_contains "the scanner-supplied marker wins over a whole-line scan" "$(cat "$OUT7")" 'prohibition="do not"'
 
+# --- Cell escaping is idempotent --------------------------------------------------------
+
+# A naive gsub double-escapes a pipe the SOURCE already escaped (`a \| b` ->
+# `a \\| b`), which GFM reads as a literal backslash plus a LIVE delimiter: the
+# row splits and the fix action misreads it. This repo writes literal `\|` in
+# its own tables, so the case is real. (Defect identified in #3180.)
+ESCTGT="$REPO/escaped-pipe.md"
+cat >"$ESCTGT" <<'EOF'
+# Escaped-pipe fixture
+
+Do not use the `a \| b` form in a cell.
+EOF
+ESCIN="$TEST_TMPDIR/esc.txt"
+{
+  printf 'File: %s\n' "$ESCTGT"
+  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 3\n'
+  printf 'Finding excerpt: Do not use the a \\| b form in a cell.\n---\n'
+} >"$ESCIN"
+OUT8="$TEST_TMPDIR/out/esc.md"
+(cd "$REPO" && bash "$EMIT" --from "$ESCIN" --out "$OUT8") >/dev/null
+esc_row="$(grep -E '^\| 1 ' "$OUT8")"
+assert_not_contains "an already-escaped pipe is not double-escaped" "$esc_row" '\\\|'
+assert_contains "and survives as a single-escaped literal" "$esc_row" '\|'
+# Count DELIMITERS the way GFM does — after removing escaped pipes, which are
+# content rather than separators. A double-escaped pipe would show up here as an
+# extra delimiter, which is the corruption being guarded against.
+esc_delims="$(printf '%s' "$esc_row" | sed 's/\\|//g' | awk -F'|' '{print NF - 1}')"
+assert_contains "so the row still parses as exactly 7 cells" "delims=$esc_delims" "delims=8"
+
 # --- Counted carve-out -----------------------------------------------------------------
 
 OUT5="$TEST_TMPDIR/out/carve.md"
