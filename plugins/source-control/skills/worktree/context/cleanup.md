@@ -22,7 +22,7 @@ Run `status` logic internally and identify candidates:
 
 | Reason | Detection method |
 |--------|-----------------|
-| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output — **and** `git -C <path> rev-parse --is-inside-work-tree` does not print `true`, because the external root is shared across repositories and another repository's live worktree is absent from this one's list (Step 4b spells this out). Scan every root your project uses — common layouts: (1) `<repo-root>/.worktrees/`; (2) Claude Code's default `<repo-root>/.claude/worktrees/`; (3) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
+| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output — **and** it passes all three qualifying tests in Step 4b (not a work tree, no `.git` entry, empty). Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. Scan every root your project uses — common layouts: (1) the **configured external root** (`melodic.worktreeroot`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
 | **Prunable** | `git worktree list --porcelain` shows `prunable` flag |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
@@ -144,21 +144,46 @@ Four rules govern this step, and each closes a way it could do real harm:
 helper carries its own `--dry-run` for a manual check from inside a worktree; it names what would be
 removed and calls nothing.
 
-**The orphaned-directory candidate takes this step too, behind one extra test.** It is a directory
-this action is destroying, which is the whole trigger — but "on disk, absent from *this* repository's
-`git worktree list`" is not evidence it is dead. The external worktree root is **shared**: `create`
-places worktrees at `<root>/<owner>-<repo>-<slug>`, one root serving every repository on the machine
-(`reference/worktree-root-convention.md`), so a scan of that root turns up other repositories' live
-worktrees, every one of them absent from this repository's list. Before reaping (and before the
-`rm -rf`), require a positive answer to *is this a work tree at all*:
+**The orphaned-directory candidate takes this step too — behind the qualification below, which is
+stricter than anything else in this file.** It is a directory this action is destroying, which is
+the trigger; but it is also the only candidate class with **no stranded-work row to read**. The
+engine enumerates strictly from `git worktree list --porcelain` (see [status.md](status.md) data
+collection), so an unregistered directory produces no row at all, and guard 1's closed-list rule
+covers an unrecognized *value*, never an *absent row*. For this class the qualification below is the
+only gate standing between a live directory and an unrecoverable reap plus `rm -rf`.
+
+**Precondition on the scan itself.** If a configured worktree root does not resolve to a directory
+right now, do not scan it and do not classify anything under it. The volume is detached, and every
+path under it would qualify on identical evidence.
+
+**Three tests, ALL of which must hold.** The first two are negatives and prove nothing on their own;
+the third is the only positive evidence available, and it is what the presentation row's
+"(empty, no git ref)" has always claimed:
 
 ```bash
-git -C <path> rev-parse --is-inside-work-tree 2>/dev/null   # prints `true` → NOT a candidate
+git -C <path> rev-parse --is-inside-work-tree 2>/dev/null   # must NOT print `true`
+test -e "<path>/.git"                                        # must NOT exist (file OR directory)
+find "<path>" -mindepth 1 | head -1                          # must return nothing
 ```
 
-`true` means the directory belongs to some repository — not necessarily this one. Report it as
-another lane's worktree and leave it entirely alone: do not reap, do not remove. Only a directory
-that fails this test is the empty husk the orphaned-directory row is about.
+1. **Not a work tree.** `true` means the directory belongs to some repository — not necessarily this
+   one. The external worktree root is **shared**: `create` places worktrees at
+   `<root>/<owner>-<repo>-<slug>`, one root serving every repository on the machine
+   (`reference/worktree-root-convention.md` for the root; `scripts/worktree-create.sh` for the
+   `<owner>-<repo>-<slug>` naming), so a scan of that root turns up other repositories' live
+   worktrees, every one of them absent from *this* repository's list.
+2. **No `.git` entry. This is the test that actually matters, and test 1 does not imply it.** A live
+   worktree whose main clone has been moved, deleted, or unmounted still carries its `.git` **file**
+   while `rev-parse` fails — so test 1 alone calls another lane's live worktree a husk and destroys
+   it. A `.git` entry present, resolvable or not, disqualifies the candidate outright.
+3. **Empty.** A husk is empty; a worktree is not. Nothing else in this action tests this, and without
+   it "orphaned directory" is an inference from two failures rather than an observation.
+
+A candidate failing any of the three is **not** an orphaned directory. Report it as another lane's
+worktree, or as a directory whose contents nobody has accounted for, and leave it entirely alone:
+do not reap, do not remove. Deriving deadness from the negatives alone is exactly the inference
+[audit.md](audit.md) refuses to make on the same evidence, and the acting path may not be the more
+permissive of the two.
 
 **Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD — the one case where removal makes commits unreachable *immediately*, with no branch ref left holding them — `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean at exactly the moment it matters most. If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 

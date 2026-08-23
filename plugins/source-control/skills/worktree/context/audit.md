@@ -51,14 +51,15 @@ Classify each path into exactly one of four buckets, and never merge them:
 
 | Bucket | Test | Reported as |
 |---|---|---|
-| **live here** | the path is in **this** repository's `git worktree list` | not a finding |
+| **live here** | the path is in **this** repository's `git worktree list` — compare *normalized*: the record spells the path natively (backslashes on Windows) while `git worktree list` prints forward slashes, so unify separators and fold case on Windows, exactly as `scripts/reap-project-plugin-records.sh`'s `norm_path` does | not a finding |
 | **live elsewhere** | the path resolves to a directory **and** `git -C <path> rev-parse --is-inside-work-tree` prints `true` | **not a finding.** Count it and move on |
 | **candidate orphan** | under the resolved worktree root, **and** both tests above failed | reported, with the gated remedy below |
 | **other project records** | not under the resolved worktree root | listed for information only, explicitly labelled *not this plugin's lifecycle*, with **no remedy offered** |
 
 **The `live elsewhere` bucket is not optional, and it is the one an implementation drops.** The
 worktree root is shared: `create` places worktrees at `<root>/<owner>-<repo>-<slug>`, one root
-serving every repository on the machine (`reference/worktree-root-convention.md`). So most paths
+serving every repository on the machine (`reference/worktree-root-convention.md` owns the root key;
+`scripts/worktree-create.sh` owns the `<owner>-<repo>-<slug>` naming). So most paths
 under that root belong to **other repositories' live worktrees**, and "not in *this* repository's
 `git worktree list`" is true of every one of them. Classifying on that test alone would report a
 colleague repository's active worktree as dead and hand it a destructive remedy. The registration
@@ -86,10 +87,16 @@ exists is to recreate it. That is a deliberate act, not something an audit perfo
 # no-op on a live directory and carry straight on into the reap.
 mkdir "<path>" &&
   cd "<path>" &&
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/reap-project-plugin-records.sh" --worktree-path "<path>" --dry-run &&
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/reap-project-plugin-records.sh" --worktree-path "<path>" &&
+  bash "<helper>" --worktree-path "<path>" --dry-run &&
+  bash "<helper>" --worktree-path "<path>" &&
   rm -rf "<path>/.claude" && cd .. && rmdir "<path>"
 ```
+
+**Substitute `<helper>` with the resolved absolute path** to
+`scripts/reap-project-plugin-records.sh` before presenting this — do not emit
+`${CLAUDE_PLUGIN_ROOT}` here. That variable is set for the tooling that runs this skill, not in the
+user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. The `&&`
+chain fails safe, but the remedy would simply never run while appearing to.
 
 Every step is chained with `&&` deliberately. If the reap exits non-zero — some record survived
 (exit 1), or the CLI was unavailable (exit 3) — the directory is **left in place**, because deleting

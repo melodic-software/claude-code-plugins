@@ -37,8 +37,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (`<root>/<owner>-<repo>-<slug>`), so "not in this repository's `git worktree
   list`" is true of every other repository's live worktree under it — a liveness
   test (`git -C <path> rev-parse --is-inside-work-tree`) is required alongside the
-  registration test before anything is called an orphan, and the same test now
-  gates `cleanup`'s orphaned-directory candidate. Read-only: removal needs the
+  registration test before anything is called an orphan. `cleanup`'s
+  orphaned-directory candidate — the only candidate class with no stranded-work
+  row to read, since the engine enumerates from `git worktree list` — is held to
+  a stricter bar still: *not a work tree*, *no `.git` entry*, and *empty*, all
+  three. The middle test is the load-bearing one and the first does not imply it,
+  because a live worktree whose main clone was moved, deleted, or unmounted keeps
+  its `.git` file while `rev-parse` fails. Both surfaces also stop scanning a
+  configured root that does not resolve. Read-only: removal needs the
   directory recreated first, which the audit emits for the user (plain `mkdir`, so
   it fails rather than no-ops on a live directory; every step `&&`-chained so a
   failed reap leaves the directory in place) and never performs.
