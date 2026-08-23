@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.27]
+## [0.11.28]
 
 ### Changed
 
@@ -13,6 +13,24 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   (whole-repo extract-ssot batch, #2698).
 - **README:** deduplicated the hand-written option-scoping preamble against the
   generated options block, which already states both facts (#2698).
+
+## [0.11.27]
+
+### Fixed
+
+- **Trust gate: the escape tier missed every escape but `\uXXXX`, and skipped
+  `.yaml` entirely (#3110).** Tier two exists to catch a declarative config
+  whose raw text can differ from what markdownlint decodes and loads. It
+  enumerated `\uXXXX` for `.jsonc` and `\x`/`\u`/`\U` for `.yaml`, so a module
+  value spelled `".\/rules\/local.cjs"` — JSON's `\/`, which decodes to a plain
+  `/` — passed the tier and earned an approval pinned to the raw spelling
+  rather than the path actually loaded; `.yaml` was never scanned for quoted
+  escapes at all. The test is now any backslash inside a double-quoted scalar,
+  in both grammars: enumerating escapes is the unbounded shape that kept
+  reopening the specifier findings, and the property that matters is only
+  whether the scanned text can differ from the decoded text. The YAML
+  escaped-line-join and `!!` tag tests are unchanged. New `.jsonc` and `.yaml`
+  fixtures cover it, each verified to fail against the previous predicate.
 
 ## [0.11.26]
 

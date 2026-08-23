@@ -3,7 +3,7 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.6]
+## [0.7.7]
 
 ### Changed
 
@@ -11,6 +11,25 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
+
+## [0.7.6]
+
+### Added
+
+- **`generate`: assert the link-skip predicate is wired, not merely truthy (#3110).**
+  Gate 4 hands `shouldSkipLinkCheck` to linkinator's `linksToSkip`, which awaits
+  it. A predicate resolving to something merely truthy, or answering the same way
+  for every input, would make linkinator skip every URL and the validator report
+  success having checked nothing — and no existing test distinguished "checked
+  and passed" from "skipped everything and passed". The suite now asserts strict
+  boolean resolution and that the verdicts differ by input.
+
+### Changed
+
+- **`generate`: the IPv4 registry claim is dated (#3110).** `url-policy.js`
+  described its non-global IPv4 block list as "complete against the registry";
+  IANA can add a row, so the comment now names the date the registry was
+  fetched. Comment only — no behavior change.
 
 ## [0.7.5]
 

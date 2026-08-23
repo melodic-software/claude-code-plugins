@@ -1447,6 +1447,52 @@ else
   fail "literal key suppressed the escape verdict: $OUT_BOTH"
 fi
 rm -f "$ORIGINAL_CONFIG"
+
+# The escape verdict keys on ANY backslash inside a double-quoted scalar, not on
+# an enumerated escape list. JSON defines \/ alongside \uXXXX, and it decodes to
+# a plain "/" — so a module value spelled `.\/rules\/local.cjs` reads one way to
+# this scan and loads another to markdownlint. An enumeration that named only
+# \uXXXX let this spelling through with an approval pinned to the raw text.
+cat >"$ORIGINAL_CONFIG" <<JSONC
+{
+  "config": { "MD013": false },
+  "customRules": [".${BS}/rules${BS}/local.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_SOLIDUS="$(cd "$UNRELATED" && printf '{"session_id":"jsonc-solidus","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_SOLIDUS" | jq -e '.systemMessage | contains("trust gate") and contains("defeat textual verification")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "JSONC \\/ escape in a module value reaches the escape verdict"
+else
+  fail "JSONC \\/ escape escaped the escape verdict: $OUT_SOLIDUS"
+fi
+rm -f "$ORIGINAL_CONFIG"
+
+# The same test applies to .yaml, which the escape tier previously did not scan
+# for quoted escapes at all — only \x/\u/\U, escaped line joins and !! tags. A
+# double-quoted YAML scalar decodes the same repertoire JSON does and more, so a
+# backslash anywhere inside one is the signal, whatever follows it.
+cat >"$REPO/.markdownlint-cli2.yaml" <<YAML
+config:
+  MD013: false
+customRules: [".${BS}/rules${BS}/local.cjs"]
+noBanner: true
+noProgress: true
+YAML
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_YAML_ESC="$(cd "$UNRELATED" && printf '{"session_id":"yaml-quoted-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_YAML_ESC" | jq -e '.systemMessage | contains("trust gate") and contains("defeat textual verification")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "YAML quoted escape in a module value reaches the escape verdict"
+else
+  fail "YAML quoted escape escaped the escape verdict: $OUT_YAML_ESC"
+fi
+rm -f "$REPO/.markdownlint-cli2.yaml"
 rm -rf "$REPO/rules"
 
 # The evasions a loader-proximity pattern cannot see. Each must still refuse

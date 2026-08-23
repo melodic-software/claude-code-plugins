@@ -1,12 +1,46 @@
 # Changelog — docs-hygiene plugin
 
-## [0.19.1]
+## [0.19.2]
 
 ### Changed
 
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
   fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.19.1]
+
+### Fixed
+
+- **`audit-noise` no longer loses files whose paths git treats specially (#3143).**
+  Two defects in `detect.sh`'s `git status --porcelain` parse, both of the
+  silent-false-negative class: a file that should have been audited simply
+  disappeared from the target list.
+
+  The rename split fired on any record whose path contained `" -> "`, not only on
+  a rename, so a file literally named `notes -> draft.md` was reduced to
+  `draft.md` — a name that resolves to nothing. The split is now gated on the
+  status letter in either column (`[RC]`), which is both narrower and complete.
+
+  Separately, the unquote step undid `\"` but not `\\`. Git C-quotes a path for an
+  embedded backslash too, so `back\-slash.md` stayed escaped and resolved to
+  nothing. Both escapes are now undone, `\"` before `\\`.
+
+  Regression cases cover a path containing a literal `" -> "` and a path
+  containing a backslash — a plain path passes either implementation, so neither
+  case is redundant — plus a genuine rename, to show the new gate does not cost
+  the `old -> new` handling it narrows. The suite also picks up the
+  `unset GIT_DIR GIT_WORK_TREE GIT_CONFIG` isolation line that 0.18.3's sweep
+  missed here.
+
+  This lands the same gate and the same two-step unescape that #3140 gave
+  `code-tidying/audit-comment-residue`, so the two porcelain parsers now agree
+  rather than failing in opposite directions on renames.
+
+  Known residual, recorded at the parse site: git's octal escapes (`\NNN`) for
+  control and non-ASCII bytes are still not decoded, so those paths continue to
+  miss. Converging the parse on `git status --porcelain -z` would close the class
+  outright rather than extending the string parse again.
 
 ## [0.19.0]
 
