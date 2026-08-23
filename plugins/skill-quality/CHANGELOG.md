@@ -3,6 +3,16 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.2]
+
+### Changed
+
+- **`check`: `--require-evals` honors recorded warrant skips (#3135).** Check 14
+  still FAILs on a missing `evals/evals.json` for any unlisted skill, but a
+  reviewed row in `scripts/evals-warrant-exemptions.txt` is a durable skip —
+  the warrant policy's explicit skip classes, not a silent absence. The
+  changed-skill CI wrapper consults the same file.
+
 ## [0.19.1]
 
 ### Changed
