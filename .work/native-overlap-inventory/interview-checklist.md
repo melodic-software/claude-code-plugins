@@ -95,3 +95,28 @@ resolved by evidence (claude-ops ships to consumers → skill must be repo-gener
 User mandate for the remainder (unattended authorization): /discovery:explore + /discovery:research,
 then /planning:audit-answers picking recommended, then /planning:plan, then /implementation:implement,
 then PR and MERGE (explicit merge authorization given).
+
+## Audit-answers round 3 (post-discovery, 2026-08-23)
+
+Two fresh validators over the locked Brief vs verified EXPLORE/RESEARCH artifacts. Merged:
+D1/D4/D5/D6/D7/D8 + A2/A3 CONFIRMED. CHALLENGED and resolved per recommendation (user mandate):
+
+- D2: generated doc cannot be SSOT → committed verdict/record store (SSOT, path/format in Q13) +
+  docs/NATIVE-SURFACES.md as generated view; observation records class-tagged
+  (extraction-evidence vs live-roster).
+- D3: "always in context" premise false (fleet 3-16x over listing budget; seeded-pair descriptions
+  render name-only in live session) → "by default, subject to budget"; budget-exposure report
+  section + per-row budget caveat added.
+- D9: offline CI cannot decide event-trigger firing → deterministic scope narrowed (presence,
+  well-formedness, parity both directions, locally decidable comparisons); trigger-fired
+  evaluation is the audit skill's session act.
+- A1: integrity block does not guard emitter key names → consumer schema==1 + presence-check
+  requirement.
+- New D10: foreign-repo posture (configurable paths, report-only degradation, CI wiring
+  this-repo-only).
+- AC2/AC3/AC5/AC6 amended (skill-level pair granularity + source-class field, initial verdict
+  session in-build, narrowed self-check scope + Q15, apply demo on claude-ops-internal component +
+  direction-sensitive parity, sweep contract written-not-executed).
+- Out-of-scope: keep-set behavior quarantined pending live probe. New Q15 (exit-3 policy +
+  VALIDATED_AGAINST bump scope, arbiter /planning:plan).
+Q14 passed through untouched (USER-RESERVED).
