@@ -99,7 +99,10 @@ memorised inventory. Ask the operator (or take from arguments) which to measure:
   ```
 
 - The **full sweep** (`--tools from-baseline`) prices every live tool; warn that it is one run per
-  tool and let the operator opt in.
+  tool and let the operator opt in. Interactive-only tools never appear in that live list —
+  Artifact, SendUserFile, AskUserQuestion, plan-mode tools, interactive-only MCP servers. The
+  attribution record's `knownUncovered` names them; the report lists each as known-uncovered,
+  never as absent. That category is distinct from unmeasured-but-candidate.
 
 Report the ranked `perTool` table with the binary stamp, and each row's `comparable` flag: a row
 the engine marked incomparable (skill listing shifted, version changed mid-run) is reported as

@@ -27,8 +27,15 @@ mode; the displayed fraction in cli-parse mode).
 4. **Ranked per-tool attribution.** From the attribution record: one row per measured tool —
    `savedTokens`, split into `prefixDelta` / `deferredDelta`, with the `comparable` flag. Rows
    the engine marked incomparable appear with their reason instead of their numbers. If the
-   additivity check ran, state its verdict in one line. Unmeasured tools are listed as
-   unmeasured, not omitted — silence reads as "measured zero".
+   additivity check ran, state its verdict in one line. Unmeasured tools (candidates this run
+   that were not priced) are listed as unmeasured, not omitted — silence reads as "measured
+   zero". Tools that exist only in an interactive session — Artifact, SendUserFile,
+   AskUserQuestion, plan-mode tools, interactive-only MCP servers — are listed as
+   **known-uncovered**, a distinct category from unmeasured-but-candidate: they were never
+   candidates in this headless sweep. The names come from the attribution record's
+   `knownUncovered.tools` (product-level surfaces) plus `knownUncovered.notes` (the
+   interactive-only MCP class). A name that appeared in this run's candidate list is not
+   repeated as known-uncovered.
 5. **Lever findings.** One entry per applicable catalogue lever
    ([`levers.json`](levers.json)): current detected state, honesty category (with the condition's
    measured resolution where the row has one), the measured or measurable delta, the exact
@@ -43,10 +50,10 @@ mode; the displayed fraction in cli-parse mode).
 
 ## Rules
 
-- **Nothing appears that was not measured this audit** (or explicitly labeled as unmeasured /
-  a route-out). No figure from documentation, training data, this plugin's own development
-  history, or a previous audit enters the report body; previous audits live in the ledger
-  section, labeled with their own stamps.
+- **Nothing appears that was not measured this audit** (or explicitly labeled as unmeasured,
+  known-uncovered, or a route-out). No figure from documentation, training data, this plugin's
+  own development history, or a previous audit enters the report body; previous audits live in
+  the ledger section, labeled with their own stamps.
 - **Zeros are findings.** A lever that measured zero is reported with its zero and the category
   that explains it.
 - **Precision is carried, not dropped.** `display-rounded` numbers are presented as approximate
