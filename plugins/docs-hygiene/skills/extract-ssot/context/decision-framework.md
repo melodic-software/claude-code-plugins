@@ -32,7 +32,7 @@ of files.
 | Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
 |---|---|---|---|
 | **N=1** — one consumer inlines a recap of an SSOT that already exists | always | `trim-to-citation`, `normalize-wording` | never |
-| **N=2** — two files assert the same contract, neither is the declared owner | always | `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
+| **N=2** — two consumers recap a canonical home that already exists (trim both to citations), or two files assert the same contract and neither is the declared owner (name one) | always | `trim-to-citation`, `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
 | **N≥3** — Rule of Three met | always | all of the above, plus `rule-file` / `new-skill` / `new-action` | only when ALL six tests below pass |
 
 **Lowering the reporting threshold does not lower the abstraction threshold.** The sub-three buckets

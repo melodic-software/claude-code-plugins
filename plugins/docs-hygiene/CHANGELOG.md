@@ -44,6 +44,35 @@
   `two-instances-bucketed-no-new-artifact` and asserts both halves — the candidate is
   rostered, and no new artifact is proposed below three.
 
+### Fixed
+
+Three defects in the bucket design above, surfaced by automated review of the shipping PR
+(#3114):
+
+- **`trim-to-citation` is part of the N=2 permitted-remedy set.** The bucket contract and the
+  `verify` permitted-remedies schema had listed only `edit-existing-rule` / `name-an-owner` /
+  `normalize-wording`, none of which removes two redundant recaps when the canonical home
+  already exists and is complete — even though the routing rules already prescribed
+  `trim-to-citation` for that case. N=2 is now described as the two shapes it actually covers:
+  two consumers recapping an existing home (trim both to citations), or two files asserting one
+  contract with no declared owner (name one). `REFUSE-rule-of-three-fails` is now stated
+  positively — it fires only against `rule-file` / `new-skill` / `new-action` below N≥3 —
+  instead of enumerating the remedies it spares, which is what let the set drift incomplete.
+- **Sibling routing thresholds match the new entry point.** `/docs-hygiene:compress`,
+  `/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`, and
+  `/docs-hygiene:write-for-agents` each routed cross-file duplication to
+  `/docs-hygiene:extract-ssot` only at 3+ files, so the sub-three buckets were unreachable from
+  the flows that feed them. They now route repeated content at any multiplicity; creating a NEW
+  artifact still waits for the third instance.
+- **`verify` Gate 1 counts semantic clusters by reading, not phrase grep.** A paraphrase cluster
+  (`identify` forms c2/i) shares no verbatim ≥8-word phrase, so a phrase grep found only the
+  file the phrase was lifted from — assigning a real N=2/N≥3 cluster to N=1 and, with no prior
+  canonical, returning `REFUSE-not-found`, after which the mandatory `batch` verify filter
+  dropped the candidate. Gate 1 now counts by evidence shape (phrase grep for literal clusters,
+  the reading-derived canonical-truth roster for semantic ones) and gained a semantic Tier 0
+  evidence form; Gate 0's `REFUSE-not-found` fires only when neither grep nor reading resolves
+  any instance.
+
 ## [0.18.3]
 
 ### Changed

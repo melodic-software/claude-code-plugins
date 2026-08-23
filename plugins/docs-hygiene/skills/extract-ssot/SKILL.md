@@ -132,7 +132,7 @@ Headline gate: **Rule of Three** (Don Roberts / Fowler) — refuse *creation of 
 | Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
 |---|---|---|---|
 | N=1 — inline recap of an existing SSOT | always | `trim-to-citation`, `normalize-wording` | never |
-| N=2 — source-of-truth bifurcation risk | always | `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
+| N=2 — two consumers recap an existing home, or two files assert one contract with no declared owner (bifurcation risk) | always | `trim-to-citation`, `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
 | N≥3 — Rule of Three met | always | all of the above, plus `rule-file` / `new-skill` / `new-action` | only behind the 6-test gate |
 
 Lowering the reporting threshold does not lower the abstraction threshold: the sub-three buckets offer only remedies that edit files already present. Full rationale: `context/decision-framework.md` "Reporting gate vs abstraction gate".

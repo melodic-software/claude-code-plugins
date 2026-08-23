@@ -49,7 +49,7 @@ section-header count.
 | Bucket | What it means | Permitted `Suggested output` | Creates a new artifact? |
 |---|---|---|---|
 | **N=1** | An inline recap of an SSOT that ALREADY EXISTS — one consumer restates the canonical instead of citing it | `trim-to-citation`, `normalize-wording` | never |
-| **N=2** | Source-of-truth bifurcation risk — two files assert the same contract and neither is the declared owner, so they drift | `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
+| **N=2** | Two shapes: two consumers recap a canonical home that already exists (remedy: trim both to citations), OR two files assert the same contract and neither is the declared owner, so they drift — bifurcation risk (remedy: name-an-owner) | `trim-to-citation`, `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
 | **N≥3** | Rule of Three met | all of the above, plus `rule-file` / `new-skill` / `new-action` | only behind the 6-test gate (`context/decision-framework.md`) |
 
 **The N=1 bucket is NOT "report every paragraph".** A lone paragraph with no existing canonical
@@ -347,8 +347,8 @@ reads as "nothing found there".
 ### LOW ROI / advisory
 <bulleted list>
 
-## Bucket N=2 — source-of-truth bifurcation risk (no new artifact)
-<table: # | cluster | bucket | instances | the two files | declared owner? | suggested output (edit-existing-rule | name-an-owner | normalize-wording) | ROI>
+## Bucket N=2 — recap pair or source-of-truth bifurcation risk (no new artifact)
+<table: # | cluster | bucket | instances | the two files | declared owner? | suggested output (trim-to-citation | edit-existing-rule | name-an-owner | normalize-wording) | ROI>
 
 ## Bucket N=1 — inline recap of an existing SSOT (no new artifact)
 <table: # | cluster | bucket | instances | recapping file | canonical home | suggested output (trim-to-citation | normalize-wording) | ROI>

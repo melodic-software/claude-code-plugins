@@ -79,6 +79,8 @@ If the batch fails the verify-gate (≥80% candidates REFUSE), abort the batch a
 
 Each verdict carries the bucket `verify` Gate 1 assigned. A sub-three bucket is not a refusal — an
 N=1 or N=2 candidate PROCEEDs with its non-abstracting remedies and stays in the dispatch list.
+A semantic candidate (`identify` forms c2/i) is counted by `verify` Gate 1's reading-derived roster,
+not by phrase grep, so this filter must not drop it as `REFUSE-not-found` on a one-file grep hit.
 
 ```yaml
 candidate: <name>
