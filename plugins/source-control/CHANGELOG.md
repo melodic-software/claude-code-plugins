@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.2]
+
+### Fixed
+
+- **`worktree` skill:** the orphaned-directory normalization in `cleanup` Step 4b now shows the
+  rule as executable code instead of half of it as a comment. The snippet was
+  `path="${path%/}"` plus a comment saying to run it "again for a Windows-style trailing
+  backslash" — but Step 4b is prose an agent executes literally, so the backslash half never ran,
+  and one `%/` pass also strips only a single separator. A trailing `\` (the common
+  Explorer/`dir`-pasted form on the platform the original measurement came from) or a doubled
+  separator therefore still defeated the `test -L` symlink disqualifier this normalization
+  exists to protect. The snippet is now a loop that strips both separator styles until none
+  remain, `audit`'s "check it the way `cleanup` does" pointer carries the same snippet instead
+  of prose only, and `reap-project-plugin-records.test.sh` pins the expression for trailing
+  backslash and doubled separators as a pure string case that runs even where the symlink
+  fixture must skip ([#3163](https://github.com/melodic-software/claude-code-plugins/issues/3163);
+  the unshipped remainder of the final security-review finding on
+  [#3116](https://github.com/melodic-software/claude-code-plugins/pull/3116)).
+
 ## [0.55.1]
 
 ### Fixed

@@ -169,8 +169,14 @@ A candidate string carrying one trailing character therefore looks like an empty
 sails into `rm -rf`. Pinned by `scripts/reap-project-plugin-records.test.sh`.
 
 ```bash
-path="${path%/}"        # and again for a Windows-style trailing backslash
+while [[ "$path" == */ || "$path" == *'\' ]]; do
+  path="${path%?}"      # one separator per pass, either style — loop until none remain
+done
 ```
+
+The loop is the rule rendered as code: `${path%/}` alone strips **one forward slash**, leaving a
+Windows-pasted trailing backslash — the common form on the platform the measurement above came
+from — or a doubled separator in place, and either survivor re-opens the bypass.
 
 **Four tests, ALL of which must hold**, against that normalized `<path>`. The first three are
 negatives and prove nothing on their own; the last is the only positive evidence available, and it is

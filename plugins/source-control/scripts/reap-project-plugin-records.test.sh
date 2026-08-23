@@ -309,5 +309,17 @@ else
   skip_case "no real symlink on this platform — the trailing-separator rule is unpinned here"
 fi
 
+# The documented normalization must strip BOTH separator styles, and EVERY
+# occurrence: `${path%/}` alone strips one forward slash, leaving a
+# Windows-pasted trailing backslash (the common form on the platform the
+# measurement came from) or a doubled separator in place — and either survivor
+# re-opens the symlink bypass above. Pure string manipulation, so it is pinned
+# even where the symlink fixture must skip.
+for raw in "x/link\\" "x/link//" "x/link\\\\" "x/link/\\"; do
+  path="$raw"
+  while [[ "$path" == */ || "$path" == *\\ ]]; do path="${path%?}"; done
+  assert_eq "normalization strips every trailing separator from ${raw}" "x/link" "$path"
+done
+
 [[ $FAILED -eq 0 ]] || exit 1
 printf '\nAll %d cases passed.\n' "$CASE_NUM"

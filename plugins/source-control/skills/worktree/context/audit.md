@@ -83,7 +83,14 @@ So before confirming a row, check it the way `cleanup` does — **strip every tr
 the path first**, then: not a symlink, no `.git` entry, empty. The normalization is load-bearing, not
 cosmetic: `test -L "<path>/"` resolves through the link and answers about its target, so one trailing
 character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4b carries the
-measurement). Require the user to confirm each path individually before anything is run.
+measurement). Strip it the way `cleanup` does — both separator styles, every occurrence, never a
+single `${path%/}` pass:
+
+```bash
+while [[ "$path" == */ || "$path" == *'\' ]]; do path="${path%?}"; done
+```
+
+Require the user to confirm each path individually before anything is run.
 
 **The remedy, emitted for the user to run, never inline.** Removing a record requires standing in
 the directory it names (`-s project` has no path flag), so the only route to a path that no longer
