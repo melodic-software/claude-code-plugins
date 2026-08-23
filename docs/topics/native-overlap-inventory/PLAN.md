@@ -181,7 +181,7 @@ Deferred-decision resolutions (arbiter /planning:plan, evidence in `.work/native
 
 Contracts (store schema, pairs schema, exit codes, substrates): `design/design-resolution.md`.
 
-### Phase 1: Native-references convention doc [TODO]
+### Phase 1: Native-references convention doc [DONE]
 
 Create `docs/conventions/native-references/README.md` — the owner doc for native-surface
 reference phrasing: the presence-gated description-phrase grammar ("when the bundled X skill
@@ -196,7 +196,7 @@ table (one-owner rule).
 **Sanity Check:** `test -f docs/conventions/native-references/README.md` exits 0; `grep -c
 "native-references" docs/PLUGIN-PHILOSOPHY.md` ≥ 1; `markdownlint-cli2` clean on the new doc.
 
-### Phase 2: Skill skeleton + seeded pairs + evals [TODO]
+### Phase 2: Skill skeleton + seeded pairs + evals [DONE]
 
 Create `plugins/claude-ops/skills/audit-native-overlap/`:
 
@@ -231,7 +231,7 @@ plugins/skill-quality/scripts/check-skill.sh --require-evals audit-native-overla
 `python3 -c "import json;json.load(open('plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json'))"`
 exits 0.
 
-### Phase 3: Scripts — detection, generation, self-check [TODO]
+### Phase 3: Scripts — detection, generation, self-check [DONE]
 
 Create `plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py` (Python 3.11+,
 stdlib-only), subcommands:
@@ -260,7 +260,7 @@ stdlib-only), subcommands:
 `bash plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.test.sh` exits 0;
 `bash scripts/check-skill-portability.sh --paths <the new skill's files>` exits 0.
 
-### Phase 4: Store seed + generated registry [TODO]
+### Phase 4: Store seed + generated registry [DONE]
 
 Create `docs/native-surfaces/records.json` with the seeded rows: every row carries a
 recommended verdict + reason (initial verdict session — recommendations surfaced for the human
@@ -274,7 +274,7 @@ and `baked` flags all false except the Phase 5 demo row. Generate `docs/NATIVE-S
 **Sanity Check:** `overlap.py self-check …` exits 0 (no trigger-less rows, view in sync);
 `overlap.py generate --check` exits 0.
 
-### Phase 5: Apply demo on claude-ops-internal component [TODO]
+### Phase 5: Apply demo on claude-ops-internal component [DONE]
 
 Run the apply step for one approved-recommended row: bundled `doctor` skill vs
 `claude-ops:audit-install-state` (verdict: complementary — bundled `/doctor` is the quick native
@@ -292,7 +292,7 @@ description contains the presence-gate token ("resolves in your session");
 `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/claude-ops/skills" bash
 plugins/skill-quality/scripts/check-skill.sh audit-install-state` exits 0.
 
-### Phase 6: CI wiring + plugin bump + coupled edits [TODO]
+### Phase 6: CI wiring + plugin bump + coupled edits [DONE]
 
 - Wire `overlap.py self-check` + `generate --check` into `scripts/validate-plugins.sh`
   (fail on exit 1; on exit 3 print summary and pass — Q15 policy, with a comment stating it).
