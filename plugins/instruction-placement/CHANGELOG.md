@@ -3,6 +3,20 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Changed
+
+- **Eval fixtures replace narration.** Four of the audit's six cases were graded against a described
+  situation rather than real content, which grades the description as much as the skill. They now
+  run against two committed fixtures: a bloated `AGENTS.md` carrying the full spread the rubric has
+  to separate — safety rails, path-local conventions, a creation-governing checklist, a derivable
+  directory listing — and a contributor guide with genuine conventions buried among history, setup
+  prose, and release process, which is the promote lane's actual discrimination problem.
+
+  The two remaining cases keep `narration: true` honestly: both describe repository state (a repo
+  with no Rust files; a bare invocation's coverage report) that no single fixture file can express.
+
 ## [0.7.0]
 
 ### Added

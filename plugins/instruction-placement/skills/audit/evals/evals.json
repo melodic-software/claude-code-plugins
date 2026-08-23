@@ -4,10 +4,9 @@
     {
       "id": 1,
       "name": "unscoped-rule-move-is-not-a-saving",
-      "prompt": "/instruction-placement:audit — my CLAUDE.md is 400 lines. Just move the big sections into .claude/rules/ so it gets shorter.",
+      "prompt": "/instruction-placement:audit — this AGENTS.md is too long. Just move the big sections into .claude/rules/ so it gets shorter.",
+      "files": ["evals/fixtures/bloated-agents.md"],
       "expected_output": "Corrects the premise before acting on it: a rule without `paths:` frontmatter loads at launch with the same priority as `.claude/CLAUDE.md`, so relocating a section into `.claude/rules/` without a glob moves the cost rather than removing it. The audit then does the real work — segmenting the file into candidates and deriving a validated `paths:` glob for each one whose scope is genuinely narrower than the repository. Sections with no derivable scope are reported as staying put with compression suggested in place, not relocated into an unscoped rule to make the line count look better.",
-      "files": [],
-      "narration": true,
       "expectations": [
         "States that an unscoped rule costs the same as CLAUDE.md and that the glob is what produces the saving",
         "Proposes path-scoped destinations with concrete `paths:` globs, not bare file relocations",
@@ -18,9 +17,9 @@
     {
       "id": 2,
       "name": "safety-rail-is-held-back-not-proposed",
-      "prompt": "/instruction-placement:audit — our CLAUDE.md has a section 'Git safety' that says never force-push a shared branch and never run reset --hard on main. That's clearly git-specific, make it a path-scoped rule.",
+      "prompt": "/instruction-placement:audit — the 'Git safety' section in this AGENTS.md is clearly git-specific. Make it a path-scoped rule.",
+      "files": ["evals/fixtures/bloated-agents.md"],
       "expected_output": "Declines to propose the move and says why in terms of consequence rather than phrasing. The section is an irreversible-action safety rail: demotion trades guaranteed presence for conditional presence, and deferred surfaces are invisible inside subagents and absent after compaction until re-triggered, so the one moment the rail is needed is a moment it may not be loaded. It appears in the held-back section with its class and location and no destination. The response notes that 'git-specific' is not a scope in the glob sense either — the rail governs an action, not a set of files — and offers compression in place if the section is genuinely bloating the file.",
-      "files": [],
       "expectations": [
         "Classifies the content as a hard-deny safety class and reports it as held back",
         "Assigns it no destination and no glob",
@@ -31,7 +30,8 @@
     {
       "id": 3,
       "name": "zero-match-glob-is-never-proposed",
-      "prompt": "/instruction-placement:audit — we have a section about Rust module conventions in CLAUDE.md. Propose a rule for it.",
+      "prompt": "/instruction-placement:audit — we have a section about Rust module conventions in CLAUDE.md. Propose a rule for it. (The repository contains no Rust source files.)",
+      "narration": true,
       "expected_output": "Derives a candidate glob for the Rust content and validates it mechanically before proposing anything. In a repository with no tracked `.rs` files the glob comes back zero-match, and a zero-match rule is one that never fires — silently, with no warning from Claude Code — which is strictly worse than leaving the content where it is. The finding is therefore not proposed as a path-scoped move. The response reports the validation result and treats the mismatch as information in its own right: instructions describing code that is not in the repository are stale, and the useful question is whether the section should be retired rather than relocated.",
       "files": [],
       "expectations": [
@@ -44,9 +44,9 @@
     {
       "id": 4,
       "name": "promote-lane-resolves-single-source-of-truth",
-      "prompt": "/instruction-placement:audit — check our docs folder too, there's a lot of convention material in there.",
+      "prompt": "/instruction-placement:audit — check this contributor guide too, there's convention material buried in it.",
+      "files": ["evals/fixtures/contributing-with-conventions.md"],
       "expected_output": "Sweeps the expanded corpus tier and surfaces normative content that Claude currently loads never — so the compaction and subagent trades do not apply and any working destination is a strict improvement. For each promote candidate it resolves duplication rather than reflexively copying: a section that exists to be read by humans becomes a short path-scoped pointer to the document, while a section that is agent-facing and would not be missed is moved with a pointer left behind. Content already duplicated across several documents is reported and routed out rather than resolved here, because picking a winner among existing copies is a deduplication decision, not a placement one.",
-      "files": [],
       "expectations": [
         "Distinguishes normative content from tutorial, rationale, and historical prose",
         "Notes that promote candidates carry no presence to lose",
@@ -58,6 +58,7 @@
       "id": 5,
       "name": "reports-what-it-did-not-sweep",
       "prompt": "/instruction-placement:audit",
+      "narration": true,
       "expected_output": "Runs the core tier in full and the expanded tier in priority order, then reports the coverage it actually achieved: files swept, files skipped, and why. Any bound applied to the expanded tier is named rather than left implicit, because a run that covered a fraction of a large repository while reading like a full audit is the failure this reporting rule exists to prevent. The held-back list is shown alongside the findings so an operator can distinguish a careful sweep from a shallow one. A repository whose instructions are already well-placed is told exactly that, rather than handed marginal proposals to justify the run.",
       "files": [],
       "expectations": [
@@ -70,9 +71,9 @@
     {
       "id": 6,
       "name": "creation-governing-content-is-denied-path-scoping",
-      "prompt": "/instruction-placement:audit — there's a section saying every new React component must ship with a story file and a test. Scope it to **/*.tsx.",
+      "prompt": "/instruction-placement:audit — the 'New service checklist' section here says what every new service must ship with. Scope it to services/**.",
+      "files": ["evals/fixtures/bloated-agents.md"],
       "expected_output": "Recognizes the structural problem with the requested destination: path-scoped rules trigger when Claude reads a matching file, and creating a new file is not a read, so a rule about how new components are made would not fire in the exact case it exists for. The glob is not the issue and re-deriving it would not help. The candidate is routed to a subtree destination — a nested AGENTS.md with its CLAUDE.md shim in the components directory — or reported as staying put, with the read-versus-write trigger stated as the reason rather than left as an unexplained refusal.",
-      "files": [],
       "expectations": [
         "Identifies the content as creation-governing",
         "Explains that the path-scoping trigger is a read, not a write or a create",
