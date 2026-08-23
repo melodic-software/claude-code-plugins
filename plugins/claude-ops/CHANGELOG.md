@@ -76,6 +76,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fan-out section, because asserting that the audit runs is not the same as asserting that it
   sees the layer.
 
+## [0.37.5]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 8).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  Fenced report and protocol templates keep their original punctuation. Review follow-up
+  restored sentence-initial capitals after period splits and reconnected the lanes
+  refresh fallback prohibition to its `context/refresh.md` subject.
+
 ## [0.37.4]
 
 ### Fixed

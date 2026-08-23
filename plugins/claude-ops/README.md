@@ -1,7 +1,7 @@
 # claude-ops
 
-A Claude Code plugin for running Claude Code well over time — one cohesive
-capability across twelve skills and a family of telemetry-emitter hooks — including diagnosing why
+A Claude Code plugin for running Claude Code well over time. One cohesive
+capability across twelve skills and a family of telemetry-emitter hooks, including diagnosing why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
 repo's own components so a custom skill never silently duplicates what the
@@ -23,42 +23,41 @@ Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
-| `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill — the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest — Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
-| `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory — the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (entries labelled as an authored surface or a rolled-up bulk tree, with the complete per-file rows in a CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
-| `/claude-ops:audit-native-overlap` | Maps native Claude Code surfaces — built-in CLI commands, bundled skills, plugin-backed built-ins, session-provided skills — against the current repo's plugin skills and agents. Bare invocation is a read-only overlap report (candidates with evidence, detection integrity floors carried through, and a shared-listing-budget exposure section); verdicts (`prefer-native` / `prefer-ours` / `complementary` / `superseded` / `defer`) are human-gated in a committed store (`docs/native-surfaces/records.json`) rendered into a generated registry (`docs/NATIVE-SURFACES.md`) whose every row carries an observable recheck trigger; only an explicit `apply` step bakes presence-gated native references into component descriptions and Boundary sections. |
+| `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill, the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest. Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
+| `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory, the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (entries labelled as an authored surface or a rolled-up bulk tree, with the complete per-file rows in a CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
+| `/claude-ops:audit-native-overlap` | Maps native Claude Code surfaces, built-in CLI commands, bundled skills, plugin-backed built-ins, session-provided skills, against the current repo's plugin skills and agents. Bare invocation is a read-only overlap report (candidates with evidence, detection integrity floors carried through, and a shared-listing-budget exposure section); verdicts (`prefer-native` / `prefer-ours` / `complementary` / `superseded` / `defer`) are human-gated in a committed store (`docs/native-surfaces/records.json`) rendered into a generated registry (`docs/NATIVE-SURFACES.md`) whose every row carries an observable recheck trigger; only an explicit `apply` step bakes presence-gated native references into component descriptions and Boundary sections. |
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow, before restarting or deleting anything. One timed engine pass separates the four documented suspects: accumulated install-tree state (retention-sweep health including the silent unparsable-`settings.json` pause, plus a timed stat-walk whose duration approximates the product's own daily sweep cost), version regression (CLI version against a bundled known-performance-issues reference), component bloat (fleet and process censuses, verdict routed to `/claude-ops:plugins audit`), and the fan-out layer (a load-labelled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn with its invocation shape, the configured statusline, subagent concurrency and spawn-depth ceilings against documented defaults, whether running sessions predate the settings file, and orphan attribution by parent liveness rather than age). Phase timings are first-class evidence; content reads are allowlisted to four non-secret config files (`settings.json`, `.last-cleanup`, `hooks.json`, `installed_plugins.json`), so `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates, and never executes a discovered hook or statusline command. |
-| `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
+| `/claude-ops:observability` | Reads locally captured Claude Code telemetry, OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage, and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
-| `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json` — previews and confirms per plugin first). |
+| `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`priority: needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
-| `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane>`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer — it reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes.json`); prompt storage is session-local `.work` today and composes with #480 for a durable home. |
+| `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane>`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes.json`); prompt storage is session-local `.work` today and composes with #480 for a durable home. |
 | `/claude-ops:setup` | `check` (default) reports the effective known-issues-registry and skill-usage-log destinations, their defaults, and path containment; `apply` routes personal option changes through Claude Code's plugin configuration prompt. |
 
 ## The audit hooks
 
-Eight advisory `*-audit` hooks (across nine hook scripts —
-`skill-usage-audit` has two producers, see below) emit the marketplace
-[hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md) — one
+Eight advisory `*-audit` hooks (across nine hook scripts. `skill-usage-audit` has two producers, see below) emit the marketplace
+[hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md). One
 JSON event per run carrying that hook's own `duration_ms`, outcome, and a
 privacy-safe subject. Each is independently toggleable via its own `userConfig`
 boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
 The six pure emitters are a no-op until a consumer wires a sink (below);
-`skill-usage-audit` is one exception — both its producers also write the shared
+`skill-usage-audit` is one exception. Both its producers also write the shared
 `skill-usage.jsonl` second store unconditionally (disable the whole feature with
 `skill_usage_audit_enabled=false`; pick the store's home with `skill_usage_scope`
 and `skill_usage_dir`). In the default repo scope the store dir is kept out of
 `git status` via an idempotent machine-local `.git/info/exclude` entry
 (`skill_usage_git_exclude=false` opts out for teams that commit the telemetry).
-`hook-failure-audit` is the other exception — its user-facing `systemMessage`
+`hook-failure-audit` is the other exception. Its user-facing `systemMessage`
 warning fires regardless of sink wiring (only its envelope needs a sink),
 because its whole subject is failures nothing else surfaces: a hook that fails
 to launch is a non-blocking error, the guarded tool call proceeds as if
 approved, and the only durable trace is a transcript attachment no human reads
 (#2577). It runs once per `Stop`, tails a bounded window of the session
 transcript for `hook_non_blocking_error` attachments (structural match on the
-attachment type — never substring), and warns once per session per distinct
-failing hook registration (`hookName` plus registered command — several plugins
+attachment type, never substring), and warns once per session per distinct
+failing hook registration (`hookName` plus registered command. Several plugins
 share an event+matcher), re-warning when a new registration starts failing. It
 lives in this
 plugin, not in the plugin it might report on, deliberately: an in-plugin
@@ -83,14 +82,13 @@ tell the paths apart; both share the same telemetry `hook` id and second store.
 | `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject |
 | `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` |
 
-None captures a command body, absolute path, error message, or argument body —
-only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
+None captures a command body, absolute path, error message, or argument body, only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
 the repo-relative path of the loaded rule file.
 
 ### Per-hook kill switches
 
 Each audit hook is toggled by its own `userConfig` boolean (default **on**; set
-to `false` for a clean no-op) — disable one hook without touching the others.
+to `false` for a clean no-op). Disable one hook without touching the others.
 The hooks read them through the native `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process
 mirror.
 
@@ -110,14 +108,14 @@ loads by default; set `instructions_loaded_audit_log_session_start=true` to opt
 back into logging them. A `stdin_read_timeout` option (seconds, default `2`) is
 an **idle** bound on reading each hook's payload: any byte arriving resets it, so
 a large or slowly-delivered payload is never cut off while it is still coming,
-and it fires only once the pipe has gone silent for that long — at which point
+and it fires only once the pipe has gone silent for that long. At which point
 these audit hooks fail open (skip). On a shell whose `read -t` accepts fractional
 values the bound is read in four slices, so the stall is detected within a
 quarter of the configured interval of it; where fractional timeouts are
 unavailable (Bash 3.2, the macOS system shell) it is read as one window and a
 producer that sends bytes then goes silent can take up to two intervals. A producer
 that keeps emitting is bounded by Claude Code's own hook timeout, not by this
-value. A setting this shell's `read -t` will not accept — or `0` — falls back to
+value. A setting this shell's `read -t` will not accept, or `0`. Falls back to
 the default.
 
 Set them interactively with `/plugin configure claude-ops@<marketplace>`, or headless on the
@@ -134,18 +132,18 @@ per "How to set these" below.
 
 A migrated emitter is inert without a consumer. `hooks/hook-telemetry-sink.sh`
 is a **reference** sink: it reads an envelope on stdin and appends one line to
-`<project-root>/.claude/observability/hook-events.jsonl` — exactly the shape the
+`<project-root>/.claude/observability/hook-events.jsonl`. Exactly the shape the
 `observability` skill reads.
 
 Wire it by pointing `HOOK_TELEMETRY_SINK` at an **executable that exists at
 resolution time**. A *relative* value resolves against the **consuming repo
-root**, not the plugin cache — so the marketplace-installed copy under
+root**, not the plugin cache, so the marketplace-installed copy under
 `${CLAUDE_PLUGIN_ROOT}` is **not** reachable by a relative path (and Claude Code
 injects `settings.json` `env` values literally, with no `${CLAUDE_PLUGIN_ROOT}`
 expansion). Two workable forms:
 
 - **Copy the reference sink into your repo** (e.g. `.claude/hooks/hook-telemetry-sink.sh`)
-  and wire that repo-relative path — the portable, team-shared, clone-safe form:
+  and wire that repo-relative path, the portable, team-shared, clone-safe form:
 
   ```json
   { "env": { "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh" } }
@@ -156,11 +154,11 @@ expansion). Two workable forms:
   `source` line to point at a `hook-utils.sh` your repo already carries.
 
 - **Or** point at an **absolute** path to the installed sink under your plugin
-  cache — per-machine, and it moves on each plugin update, so it is not
+  cache. Per-machine, and it moves on each plugin update, so it is not
   clone-portable.
 
 Any envelope producer (this plugin's hooks, guardrails, the formatters) then
-flows into the same store. The sink is fire-and-forget and best-effort — a slow
+flows into the same store. The sink is fire-and-forget and best-effort, a slow
 or absent sink silently drops the event; it is for observability, not
 audit-of-record.
 
@@ -188,7 +186,7 @@ your own repository's context:
   the `lanes` skill's per-lane launch-commit markers
   (`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, overridable
   via `lane-launcher.sh --data-dir`). `<repo-key>` namespaces markers by
-  repository — the data directory is plugin-wide, while a lane name like `work`
+  repository, the data directory is plugin-wide, while a lane name like `work`
   is only unique within one checkout. It is a digest of the repository's
   canonical path; print the one for a given checkout with
   `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`. By default nothing is written into your
@@ -202,11 +200,11 @@ your own repository's context:
 
 ## Requirements
 
-The audit hooks are Bash scripts (Git Bash on native Windows — install
+The audit hooks are Bash scripts (Git Bash on native Windows. Install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
 use `jq`; without jq they fail open (no audit line is written).
 
-`audit-install-state` needs **Python 3.11+ only** — no PowerShell, no third-party packages, no
+`audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
 sampling are pure `os.walk` + `stat` + regex and behave identically on every platform. The single
 OS-specific seam is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
@@ -225,35 +223,35 @@ The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
 [Per-hook kill switches](#per-hook-kill-switches). Three further `userConfig`
 options tune the skills:
 
-- **`install_new`** (string, optional) — new-catalog-plugin install policy for the `plugins`
+- **`install_new`** (string, optional). New-catalog-plugin install policy for the `plugins`
   skill's `sync` action. `ask` (default) offers not-yet-installed catalog plugins in one batched
   multi-select prompt; `all` installs every one automatically; `none` reports them without
   installing. The manifest schema has no `enum` type, so this validates in prose, not JSON Schema;
   any other value is treated as `ask`.
-- **`registry_dir`** (string, optional) — project-relative directory for the
+- **`registry_dir`** (string, optional). Project-relative directory for the
   known-issues registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
   per-machine plugin data directory; leave unset to use `${CLAUDE_PLUGIN_DATA}`.
   Absolute, drive-qualified, UNC, traversal, and escaping-symlink paths are
   invalid; known-issues operations must stop and direct you to reconfigure
   rather than write outside the project.
-- **`skill_usage_scope`** (string, optional) — where the `skill-usage-audit`
+- **`skill_usage_scope`** (string, optional), where the `skill-usage-audit`
   second store lives. `repo` (default) keeps it in the project tree, with a
   machine-local `.git/info/exclude` entry so `git status` stays clean; `user`
   resolves the same `skill_usage_dir` subpath under `$HOME` for one cross-repo
   operator store (rows carry `project` + collision-resistant `project_id`
   fields); `data-dir` writes
-  `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` — plugin-owned, update-safe,
+  `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`. Plugin-owned, update-safe,
   never in any repo tree. Prose-validated (no `enum` in the manifest schema);
   an unknown value falls back to `repo` with a one-time advisory. The default
   stays `repo` deliberately: the store sits beside `hook-events.jsonl`, matching
   the observability posture that telemetry is project-local, and the exclude
   entry removes the status noise that motivated the scope knob.
-- **`skill_usage_git_exclude`** (boolean, default `true`) — repo scope only:
+- **`skill_usage_git_exclude`** (boolean, default `true`). Repo scope only:
   idempotently exclude the store dir via `.git/info/exclude` (never touches
   `.gitignore` or tracked files). Set `false` when your team deliberately
   commits the telemetry.
-- **`skill_usage_dir`** (string, optional) — contained relative directory,
+- **`skill_usage_dir`** (string, optional). Contained relative directory,
   resolved under the scope root (repo scope: repo root; user scope: `$HOME`),
   where `skill-usage-audit` writes its `skill-usage.jsonl` second store (the
   "measuring skills" record, separate from the telemetry envelope); leave unset
@@ -270,6 +268,7 @@ project-relative defaults; the bundled scripts make no outbound network calls
 except `gh`/`curl` reads of GitHub and Claude status pages in the
 known-issues skill.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -356,6 +355,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
