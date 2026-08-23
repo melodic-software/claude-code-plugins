@@ -196,6 +196,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
+| [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/playbooks:boris`](../plugins/playbooks/skills/boris/SKILL.md) | `playbooks` | Boris Cherny's Claude Code workflow tips across 115 sections |

@@ -3,6 +3,26 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`delta` skill — report only what moved.** A full audit is worth running rarely and reading
+  carefully; this is the lane for the other times. The failure it exists to prevent is specific: a
+  re-run that re-presents the same forty findings the operator already worked through trains them to
+  skim, and a skimmed report is how a bad migration gets approved.
+
+  Five movement shapes — `new`, `changed`, `broken-glob`, `index-drift`, `stale` — and an explicit
+  list of what is *not* movement. **`broken-glob` is the shape that most justifies a cadence**: a
+  glob breaks when the code it described is renamed or moved, which is an ordinary refactor nowhere
+  near the rules tree, produces no signal at the time, and leaves the rule silently not firing.
+  Nothing else in the plugin notices between `check` runs.
+
+  Decisions are respected rigorously: `declined` stays declined and is never resurrected as `new`,
+  `changed`, or "for review". Suppression below the noise budget is always **counted in the report**
+  — a delta that hides its own filtering is precisely the failure it was built to avoid. A quiet run
+  is one line, with no padding to look useful.
+
 ## [0.9.0]
 
 ### Changed

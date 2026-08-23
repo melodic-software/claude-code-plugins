@@ -180,3 +180,15 @@ write bug-report,testing
 # verb table reserves clean/tidy/fix for unqualified mutation, which is exactly
 # what a per-item gate is not.
 realign instruction-placement,overengineering
+
+# Fixed shape rather than a fixed verb: a read-only lane that re-runs its
+# plugin's own audit and reports only what MOVED since the last run, above a
+# noise budget. Both members exist for the same reason — a re-run that
+# re-presents the whole standing finding set trains the operator to skim, and a
+# skimmed report is how a bad change gets approved. overengineering deltas an
+# enforcement surface; instruction-placement deltas an instruction layer.
+# Unrelated targets, and the namespace disambiguates. The noun is kept over a
+# verb because the skill names the artifact it produces (a delta) rather than an
+# action it performs on the target — the same reasoning the vocabulary already
+# applies to knowledge and lifecycle-object routers.
+delta instruction-placement,overengineering

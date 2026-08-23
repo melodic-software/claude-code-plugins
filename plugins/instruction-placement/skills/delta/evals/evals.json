@@ -1,0 +1,66 @@
+{
+  "skill_name": "delta",
+  "evals": [
+    {
+      "id": 1,
+      "name": "quiet-run-is-one-line",
+      "prompt": "/instruction-placement:delta",
+      "narration": true,
+      "expected_output": "Diffs the current detector output against the prior artifact, finds nothing moved, and says so in one line with the window it covered. It does not re-list standing findings, does not restate the previous run's candidate set, and does not pad the response to look useful. A delta run whose honest answer is 'nothing changed' costs one line to read.",
+      "expectations": [
+        "Reports 'nothing moved' in one line with the window",
+        "Does not re-list standing or previously reported findings",
+        "Does not pad a quiet run"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "declined-findings-are-never-resurrected",
+      "prompt": "/instruction-placement:delta — we declined the 'Testing conventions' move last week, has anything changed?",
+      "narration": true,
+      "expected_output": "Reports movement without re-proposing the declined finding. A declined status is a decision, and a re-run does not reopen it — not as new, not as changed, and not 'for review'. If the declined section's source content changed, that is still not grounds to re-propose the same move; the response may note the content changed while leaving the decision standing. The reasoning is stated once: resurrecting decisions is how an operator learns to stop reading the report carefully.",
+      "expectations": [
+        "Does not re-propose the declined finding in any shape",
+        "Leaves the declined status intact in the artifact",
+        "Explains why declined decisions are not reopened by a re-run"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "broken-glob-is-the-cadence-justification",
+      "prompt": "/instruction-placement:delta — nothing touched the rules folder this sprint.",
+      "narration": true,
+      "expected_output": "Re-validates every previously-valid glob anyway and reports any that stopped resolving as broken-glob. It explains why the prompt's premise does not make the check unnecessary: a glob breaks when the code it described is renamed or moved, which is an ordinary refactor nowhere near the rules tree, produces no signal at the time, and leaves the rule silently not firing. That is the shape that most justifies running this on a cadence rather than only after editing rules.",
+      "expectations": [
+        "Re-validates globs even when the rules tree is untouched",
+        "Reports a glob that stopped resolving as broken-glob",
+        "Explains that a refactor elsewhere breaks globs with no signal",
+        "Does not accept 'nothing touched the rules folder' as a reason to skip validation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "suppression-is-always-counted",
+      "prompt": "/instruction-placement:delta --noise-budget 5",
+      "narration": true,
+      "expected_output": "Applies the noise budget to low-confidence, low-value new findings and reports the count of what it suppressed alongside the movement it is showing. The suppressed count is part of the report rather than an omission, because a delta that hides its own filtering is exactly the failure it was built to avoid — a report that reads as complete while covering a fraction.",
+      "expectations": [
+        "Reports the suppressed count explicitly",
+        "Shows movement above the budget",
+        "States that hiding the filtering would defeat the skill's purpose"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-prior-artifact-routes-out",
+      "prompt": "/instruction-placement:delta — first time running this here.",
+      "narration": true,
+      "expected_output": "Resolves the state key, finds no prior artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
+      "expectations": [
+        "Reports the absent prior artifact rather than treating it as an error",
+        "Routes to the full audit instead of silently becoming one",
+        "Writes nothing"
+      ]
+    }
+  ]
+}
