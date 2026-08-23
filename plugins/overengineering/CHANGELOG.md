@@ -3,6 +3,18 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Changed
+
+- **De-slopped the instruction surfaces (#2891).** Rewrote `README.md` and all three `SKILL.md`
+  files under `/ai-slop:audit fix` semantics, replacing every em dash with a period, a comma, or a
+  restructured sentence, and never with parentheses, an en dash, or a spaced hyphen. The detector
+  reports 158 `rule-em-dash` findings before and 0 after, with every other catalog rule also at 0;
+  it fires once per prose line, so the 158 findings span 173 em-dash characters. Prose only: no
+  directive, threshold, qualifier, or `description` trigger phrase changed, and all 25 tracked
+  trigger phrases across the three skills are preserved.
+
 ## [0.2.2]
 
 ### Added
