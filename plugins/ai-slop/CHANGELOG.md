@@ -13,7 +13,8 @@
   name stays a byte-identical unquoted scalar and the wire format for the common path does not
   move. The predicate is deliberately identical to the one `claude-config`'s and `testing`'s
   emitters use: three producers answer one frontmatter contract, and a consumer must not see three
-  shapes.
+  shapes. Implicit YAML types (`true`, `null`, `123`, `yes`, dates) are quoted the same way, because
+  a bare scalar would type-coerce and the consumer's exact branch match would still drop the file.
 
 ## [0.3.6]
 

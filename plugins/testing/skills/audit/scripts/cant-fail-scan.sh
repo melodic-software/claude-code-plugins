@@ -357,11 +357,15 @@ yaml_scalar() {
     *) ;;
   esac
   if [[ -z "$s" || "$s" == *[$' \t'] ]]; then needs_quote=1; fi
-  lc=$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]')
-  case "$lc" in
-    true | false | yes | no | on | off | null | '~') needs_quote=1 ;;
+  case "$s" in
+  true | True | TRUE | false | False | FALSE | yes | Yes | YES | no | No | NO | \
+  on | On | ON | off | Off | OFF | null | Null | NULL | '~')
+    needs_quote=1
+    ;;
+  *) ;;
   esac
-  if [[ "$s" =~ ^[+-]?[0-9]+$ || "$s" =~ ^0[xXoObB][0-9a-fA-F_]+$ ]]; then
+  if [[ "$s" =~ ^[+-]?[0-9]+$ || "$s" =~ ^[+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$ ||
+        "$s" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} || "$s" =~ ^0[xXoObB][0-9a-fA-F_]+$ ]]; then
     needs_quote=1
   fi
   if ((needs_quote)); then

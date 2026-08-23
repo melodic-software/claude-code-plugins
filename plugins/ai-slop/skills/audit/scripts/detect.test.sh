@@ -620,8 +620,21 @@ for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
   fi
 done
 
+# YAML implicit types: git accepts these as branch names, but a bare scalar
+# becomes a boolean, null, or number and the consumer's exact-match drops
+# every finding.
+for b in true null 123 yes FALSE '~'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: implicit-type branch '$b' is quoted"
+  else
+    fail "emit: implicit-type branch '$b' is quoted" "$want" "$got"
+  fi
+done
+
 # The quoting must survive a branch name carrying the quote character itself —
-# otherwise the emitted scalar is quoted but unparseable, trading a silent drop
+# otherwise the emitted scalar is quoted but unparsable, trading a silent drop
 # for a hard consumer failure. A BACKSLASH is deliberately not asserted: git
 # rejects it in a branch name (`git check-ref-format --branch 'a\b'` fails), and
 # awk consumes it as an escape at the -v assignment boundary before the helper

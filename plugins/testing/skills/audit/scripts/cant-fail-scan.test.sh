@@ -269,8 +269,19 @@ for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
   fi
 done
 
+for b in true null 123 yes FALSE; do
+  yb_slot=$((yb_slot + 1))
+  got="$(yb_branch_line "$b" "$yb_slot")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "implicit-type branch '$b' is quoted"
+  else
+    fail "implicit-type branch '$b' is quoted" "expected [$want], got [$got]"
+  fi
+done
+
 # The quoting must survive a branch name carrying the quote character itself —
-# otherwise the emitted scalar is quoted but unparseable, trading a silent drop
+# otherwise the emitted scalar is quoted but unparsable, trading a silent drop
 # for a hard consumer failure. (A backslash is not legal in a git branch name,
 # so only the quote case is reachable through a real checkout here.)
 yb_slot=$((yb_slot + 1))

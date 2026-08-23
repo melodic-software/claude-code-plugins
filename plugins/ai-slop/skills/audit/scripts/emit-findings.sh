@@ -146,6 +146,20 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" \
   # accepts branch names starting with a YAML indicator ("@foo", "!foo",
   # "#foo"); emitted bare, "#foo" reads as a comment and the rest as
   # indicators, so the value the consumer compares is not the branch name.
+  # The consumer (review/fanout fix-pass-mode.md "Step 1") admits a findings
+  # file only on an EXACT branch match, so a misparse silently drops every
+  # finding for that branch.
+  #
+  # Conditional, not unconditional: an ordinary name stays a byte-identical
+  # plain scalar, so the wire format for the common path does not move.
+  # Predicate deliberately IDENTICAL to the two sibling producers
+  # (claude-config/audit-instructions/scripts/emit-findings.sh and
+  # testing/audit/scripts/cant-fail-scan.sh) — three producers answering one
+  # frontmatter contract must agree, or a consumer sees three shapes.
+  # A plain scalar YAML implicitly TYPES is also unsafe: git accepts branch
+  # names like `true`, `null`, `no`, `123` and `2026-08-23`, and a consumer
+  # reading those back gets a boolean, a null, a number or a date rather than
+  # the exact branch string the relay matches on. Quote them too.
   function yaml_implicit_typed(s,   l) {
     l = tolower(s)
     if (l ~ /^(true|false|yes|no|on|off|null|~)$/) return 1
