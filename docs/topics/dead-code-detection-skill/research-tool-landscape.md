@@ -162,11 +162,20 @@ JetBrains .NET Tools Blog (ReSharper 2024.1 SARIF default), dotnet/roslyn issues
 ### shellcheck — the only real option
 
 - **SC2034** "foo appears unused. Verify use (or export if used externally)." — unused
-  variables. **SC2317** "Command appears to be unreachable" — dead commands (e.g. after
-  `exit`, functions never called) — added in 0.9.0 and notoriously noisy with `trap`
-  handlers and callback-style functions. There is **no cross-file unused-function
-  analysis**: `source`d files are only followed when the path is static or annotated
+  variables, file-local scope only. **SC2317** "Command appears to be unreachable" and
+  **SC2329** "This function is never invoked" (present in 0.11.0) fire ONLY inside a region
+  already proven unreachable — e.g. after `exit 0` — and are notoriously noisy with `trap`
+  handlers and callback-style functions.
+- **Measured limit — the load-bearing one.** A top-level function that is defined and never
+  called in an otherwise-live script produces **zero findings**, verified against shellcheck
+  0.11.0 with `-o all`, `-S style`, and `--include=SC2329`. Over this repository's 546
+  tracked `.sh` files (177,793 lines), shellcheck reports **0** dead functions in ~60s
+  wall (`-P8`); a single `rg -F -w` pass over all tracked files finds **4 genuinely dead
+  functions in 0.3s**. Any claim that shellcheck detects never-called functions in live
+  code is false. There is likewise **no cross-file unused-function analysis**: `source`d
+  files are followed only when the path is static or annotated
   (`# shellcheck source=lib.sh`), and shellcheck analyzes one script's scope at a time.
+  **Consequence for a tool-first design: shell is a model/grep lane, not a tool-backed one.**
 - **Suppression:** `# shellcheck disable=SC2034` (line, function, or file scope — file
   scope via directive on first line after shebang), `export` the variable, use `_` for
   throwaways, `.shellcheckrc` (`disable=SC2034`).
@@ -321,7 +330,7 @@ Extract candidate symbols, then search the entire repo — including non-code fi
 | Python scope-local | **ruff** (F401/F841/ARG/ERA001) | unused imports/locals/args, commented-out code | `--output-format json` | `# noqa`, per-file-ignores, `__all__` | scope-local only, no cross-module view |
 | .NET private | **Roslyn IDE0051/IDE0052** | unused/unread private members | SARIF via `/p:ErrorLog` | `.editorconfig`, `#pragma`, `[SuppressMessage]` | source generators, reflection, serializers, Unity fields |
 | .NET solution-wide | **InspectCode (`jb inspectcode`)** | UnusedMember/Type.Global etc. | SARIF (default since 2024.1) | `[UsedImplicitly]`, `[PublicAPI]`, .DotSettings | DI assembly scanning, reflection, convention layers |
-| Shell | **shellcheck** (SC2034, SC2317) | unused vars, unreachable commands | `--format=json1` | `# shellcheck disable=`, `.shellcheckrc`, export, `_` | all indirection (eval, namerefs, `export "$name"`), cross-file sourcing, trap callbacks |
+| Shell | **shellcheck** (SC2034, SC2317, SC2329) | unused vars (file-local); unreachable commands/functions ONLY inside a provably-unreachable region | `--format=json1` | `# shellcheck disable=`, `.shellcheckrc`, export, `_` | never-called functions in live code (measured: 0 found repo-wide); all indirection (eval, namerefs, `export "$name"`), cross-file sourcing, trap callbacks |
 | Go | **staticcheck U1000** + **x/tools deadcode** | unexported unused symbols; whole-program unreachable functions (incl. exported) | `-f json`; `-json` | `//lint:ignore`; `-filter`/`-test` (deadcode has no ignore file) | reflection, linkname, cgo, build tags; deadcode: functions only, needs main/test roots |
 | Rust code | **rustc `dead_code`** | unused items/fields in-crate | `--message-format=json` | `#[expect(dead_code)]`, `_` prefix | pub API of libraries, cfg/feature combos, external FFI consumers |
 | Rust deps | **cargo-machete** (escalate: cargo-udeps; alt: cargo-shear) | unused Cargo deps | `--json`; `--output json` | `[package.metadata.cargo-machete] ignored/renamed`; udeps metadata ignore | machete: proc-macro/build-script usage; udeps: doc-tests, nightly-only |
