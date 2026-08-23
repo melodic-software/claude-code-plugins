@@ -11,7 +11,7 @@ metadata:
 
 ## Pre-computed context
 
-- Branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown (no checkout)"`
+- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
 - Today (UTC): !`date -u +%Y-%m-%d 2>/dev/null || echo "unknown (no date command)"`
 
 ## Purpose
@@ -59,7 +59,12 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 
 ## Before anything: load the artifact
 
-1. **Resolve the artifact home** by running the whole rung order in
+1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
+   or the sentinel `no branch ref (detached HEAD or no checkout)`. **`HEAD` is never accepted as a
+   branch identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
+   if the environment supplies one that names a branch (naming where it came from); **otherwise
+   stop** — see "An unresolved branch identity is its own refusal" below. With an identity in hand,
+   resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. A hardcoded path reads where the audit never
    wrote, and that failure is indistinguishable from the audit never having run.
 2. **No artifact → stop.** Report, visibly, that no findings artifact exists at the resolved home,
@@ -67,9 +72,12 @@ An acceptance given earlier is not an approval of the edit that later falls out 
    operator can tell "never audited" from "resolved elsewhere". **Do not scan, judge, or remediate
    anything on your own** — this skill has no evidence and no verdict of its own, so an improvised
    pass would put a mutation behind a gate with nothing behind it.
-3. **Refuse a mismatched `branch:`**, naming both, and **refuse an unrecognized `schema:`** with a
-   visible message rather than guessing at the shape. The artifact's own frontmatter is what binds
-   it to a branch; the directory it sits in is not evidence (the slug mapping is lossy).
+3. **Refuse a mismatched `branch:`**, naming both; **refuse an artifact whose `branch:` is absent,
+   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`** — each with
+   a visible message rather than guessing at the shape. The artifact's own frontmatter is what binds
+   it to a branch; the directory it sits in is not evidence (the slug mapping is lossy). A `branch:`
+   that carries no identity is not a match to be evaluated — it is the absence of the thing the check
+   compares, so it takes the refusal branch and never the comparison.
 4. **Read the evidence-availability assessment that leads the artifact, and never recompute it.** It
    changes what UNPROVEN means for every finding below it, and re-deriving it here would make a
    second record that can disagree with the first.
@@ -212,8 +220,39 @@ suppression entry in the consuming repo's tracked `.claude/overengineering.md` �
   `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`. A `REALIGNED` finding needs no entry: the
   mechanism is gone, so it cannot recur.
 
+## An unresolved branch identity is its own refusal
+
+The branch-match check in "Before anything" step 3 protects the one thing this skill cannot recover
+from: executing one ref's findings against a different ref's surface. That check is only as good as
+the two identities it compares, and `git rev-parse --abbrev-ref HEAD` answers the literal string
+`HEAD` on a detached checkout — which compares equal to itself, so a `HEAD`-to-`HEAD` comparison
+passes by construction and authorizes mutations from an artifact that may describe another ref
+entirely. Scheduled and dispatched runners commonly check out detached, so this is an ordinary
+condition, not an exotic one. The precompute therefore uses `git symbolic-ref`, which fails rather
+than inventing a name, matching the `audit` and `delta` lanes.
+
+**Two distinct unresolved states both refuse, and neither may reach the comparison:**
+
+- **This checkout has no branch identity** — the precompute yielded the sentinel and no logical ref
+  was supplied. Stop before reading the artifact. Say so plainly: *"Detached checkout, no logical ref
+  supplied; no branch identity, so the artifact's branch cannot be verified and nothing will be
+  executed."* Nothing is presented as a queue, no status transitions, nothing written anywhere.
+- **The artifact carries no branch identity** — its `branch:` is absent, empty, or the literal
+  `HEAD`. Refuse it by name, and say that `overengineering:audit` declines to write an artifact
+  without an identity, so one carrying `HEAD` was produced by an older audit or by something other
+  than this plugin. Do not repair the field, and do not fall back to the directory it sits in: the
+  slug mapping is lossy, so the home is not evidence of which ref the findings describe.
+
+Refusing costs a re-run on an attached checkout. Passing costs a mutation nobody can attribute to a
+surface — and this is the only skill in the plugin that mutates anything, so the asymmetry is not
+close. **Never fall back to `HEAD`, to the commit sha, or to the home's slug to manufacture the
+missing side of the comparison.**
+
 ## Gotchas
 
+- **`HEAD` is not a branch name.** A detached checkout makes `rev-parse --abbrev-ref` answer `HEAD`,
+  which compares equal to itself and slips a cross-ref artifact through the branch-match refusal.
+  An unresolved identity — on either side of that check — refuses; it never compares.
 - **An accepted finding is not an accepted deletion.** Acceptance authorizes the rung on the table
   at that moment; carrying it to rung 3 is how a reversible change becomes an irreversible one that
   nobody agreed to.

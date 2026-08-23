@@ -96,6 +96,25 @@ artifact belongs to a branch is its own `branch:` frontmatter, never the directo
 Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch —
 the directory alone is not evidence.
 
+**When no branch identity resolves, no home is keyed and nothing is written.** All three skills
+resolve the branch with `git symbolic-ref --quiet --short HEAD`, which fails on a detached checkout
+rather than answering the literal string `HEAD` the way `git rev-parse --abbrev-ref HEAD` does.
+Where that fails and the environment supplies no logical ref naming a branch, there is no
+`<branch-slug>` to compose, and **the rung order is not run** — the question of which rung wins never
+arises, because every rung composes a path for an axis that has no value.
+
+No substitute is admitted. `HEAD` is the same string for every ref, so it would key every detached
+run to one directory — precisely the collision this segment exists to prevent, and the worst case
+because the runs that collide are the ones a scheduled runner produces most often. The commit sha
+keys a new home every commit, which never collides but never resumes either, turning a re-audit into
+an unbounded scatter of single-use homes that no consumer ever reads back. A fixed literal such as
+`detached` is `HEAD` under another name.
+
+The consumers state the consequence at their own sites: `overengineering:audit` persists no findings
+artifact, `overengineering:realign` refuses rather than comparing, and `overengineering:delta`
+compares nothing and captures no baseline. This binding fixes only the resolution's outcome — that a
+run reaching it without an identity has no path to resolve, and asks for none.
+
 `overengineering` is this plugin's concern name under the memory root, alongside the contract's own
 reserved first-level names. A topic slug that collides with it takes the contract's `-x` suffix.
 

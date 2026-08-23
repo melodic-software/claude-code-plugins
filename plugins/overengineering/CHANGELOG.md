@@ -3,6 +3,51 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Fixed
+
+- **`audit` and `realign` gave a detached checkout a branch identity, collapsing every ref onto one
+  (#3149).** Both skills precomputed the branch with `git rev-parse --abbrev-ref HEAD`, which answers
+  the literal string `HEAD` when HEAD is detached — the ordinary shape for a scheduled CI runner.
+  Three failures followed, all silent. `audit` wrote `branch: HEAD` into the findings artifact, so the
+  artifact carried an identity that is not a branch. `realign`'s branch-match refusal compared `HEAD`
+  to `HEAD`, passed by construction, and could execute one ref's findings against another ref's
+  surface — in the plugin's only mutating skill. And the `<branch-slug>` home key resolved every
+  detached ref to the same directory, so unrelated runs shared one artifact. Both precomputes now use
+  `git symbolic-ref --quiet --short HEAD`, which fails rather than inventing a name, matching the
+  `delta` lane that already resolved identity this way; all three skills now agree on one contract.
+  Where the identity does not resolve, each lane prefers a logical ref if the environment supplies one
+  naming a branch — with no vendor's variables named or assumed — and otherwise declines: `audit`
+  persists no findings artifact at all and says so while still walking and still emitting its inline
+  summary, and `realign` refuses, both when its own checkout has no identity and when the artifact it
+  finds carries `branch:` absent, empty, or `HEAD`, never reaching the degenerate comparison.
+
+### Changed
+
+- **The artifact contract states the unresolved-identity case.** `context/findings-artifact.md` now
+  documents `branch:` as resolved with `git symbolic-ref` and never the literal `HEAD`, adds a
+  "No branch identity, no artifact" section arguing why omitting the key is deliberately not the
+  remedy — an artifact whose identity cannot be established is one `realign` must refuse anyway, so
+  writing it only moves the failure later — and carries a per-skill obligations row for the condition.
+- **The home-key binding states what happens when no identity resolves.**
+  `reference/topic-docs.md` now records that an unresolved branch identity keys no home at all and
+  does not run the rung order, and rejects each substitute on its own terms: `HEAD` is one directory
+  for every ref, a commit sha is a fresh home every commit that never resumes, and a fixed literal
+  such as `detached` is `HEAD` under another name.
+
+### Notes
+
+- **No other plugin in this marketplace shares the defect.** The repo-wide precompute boilerplate uses
+  `git branch --show-current`, which returns an empty string on a detached checkout rather than
+  `HEAD`, and the findings-writing skills that persist a `branch:` field (`ai-slop:audit`,
+  `claude-config:audit-instructions`, `docs-hygiene:audit-noise`, `mutation-testing:audit`) all read
+  it that way. The literal `git rev-parse --abbrev-ref HEAD` form survives in four places outside this
+  plugin — `source-control`'s `babysit-prs` parking-branch capture and `worktree` current-branch
+  display, and `claude-ops`' two skill-usage telemetry hooks — and none of them keys shared state,
+  compares the value against a stored one, or gates a mutation on it, so none exhibits the
+  identity-collapse this release fixes. Left as-is deliberately.
+
 ## [0.2.2]
 
 ### Added

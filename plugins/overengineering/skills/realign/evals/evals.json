@@ -81,6 +81,36 @@
         "Does not block, error, or abandon the finding because a composition plugin is missing",
         "Records the presence answer on the finding so the skipped route is visible later"
       ]
+    },
+    {
+      "id": 7,
+      "name": "detached-checkout-refuses-before-reading-the-artifact",
+      "prompt": "/overengineering:realign — work the queue, accept whatever the audit flagged as dead.",
+      "expected_output": "The pre-computed branch line carries the sentinel `no branch ref (detached HEAD or no checkout)` because the checkout is detached, and no logical ref is supplied by the environment. The run stops there, before resolving a home or reading any artifact, and says why: with no branch identity there is nothing to compare the artifact's `branch:` against, so the guard that keeps one ref's findings from executing against another ref's surface cannot run at all. It does not accept `HEAD` as the current branch, does not compare `HEAD` to `HEAD`, and does not treat the directory the artifact sits in as evidence of which ref it describes. Nothing is presented as a queue, no finding is offered for acceptance, no status is written, and nothing is mutated. It states that a re-run on an attached checkout is what unblocks the work.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes the sentinel as an unresolved branch identity and refuses rather than proceeding",
+        "Stops BEFORE reading the artifact, rather than loading it and then comparing",
+        "Never compares HEAD to HEAD, and never accepts a degenerate self-equal match as a passing branch check",
+        "Does not fall back to the artifact's directory or slug as evidence of which ref the findings describe",
+        "Mutates nothing, writes no status field, and presents no queue for acceptance"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "artifact-carrying-head-as-branch-is-refused",
+      "prompt": "/overengineering:realign — the artifact is already there from last night's scheduled audit, go ahead and work it.",
+      "expected_output": "The current checkout is on a normal branch, so the run resolves an identity and reads the artifact at the resolved home. The artifact's frontmatter carries `branch: HEAD`, which is not a branch identity but the literal string a detached checkout produces under `git rev-parse --abbrev-ref HEAD`. The run refuses the artifact by name with a visible message, treating the unresolved identity as its own refusal case rather than as a mismatch to evaluate — there is nothing to compare, so the comparison is never reached. It says that overengineering:audit declines to write an artifact without a branch identity, so a file carrying `HEAD` came from an older audit or from something other than this plugin. It does not repair or rewrite the `branch:` field, does not infer the branch from the directory the artifact sits in, and executes no finding.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Refuses an artifact whose `branch:` is the literal HEAD, with a visible message naming the problem",
+        "Treats the unresolved identity as its own refusal case rather than evaluating it as a branch mismatch",
+        "Does NOT repair, rewrite, or fill in the artifact's `branch:` field",
+        "Does not infer the branch from the artifact's directory, since the slug mapping is lossy and the home is not evidence",
+        "Executes no finding and writes no status field"
+      ]
     }
   ]
 }
