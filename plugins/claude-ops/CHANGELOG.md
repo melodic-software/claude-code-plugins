@@ -16,6 +16,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   byte-identical), reported on the new `Normalized:` row, and refused loudly on permission
   denial, unreadable JSON, or a semantic diff. Project-scope maps are inspected and reported,
   never rewritten — `converge` remains the only action that may touch committed settings.
+  The semantic-diff guard uses `jq -e` so a false comparison actually aborts; the write
+  is a sibling tempfile + `mv` so a crash cannot truncate settings; compact and CRLF
+  inputs keep that shape instead of being pretty-printed to two-space JSON.
 
 ## [0.38.0]
 

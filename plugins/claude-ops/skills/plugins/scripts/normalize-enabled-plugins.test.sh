@@ -81,6 +81,37 @@ assert_eq "values are unchanged" \
   '{"ai-slop@m":false,"context-budget@m":true,"x@m":true}' \
   "$(jq -cS '.enabledPlugins' "$UNSORTED")"
 assert_eq "sibling keys survive" "1" "$(jq -r '.other' "$UNSORTED")"
+assert_eq "compact input stays compact" \
+  '{"other":1,"enabledPlugins":{"ai-slop@m":false,"context-budget@m":true,"x@m":true}}' \
+  "$(tr -d '\n' <"$UNSORTED" | tr -d '\r')"
+
+CRLF="$TEST_TMPDIR/crlf.json"
+printf '%s\r\n' '{"enabledPlugins":{"z@m":true,"a@m":false}}' >"$CRLF"
+rc=0
+bash "$NORM" --file "$CRLF" >/dev/null || rc=$?
+assert_exit "CRLF write exits 0" 0 "$rc"
+assert_contains "CRLF line endings survive" "$(od -An -tx1 "$CRLF")" "0d 0a"
+
+# Semantic-diff guard: a jq that reports inequality must abort the write.
+REAL_JQ="$(command -v jq)"
+WRAP="$TEST_TMPDIR/bin"
+mkdir -p "$WRAP"
+cat >"$WRAP/jq" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *'\$before == \$after'* ]]; then
+  exit 1
+fi
+exec "$REAL_JQ" "\$@"
+EOF
+chmod +x "$WRAP/jq"
+SEM="$TEST_TMPDIR/semantic.json"
+printf '%s\n' '{"enabledPlugins":{"z@m":true,"a@m":false}}' >"$SEM"
+before_sem="$(cat "$SEM")"
+rc=0
+out="$(PATH="$WRAP:$PATH" bash "$NORM" --file "$SEM" 2>&1)" || rc=$?
+assert_exit "semantic-diff refuses the write" 2 "$rc"
+assert_contains "semantic-diff is named" "$out" "semantic-diff"
+assert_eq "semantic-diff leaves the file untouched" "$before_sem" "$(cat "$SEM")"
 
 # A second pass is a no-op.
 rc=0

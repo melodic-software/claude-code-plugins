@@ -100,7 +100,7 @@ is_sorted() {
 }
 
 report_project() {
-  local path="$1" n
+  local path="$1" n sorted_rc
   if [[ ! -f "$path" ]]; then
     echo "project-absent"
     return 0
@@ -110,7 +110,9 @@ report_project() {
     exit 2
   fi
   n=$(key_count "$path")
-  if is_sorted "$path"; then
+  sorted_rc=0
+  is_sorted "$path" || sorted_rc=$?
+  if [[ "$sorted_rc" -eq 0 ]]; then
     echo "project-sorted keys=$n"
     return 0
   fi
@@ -141,7 +143,9 @@ if ! jq -e . "$FILE" >/dev/null 2>&1; then
 fi
 
 n=$(key_count "$FILE")
-if is_sorted "$FILE"; then
+sorted_rc=0
+is_sorted "$FILE" || sorted_rc=$?
+if [[ "$sorted_rc" -eq 0 ]]; then
   echo "already-sorted keys=$n"
   exit 0
 fi
@@ -166,29 +170,58 @@ after_sorted="$workdir/after.json"
 # shellcheck disable=SC2064
 trap 'rm -rf "$workdir"' EXIT
 
-if ! jq --indent 2 \
+# Preserve compact vs pretty and CRLF vs LF so a one-key reorder does not
+# churn unrelated lines or line endings.
+jq_indent=(--indent 2)
+line_count="$(tr -d '\r' <"$FILE" | wc -l)"
+if [[ ! -s "$FILE" || "$line_count" -le 1 ]]; then
+  jq_indent=(-c)
+fi
+crlf=0
+if grep -q $'\r' "$FILE"; then
+  crlf=1
+fi
+
+if ! jq "${jq_indent[@]}" \
   'if has("enabledPlugins") then .enabledPlugins = (.enabledPlugins | to_entries | sort_by(.key) | from_entries) else . end' \
   "$FILE" >"$tmp"; then
   echo "refused: unreadable-json ($FILE)" >&2
   exit 2
+fi
+if [[ "$crlf" -eq 1 ]]; then
+  tmp_crlf="$workdir/rewritten.crlf.json"
+  sed 's/$/\r/' "$tmp" >"$tmp_crlf"
+  tmp="$tmp_crlf"
 fi
 
 # Semantic equality of the whole document, key-order-insensitive. A rewrite
 # that changed a value, dropped a key, or invented enabledPlugins when absent
 # must not land. Real temp files rather than process substitution: a
 # native-Windows jq does not reliably read Git Bash /dev/fd paths.
+# jq -e/--exit-status makes a false comparison fail the `if` — without it
+# the guard is dead code (jq exits 0 for both true and false).
 if ! jq -S . "$FILE" >"$before_sorted" || ! jq -S . "$tmp" >"$after_sorted"; then
   echo "refused: unreadable-json ($FILE)" >&2
   exit 2
 fi
-if ! jq -n --slurpfile before "$before_sorted" --slurpfile after "$after_sorted" \
+if ! jq -en --slurpfile before "$before_sorted" --slurpfile after "$after_sorted" \
   '$before == $after' >/dev/null; then
   echo "refused: semantic-diff (reorder would change more than key order)" >&2
   exit 2
 fi
 
-if ! cat "$tmp" >"$FILE"; then
-  echo "refused: write-denied (could not write $FILE)" >&2
+# Atomic replace: write a sibling then mv so a crash cannot truncate the
+# live settings file. Preserve the original mode when chmod --reference works.
+sib="$FILE.norm.$$"
+if ! cat "$tmp" >"$sib"; then
+  echo "refused: write-denied (could not write $sib)" >&2
+  rm -f "$sib"
+  exit 2
+fi
+chmod --reference="$FILE" "$sib" 2>/dev/null || true
+if ! mv -f "$sib" "$FILE"; then
+  echo "refused: write-denied (could not replace $FILE)" >&2
+  rm -f "$sib"
   exit 2
 fi
 
