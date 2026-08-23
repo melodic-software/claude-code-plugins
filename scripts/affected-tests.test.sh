@@ -434,13 +434,22 @@ for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standar
 done
 
 # Every live sync-*.sh (except the test helper) must implement the surface.
+# Capture stdout first: `cmd | grep -q` under pipefail is a race — grep -q
+# closes the pipe on the first match and a still-writing publisher dies
+# SIGPIPE, which this suite's pipefail then treats as a failed assertion.
 live_missing=0
 for manifest in "$REPO_ROOT"/scripts/sync-*.sh; do
   case "$manifest" in
   *.test.sh) continue ;;
   *) ;;
   esac
-  if ! bash "$manifest" --print-manifest | grep -q $'^src\t'; then
+  live_out=""
+  live_out="$(bash "$manifest" --print-manifest)" || {
+    fail "live $manifest --print-manifest exited non-zero"
+    live_missing=1
+    continue
+  }
+  if ! printf '%s\n' "$live_out" | grep -q $'^src\t'; then
     fail "live $manifest --print-manifest did not emit a src line"
     live_missing=1
   fi
