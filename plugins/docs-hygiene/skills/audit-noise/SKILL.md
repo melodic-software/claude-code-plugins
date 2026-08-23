@@ -133,7 +133,7 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 - **Not `/docs-hygiene:compress`.** The sibling `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/docs-hygiene:audit-noise` owns NOISE (the five shapes above). Different concerns; both may apply to the same target iteratively.
 - **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/docs-hygiene:audit-noise` is semantic noise classification.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies treatments.
-- **Not a content deduplicator.** When the noise is the same concept repeated across 3+ files, that is the sibling `/docs-hygiene:extract-ssot`'s territory.
+- **Not a content deduplicator.** When the noise is the same concept repeated across files, that is the sibling `/docs-hygiene:extract-ssot`'s territory at any multiplicity — sub-three repetition lands in its non-abstracting buckets, and only minting a new SSOT artifact waits for 3+.
 
 ## Sources
 
