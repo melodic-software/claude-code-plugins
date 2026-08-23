@@ -7,12 +7,12 @@ different question about the same surface:
 | Skill | Question it answers |
 |---|---|
 | `/claude-config:audit` | Are the configuration FILES (`settings.json`, `settings.local.json`, `.mcp.json`, hooks, plugins, permissions) correct against upstream truth? |
-| `/claude-config:audit-automation-gaps` | Is the configured automation SET the right set — are there genuine gaps, judged against the enforcement hierarchy? |
-| `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
-| `/claude-config:audit-permission-state` | Which permission rules are actually IN EFFECT, and where does each one come from — across managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy? |
+| `/claude-config:audit-automation-gaps` | Is the configured automation SET the right set? Are there genuine gaps, judged against the enforcement hierarchy? |
+| `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable? Do they survive auto mode, work across machines, and live where they can take effect? |
+| `/claude-config:audit-permission-state` | Which permission rules are actually IN EFFECT, and where does each one come from, across managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy? |
 | `/claude-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
-| `/claude-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target — every scope inventoried before any check, one reconciled findings artifact, one human gate — instead of several separate runs whose results nobody reconciles? |
-| `/claude-config:unhobble` | What does the CURRENT MODEL actually still need — measured, not reasoned: reversibly strip the project's standing instructions to a bare baseline, log real stumbles, and re-add only what the evidence earns back? |
+| `/claude-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target, with every scope inventoried before any check, one reconciled findings artifact, and one human gate, instead of several separate runs whose results nobody reconciles? |
+| `/claude-config:unhobble` | What does the CURRENT MODEL actually still need, measured rather than reasoned: reversibly strip the project's standing instructions to a bare baseline, log real stumbles, and re-add only what the evidence earns back? |
 
 The instruction/memory-layer *hygiene* question (is `CLAUDE.md` too long, well-placed, free of
 inferable content) is owned by the `audit` skill in the separate `claude-memory` plugin;
@@ -33,7 +33,7 @@ recheck against live official docs and known upstream
 issues, report severity-rated findings, and optionally fix. Includes live plugin-drift detection
 against each registered marketplace's upstream `marketplace.json` (ORPHAN / NEW / RENAME modes) with an
 asymmetric auto-fix policy that never removes a plugin the user explicitly enabled. `settings.local.json`
-is inspected structurally (key counts) only — never read or echoed.
+is inspected structurally (key counts) only, never read or echoed.
 
 ```shell
 /claude-config:audit              # full report-only audit
@@ -46,7 +46,7 @@ is inspected structurally (key counts) only — never read or echoed.
 Discovers automation-gap candidates (hooks, MCP servers, skills, subagents, scheduled tasks), then
 deep-dives each against eight quality gates (already enforced, too slow, not scriptable, zero
 incidents, already exists, YAGNI, platform mismatch, premature) with required evidence. Default
-verdict is REJECT — a clean bill of health is a valid outcome.
+verdict is REJECT. A clean bill of health is a valid outcome.
 
 ```shell
 /claude-config:audit-automation-gaps               # evaluate, recommend-only
@@ -56,14 +56,14 @@ verdict is REJECT — a clean bill of health is a valid outcome.
 
 ### audit-permission-grants
 
-Audits permission GRANTS (not file correctness — that is `audit`) for the failure modes that
+Audits permission GRANTS (not file correctness, which is `audit`) for the failure modes that
 make a grant silently do nothing: interpreter-wildcard / blanket rules that Claude Code drops on
 entering auto mode, hardcoded absolute machine/user paths (Bash rules match literally, no expansion),
 and inert plugin self-grants. A deterministic detector scans skill/command/agent frontmatter
 `allowed-tools` and the project, local, and user-global `permissions.allow` arrays, and recommends the
 bare-command-on-PATH pattern. The user-global file
 (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) is where Claude Code's own "Always allow" path
-writes, so on a long-lived machine expect it to carry most of the findings — and their remediation is
+writes, so on a long-lived machine expect it to carry most of the findings. Their remediation is
 the operator's, since no skill can write that file. The principle and citations live in the marketplace
 [permission-rule-hygiene convention](../../docs/conventions/permission-rule-hygiene/README.md).
 Report-only.
@@ -79,14 +79,14 @@ Report-only.
 Reports the permission state actually in effect. Claude Code exposes no `claude permissions`
 subcommand and no machine-readable export, so "where is this rule coming from" has meant reading five
 files in five places and hoping you knew all five. A deterministic reader discovers every settings
-scope — managed policy, user-global, project, local, and any pre-v2.1.211 copy left in the session's
-start directory — and inventories each one's `allow` / `ask` / `deny` rules with its source named.
+scope, covering managed policy, user-global, project, local, and any pre-v2.1.211 copy left in the
+session's start directory, then inventories each one's `allow` / `ask` / `deny` rules with its source named.
 
 The status vocabulary is the point: `absent` means looked and found nothing, `skipped` means could not
 look. The managed scope is four surfaces per OS, not one file; the Windows policy registry keys and
 the macOS managed-preferences domain are optional platform integrations that degrade visibly while the
 portable core (the JSON file and its `managed-settings.d/` drop-ins) still reads. Server-managed
-settings have no local path and are disclosed as invisible rather than assumed empty. Report-only —
+settings have no local path and are disclosed as invisible rather than assumed empty. Report-only:
 it writes nothing in any scope, and managed policy is read-only by construction.
 
 ```shell
@@ -96,19 +96,19 @@ it writes nothing in any scope, and managed policy is read-only by construction.
 
 ### audit-instructions
 
-Audits instruction *content* against current model capability — a different question from the
+Audits instruction *content* against current model capability, a different question from the
 sibling audits (config-file correctness) and from `skill-quality:check` (structural lint) or
 `docs-hygiene:compress` (token brevity). It sweeps the locally-owned surfaces (user + project
 `CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, hook instruction text, output styles)
 against a sixteen-check catalog cited to current official prompting and harness doctrine, running
 a fresh read-only subagent per surface, then a fresh-context verify pass that re-judges every removal
 proposal before it is surfaced. Findings are tiered mechanical vs behavioral and delivered as a
-report plus proposed diffs — report-only, never auto-applied. On memory-layer surfaces it runs only
+report plus proposed diffs, report-only and never auto-applied. On memory-layer surfaces it runs only
 the model-era checks and routes hygiene findings to the `claude-memory` plugin's `audit` skill (with
 a documented fallback when it is not installed); upstream-owned plugin-cache and managed-file
 findings route to the owning repository rather than being edited in place.
 
-**Check I15 asks a different question with a different unit of judgment** — do two surfaces
+**Check I15 asks a different question with a different unit of judgment.** Do two surfaces
 contradict each other? A per-surface lane sees only one half of a pair, so it is answered by its own
 pass over the pair set, against `reference/conflict-criteria.md`. The `conflicts` scope runs that
 pass alone, so a scheduled hygiene routine can compose it on its own token budget.
@@ -124,19 +124,19 @@ pass alone, so a scheduled hygiene routine can compose it on its own token budge
 
 Coordinates one pass rather than adding checks: every check is delegated to the plugin that owns it
 through a presence-gated invocation with a documented fallback. It supplies the run semantics that
-invoking those skills by hand does not — a three-scope inventory taken before any check runs (managed
+invoking those skills by hand does not: a three-scope inventory taken before any check runs (managed
 policy read-only, user scope routed as recommendations, project scope), an exclusion set derived at
 run time from the target's own shared-source registry, the `vendor/` rule, `git worktree list`, and
 the pass's own artifacts; content-derived finding identity that survives an unrelated edit above it;
 a `finding_id`-keyed suppression record with staleness reporting; per-lane persistence with resume;
-and one human gate per run. Findings report in three tiers — derived (exact equality across runs),
+and one human gate per run. Findings report in three tiers: derived (exact equality across runs),
 judged (a stability tolerance whose violation fails the run's self-check), delegated. `/doctor` is an
 operator handoff, never a dispatch, because it is interactive.
 
 **The target must be a git repository**, and one that resolves to the active project root. Both halves
 are refused non-zero rather than reinterpreted. The git requirement is not incidental: the state key,
 the scan baseline, the worktree exclusion, and the top read-only assertion are all defined over git,
-and suppression is enacted only by the *tracked* layer — so on a non-git target no suppression would
+and suppression is enacted only by the *tracked* layer, so on a non-git target no suppression would
 ever persist. Audit such a directory by opening it as a repository, or through the delegated skills
 directly.
 
@@ -157,12 +157,12 @@ as the project.
 The empirical counterpart to `audit-instructions`: instead of judging instruction *text* against
 doctrine, it measures the *model* against the repo with the instructions gone. Four resumable
 phases: **snapshot** (inventory the live project surfaces on a dedicated experiment branch, classify
-hooks policy-vs-behavioral), **bare** (reversibly strip the behavioral tier — tracked files via git,
+hooks policy-vs-behavioral), **bare** (reversibly strip the behavioral tier: tracked files via git,
 settings entries via manifest-recorded backups; policy gates and managed settings are never
 touched), **observe** (work normally in fresh sessions, logging real stumbles to a ledger), and
 **readd** (restore only instructions with at least two same-cause ledger rows, each restore citing
 its evidence; everything else stays deleted, with git history as the archive). The canonical trigger
-is a frontier model release — instructions written for the previous generation are the experiment's
+is a frontier model release. Instructions written for the previous generation are the experiment's
 subject. Human-gated at every mutation; state persists under `${CLAUDE_PLUGIN_DATA}` for resume.
 
 ```shell
@@ -197,12 +197,12 @@ valid state.
 
 The marketplace's `renames` map still carries a historical `claude-config-audit` →
 `claude-config` entry, so settings that name the old plugin id resolve to this one at your next
-session — no action needed for `audit`, `audit-automation-gaps`, and `audit-permission-grants`.
+session. No action is needed for `audit`, `audit-automation-gaps`, and `audit-permission-grants`.
 That entry is a migration aid for consumers who predate the rename, not the marketplace's
 go-forward mechanism: the map is frozen-historical and later renames ship as clean breaking
 changes (see the [migration playbook](../../docs/MIGRATION-PLAYBOOK.md#version-pinning-and-update-delivery)).
 
-The `memory-health` skill did **not** move to `claude-config` — it was extracted into the new,
+The `memory-health` skill did **not** move to `claude-config`. It was extracted into the new,
 separate `claude-memory` plugin (now its `audit` skill). The rename only rewrites the `claude-config-audit`
 plugin key; it does not enable additional plugins, so `claude-memory` is not installed for you
 automatically. If you used `/claude-config-audit:memory-health`, install it explicitly:
@@ -213,9 +213,9 @@ automatically. If you used `/claude-config-audit:memory-health`, install it expl
 
 ## Configuration
 
-No `userConfig`. One tracked consumer-project file — `audit-pass`'s suppression record, above.
+No `userConfig`. One tracked consumer-project file, `audit-pass`'s suppression record, above.
 Persistent plugin state: `audit-pass` writes its run reports and manifests under
-`${CLAUDE_PLUGIN_DATA}`, which resolves under `~` — outside a target below the home directory, and
+`${CLAUDE_PLUGIN_DATA}`, which resolves under `~`, outside a target below the home directory and
 inside one at or above it. A run never *scans* what it wrote: where the resolved report path is
 contained in the target, the run excludes that path before writing and says so.
 Network: `audit` fetches official docs pages and each registered marketplace's `marketplace.json`
@@ -226,12 +226,12 @@ from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
 [Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows). The
 JSON-parsing scripts require `jq`; the plugin-drift check additionally requires `curl`; and `awk`
-and `sort` are required across three skills, not one — `audit`'s plugin-drift check (both) and its
+and `sort` are required across three skills, not one: `audit`'s plugin-drift check (both) and its
 fix (`sort`), `audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass
 (both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
 others call them unguarded, so an absent `awk` or `sort` surfaces there as a bare `command not
 found` partway through a run. Both ship with every POSIX userland, so a missing one means a minimal
-shell environment (Git Bash, a `busybox` shim) rather than an absent package — install a full
+shell environment (Git Bash, a `busybox` shim) rather than an absent package. Install a full
 userland (Git for Windows; `gawk`/`mawk` plus `coreutils` on Linux; `brew install gawk coreutils`
 on macOS). Run `/claude-config:setup` (`check` by default) to verify these prerequisites; `apply`
 gives platform install guidance and re-verifies.

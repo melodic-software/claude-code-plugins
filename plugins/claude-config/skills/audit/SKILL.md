@@ -1,6 +1,6 @@
 ---
-description: "Audit Claude Code configuration files — settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions, environment variables — for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
-argument-hint: "[--fix] [scope] — scope: permissions|mcp|hooks|plugins|issues|all (default: all)"
+description: "Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
+argument-hint: "[--fix] [scope]: permissions|mcp|hooks|plugins|issues|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -21,12 +21,12 @@ date?"
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained. Where a phase names an adjacent capability — a Claude Code issue-tracking
-skill, an environment-bootstrap checker — treat it as optional: if your setup provides an equivalent
+This skill is self-contained. Where a phase names an adjacent capability, such as a Claude Code
+issue-tracking skill or an environment-bootstrap checker, treat it as optional: if your setup provides an equivalent
 skill or tool, use it; otherwise follow the inline guidance here, which stands on its own.
 Project-specific conventions (required permission patterns beyond the baseline, documented reasons for
 disabled servers, launcher-script wrappers) come from the consuming repo's own `CLAUDE.md` and
-`.claude/rules/` — read them when present; this skill does not assume them.
+`.claude/rules/`. Read them when present; this skill does not assume them.
 
 Two adjacent skills cover neighboring questions: the sibling `audit-automation-gaps` skill asks whether the
 configured automation SET is the right set (landscape gaps); the `audit` skill in the `claude-memory`
@@ -39,12 +39,12 @@ Parse `$ARGUMENTS` for:
 
 - **`--fix`**: Apply corrections automatically (with user confirmation per fix). Without this flag, report-only mode
 - **Scope filter**: Limit audit to a single category. If omitted, run all categories
-  - `permissions` — deny/ask/allow rules, security gaps
-  - `mcp` — MCP server definitions, commands, env vars, connectivity
-  - `hooks` — hook scripts exist, timeouts, matchers
-  - `plugins` — enabled/disabled status, marketplace availability
-  - `issues` — recheck known GitHub issues only
-  - `all` — run everything (default)
+  - `permissions`: deny/ask/allow rules, security gaps
+  - `mcp`: MCP server definitions, commands, env vars, connectivity
+  - `hooks`: hook scripts exist, timeouts, matchers
+  - `plugins`: enabled/disabled status, marketplace availability
+  - `issues`: recheck known GitHub issues only
+  - `all`: run everything (default)
 
 ## Config Files
 
@@ -53,9 +53,9 @@ Parse `$ARGUMENTS` for:
 | `.claude/settings.json` | Read tool or `jq` | Project-level, checked in |
 | `.claude/settings.local.json` | `jq` via Bash only | Commonly deny-listed for the Read tool because it holds tokens. Parse structure/key counts only. **Never echo secret values** |
 | `.mcp.json` | Read tool or `jq` | Project-level MCP server definitions |
-| `~/.claude/settings.json` | Read tool | User-level defaults (optional — check if exists) |
+| `~/.claude/settings.json` | Read tool | User-level defaults (optional; check if exists) |
 | start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect** |
-| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing — managed policy is the administrator's, never edited by `--fix` |
+| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
 | managed policy outside the filesystem | not read | The Windows `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys and the macOS `com.anthropic.claudecode` managed-preferences domain. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
 
 ### Reading settings.local.json safely
@@ -65,8 +65,8 @@ Even when no deny rule blocks it, treat `settings.local.json` as secret-bearing:
 validity, never dump its contents. Supplemental jq recipes: [context/procedures.md](context/procedures.md)
 "Reading settings.local.json safely".
 
-The counts are not guaranteed. Where the project's configuration blocks the read — a sandbox
-`denyRead` merged from the baseline `Read` deny, or filesystem permissions — the script reports
+The counts are not guaranteed. Where the project's configuration blocks the read, whether a sandbox
+`denyRead` merged from the baseline `Read` deny or filesystem permissions, the script reports
 `Readable: no` and a `not inspectable` note instead of failing. Record the file as not inspectable,
 carry that into the report, and do not reach for another reader to get the counts anyway.
 
@@ -74,7 +74,7 @@ carry that into the report, and do not reach for another reader to get the count
 
 ## Track progress
 
-For any full audit run (Phases 1-5), keep a phase checklist and tick each phase as it completes —
+For any full audit run (Phases 1-5), keep a phase checklist and tick each phase as it completes,
 either in-response or by copying `${CLAUDE_PLUGIN_ROOT}/skills/audit/templates/checklist.md`
 into wherever the consuming repo keeps working task notes. Phase 5 is SKIPPED in default report-only
 mode.
@@ -85,7 +85,7 @@ mode.
 
 Read all config files and validate basic structure.
 
-Record the installed Claude Code version (`claude --version`) — Phase 3.2 compares issue-fix versions
+Record the installed Claude Code version (`claude --version`). Phase 3.2 compares issue-fix versions
 against it. Then run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh"`
 before the table below.
 
@@ -93,8 +93,8 @@ before the table below.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-hook-coverage.sh"` and keep its output for
 the rest of the run. It enumerates settings-declared hooks **and** the hooks shipped by every enabled
-plugin — resolved through the installed-plugin registry, so no version-directory guessing is
-involved — plus the levers (`disableAllHooks`, `allowManagedHooksOnly`,
+plugin, resolved through the installed-plugin registry so no version-directory guessing is
+involved, plus the levers (`disableAllHooks`, `allowManagedHooksOnly`,
 `strictPluginOnlyCustomization`) that switch hooks off wholesale.
 
 Two categories depend on it and neither could take this inventory before:
@@ -105,13 +105,13 @@ Two categories depend on it and neither could take this inventory before:
   hook already blocks the family. That narrowing is only takeable against a real inventory.
 
 **Read the exit code, not just the table.** `0` means the inventory is complete. `1` means it is
-**partial** — some enabled plugin did not resolve, or a hook config did not parse — and the "Not
+**partial**, because some enabled plugin did not resolve or a hook config did not parse, and the "Not
 enumerated" block names which. For anything a partial inventory could not see, keep the conditional
 posture in [required-permissions.md](reference/required-permissions.md) "Fail open where the inventory
 is incomplete". `2` is fatal (no readable settings scope, or `jq` missing); treat it as no inventory at
 all rather than as an empty one.
 
-The script never runs a hook and never decides whether a hook *covers* a family — that judgment stays
+The script never runs a hook and never decides whether a hook *covers* a family. That judgment stays
 with Category B, against the three preconditions in "Narrowing the baseline".
 
 ### 1.1 JSON validity
@@ -142,18 +142,18 @@ Load the audit checklist: [audit-checklist.md](reference/audit-checklist.md)
 
 Run each category's checks. Record findings with severity ratings.
 
-Nine categories — names + the question each answers below; **full per-check criteria in
+Nine categories, with names plus the question each answers below; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
-- **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
-- **B — Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), deny-rules-in-`settings.json`-only (bug #8961)
-- **C — MCP Servers**: commands resolve, `${VAR}` syntax, `disabledMcpjsonServers` match, documented disable reasons
-- **D — Hooks**: paths resolve + readable, `timeout` in seconds and sane, valid matchers, quoted path placeholders in shell form, exec-form `command` resolvable on Windows, no duplicates, valid events
-- **E — Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh` — ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
-- **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
-- **G — Skill-listing budget**: overflow check by a route this run can actually take (`/doctor` interactively, `--debug` headless), the budget constant it was measured against, and trim levers scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`)
-- **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
-- **I — Deep-link registration**: `disableDeepLinkRegistration` — the one documented value that takes effect, and a visible attempt at an enforcement requirement lodged in a scope that cannot enforce it
+- **A, Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
+- **B, Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), deny-rules-in-`settings.json`-only (bug #8961)
+- **C, MCP Servers**: commands resolve, `${VAR}` syntax, `disabledMcpjsonServers` match, documented disable reasons
+- **D, Hooks**: paths resolve + readable, `timeout` in seconds and sane, valid matchers, quoted path placeholders in shell form, exec-form `command` resolvable on Windows, no duplicates, valid events
+- **E, Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh`, covering ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
+- **F, Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
+- **G, Skill-listing budget**: overflow check by a route this run can actually take (`/doctor` interactively, `--debug` headless), the budget constant it was measured against, and trim levers scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`)
+- **H, Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels`, values the harness accepts into the file but does not apply as written
+- **I, Deep-link registration**: `disableDeepLinkRegistration`, the one documented value that takes effect, and a visible attempt at an enforcement requirement lodged in a scope that cannot enforce it
 
 ---
 
@@ -161,13 +161,13 @@ Nine categories — names + the question each answers below; **full per-check cr
 
 External verification against current documentation.
 
-**Read every page in this phase verbatim, not through a summarizer.** These pages are long — `settings`
-and `env-vars` are hundreds of KB — and a summarizing fetch truncates, then reports the rows past the
+**Read every page in this phase verbatim, not through a summarizer.** These pages are long, with `settings`
+and `env-vars` running to hundreds of KB, and a summarizing fetch truncates, then reports the rows past the
 cutoff as *absent*. That false negative has already been observed on the `settings` page: three keys
 reported NOT FOUND that raw `curl` + `grep` found. So for each fetch below,
 `curl https://code.claude.com/docs/en/<page>.md` to a file and grep the file, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route).
-**A truncated read supports NO finding** — say so and move on, in either direction: neither "the key is
+**A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is
 gone" nor "the key is unchanged" is reportable from a read that may have been cut.
 
 ### 3.1 Official docs check
@@ -181,7 +181,7 @@ Fetch [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/setting
 ### 3.2 GitHub issue recheck
 
 For each issue in [known-issues.md](reference/known-issues.md), check live status
-(`gh issue view <number> -R anthropics/claude-code --json state,title` — or the consuming repo's own
+(`gh issue view <number> -R anthropics/claude-code --json state,title`, or the consuming repo's own
 Claude Code issue-tracking skill if it has one). For any issue whose upstream fix has shipped at or
 below the installed Claude Code version, confirm the settings-specific workaround is still needed and
 recommend retiring it if not.
@@ -191,7 +191,7 @@ recommend retiring it if not.
 **MANDATORY** for any category H finding: fetch
 [code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) and confirm the
 behavior the finding rests on. Do NOT report a category H finding from this checklist's wording
-alone — the accepted `effortLevel` values, the fallback-chain cap, and the allowlist wildcard rule
+alone: the accepted `effortLevel` values, the fallback-chain cap, and the allowlist wildcard rule
 are all upstream-owned and move with the harness.
 
 ### 3.4 Permission syntax verification
@@ -210,7 +210,7 @@ Present all findings as a severity-rated GFM table:
 
 | # | Category | Severity | Finding | Current | Recommended |
 | --- | --- | --- | --- | --- | --- |
-| 1 | B — Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
+| 1 | B, Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
 
 ### Severity guide
 
@@ -248,7 +248,7 @@ After all fixes:
 Auto-fixable (add `$schema`, **move** deny rules from local to project, plugin orphan-removal +
 new-as-`false` via `scripts/fix-plugin-drift.sh --yes`) vs judgment-required (**adding** a baseline deny
 rule, new settings from docs, permission restructure, MCP config, orphan-`true` removal, heuristic
-rename) — full matrix in [context/procedures.md](context/procedures.md) "Phase 5 — fixes the skill can
+rename), with the full matrix in [context/procedures.md](context/procedures.md) "Phase 5, fixes the skill can
 apply". Adding and moving a deny rule are graded apart on purpose: moving one is #8961 placement, while
 adding one has to be checked against hook coverage that may already hold and against an ask-gate the
 addition would suppress.
@@ -260,14 +260,14 @@ addition would suppress.
 Category B (Phase 2) checks that the project's `.claude/settings.json` contains a security baseline of
 deny/ask patterns: secret-file Read denies, destructive-git Bash denies, and a `git push` ask-gate. The
 concrete list is in [reference/required-permissions.md](reference/required-permissions.md). Projects
-with a stricter posture declare their additional required patterns in their own rules files — when the
+with a stricter posture declare their additional required patterns in their own rules files. When the
 consuming repo documents such a list, include it in the Category B check.
 
 Report the secret-file Read denies with their scope, not as protection: a `Read(...)` deny covers the
 built-in file tools and the Bash file commands Claude Code recognizes, but not a subprocess that opens
 the path itself. "Scope of a Read deny" in
 [reference/required-permissions.md](reference/required-permissions.md) carries the covered /
-not-covered split, the ranked remedies, and the platform limit — carry it into the finding rather than
+not-covered split, the ranked remedies, and the platform limit. Carry it into the finding rather than
 implying the file is unreachable.
 
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
@@ -279,7 +279,7 @@ as fixed patterns here.
 ### Consumer workaround inventory
 
 When a settings-affecting upstream issue drives a project-specific workaround (or one becomes
-obsolete), record that in the consuming repo's own conventions/rules files — the plugin's bundled
+obsolete), record that in the consuming repo's own conventions/rules files. The plugin's bundled
 [known-issues.md](reference/known-issues.md) tracks only broadly-applicable upstream issues and is
 refreshed via plugin updates, not per-consumer edits.
 
