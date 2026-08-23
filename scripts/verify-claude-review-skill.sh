@@ -57,7 +57,7 @@ fetch_review_bodies() {
   # shellcheck disable=SC2016  # the jq program is literal; $sha/$allow bind via --arg
   gh api --paginate "repos/${repo}/pulls/${pr}/reviews" \
     --jq --arg sha "$sha" --arg allow "$allow" '
-      ($allow | split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length > 0))) as $logins
+      ($allow | split(",") | map(gsub("^[ \t]+|[ \t]+$";"")) | map(select(length > 0))) as $logins
       | .[]
       | select((.commit_id // "") == $sha)
       | select(.user.login as $u | ($logins | index($u)) != null)
