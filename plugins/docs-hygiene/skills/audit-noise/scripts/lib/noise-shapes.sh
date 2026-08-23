@@ -135,12 +135,15 @@ audit_noise_follower_is_document_locator() {
 }
 
 # The sentence addresses the requester or the conversation that produced the
-# text. Exactly two followers stand the shape down: an anaphoric adverb ("as we
-# discussed above / earlier"), and `in` in front of a document locator ("as we
-# decided in §3 / in the ADR"). A bare `in` used to exempt the whole sentence,
+# text. Exactly two follower classes stand the shape down: an anaphoric adverb
+# ("as we discussed above / earlier"), and a preposition (`in` / `under` / `at`
+# / `on`) in front of a document locator ("as we decided in §3 / in the ADR /
+# on the ADR's recommendation"). A bare `in` used to exempt the whole sentence,
 # which correctly spared "as we decided in the ADR" but also spared "as we
 # decided in favor of X" and "as we discussed in yesterday's meeting" — both
-# residue, because the referent is the conversation, not a document.
+# residue, because the referent is the conversation, not a document. `under`,
+# `at`, and `on` carried the same blanket exemption until the locator predicate
+# was applied to them too: "as we agreed on Tuesday" is residue, identically.
 # The actor-less passive ("As requested, retry three times") is the same shape
 # without the pronoun, but it is matched only as a clause-final adverbial:
 # bounded that way, the live attribution "as requested by the client" and the
@@ -173,8 +176,8 @@ audit_noise_line_has_conversational_antecedent() {
       follower="${BASH_REMATCH[1],,}"
       rest="${BASH_REMATCH[2]}"
       case "$follower" in
-      above | below | earlier | later | previously | elsewhere | under | at | on) return 1 ;;
-      in) audit_noise_follower_is_document_locator "$rest" && return 1 ;;
+      above | below | earlier | later | previously | elsewhere) return 1 ;;
+      in | under | at | on) audit_noise_follower_is_document_locator "$rest" && return 1 ;;
       *) ;;
       esac
     fi

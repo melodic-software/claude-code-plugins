@@ -1,5 +1,22 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.5]
+
+### Fixed
+
+- **`audit-noise`'s `conversational-antecedent` shape now runs `under` / `at` /
+  `on` through the same document-locator predicate `in` already uses (#3192).**
+  Those three followers still carried the blanket exemption #3162 narrowed only
+  for `in`, so conversational residue phrased with them escaped: "as we agreed on
+  Tuesday", "as we decided at the standup", "as we agreed under time pressure".
+
+  The anaphoric-adverb followers (`above` / `below` / `earlier` / `later` /
+  `previously` / `elsewhere`) stay unconditional — they name a position a future
+  reader can still open. A real document locus after the narrowed prepositions
+  stays exempt (`as we decided on the ADR's recommendation`). High-traffic `on`
+  idioms that are not this shape (`based on`, `depends on`, `on disk`, `on the
+  other hand`) never matched the antecedent pattern and stay unflagged.
+
 ## [0.21.4]
 
 ### Fixed
