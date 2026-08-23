@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of a Claude Code INSTALLATION directory — the machine-scope `~/.claude` tree plus `~/.claude.json` — inventorying every file, separating what the product's own retention sweep already manages from what nothing manages, resolving what each number in a filename actually means before any process-liveness check, and detecting a deliberate or mid-experiment state before classifying anything as stale. Reports; never deletes. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Not for: a repo's project-scope .claude config (use /claude-config:audit), or deleting anything (use /disk-hygiene:clean)."
+description: "Read-only audit of a Claude Code INSTALLATION directory — the machine-scope `~/.claude` tree plus `~/.claude.json` — inventorying every file, separating what the product's own retention sweep already manages from what nothing manages, resolving what each number in a filename actually means before any process-liveness check, and detecting a deliberate or mid-experiment state before classifying anything as stale. Reports; never deletes. When the bundled doctor skill resolves in your session, prefer it for the quick native health-and-fix pass; this skill for the deep read-only inventory. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Not for: a repo's project-scope .claude config (use /claude-config:audit), or deleting anything (use /disk-hygiene:clean)."
 argument-hint: "[root] — root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
@@ -39,6 +39,37 @@ shedding project state belongs to `claude project purge`.
 
 Full rationale for every scope decision, and where each finding hands off:
 [reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
+
+## Boundary — the bundled `doctor` skill
+
+One native Claude Code surface asks a question that sounds like this skill's, and the two are
+routinely conflated:
+
+- **`doctor` (bundled skill, alias `checkup`)** — ships with Claude Code rather than as a
+  marketplace plugin. It health-checks an installation and **offers to fix** what it finds:
+  installation problems, unused extensions, duplicated or bloated memory files, slow hooks,
+  updates, permissions. It also estimates what the skill listing costs in context. It is the one
+  bundled skill `disableBundledSkills` does not remove; `DISABLE_DOCTOR_COMMAND=1` or a
+  `skillOverrides` entry hides it instead.
+- **This skill (marketplace plugin)** — the deep read-only inventory of the install tree: every
+  file classified, product-managed retention separated from genuinely unmanaged state, filename
+  schemes resolved before any liveness check, and a deliberate-or-experimental state detected
+  before anything is called stale.
+
+**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
+anything you want fixed in place. Prefer this skill when the question is *what is actually in this
+tree, and what does nothing manage* — the classification, the evidence tags, and the per-file CSV
+have no native counterpart. Its sibling `/claude-ops:audit-performance` owns the timed
+slowness-capture lane against the same native surface; that description is not repeated here.
+
+**Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only, so
+never chain into a `doctor` fix on this skill's behalf — surface the finding, and let the user
+invoke the fix themselves.
+
+**Availability is never assumed.** Bundled surfaces are gated on settings and environment, plan,
+platform, and host surface, so a session where `doctor` does not resolve is an ordinary session,
+not a broken one. Nothing here depends on it being present: the read-only inventory is complete on
+its own.
 
 ## Never read
 

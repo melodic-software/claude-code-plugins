@@ -18,7 +18,7 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
 | Built-in CLI commands | 0 | 0 | — |
-| Bundled skills | 6 | 0 | complementary 6 |
+| Bundled skills | 6 | 1 | complementary 6 |
 | Plugin-backed built-ins | 1 | 0 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
 
@@ -55,9 +55,10 @@ No rows recorded in this lane.
   - aliases: checkup
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree
+  - shared listing budget measured at ~13.0x over the documented 8,000-char default across 153 listing-eligible skills (check-listing-budget.sh, 2026-08-23), so the baked phrase is the best available routing surface, not a guaranteed one
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch — it became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-performance`

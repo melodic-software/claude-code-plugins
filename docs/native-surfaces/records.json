@@ -135,7 +135,8 @@
         "markers: gated",
         "aliases: checkup",
         "native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions",
-        "the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree"
+        "the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree",
+        "shared listing budget measured at ~13.0x over the documented 8,000-char default across 153 listing-eligible skills (check-listing-budget.sh, 2026-08-23), so the baked phrase is the best available routing surface, not a guaranteed one"
       ],
       "observation": {
         "class": "extraction",
@@ -146,7 +147,7 @@
         "trigger": "a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch — it became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove",
         "verified": "2026-08-23"
       },
-      "baked": { "description_phrase": false, "boundary_section": false },
+      "baked": { "description_phrase": true, "boundary_section": true },
       "budget_caveat": true
     },
     {
