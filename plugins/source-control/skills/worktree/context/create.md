@@ -33,7 +33,7 @@ For `fresh`, the helper resolves the effective default **remote** first — the 
 
 **The caller owns this choice** — `worktree.baseRef` is a Claude Code **settings.json** key (`{"worktree": {"baseRef": "head"}}`, governing native `EnterWorktree`/`--worktree`), **not** a git config key, so the helper cannot read it. Since this skill bypasses native creation, it must honor the setting itself: read the effective `worktree.baseRef` using Claude Code's settings precedence — local `.claude/settings.local.json` over project `.claude/settings.json` over user `~/.claude/settings.json`; if it is `head`, pass `--base-ref head` to the helper; otherwise omit it (the helper defaults to `fresh`). Skipping this read — or reading only project/user and missing a local override — silently forces `fresh` for a user who configured `head`.
 
-To start from a different, specific branch, create manually instead: `git worktree add -b <type>/<desc> <path> <base>`, then `EnterWorktree(path: <path>)`.
+To start from a different, specific branch, create manually instead: `git worktree add -b <type>/<desc> <path> <base>`, then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" claim <path> --session-id "${CLAUDE_SESSION_ID}"` so the tree is not unclaimed (the PostToolUse hook does this for a Bash-tool add, claiming only the parsed target), then `EnterWorktree(path: <path>)`. Before writing in a tree this session did not just create, run `check-enter <path> --session-id "${CLAUDE_SESSION_ID}"`. A foreign live claim is a stop. Relative paths (including `.` from inside the tree) are canonicalized against the invocation directory.
 
 ## Explain what will happen
 

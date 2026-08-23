@@ -86,9 +86,11 @@ owner allowlist and reject unattended unpinned merges.
 
 Git worktree lifecycle for parallel-session isolation: `create` (guided
 naming, EnterWorktree, post-create setup checks), `status` (porcelain parse,
-batched PR cross-reference, staleness classification), `cleanup`
+batched PR cross-reference, staleness classification, unclaimed-lock
+report), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
-destructive branch deletion for the user), `audit` (configuration health).
+destructive branch deletion for the user), `audit` (configuration health,
+including linked worktrees with no lock reason).
 
 ### `/source-control:setup`
 
@@ -165,6 +167,23 @@ rejects. Set `pr_linkage_mcp_gate_enabled` to `false` to turn it off.
 Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
 `duration_ms`, and the tool name as its only data label), only when
 `HOOK_TELEMETRY_SINK` is set.
+
+### `worktree-add-claim-gate`
+
+A `PostToolUse` hook on the Bash tool. After a raw `git worktree add` it
+claims **the parsed add target** (same tokenizer / `git -C` / wrapper
+chdir composition as the containment sibling) with a session-distinct
+reason. It does not claim every unlocked tree. Two concurrent adds
+must not assign both to whichever hook runs first. `echo git worktree
+add` is not a git call. `worktree-create.sh` already locks the trees it
+creates; this hook is the route for the adds that bypass the helper.
+Existing reasons are never rewritten. The lock is a claim other agents
+can read; it does not block concurrent writes (git-worktree(1)).
+
+`scripts/worktree-claim.sh report` lists unclaimed linked worktrees;
+`check-enter <path> --session-id <id>` surfaces a foreign live claim and
+stops. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
+off; the script remains the documented gate.
 
 ## Works in any repo
 
@@ -285,6 +304,7 @@ reads it from.
 | `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Block a `gh pr create`/`gh pr edit` whose statically-readable PR body would fail the repository's required pr-issue-linkage check (missing a closing keyword, or a missing/empty `## Related` section). Enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml; a body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required pr-issue-linkage check — the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml, and only for the repository the origin remote names. |
 | `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Block a raw Bash `git worktree add` whose resolved target lands inside a git repository — a working tree, or a .git / bare directory — with a message naming the configured external root (melodic.worktreeroot git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, verified". |
+| `worktree_add_claim_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED` | After a raw Bash `git worktree add`, lock the parsed add target with a session-distinct claim (host + session id + timestamp). Only that path is claimed, not every currently unlocked linked worktree, so two concurrent adds cannot steal each other's trees. Existing reasons, including the worktree-create.sh helper string, are never rewritten. The lock is a claim other agents can read, not a write mutex. Turning this OFF leaves plain-add trees unclaimed; `scripts/worktree-claim.sh report` still lists them and `check-enter` still surfaces a foreign live claim. Kill switch only: worktree_add_claim_gate_enabled. |
 | `worktree_create_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` | Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel — measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation — so `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`. |
 | `babysit_watched_owners` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WATCHED_OWNERS` | GitHub owners (users/orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
 | `babysit_self_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_SELF_LOGINS` | Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter — which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone. |

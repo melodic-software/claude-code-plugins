@@ -68,6 +68,7 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 | `merged` | PR was merged, **or** every unpushed commit landed on the base (`landed=yes`) — the branch's content is on the base either way |
 | `prunable` | Git flagged as prunable (directory missing or corrupted) |
 | `locked` | Explicitly locked by user |
+| `unclaimed` | Linked worktree whose porcelain `locked` line has no reason. A plain `git worktree add` that bypassed the helper. `scripts/worktree-claim.sh report` is the check; `claim <path>` arms a session-distinct reason. Not the same as `locked`: there is no claim text for another session to read |
 
 ## Presentation
 
