@@ -1,5 +1,29 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.9]
+
+### Fixed
+
+- **`audit-noise` recall gap and the large-corpus false-clean path (#3129).** The
+  scanner's matchers were literal tripwires (`## Why this file exists` only,
+  `was renamed to` but not `Renamed from`, bullet `/slug` plus a literal em dash,
+  no table form of `enum-list`) while the skill table described the shapes
+  semantically. A repo-wide audit then judged *only scanner-flagged files*, so a
+  corpus whose real drift used the paraphrases reported clean.
+
+  Detection now matches preamble at any ATX level (`Why this file exists`,
+  `Motivation`, `Rationale`), rename narration in both directions, `enum-list`
+  tables that name a slash-command, bolded roster lines, and "the following N
+  plugins". The large-corpus default judges scanner-flagged files *and* a
+  bounded sample of scanner-negative files, and must not report fully-clean from
+  the scanner set alone. `detect.sh` prints `status: no-targets` on stdout when
+  nothing was scanned (visible even under the skill's `2>/dev/null` house
+  pattern). Admission verdicts and Tier 3 "likely legitimate" rows are documented
+  as judgment-pass output, which the scanner never emitted.
+
+  False-negative fixtures: `evals/fixtures/recall-paraphrases.md`. Narrowing a
+  matcher back to its literal-only form fails those cases.
+
 ## [0.21.8]
 
 ### Changed

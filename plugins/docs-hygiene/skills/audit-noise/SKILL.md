@@ -87,8 +87,12 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
    tracked `.md` minus `**/evals/fixtures/**` and `CHANGELOG.md`; slice-scoped files (contract and
    memory tiers) sectioned separately in the report; scan via a chunked `detect.sh` pass
    (`detect.sh --paths-file <list> --offset N --limit M` — one process per chunk, no
-   per-file shell loop); on a
-   large corpus, judge only scanner-flagged files, fanning out a small number of concurrent
+   per-file shell loop); judge every scanner-flagged file AND a bounded sample of
+   scanner-negative files (enough that a fresh full-corpus judgment pass cannot find
+   real drift this report called clean). Never report a fully-clean result from
+   scanner-flagged files alone: the scanner is a structural matcher, not a complete
+   reading of the shape table, and judgment is required for paraphrases it still
+   misses. Fan out a small number of concurrent
    subagents with one fresh-context verification pass over the merged verdicts; report first —
    this skill stays read-only either way, and the author applies any treatment edits only after
    reviewing the report (report-vs-fix-as-you-go is the author's call; report-first is the
@@ -147,7 +151,21 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 
 ## Output schema
 
-Per target file, the existence pre-check verdict precedes the in-page findings:
+Two writers, one report. `detect.sh` emits `File:` / `Finding *:` / `Summary *:`
+lines only. It does **not** emit admission verdicts, and it does **not** emit
+Tier 3 for any of the nine named shapes (each has a fixed default tier in
+`audit_noise_shape_tier`). A `T3=` count from the scanner is reserved for an
+unrecognized shape name, which should not occur. Admission and any Tier 3
+"likely legitimate" row are **judgment-pass** rulings the operator writes after
+reading the scanner facts. Do not treat scanner stdout as if it contained
+`admission PASS` / `admission FAIL`.
+
+A run that scanned nothing is distinct on stdout from a run that scanned files
+and found nothing: `detect.sh` prints `status: no-targets` in the first case
+(even when stderr is discarded, which the pre-computed context above does). A
+clean audit prints `Summary total: files=<N>` with `N>0` and zero findings.
+
+Per target file, the judgment-pass existence pre-check precedes the in-page findings:
 
 ```text
 <file>: admission PASS

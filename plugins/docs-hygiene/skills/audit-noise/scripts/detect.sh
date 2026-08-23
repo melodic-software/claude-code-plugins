@@ -164,6 +164,7 @@ done
 TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
+  echo "status: no-targets"
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
   echo "Note: no markdown targets — pass file paths or edit some .md files"
   exit 0
@@ -193,6 +194,7 @@ if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
 fi
 
 if [[ ${#SORTED[@]} -eq 0 ]]; then
+  echo "status: no-targets"
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
   echo "Note: chunk offset/limit selected no targets"
   exit 0
@@ -449,5 +451,8 @@ for file in "${SORTED[@]}"; do
   audit_file "$file"
 done
 
+if [[ "$files_audited" -eq 0 ]]; then
+  echo "status: no-targets"
+fi
 printf 'Summary total: files=%s T1=%s T2=%s T3=%s\n' "$files_audited" "$total_t1" "$total_t2" "$total_t3"
 exit 0
