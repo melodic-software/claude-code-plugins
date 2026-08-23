@@ -95,6 +95,84 @@ audit_noise_line_has_ghost_ref() {
   return 1
 }
 
+# --- Prose-adapted residue shapes -------------------------------------------
+#
+# plan-reference, conversational-antecedent, and ticket-pr-residue carry the
+# same shape names the code-side sibling (/code-tidying:audit-comment-residue)
+# owns, but the patterns are deliberately TIGHTER, not copies. That scanner
+# classifies only the extracted comment portion of a line; this one classifies
+# whole markdown prose, where the same words are load-bearing far more often.
+# All three scan the inline-code strip, so a shape-definition example written
+# in backticks does not self-match.
+
+# The sentence addresses the requester or the conversation that produced the
+# text. An anaphoric follower ("as we discussed above / below / in section 3")
+# makes it an intra-document cross-reference instead — legitimate, not residue.
+audit_noise_line_has_conversational_antecedent() {
+  local line="$1"
+  [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0
+  [[ "$line" =~ [Pp]er[[:space:]]+our[[:space:]]+(conversation|discussion|chat) ]] && return 0
+  [[ "$line" =~ [Ll]ike[[:space:]]+you[[:space:]]+said ]] && return 0
+  if [[ "$line" =~ [Aa]s[[:space:]]+(you|we)[[:space:]]+(asked|requested|discussed|agreed|decided)([[:space:]]+([A-Za-z]+))? ]]; then
+    case "${BASH_REMATCH[4]:-}" in
+    above | below | earlier | later | previously | elsewhere | in | under | at | on) return 1 ;;
+    *) return 0 ;;
+    esac
+  fi
+  return 1
+}
+
+# The prose points at the work plan / changeset that produced the page rather
+# than at the page's subject. Four of the code lib's cues are deliberately NOT
+# carried over, each because a corpus sweep showed it matching live prose:
+#   "per the plan"  — prefix-matches "per the planning chapter", and a doc
+#                     citing a plan artifact that still exists is a live
+#                     cross-reference, not residue;
+#   "as planned"    — substring of "was planned", so "what was planned, what
+#                     was done instead" self-matched;
+#   "in this change" / "in this session" — ordinary domain vocabulary in an
+#                     agent-tooling corpus.
+# "in this PR" survives only with a first-person actor behind it, which is what
+# separates narration ("in this PR we switch the default") from a live referent
+# ("the files changed in this PR").
+audit_noise_line_has_plan_reference() {
+  local line="$1"
+  [[ "$line" =~ [Rr]eplaces[[:space:]]+the[[:space:]]+old ]] && return 0
+  [[ "$line" =~ [Ii]n[[:space:]]+this[[:space:]]+(PR|MR|pull[[:space:]]+request|commit|changeset|refactor),?[[:space:]]+(we|I)[[:space:]] ]] && return 0
+  [[ "$line" =~ ([Tt]ask|[Pp]hase|[Ss]tep)[[:space:]]+#?[0-9]+[[:space:]]+(of|in)[[:space:]]+(the|this)[[:space:]]+plan ]] && return 0
+  return 1
+}
+
+# Markdown restatement of the code skill's sanctioned-marker carve-out. Both
+# forms denote OUTSTANDING TRACKED WORK, where the reference is the actionable
+# part of the sentence; everything else is bare provenance, which is the shape.
+# Nothing further earns a carve-out here: the sanctioned home for a provenance
+# citation is a `## Sources` / `## History` footer, and the section exemptions
+# in detect.sh already skip those (as they skip CHANGELOG.md, fences, and
+# frontmatter) before any shape runs.
+audit_noise_line_is_tracked_work() {
+  local line="$1"
+  # Task-list checklist item: `- [ ] … #123` / `- [x] … #123`.
+  [[ "$line" =~ ^[[:space:]]*[-*+][[:space:]]+\[[[:space:]xX]\][[:space:]] ]] && return 0
+  # Tracked-work marker with a parenthesised reference.
+  [[ "$line" =~ (TODO|FIXME|HACK|XXX)[[:space:]]*\(#?[A-Za-z0-9_-]+\) ]] && return 0
+  return 1
+}
+
+# Bare provenance: a tracker, PR, or branch back-reference offered as the
+# reason the surrounding prose says what it says.
+audit_noise_line_has_ticket_pr_residue() {
+  local line="$1"
+  audit_noise_line_is_tracked_work "$line" && return 1
+  [[ "$line" =~ [Ss]ee[[:space:]]+(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ [Ss]ee[[:space:]]+the[[:space:]]+(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ ([Ii]ntroduced|[Aa]dded|[Ll]anded|[Ss]hipped|[Ff]ixed|[Rr]everted|[Dd]ecided|[Aa]greed)[[:space:]]+in[[:space:]]+(PR|MR|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ [Tt]racked[[:space:]]+in[[:space:]]+#[0-9] ]] && return 0
+  [[ "$line" =~ ([Tt]racked|[Ff]iled|[Ll]ogged|[Rr]eported)[[:space:]]+(in|as|under)[[:space:]]+[A-Z][A-Z0-9]+-[0-9] ]] && return 0
+  [[ "$line" =~ [Ff]rom[[:space:]]+the[[:space:]]+feature[[:space:]]+branch ]] && return 0
+  return 1
+}
+
 # Append matching shape names into the nameref array (avoids a per-line
 # command-substitution subshell in the detect hot loop).
 # Ghost-ref scans an unwrap (ticks removed, content kept); other shapes scan a
@@ -132,6 +210,15 @@ audit_noise_detect_shapes_into() {
     [[ "$stripped" =~ [Aa]uto-loads[[:space:]]+when ]]; then
     _audit_noise_shapes_out+=('scope-meta')
   fi
+  if audit_noise_line_has_plan_reference "$stripped"; then
+    _audit_noise_shapes_out+=('plan-reference')
+  fi
+  if audit_noise_line_has_conversational_antecedent "$stripped"; then
+    _audit_noise_shapes_out+=('conversational-antecedent')
+  fi
+  if audit_noise_line_has_ticket_pr_residue "$stripped"; then
+    _audit_noise_shapes_out+=('ticket-pr-residue')
+  fi
   ((${#_audit_noise_shapes_out[@]} > 0))
 }
 
@@ -152,8 +239,8 @@ audit_noise_detect_shapes() {
 audit_noise_shape_tier() {
   local shape="$1"
   case "$shape" in
-  ghost-ref | preamble) printf '2' ;;
-  citation | enum-list | scope-meta) printf '1' ;;
+  ghost-ref | preamble | ticket-pr-residue) printf '2' ;;
+  citation | enum-list | scope-meta | plan-reference | conversational-antecedent) printf '1' ;;
   *) printf '3' ;;
   esac
 }
@@ -163,8 +250,8 @@ audit_noise_shape_tier_into() {
   local shape="$1"
   local -n _audit_noise_tier_out="$2"
   case "$shape" in
-  ghost-ref | preamble) _audit_noise_tier_out=2 ;;
-  citation | enum-list | scope-meta) _audit_noise_tier_out=1 ;;
+  ghost-ref | preamble | ticket-pr-residue) _audit_noise_tier_out=2 ;;
+  citation | enum-list | scope-meta | plan-reference | conversational-antecedent) _audit_noise_tier_out=1 ;;
   *) _audit_noise_tier_out=3 ;;
   esac
 }

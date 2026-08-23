@@ -438,6 +438,85 @@ assert_contains "H1 closes Sources exemption" "$leak_out" "after an H1 closed So
 assert_not_contains "H3 Sources is exempt" "$leak_out" "under H3 Sources"
 assert_not_contains "H2 Sources body stays exempt" "$leak_out" "in Sources"
 
+# --- 11. Prose residue shapes: plan / conversational / tracker ------------------------
+
+RESIDUE="$TEST_TMPDIR/prose-residue.md"
+cat >"$RESIDUE" <<'EOF'
+# Prose residue fixture
+
+As you asked, this section documents the retry policy.
+Per our discussion, the timeout is 30s.
+Task 2 replaces the old buffering approach described below.
+In this PR we switch the default to streaming.
+See PR #45 for the rationale behind the ordering constraint.
+Tracked in JIRA-123.
+EOF
+res_out="$(bash "$DETECT" "$RESIDUE")"
+assert_contains "plan-reference detected" "$res_out" "Finding shape: plan-reference"
+assert_contains "conversational-antecedent detected" "$res_out" "Finding shape: conversational-antecedent"
+assert_contains "ticket-pr-residue detected" "$res_out" "Finding shape: ticket-pr-residue"
+assert_contains "plan-reference is tier 1" "$res_out" $'Finding tier: 1\nFinding shape: plan-reference'
+assert_contains "conversational-antecedent is tier 1" "$res_out" $'Finding tier: 1\nFinding shape: conversational-antecedent'
+assert_contains "ticket-pr-residue is tier 2" "$res_out" $'Finding tier: 2\nFinding shape: ticket-pr-residue'
+assert_contains "project-key tracker reference detected" "$res_out" "JIRA-123"
+assert_contains "prose residue file summary" "$res_out" "| T1=4 T2=2 T3=0"
+
+# --- 11b. ticket-pr-residue carve-outs: outstanding tracked work ----------------------
+
+CARVEOUT="$TEST_TMPDIR/tracked-work.md"
+cat >"$CARVEOUT" <<'EOF'
+# Tracked-work fixture
+
+- [ ] Cap the retry budget, see issue 42 for the acceptance test
+- [x] Land the streaming default, see issue 43 for the acceptance test
+TODO(#123): see issue 44 for the acceptance test.
+Bare provenance instead: see issue 45 for the rationale.
+EOF
+carve_out="$(bash "$DETECT" "$CARVEOUT")"
+assert_not_contains "unchecked task-list item is not ticket residue" "$carve_out" "issue 42"
+assert_not_contains "checked task-list item is not ticket residue" "$carve_out" "issue 43"
+assert_not_contains "tracked-work marker is not ticket residue" "$carve_out" "issue 44"
+assert_contains "the same phrasing without a carve-out still flags" "$carve_out" "issue 45"
+
+# --- 11c. Section exemptions cover the prose residue shapes too -----------------------
+
+RES_EXEMPT="$TEST_TMPDIR/residue-exempt.md"
+cat >"$RES_EXEMPT" <<'EOF'
+# Residue exemption fixture
+
+## Sources
+
+See PR #45 for the rationale behind the ordering constraint.
+As you asked, this footer records the provenance.
+
+# Body resumes
+
+As you asked, this line sits outside the exempt section.
+EOF
+res_ex_out="$(bash "$DETECT" "$RES_EXEMPT")"
+assert_not_contains "Sources footer suppresses ticket residue" "$res_ex_out" "ordering constraint"
+assert_not_contains "Sources footer suppresses conversational antecedent" "$res_ex_out" "footer records"
+assert_contains "residue after the exempt section still flags" "$res_ex_out" "outside the exempt section"
+
+# --- 11d. Prose negatives: the tightenings that keep live prose out ------------------
+
+RES_NEG="$TEST_TMPDIR/prose-negatives.md"
+cat >"$RES_NEG" <<'EOF'
+# Prose negatives fixture
+
+As we discussed above, the resolver reads the team-tracked file only.
+Scope the review to the files changed in this PR before reading further.
+Budget deliberation by reversibility tier, per the planning chapter.
+The template records what was planned and what was done instead.
+The shape definition quotes `As you asked` as its own example.
+EOF
+res_neg_out="$(bash "$DETECT" "$RES_NEG")"
+assert_not_contains "anaphoric cross-reference is not a conversational antecedent" \
+  "$res_neg_out" "Finding shape: conversational-antecedent"
+assert_not_contains "live 'in this PR' referent is not a plan reference" \
+  "$res_neg_out" "Finding shape: plan-reference"
+assert_contains "prose negatives file is clean" "$res_neg_out" "| T1=0 T2=0 T3=0"
+
 # --- Chunk affordance: --offset / --limit over the sorted target list ----------------
 
 CHUNK_A="$TEST_TMPDIR/chunk-a.md"
