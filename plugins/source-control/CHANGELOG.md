@@ -3,6 +3,52 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.5]
+
+### Added
+
+- **Non-helper worktrees are now claimable, and unclaimed trees are
+  reportable (#2882).** `worktree-create.sh` already locked the trees it
+  created; a plain `git worktree add` did not, so concurrent sessions
+  reached into each other's trees with no claim to read. `scripts/worktree-claim.sh`
+  is the route that closes that hole:
+  - `report` lists each linked worktree as `CLAIMED` (lock reason present)
+    or `UNCLAIMED` (none). Demonstrated by creating one with plain
+    `git worktree add` and reading the report.
+  - `claim` / `claim --all-unclaimed` arms `git worktree lock` with a
+    **session-distinct** reason (`worktree-claim.sh: ... session <id>
+    since ...`). Two concurrent sessions on one host produce different
+    reasons. Existing reasons are never rewritten, so helper-created
+    trees keep the `worktree-create.sh: ...` string.
+  - `check-enter <path>` is the write gate: a foreign live claim is
+    printed and the command exits 4; an unclaimed tree is reported
+    (exit 3); only a reason naming this session allows.
+  - `hooks/worktree-add-claim-gate.sh` is the PostToolUse sibling of
+    the containment gate: after a Bash `git worktree add` it claims
+    **only the parsed add target** (not every unlocked tree), composing
+    `git -C` and wrapper chdirs the same way the containment sibling
+    does. `echo git worktree add` is not a git call. Dynamic paths and
+    a prior `cd` fail open. A missed claim stays visible on `report`.
+    `check-enter` canonicalizes relative / `.` / symlink paths so a
+    foreign claim cannot be skipped by spelling. `--all-unclaimed`
+    preserves a lock failure's exit status.
+  The lock still only prevents `worktree remove` / `move` / `prune`
+  (git-worktree(1)); its value here is as a claim other agents can
+  read.
+
+## [0.55.4]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 4).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  Protocol strings in fences and inline code (commit message placeholders, the smart-default
+  glance map, `no — report`) stay as written.
+
 ## [0.55.3]
 
 ### Changed

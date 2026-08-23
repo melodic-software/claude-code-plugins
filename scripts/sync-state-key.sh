@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Sync or verify the cross-plugin lib/state-key.sh cluster.
 #
-#   scripts/sync-state-key.sh                     copy the canonical file into each carrier
-#   scripts/sync-state-key.sh --check             fail if any carrier differs from canonical
-#   scripts/sync-state-key.sh --check-bump <ref>  fail if the canonical changed vs <ref> but a
-#                                                 carrying plugin's manifest version did not
+#   scripts/sync-state-key.sh                      copy the canonical file into each carrier
+#   scripts/sync-state-key.sh --check              fail if any carrier differs from canonical
+#   scripts/sync-state-key.sh --check-bump <ref>   fail if the canonical changed vs <ref> but a
+#                                                  carrying plugin's manifest version did not
+#   scripts/sync-state-key.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
 # Canonical copy: plugins/claude-config/lib/state-key.sh (see
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
@@ -19,8 +20,6 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-state-key.sh"
-# `src=` and `copies=(` are parsed out of this file by scripts/affected-tests.sh;
-# keep both spellings exactly as they are.
 src="plugins/claude-config/lib/state-key.sh"
 copies=(plugins/claude-memory/lib/state-key.sh plugins/claude-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh plugins/instruction-placement/lib/state-key.sh)
 sync_cluster_manifest_strip='/lib/*'

@@ -61,17 +61,18 @@
 #                    text contains the file's basename is a dependent; R2/R3 are
 #                    then applied to IT, transitively. This is what carries a lib
 #                    change out to the hooks that source it.
-#   R5 shared-lib    a file that is the `src=` of a scripts/sync-*.sh selects
-#                    every path in that script's `copies=(...)` array, and then
-#                    R2/R3/R4 on each copy. The copy set is DERIVED from the sync
-#                    manifest on every run, never hardcoded here: the manifests
-#                    are what CI's *-sync lanes enforce, so a new carrying plugin
-#                    is picked up the moment it exists. Deriving it is the whole
-#                    point — a list copied into this file would silently rot, and
-#                    the rot would show up as an under-selection.
+#   R5 shared-lib    a file that is the `src` of a scripts/sync-*.sh selects
+#                    every path in that script's published `copy` list, and then
+#                    R2/R3/R4 on each copy. The copy set is DERIVED by invoking
+#                    `--print-manifest` on every run, never hardcoded here and
+#                    never scraped out of `src=` / `copies=(` source text: the
+#                    manifests are what CI's *-sync lanes enforce, so a new
+#                    carrying plugin is picked up the moment it exists. Deriving
+#                    it is the whole point — a list copied into this file would
+#                    silently rot, and the rot would show up as an under-selection.
 #   R6 sync script   a changed scripts/sync-*.sh selects its own co-located test
-#                    plus everything its `src=` selects, since its failure mode
-#                    is the copies drifting from that source.
+#                    plus everything its published `src` selects, since its
+#                    failure mode is the copies drifting from that source.
 #
 # R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
 # like — because those name a repo-wide role rather than one artifact, so a
@@ -217,92 +218,98 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # Sync-manifest derivation (R5/R6)
 # ---------------------------------------------------------------------------
 
-# manifest_src <sync-script> -> the `src=` value, or empty.
-manifest_src() {
-  awk '/^src=/ {
-    v = $0
-    sub(/^src=/, "", v)
-    gsub(/["\047]/, "", v)
-    sub(/[[:space:]]*#.*$/, "", v)
-    print v
-    exit
-  }' "$1"
-}
-
-# manifest_copy_patterns <sync-script> -> one raw `copies=(...)` entry per line.
-manifest_copy_patterns() {
-  awk '
-    /^copies=\(/ {
-      inarr = 1
-      line = $0
-      sub(/^copies=\(/, "", line)
-    }
-    !inarr { next }
-    inarr && line == "" && $0 !~ /^copies=\(/ { line = $0 }
-    {
-      sub(/#.*$/, "", line)
-      closed = (line ~ /\)/)
-      if (closed) sub(/\).*$/, "", line)
-      gsub(/["\047]/, "", line)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-      if (line != "") print line
-      if (closed) exit
-      line = ""
-    }
-  ' "$1"
-}
-
-# manifest_declares_copies <sync-script> -> 0 if a `copies=(` line EXISTS.
-# Deliberately separate from manifest_copy_patterns: whether the declaration is
-# PRESENT and whether it YIELDED anything are different questions, and conflating
-# them is what let a malformed `copies=()` with no `src=` look like a helper.
-manifest_declares_copies() {
-  grep -q '^copies=(' "$1"
-}
+# Published --print-manifest format (scripts/lib/sync-cluster.sh):
+#   src<TAB><path>     exactly one; empty path means the key was declared blank
+#   copy<TAB><path>    zero or more; path may still be a glob
+# A script that does not implement the flag (usage on stderr, empty stdout) or
+# that prints neither key is a helper sharing the sync-*.sh prefix and is
+# skipped. A script that prints copy lines (or an empty src key) without a
+# non-empty src is a half-manifest and is fatal.
 
 # SYNC_SRC_COPIES maps a sync source path to its newline-separated copy paths.
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
 
+# invoke_print_manifest <script> <stdout-file> <stderr-file>
+# Runs `$script --print-manifest`. Returns the script's exit status.
+invoke_print_manifest() {
+  bash "$1" --print-manifest >"$2" 2>"$3"
+}
+
 build_sync_map() {
-  local script src pattern match
+  local script src pattern match line kind value rc errfile outfile
+  local has_src_key has_copy_key
   local -a patterns=()
   local -a expanded=()
+  outfile="$WORK_DIR/print-manifest.out"
+  errfile="$WORK_DIR/print-manifest.err"
   for script in scripts/sync-*.sh; do
     [[ -f "$script" ]] || continue
     case "$script" in
     *.test.sh) continue ;;
     *) ;;
     esac
-    src="$(manifest_src "$script")"
-    mapfile -t patterns < <(manifest_copy_patterns "$script")
-    # A script matching scripts/sync-*.sh that declares NEITHER key is not a
+    : >"$outfile"
+    : >"$errfile"
+    rc=0
+    invoke_print_manifest "$script" "$outfile" "$errfile" || rc=$?
+
+    src=""
+    has_src_key=0
+    has_copy_key=0
+    patterns=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      kind="${line%%$'\t'*}"
+      if [[ "$kind" == "$line" ]]; then
+        value=""
+      else
+        value="${line#*$'\t'}"
+      fi
+      case "$kind" in
+      src)
+        has_src_key=1
+        src="$value"
+        ;;
+      copy)
+        has_copy_key=1
+        patterns+=("$value")
+        ;;
+      *) ;;
+      esac
+    done <"$outfile"
+
+    if ((rc != 0)); then
+      # usage / unknown-flag: a helper that does not implement the surface.
+      if [[ ! -s "$outfile" ]] && grep -q '^usage:' "$errfile"; then
+        continue
+      fi
+      echo "error: $script --print-manifest failed (exit $rc)." >&2
+      cat "$errfile" >&2
+      exit 2
+    fi
+
+    # A script matching scripts/sync-*.sh that publishes NEITHER key is not a
     # copy manifest — it is a helper that happens to share the prefix. Skip it.
     # Hard-exiting on it would be a repo-wide outage: this suite runs in the
     # plugin-gate lane, so the first future `scripts/sync-something.sh` that is
     # not a manifest would turn a REQUIRED check red for every PR, including
-    # ones that never touch this tool. The narrow fail-open that buys, stated
-    # plainly: a REAL manifest that renamed BOTH keys at once skips silently,
-    # and the zero-manifests guard below only catches the case where every
-    # manifest went dark at the same time. Half a manifest is still fatal.
-    #
-    # The test is on the DECLARATION, not on what it yielded. Asking
-    # `${#patterns[@]} -eq 0` instead would read a malformed `copies=()` with no
-    # `src=` as a helper and skip it silently — a half-manifest escaping the
-    # loud failure this branch exists to preserve, and one the zero-manifests
-    # guard below cannot catch while any other manifest still parses.
-    if [[ -z "$src" ]] && ! manifest_declares_copies "$script"; then
+    # ones that never touch this tool. Half a manifest is still fatal.
+    if ((has_src_key == 0 && has_copy_key == 0)); then
       continue
     fi
     if [[ -z "$src" ]]; then
-      echo "error: $script declares copies=(...) but no src= — the shared-lib derivation cannot read it." >&2
+      echo "error: $script --print-manifest declared copies but no src= — the shared-lib derivation cannot read it." >&2
       echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
       exit 2
     fi
     expanded=()
     for pattern in ${patterns[@]+"${patterns[@]}"}; do
-      # shellcheck disable=SC2086 # a manifest entry may be a glob; splitting is
-      # the expansion, and no path in this repo contains whitespace.
+      if [[ -e "$pattern" ]]; then
+        expanded+=("$pattern")
+        continue
+      fi
+      # shellcheck disable=SC2086 # a manifest entry may still be a glob;
+      # splitting is the expansion, and no path in this repo contains whitespace.
       for match in $pattern; do
         [[ -e "$match" ]] && expanded+=("$match")
       done
@@ -640,7 +647,7 @@ if [[ -n "$print_fanout" ]]; then
   build_sync_map
   print_fanout="${print_fanout#./}"
   if [[ -z "${SYNC_SRC_COPIES[$print_fanout]:-}" ]]; then
-    echo "error: $print_fanout is not the src= of any scripts/sync-*.sh manifest." >&2
+    echo "error: $print_fanout is not the src of any scripts/sync-*.sh manifest." >&2
     exit 2
   fi
   printf '%s' "${SYNC_SRC_COPIES[$print_fanout]}"

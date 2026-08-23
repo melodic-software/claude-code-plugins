@@ -2,12 +2,13 @@
 # Sync or verify the plugin copies of the shared commit/PR convention
 # ENFORCEMENT-pattern resolver (lib/resolve-convention-pattern.sh).
 #
-#   scripts/sync-resolve-convention-pattern.sh                     copy the lib into each consuming plugin
-#   scripts/sync-resolve-convention-pattern.sh --check             fail if any plugin copy differs from the source
-#   scripts/sync-resolve-convention-pattern.sh --check-bump <ref>  fail if the lib changed vs <ref> but a consuming
-#                                                                  plugin's manifest version did not — the plugin
-#                                                                  version is the update cache key, so an unbumped
-#                                                                  plugin never delivers the change to consumers
+#   scripts/sync-resolve-convention-pattern.sh                      copy the lib into each consuming plugin
+#   scripts/sync-resolve-convention-pattern.sh --check              fail if any plugin copy differs from the source
+#   scripts/sync-resolve-convention-pattern.sh --check-bump <ref>   fail if the lib changed vs <ref> but a consuming
+#                                                                   plugin's manifest version did not — the plugin
+#                                                                   version is the update cache key, so an unbumped
+#                                                                   plugin never delivers the change to consumers
+#   scripts/sync-resolve-convention-pattern.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
 # Like sync-parse-concern-value.sh, the copies are consumed at DIFFERENT paths,
 # so the destinations are an explicit list. The list started EMPTY and grows as
@@ -26,8 +27,6 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-resolve-convention-pattern.sh"
-# `src=` and `copies=(` are parsed out of this file by scripts/affected-tests.sh;
-# keep both spellings exactly as they are.
 src="lib/resolve-convention-pattern.sh"
 copies=(
   plugins/guardrails/hooks/resolve-convention-pattern.sh # CC-layer content gate (block-convention-violation.sh)

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Sync or verify the plugin copies of the shared hook utility library.
 #
-#   scripts/sync-hook-utils.sh                     copy the lib into each carrying plugin
-#   scripts/sync-hook-utils.sh --check             fail if any plugin copy differs from the source
-#   scripts/sync-hook-utils.sh --check-bump <ref>  fail if the lib changed vs <ref> but a carrying
-#                                                  plugin's manifest version did not — the plugin
-#                                                  version is the update cache key, so an unbumped
-#                                                  plugin never delivers the change to consumers
+#   scripts/sync-hook-utils.sh                      copy the lib into each carrying plugin
+#   scripts/sync-hook-utils.sh --check              fail if any plugin copy differs from the source
+#   scripts/sync-hook-utils.sh --check-bump <ref>   fail if the lib changed vs <ref> but a carrying
+#                                                   plugin's manifest version did not — the plugin
+#                                                   version is the update cache key, so an unbumped
+#                                                   plugin never delivers the change to consumers
+#   scripts/sync-hook-utils.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
 # A plugin carries the lib iff plugins/<name>/hooks/hook-utils.sh exists; a new
 # plugin opts in by committing an initial copy of the file there.
@@ -21,8 +22,6 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-hook-utils.sh"
-# `src=` and `copies=(` are parsed out of this file by scripts/affected-tests.sh;
-# keep both spellings exactly as they are.
 src="lib/hook-utils.sh"
 copies=(plugins/*/hooks/hook-utils.sh)
 sync_cluster_manifest_strip='/hooks/*'

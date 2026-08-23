@@ -694,7 +694,13 @@ neg_out="$(bash "$DETECT" "$NEG")"
 assert_contains "bare prohibition is a negation finding" "$neg_out" "Finding shape: negation"
 assert_contains "negation is Tier 2 (its treatment includes an edit)" "$neg_out" "Finding tier: 2"
 neg_count="$(printf '%s\n' "$neg_out" | grep -c '^Finding shape: negation')"
-assert_contains "all four bare prohibitions flag" "count=$neg_count" "count=4"
+# THREE, not four. The fixture's fourth line is subject-led ("The agent must
+# not…"), so the imperative-only scope gate declines it — the rule is about
+# instructions, and a subject-led sentence is prose describing a component. The
+# count is asserted rather than the shape alone so a future widening of that
+# gate cannot pass silently.
+assert_contains "only the three IMPERATIVE prohibitions flag" "count=$neg_count" "count=3"
+assert_not_contains "a subject-led prohibition is out of scope" "$neg_out" "must not emit a bare summary"
 
 # A paired positive in the same sentence is evidence the rule is satisfied.
 PAIRED="$TEST_TMPDIR/negation-paired.md"
@@ -827,16 +833,19 @@ assert_not_contains "marker is not the carved-out sentence's" "$marker_out" "Fin
 # suppresses a real prohibition in a later one — a silent withhold. The
 # right-to-left peel makes an abbreviation over-split instead, which only
 # narrows the window a suppressing marker acts from.
+# The line is IMPERATIVE and sentence-final so it clears the scope gates, and
+# carries an abbreviation plus a guardrail word ahead of a second, bare
+# prohibition — which is what puts the splitter under test rather than the gates.
 NEG_ABBREV="$TEST_TMPDIR/negation-abbrev.md"
 cat >"$NEG_ABBREV" <<'EOF'
 # Abbreviation fixture
 
-See e.g. the credential rotation policy. Never call the tool directly.
+Never store an api key, e.g. a deploy token, in the repo. Do not use markdown.
 EOF
 abbrev_out="$(bash "$DETECT" "$NEG_ABBREV")"
 assert_contains "a guardrail word in an earlier clause cannot suppress a later prohibition" \
   "$abbrev_out" "Finding shape: negation"
-assert_contains "and the marker is the later sentence's" "$abbrev_out" "Finding marker: never"
+assert_contains "and the marker is the later sentence's" "$abbrev_out" "Finding marker: do not"
 
 # The carve-out must still hold when the guardrail really is in the SAME
 # sentence — the split fix must not turn every guardrail into a finding.
@@ -848,6 +857,105 @@ Never commit a credential to the repository.
 EOF
 same_out="$(bash "$DETECT" "$NEG_SAME")"
 assert_not_contains "a same-sentence guardrail still carves out" "$same_out" "Finding shape: negation"
+
+# SCOPE GATES. "Prompt the positive" is a rule about INSTRUCTIONS, so only an
+# imperative selects, and only a line that closes its own sentence can be shown
+# to lack a positive. Without both gates the shape fired 1053 times on an
+# 85-file sample of this repo (99% of all findings); with them, 31.
+NEG_SCOPE="$TEST_TMPDIR/negation-scope.md"
+cat >"$NEG_SCOPE" <<'EOF'
+# Scope fixture
+
+The config never loads on a cold start.
+
+Older versions do not support this flag.
+
+The scanner should not be confused with a linter.
+
+Prefer a runtime derivation; never hardcode the roster.
+
+| Do not use markdown. | rewrite to the positive |
+EOF
+scope_out="$(bash "$DETECT" "$NEG_SCOPE")"
+assert_not_contains "descriptive prose and mid-sentence cues are out of scope" \
+  "$scope_out" "Finding shape: negation"
+
+# The gates must not cost the ordinary imperative forms this rule exists for,
+# including the marked-up ones — a list item and a fully bolded directive.
+NEG_FORMS="$TEST_TMPDIR/negation-forms.md"
+cat >"$NEG_FORMS" <<'EOF'
+# Imperative forms fixture
+
+Do not use markdown in your response.
+
+- Never call the tool directly.
+
+**Avoid restating the rule in the body.**
+
+> Do not emit a bare summary.
+EOF
+forms_out="$(bash "$DETECT" "$NEG_FORMS")"
+forms_count="$(printf '%s\n' "$forms_out" | grep -c '^Finding shape: negation')"
+assert_contains "plain, list, bolded and blockquoted imperatives all still flag" \
+  "count=$forms_count" "count=4"
+
+# A hard-wrapped continuation line cannot be shown to lack a positive that sits
+# on the next line, so it must not select on its own.
+NEG_WRAP="$TEST_TMPDIR/negation-wrap.md"
+cat >"$NEG_WRAP" <<'EOF'
+# Wrapped fixture
+
+Do not use markdown in your response; compose it instead as
+smoothly flowing prose paragraphs.
+EOF
+wrap_out="$(bash "$DETECT" "$NEG_WRAP")"
+assert_not_contains "a hard-wrapped continuation does not select" "$wrap_out" "Finding shape: negation"
+
+# The imperative gate is PER SENTENCE. A line-level gate admits the whole line
+# on its first sentence and then lets a later DESCRIPTIVE sentence be reported —
+# the exact prose the gate exists to exclude, re-entering behind a compliant
+# opener.
+NEG_SENTGATE="$TEST_TMPDIR/negation-sentence-gate.md"
+cat >"$NEG_SENTGATE" <<'EOF'
+# Per-sentence fixture
+
+Do not use markdown; instead use HTML. Older versions do not support SVG.
+EOF
+sentgate_out="$(bash "$DETECT" "$NEG_SENTGATE")"
+assert_not_contains "a descriptive later sentence cannot ride an imperative opener" \
+  "$sentgate_out" "Finding shape: negation"
+
+# ...but a genuinely imperative later sentence still selects, so the per-sentence
+# gate narrows without costing the multi-sentence case.
+NEG_TWO="$TEST_TMPDIR/negation-two-imperatives.md"
+cat >"$NEG_TWO" <<'EOF'
+# Two-imperative fixture
+
+Never commit a secret. Do not use markdown.
+EOF
+two_out="$(bash "$DETECT" "$NEG_TWO")"
+assert_contains "an imperative later sentence still selects" "$two_out" "Finding shape: negation"
+assert_contains "and reports its own marker" "$two_out" "Finding marker: do not"
+
+# Ordered-list items use either delimiter, and a task-list checkbox is an
+# ordinary way this repo writes a directive. Missing any of these withholds
+# silently, which is the direction this rule set exists to avoid.
+NEG_MARKERS="$TEST_TMPDIR/negation-markers.md"
+cat >"$NEG_MARKERS" <<'EOF'
+# Marker fixture
+
+1. Do not use markdown.
+
+2) Never call the tool directly.
+
+- [ ] Avoid restating the rule in the body.
+
+- [x] Do not emit a bare summary.
+EOF
+markers_out="$(bash "$DETECT" "$NEG_MARKERS")"
+markers_count="$(printf '%s\n' "$markers_out" | grep -c '^Finding shape: negation')"
+assert_contains "both ordered-list delimiters and both checkbox states reach the cue" \
+  "count=$markers_count" "count=4"
 
 # SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep rather
 # than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git

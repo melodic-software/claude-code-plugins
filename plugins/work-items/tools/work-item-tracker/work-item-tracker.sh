@@ -71,9 +71,18 @@ fail_config() {
   exit "$EX_CONFIG"
 }
 
-check_gh_version() {
+# Presence and version are separate prerequisites. Every github verb that shells
+# out needs the binary; only the native sub-issue/dependency surface needs 2.94.
+# Keeping them separate preserves the clean exit 3 a gh-less session gets
+# (CONTRACT.md "Degradation without gh") instead of letting the lease verbs
+# dispatch and die on `gh: command not found` inside the adapter.
+check_gh_present() {
   command -v gh >/dev/null 2>&1 ||
-    fail_config "prerequisite missing: gh (GitHub CLI) >= 2.94 — see CONTRACT.md Prerequisites"
+    fail_config "prerequisite missing: gh (GitHub CLI) — see CONTRACT.md Prerequisites"
+}
+
+check_gh_version() {
+  check_gh_present
   local raw major minor
   raw="$(gh --version 2>/dev/null | head -n1 | sed -E 's/^gh version ([0-9]+\.[0-9]+).*/\1/')"
   major="${raw%%.*}"
@@ -119,8 +128,6 @@ main() {
   wit_check_contract_version "$WIT_PROVIDER" "$manifest" ||
     exit "$EX_CONFIG"
 
-  [[ "$WIT_PROVIDER" == "github" ]] && check_gh_version
-
   # Tell the adapter where THIS engine's lib/ is. Adapters resolve consumer-local
   # first, so a consumer-local or generated adapter sits in the consuming repo
   # while the engine it is dispatched by lives in the read-only plugin directory —
@@ -155,6 +162,31 @@ main() {
     exit "$EX_USAGE"
     ;;
   esac
+
+  # gh >= 2.94 buys exactly one thing: the native sub-issue/dependency surface
+  # (`--parent`, `--blocked-by`, `--add-blocked-by`, and the `blockedBy` /
+  # `parent` / `subIssues` --json fields). Gate the verbs that touch it, not the
+  # whole dispatcher — a blanket gate also blocked the lease trio (claim,
+  # renew-lease, reclaim) and `capabilities`, none of which reads that surface,
+  # so an older gh lost race-safe claiming for a prerequisite it never used.
+  # `capabilities` is the sharpest case: it reads a JSON manifest and never
+  # invokes gh at all, yet could not answer what the provider supports without
+  # meeting a requirement the answer itself might have said was unnecessary.
+  # Keyed on adapter_verb (resolved above), so `list-frontier --parent` gates
+  # through its list-sub-items dispatch rather than needing its own entry.
+  if [[ "$WIT_PROVIDER" == "github" ]]; then
+    case "$adapter_verb" in
+    create-item | get-item | list-items | list-sub-items | link-blocks | add-sub-item)
+      check_gh_version
+      ;;
+    capabilities)
+      # Reads the JSON manifest only; never shells out to gh.
+      ;;
+    *)
+      check_gh_present
+      ;;
+    esac
+  fi
 
   if [[ "$(jq -r --arg v "$adapter_verb" '.verbs[$v] // false' "$manifest")" != "true" ]]; then
     printf "work-item-tracker: verb '%s' unsupported by provider '%s' (capabilities.json)\n" \

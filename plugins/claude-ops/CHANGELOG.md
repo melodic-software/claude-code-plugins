@@ -3,6 +3,50 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0]
+
+### Added
+
+- **`audit-native-overlap` — a twelfth skill that maps native Claude Code surfaces against this
+  repository's own components.** Claude Code's surface moves every week, and a skill written when
+  no bundled equivalent existed can wake up duplicating one with nothing in the product saying so:
+  plugin skills are namespaced, so a native surface never shadows ours and the collision is silent.
+  The model then picks between two overlapping capabilities from descriptions alone.
+
+  Bare invocation is a read-only report per the `audit` verb contract — overlap candidates with
+  evidence, the detection integrity floors carried through, and a shared-listing-budget exposure
+  section composed from `skill-quality` when that plugin is installed. Mutation sits behind an
+  explicit apply step and never runs on bare invocation.
+
+  Detection names its two substrates rather than blurring them: the native side is the sibling
+  `inventory` extractor's JSON, consumed with a `schema == 1` assertion and a presence check on
+  every key read (`builtin_commands`, `bundled_skills`, `plugin_backed`, `integrity`), because the
+  extractor's integrity block guards extraction drift and not its own key names — a missing key is
+  reported as broken rather than read as an empty surface. The target side is the skill's own scan
+  of the audited repository's plugin tree, since the extractor scans installed trees, which are not
+  necessarily the repo in front of you.
+
+  Verdicts come from a five-value enum (`prefer-native`, `prefer-ours`, `complementary`,
+  `superseded`, `defer`) with no blanket preference rule, and every one of them is a human's: a run
+  recommends and reports, never records. Session-provided (cloud) surfaces stay observation-only —
+  one environment's roster on one day is not a basis for a routing line shipped to consumers.
+
+  Ships `overlap.py` (Python 3.11+, stdlib only) with `detect`, `generate`, and `self-check`
+  subcommands on a 0 ok / 1 broken / 3 degraded exit contract, matching the sibling extractor rather
+  than the repo's shell gates, plus a 38-case `unittest` suite and its wrapper. The self-check's
+  scope is what is locally decidable: store schema and row well-formedness, per-row recheck-trigger
+  presence including a bare-date rejection, store-to-view drift, and direction-sensitive baked-line
+  parity — every baked line traces to a store row, while a row without a baked line is legal
+  pending-sweep state. Whether an upstream event actually *fired* is a session act, not a gate's.
+
+- **A presence-gated `doctor` reference on `audit-install-state`.** Its description gains one clause
+  carrying the canonical gate token, the provenance class, and the routing split, and its body gains
+  a `## Boundary` section naming the surface, its mutation gate (bundled `doctor` fixes; this skill
+  is report-only, so it never chains into a fix on the user's behalf), and the sibling that owns the
+  timed slowness lane. No static availability claim anywhere: bundled surfaces are gated on
+  settings and environment, plan, platform, and host surface, so a session where `doctor` does not
+  resolve is an ordinary session.
+
 ## [0.36.1]
 
 ### Changed

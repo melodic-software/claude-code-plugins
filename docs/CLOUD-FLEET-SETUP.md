@@ -84,14 +84,22 @@ Edit **Default** in place — the paste-once rollout settles on one account-wide
 than a separate named environment (see
 [One environment per account?](../prompts/cloud-bootstrap-rollout.md#one-environment-per-account)):
 
-- **Network access**: **Custom**, with **Also include default list of common package managers**
-  checked, plus these hosts: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
-  `download.visualstudio.microsoft.com`. This is a hard requirement, not a fallback: the 2026-08-14
-  verification run ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654),
-  Blocker 1) reproduced the .NET installer's redirect chain being `403`-blocked under Trusted
-  (session-side probes on 2026-08-13 had suggested the documented allowlist was conservative; the
-  setup-script build proved otherwise). Trusted works only if the fleet ever drops .NET from the
-  environment.
+- **Network access**: **All** — operator decision 2026-08-22, superseding this doc's earlier
+  Custom allowlist (`dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
+  `download.visualstudio.microsoft.com`). The access level is an exfiltration control whose Custom
+  default already opens publish-capable package registries; the GitHub proxy, MCP connector
+  traffic and the Anthropic API bypass the level at every setting; and a blocked host mid-session
+  kills the session until an environment edit plus a cache rebuild. **All** removes that failure
+  class outright, the .NET case included: the 2026-08-14 verification run
+  ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), Blocker 1)
+  reproduced the .NET installer's redirect chain being `403`-blocked under *Trusted*, and that
+  blocker is moot under All — no host list to keep current, and no narrower level left to choose
+  between. The host list above is superseded history, not a recipe. The one exception that still
+  needs a recipe: an account handling sensitive material drops back to **Custom** — and only a
+  complete Custom is safe. That means **Also include default list of common package managers**
+  checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`, and
+  `download.visualstudio.microsoft.com`; a Custom missing any of it leaves the .NET installer's
+  redirect chain exposed to the same `403` block Blocker 1 demonstrated under Trusted.
 - **Environment variables**: none. There is no secrets store — anything here is readable by every
   session in the environment. `gh`/git auth comes from the GitHub proxy automatically.
 - **Setup script**: paste only the three-line bootstrap below. The real script is the
@@ -227,12 +235,14 @@ session on this repo in the new environment and ask Claude to verify:
    `/plugin` is not available in cloud sessions, and a Bash-side
    `claude plugin list` proves only disk state, not that the session loaded anything (see the
    same-session limit in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
-5. If the .NET setup-script step failed (`dotnet` missing), confirm the environment actually has
-   the Custom allowlist from [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) —
-   under Trusted this step *always* fails (#2654 Blocker 1) — then rebuild and re-verify.
+5. If the .NET setup-script step failed (`dotnet` missing), confirm the environment's network
+   access is **All** per [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) — a
+   narrower level can `403`-block the installer's redirect chain (#2654 Blocker 1), which All
+   moots — then rebuild and re-verify. If it is already All, the cause is not network access:
+   read `/var/log/melodic-env-setup.log` for what the .NET track actually hit.
 6. Python: in a claude-code-proxy or medley session, `uv python install 3.14` — if the download
-   is `403`-blocked (release assets ride the GitHub proxy's repository scope), fall back to the
-   VM's system Python for tooling or add the astral-sh host to a Custom allowlist. This repo's
+   is `403`-blocked (release assets ride the GitHub proxy's repository scope, which applies at
+   every network access level), fall back to the VM's system Python for tooling. This repo's
    cloud bootstrap installs from `.github/requirements-ci.txt` with `--require-hashes`; that
    pin list includes cp311 wheels so the cloud VM's system Python 3.11 can satisfy `pyyaml`
    (CI itself uses 3.14).
@@ -252,9 +262,10 @@ session on this repo in the new environment and ask Claude to verify:
   but are never loaded by the session that ran them (the registry is read before the hook), so
   plugins go live at turn one only when the cache build runs the bootstrap pre-launch, which the
   standards `cloud-environment` component does. Remaining #2654 actions are environment-side,
-  not repo-side: switch the environment to the Custom allowlist
-  ([Step 1](#step-1--the-shared-environment-claudeai-ui-one-time)) and rebuild the interrupted
-  cache, then re-run the [checklist](#verification-checklist).
+  not repo-side: set the environment's network access to **All**
+  ([Step 1](#step-1--the-shared-environment-claudeai-ui-one-time)), which moots Blocker 1 rather
+  than working around it, and rebuild the interrupted cache, then re-run the
+  [checklist](#verification-checklist).
 - **`dotfiles` cannot deliver user config to the cloud.** By platform design nothing from
   `~/.claude` reaches cloud sessions; the repo remains editable in the cloud, but any behavior it
   installs locally must be re-homed (repo `.claude/`, plugins, or the environment) to exist

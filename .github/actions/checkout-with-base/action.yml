@@ -1,0 +1,36 @@
+name: Checkout with base
+description: >
+  Deepen a just-checked-out worktree to full history and fetch
+  origin/$BASE_REF on pull_request events. A same-repo composite cannot
+  be the first step of a job (GitHub has not fetched the tree yet), so
+  callers still run a pinned actions/checkout first; this action owns
+  the depth and the explicit base fetch that used to be copied beside
+  that checkout. It does not write GITHUB_ENV — callers already pass
+  BASE_REF from github.base_ref, and zizmor flags GITHUB_ENV writes.
+
+inputs:
+  fetch-base:
+    description: >
+      When true (the default, and the safe one), fetch origin/$BASE_REF
+      on pull_request events so later steps can resolve that ref with no
+      extra fetch of their own.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Deepen history
+      shell: bash
+      run: |
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          git fetch --prune --unshallow --no-tags
+        fi
+
+    - name: Fetch base ref
+      if: inputs.fetch-base == 'true' && github.event_name == 'pull_request' && github.base_ref != ''
+      shell: bash
+      env:
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"

@@ -53,7 +53,8 @@ more, and keep it repo-agnostic, since it serves all repos:
 - [Create or edit environments](https://code.claude.com/docs/en/cloud-environments#configure-your-environment)
   from the selector at claude.ai/code; pick a
   [network access level](https://code.claude.com/docs/en/cloud-environments#access-levels) if
-  Trusted isn't right.
+  Trusted isn't right — this fleet's accounts all run **All** (see
+  [One environment or several?](#one-environment-or-several)).
 - [Environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)
   are readable by anyone who uses the environment and there is no secrets store — no credentials.
 - A [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts) is only for
@@ -127,18 +128,23 @@ plus the cost model of
 ### One environment or several?
 
 Start with one Default. Environments are account-scoped and repo-agnostic, so a single
-Trusted-network environment serves every repository. Add a second, named environment only when a
-class of work needs something incompatible or heavy enough to isolate — a big SDK whose cache
-churn you want contained, or a
+environment serves every repository — this fleet runs its Default at **All** network access
+(operator decision 2026-08-22; rationale in
+[CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md#step-1--the-shared-environment-claudeai-ui-one-time)).
+Add a second, named environment only when a class of work needs something incompatible or heavy
+enough to isolate — a big SDK whose cache churn you want contained, or an account that handles
+sensitive material and therefore has to run narrower than All, on a
 [custom domain allowlist](https://code.claude.com/docs/en/cloud-environments#allow-specific-domains).
 A repo needing an uninstalled toolchain (the docs' example is the .NET SDK) means adding its
 install to a setup script — extend Default, or create a dedicated environment and select it when
-starting sessions on that repo; NuGet and dotnet.microsoft.com are already on the default
-allowlist.
+starting sessions on that repo. Reaching NuGet and dotnet.microsoft.com is not what settles .NET:
+both are on the default allowlist, yet under Trusted the installer's redirect chain still came
+back `403` (#2654 Blocker 1). That is why the toolchain question and the network-access question
+are separate — and why the fleet answers the second with All.
 
 ## How this repository is set up
 
-The environment side stays generic (Default environment, Trusted network, no variables, the
+The environment side stays generic (Default environment, **All** network access, no variables, the
 `gh` setup-script one-liner and the guarded pre-launch bootstrap call from above). The repo side:
 
 - [`.claude/cloud-bootstrap.sh`](../.claude/cloud-bootstrap.sh) is the bootstrap, with two

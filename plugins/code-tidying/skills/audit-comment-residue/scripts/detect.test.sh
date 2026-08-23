@@ -268,14 +268,31 @@ else
     : >"$REPO13/quote\".py"
     : >"$REPO13/back\\-slash.py"
     : >"$REPO13/plain space.py"
+    # A non-ASCII name is the case the v1 parse could not decode: the é arrives octal-escaped as
+    # \303\251, which a quote-strip alone leaves naming no file. The ASCII fixtures above
+    # all pass either parse, so without this one the parity check stays green while the two
+    # parsers diverge on exactly the path detect.sh was moved to -z to reach.
+    : >"$REPO13/café.py"
     cp "$ALL_SHAPES" "$REPO13/renamed-src.py"
     git -C "$REPO13" add renamed-src.py
     git -C "$REPO13" -c user.email=t@example.com -c user.name=t commit -qm init
     mv "$REPO13/renamed-src.py" "$REPO13/renamed-dst.py"
     git -C "$REPO13" add -N renamed-dst.py
 
-    skill_out="$(cd "$REPO13" && git status --porcelain | awk "$skill_awk")"
+    # Extract the porcelain invocation too, not just the awk program. Hardcoding either form here
+    # would let the harness mask a mismatch: feeding -z to a v1 program makes the v1 program look
+    # correct, because -z output carries no quoting for it to fail at decoding. Reading both ends
+    # from SKILL.md means the fixtures below test the line as it actually runs.
+    skill_porcelain="$(sed -n 's/^Uncommitted code files: !`\(git status --porcelain[^|]*\)|.*/\1/p' "$SKILL_MD")"
+    if [[ -z "$skill_porcelain" ]]; then
+      fail "SKILL.md porcelain invocation extracted" "non-empty command" "no match — line shape changed"
+    else
+      pass "SKILL.md porcelain invocation extracted"
+    fi
+    skill_out="$(cd "$REPO13" && eval "$skill_porcelain" | awk "$skill_awk")"
 
+    assert_contains "SKILL.md parser reads a non-ASCII path undecoded" "$skill_out" 'café.py'
+    assert_not_contains "SKILL.md parser leaks no octal escape" "$skill_out" '\303'
     assert_contains "SKILL.md parser unescapes an embedded quote" "$skill_out" 'quote".py'
     assert_contains "SKILL.md parser unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
     assert_contains "SKILL.md parser unwraps a spaced path" "$skill_out" 'plain space.py'
@@ -304,6 +321,24 @@ else
     fi
   fi
 fi
+
+# --- 11. Paths v1 porcelain escapes or renders ambiguously (#3126) ---------------------
+# The v1 record cannot be parsed back reliably: git wraps and C-style-escapes any path holding a
+# non-ASCII byte, a tab, or a backslash, and its "old -> new" rename rendering is byte-identical
+# to an ordinary file literally named "left -> right.py". Reading -z instead removes the encoding
+# entirely. Kept in its own repo so REPO13's parity fixture stays as 0.13.3 wrote it.
+REPO14="$TEST_TMPDIR/repo14"
+mkdir -p "$REPO14"
+git -C "$REPO14" init -q
+cp "$ALL_SHAPES" "$REPO14/left -> right.py"
+cp "$ALL_SHAPES" "$REPO14/café.py"
+cp "$ALL_SHAPES" "$REPO14/$(printf 'tab\there.py')"
+escaped_out="$(cd "$REPO14" && bash "$DETECT")"
+assert_contains "arrow-in-filename audited, not split as a rename" "$escaped_out" "left -> right.py"
+assert_contains "non-ASCII path audited without escape mangling" "$escaped_out" "café.py"
+assert_contains "tab-bearing path audited" "$escaped_out" "$(printf 'tab\there.py')"
+assert_not_contains "escaped paths are not reported as files=0" "$escaped_out" "files=0"
+assert_not_contains "no C-style octal escape leaks into a target path" "$escaped_out" '\303'
 
 # --- Final report --------------------------------------------------------------------
 
