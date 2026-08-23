@@ -735,6 +735,38 @@ jobs:
       - name: Check hook declarations for exec-form bare command names
         run: scripts/check-hook-exec-form.sh
 
+  # Three separate readers judge `metadata.summary`, and they used to disagree:
+  # a malformed value reached CI twice in #3162, failing in opposite directions,
+  # each time after clearing the local check meant to catch it. The local bash
+  # reader enforced only a length cap, the cheat-sheet generator's guard
+  # enforced YAML-scalar safety, and a real YAML parser enforced neither but
+  # rejected the document outright. Making them agree is not sufficient on its
+  # own, because agreement on a wrong rule is still wrong, so this gate pins
+  # every verdict to a real YAML parse rather than to the other readers. It
+  # sweeps a shared case table (the rule set) and every SKILL.md in the tree
+  # (the tree), and it fails closed without PyYAML rather than clearing on the
+  # two regex readers alone.
+  summary-reader-parity-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: .github/requirements-ci.txt
+      - name: Install the pinned YAML reader
+        run: |
+          python -m pip install --only-binary=:all: --require-hashes \
+            --requirement .github/requirements-ci.txt
+      - name: Check that every summary reader returns the same verdict
+        run: bash scripts/check-summary-reader-parity.test.sh
+
   # Every option a plugin declares must be documented in that plugin's README.
   # The block is generated from the manifest, so the failure this catches is an
   # option added to plugin.json whose README block was never regenerated -- an
