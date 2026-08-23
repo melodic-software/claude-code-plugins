@@ -227,12 +227,18 @@ yb_branch_line() {
   mkdir -p "$repo"
   git -C "$TMP_ROOT" init -q -b "$b" "yb$slot" 2>/dev/null
   cp "$FIX/sanity/one-assertion-free.test.js" "$repo/"
-  CANT_FAIL_SCAN_ROOT="$repo" bash "$SCAN" --findings 2>/dev/null |
+  CANT_FAIL_SCAN_ROOT="$repo" bash "$SCAN" --findings </dev/null 2>/dev/null |
     LC_ALL=C grep -m1 '^branch:'
 }
 
+# EVERY git-reachable indicator character is asserted, not a sample. A
+# four-name sample stayed green after `|`, `>`, `%`, backtick, `"` and `'`
+# were dropped from this producer — the drift acceptance criterion 3 forbids.
+# `-`, `?`, `:`, `[` and `*` are rejected by `git check-ref-format --branch`,
+# so no checkout can reach them here; they are asserted against ai-slop's
+# emitter, which takes --branch as an arbitrary string.
 yb_slot=0
-for b in '@foo' '!foo' '#foo' '&foo'; do
+for b in ',foo' ']foo' '{foo' '}foo' '#foo' '&foo' '!foo' '|foo' '>foo' '%foo' '@foo' '`foo' "'foo"; do
   yb_slot=$((yb_slot + 1))
   got="$(yb_branch_line "$b" "$yb_slot")"
   want="branch: \"$b\""
@@ -242,6 +248,15 @@ for b in '@foo' '!foo' '#foo' '&foo'; do
     fail "indicator branch '$b' is emitted as a quoted scalar" "expected [$want], got [$got]"
   fi
 done
+
+# The double-quote indicator, whose expected form carries an escape.
+yb_slot=$((yb_slot + 1))
+got="$(yb_branch_line '"foo' "$yb_slot")"
+if [[ "$got" == 'branch: "\"foo"' ]]; then
+  pass 'indicator branch (leading double quote) is quoted and escaped'
+else
+  fail 'indicator branch (leading double quote) is quoted and escaped' "got [$got]"
+fi
 
 for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
   yb_slot=$((yb_slot + 1))

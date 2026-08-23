@@ -562,18 +562,51 @@ fi
 emit_branch_line() {
   # emit_branch_line <branch> -> the emitted `branch:` frontmatter line
   local b="$1" out="$TEST_TMPDIR/findings/ybranch.md"
-  rm -f "$out"
-  bash "$EMIT" --from "$DETOUT" --out "$out" --branch "$b" >/dev/null 2>&1
-  LC_ALL=C grep -m1 '^branch:' "$out"
+  # Non-overwrite naming would divert a leftover sibling to ybranch-2.md.
+  rm -f "$TEST_TMPDIR/findings/ybranch"*.md
+  # Stdin closed: a missing-file grep that fell through to stdin would hang
+  # the suite (the Windows Git Bash failure mode that blocked the first
+  # widening of this loop). The emitter itself does not read stdin.
+  bash "$EMIT" --from "$DETOUT" --out "$out" --branch "$b" </dev/null >/dev/null 2>&1 || true
+  [[ -f "$out" ]] || {
+    printf 'MISSING\n'
+    return 0
+  }
+  LC_ALL=C grep -m1 '^branch:' "$out" </dev/null || true
 }
 
-for b in '@foo' '!foo' '#foo' '*foo' '&foo'; do
+# EVERY character in the predicate's indicator class is asserted, not a sample.
+# A five-name sample stayed green after `|`, `>`, `%`, backtick, `"` and `'`
+# were dropped from a sibling — the drift acceptance criterion 3 forbids.
+# `-foo` is omitted: git rejects it, and --branch treats a leading `-` as a
+# missing option value (exit 2), so no caller can reach the predicate with it.
+for b in '?foo' ':foo' ',foo' '[foo' ']foo' '{foo' '}foo' '#foo' \
+  '&foo' '*foo' '!foo' '|foo' '>foo' '%foo' '@foo' '`foo' "'foo"; do
   got="$(emit_branch_line "$b")"
   want="branch: \"$b\""
   if [[ "$got" == "$want" ]]; then
     pass "emit: indicator branch '$b' is emitted as a quoted scalar"
   else
     fail "emit: indicator branch '$b' is emitted as a quoted scalar" "$want" "$got"
+  fi
+done
+
+# The double-quote indicator, whose expected form carries an escape.
+got="$(emit_branch_line '"foo')"
+if [[ "$got" == 'branch: "\"foo"' ]]; then
+  pass 'emit: indicator branch (leading double quote) is quoted and escaped'
+else
+  fail 'emit: indicator branch (leading double quote) is quoted and escaped' 'branch: "\"foo"' "$got"
+fi
+
+# Non-leading `: ` and ` #` also force quoting: both end a plain scalar early.
+for b in 'has: colon' 'has #hash'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: branch '$b' is quoted (plain scalar would end early)"
+  else
+    fail "emit: branch '$b' is quoted (plain scalar would end early)" "$want" "$got"
   fi
 done
 
