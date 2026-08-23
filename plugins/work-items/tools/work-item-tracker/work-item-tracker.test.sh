@@ -330,8 +330,10 @@ for _d in /usr/bin /bin /usr/local/bin; do
     [[ -e "$NOGH_BIN/$_b" ]] || ln -s "$_f" "$NOGH_BIN/$_b" 2>/dev/null || true
   done
 done
-command -v gh >/dev/null 2>&1 &&
-  [[ -z "$(PATH="$NOGH_BIN" command -v gh 2>/dev/null)" ]] ||
+# Guard only on what these cases actually need: that gh does not resolve inside
+# NOGH_BIN. Requiring an ambient gh as well would skip the whole block on a
+# runner that has none — the exact environment the cases exist to cover.
+[[ -z "$(PATH="$NOGH_BIN" command -v gh 2>/dev/null)" ]] ||
   skip_suite "could not build a gh-free PATH for the presence-gate cases"
 
 run_gh_verb_no_gh() {
