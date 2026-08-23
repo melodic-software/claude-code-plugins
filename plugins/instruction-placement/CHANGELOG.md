@@ -3,6 +3,20 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **The index has a size posture.** It had none: no cap, no ranking, no truncation. Since the index
+  is always-loaded, a large monorepo would have turned the mechanism that *frees* always-loaded
+  budget into a consumer of it — and with the adherence claim gone (0.5.0), reachability is now the
+  main thing the index is for, so it cannot be allowed to become the bloat it prevents.
+
+  Past `--max-rows` (default 40, roughly a screenful), the index lists that many surfaces
+  individually and groups the remainder by directory with a count. What was collapsed is **stated**,
+  never silently dropped: a truncated index that reads as complete is the failure mode, and the
+  grouped tail still tells a reader where to look and what to do.
+
 ## [0.5.0]
 
 ### Changed

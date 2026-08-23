@@ -316,6 +316,37 @@ out="$(run reachable --file "$unwired/CLAUDE.md" --root "$unwired")"
 assert_contains "a root CLAUDE.md target is always reachable" "$out" "LOADED"
 
 # --------------------------------------------------------------------------
+# Size posture — the index must not become the bloat it exists to remove
+# --------------------------------------------------------------------------
+many="$(mktemp -d)"
+git -C "$many" init -q .
+mkdir -p "$many/.claude/rules" "$many/src"
+printf 'x\n' >"$many/src/a.cs"
+for i in $(seq 1 12); do
+  mkdir -p "$many/.claude/rules/group$((i % 3))"
+  {
+    printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# Rule %s\n' "$i"
+  } >"$many/.claude/rules/group$((i % 3))/rule$i.md"
+done
+git -C "$many" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+git -C "$many" -c user.email=t@t -c user.name=t commit -qm many >/dev/null 2>&1
+
+out="$(run render --root "$many")"
+rowcount="$(printf '%s\n' "$out" | grep -c '^| `' || true)"
+assert_eq "under the cap, every surface is listed individually" "12" "$rowcount"
+assert_not_contains "under the cap, no grouping section appears" "$out" "further surface(s)"
+
+out="$(run render --root "$many" --max-rows 5)"
+rowcount="$(printf '%s\n' "$out" | grep -c '^| `' || true)"
+assert_eq "past the cap, individual rows stop at the cap" "5" "$rowcount"
+assert_contains "past the cap, the remainder is counted, not dropped" "$out" "Plus 7 further surface(s)"
+assert_contains "the remainder is grouped by location" "$out" "surface(s)"
+assert_contains "the reader is told what to do with a grouped tail" "$out" "directly when working inside it"
+
+run render --root "$many" --max-rows abc >/dev/null 2>&1
+assert_eq "a non-integer --max-rows is a usage error" "2" "$?"
+
+# --------------------------------------------------------------------------
 rm -rf "$repo" "$empty"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"

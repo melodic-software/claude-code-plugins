@@ -49,6 +49,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib/discover.sh
 . "$SCRIPT_DIR/lib/discover.sh"
 
+# Individually-listed surfaces before the index switches to grouping its tail.
+# The index is always-loaded, so its own growth is a cost the migrations were
+# meant to remove; 40 rows is roughly a screenful and well under the size at
+# which a table stops being scannable. Override with --max-rows.
+MAX_ROWS=40
+
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
 
@@ -215,8 +221,28 @@ context, read the file directly.
 | Surface | Covers | Topic |
 |---|---|---|
 PREAMBLE
-    printf '%s\n' "${rows[@]}" | LC_ALL=C sort
-    printf '\n'
+    # SIZE POSTURE. The index is always-loaded, so it spends the exact budget
+    # the migrations exist to free. Past a threshold it stops listing every
+    # surface individually and groups the tail by directory, which keeps the
+    # "these exist, go read them" contract at a bounded cost. What was collapsed
+    # is stated rather than silently dropped: a truncated index that reads as
+    # complete is the failure mode here.
+    if ((${#rows[@]} <= MAX_ROWS)); then
+      printf '%s\n' "${rows[@]}" | LC_ALL=C sort
+      printf '\n'
+    else
+      printf '%s\n' "${rows[@]}" | LC_ALL=C sort | head -n "$MAX_ROWS"
+      printf '\n'
+      printf 'Plus %d further surface(s), grouped by location:\n\n' \
+        $((${#rows[@]} - MAX_ROWS))
+      # shellcheck disable=SC2016 # strips the markdown code span, not an expansion
+      printf '%s\n' "${rows[@]}" | LC_ALL=C sort | tail -n +$((MAX_ROWS + 1)) |
+        sed 's/^| `//; s/`.*$//' | sed 's|/[^/]*$||' |
+        LC_ALL=C sort | uniq -c |
+        awk '{ printf "- `%s/` — %d surface(s)\n", $2, $1 }'
+      printf '\n%s\n\n' \
+        "Read a directory's instruction files directly when working inside it."
+    fi
   fi
   printf '%s\n' "$END_MARKER"
 }
@@ -258,6 +284,12 @@ while [[ $# -gt 0 ]]; do
   --file)
     [[ $# -lt 2 ]] && die "--file needs a path"
     TARGET="$2"
+    shift 2
+    ;;
+  --max-rows)
+    [[ $# -lt 2 ]] && die "--max-rows needs an integer"
+    [[ "$2" =~ ^[0-9]+$ ]] || die "--max-rows must be an integer"
+    MAX_ROWS="$2"
     shift 2
     ;;
   *) die "unknown argument: $1" ;;
