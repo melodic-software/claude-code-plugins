@@ -69,6 +69,67 @@ ip_realpath() {
 }
 
 # ---------------------------------------------------------------------------
+# `paths:` frontmatter parsing — ONE parser, three consumers.
+#
+# WHY IT LIVES HERE. glob-tools.sh, render-index.sh, and detect.sh each carried
+# their own copy, and all three shared a bug: the inline flow form was split on
+# every comma, so a perfectly valid `paths: ["src/*.{ts,tsx}"]` became the two
+# broken patterns `src/*.{ts` and `tsx}` — reported as two zero-match failures
+# against a rule that was correct. Three copies meant three places to fix and
+# three places to drift, so the parser is defined once and the copies are gone.
+#
+# Splits on commas ONLY at brace depth zero and outside quotes, which is what
+# makes brace expansion survive the flow form.
+# ---------------------------------------------------------------------------
+ip_parse_paths() {
+  local file="${1:-}"
+  [[ -f "$file" ]] || return 0
+  awk '
+    function emit(v,   a, b) {
+      gsub(/^[[:space:]]+/, "", v); gsub(/[[:space:]]+$/, "", v)
+      a = substr(v, 1, 1); b = substr(v, length(v), 1)
+      if (length(v) > 1 && ((a == "\"" && b == "\"") || (a == "'"'"'" && b == "'"'"'")))
+        v = substr(v, 2, length(v) - 2)
+      if (v != "") print v
+    }
+    NR == 1 && $0 != "---" { exit }
+    NR == 1 { infm = 1; next }
+    infm && $0 == "---" { exit }
+    !infm { exit }
+
+    /^paths:[[:space:]]*\[/ {
+      line = $0
+      sub(/^paths:[[:space:]]*\[/, "", line)
+      # Drop the final `]` and anything after it. Using the LAST one keeps a
+      # bracket expression inside a glob (`a[bc].ts`) intact.
+      sub(/\][^]]*$/, "", line)
+      part = ""; depth = 0; q = ""
+      n = length(line)
+      for (i = 1; i <= n; i++) {
+        c = substr(line, i, 1)
+        if (q != "") { if (c == q) q = ""; part = part c; continue }
+        if (c == "\"" || c == "'"'"'") { q = c; part = part c; continue }
+        if (c == "{") depth++
+        else if (c == "}") depth--
+        else if (c == "," && depth == 0) { emit(part); part = ""; continue }
+        part = part c
+      }
+      emit(part)
+      next
+    }
+
+    /^paths:[[:space:]]*$/ { inpaths = 1; next }
+    inpaths && /^[[:space:]]+-[[:space:]]*/ {
+      v = $0
+      sub(/^[[:space:]]+-[[:space:]]*/, "", v)
+      emit(v)
+      next
+    }
+    inpaths && /^[^[:space:]]/ { inpaths = 0 }
+  ' "$file" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
 # Rules discovery
 #
 # Two deliberate asymmetries against the nested-instruction discovery below:
@@ -102,7 +163,13 @@ ip_discover_rules() {
       real="$(ip_realpath "$found_file")"
       printf '%s\t%s\n' "$real" "${found_file#"$root"/}" >>"$seen_file"
     done < <(find -L "$rules_dir" -type f -name '*.md' 2>/dev/null)
-  done < <(find "$root" -type d -name rules -path '*/.claude/rules' \
+    # -L on the OUTER find too. Without it, a `.claude/rules` that is ITSELF a
+    # symlink — the documented layout for sharing a whole rule set across
+    # projects — is `-type l`, never matches `-type d`, and the inner scan below
+    # is never even reached. The first fix here followed symlinks *inside* the
+    # tree and missed the tree root, which is a strictly worse failure: an
+    # entire shared rule set silently invisible.
+  done < <(find -L "$root" -type d -name rules -path '*/.claude/rules' \
     -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null)
 
   # One entry per REAL file. When a symlink loop or a duplicate link exposes the

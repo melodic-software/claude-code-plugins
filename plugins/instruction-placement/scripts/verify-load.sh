@@ -178,9 +178,21 @@ MISSING=0
 if ((${#EXPECT[@]} > 0)); then
   loaded_files="$(jq -r '.file_path // empty' "$LOG" 2>/dev/null)"
   for want in "${EXPECT[@]}"; do
-    # Match on suffix so a caller may pass a repo-relative path while the hook
-    # reports an absolute one.
-    if printf '%s\n' "$loaded_files" | grep -qF -- "$want"; then
+    # Match the WHOLE path or a complete path-component suffix — never a bare
+    # substring. A plain `grep -F` marks `rules/rule.md` as MET when the only
+    # loaded path is `/repo/old-rules/rule.md`, which lets a verification tool
+    # report PASS for a surface that never loaded. For a tool whose entire job is
+    # not lying about what loaded, that is the worst possible defect.
+    want_norm="${want#./}"
+    matched=0
+    while IFS= read -r loaded; do
+      [[ -n "$loaded" ]] || continue
+      if [[ "$loaded" == "$want_norm" || "$loaded" == */"$want_norm" ]]; then
+        matched=1
+        break
+      fi
+    done <<<"$loaded_files"
+    if ((matched == 1)); then
       printf 'EXPECTED\t%s\tMET\n' "$want"
     else
       printf 'EXPECTED\t%s\tMISSING\n' "$want"

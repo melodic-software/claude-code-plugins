@@ -245,6 +245,74 @@ fi
 run rules --root "$rules_repo" >/dev/null 2>&1
 assert_eq "rules exits 1 when any rule glob is invalid" "1" "$?"
 
+# --------------------------------------------------------------------------
+# A brace comma inside an inline flow entry is not a list separator
+# --------------------------------------------------------------------------
+flow_repo="$(fixture_repo "src/a.ts" "src/b.tsx" "src/c.js")"
+mkdir -p "$flow_repo/.claude/rules"
+cat >"$flow_repo/.claude/rules/flow.md" <<'EOF'
+---
+paths: ["src/*.{ts,tsx}"]
+---
+
+# Inline flow with a brace group
+EOF
+git -C "$flow_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+git -C "$flow_repo" -c user.email=t@t -c user.name=t commit -qm flow >/dev/null 2>&1
+
+out="$(run rules --root "$flow_repo")"
+assert_eq "the flow entry stays ONE pattern" "1" \
+  "$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN"' | grep -c .)"
+assert_eq "and it expands and matches correctly" "2" "$(row_field "$out" 'src/*.{ts,tsx}' 5)"
+run rules --root "$flow_repo" >/dev/null 2>&1
+assert_eq "a correct braced flow rule exits 0" "0" "$?"
+
+# --------------------------------------------------------------------------
+# The brace budget is shared by a rule's whole paths list
+# --------------------------------------------------------------------------
+budget_repo="$(fixture_repo "a.ts")"
+mkdir -p "$budget_repo/.claude/rules"
+nine='{a,b}/{c,d}/{e,f}/{g,h}/{i,j}/{k,l}/{m,n}/{o,p}/{q,r}'
+{
+  printf -- '---\npaths:\n'
+  printf -- '  - "%s/x.ts"\n' "$nine"
+  printf -- '  - "%s/y.ts"\n' "$nine"
+  printf -- '---\n\n# Two 512-expansion globs in one rule\n'
+} >"$budget_repo/.claude/rules/budget.md"
+git -C "$budget_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+git -C "$budget_repo" -c user.email=t@t -c user.name=t commit -qm budget >/dev/null 2>&1
+
+out="$(run rules --root "$budget_repo")"
+over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+if ((over >= 1)); then
+  pass "512+512 expansions in one rule trips the shared budget"
+else
+  fail "512+512 expansions in one rule trips the shared budget" "an over-budget row" "$out"
+fi
+
+# Each on its OWN rule is under budget and must not be charged together.
+split_repo="$(fixture_repo "a.ts")"
+mkdir -p "$split_repo/.claude/rules"
+printf -- '---\npaths:\n  - "%s/x.ts"\n---\n\n# One\n' "$nine" >"$split_repo/.claude/rules/one.md"
+printf -- '---\npaths:\n  - "%s/y.ts"\n---\n\n# Two\n' "$nine" >"$split_repo/.claude/rules/two.md"
+git -C "$split_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+git -C "$split_repo" -c user.email=t@t -c user.name=t commit -qm split >/dev/null 2>&1
+out="$(run rules --root "$split_repo")"
+over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+assert_eq "the budget does not leak across separate rules" "0" "$over"
+
+# --------------------------------------------------------------------------
+# Declared userConfig reaches the script
+# --------------------------------------------------------------------------
+out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=10 bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' 2>&1)"
+assert_eq "a configured breadth ceiling is honored" "over-broad" "$(row_field "$out" '**/*.ts' 6)"
+out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=99 bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' 2>&1)"
+assert_eq "a higher configured ceiling leaves it ok" "ok" "$(row_field "$out" '**/*.ts' 6)"
+out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=10 bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' --breadth-max 99 2>&1)"
+assert_eq "an explicit flag still wins over configuration" "ok" "$(row_field "$out" '**/*.ts' 6)"
+out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=nonsense bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' 2>&1)"
+assert_eq "a nonsense configured value falls back to the default" "ok" "$(row_field "$out" '**/*.ts' 6)"
+
 # A repo with no rules directory is a clean pass, not an error.
 clean_repo="$(fixture_repo "a.ts")"
 out="$(run rules --root "$clean_repo")"
@@ -289,7 +357,7 @@ out="$(run validate --root "$plain" --glob '**/*.ts')"
 assert_eq "a non-git root falls back to a file walk" "1" "$(row_field "$out" '**/*.ts' 5)"
 
 # --------------------------------------------------------------------------
-rm -rf "$repo" "$repo_dot" "$repo_brace" "$repo_nested" "$repo_br" "$repo_esc" "$rules_repo" "$clean_repo" "$plain"
+rm -rf "$repo" "$repo_dot" "$repo_brace" "$repo_nested" "$repo_br" "$repo_esc" "$rules_repo" "$flow_repo" "$budget_repo" "$split_repo" "$clean_repo" "$plain"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

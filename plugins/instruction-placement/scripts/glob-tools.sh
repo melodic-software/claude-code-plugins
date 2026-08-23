@@ -292,42 +292,9 @@ glob_to_ere() {
   printf '%s' "$out"
 }
 
-# ---------------------------------------------------------------------------
-# Extract `paths:` values from a rule file's YAML frontmatter.
-# Supports the block-sequence form and the inline flow-sequence form.
-# ---------------------------------------------------------------------------
-extract_paths() {
-  local file="$1"
-  awk '
-    NR == 1 && $0 != "---" { exit }
-    NR == 1 { infm = 1; next }
-    infm && $0 == "---" { exit }
-    !infm { exit }
-    /^paths:[[:space:]]*\[/ {
-      line = $0
-      sub(/^paths:[[:space:]]*\[/, "", line)
-      sub(/\].*$/, "", line)
-      n = split(line, parts, ",")
-      for (k = 1; k <= n; k++) {
-        v = parts[k]
-        gsub(/^[[:space:]]*["'"'"']?/, "", v)
-        gsub(/["'"'"']?[[:space:]]*$/, "", v)
-        if (v != "") print v
-      }
-      next
-    }
-    /^paths:[[:space:]]*$/ { inpaths = 1; next }
-    inpaths && /^[[:space:]]+-[[:space:]]*/ {
-      v = $0
-      sub(/^[[:space:]]+-[[:space:]]*/, "", v)
-      gsub(/^["'"'"']/, "", v)
-      gsub(/["'"'"']$/, "", v)
-      if (v != "") print v
-      next
-    }
-    inpaths && /^[^[:space:]]/ { inpaths = 0 }
-  ' "$file" 2>/dev/null
-}
+# `paths:` extraction is `ip_parse_paths` in lib/discover.sh — one parser, three
+# consumers. This file used to carry its own copy; all three copies shared a bug
+# that split `["src/*.{ts,tsx}"]` on the brace comma.
 
 # ---------------------------------------------------------------------------
 # Main
@@ -351,7 +318,13 @@ validate | rules)
 esac
 
 ROOT="$PWD"
-BREADTH_MAX=75
+# Declared userConfig reaches a script process as the native
+# $CLAUDE_PLUGIN_OPTION_<KEY> mirror. Without reading it, a consumer can set the
+# advertised option and silently keep the default — an option that does nothing
+# is worse than one that does not exist, because it is documented.
+# An explicit --breadth-max still wins over the configured value.
+BREADTH_MAX="${CLAUDE_PLUGIN_OPTION_BREADTH_MAX:-75}"
+[[ "$BREADTH_MAX" =~ ^[0-9]+$ ]] || BREADTH_MAX=75
 declare -a CLI_GLOBS=()
 
 while [[ $# -gt 0 ]]; do
@@ -416,7 +389,7 @@ else
       [[ -z "$pat" ]] && continue
       SOURCES+=("$rule")
       PATTERNS+=("$pat")
-    done < <(extract_paths "$rule")
+    done < <(ip_parse_paths "$rule")
   done < <(ip_discover_rules .)
 fi
 
@@ -425,12 +398,31 @@ OVERBROAD=0
 ROWS_FILE="$(mktemp)"
 trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE"' EXIT
 
+# The brace budget belongs to a RULE'S WHOLE `paths:` LIST, not to each pattern
+# in it — "a rule's whole `paths:` list shares one budget of 1,000 expanded
+# patterns and 4 MiB". Charging each pattern its own budget lets a rule with two
+# 512-expansion globs pass while its combined 1,024 expansions exceed what the
+# loader will expand, so the gate reports green for a rule whose patterns Claude
+# Code silently leaves unexpanded.
+#
+# Tracked with a running counter rather than an associative array: `declare -A`
+# is bash 4+, and macOS still ships 3.2. The work list groups every pattern of a
+# rule contiguously, so resetting on a source change is equivalent and portable.
+PREV_SOURCE=""
+RUNNING_EXPANDED=0
+
 for idx in "${!PATTERNS[@]}"; do
   pattern="${PATTERNS[$idx]}"
   source="${SOURCES[$idx]}"
   status="ok"
   expanded_count=0
   match_count=0
+  expansions=()
+
+  if [[ "$source" != "$PREV_SOURCE" ]]; then
+    PREV_SOURCE="$source"
+    RUNNING_EXPANDED=0
+  fi
 
   if ! brackets_valid "$pattern"; then
     status="bad-bracket"
@@ -445,6 +437,17 @@ for idx in "${!PATTERNS[@]}"; do
         expansions+=("$one_expansion")
       done <<<"$expansions_raw"
       expanded_count=${#expansions[@]}
+
+      # Charge this pattern against its rule's running total. A brace-free
+      # pattern expands to one and does not count, per the same documentation.
+      if ((expanded_count > 1)); then
+        RUNNING_EXPANDED=$((RUNNING_EXPANDED + expanded_count))
+        if ((RUNNING_EXPANDED > MAX_EXPANDED)); then
+          status="over-budget"
+        fi
+      fi
+    fi
+    if [[ "$status" != "over-budget" && ${#expansions[@]} -gt 0 ]]; then
 
       # Union of matches across every expansion, counted once per file.
       matches_file="$(mktemp)"

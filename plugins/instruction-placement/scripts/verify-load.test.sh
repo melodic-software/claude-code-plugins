@@ -155,6 +155,34 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# --expect must anchor on a path-component boundary
+#
+# An unanchored substring search marks `rules/csharp.md` MET when the only
+# loaded path is `.../old-rules/csharp.md`. For a tool whose whole job is not
+# lying about what loaded, a false MET is the worst possible defect, so the
+# near-miss is asserted directly.
+# --------------------------------------------------------------------------
+if [[ -n "$CLI" ]]; then
+  near="$(build_fixture)"
+  mkdir -p "$near/.claude/rules"
+  out="$(run --root "$near" --trigger src/Invoice.cs --claude "$CLI" \
+    --expect old-rules/csharp.md --timeout 300)"
+  if [[ "$out" == *"VERDICT	UNKNOWN"* ]]; then
+    skip "a near-miss expectation is MISSING, not MET" "probe could not run"
+  else
+    assert_contains "a near-miss expectation is MISSING, not MET" "$out" \
+      "$(printf 'EXPECTED\told-rules/csharp.md\tMISSING')"
+    assert_contains "the real path-component suffix still matches" \
+      "$(run --root "$near" --trigger src/Invoice.cs --claude "$CLI" \
+        --expect rules/csharp.md --timeout 300)" \
+      "$(printf 'EXPECTED\trules/csharp.md\tMET')"
+  fi
+  rm -rf "$near"
+else
+  skip "a near-miss expectation is MISSING, not MET" "no Claude Code CLI found"
+fi
+
+# --------------------------------------------------------------------------
 # The probe must never modify the repository under test
 # --------------------------------------------------------------------------
 dirty="$(git -C "$repo" status --porcelain | wc -l | tr -d ' ')"

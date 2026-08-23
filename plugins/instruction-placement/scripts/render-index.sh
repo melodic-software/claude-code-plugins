@@ -52,8 +52,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Individually-listed surfaces before the index switches to grouping its tail.
 # The index is always-loaded, so its own growth is a cost the migrations were
 # meant to remove; 40 rows is roughly a screenful and well under the size at
-# which a table stops being scannable. Override with --max-rows.
-MAX_ROWS=40
+# which a table stops being scannable.
+#
+# Declared userConfig reaches a script process as the native
+# $CLAUDE_PLUGIN_OPTION_<KEY> mirror; reading it is what makes the advertised
+# option real rather than documentation for a value nothing consults. An
+# explicit --max-rows still wins.
+MAX_ROWS="${CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS:-40}"
+[[ "$MAX_ROWS" =~ ^[0-9]+$ ]] || MAX_ROWS=40
 
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
@@ -118,37 +124,13 @@ rule_title() {
 }
 
 # Comma-joined `paths:` values, or empty when the rule is unscoped.
+#
+# Parsing is `ip_parse_paths` in lib/discover.sh — one parser, three consumers.
+# This file used to carry its own copy; all three split the inline flow form on
+# brace commas, so `["src/*.{ts,tsx}"]` rendered as a corrupted glob here and
+# failed validation there, from the same defect in three places.
 rule_globs() {
-  local file="$1"
-  awk '
-    NR == 1 && $0 != "---" { exit }
-    NR == 1 { infm = 1; next }
-    infm && $0 == "---" { exit }
-    !infm { exit }
-    /^paths:[[:space:]]*\[/ {
-      line = $0
-      sub(/^paths:[[:space:]]*\[/, "", line)
-      sub(/\].*$/, "", line)
-      n = split(line, parts, ",")
-      for (k = 1; k <= n; k++) {
-        v = parts[k]
-        gsub(/^[[:space:]]*["'"'"']?/, "", v)
-        gsub(/["'"'"']?[[:space:]]*$/, "", v)
-        if (v != "") print v
-      }
-      next
-    }
-    /^paths:[[:space:]]*$/ { inpaths = 1; next }
-    inpaths && /^[[:space:]]+-[[:space:]]*/ {
-      v = $0
-      sub(/^[[:space:]]+-[[:space:]]*/, "", v)
-      gsub(/^["'"'"']/, "", v)
-      gsub(/["'"'"']$/, "", v)
-      if (v != "") print v
-      next
-    }
-    inpaths && /^[^[:space:]]/ { inpaths = 0 }
-  ' "$file" 2>/dev/null | paste -sd, - | sed 's/,/, /g'
+  ip_parse_paths "$1" | paste -sd, - | sed 's/,/, /g'
 }
 
 # True when every non-blank, non-comment line is an `@import`. Such a file is a

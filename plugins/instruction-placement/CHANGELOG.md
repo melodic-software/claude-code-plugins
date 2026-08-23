@@ -3,6 +3,53 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Fixed
+
+Five defects raised in review on #3225, each reproduced first and then fixed. Four were P1.
+
+- **A `.claude/rules` that is itself a symlink was invisible.** The outer `find` required `-type d`
+  without `-L`, so a symlinked rules root never matched and the inner symlink-following scan was
+  never reached. This is strictly worse than the symlink bug fixed in 0.2.0: that one lost a single
+  linked rule, this one loses an **entire shared rule set** — and sharing a whole set by symlink is
+  the documented layout. A symlinked `.claude` directory had the same shape one level up. Both are
+  now covered.
+
+- **Brace commas inside an inline flow list were treated as list separators.** A valid
+  `paths: ["src/*.{ts,tsx}"]` was split into `src/*.{ts` and `tsx}` — two zero-match failures
+  reported against a rule that was correct. The parser now splits only at brace depth zero and
+  outside quotes.
+
+  **The same bug existed in three copies**, in `glob-tools.sh`, `render-index.sh`, and `detect.sh`,
+  so the fix is one parser (`ip_parse_paths` in `lib/discover.sh`) and the deletion of all three.
+  Three copies meant three places to fix and three places to drift — the same reasoning that moved
+  discovery into that file in 0.2.0.
+
+- **The brace budget was charged per pattern instead of per rule.** The documentation is explicit
+  that "a rule's whole `paths:` list shares one budget of 1,000 expanded patterns" — quoted
+  correctly in the script's own header while the code reset the counter for every pattern. A rule
+  with two 512-expansion globs passed the gate while its combined 1,024 expansions exceed what the
+  loader will expand, so `check` reported green for a rule Claude Code silently leaves unexpanded.
+  Now tracked as a running total per rule, with a test that the budget does not leak between rules.
+
+- **`verify-load.sh --expect` matched a bare substring.** `rules/rule.md` was reported `MET` when
+  the only loaded path was `.../old-rules/rule.md`, letting the empirical verifier emit
+  `VERDICT PASS` for a surface that never loaded. For a tool whose entire job is not lying about
+  what loaded, a false `MET` is the worst available defect. Matching is now whole-path or
+  path-component suffix, with a live-CLI test asserting the near-miss is `MISSING`.
+
+- **The declared `userConfig` options did nothing.** `breadth_max` and `index_max_rows` were
+  advertised in the manifest and reported by `setup`, while both scripts hardcoded their defaults
+  and only command-line flags had any effect — an option that is documented and inert is worse than
+  one that does not exist. Both scripts now read the native `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror,
+  fall back to the default on a non-numeric value, and still let an explicit flag win.
+
+### Changed
+
+- `declare -A` replaced with a running counter in `glob-tools.sh`: associative arrays are bash 4+
+  and macOS ships 3.2, the same portability trap that `mapfile` hit in 0.4.0.
+
 ## [0.10.1]
 
 ### Changed

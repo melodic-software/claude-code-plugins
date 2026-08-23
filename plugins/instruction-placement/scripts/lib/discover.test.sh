@@ -108,6 +108,73 @@ assert_has "a plain rule file is discovered alongside symlinks" "$out" ".claude/
 assert_has "a SYMLINKED rule file is discovered" "$out" ".claude/rules/security.md"
 assert_has "a rule inside a SYMLINKED directory is discovered" "$out" ".claude/rules/shared/style.md"
 
+# The rules ROOT itself being a symlink is the documented way to share one whole
+# rule set across projects. The first symlink fix followed links INSIDE the tree
+# and missed the tree root, which loses every shared rule rather than one.
+symroot="$(mktemp -d)"
+git -C "$symroot" init -q .
+mkdir -p "$symroot/.claude" "$symroot/shared"
+rule_file "$symroot/shared/security.md" '**/*.cs' 'Shared security rule'
+rule_file "$symroot/shared/style.md" '**/*.cs' 'Shared style rule'
+ln -s "$symroot/shared" "$symroot/.claude/rules"
+commit_all "$symroot"
+
+out="$(ip_discover_rules "$symroot")"
+assert_has "a SYMLINKED rules root is traversed" "$out" ".claude/rules/security.md"
+assert_has "every rule under a symlinked root is found" "$out" ".claude/rules/style.md"
+
+# A `.claude` directory that is itself a symlink is the same shape one level up.
+symclaude="$(mktemp -d)"
+git -C "$symclaude" init -q .
+mkdir -p "$symclaude/external/rules"
+rule_file "$symclaude/external/rules/x.md" '**/*.cs' 'External rule'
+ln -s "$symclaude/external" "$symclaude/.claude"
+commit_all "$symclaude"
+out="$(ip_discover_rules "$symclaude")"
+assert_has "a symlinked .claude directory is traversed" "$out" ".claude/rules/x.md"
+
+# --------------------------------------------------------------------------
+# `paths:` parsing — one parser, and brace commas are not list separators
+# --------------------------------------------------------------------------
+pp="$(mktemp -d)"
+rule_file "$pp/block.md" 'src/**/*.ts' 'Block'
+cat >"$pp/flow-brace.md" <<'EOF'
+---
+paths: ["src/*.{ts,tsx}"]
+---
+
+# Flow with a brace group
+EOF
+cat >"$pp/flow-multi.md" <<'EOF'
+---
+paths: ["src/*.{ts,tsx}", 'lib/**/*.js', bare/**/*.md]
+---
+
+# Flow with several entries
+EOF
+cat >"$pp/flow-bracket.md" <<'EOF'
+---
+paths: ["photos/a[0-9].png"]
+---
+
+# Flow carrying a bracket expression
+EOF
+
+out="$(ip_parse_paths "$pp/flow-brace.md")"
+assert_lists "a brace comma is not a list separator" 'src/*.{ts,tsx}' "$out"
+
+out="$(ip_parse_paths "$pp/flow-multi.md")"
+assert_has "the braced entry survives alongside others" "$out" 'src/*.{ts,tsx}'
+assert_has "a single-quoted entry is unquoted" "$out" 'lib/**/*.js'
+assert_has "an unquoted entry is kept" "$out" 'bare/**/*.md'
+assert_eq "the flow list yields exactly three entries" "3" "$(printf '%s\n' "$out" | grep -c .)"
+
+out="$(ip_parse_paths "$pp/flow-bracket.md")"
+assert_lists "a bracket expression inside a flow entry survives" 'photos/a[0-9].png' "$out"
+
+out="$(ip_parse_paths "$pp/block.md")"
+assert_lists "the block-sequence form still parses" 'src/**/*.ts' "$out"
+
 # A circular symlink must not hang or explode the listing.
 circ="$(mktemp -d)"
 git -C "$circ" init -q .
@@ -220,7 +287,7 @@ b="$(ip_discover_rules "$repo")"
 assert_lists "rules discovery is byte-identical across runs" "$a" "$b"
 
 # ==========================================================================
-rm -rf "$repo" "$sym" "$circ" "$track" "$root_files" "$chain" "$symlinked" "$fenced" "$alt"
+rm -rf "$repo" "$sym" "$symroot" "$symclaude" "$pp" "$circ" "$track" "$root_files" "$chain" "$symlinked" "$fenced" "$alt"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

@@ -380,31 +380,10 @@ done
 # Existing rule inventory, from the shared discovery layer.
 while IFS= read -r rule; do
   [[ -z "$rule" ]] && continue
-  globs="$(awk '
-    NR == 1 && $0 != "---" { exit }
-    NR == 1 { infm = 1; next }
-    infm && $0 == "---" { exit }
-    !infm { exit }
-    /^paths:[[:space:]]*\[/ {
-      line = $0
-      sub(/^paths:[[:space:]]*\[/, "", line); sub(/\].*$/, "", line)
-      n = split(line, parts, ",")
-      for (k = 1; k <= n; k++) {
-        v = parts[k]
-        gsub(/^[[:space:]]*["'"'"']?/, "", v); gsub(/["'"'"']?[[:space:]]*$/, "", v)
-        if (v != "") print v
-      }
-      next
-    }
-    /^paths:[[:space:]]*$/ { inpaths = 1; next }
-    inpaths && /^[[:space:]]+-[[:space:]]*/ {
-      v = $0; sub(/^[[:space:]]+-[[:space:]]*/, "", v)
-      gsub(/^["'"'"']/, "", v); gsub(/["'"'"']$/, "", v)
-      if (v != "") print v
-      next
-    }
-    inpaths && /^[^[:space:]]/ { inpaths = 0 }
-  ' "$rule" 2>/dev/null | paste -sd, -)"
+  # One parser, shared with glob-tools.sh and render-index.sh. This file used to
+  # carry a third copy of it, and all three split the inline flow form on brace
+  # commas — turning one correct glob into two broken ones.
+  globs="$(ip_parse_paths "$rule" | paste -sd, -)"
   if [[ -n "$globs" ]]; then
     printf 'RULE\t%s\tscoped\t%s\n' "$rule" "$globs" >>"$ROWS"
   else
