@@ -20,6 +20,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a missing measurement. In sdk mode, where numbers are exact and the category vocabulary is
   known, an omitted bucket is now recorded as an explicit `0` at snapshot time, so a combined
   deny that empties a bucket yields a real measured delta instead of an incomparable record.
+  Every synthesized zero is named in the snapshot's `caveats[]` so a standalone
+  `snapshot`/`compare`/`ledger` consumer can tell a reported 0 from a filled-in omission; the
+  vanish/`comparable: false` path remains cli-parse only.
 
 ## [0.6.5]
 

@@ -332,8 +332,17 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   // combined deny that empties a bucket yields a null delta downstream where
   // a real one was measured. cli-parse absence stays genuinely ambiguous
   // (format drift vs emptied bucket) and is deliberately not zero-filled.
+  // The fill is shared snapshot plumbing (snapshot/compare/ledger see it too);
+  // a caveat names every synthesized zero so a raw consumer can tell a real
+  // reported 0 from a filled-in omission.
+  const caveats = [];
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
-    if (!(bucket in categories)) categories[bucket] = 0;
+    if (!(bucket in categories)) {
+      categories[bucket] = 0;
+      caveats.push(
+        `sdk omitted "${bucket}"; recorded as measured 0 (sdk category vocabulary is known; numbers are exact)`,
+      );
+    }
   }
 
   const skillFrontmatter = usage.skills?.skillFrontmatter ?? [];
@@ -365,7 +374,7 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
       signature: listingSignature(skillRows),
       rows: skillRows.length,
     },
-    caveats: [],
+    caveats,
   };
 }
 

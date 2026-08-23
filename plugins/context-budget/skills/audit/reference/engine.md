@@ -68,7 +68,12 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   `comparable`/`reasons`), plus the binary stamp and `skillListingSignature`. A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
-  the reason — a missing measurement, never a coerced zero. A bucket absent from *both* runs is
+  the reason — a missing measurement, never a coerced zero. That vanish path fires in
+  **cli-parse** mode, where an omitted bucket is genuinely ambiguous (format drift vs emptied
+  bucket). In **sdk** mode the two attributed buckets are recorded as an explicit `0` when the
+  SDK omits them (numbers are exact and the vocabulary is known), so a combined deny yields a
+  real delta; a `caveats[]` entry names every synthesized zero so a raw `snapshot`/`ledger`
+  consumer can tell a reported 0 from a filled-in omission. A bucket absent from *both* runs is
   outside that binary's category vocabulary and simply contributes nothing.
 - `context-budget.ledger/1` — one before/after: `lever`, `emittedConfig`, `before`/`after`
   summaries, `delta` per category, `totalDelta`, `comparability`. A category present in only one
