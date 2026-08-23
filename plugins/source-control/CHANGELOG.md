@@ -5,6 +5,29 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ## [0.55.0]
 
+### Fixed
+
+- **A failed post-reap enumeration no longer reads as a clean reap (#3113 review).**
+  `reap-project-plugin-records.sh` verifies its own pass by re-enumerating after
+  the uninstall calls. That second `claude plugin list --json` failure was being
+  absorbed into an empty survivor list, so the script printed
+  `ok: every … is gone` and exited 0 having confirmed nothing — while the
+  identical *pre*-reap failure already degraded with `warn:` and exit 3. The
+  asymmetry was the defect: both mean "unknown outcome". A post-reap enumeration
+  failure now reports `surviving UNKNOWN`, says the pass is UNVERIFIED, names how
+  many calls reported success, and exits 3. It is the one outcome a caller acts on
+  by deleting the directory, so certainty it does not have was the most dangerous
+  thing the script could report.
+- **A trailing separator no longer defeats the symlink disqualifier.** `cleanup`'s
+  orphaned-directory qualification now normalizes the path before all four tests.
+  POSIX resolves a trailing-slash path *through* a symlink, so `test -L "link/"`
+  answers about the target: measured on this plugin's host, `test -L link` → true,
+  `test -L "link/"` → **false**, and `find link -mindepth 1` → **empty** because
+  `find` does not descend a symlinked start point either. One trailing character
+  made a live directory look like an empty non-symlink and sail into `rm -rf`.
+  `audit`'s mirrored guidance carries the same rule, and
+  `reap-project-plugin-records.test.sh` now pins all three measurements.
+
 ### Added
 
 - **`worktree cleanup` reaps the project-scope plugin install records a torn-down

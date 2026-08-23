@@ -159,9 +159,22 @@ only gate standing between a live directory and an unrecoverable reap plus `rm -
 right now, do not scan it and do not classify anything under it. The volume is detached, and every
 path under it would qualify on identical evidence.
 
-**Four tests, ALL of which must hold.** The first three are negatives and prove nothing on their
-own; the last is the only positive evidence available, and it is what the presentation row's
-"(empty, no git ref)" has always claimed:
+**Normalize `<path>` FIRST — strip every trailing separator — and run all four tests against the
+normalized form.** This is not tidiness. POSIX pathname resolution forces a trailing-slash path to
+resolve *through* a symlink to a directory, so `test -L "link/"` reports **false** for something that
+is a symlink, and the disqualifier below silently passes. Measured on this plugin's own host
+(Git Bash, native symlinks): `test -L link` → true, `test -L "link/"` → **false**, and
+`find link -mindepth 1` → **empty**, because `find` does not descend a symlinked start point either.
+A candidate string carrying one trailing character therefore looks like an empty non-symlink and
+sails into `rm -rf`. Pinned by `scripts/reap-project-plugin-records.test.sh`.
+
+```bash
+path="${path%/}"        # and again for a Windows-style trailing backslash
+```
+
+**Four tests, ALL of which must hold**, against that normalized `<path>`. The first three are
+negatives and prove nothing on their own; the last is the only positive evidence available, and it is
+what the presentation row's "(empty, no git ref)" has always claimed:
 
 ```bash
 test -L "<path>"                                             # must be FALSE — not a symlink
@@ -170,10 +183,11 @@ test -e "<path>/.git"                                        # must NOT exist (f
 find "<path>" -mindepth 1 | head -1                          # must return NOTHING (read the output, not the status)
 ```
 
-0. **Not a symlink.** `find <path> -mindepth 1` does not descend a symlinked start point, so a link
-   to a busy directory reports **empty** and passes test 3 — while the reap, which resolves `pwd`
-   through the link, would act on the *target's* records. A symlink is never a husk this action
-   created; disqualify it and report it.
+0. **Not a symlink** — tested on the normalized path, per the note above; `test -L "<path>/"` answers
+   about the *target*, not the link. `find <path> -mindepth 1` does not descend a symlinked start
+   point, so a link to a busy directory reports **empty** and passes test 3 — while the reap, which
+   resolves `pwd` through the link, would act on the *target's* records. A symlink is never a husk
+   this action created; disqualify it and report it.
 1. **Not a work tree.** `true` means the directory belongs to some repository — not necessarily this
    one. The external worktree root is **shared**: `create` places worktrees at
    `<root>/<owner>-<repo>-<slug>`, one root serving every repository on the machine

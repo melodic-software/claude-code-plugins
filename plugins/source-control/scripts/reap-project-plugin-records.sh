@@ -41,8 +41,11 @@
 #   0  pass complete (including "no records recorded here")
 #   1  at least one record for this directory survived the pass
 #   2  usage error, or --worktree-path is not the current directory
-#   3  prerequisite missing (claude CLI, jq) or enumeration failed — the caller
-#      reports the reap as unavailable and proceeds with the removal
+#   3  prerequisite missing (claude CLI, jq), or an enumeration failed — the
+#      caller reports the reap as unavailable and proceeds with the removal.
+#      This covers BOTH enumerations. A failed POST-reap enumeration means the
+#      pass is UNVERIFIED: some records may well have been removed, but nothing
+#      confirmed it, and an unverified pass must never read as a clean one.
 
 set -uo pipefail
 
@@ -247,7 +250,21 @@ done <<EOF
 $matches
 EOF
 
-survivors="$(collect_matches)" || survivors=""
+# The post-reap pass is the only thing that turns "the uninstall calls returned
+# 0" into "the records are gone". A failure here therefore means UNVERIFIED, not
+# zero survivors — the identical failure the PRE-reap enumeration already treats
+# as a degrade. Absorbing it into an empty list is how a script comes to report
+# certainty it does not have, and it is the one outcome a caller acts on by
+# deleting the directory.
+if ! survivors="$(collect_matches)"; then
+  printf 'info: reaped %s, no-op %s, surviving UNKNOWN\n' "$reaped" "$noop"
+  printf 'warn: the post-reap check could not enumerate plugin install records — this pass is UNVERIFIED.\n'
+  printf 'warn:   %s uninstall call(s) reported success and %s reported a no-op, but nothing confirmed any record is gone.\n' \
+    "$reaped" "$noop"
+  printf 'info: treat this exactly as the pre-reap degrade: say so, and do not report a clean reap.\n'
+  exit 3
+fi
+
 survivor_count=0
 if [[ -n "$survivors" ]]; then
   survivor_count="$(printf '%s\n' "$survivors" | grep -c '[^[:space:]]')"

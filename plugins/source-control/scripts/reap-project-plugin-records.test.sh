@@ -101,6 +101,7 @@ run() {
   local cwd="$1"
   shift
   OUT="$(cd "$cwd" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_CALL_LOG="$LOG" \
+    STUB_LIST_COUNT="$TEST_TMPDIR/listcount" \
     bash "$REAP" "$@" 2>&1)"
   RC=$?
 }
@@ -242,6 +243,71 @@ reset_log
 run "$WT" --worktree-path "$WT"
 assert_exit "an enumeration failure degrades with exit 3" 3 "$RC"
 assert_contains "the degrade is visible, not silent" "$OUT" "warn:"
+
+# --- a POST-reap enumeration failure is UNVERIFIED, never success ---------------
+# The pre-reap enumeration failure already degrades (exit 3). The post-reap one
+# is the pass's only proof that anything was actually removed, so absorbing it
+# into "zero survivors" would report a confirmed clean reap having confirmed
+# nothing — and the caller acts on that by deleting the directory.
+
+cat >"$STUB_DIR/claude" <<'STUB4'
+#!/usr/bin/env bash
+set -uo pipefail
+printf '%s\n' "$*" >>"$STUB_CALL_LOG"
+if [[ "${1:-}" == "plugin" && "${2:-}" == "list" ]]; then
+  n=0
+  [[ -s "$STUB_LIST_COUNT" ]] && n="$(cat "$STUB_LIST_COUNT")"
+  n=$((n + 1))
+  printf '%s' "$n" >"$STUB_LIST_COUNT"
+  # Call 1 is the pre-reap enumeration and succeeds; call 2 is the post-reap
+  # verification and fails — the transient this case exists to pin.
+  [[ "$n" -ge 2 ]] && exit 1
+  p="$(pwd -W 2>/dev/null || pwd -P)"
+  jq -n --arg p "$p" '{installed: [{id:"v@m",scope:"project",projectPath:$p}]}'
+  exit 0
+fi
+printf 'Successfully uninstalled plugin: v@m (scope: project)\n'
+exit 0
+STUB4
+chmod +x "$STUB_DIR/claude"
+: >"$TEST_TMPDIR/listcount"
+seed_state '[]'
+reset_log
+run "$WT" --worktree-path "$WT"
+assert_exit "a failed post-reap enumeration degrades with exit 3, not 0" 3 "$RC"
+assert_contains "the pass is called unverified" "$OUT" "UNVERIFIED"
+assert_contains "the survivor count is reported as unknown, not zero" "$OUT" "surviving UNKNOWN"
+# The needle is the success SENTENCE, not the phrase — the degrade text itself
+# legitimately contains "gone" while denying it ("nothing confirmed any record is gone").
+assert_not_contains "never emits the clean-reap line" "$OUT" "ok: every project-scope"
+assert_contains "the uninstall that did run is still reported" "$OUT" "reaped 1"
+
+# --- the documented trailing-separator normalization ----------------------------
+# `cleanup.md` Step 4b disqualifies a symlinked orphaned-directory candidate with
+# `test -L`. A trailing separator makes POSIX resolve THROUGH the link, so the
+# test answers about the target and the disqualifier silently passes — while
+# `find` does not descend a symlinked start point, so the link also reads empty.
+# That pairing is what turns a live directory into an "orphaned husk". The rule
+# lives in prose an agent executes, so this fixture is what keeps it true.
+
+LINKDIR="$TEST_TMPDIR/linkcase"
+mkdir -p "$LINKDIR/target"
+: >"$LINKDIR/target/busy.txt"
+MSYS=winsymlinks:nativestrict ln -s "$LINKDIR/target" "$LINKDIR/link" 2>/dev/null || true
+if [[ -L "$LINKDIR/link" ]]; then
+  raw="$LINKDIR/link/"
+  if [[ -L "$raw" ]]; then detected=yes; else detected=no; fi
+  assert_eq "a trailing separator defeats the raw symlink test" "no" "$detected"
+
+  normalized="${raw%/}"
+  if [[ -L "$normalized" ]]; then detected=yes; else detected=no; fi
+  assert_eq "stripping the trailing separator restores the symlink test" "yes" "$detected"
+
+  assert_eq "find does not descend a symlinked start point, so the link reads empty" \
+    "" "$(find "$LINKDIR/link" -mindepth 1 2>/dev/null | head -1)"
+else
+  skip_case "no real symlink on this platform — the trailing-separator rule is unpinned here"
+fi
 
 [[ $FAILED -eq 0 ]] || exit 1
 printf '\nAll %d cases passed.\n' "$CASE_NUM"
