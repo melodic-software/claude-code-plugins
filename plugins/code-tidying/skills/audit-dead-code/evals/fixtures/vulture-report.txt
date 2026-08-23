@@ -1,0 +1,4 @@
+dead-and-dynamic.py:13: unused function 'format_legacy_row' (60% confidence)
+dead-and-dynamic.py:18: unused function 'handle_alpha' (60% confidence)
+dead-and-dynamic.py:23: unused function 'handle_beta' (60% confidence)
+py-entry.py:10: unused function 'main' (60% confidence)

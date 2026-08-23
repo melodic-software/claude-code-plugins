@@ -1,0 +1,9 @@
+# Capture input for the vulture input-filtering case: a non-Python file that a
+# glob can sweep into the Python lane. Python's own parser rejects the
+# hyphenated key below, and vulture prints that rejection in exact finding
+# format on stdout while exiting 0 -- so the parser must reject the line by
+# shape, not by exit status.
+
+[tool.example]
+line-length = 100
+extend-exclude = ["build"]
