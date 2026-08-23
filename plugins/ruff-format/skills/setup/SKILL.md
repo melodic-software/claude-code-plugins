@@ -7,11 +7,13 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — rules come from the
-repository's own Ruff config, and the only tunable is the native `userConfig` toggle — so
-`apply` is guidance-and-verify, with exactly one write path: the explicitly invoked
-`apply install-ruff` install into the repo's existing managed environment described below.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — rules come
+from the repository's own Ruff config, and the only tunable is the native `userConfig`
+toggle — so `apply` is guidance-and-verify, with exactly one write path: the explicitly
+invoked `apply install-ruff` install into the repo's existing managed environment
+described below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 remediation; `apply install-ruff` additionally authorizes the consumer-repo install

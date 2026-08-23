@@ -7,13 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — formatting and linting rules
-come from the repository's own `PSScriptAnalyzerSettings.psd1`, and the only tunable is the
-native `userConfig` toggle. The `pwsh` runtime and the PSScriptAnalyzer module are resolved
-from the environment (never bundled, never downloaded), and the plugin installs nothing, so
-`apply` is guidance-only with **no write path** — it never modifies the repository, user
-settings, or the plugin cache.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — formatting
+and linting rules come from the repository's own `PSScriptAnalyzerSettings.psd1`, and the
+only tunable is the native `userConfig` toggle. The `pwsh` runtime and the PSScriptAnalyzer
+module are resolved from the environment (never bundled, never downloaded), and the plugin
+installs nothing, so `apply` is guidance-only with **no write path** — it never modifies
+the repository, user settings, or the plugin cache.
 
 Note the deliberate asymmetry vs the sibling formatter plugins: only `jq` absence is a
 prerequisite defect here. A machine without PowerShell — or without the PSScriptAnalyzer

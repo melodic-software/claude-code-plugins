@@ -8,7 +8,8 @@ disable-model-invocation: true
 ## Purpose
 
 Inspect and configure the consuming repo's tracked ecosystem command surface per the uniform setup
-contract: `check` reports what is configured, `apply` writes it. The tracked files at
+contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+repository): `check` reports what is configured, `apply` writes it. The tracked files at
 `.claude/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint` resolve commands
 deterministically from rung 1 of the ladder
 ([`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md))

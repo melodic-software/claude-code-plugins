@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — rules come from the
-repository's own Biome config, and the only tunable is the native `userConfig` toggle — so
-`apply` is guidance-and-verify, with exactly one write path: the explicitly invoked
-`apply install-biome` dependency install described below.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — rules come
+from the repository's own Biome config, and the only tunable is the native `userConfig`
+toggle — so `apply` is guidance-and-verify, with exactly one write path: the explicitly
+invoked `apply install-biome` dependency install described below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 remediation; `apply install-biome` additionally authorizes the consumer-repo dependency

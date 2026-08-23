@@ -7,8 +7,10 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply` points at
-what it found. The warrant is criterion (b), external prerequisites — `git`, which every
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
+`apply` points at what it found. The warrant is criterion (b), external prerequisites — `git`,
+which every
 git-touching tier of `/repo-hygiene:clean` and the tracked-file safety guarantee depend on, and the
 optional `ghq` the fleet batch actions enumerate repositories from — neither of which a native
 configuration prompt can see, and each of which setup can only verify. The

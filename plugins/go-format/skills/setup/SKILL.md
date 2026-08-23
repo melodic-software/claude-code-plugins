@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — it runs unconditionally (no
-consumer-config opt-in gate, unlike sibling formatter plugins Ruff/typos), so the only tunable
-is the native `userConfig` toggle. Like `typos-format`, `goimports` has no per-repo
-dependency-manager install path in the way Ruff's `.venv` does — it is conventionally
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — it runs
+unconditionally (no consumer-config opt-in gate, unlike sibling formatter plugins Ruff/typos),
+so the only tunable is the native `userConfig` toggle. Like `typos-format`, `goimports` has no
+per-repo dependency-manager install path in the way Ruff's `.venv` does — it is conventionally
 `go install`ed to the machine-global `$GOPATH/bin`, never as a project dependency. `apply` is
 therefore guidance-only: it never installs anything, matching the hook's own PATH-only
 resolution and the plugin philosophy's never-download-silently rule.

@@ -7,8 +7,10 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply` points at
-what it found. The warrant is criterion (b), external prerequisites — `node`, the Claude Code CLI
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
+`apply` points at what it found. The warrant is criterion (b), external prerequisites — `node`,
+the Claude Code CLI
 the engine pins and measures against, and the optional `@anthropic-ai/claude-agent-sdk` that
 enables exact mode — none of which a native configuration prompt can see, and each of which setup
 can only verify. The `settings_write_ask_enabled` option is a native `userConfig` toggle whose only
