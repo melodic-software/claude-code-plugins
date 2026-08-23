@@ -7,10 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inventories the consuming repo's tracked
-prompt-template overrides and reports the effective artifact layout; `apply` scaffolds an override from
-a bundled default (or removes a byte-identical one). The override seam and the output layout are the
-plugin's only extension points — it carries no `userConfig`. Both surfaces are described once in
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inventories the consuming
+repo's tracked prompt-template overrides and reports the effective artifact layout; `apply` scaffolds
+an override from a bundled default (or removes a byte-identical one). The override seam and the output
+layout are the plugin's only extension points — it carries no `userConfig`. Both surfaces are described
+once in
 [`${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/research/artifact-persistence.md`](../../context/pat-pattison/research/artifact-persistence.md).
 
 Action routing: no argument or `check` runs the inventory; `apply scaffold <name>...` copies the named
@@ -83,6 +85,7 @@ with no scaffold/remove argument changes nothing and reports the current invento
 - Run a craft skill — that is `/songwriting:workflow` and the concern skills it routes to.
 - Write machine-local state — overrides live in the consumer's tracked repo, never in the plugin
   directory or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Edit the consumer's `CLAUDE.md` or rules — the artifact-layout convention is the consumer's own
   instruction surface; setup reads and reports it, it does not author it.
 - Scaffold templates the consumer did not name — a bundled default left in place keeps receiving plugin

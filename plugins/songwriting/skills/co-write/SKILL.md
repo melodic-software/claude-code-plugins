@@ -34,8 +34,9 @@ Collaborative generation: running a co-write with feedback discipline, generatin
 the Title Game), and dumping high-volume labeled options for a single line or section so the writer
 has raw material to choose from.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
-at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 

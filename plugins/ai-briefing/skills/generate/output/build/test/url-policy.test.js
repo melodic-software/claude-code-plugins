@@ -173,6 +173,39 @@ test("shouldSkipLinkCheck skips unresolvable and unreadable hostnames (fail clos
 	);
 });
 
+// validate.js Gate 4 hands this predicate to linkinator's `linksToSkip`, which
+// awaits it — 7.6.1 declares `linksToSkip?: string[] | ((link: string) =>
+// Promise<boolean>)`. The hazard that shape invites is a predicate that resolves
+// to something merely TRUTHY, or one that answers the same way for every input:
+// either makes linkinator skip every URL, and the validator then reports success
+// having checked nothing. Nothing else in this suite distinguishes "checked and
+// passed" from "skipped everything and passed", so assert the resolved values are
+// STRICT booleans and that they actually differ by input.
+test("shouldSkipLinkCheck resolves to strict booleans that differ by input", async () => {
+	const skipped = await shouldSkipLinkCheck("http://169.254.169.254/");
+	const checked = await shouldSkipLinkCheck(
+		"https://example.com/a",
+		resolvesPublic,
+	);
+	assert.strictEqual(
+		typeof skipped,
+		"boolean",
+		"a skip verdict must be a boolean",
+	);
+	assert.strictEqual(
+		typeof checked,
+		"boolean",
+		"a check verdict must be a boolean",
+	);
+	assert.strictEqual(skipped, true);
+	assert.strictEqual(checked, false);
+	assert.notStrictEqual(
+		skipped,
+		checked,
+		"an always-skip predicate would let the validator pass without checking anything",
+	);
+});
+
 test("shouldSkipLinkCheck still checks hostnames resolving to global addresses", async () => {
 	assert.equal(
 		await shouldSkipLinkCheck("https://example.com/a", resolvesPublic),

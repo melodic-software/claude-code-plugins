@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — the only tunables are the
-four native `userConfig` toggles (master + one per channel), and every remaining
-prerequisite is a system tool or an OS package. So `apply` is pure guidance-and-verify
-with **no write path**: it installs nothing and edits nothing.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — the only
+tunables are the four native `userConfig` toggles (master + one per channel), and every
+remaining prerequisite is a system tool or an OS package. So `apply` is pure
+guidance-and-verify with **no write path**: it installs nothing and edits nothing.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding. Both are non-interactive — never prompt when the
@@ -19,11 +20,12 @@ action is given.
 
 ## `check` (read-only)
 
-The hook scripts are the single source of truth for what they require and how they degrade:
-`${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and the shared
-`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`. **Read them first** — probe what they actually
-do, don't recite this file. Then run each probe via Bash and report a PASS/FAIL/INFO table
-with one remediation line per FAIL. Do not modify anything.
+The hook script and the shared library it sources are the single source of truth for what this
+plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and
+`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
@@ -69,17 +71,25 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora), per the README's per-OS table.
   Guidance only — the user runs it.
 - **a toggle is off** — direct to `/plugin configure desktop-notification` (interactive,
-  any time). Headless: `--config` only applies on a fresh install (ignored once
-  installed), so reconfigure via `claude plugin uninstall desktop-notification -s <scope>` then
+  any time). Headless: rerun the install with the new value —
   `claude plugin install desktop-notification@<marketplace> -s <scope> --config <key>=true`.
-  Both commands default to `-s user` — pass the install scope `claude plugin list` reports for
-  this plugin, and run from that project's directory for a `project`/`local` scope. Defaulting
-  instead uninstalls a separate user-scope record while the effective install stays in place, so
-  the reinstall lands at a scope that does not load. Uninstalling also drops the stored
-  `pluginConfigs` entry, so the reinstall must re-supply **every** one of the four toggles whose
-  value should stay non-default, not only the one being flipped; record the current values before
-  uninstalling, because afterwards there is nothing left to read them from. These options are
-  personal `userConfig` values, so this skill never writes user settings or `pluginConfigs`.
+  Against an already-installed plugin it prints `already installed` **and still writes the value**
+  — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value
+  written to an installed plugin, then restored). The short-circuit is about the install, not the
+  config write. Re-verify before relying on it outside those conditions — a `sensitive` option, or
+  `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
+  drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
+  Options reference table to its manifest default, not only the toggle being flipped. `-s`
+  defaults to `user`, so pass the install scope `claude plugin list` reports for this plugin, and
+  run from that project's directory for a `project`/`local` scope, or the write lands at a scope
+  that does not load. These options are personal `userConfig` values, so this skill never writes
+  user settings or `pluginConfigs`.
+  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+  session start, so a same-session `check` still reports the OLD value — reporting that as a
+  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
+  session**, and never claim an unobserved change.
 
 After the user reports acting on any system-tool remediation, re-run the relevant `check`
 probe and report its actual result — never claim resolved on the user's say-so alone.
@@ -88,7 +98,7 @@ configured".
 
 ## What this skill does NOT do
 
-- Install `jq`, `libnotify`, or any system package, and never writes user settings or
-  `pluginConfigs` — `apply` is guidance-and-verify with no write path.
+- Install `jq`, `libnotify`, or any system package — `apply` is guidance-and-verify with no
+  write path.
 - Fire a notification — a `permission_prompt` or `idle_prompt` exercises the hook end-to-end.
-- Modify the plugin cache or the hook scripts.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the hook scripts.

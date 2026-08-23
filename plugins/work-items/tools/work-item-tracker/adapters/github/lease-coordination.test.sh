@@ -16,6 +16,7 @@ source "$SCRIPT_DIR/../../tests/lib.sh"
 
 RENEW="$SCRIPT_DIR/renew-lease.sh"
 RECLAIM="$SCRIPT_DIR/reclaim.sh"
+CLAIM="$SCRIPT_DIR/claim.sh"
 ID="github:acme/widgets#1"
 
 # --- gh stub: a bash function (always wins over the external gh, and is inherited
@@ -25,38 +26,57 @@ ID="github:acme/widgets#1"
 # by --jq (`length` = activity count) vs (lease list), and successive lease-list
 # reads pick lease-comments-<n> when present so a revalidation read can differ. ---
 gh() {
-  local d="${GH_STUB_DIR:?}" args="$*" a prev n
+  local d="${GH_STUB_DIR:?}" args="$*" a n
   case "$args" in
-    *"--method PATCH"*)
-      for a in "$@"; do
-        case "$a" in repos/*/issues/comments/*) printf 'PATCH %s\n' "${a##*/comments/}" >>"$d/calls.log" ;; *) : ;; esac
-      done
-      printf '1\n'
+  *"--method PATCH"*)
+    for a in "$@"; do
+      case "$a" in repos/*/issues/comments/*) printf 'PATCH %s\n' "${a##*/comments/}" >>"$d/calls.log" ;; *) : ;; esac
+    done
+    printf '1\n'
+    ;;
+  # Assignee ops are REST (`gh api …/issues/<n>/assignees`), not `gh issue edit`
+  # — the gh subcommands route through GraphQL, which sandboxed sessions refuse.
+  # The login rides in an `assignees[]=<login>` -f field, so it is read off that
+  # field rather than off a positional flag argument. Both must be matched
+  # BEFORE the generic --paginate/-f branches below.
+  *"--method DELETE"*"/assignees"*)
+    for a in "$@"; do
+      case "$a" in "assignees[]="*) printf 'REMOVE_ASSIGNEE %s\n' "${a#assignees[]=}" >>"$d/calls.log" ;; *) : ;; esac
+    done
+    cat "$d/assignees" 2>/dev/null || printf '[]\n'
+    ;;
+  *"--method POST"*"/assignees"*)
+    for a in "$@"; do
+      case "$a" in "assignees[]="*) printf 'ADD_ASSIGNEE %s\n' "${a#assignees[]=}" >>"$d/calls.log" ;; *) : ;; esac
+    done
+    cat "$d/assignees" 2>/dev/null || printf '[]\n'
+    ;;
+  *".assignees[].login"*) cat "$d/assignees" ;;
+  # The timeline read also carries --paginate, so it must be matched by its path
+  # BEFORE the generic --paginate (/comments) branch below — order is load-bearing.
+  *"/timeline"*) cat "$d/pr-activity" 2>/dev/null || printf '0\n' ;;
+  *"--paginate"*)
+    case "$args" in
+    *length*) cat "$d/comment-activity" 2>/dev/null || printf '0\n' ;;
+    *)
+      n=$(($(cat "$d/lease-comments.count" 2>/dev/null || printf '0') + 1))
+      printf '%s\n' "$n" >"$d/lease-comments.count"
+      if [[ -f "$d/lease-comments-$n" ]]; then cat "$d/lease-comments-$n"; else cat "$d/lease-comments"; fi
       ;;
-    *"--remove-assignee"*)
-      prev=""
-      for a in "$@"; do
-        [[ "$prev" == "--remove-assignee" ]] && printf 'REMOVE_ASSIGNEE %s\n' "$a" >>"$d/calls.log"
-        prev="$a"
-      done
-      ;;
-    *"--json assignees"*) cat "$d/assignees" ;;
-    # The timeline read also carries --paginate, so it must be matched by its path
-    # BEFORE the generic --paginate (/comments) branch below — order is load-bearing.
-    *"/timeline"*) cat "$d/pr-activity" 2>/dev/null || printf '0\n' ;;
-    *"--paginate"*)
-      case "$args" in
-        *length*) cat "$d/comment-activity" 2>/dev/null || printf '0\n' ;;
-        *)
-          n=$(( $(cat "$d/lease-comments.count" 2>/dev/null || printf '0') + 1 ))
-          printf '%s\n' "$n" >"$d/lease-comments.count"
-          if [[ -f "$d/lease-comments-$n" ]]; then cat "$d/lease-comments-$n"; else cat "$d/lease-comments"; fi
-          ;;
-      esac
-      ;;
-    *"issues/comments/"*) cat "$d/comment" ;;
-    *"-f body="*) printf 'POST_COMMENT\n' >>"$d/calls.log"; printf '1\n' ;;
-    *) printf 'gh-stub: unhandled: %s\n' "$args" >&2; return 90 ;;
+    esac
+    ;;
+  *"issues/comments/"*) cat "$d/comment" ;;
+  # claim resolves the session identity before assigning; $d/login lets a scenario
+  # choose whose claim it is.
+  *"api user"*) cat "$d/login" 2>/dev/null || printf 'alice\n' ;;
+  *"-f body="*)
+    printf 'POST_COMMENT\n' >>"$d/calls.log"
+    printf '1\n'
+    ;;
+  *)
+    printf 'gh-stub: unhandled: %s\n' "$args" >&2
+    return 90
+    ;;
   esac
 }
 export -f gh
@@ -71,7 +91,11 @@ marker() {
 
 lease_array() { jq -cn --argjson id "$1" --arg body "$2" '[{id:$id, node_id:"MDEx", body:$body, created_at:"2020-01-01T00:00:00Z"}]'; }
 
-new_scenario() { GH_STUB_DIR="$(mktemp -d)"; export GH_STUB_DIR; : >"$GH_STUB_DIR/calls.log"; }
+new_scenario() {
+  GH_STUB_DIR="$(mktemp -d)"
+  export GH_STUB_DIR
+  : >"$GH_STUB_DIR/calls.log"
+}
 calls() { cat "$GH_STUB_DIR/calls.log"; }
 cleanup_scenario() { rm -rf "$GH_STUB_DIR"; }
 
@@ -87,10 +111,13 @@ new_scenario
 EXP_MARKER="$(marker alice "$PAST" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$EXP_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
-set +e
-bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1
-rc=$?
-set -e 2>/dev/null || true
+# `|| rc=$?` rather than a `set +e` / `set -e` pair: this file runs under
+# `set -uo pipefail` with errexit deliberately OFF, and the pair used to restore
+# it with `set -e 2>/dev/null || true`, which ENABLES errexit rather than
+# restoring the prior state. Every later case that expected a non-zero exit then
+# aborted the suite at that line instead of asserting on it.
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1 || rc=$?
 assert_eq "renew-lease returns conflict (7) for an expired active lease" "7" "$rc"
 if grep -q '^PATCH' "$GH_STUB_DIR/calls.log"; then
   fail "renew-lease does NOT revive the expired lease (no PATCH)" "no PATCH logged" "PATCH logged"
@@ -105,7 +132,8 @@ new_scenario
 LIVE_MARKER="$(marker alice "$FUTURE" 24)"
 lease_array 123 "$LIVE_MARKER" >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$LIVE_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
-out="$(bash "$RENEW" "$ID" --lease-comment-id 123 2>/dev/null)"; rc=$?
+out="$(bash "$RENEW" "$ID" --lease-comment-id 123 2>/dev/null)"
+rc=$?
 assert_eq "renew-lease succeeds (0) for a live active lease" "0" "$rc"
 assert_eq "renew-lease emits the renewed lease record" "$ID" "$(jq -r '.id' <<<"$out")"
 assert_contains "renew-lease PATCHes the live lease comment" "$(calls)" "PATCH 123"
@@ -121,7 +149,8 @@ new_scenario
 EXP_MARKER="$(marker alice "$PAST" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments"
 jq -cn '["alice","bob"]' >"$GH_STUB_DIR/assignees"
-out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"; rc=$?
+out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"
+rc=$?
 assert_eq "reclaim succeeds (0)" "0" "$rc"
 assert_eq "reclaim reports reclaimed:true" "true" "$(jq -r '.reclaimed' <<<"$out")"
 assert_contains "reclaim removes the expired lease holder (alice)" "$(calls)" "REMOVE_ASSIGNEE alice"
@@ -137,7 +166,8 @@ CONCURRENT_MARKER="$(marker carol "$FUTURE" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments-1"
 lease_array 200 "$CONCURRENT_MARKER" >"$GH_STUB_DIR/lease-comments-2"
 jq -cn '["alice","carol"]' >"$GH_STUB_DIR/assignees"
-out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"; rc=$?
+out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"
+rc=$?
 assert_eq "reclaim succeeds (0) on a concurrent-claim revalidation" "0" "$rc"
 assert_eq "reclaim reports reclaimed:false when the lease changed under it" "false" "$(jq -r '.reclaimed' <<<"$out")"
 assert_not_contains "reclaim removes NO assignee when revalidation fails" "$(calls)" "REMOVE_ASSIGNEE"
@@ -154,11 +184,57 @@ RENEWED_MARKER="$(marker alice "$FUTURE" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments-1"
 lease_array 123 "$RENEWED_MARKER" >"$GH_STUB_DIR/lease-comments-2"
 jq -cn '["alice"]' >"$GH_STUB_DIR/assignees"
-out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"; rc=$?
+out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"
+rc=$?
 assert_eq "reclaim succeeds (0) when the lease was renewed in place during the window" "0" "$rc"
 assert_eq "reclaim reports reclaimed:false when the lease was renewed in place" "false" "$(jq -r '.reclaimed' <<<"$out")"
 assert_not_contains "reclaim removes NO assignee when the lease was renewed in place" "$(calls)" "REMOVE_ASSIGNEE"
 assert_not_contains "reclaim does not supersede when the lease was renewed in place" "$(calls)" "PATCH"
+cleanup_scenario
+
+# ===========================================================================
+# Finding 3 — claim's assignment path. `claim.test.sh` covers only --help and
+# usage errors, so the protocol itself (assign → sole-assignee check → lease →
+# arbitration) had no coverage; these drive it against the stub.
+# ===========================================================================
+
+# [happy path] nobody else assigned, our lease is the only live one → claim holds.
+new_scenario
+printf 'alice\n' >"$GH_STUB_DIR/login"
+jq -cn '["alice"]' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker alice "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+out="$(bash "$CLAIM" "$ID" --ttl-hours 24 2>/dev/null)"
+rc=$?
+assert_eq "claim succeeds (0) on an unclaimed item" "0" "$rc"
+assert_eq "claim assigns the session identity" "alice" "$(jq -r '.holder' <<<"$out")"
+assert_eq "claim returns the lease comment handle" "1" "$(jq -r '.lease_comment_id' <<<"$out")"
+assert_contains "claim assigns via REST" "$(calls)" "ADD_ASSIGNEE alice"
+cleanup_scenario
+
+# [foreign assignee] our assignment lands, but bob already holds the item →
+# conflict (7), and our own @me assignment is rolled back.
+new_scenario
+printf 'alice\n' >"$GH_STUB_DIR/login"
+jq -cn '["alice","bob"]' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker alice "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "claim returns conflict (7) when another login is assigned" "7" "$rc"
+assert_contains "claim rolls its own assignment back on conflict" "$(calls)" "REMOVE_ASSIGNEE alice"
+cleanup_scenario
+
+# [silently dropped assignment] REST POST /assignees returns 201 but drops a login
+# that cannot be assigned. Without an explicit landed-check claim would report a
+# held lease while list-frontier still saw the item unassigned — two workers on one
+# item. Must fail auth (4) instead, and never post a lease comment.
+new_scenario
+printf 'alice\n' >"$GH_STUB_DIR/login"
+jq -cn '[]' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker alice "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "claim fails auth (4) when the assignment is silently dropped" "4" "$rc"
+assert_not_contains "claim posts no lease when the assignment never landed" "$(calls)" "POST_COMMENT"
 cleanup_scenario
 
 [[ $FAILED -eq 0 ]] || exit 1

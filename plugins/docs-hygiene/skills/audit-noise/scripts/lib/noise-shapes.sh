@@ -95,6 +95,155 @@ audit_noise_line_has_ghost_ref() {
   return 1
 }
 
+# --- Prose-adapted residue shapes -------------------------------------------
+#
+# plan-reference, conversational-antecedent, and ticket-pr-residue carry the
+# same shape names the code-side sibling (/code-tidying:audit-comment-residue)
+# owns, but the patterns are deliberately TIGHTER, not copies. That scanner
+# classifies only the extracted comment portion of a line; this one classifies
+# whole markdown prose, where the same words are load-bearing far more often.
+# All three scan the inline-code strip, so a shape-definition example written
+# in backticks does not self-match.
+
+# True when the text following an antecedent's `in` names a written locus a
+# future reader can still open — a position inside this page, or a named
+# durable document — rather than the conversation or circumstance the sentence
+# came out of. The input is the raw follower text: it is lowercased here (the
+# follower used to be compared case-sensitively, so a capitalised one fell
+# through) and cut at the first clause break, so a locator noun in a LATER
+# clause cannot exempt the antecedent. Two deliberate absences: tracker nouns
+# (`issue`, `ticket`, `PR`) — a decision parked in a tracker is provenance,
+# which ticket-pr-residue owns and this shape must not launder — and nouns for
+# the conversation itself (`meeting`, `call`, `thread`, `review`), which are
+# the residue. `part` and `phase` are absent too: "in part" is an idiom, and a
+# phase is a stage of work, not a place in a document.
+audit_noise_follower_is_document_locator() {
+  local head="${1,,}"
+  # Empty: an inline-code reference (`docs/x.md`) the strip removed, or a line
+  # that ends on the preposition. Both are references, not conversation.
+  [[ -z "${head//[[:space:]]/}" ]] && return 0
+  head="${head#"${head%%[![:space:]]*}"}"
+  head="${head%%,*}"
+  head="${head%%;*}"
+  head="${head%%. *}"
+  # A markdown link, a section sign, or a path is a locus outright. `#` counts
+  # only ahead of a letter: `#anchor` is an anchor, `#482` is a tracker ref.
+  [[ "$head" == '['* || "$head" == *'§'* || "$head" == '#'[a-z]* ]] && return 0
+  [[ "${head%% *}" == */* ]] && return 0
+  [[ "$head" =~ (^|[^a-z])(section|sections|chapter|chapters|appendix|step|steps|table|tables|figure|paragraph|adr|adrs|rfc|rfcs|spec|specs|specification|readme|changelog|convention|conventions|guide|schema|doc|docs|document|documentation)([^a-z]|$) ]] && return 0
+  return 1
+}
+
+# The sentence addresses the requester or the conversation that produced the
+# text. Exactly two followers stand the shape down: an anaphoric adverb ("as we
+# discussed above / earlier"), and `in` in front of a document locator ("as we
+# decided in §3 / in the ADR"). A bare `in` used to exempt the whole sentence,
+# which correctly spared "as we decided in the ADR" but also spared "as we
+# decided in favor of X" and "as we discussed in yesterday's meeting" — both
+# residue, because the referent is the conversation, not a document.
+# The actor-less passive ("As requested, retry three times") is the same shape
+# without the pronoun, but it is matched only as a clause-final adverbial:
+# bounded that way, the live attribution "as requested by the client" and the
+# ordinary verb phrase "was requested" stay out without a second pattern.
+# Closing quotes are not clause breaks here on purpose — behind one the words
+# are a quoted voice, not the page's own address to its reader.
+# The pronoun admits a CONTRACTED auxiliary ("as we've discussed", "as you'd
+# requested"): the same actor and the same shape, so requiring a literal space
+# after the pronoun let the contraction escape silently. Only `'ve` and `'d`
+# are admitted, because the follower is a past participle and those are the
+# only auxiliaries that can precede one — `'re`/`'ll`/`'m` would add nothing
+# but ungrammatical alternatives, and admitting `'re` would newly match the
+# present-tense passive "do it as you're asked", which addresses the reader
+# generically rather than pointing at a prior exchange. Both apostrophe forms
+# are spelled as literal ALTERNATIVES rather than a bracket class: `’` (U+2019)
+# is multibyte, and a bracket class over it breaks under a C locale, where the
+# regex is byte-based. Same reasoning, and same spelling, as the I6_ERE in
+# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh.
+audit_noise_line_has_conversational_antecedent() {
+  local line="$1" rest follower
+  [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0
+  [[ "$line" =~ [Pp]er[[:space:]]+our[[:space:]]+(conversation|discussion|chat) ]] && return 0
+  [[ "$line" =~ [Ll]ike[[:space:]]+you[[:space:]]+said ]] && return 0
+  [[ "$line" =~ (^|[^A-Za-z])[Aa]s[[:space:]]+requested[[:space:]]*([,;:.!?]|\)|$) ]] && return 0
+  if [[ "$line" =~ [Aa]s[[:space:]]+(you|we)(\'ve|\'d|’ve|’d)?[[:space:]]+(asked|requested|discussed|agreed|decided)(.*)$ ]]; then
+    rest="${BASH_REMATCH[4]}"
+    # A follower counts only as a whole word behind whitespace, so punctuation
+    # ("as you asked, …") leaves the antecedent flagged.
+    if [[ "$rest" =~ ^[[:space:]]+([A-Za-z]+)(.*)$ ]]; then
+      follower="${BASH_REMATCH[1],,}"
+      rest="${BASH_REMATCH[2]}"
+      case "$follower" in
+      above | below | earlier | later | previously | elsewhere | under | at | on) return 1 ;;
+      in) audit_noise_follower_is_document_locator "$rest" && return 1 ;;
+      *) ;;
+      esac
+    fi
+    return 0
+  fi
+  return 1
+}
+
+# The prose points at the work plan / changeset that produced the page rather
+# than at the page's subject. Four of the code lib's cues are deliberately NOT
+# carried over, each because a corpus sweep showed it matching live prose:
+#   "per the plan"  — prefix-matches "per the planning chapter", and a doc
+#                     citing a plan artifact that still exists is a live
+#                     cross-reference, not residue;
+#   "as planned"    — substring of "was planned", so "what was planned, what
+#                     was done instead" self-matched;
+#   "in this change" / "in this session" — ordinary domain vocabulary in an
+#                     agent-tooling corpus.
+# "in this PR" survives only with a first-person actor behind it, which is what
+# separates narration ("in this PR we switch the default") from a live referent
+# ("the files changed in this PR"). A CONTRACTED actor is still that actor, so
+# the pronoun admits one ("in this PR we've already switched the default"):
+# requiring a literal space after it let the same shape escape on a
+# contraction, and widening to the contraction adds no false-positive surface
+# because the discriminator is the pronoun, not the verb behind it. Unlike the
+# antecedent above — whose past-participle follower admits only `'ve`/`'d` —
+# any auxiliary can lead the present/future narration here, so all five are
+# admitted; the non-words the shared alternation also spells (`I're`, `we'm`)
+# cost nothing and keep this one group instead of two per-pronoun ones. Both
+# apostrophe forms are literal alternatives, never a bracket class, for the
+# C-locale reason recorded above.
+audit_noise_line_has_plan_reference() {
+  local line="$1"
+  [[ "$line" =~ [Rr]eplaces[[:space:]]+the[[:space:]]+old ]] && return 0
+  [[ "$line" =~ [Ii]n[[:space:]]+this[[:space:]]+(PR|MR|pull[[:space:]]+request|commit|changeset|refactor),?[[:space:]]+(we|I)(\'ve|\'re|\'ll|\'d|\'m|’ve|’re|’ll|’d|’m)?[[:space:]] ]] && return 0
+  [[ "$line" =~ ([Tt]ask|[Pp]hase|[Ss]tep)[[:space:]]+#?[0-9]+[[:space:]]+(of|in)[[:space:]]+(the|this)[[:space:]]+plan ]] && return 0
+  return 1
+}
+
+# Markdown restatement of the code skill's sanctioned-marker carve-out. Both
+# forms denote OUTSTANDING TRACKED WORK, where the reference is the actionable
+# part of the sentence; everything else is bare provenance, which is the shape.
+# Nothing further earns a carve-out here: the sanctioned home for a provenance
+# citation is a `## Sources` / `## History` footer, and the section exemptions
+# in detect.sh already skip those (as they skip CHANGELOG.md, fences, and
+# frontmatter) before any shape runs.
+audit_noise_line_is_tracked_work() {
+  local line="$1"
+  # Task-list checklist item: `- [ ] … #123` / `- [x] … #123`.
+  [[ "$line" =~ ^[[:space:]]*[-*+][[:space:]]+\[[[:space:]xX]\][[:space:]] ]] && return 0
+  # Tracked-work marker with a parenthesised reference.
+  [[ "$line" =~ (TODO|FIXME|HACK|XXX)[[:space:]]*\(#?[A-Za-z0-9_-]+\) ]] && return 0
+  return 1
+}
+
+# Bare provenance: a tracker, PR, or branch back-reference offered as the
+# reason the surrounding prose says what it says.
+audit_noise_line_has_ticket_pr_residue() {
+  local line="$1"
+  audit_noise_line_is_tracked_work "$line" && return 1
+  [[ "$line" =~ [Ss]ee[[:space:]]+(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ [Ss]ee[[:space:]]+the[[:space:]]+(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ ([Ii]ntroduced|[Aa]dded|[Ll]anded|[Ss]hipped|[Ff]ixed|[Rr]everted|[Dd]ecided|[Aa]greed)[[:space:]]+in[[:space:]]+(PR|MR|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ [Tt]racked[[:space:]]+in[[:space:]]+#[0-9] ]] && return 0
+  [[ "$line" =~ ([Tt]racked|[Ff]iled|[Ll]ogged|[Rr]eported)[[:space:]]+(in|as|under)[[:space:]]+[A-Z][A-Z0-9]+-[0-9] ]] && return 0
+  [[ "$line" =~ [Ff]rom[[:space:]]+the[[:space:]]+feature[[:space:]]+branch ]] && return 0
+  return 1
+}
+
 # Append matching shape names into the nameref array (avoids a per-line
 # command-substitution subshell in the detect hot loop).
 # Ghost-ref scans an unwrap (ticks removed, content kept); other shapes scan a
@@ -132,6 +281,15 @@ audit_noise_detect_shapes_into() {
     [[ "$stripped" =~ [Aa]uto-loads[[:space:]]+when ]]; then
     _audit_noise_shapes_out+=('scope-meta')
   fi
+  if audit_noise_line_has_plan_reference "$stripped"; then
+    _audit_noise_shapes_out+=('plan-reference')
+  fi
+  if audit_noise_line_has_conversational_antecedent "$stripped"; then
+    _audit_noise_shapes_out+=('conversational-antecedent')
+  fi
+  if audit_noise_line_has_ticket_pr_residue "$stripped"; then
+    _audit_noise_shapes_out+=('ticket-pr-residue')
+  fi
   ((${#_audit_noise_shapes_out[@]} > 0))
 }
 
@@ -152,8 +310,8 @@ audit_noise_detect_shapes() {
 audit_noise_shape_tier() {
   local shape="$1"
   case "$shape" in
-  ghost-ref | preamble) printf '2' ;;
-  citation | enum-list | scope-meta) printf '1' ;;
+  ghost-ref | preamble | ticket-pr-residue) printf '2' ;;
+  citation | enum-list | scope-meta | plan-reference | conversational-antecedent) printf '1' ;;
   *) printf '3' ;;
   esac
 }
@@ -163,8 +321,8 @@ audit_noise_shape_tier_into() {
   local shape="$1"
   local -n _audit_noise_tier_out="$2"
   case "$shape" in
-  ghost-ref | preamble) _audit_noise_tier_out=2 ;;
-  citation | enum-list | scope-meta) _audit_noise_tier_out=1 ;;
+  ghost-ref | preamble | ticket-pr-residue) _audit_noise_tier_out=2 ;;
+  citation | enum-list | scope-meta | plan-reference | conversational-antecedent) _audit_noise_tier_out=1 ;;
   *) _audit_noise_tier_out=3 ;;
   esac
 }

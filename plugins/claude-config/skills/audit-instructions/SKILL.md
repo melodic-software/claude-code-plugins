@@ -1,6 +1,6 @@
 ---
 description: "Audit locally-owned Claude Code instruction surfaces — CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text, output styles — for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
-argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
+argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
@@ -141,6 +141,10 @@ Two flags govern the `OPINION` tier, whose enablement policy the catalog defines
 - `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
+
+`--persist-findings` also writes the run's I28 findings as a `type: review-findings` file for
+`review:fanout`'s `fix` action (off by default; only I28 is eligible, body-scoped; a proposal for a
+human-gated relay, not an applied edit — [context/persist-findings.md](context/persist-findings.md)).
 
 ## Phase A — Inventory
 
@@ -365,11 +369,11 @@ Every removal or rewrite proposal is re-judged before it reaches the report. Dis
 non-fork** subagents — this is a self-grade of the audit's own proposals, so a fork that inherits the
 producing context would not be independent — prompted to refute: "would removing this instruction
 cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
-high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
-installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this
-artifact, invoked per its own docs — with
-the fresh-context same-vendor subagent as the fallback, never a route to a command that may not
-resolve. Batch one verifier per surface
+high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** —
+e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with
+the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve
+(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+Batch one verifier per surface
 (not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
 demoted to `info` or dropped, never surfaced as a confident removal.
 
@@ -395,33 +399,11 @@ blocked, unavailable, or the session cannot spawn subagents:
 
 ## Phase D — Report
 
-Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`.
-
-**Derive `<state-key>` by running this:**
-
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
-
-It prints `<repo-identity>/<worktree-discriminator>` — the state-key scheme the marketplace's
-`plugin-data-report-keying` convention defines, implemented once in the shared `lib/state-key.sh`,
-which `audit-prompting-postures` also uses. Run it and use the result. Do **not** express the path as a
-condition over `${CLAUDE_PROJECT_DIR}` "when set": that placeholder is substituted inline before this
-file reaches you, so the literal token is never visible and the condition is not yours to evaluate.
-
-**Why the key is load-bearing in this skill specifically.** `${CLAUDE_PLUGIN_DATA}` resolves to
-`~/.claude/plugins/data/{id}/`, keyed to the plugin identifier and nothing else
-([plugins reference](https://code.claude.com/docs/en/plugins-reference), § Persistent data directory).
-Under a fixed filename every run from every project on the machine overwrites the last — and the cost
-line below then computes its **per-surface token delta against a prior report belonging to a different
-project's surface set**, printing a number rather than declining. The lost artifact is the smaller
-half; a silently wrong figure in the report header is the larger one.
-
-**Two absent-prior cases, and they are not the same.** With no report at the derived key, say so and
-omit the delta — "first run for this project; no prior catalog version to compare" — rather than
-reaching for another file. An unkeyed `audit-instructions/last-audit.md` left by an earlier version
-has no project segment and is therefore unattributable: name its path to the user as a leftover, and
-do not compute a delta from it.
+Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`, deriving
+`<state-key>` by running `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"` and using its output.
+[context/report-keying.md](context/report-keying.md) owns the rest: why the key is load-bearing
+here (an unkeyed path makes the cost line below compare against another project's surface set), and
+the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
@@ -462,6 +444,11 @@ no-example default. The full delete-and-watch loop is operationalized by `/claud
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
 catalog).
+
+**With `--persist-findings`**, also emit the run's I28 findings for the apply relay per
+[context/persist-findings.md](context/persist-findings.md) — it owns every mechanic and the
+carve-out drop preceding the write. Report the path and the emitted/declined counts, and say
+plainly that nothing has been applied.
 
 ## Gotchas
 

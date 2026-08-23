@@ -57,8 +57,12 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    recommend a machine-absolute team path.
 6. If a recommended value differs from the effective one, direct the user to Claude Code's plugin
    configuration prompt for `education` (interactive `/plugin configure education@<marketplace>` any time;
-   headless, `--config` applies only on a fresh install — uninstall then reinstall to
-   reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
+   headless, rerun `claude plugin install education@<marketplace> -s <scope> --config
+   quiz_policy=<value>` — against an already-installed plugin it prints `already installed` and
+   still writes the value, verified on Claude Code 2.1.240 for a non-sensitive option at `user`
+   scope. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and
+   resets every option to its manifest default). Claude Code owns persistence. Do not hand-edit
+   any `pluginConfigs` key.
 7. Tell the user to rerun `check` after reconfiguration — in a fresh session, since the rendered
    values are injected at load — then verify and report the effective settings.
 
@@ -72,5 +76,7 @@ change until a rerun observes the new rendered values.
 
 - Do not start a teach, explain, or quiz session; use `/education:teach`, `/education:explain`,
   or `/education:quiz-me`.
-- Do not write Claude Code settings.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
+  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  marketplace repository).
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

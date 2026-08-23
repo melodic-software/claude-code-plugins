@@ -1,5 +1,5 @@
 ---
-description: "Enforce self-describing, expressive code over changed files: a three-way comment triage that deletes zero-information comments, dissolves code-expressible comments into names and structure via behavior-preserving refactoring and then deletes them, and keeps only terse, load-bearing comments code cannot express (why, constraints, contracts). Applies edits: deletions are near-mechanical; refactors apply only behind a discovered test net, else they are proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), lane-hunting structural tidyings (tidy), windowed or repo-wide batch sweeps (batch-simplify), markdown noise (docs-hygiene audit-noise), adding missing why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
+description: "Enforce self-describing, expressive code over a resolved scope — the uncommitted diff by default, widening to the branch diff and then the whole repository when the tree is clean: a three-way comment triage that deletes zero-information comments, dissolves code-expressible comments into names and structure via behavior-preserving refactoring and then deletes them, and keeps only terse, load-bearing comments code cannot express (why, constraints, contracts). Applies edits: deletions are near-mechanical; refactors apply only behind a discovered test net, else they are proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), lane-hunting structural tidyings (tidy), windowed or repo-wide simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding missing why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
 argument-hint: "[safe] [target]"
 disable-model-invocation: false
 user-invocable: true
@@ -21,8 +21,8 @@ Arguments: `$ARGUMENTS`
 ## Purpose
 
 The enforcement counterpart to `/code-tidying:audit-comment-residue`: where that skill classifies
-and reports, this one edits. It makes changed code self-describing and expressive, and it removes
-every comment that does not earn its keep — with "earn its keep" defined by the doctrinal floor the
+and reports, this one edits. It makes the code in scope self-describing and expressive, and it removes
+every comment there that does not earn its keep — with "earn its keep" defined by the doctrinal floor the
 canonical sources jointly sign: *implementation code only needs comments when the code is
 nonobvious* (Martin ⇄ Ousterhout debate), restated by Anthropic's own guidance as *"Only add
 comments where the logic isn't self-evident."*
@@ -49,13 +49,35 @@ over-extraction cautions: [reference/dissolving-moves.md](reference/dissolving-m
 
 | Argument | Action |
 |---|---|
-| *(empty)* | Triage the uncommitted diff's code files. The pre-computed list is a truncated PREVIEW — re-enumerate the full set at scope time (`git status --porcelain -z` parses safely for any filename, including whitespace). No uncommitted code files → friendly no-op exit. |
+| *(empty)* | Triage the code files of the narrowest scope that resolves — uncommitted diff → branch diff → whole repository (see **Scope fallback** below). The pre-computed list is a truncated PREVIEW — re-enumerate the full set at scope time (`git status --porcelain -z` parses safely for any filename, including whitespace). |
 | `<path>` | Triage a single file or directory (already-committed code is fine here). |
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment is emitted as a proposal, no code-structure change is applied. For codebases whose guardrails you do not know. |
 
 Default mode applies the full contract: class A applies; class B applies **only behind a
 discovered test net**, else it is proposed. The gate, the test-discovery procedure, and the mode
 ladder: [reference/safety.md](reference/safety.md).
+
+### Scope fallback (empty argument)
+
+The empty argument resolves down a ladder; the narrowest rung that exists wins:
+
+1. **Uncommitted diff** — the working tree has changes: their code files (the default case above).
+2. **Branch diff** — clean tree on a non-default branch: the current branch's diff against the
+   repository's base/default branch (the PR diff, when the branch has one).
+3. **Whole repository** — clean tree on the default branch, so no branch diff exists: every code
+   file in the repo, minus exclusions and exempt surfaces.
+
+The ladder advances on absence, never on emptiness: a rung is skipped only when it does not
+exist (a clean tree, no branch diff). A rung that exists but yields no code files after
+filtering ends the run with the exclusion tally (Workflow step 4) — a docs-only branch reports
+its files as out of scope rather than silently escalating to repo-wide scope.
+
+Widening to repo-wide scope is confirmed, never silent: in an interactive session, state what the
+scope resolved to and why ("clean tree on the default branch → whole repository, N code files")
+and get a yes before triage. A non-interactive/autonomous run has no one to ask — its
+deterministic default is to proceed, but to take any widened scope (rungs 2–3) in **safe mode**
+(class-A deletions applied, every class-B emitted as a proposal — the mode ladder in
+[reference/safety.md](reference/safety.md)), never the full default mode.
 
 ## Hard rules
 
@@ -82,14 +104,21 @@ ladder: [reference/safety.md](reference/safety.md).
 
 ## Workflow
 
-1. **Scope** — resolve targets from the action router, re-enumerating the full file set
-   (never the truncated pre-computed preview); drop excluded paths and exempt surfaces.
+1. **Scope** — resolve targets from the action router (empty argument: the fallback ladder,
+   with its confirmation and safe-mode rules), re-enumerating the full file set (never the
+   truncated pre-computed preview); drop excluded paths and exempt surfaces, keeping a per-reason
+   tally of every drop. Check the survivors' headers for SSOT / materialized-copy / do-not-edit
+   declarations — a repo can ship materialized copies of one source file (sync scripts, CI drift
+   gates): triage the source, run its declared sync after editing, and never touch a copy.
 2. **Triage** — classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
 3. **Apply** — class A deletions; class B per mode and gate ([reference/safety.md](reference/safety.md)):
    pick the named move, apply it, run the discovered tests, then delete the now-superfluous
    comment. A failing test run reverts the move and demotes the item to a proposal.
 4. **Report** — per file: counts per class, applied vs proposed, the staged commit-message block
-   for any removed narrative, and the class-C keeps with one-line reasons. The user reviews the
+   for any removed narrative, and the class-C keeps with one-line reasons. A scope whose every
+   enumerated file was dropped reports the exclusion tally instead of exiting silently — total
+   enumerated, 0 in scope, counts per reason (non-code, GLOBAL HARD path, exempt surface, SSOT
+   copy) — so a clean repo is distinguishable from a misconfigured run. The user reviews the
    diff; this skill does not commit.
 
 ## What this skill is NOT
@@ -100,8 +129,8 @@ ladder: [reference/safety.md](reference/safety.md).
   out-of-context residue; this applies edits across the full triage. Run the audit when you want
   findings without changes.
 - **Not `/code-tidying:tidy` or `/code-tidying:batch-simplify`.** No lane rotation, no scope
-  budget, no windowed or repo-wide waves — this is an on-demand enforcement pass over one diff or
-  target.
+  budget, no wave machinery — this is a single-pass, on-demand enforcement run over one resolved
+  scope: a diff, an explicit target, or the repository the empty-argument fallback widened to.
 - **Not a bug-hunter or general simplifier.** `/code-review` and `/simplify` own those.
 
 ## Gotchas
@@ -115,10 +144,9 @@ ladder: [reference/safety.md](reference/safety.md).
   [reference/dissolving-moves.md](reference/dissolving-moves.md).
 - Introduce Assertion covers only machine-checkable state claims; a comment stating an
   unverifiable assumption about an external system stays a comment (class C).
-- During scoping, check file headers for SSOT / do-not-edit declarations: a repo can ship
-  materialized copies of one source file (sync scripts, CI drift gates). Triage the source,
-  run its declared sync after editing, and never touch a copy — the path-exclusion tier
-  alone does not catch this shape.
+- The SSOT / materialized-copy header check lives in Workflow step 1 because the path-exclusion
+  tier alone does not catch this shape — a hand-run of the repo-wide fallback surfaced a
+  settings-wired bootstrap script declaring itself a materialized SSOT copy.
 - A tests/ directory near the target is not a net until it demonstrably covers the touched
   file — import/source it, or exercise it via CLI. This fired on the first file of the
   skill's first live run.

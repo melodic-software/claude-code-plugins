@@ -3,6 +3,137 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Added
+
+- **Product-code lane specification (#2897).** `context/product-code-lane.md` supplies the four
+  things `scrutiny-method.md` asks a lane for, for code-level overengineering in product code:
+  the item inventory (the abstraction, never the file), an eight-layer vocabulary with discovery
+  probes (`single-implementation`, `extension-points`, `configuration`, `generality`, `layering`,
+  `speculative-api`, `dead-branches`, `premature-async`), the evidence sources mapped onto the §2
+  tiers, and protected-class defaults extending §7 (published API surface, serialization and wire
+  formats, concurrency primitives, error-containment boundaries, testability seams). It names the
+  lane's signature tier-2 probe, whether the second implementation ever arrived, which is what makes
+  speculative generality checkable as a falsified prediction rather than a matter of taste, and
+  documents the boundary against `/simplify`, `code-tidying`, and `architecture:improve` as three
+  operational handoffs. The document is a specification ahead of its skill; no skill or behavior
+  changes in this release.
+
+### Changed
+
+- **`scrutiny-method.md` points at the second lane.** Its "Lane binding" section previously
+  forward-referenced "a future product-code lane" with nowhere to go; it now links the specification
+  and the ADR recording the lane's shipping shape.
+
+## [0.2.1]
+
+### Fixed
+
+- **The findings artifact's `date:` field was justified by a property it cannot have.**
+  `context/findings-artifact.md` argued the field as "Colon-free UTC, **Windows-safe**, lexically
+  sortable". Windows-safety is a *filename* property — a colon is illegal in a Windows path
+  component — and is meaningless for a field written *inside* a file; this contract fixes one
+  stable filename per home (`findings.md`) and deliberately rejects a timestamped one, so there is
+  no filename here for the claim to attach to either. The row now argues the format on what is
+  actually true of it: compact, unambiguous about its zone, and lexically sortable, so string order
+  is chronological order. **The format is unchanged.** ISO-basic `YYYYMMDDTHHMMSSZ` is valid
+  ISO-8601 and this artifact is not a detector-findings adopter — its only consumer is
+  `/overengineering:realign` — so nothing obliges it to match any neighbor's extended form, and a
+  wrong rationale is not grounds to move a contract that works. Documentation only; no consumer
+  reads the rationale cell.
+
+## [0.2.0]
+
+### Added
+
+- **`delta` — the recurring lane the findings artifact was designed for (#2898).** A third,
+  read-only skill: it composes `overengineering:audit` over the same layer scope, compares the
+  resulting findings spine against the baseline the previous cycle left behind, captures a fresh one
+  for the next, and reports **only what moved** — new clutter, verdict moves, closures, status
+  changes — instead of re-serving the whole surface every cycle. The
+  artifact's stable spine was given its diffable line format for exactly this consumer, and the lane
+  reads the spine alone: prose is recomputed fresh every run, so comparing it would report model
+  noise as change.
+- **The baseline is the previous cycle's post-audit spine, stated as the lane's load-bearing
+  mechanic.** Two things have to be right and each fails silently alone. A spine must be *persisted*,
+  because the artifact is rewritten in place, per layer, as the audit walks — **after an audit has
+  run there is nothing left to diff against**, so "audit, then diff the file" is not available and a
+  memory-tier `spine-baseline.md` sibling is mandatory. And it must be captured at the **end** of a
+  cycle, from the post-audit artifact: `Status` is written by realign, a human runs realign *between*
+  cycles, and the audit carries every non-new status forward untouched, so a start-of-cycle capture
+  would already hold the new status and the status-change class could never fire. A pre-audit capture
+  survives only as an explicitly named **bootstrap** — a home with an artifact and no baseline yet —
+  which cannot observe a status change and says so, while the next cycle can. A maintainer who breaks
+  either half gets no error, just a silently useless lane, which is why the mechanic is a contract
+  clause in both the skill and `context/findings-artifact.md` rather than an implementation detail.
+- **A detached checkout is never given a branch identity.** `git rev-parse --abbrev-ref HEAD` answers
+  the literal `HEAD` when detached — the ordinary shape for the scheduled runners this lane targets —
+  which keys every ref to one home and compares equal to itself, so the branch-match guard would
+  accept another ref's spine as this ref's baseline and report cross-ref differences as deltas. The
+  lane's precompute uses `git symbolic-ref`, which fails rather than inventing a name; the run then
+  prefers a logical ref where the environment supplies one (no CI vendor's variables are named or
+  assumed) and otherwise declines to compare **and** declines to capture, saying why.
+- **A noise budget with per-class rules, not a judgment gesture.** Each delta class is disposed as
+  list, count, or omit: new findings list on retirement-direction and capped verdicts and count
+  otherwise; new `UNPROVEN` findings list only the head of the audit's own carry-cost ranking, since
+  an evidence desert produces them in bulk; verdict moves on unjudged findings list only when they
+  cross the keep/retirement boundary, touch `FLAG-FOR-HUMAN`, or enter or leave `UNPROVEN`; closures
+  list when unexpected and count when the prior status was `REALIGNED`; member moves under an
+  unchanged container count. A volume cap bounds the whole report, and **a quiet cycle is one line**
+  — the anti-nag property the lane exists to hold. Evidence-only change is declared **out of scope by
+  construction**: evidence is prose, a spine comparison cannot see it, and no threshold makes it able
+  to.
+- **`delta_noise_budget` in `reference/consumer-config.md`**, seven keys with types and defaults, in
+  the ordinary **refinement** cascade class with the classification justified in the doc: no key can
+  remove a finding from the artifact, change a verdict, suppress a judgment, or weaken the protected
+  cap, so none carries the hazard that puts `protected_categories` and `suppressions` in the
+  policy-floor class. Two delta classes are deliberately not keys at all — a verdict that moved under
+  a **carried-forward judgment** (merge rule 5) and a **status change** are always surfaced, and no
+  layer can weaken either. `queue_route` defaults to `inline`: the durable tracker route is **opt-in**
+  because `work-items:track` refuses to file on inferred intent, and an operator setting the key in
+  tracked config is the explicit, recorded authorization that gate requires — one an unattended
+  scheduled cycle has nobody present to give.
+- **Recurring wiring documented, adopted nowhere.** `skills/delta/context/recurring-wiring.md`
+  carries four consumer-agnostic shapes — a fixed-interval loop, a headless scheduled task, a CI
+  schedule, and a recurring tracker item — each with its trade, including the observation that a
+  scheduled CI lane *is itself* an enforcement-surface item this plugin's own audit will later judge
+  on carry cost. The plugin ships no schedule of its own: a cadence is the consumer's ratified
+  decision, not something a plugin adopts on install.
+
+### Changed
+
+- **`context/findings-artifact.md` gains the spine-capture obligation (#2898), additively.** A new
+  section names the end-of-cycle capture timing, the `Status` reason behind it, the one sanctioned
+  pre-audit bootstrap, and specifies the `spine-baseline.md` sibling —
+  `type: overengineering-spine-baseline`, deliberately neither `overengineering-findings` nor
+  `review-findings`, so `realign` never reads it and no fix relay can locate it. `schema` stays `1`
+  and no merge rule changed; the doc's forward reference to "a future delta lane" now names the
+  shipped one, and its obligations table records that `delta` is a third **reader** and no writer —
+  least of all of `Status`, which stays realign's alone.
+
+### Contracts
+
+- **Read-only always, and realign is never entered.** The delta lane never invokes or enters
+  `overengineering:realign` — not on a verdict that moved, not on a finding an earlier run accepted,
+  and not when the operator asks for it mid-run. Realign's per-item gate needs a human present at the
+  moment the item is shown, and a lane that can run on a schedule has nobody to give one. Verdict
+  changes **queue**: always in the report's `## Queued for the human` section, and — **opt-in** on a
+  tracked `queue_route: auto` and then presence-gated on a reachable work-item tracker, with the
+  report section as the named inline fallback — as one reused item per branch that a quiet cycle
+  never touches, that drops a row the human has already dispositioned, and that the lane never
+  closes. The opt-in is the authorization, not a verbosity preference: `work-items:track` will not
+  file on inferred intent, so an unset key means report-only.
+- **No baseline is a first-class state, not an error.** A fresh container, a removed worktree, a
+  branch switch, or an artifact whose `branch:` frontmatter names another branch all mean there is no
+  prior spine. The lane says "no baseline; this run establishes one", reports nothing as a delta, and
+  points at the composed audit's own inline summary rather than producing a second full-surface view.
+  An unrecognized `schema:` is a stop instead, per the artifact contract's closed rule.
+- **A layer-scoped cycle is never a clean bill of health.** Findings in a layer absent from this
+  run's `scope` were carried forward untouched by merge rule 4; they contribute to no delta class and
+  are named once as a coverage line with their count — never as unchanged-and-checked, and never as
+  closed.
+
 ## [0.1.1]
 
 ### Changed

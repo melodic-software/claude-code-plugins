@@ -40,13 +40,13 @@ replacement is forbidden.
 class** — `protected_categories` and `suppressions`. On a direct conflict there the **team layer
 wins**, the reverse of the default; personal layers (user-global and overlay) may extend or tighten
 only, never weaken; and whenever a personal layer materially shapes output, the run **names the
-contributing layer**. The remaining keys — `thresholds` and `observation_window` — take the ordinary
-refinement form, where a later layer's value simply wins.
+contributing layer**. The remaining keys — `thresholds`, `observation_window`, and
+`delta_noise_budget` — take the ordinary refinement form, where a later layer's value simply wins.
 
 The split is not stylistic. A gitignored overlay that emptied the protected set, or suppressed a
 finding the team never accepted, would recreate exactly the hole that disqualified `userConfig`.
-Thresholds and the observation window carry no such hazard: a personal threshold changes what one
-operator's own report ranks, and the finding it moves is still reported.
+Thresholds, the observation window, and the delta noise budget carry no such hazard: a personal
+threshold changes what one operator's own report ranks, and the finding it moves is still reported.
 
 All three layers absent is a valid state — the bundled defaults apply and the run says so.
 
@@ -72,6 +72,18 @@ thresholds:
 observation_window:
   days: 45
   release_cycles: 1
+
+delta_noise_budget:
+  new_finding_verdicts:
+    - RETIRE
+    - CONSOLIDATE
+    - FLAG-FOR-HUMAN
+  unproven_head: 5
+  verdict_change: boundary
+  closed_findings: unexpected
+  member_verdicts: count
+  max_items: 20
+  queue_route: auto
 
 suppressions:
   230042849f499636:
@@ -103,6 +115,7 @@ hand-written example would therefore be an example nobody can copy.
 | `protected_categories` | mapping | policy-floor | Which categories carry the FLAG-FOR-HUMAN cap (`context/scrutiny-method.md` §7), keyed by category id. |
 | `thresholds` | mapping | refinement | Overrides for the analogical threshold rows (§9). |
 | `observation_window` | mapping | refinement | The rollback ladder's rung-2 observation window (§11). |
+| `delta_noise_budget` | mapping | refinement | What `overengineering:delta` lists rather than counts, per delta class. |
 | `suppressions` | mapping | policy-floor | The durable judgment record, keyed by `finding_id`. |
 
 ### `protected_categories`
@@ -167,6 +180,52 @@ bundled default.
 The effective window is **whichever of the two is longer**, per §11. Setting either to `0` drops that
 constraint; setting both to `0` is rejected rather than silently taken — a window with no end date is
 the abandonment §11 exists to prevent.
+
+### `delta_noise_budget`
+
+The noise budget for the recurring lane, `overengineering:delta`. Every key answers one question:
+which delta class is **listed** as a row, and which is only **counted**. The class rules themselves —
+what a boundary crossing is, what makes a closure unexpected — are owned by that skill's body and are
+deliberately not re-derived here; this table owns the keys, their types, and their defaults.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `new_finding_verdicts` | list of verdict tokens (§6), or `all`, or `[]` | `[RETIRE, DOWNGRADE, CONSOLIDATE, FLAG-FOR-HUMAN]` | Which newly-opened findings are listed. Others are counted. `all` lists every new finding; `[]` counts them all. `UNPROVEN` in this list is overridden by `unproven_head`. |
+| `unproven_head` | integer ≥ 0 | `3` | How many newly-opened `UNPROVEN` findings are listed, taken off the audit's own carry-cost ranking. `0` counts them all. |
+| `verdict_change` | `boundary` \| `any` \| `off` | `boundary` | Which verdict moves on an unjudged (`Status: OPEN`) finding are listed. `off` counts them. Has no effect on a verdict that moved under a carried-forward judgment, which is never configurable. |
+| `closed_findings` | `unexpected` \| `all` \| `off` | `unexpected` | Which closures are listed. `off` counts them. |
+| `member_verdicts` | `count` \| `surface` \| `off` | `count` | Member-level verdict moves inside a container whose own verdict did not move. `off` omits them entirely. |
+| `max_items` | integer ≥ 1 | `20` | Cap on rows listed across every class in one cycle. The residue is reported as counts with a pointer to the artifact. |
+| `queue_route` | `auto` \| `inline` | `inline` | `auto` routes queued verdict changes to a work-item tracker when one is reachable, and falls back inline when it is not. `inline` — the default, and what an unset key renders — declines the route unconditionally. Either way the queue always appears in the report. |
+
+**Why the durable route is opt-in.** `work-items:track`'s `add` action refuses to file on inferred
+intent: *"An explicit user `/work-items:track add ...` invocation IS the authorization;
+model-initiated filing is not."* An unattended scheduled delta cycle has nobody present to give one,
+so a default-on route would make the lane's ordinary mode a filing request a conforming tracker is
+obliged to decline. Setting this key **is** the explicit, recorded authorization that gate asks for,
+given once by a human in a tracked file — which is why `auto` is opted into rather than defaulted to,
+and why flipping the default back would break the default path in the exact mode the lane exists for.
+Nothing is hidden by leaving it unset: the queue appears in every report either way, and only its
+durability changes.
+
+**Two delta classes are deliberately absent from this table, and no layer can weaken them.** A
+verdict that moved under a **carried-forward judgment** (the artifact's merge rule 5) and a **status
+change** are always listed. The first is the one class where a decision a human already made has gone
+out of date under new evidence — a key that could hide it would hide the operator's own concern from
+them. The second reports that a human acted, is rare, and costs one row. They are not keys set to a
+locked default; they are not keys at all.
+
+**Why refinement and not policy-floor.** The policy-floor class exists for keys whose weakening in a
+personal layer would take something away from *everyone else* with no diff to show it: an emptied
+`protected_categories` defeats the FLAG-FOR-HUMAN cap for whoever reads that operator's report, and a
+personal `suppressions` entry records a judgment the team never made. Neither hazard exists here.
+Every key above governs **what one run's delta view lists versus counts**, and nothing it can do
+removes a finding from the artifact, changes a verdict, suppresses a judgment, weakens the protected
+cap, or authorizes a remediation — the artifact stays complete and remains the source of truth in
+every configuration, and a counted item is one line away from being read in full. The two classes
+where hiding would actually cost someone something are not configurable at all. A personal
+`max_items: 5` changes what one operator's own cycle leads with and nothing else, which is exactly
+the test `thresholds` and `observation_window` already pass.
 
 ### `suppressions`
 

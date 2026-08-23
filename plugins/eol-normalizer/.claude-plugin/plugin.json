@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "eol-normalizer",
-  "version": "0.6.17",
-  "description": "Normalize a written file's working-tree line endings to its .gitattributes eol value on edit \u2014 symmetric CRLF/LF driven by git check-attr, advisory and never blocking.",
+  "version": "0.6.19",
+  "description": "Normalize a written file's working-tree line endings to its .gitattributes eol value on edit — symmetric CRLF/LF driven by git check-attr, advisory and never blocking.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
