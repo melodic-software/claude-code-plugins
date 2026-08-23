@@ -11,8 +11,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   substitute.** Sandboxed sessions (Claude Code on the web, remote execution) serve only a
   pinned set of GraphQL operations and refuse the rest with `HTTP 403`, which takes out the
   §2.2 default-branch read, the §2.4.0 issue-state check, `gh pr create` itself, and the
-  `gh pr view --json` identity read after it. The §2.4.0 linkage check was the most dangerous of
-  the two, because it fails with a *misleading diagnosis* rather than an error: its
+  `gh pr view --json` identity read after it. The §2.4.0 linkage check is the most dangerous of
+  the four, because it fails with a *misleading diagnosis* rather than an error: its
   `2>/dev/null || true` swallows the 403, leaving `ISSUE_STATE` empty, so a live open issue is
   reported as "missing or not open" and the flow falls through to the orphan-PR prompt. Taking
   that prompt's `No related issue:` option then clears the §2.4.2.1 gate silently, and the PR
