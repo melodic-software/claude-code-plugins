@@ -461,9 +461,11 @@ copies nothing — a false green that confirms the wrong state while the recorde
 
 **Workarounds (until upstream fixes this — [melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061)):**
 
-- **Force a fresh snapshot:** `claude plugin uninstall <name>@<marketplace>` then `install` again,
-  then `enable` — `uninstall` drops enabled state, so skipping `enable` leaves the plugin silently
-  absent rather than silently stale.
+- **Force a fresh snapshot:** `claude plugin uninstall <name>@<marketplace> --keep-data` then
+  `install` again, then `enable` — `uninstall` drops enabled state, so skipping `enable` leaves
+  the plugin silently absent rather than silently stale. `--keep-data` keeps
+  `${CLAUDE_PLUGIN_DATA}` and the stored `pluginConfigs` entry; omitting it would refresh the
+  snapshot by destroying both.
 - **Ship a version bump** when the merged result must reach consumers — the only delivery vehicle for
   marketplace installs (see bullets above).
 - **Local iteration:** `claude --plugin-dir ./plugins/<name>` loads the working tree and takes

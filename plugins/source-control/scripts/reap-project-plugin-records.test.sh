@@ -6,7 +6,8 @@
 # the current directory and otherwise fails with the text that suggests
 # `--scope user`. Every case here pins a safety property the reap rests on:
 # the cwd-equality refusal, the never-`-s user` / never-`--prune` rule, the
-# other-path records left untouched, and the visible degrade.
+# always-`--keep-data` rule, the other-path records left untouched, and the
+# visible degrade.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -168,6 +169,7 @@ left="$(jq -r 'map(.id) | sort | join(",")' "$STATE")"
 assert_eq "only this directory's project records are removed" "c@m,d@m" "$left"
 assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
 assert_not_contains "never passes --prune" "$(cat "$LOG")" "--prune"
+assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
 
 # --- path normalization ---------------------------------------------------------
 # The record is written by Claude Code in native form; a case- or
@@ -229,6 +231,7 @@ assert_contains "the no-op is reported" "$OUT" "no-op for z@m"
 assert_contains "the report forbids the user-scope escalation" "$OUT" "do NOT retry it with"
 assert_contains "survivors are surfaced" "$OUT" "survived the pass"
 assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
+assert_contains "a no-op uninstall still passes --keep-data" "$(cat "$LOG")" "--keep-data"
 
 # --- visible degrade ------------------------------------------------------------
 

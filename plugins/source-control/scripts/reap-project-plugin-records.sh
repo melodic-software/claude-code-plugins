@@ -30,6 +30,11 @@
 #   * `--prune` — it reaches past project scope into auto-installed
 #     dependencies shared with every other scope.
 #
+# ONE FLAG IT ALWAYS PASSES.
+#   * `--keep-data` — this script reaps stale *records*. Uninstalling from the
+#     last remaining scope deletes that plugin's `${CLAUDE_PLUGIN_DATA}`
+#     directory by default. The reap never wants that side effect.
+#
 # It never edits `installed_plugins.json`. That file is Claude Code's internal
 # state, not a published contract; every mutation goes through the CLI.
 #
@@ -234,8 +239,9 @@ noop=0
 while IFS= read -r id; do
   [[ -n "$id" ]] || continue
   # -s project only. Never -s user (the CLI's own failure text suggests it and
-  # that suggestion is fleet-wide). Never --prune.
-  out="$(claude plugin uninstall "$id" -s project 2>&1)"
+  # that suggestion is fleet-wide). Never --prune. Always --keep-data: this
+  # script reaps stale records, never a plugin's persistent data directory.
+  out="$(claude plugin uninstall "$id" -s project --keep-data 2>&1)"
   rc=$?
   if [[ "$rc" -eq 0 ]]; then
     reaped=$((reaped + 1))

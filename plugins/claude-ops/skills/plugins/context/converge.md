@@ -45,9 +45,11 @@ the opposite of bringing the fleet current.
 Then decide the consolidation strategy:
 
 - **`user` scope holds the highest version** → the default strategy is to make the *project/local*
-  scope fall through to it: `claude plugin uninstall <id> -s project` (or `-s local`) removes the
-  redundant lower-precedence pin, and scope precedence (local > project > user) means the project
-  now loads whatever `user` scope has — always current from here on without a standing project pin.
+  scope fall through to it: `claude plugin uninstall <id> -s project --keep-data` (or
+  `-s local --keep-data`) removes the redundant lower-precedence pin, and scope precedence
+  (local > project > user) means the project now loads whatever `user` scope has — always current
+  from here on without a standing project pin. `--keep-data` is required: this step removes a
+  scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory.
 - **A `project`/`local` scope holds the highest version** (including when there's no `user`-scope
   entry at all — only multiple `project`/`local`-scope pins across different repos) → the default
   strategy is to bring every lagging scope, `user` scope included, up to that version:
@@ -59,9 +61,11 @@ operates on the *current directory's* `.claude/settings*.json`. A divergence row
 belong to a different repo than the one this session is standing in (the "elsewhere on this machine"
 rows a bulk report collapses) — never construct the proposed command as a bare
 `claude plugin uninstall|update <id> -s project`, only as
-`(cd "<scopes[].projectPath>" && claude plugin uninstall|update <id> -s project)`. Presenting or
+`(cd "<scopes[].projectPath>" && claude plugin uninstall <id> -s project --keep-data)` or
+`(cd "<scopes[].projectPath>" && claude plugin update <id> -s project)`. Presenting or
 running the bare form for a row whose `projectPath` isn't the current directory would silently
-mutate — or fail against — the wrong repo's settings.
+mutate — or fail against — the wrong repo's settings. `--keep-data` applies to `uninstall` only:
+`update` has no such flag, and the uninstall half is a pin removal, never a data deletion.
 
 Two `git worktree` checkouts of one repository pin independently — verified on Claude Code 2.1.228
 by uninstalling one id in a repo's main checkout and observing the worktree's record for the same id

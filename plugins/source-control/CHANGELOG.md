@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.8]
+
+### Fixed
+
+- **`worktree` cleanup reap no longer deletes other plugins' data directories
+  (#3212, #3238).** `reap-project-plugin-records.sh` called
+  `claude plugin uninstall <id> -s project` without `--keep-data`. The helper
+  reaps stale *records* keyed to a worktree being torn down; it has no business
+  deleting a plugin's `${CLAUDE_PLUGIN_DATA}` directory. Uninstalling from the
+  last remaining scope does that by default, and the reap runs non-interactively
+  over every plugin id holding a project-scope record for that path. The call
+  now always passes `--keep-data`. `reap-project-plugin-records.test.sh` asserts
+  the captured argv includes the flag. The measurement probe
+  (`skills/worktree/fixtures/project-scope-reap-probe.sh`) passes the same flag
+  on every uninstall, so a documented recheck can no longer destroy data as a
+  last-scope side effect.
+
 ## [0.55.7]
 
 ### Fixed
