@@ -270,6 +270,7 @@ else
   fail "non-manifest sync-*.sh should be skipped (rc=$RC): $out"
 fi
 
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
   printf '#!/usr/bin/env bash\n'
   printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
@@ -289,6 +290,7 @@ fi
 # yielded entries. An empty src line is a half-manifest even with no copy
 # lines, and the zero-manifests guard cannot catch that while the fixture's
 # real sync-widget.sh still parses.
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
   printf '#!/usr/bin/env bash\n'
   printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
@@ -463,6 +465,7 @@ fi
 # that never uses them, but still implements --print-manifest, must fan out
 # the same way — this is the assertion that the parsed contract is gone.
 repo_renamed="$(mk_repo)"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
   printf '#!/usr/bin/env bash\n'
   printf 'set -euo pipefail\n'
