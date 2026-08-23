@@ -69,17 +69,25 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora), per the README's per-OS table.
   Guidance only — the user runs it.
 - **a toggle is off** — direct to `/plugin configure desktop-notification` (interactive,
-  any time). Headless: `--config` only applies on a fresh install (ignored once
-  installed), so reconfigure via `claude plugin uninstall desktop-notification -s <scope>` then
+  any time). Headless: rerun the install with the new value —
   `claude plugin install desktop-notification@<marketplace> -s <scope> --config <key>=true`.
-  Both commands default to `-s user` — pass the install scope `claude plugin list` reports for
-  this plugin, and run from that project's directory for a `project`/`local` scope. Defaulting
-  instead uninstalls a separate user-scope record while the effective install stays in place, so
-  the reinstall lands at a scope that does not load. Uninstalling also drops the stored
-  `pluginConfigs` entry, so the reinstall must re-supply **every** one of the four toggles whose
-  value should stay non-default, not only the one being flipped; record the current values before
-  uninstalling, because afterwards there is nothing left to read them from. These options are
-  personal `userConfig` values, so this skill never writes user settings or `pluginConfigs`.
+  Against an already-installed plugin it prints `already installed` **and still writes the value**
+  — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value
+  written to an installed plugin, then restored). The short-circuit is about the install, not the
+  config write. Re-verify before relying on it outside those conditions — a `sensitive` option, or
+  `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
+  drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
+  Options reference table to its manifest default, not only the toggle being flipped. `-s`
+  defaults to `user`, so pass the install scope `claude plugin list` reports for this plugin, and
+  run from that project's directory for a `project`/`local` scope, or the write lands at a scope
+  that does not load. These options are personal `userConfig` values, so this skill never writes
+  user settings or `pluginConfigs`.
+  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+  session start, so a same-session `check` still reports the OLD value — reporting that as a
+  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
+  session**, and never claim an unobserved change.
 
 After the user reports acting on any system-tool remediation, re-run the relevant `check`
 probe and report its actual result — never claim resolved on the user's say-so alone.

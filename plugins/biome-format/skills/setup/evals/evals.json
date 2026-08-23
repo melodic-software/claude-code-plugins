@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-resolves-biome-the-way-the-hook-does",
+      "prompt": "/biome-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the Biome binary resolved by the hook's own repo-local walk then PATH, the governing consumer Biome config, the biome_format_enabled toggle, and hook registration — one remediation line per FAIL, nothing modified.",
+      "files": [],
+      "expectations": [
+        "Resolves the Biome binary by mirroring the hook's resolution order — the node_modules/.bin walk upward from the edited file toward the repo root, then PATH — instead of a bare `command -v biome`",
+        "Does not PASS a binary the hook itself would not resolve",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting",
+        "Reads the hook script as the source of truth for the accepted config names rather than reciting the skill body, and confirms hook registration via /plugin Installed rather than parsing settings files"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-biome-config-is-the-opt-out-not-a-defect",
+      "prompt": "/biome-format:setup check\n\nThere is no Biome config anywhere in this repo and formatting never happens. Is the plugin broken?",
+      "expected_output": "Answers no: the opt-in walk found no governing config, so absence is the opt-out by design and the plugin is inert — reported as INFO, not FAIL — matching the README's \"ships no rules of its own\" stance.",
+      "files": [],
+      "expectations": [
+        "Classifies the missing config as INFO (inert by design), never FAIL, and states plainly that the plugin is not broken",
+        "Does not offer to repair the state, and does not create a config unless the user explicitly asks for one",
+        "Notes that the hook records the topmost governing config found walking from the edited file's directory to the repo root, and that the hidden dotted config variants are deliberately excluded from the opt-in",
+        "Does not report a missing Biome binary as a FAIL in this state — the FAIL is conditioned on a Biome config governing the repo"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "bare-apply-does-not-install-and-never-guesses-a-manager",
+      "prompt": "/biome-format:setup apply\n\nBiome isn't installed and there's no biome.json. Set it all up for me — install whatever you need and write the config.",
+      "expected_output": "Bare apply installs nothing: the dependency install runs only under the explicit `apply install-biome` invocation, and even then only through the repository's own package manager resolved from its lockfile or packageManager field. Declines to write biome.json unless explicitly asked, because the plugin imposes no rules of its own.",
+      "files": [],
+      "expectations": [
+        "Does not install @biomejs/biome from bare apply — states that install-biome is the explicit argument that authorizes it",
+        "Does not create biome.json on its own; offers it only as an explicitly-requested minimal config",
+        "Never introduces a competing lockfile: with no package.json, an ambiguous multi-lockfile state, or a lockfile contradicting packageManager, it stops with manager-specific guidance instead of guessing",
+        "Never installs system packages and never writes Claude Code user settings, pluginConfigs, or the plugin cache"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "yarn-pnp-is-asked-not-inferred",
+      "prompt": "/biome-format:setup apply install-biome\n\nThis is a Yarn repo.",
+      "expected_output": "Does not infer the linker: runs `yarn config get nodeLinker` in the repo. On `pnp` (Berry's default when unset) it skips the install and gives guidance, because Plug'n'Play generates a loader file rather than the node_modules/.bin shim the hook resolves; on node-modules/pnpm, or Yarn Classic, it installs and then re-runs the check probe.",
+      "files": [],
+      "expectations": [
+        "Asks the repo's own Yarn via `yarn config get nodeLinker` rather than assuming a linker from the lockfile alone",
+        "On pnp, skips the install and explains that Plug'n'Play produces a loader file, not the node_modules/.bin shim the hook resolves, offering PATH install or a linker switch",
+        "On node-modules, pnpm, or Yarn Classic, proceeds with the install and states the change before running it",
+        "After any remediation, re-runs the relevant check probe and reports its actual result rather than claiming resolved on the install command's exit code"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/biome-format:setup apply\n\nEverything passed on the previous run. Go again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change on the second pass.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and writes nothing",
+        "Does not re-run a dependency install that already succeeded",
+        "Does not prompt interactively — the action was given in the invocation"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/biome-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install biome-format@<marketplace> -s <scope> --config biome_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config biome_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    }
+  ]
+}
