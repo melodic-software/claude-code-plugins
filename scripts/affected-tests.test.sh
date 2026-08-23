@@ -13,6 +13,16 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/affected-tests.sh"
+
+# A fixture runs a COPY of the gate, so it must also carry the shared
+# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
+# fixture a faithful copy; without it the copied gate dies on a missing
+# source at line 1 and every assertion below turns into the same opaque
+# failure. See #2914.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
+}
 NO_SUITE="$SELF_DIR/affected-tests-no-suite.txt"
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
@@ -49,6 +59,7 @@ mk_repo() {
   mkdir -p "$dir/scripts" "$dir/lib" \
     "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$SCRIPT" "$dir/scripts/affected-tests.sh"
+  stage_libs "$dir/scripts"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
   # A sync manifest in the same shape as the real ones: a `src=` line and a
