@@ -1433,6 +1433,64 @@ else
   skip_case "filesystem rejects a newline in a filename"
 fi
 
+# --- Recall paraphrases (false-negative regression, #3129) ---------------------------
+# These forms are in the shape table's semantic definition and were silent
+# under the old literal tripwires. Narrowing the matchers back to
+# `## Why this file exists` / `was renamed to` / `- /slug —` only must fail
+# this block.
+
+RECALL="$SCRIPT_DIR/../evals/fixtures/recall-paraphrases.md"
+recall_out="$(bash "$DETECT" "$RECALL" 2>/dev/null)"
+assert_contains "off-level why-this-file-exists is preamble" "$recall_out" "Finding shape: preamble"
+assert_contains "Motivation heading is preamble" "$recall_out" "Motivation"
+assert_contains "Renamed from is citation" "$recall_out" "Finding shape: citation"
+assert_contains "Renamed from excerpt" "$recall_out" "Renamed from foo to bar"
+assert_contains "table slash-command is enum-list" "$recall_out" "Finding shape: enum-list"
+assert_contains "table /net-audit excerpt" "$recall_out" "/net-audit"
+assert_contains "bold roster is enum-list" "$recall_out" "Agent config"
+assert_not_contains "recall fixture is not a no-targets run" "$recall_out" "status: no-targets"
+
+# Isolated lines so each assertion can fail independently of the others.
+PREAMBLE_H3="$TEST_TMPDIR/preamble-h3.md"
+printf '%s\n' '### Why this file exists' >"$PREAMBLE_H3"
+preamble_h3_out="$(bash "$DETECT" "$PREAMBLE_H3")"
+assert_contains "H3 why-this-file-exists flags" "$preamble_h3_out" "Finding shape: preamble"
+
+MOTIVATION="$TEST_TMPDIR/motivation.md"
+printf '%s\n' '## Motivation' >"$MOTIVATION"
+motivation_out="$(bash "$DETECT" "$MOTIVATION")"
+assert_contains "Motivation heading flags" "$motivation_out" "Finding shape: preamble"
+
+RENAMED="$TEST_TMPDIR/renamed.md"
+printf '%s\n' 'Renamed from foo to bar.' >"$RENAMED"
+renamed_out="$(bash "$DETECT" "$RENAMED")"
+assert_contains "Renamed from flags as citation" "$renamed_out" "Finding shape: citation"
+
+TABLE="$TEST_TMPDIR/table.md"
+printf '%s\n' '| Consumer | Role |' '|---|---|' '| `/net-audit` | scans |' >"$TABLE"
+table_out="$(bash "$DETECT" "$TABLE")"
+assert_contains "table consumer row flags as enum-list" "$table_out" "Finding shape: enum-list"
+assert_not_contains "table separator is not a finding excerpt" "$table_out" "Finding excerpt: |---|"
+
+PLUGINS_NOUN="$TEST_TMPDIR/plugins-noun.md"
+printf '%s\n' 'The following three plugins consume this rule.' >"$PLUGINS_NOUN"
+plugins_out="$(bash "$DETECT" "$PLUGINS_NOUN")"
+assert_contains "following N plugins is enum-list" "$plugins_out" "Finding shape: enum-list"
+
+BOLD_ROSTER="$TEST_TMPDIR/bold-roster.md"
+printf '%s\n' '- **Agent config** — personal overlay' >"$BOLD_ROSTER"
+bold_out="$(bash "$DETECT" "$BOLD_ROSTER")"
+assert_contains "bold roster flags as enum-list" "$bold_out" "Finding shape: enum-list"
+
+# Empty / missing target is stdout-visible even with stderr discarded.
+missing_out="$(bash "$DETECT" "$TEST_TMPDIR/does-not-exist.md" 2>/dev/null)"
+assert_contains "missing file prints status: no-targets on stdout" "$missing_out" "status: no-targets"
+EMPTY_DIR="$TEST_TMPDIR/empty-dir"
+mkdir -p "$EMPTY_DIR"
+empty_dir_out="$(bash "$DETECT" "$EMPTY_DIR" 2>/dev/null)"
+assert_contains "empty dir prints status: no-targets on stdout" "$empty_dir_out" "status: no-targets"
+assert_not_contains "clean scanned file is not no-targets" "$clean_out" "status: no-targets"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

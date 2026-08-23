@@ -157,6 +157,21 @@
         "The reason given ties to the dropped-trigger-phrase auto-invocation regression",
         "No `description` or `when_to_use` is edited"
       ]
+    },
+    {
+      "id": 13,
+      "name": "recall-paraphrases-are-findings-not-clean",
+      "prompt": "Declutter this file: read evals/fixtures/recall-paraphrases.md relative to the skill directory and audit it for noise.",
+      "expected_output": "Flags the off-level '### Why this file exists' and the '## Motivation' heading as preamble, the 'Renamed from foo to bar' line as a citation, the 'following three plugins' sentence and the table rows naming `/net-audit` / `/net-lint` and the '- **Agent config** —' roster line as enum-list. Does not report the file clean. Does not skip judgment of this file on the grounds that a large-corpus shortcut judges only scanner-flagged files — that shortcut is gone.",
+      "files": ["evals/fixtures/recall-paraphrases.md"],
+      "expectations": [
+        "The `### Why this file exists` heading is flagged as preamble (any ATX level, not only `##`)",
+        "The `## Motivation` heading is flagged as preamble",
+        "The `Renamed from foo to bar` line is flagged as a citation",
+        "The table rows naming `/net-audit` and `/net-lint` are flagged as enum-list",
+        "The `- **Agent config** —` roster line is flagged as enum-list",
+        "The file is not reported clean"
+      ]
     }
   ]
 }

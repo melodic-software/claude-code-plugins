@@ -252,10 +252,62 @@ audit_noise_line_has_ticket_pr_residue() {
   return 1
 }
 
+# Opening-section rationale at any ATX heading level. Detection used to
+# require a literal `## Why this file exists` while the section-exemption
+# path already generalized across ATX levels; these must stay aligned.
+# Semantic titles from the skill table: why-this-file-exists, Motivation,
+# Rationale (file-purpose openers, not every heading that mentions "why").
+audit_noise_line_has_preamble() {
+  local line="$1"
+  [[ "$line" =~ ^#{1,6}[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists([^[:alnum:]]|$) ]] && return 0
+  [[ "$line" =~ ^#{1,6}[[:space:]]+Motivation([^[:alnum:]]|$) ]] && return 0
+  [[ "$line" =~ ^#{1,6}[[:space:]]+Rationale([^[:alnum:]]|$) ]] && return 0
+  return 1
+}
+
+# Historical citations. The skill table is semantic (dated incidents,
+# rename narration, provenance); these are the structural cues, including
+# paraphrases the original literal tripwires missed (`Renamed from`).
+audit_noise_line_has_citation() {
+  local line="$1"
+  [[ "$line" =~ [Ee]mpirically[[:space:]]+observed ]] && return 0
+  [[ "$line" =~ [Ww]e[[:space:]]+pivoted[[:space:]]+from ]] && return 0
+  [[ "$line" =~ [Ww]as[[:space:]]+renamed[[:space:]]+to ]] && return 0
+  [[ "$line" =~ [Rr]enamed[[:space:]]+from ]] && return 0
+  [[ "$line" =~ [Pp]re-convention ]] && return 0
+  [[ "$line" =~ [Ll]egacy[[:space:]]+layout ]] && return 0
+  return 1
+}
+
+# Hard-coupled consumer lists. The skill table leads with "Tables/lists";
+# a table row naming a slash-command is the same roster as a bullet, and
+# a bolded name with a role separator is the same roster as `/slug`.
+# $1 = inline-code-stripped line, $2 = backtick-unwrapped line.
+audit_noise_line_has_enum_list() {
+  local stripped="$1" unwrapped="$2"
+  [[ "$stripped" =~ [Ff]ollowing[[:space:]]+([0-9]+|two|three|four|five|six|seven|eight|nine|ten)[[:space:]]+(skills|consumers|agents|modules|plugins) ]] && return 0
+  # Slash-command roster. Any common bullet; em dash, en dash, or hyphen.
+  [[ "$unwrapped" =~ ^[[:space:]]*[-*+][[:space:]]+/[a-z][a-z0-9_-]*[[:space:]]+(—|–|--|-) ]] && return 0
+  # `- **Agent config** — role` (confirmed real-drift form).
+  [[ "$unwrapped" =~ ^[[:space:]]*[-*+][[:space:]]+\*\*[^*]+[[:space:]]*— ]] && return 0
+  [[ "$unwrapped" =~ ^[[:space:]]*[-*+][[:space:]]+\*\*[^*]+\*\*[[:space:]]+(—|–|--) ]] && return 0
+  # GFM table row (not a separator) that names a slash-command consumer.
+  if [[ "$unwrapped" =~ ^[[:space:]]*\| ]] &&
+    [[ ! "$unwrapped" =~ ^[[:space:]]*\|[[:space:]]*:?-{2,} ]] &&
+    [[ "$unwrapped" =~ /[a-z][a-z0-9_-]+ ]]; then
+    return 0
+  fi
+  return 1
+}
+
 # Append matching shape names into the nameref array (avoids a per-line
 # command-substitution subshell in the detect hot loop).
 # Ghost-ref scans an unwrap (ticks removed, content kept); other shapes scan a
 # strip (inline-code spans removed) so schema examples do not self-match.
+# Shape semantics: SKILL.md "Noise shapes and treatments". These helpers are
+# the structural reading of that table; evals/fixtures/recall-paraphrases.md
+# is the false-negative reconciliation (a matcher narrowed to the old
+# literal-only form fails those cases).
 audit_noise_detect_shapes_into() {
   local -n _audit_noise_shapes_out="$1"
   local line="$2"
@@ -266,22 +318,13 @@ audit_noise_detect_shapes_into() {
   if audit_noise_line_has_ghost_ref "$unwrapped"; then
     _audit_noise_shapes_out+=('ghost-ref')
   fi
-  if [[ "$stripped" =~ ^##[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists ]]; then
+  if audit_noise_line_has_preamble "$stripped"; then
     _audit_noise_shapes_out+=('preamble')
   fi
-  if [[ "$stripped" =~ [Ee]mpirically[[:space:]]+observed ]] ||
-    [[ "$stripped" =~ [Ww]e[[:space:]]+pivoted[[:space:]]+from ]] ||
-    [[ "$stripped" =~ [Ww]as[[:space:]]+renamed[[:space:]]+to ]] ||
-    [[ "$stripped" =~ [Pp]re-convention ]] ||
-    [[ "$stripped" =~ [Ll]egacy[[:space:]]+layout ]]; then
+  if audit_noise_line_has_citation "$stripped"; then
     _audit_noise_shapes_out+=('citation')
   fi
-  if [[ "$stripped" =~ [Ff]ollowing[[:space:]]+(five|four|three|six|seven|eight|nine|ten|[0-9]+)[[:space:]]+(skills|consumers|agents|modules) ]]; then
-    _audit_noise_shapes_out+=('enum-list')
-  fi
-  # Enum roster lines often wrap the slash-command in backticks; match the
-  # unwrapped form so `- `/skill`` still counts after tick removal.
-  if [[ "$unwrapped" =~ ^[[:space:]]*-[[:space:]]+/[a-z][a-z0-9_-]*[[:space:]]— ]]; then
+  if audit_noise_line_has_enum_list "$stripped" "$unwrapped"; then
     _audit_noise_shapes_out+=('enum-list')
   fi
   if [[ "$stripped" =~ [Pp]ath-scoped[[:space:]]+to ]] ||
