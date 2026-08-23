@@ -260,8 +260,8 @@ entry from any reclaimable-bytes total and state the qualified bytes separately 
 object with other names; a `sparse` file's logical size overstates local allocation; and `not-walked` means the subtree
 was never inventoried, so `logical_size` is `null` rather than `0`, except on the target's own record, which keeps its
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
-`target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself. 
-folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
+`target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.
+Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
 low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
 
 ## 4. Build one exact-tier plan

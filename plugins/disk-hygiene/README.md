@@ -219,7 +219,7 @@ hand-cleaning the zone.
   defense-in-depth honoring layer over the guard.
 - **Trust-surface record (0.7.0; updated 0.17.8):** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added
-  deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E. 
+  deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E,
   split registration). Its blast radius is bounded by design: a fixed launch string authored in the
   plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
   reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
@@ -314,13 +314,13 @@ Verified 2026-07-16 against current primary documentation:
   [path APIs](https://docs.python.org/3.11/library/os.path.html). Non-following metadata, junction, and
   mount detection.
 - [Windows reparse-point operations](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-operations)
-  and [`GetLogicalDrives`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives)
-, the reparse attribute and available-volume enumeration.
+  and [`GetLogicalDrives`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives):
+  the reparse attribute and available-volume enumeration.
 - [Linux `mountinfo`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html). Current mount
   namespace and bind-mount targets, which `os.path.ismount` cannot reliably identify.
 - [Git `ls-files`](https://git-scm.com/docs/git-ls-files). The index/tracked-file authority.
-- [Windows `CreateFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
-, sharing conflicts and directory handles via `FILE_FLAG_BACKUP_SEMANTICS`.
+- [Windows `CreateFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew):
+  sharing conflicts and directory handles via `FILE_FLAG_BACKUP_SEMANTICS`.
 - [`lsof` maintained documentation](https://lsof.readthedocs.io/en/stable/). Open-file lookup; the
   recursive `+D` authority limitation is why diagnostics fail closed.
 - [POSIX `unlink`](https://pubs.opengroup.org/onlinepubs/9799919799/functions/unlink.html) and

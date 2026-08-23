@@ -76,7 +76,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    absolute interpreter path (guarded engine calls must use the same absolute interpreter
    the guard reports. Bash aliases and functions cannot substitute).
 
-   On Windows, confirm the name the guard resolves is real BEFORE anything executes it. 
+   On Windows, confirm the name the guard resolves is real BEFORE anything executes it,
    including this floor check's own version probe. `python3` is the first rung of the ladder
    `hooks/run-python-hook.sh` walks for every guard surface; on stock Windows it resolves to a
    zero-length `WindowsApps\python3.exe` App Execution Alias that opens the Microsoft Store
@@ -86,7 +86,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    rung, is the verdict.** A host with real Python installed without "Add to PATH" but with the
    `py` launcher has a stubbed `python3` and a perfectly working guard; failing it would report a
    healthy install as broken and send the operator to reinstall Python. So the alias probe is
-   **diagnostic input**. It says what the first rung is, and keeps setup from executing it. 
+   **diagnostic input**. It says what the first rung is, and keeps setup from executing it,
    while the verdict comes from resolving the ladder and checking the selected interpreter
    against the parsed floor.
    Order of operations: (a) locate the resolution without executing it (`Get-Command python3`
@@ -133,7 +133,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
 4. **Platform posture**. Detect the current OS family and report its documented lane per
    the README, keeping the audit and execution lanes visibly separate: Windows (full
-   **audit**. `lstat` reparse + Win32, never UAC; engine **execution unsupported**. 
+   **audit**: `lstat` reparse + Win32, never UAC; engine **execution unsupported**.
    `preview` reports `execution-platform-unsupported` as a per-candidate blocker, removal is
    a manual, per-path Recycle-Bin handoff only under `--execute` and after explicit
    approval), Linux (full audit; execution when
@@ -163,7 +163,7 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
   the engine's `MIN_PYTHON`; never a plugin download.
 - missing git (worktree targets): platform install instructions.
 - toggle off: direct to `/plugin configure disk-hygiene` (interactive, any time).
-  Headless: rerun the install with the new value. 
+  Headless: rerun the install with the new value:
   `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` **and
   still writes the value**. Verified on Claude Code 2.1.240 (a non-sensitive option at `user`
