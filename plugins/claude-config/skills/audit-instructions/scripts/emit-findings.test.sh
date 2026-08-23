@@ -199,6 +199,7 @@ fi
 
 # --- Case 13: cell escaping ---------------------------------------------------
 PIPEF="$TEST_TMPDIR/pipe.md"
+# shellcheck disable=SC2016  # the backticks are literal markdown in the fixture, not a subshell
 printf 'CRITICAL: run `a | b | c` before pushing.\n' >"$PIPEF"
 bash "$SCAN" --body-only "$PIPEF" >"$TEST_TMPDIR/pipe.txt"
 OUT=$(emit "$TEST_TMPDIR/pipe.txt" "$TEST_TMPDIR/pipe-out.md")

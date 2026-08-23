@@ -3,6 +3,48 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.0]
+
+### Added
+
+- **`audit-instructions`: I28 findings reach the apply relay, body-scoped (#3120).** The skill is
+  now a conforming `detector-findings` producer — the first in this plugin. `--persist-findings`
+  writes the run's I28 findings as a `type: review-findings` file that `review:fanout`'s `fix`
+  action consumes, via the new `scripts/emit-findings.sh`. Off by default; a bare invocation
+  reports and stops, so the read-only contract is unchanged — the file is a proposal artifact for a
+  relay the human still gates, never an applied edit.
+- **`instruction-scan.sh --body-only`.** Skips YAML frontmatter, so no candidate row can point at a
+  `description`, a `when_to_use`, or a trigger phrase quoted in one. Opt-in: the human-facing audit
+  legitimately reports on frontmatter content, and what must never happen is such a row reaching an
+  apply relay. An unclosed leading `---` fences the whole file (fail-safe); a mid-document `---`
+  opens nothing.
+- **Eval fixtures for the body-scope fence and the protected-content categories** —
+  `frontmatter-emphasis.md`, `quoted-trigger.md`, `protected-content.md` (one line per category the
+  container spec names as never-flag).
+
+### Changed
+
+- **I28 carries two crosswalk rule ids** — `rule-coercive-emphasis` and `rule-blanket-tool-default`,
+  both `IMPORTANT`, argued from `severity.md`'s degradation-with-a-named-trigger limb in the
+  detector-findings severity crosswalk. It is the only check in the catalog that routes to the
+  relay; every other check stays report-only, and the eight non-crosswalk scanner families are
+  counted as declined in `## Surfaces` rather than silently dropped.
+- **I28's remediation is documented as a downgrade, never a deletion.** The directive survives
+  byte-for-byte and only its volume changes; no emitted `Action` may instruct removal.
+- **I28's V1 selection scope is recorded as deliberately narrower than its Detect prose.** Whole
+  bolded sentences and general all-caps imperative runs are judged by the model lane but not
+  mechanically selected — both are too common in ordinary technical prose to select without
+  swamping the relay. The deferral is written down rather than left as a silent gap.
+
+### Security
+
+- **The body-scope fence is recomputed by the writer, not trusted from the caller.**
+  `emit-findings.sh` re-derives the frontmatter boundary over its own input and additionally
+  declines any body row quoting a trigger phrase present in the file's own `description`. A fence
+  living only in the caller is one caller away from being bypassed, and
+  `skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped trigger phrase versus the base
+  ref — so a remediation editing one is an auto-invocation regression, not a debatable suggestion.
+
 ## [0.38.9]
 
 ### Changed
