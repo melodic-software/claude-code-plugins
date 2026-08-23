@@ -135,9 +135,9 @@ Adapters are thin composition layers. Delegate to shared `lib/players/` and `lib
 |---|---|---|---|
 | `dometrain.com` | Dometrain | `adapters/dometrain.js` | [reference/adapters/dometrain.md](reference/adapters/dometrain.md) |
 | `*.teachable.com`, `courses.*.tech` | Teachable (Hotmart video) | `adapters/teachable.js` | [reference/adapters/teachable.md](reference/adapters/teachable.md) |
-| Single public YouTube videos |, | use /knowledge:video-digest |, |
-| `pluralsight.com` | Pluralsight | (future) |. |
-| `udemy.com` | Udemy | (future) |. |
+| Single public YouTube videos | | use /knowledge:video-digest | |
+| `pluralsight.com` | Pluralsight | (future) | |
+| `udemy.com` | Udemy | (future) | |
 
 **To add a new platform adapter:** follow [Provider Discovery Checklist](reference/adapters/discovery-checklist.md) to explore the platform systematically, then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the tech stack matches, e.g., a new platform using Hotmart video + Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"`, then delegate player/auth methods while implementing only platform-specific DOM selectors and URL patterns. Add the platform to `course.json` `platform` field; the factory auto-discovers it via dynamic import. The discovery checklist also serves as regression guide when existing adapters break.
 

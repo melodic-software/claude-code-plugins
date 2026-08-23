@@ -6,6 +6,12 @@ only after that version increases.
 
 ## [0.13.8]
 
+### Fixed
+
+- **De-slop review repair.** Restored empty table cells that the em-dash purge
+  had turned into stray `,` / `.` punctuation in the course-digest adapter
+  roster.
+
 ### Changed
 
 - **Instruction-surface de-slop (#2891, shard 9).** Rewrote this plugin's `README.md` and every
