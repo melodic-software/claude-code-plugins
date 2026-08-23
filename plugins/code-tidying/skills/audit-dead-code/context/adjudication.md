@@ -80,15 +80,35 @@ format_legacy_row  # adjudicated alive: dispatched by name from handlers.py
 Say so whenever you emit one; the consumer either excludes the file in `ruff.toml` or keeps the
 whitelist out of the linted tree.
 
-**Go** — the analyzer directive on the declaration:
+**Go** — **no native suppression exists.** Route every Go verdict to the human-report-only path
+below, the same as the shell lane.
+
+The hint this lane reads comes from gopls's own `unusedfunc` analyzer, not from staticcheck, and
+**measured** (gopls v0.20.0 / go1.24.7, one unexported func per variant, `gopls check
+-severity=hint`), every candidate directive was still reported:
+
+| Tried on the declaration | Result |
+| --- | --- |
+| `//lint:ignore U1000 …` | still reported — a **staticcheck** directive naming a staticcheck check; gopls does not run `U1000` |
+| `//lint:ignore unusedfunc …` | still reported |
+| `//nolint:unused`, `//nolint:all` | still reported — golangci-lint's directive, not gopls's |
+| `// Deprecated: …` | still reported |
+| `//go:linkname elsewhere` | hint suppressed, but `go build` then fails: `//go:linkname only allowed in Go files that import "unsafe"` — unusable |
+| `var _ = deadHandler` (or `_ = deadHandler` in a func) | hint gone because the symbol is now genuinely **referenced** — that is not suppression, it defeats the audit, and the referencing wrapper becomes the next run's candidate (measured) |
+
+`gopls check` takes only `-severity`; the analyzer on/off switch is the editor-side [`analyses`
+setting](https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md), which the CLI run this
+lane makes does not read — and it would disable `unusedfunc` for the whole workspace, not for one
+symbol. So the Go lane's `alive` verdicts live in the report and in a comment at the declaration,
+and the same candidate comes back next run. Say that plainly when you emit one.
 
 ```go
-//lint:ignore U1000 kept as the exported shape of the v1 API
+// audit-dead-code: alive — called through the plugin registry in registry.go.
 func deadHandler() {}
 ```
 
-**Shell / the grep lane** — no native suppression exists. Record the decision in a comment at the
-definition, which is also what the next run's reader will see:
+**Shell / the grep lane** — no native suppression exists either. Record the decision in a comment
+at the definition, which is also what the next run's reader will see:
 
 ```bash
 # audit-dead-code: alive — invoked by name from the dispatch case in main().

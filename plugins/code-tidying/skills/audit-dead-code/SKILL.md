@@ -78,7 +78,7 @@ still saves a symbol.
 | `ran` | the lane resolved a binary, invoked it, and read trustworthy output |
 | `skipped` | no resolvable local binary, or a located binary that failed to invoke. Nothing was fetched — no package runner is ever called |
 | `degraded` | the lane ran but its output is not trustworthy. **It emits no records**, and its line says why |
-| `scanned-zero-files` | the lane had zero in-scope input files. Both detectors otherwise report this as exit 0 with no output — indistinguishable from clean |
+| `scanned-zero-files` | the lane had zero in-scope input files it **owns** (a nested project root's files belong to that root). Both detectors otherwise report this as exit 0 with no output — indistinguishable from clean |
 
 A run where no lane reached `ran` is **a scan of nothing, not a clean bill**, and the script says so.
 
@@ -131,7 +131,7 @@ Bounded by design. Full evidence catalogue in
 The script emits flat records; the adjudicated report is what the human reads.
 
 ```text
-Lane: knip | root=. | state=ran | files=231 | detail=285 candidate(s)
+Lane: knip | root=. | state=ran | files=19 | detail=19 candidate(s); 269 finding(s) this root does not own dropped ...
 Note: knip evaluated knip.config.ts through jiti — a DISCLOSED exception ...
 File: src/legacy/format.ts
 Finding tier: 2
@@ -154,9 +154,15 @@ The skill writes nothing, so the memory has to live in the repository:
 
 1. Adjudicate a bounded batch.
 2. Paste the emitted suppression entries into each detector's **native** config — knip `ignore`
-   entries, a vulture whitelist, a `//lint:ignore` directive. Formats in
-   [context/adjudication.md](context/adjudication.md) "Suppression formats".
+   entries, a vulture whitelist. Formats in [context/adjudication.md](context/adjudication.md)
+   "Suppression formats".
 3. The next run is cleaner, and the batch after it reaches new code.
+
+Only the knip and vulture lanes converge. **The Go and shell lanes have no native suppression** —
+measured, `gopls check -severity=hint` reports through every candidate directive (`//lint:ignore` is
+staticcheck's and is not honored), so those verdicts live in the report and in a comment at the
+declaration, and the same candidates return. Say so rather than emitting a directive that does
+nothing.
 
 `dead` and `uncertain` verdicts are **session-scoped**: nothing persists them, so an un-suppressed
 `uncertain` returns as a candidate on the next run. A committed vulture whitelist raises `F821`
@@ -177,8 +183,11 @@ under a consumer's ruff config — say so when you emit one.
   gopls degraded means real findings were never produced. Report which one happened.
 - **`grep -w -F` is the floor and `-F` is mandatory** — without it `core.ts` matches `coreXts`. A
   hit adjacent to `$`, `-`, or `.` needs model inspection; it is never an automatic `alive`.
-- **knip runs per project root**, discovered via `package.json`, never once at the repo root. Each
-  root carries its own state — one degraded workspace does not condemn the others.
+- **knip runs per project root**, discovered via `package.json` — one run per root, never one run
+  for the whole repository. Each root carries its own state, and each root reports only the files it
+  **owns**: paths under it and under no nested root. A nested workspace's file is reported by that
+  workspace's own run and only when that run is healthy, so one degraded workspace neither condemns
+  the others nor has its withheld findings re-manufactured by an outer root's run.
 - **vulture is handed only `*.py`.** Given anything else it logs a parse error to stderr and skips
   that file; that is an input note, not a degraded lane.
 - **A cap can truncate a file's block.** `--max` counts candidates, not files, so `Summary file:`

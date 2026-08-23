@@ -81,8 +81,16 @@ case "${1:-}" in
   ;;
 *) ;;
 esac
-if [[ -n "${FAKE_KNIP_OUT:-}" && -f "${FAKE_KNIP_OUT:-}" ]]; then
-  cat "$FAKE_KNIP_OUT"
+# knip reports paths relative to the project root it was invoked in, so a
+# multi-root case needs a different capture per root. `$FAKE_KNIP_OUT.<dirname>`
+# is used when it exists, and the plain capture otherwise — the script under
+# test sees only bytes either way.
+knip_capture="${FAKE_KNIP_OUT:-}"
+if [[ -n "$knip_capture" && -f "$knip_capture.$(basename -- "$PWD")" ]]; then
+  knip_capture="$knip_capture.$(basename -- "$PWD")"
+fi
+if [[ -n "$knip_capture" && -f "$knip_capture" ]]; then
+  cat "$knip_capture"
 fi
 if [[ -n "${FAKE_KNIP_ERR:-}" && -f "${FAKE_KNIP_ERR:-}" ]]; then
   cat "$FAKE_KNIP_ERR" >&2
@@ -229,6 +237,90 @@ assert_not_contains "degraded lane leaks no symbol from the blob" "$deg_out" "fo
 assert_contains "degraded lane counts zero candidates" "$deg_out" "Summary candidates: total=0 emitted=0 dropped-by-cap=0 cap=0"
 assert_contains "degraded lane counts zero findings" "$deg_out" "Summary total: files=0 T1=0 T2=0 T3=0"
 assert_contains "degraded-only run is called a scan of nothing" "$deg_out" "Note: no lane ran"
+
+# --- 2b. Per-root OWNERSHIP: a degraded nested root's files appear in NO record ----
+# The contract (SKILL.md): "knip runs per project root … Each root carries its own
+# state — one degraded workspace does not condemn the others." Running knip AT a
+# root does not restrict what it REPORTS: knip walks the whole subtree, nested
+# workspaces included. Measured on this marketplace before the ownership filter,
+# the repo-root run emitted 213 of its 288 candidates for files belonging to roots
+# the SAME scan had declared `degraded` and promised would "emit no records" —
+# findings manufactured by exactly the unrestored run the degraded state exists to
+# withhold. The outer root may only report the files it OWNS.
+
+MULTI_DEG="$TEST_TMPDIR/multi-degraded"
+init_repo "$MULTI_DEG"
+mkdir -p "$MULTI_DEG/node_modules" "$MULTI_DEG/packages/inner"
+printf 'restored\n' >"$MULTI_DEG/node_modules/marker"
+printf '%s\n' '{"name":"outer","version":"0.0.0","private":true}' >"$MULTI_DEG/package.json"
+cp "$FIXTURES/dead-and-dynamic.ts" "$FIXTURES/ts-used.ts" "$FIXTURES/ts-entry.ts" "$MULTI_DEG/"
+# The nested root gets NO node_modules — the measured `degraded` trigger.
+printf '%s\n' '{"name":"inner","version":"0.0.0","private":true}' >"$MULTI_DEG/packages/inner/package.json"
+cp "$FIXTURES/ts-orphan.ts" "$FIXTURES/ts-entry.ts" "$MULTI_DEG/packages/inner/"
+stage_repo "$MULTI_DEG"
+# The committed capture, with the orphan module's path moved INTO the nested
+# root — exactly the shape an outer-root knip run produces for a nested
+# workspace. Everything else stays owned by the outer root.
+MULTI_DEG_KNIP="$TEST_TMPDIR/knip-report-nested.json"
+sed 's|"ts-orphan.ts"|"packages/inner/ts-orphan.ts"|g' "$FIXTURES/knip-report.json" >"$MULTI_DEG_KNIP"
+
+md_exit=0
+md_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || md_exit=$?
+assert_exit "multi-root scan exits 0" 0 "$md_exit"
+assert_contains "the nested root is its own lane line, degraded" "$md_out" "Lane: knip | root=packages/inner | state=degraded | files=2"
+# `files=3`: the outer root counts only what it OWNS — the nested root's two
+# files are not the outer root's to scan.
+assert_contains "the outer root counts only the files it owns" "$md_out" "Lane: knip | root=. | state=ran | files=3 | detail=2 candidate(s);"
+assert_contains "the outer root says what it dropped" "$md_out" "1 finding(s) this root does not own dropped"
+# THE ASSERTION: a degraded root's files appear in NO record, from any root.
+assert_not_contains "no record names a file inside the degraded nested root" "$md_out" "File: packages/inner"
+assert_not_contains "the degraded root's module leaks nowhere at all" "$md_out" "ts-orphan"
+assert_not_contains "the degraded root emits no unused-file record" "$md_out" "Finding shape: ts-unused-file"
+# The other half of the contract: one degraded workspace does not condemn the
+# others — the healthy outer root still reports its own findings.
+assert_contains "the healthy outer root still reports its own file" "$md_out" "File: dead-and-dynamic.ts"
+assert_contains "the healthy outer root still reports its own export" "$md_out" "Finding excerpt: formatLegacyRow"
+assert_contains "and the second one" "$md_out" "Finding excerpt: renderPanel"
+assert_contains "totals count only the owned findings" "$md_out" "Summary total: files=1 T1=0 T2=2 T3=0"
+assert_contains "the lane roster carries both roots' states" "$md_out" "Summary lanes: ran=1 skipped=0 degraded=1 scanned-zero-files=0"
+
+# --- 2c. Per-root OWNERSHIP holds when BOTH roots are healthy ----------------------
+# Ownership is not a degradation special case: a nested root's file is reported by
+# that nested root's run and by no other, even when every root is healthy. Each
+# root's knip run replays its own capture, because knip reports paths relative to
+# the root it was invoked in.
+
+MULTI_OK="$TEST_TMPDIR/multi-healthy"
+init_repo "$MULTI_OK"
+mkdir -p "$MULTI_OK/node_modules" "$MULTI_OK/packages/inner/node_modules"
+printf 'restored\n' >"$MULTI_OK/node_modules/marker"
+printf 'restored\n' >"$MULTI_OK/packages/inner/node_modules/marker"
+printf '%s\n' '{"name":"outer","version":"0.0.0","private":true}' >"$MULTI_OK/package.json"
+cp "$FIXTURES/ts-used.ts" "$FIXTURES/ts-entry.ts" "$MULTI_OK/"
+printf '%s\n' '{"name":"inner","version":"0.0.0","private":true}' >"$MULTI_OK/packages/inner/package.json"
+cp "$FIXTURES/ts-orphan.ts" "$FIXTURES/dead-and-dynamic.ts" "$MULTI_OK/packages/inner/"
+stage_repo "$MULTI_OK"
+# Outer capture: every path lies inside the nested root, so a correct outer run
+# reports NOTHING. Nested capture: the committed one verbatim, whose paths are
+# already relative to the nested root.
+MULTI_OK_KNIP="$TEST_TMPDIR/knip-report-outer.json"
+sed -e 's|"ts-orphan.ts"|"packages/inner/ts-orphan.ts"|g' \
+  -e 's|"dead-and-dynamic.ts"|"packages/inner/dead-and-dynamic.ts"|g' \
+  "$FIXTURES/knip-report.json" >"$MULTI_OK_KNIP"
+cp "$FIXTURES/knip-report.json" "$MULTI_OK_KNIP.inner"
+
+mo_out="$(cd "$MULTI_OK" && FAKE_KNIP_OUT="$MULTI_OK_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
+assert_contains "both roots ran" "$mo_out" "Lane: knip | root=packages/inner | state=ran | files=2 | detail=3 candidate(s)"
+# THE ASSERTION: the outer root owns none of those paths, so it reports none of
+# them — not one record, even though its own run named all three.
+assert_contains "the outer root reports none of the nested root's files" "$mo_out" "Lane: knip | root=. | state=ran | files=2 | detail=0 candidate(s); 3 finding(s) this root does not own dropped"
+# Each nested-root path is reported ONCE, by the nested root, at its real location.
+assert_contains "the nested root reports its own orphan module" "$mo_out" "File: packages/inner/ts-orphan.ts"
+assert_contains "the nested root reports its own exports' file" "$mo_out" "File: packages/inner/dead-and-dynamic.ts"
+assert_not_contains "no nested path is re-reported at the outer root" "$mo_out" "File: ts-orphan.ts"
+assert_not_contains "and neither is the exports' file" "$mo_out" "File: dead-and-dynamic.ts"
+assert_contains "three findings total, none duplicated across roots" "$mo_out" "Summary total: files=2 T1=0 T2=3 T3=0"
+assert_contains "the candidate count matches the owned findings" "$mo_out" "Summary candidates: total=3 emitted=3 dropped-by-cap=0 cap=0"
 
 # --- 3. vulture's TWO stderr shapes must not be conflated --------------------------
 # `<path>:<line>: <msg>` on stderr is ONE unparsable INPUT file — every other file

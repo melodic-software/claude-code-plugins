@@ -12,9 +12,15 @@ measurement, not an argument.
 ### knip — TS/JS
 
 - **Invocation:** `knip --reporter json --no-progress`, run with cwd set to the **project root**,
-  one root per `package.json`. Never once at the repository root: a monorepo's workspaces have
+  one root per `package.json`. Never one run for the whole repository: a monorepo's workspaces have
   their own installs, their own configs, and their own restore state, and one broken workspace must
   not condemn the others.
+- **Findings are filtered to what the root OWNS** — paths under that root and under no nested root,
+  and never a path excluded from candidate scope (`node_modules`, `dist`, `build`, `vendor`,
+  `**/evals/fixtures/**`). Invoking knip at a root does not restrict what it *reports*: it walks the
+  whole subtree, nested workspaces included. Measured on this marketplace before the filter existed,
+  the repo-root run emitted **213 of its 288 candidates** for files owned by roots the same scan had
+  already declared `degraded` — the withheld false positives came back in through the outer root.
 - **Binary resolution:** the repo-local `node_modules/.bin` walk first (upward from the project
   root, symlinks followed with a hop cap, physical target required to stay inside the repository),
   then PATH. A pinned devDependency is the version that matches the project it is judging.
@@ -72,6 +78,13 @@ measurement, not an argument.
   That is why Go passes the no-build rule while Rust and .NET do not.
 - **Unexported symbols only.** That is the lane's **declared coverage**, not a defect. An exported
   symbol is reachable from outside the module and no in-module analysis can call it dead.
+- **Ownership, as in the knip lane.** A module is handed only the `.go` files it owns — paths under
+  it and under no nested `go.mod` — and a diagnostic about a file it does not own is dropped, so a
+  nested module's symbols are reported by that module's own run alone.
+- **No native suppression.** Measured (gopls v0.20.0 / go1.24.7): `//lint:ignore U1000`,
+  `//lint:ignore unusedfunc`, `//nolint:…`, and `// Deprecated:` are all still reported — the hint
+  comes from gopls's own `unusedfunc` analyzer, not from staticcheck. See
+  [adjudication.md](adjudication.md) "Suppression formats".
 - **Precondition:** a resolvable module cache — the same class of precondition as `node_modules`.
 - **Degradation has two shapes, both with exit 0.** An unresolved dependency prints an import error
   on **stdout** and suppresses the hints; a workspace-load failure leaves **stdout empty** and puts

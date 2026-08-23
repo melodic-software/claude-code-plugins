@@ -1,8 +1,8 @@
-# Capture input for the vulture input-filtering case: a non-Python file that a
-# glob can sweep into the Python lane. Python's own parser rejects the
-# hyphenated key below, and vulture prints that rejection in exact finding
-# format on stdout while exiting 0 -- so the parser must reject the line by
-# shape, not by exit status.
+# Capture input for the vulture input-filtering case: a non-Python file a glob
+# can sweep into the Python lane. Python's parser rejects the hyphenated key
+# below; vulture prints that rejection on STDERR, exit 1 alone and 3 alongside
+# real findings (CORRECTED, measured on vulture 2.16) -- so SHAPE, not exit
+# status, classifies it. Header stays 5 lines: the sibling capture cites :8.
 
 [tool.example]
 line-length = 100

@@ -240,29 +240,86 @@ while IFS= read -r scope_line; do
   esac
 done < <(list_scope_files | LC_ALL=C sort -u)
 
-count_under() {
-  local root="$1" arr_name="$2"
-  local -n _dc_src="$arr_name"
-  local prefix f n=0
+# ---------------------------------------------------------------------------
+# Project-root OWNERSHIP
+#
+# Roots are discovered one per manifest (package.json, go.mod), and a root may
+# only ever speak for the files it OWNS: paths under that root and under no
+# NESTED root. Running a detector AT a root does not by itself restrict what
+# that run reports — knip walks the whole subtree, nested workspaces included —
+# so the output is filtered here, and the input list is built from owned files.
+#
+# Measured on this marketplace before the filter existed: the repo-root knip run
+# emitted 213 of its 288 candidates for files belonging to roots the SAME scan
+# had already declared `degraded` and promised would "emit no records". Those
+# candidates were manufactured by exactly the unrestored-node_modules runs the
+# degraded state exists to withhold. SKILL.md: "Each root carries its own state
+# — one degraded workspace does not condemn the others."
+#
+# The repo root stays a root even when its manifest declares no sources of its
+# own (this repository's own package.json is a CI-toolchain-only manifest):
+# deciding "declares no sources" means interpreting project config, which this
+# scan refuses to do. Ownership makes keeping it safe — a source-less root owns
+# nothing and reports `scanned-zero-files`, which is the honest state anyway.
+
+# The roots in ARR_NAME that lie strictly INSIDE root, written to DST_NAME.
+nested_roots() {
+  local root="$1" arr_name="$2" dst_name="$3"
+  local -n _dc_own_all="$arr_name"
+  local -n _dc_own_nest="$dst_name"
+  local prefix r
+  _dc_own_nest=()
   if [[ "$root" == "." ]]; then prefix=""; else prefix="$root/"; fi
-  for f in ${_dc_src[@]+"${_dc_src[@]}"}; do
-    if [[ -z "$prefix" || "$f" == "$prefix"* ]]; then n=$((n + 1)); fi
+  for r in ${_dc_own_all[@]+"${_dc_own_all[@]}"}; do
+    [[ "$r" == "$root" || "$r" == "." ]] && continue
+    if [[ -z "$prefix" || "$r" == "$prefix"* ]]; then _dc_own_nest+=("$r"); fi
+  done
+}
+
+# 0 when root OWNS the repo-relative path, 1 otherwise. A path inside a nested
+# root belongs to that nested root's own run and to no other, and a path the
+# scan already declared "never scanning input" (node_modules, dist, build,
+# vendor, `**/evals/fixtures/**`) belongs to no root at all — a detector invoked
+# at a root walks those directories even though this scan excluded them from
+# candidate scope, and a finding there is not a candidate.
+owns_path() {
+  local root="$1" nest_name="$2" p="$3"
+  local -n _dc_own_n="$nest_name"
+  local prefix r
+  if [[ "$root" == "." ]]; then prefix=""; else prefix="$root/"; fi
+  [[ -z "$prefix" || "$p" == "$prefix"* ]] || return 1
+  dc_is_excluded_path "$p" && return 1
+  for r in ${_dc_own_n[@]+"${_dc_own_n[@]}"}; do
+    [[ "$p" == "$r/"* ]] && return 1
+  done
+  return 0
+}
+
+count_owned() {
+  local root="$1" nest_name="$2" arr_name="$3"
+  local -n _dc_own_src="$arr_name"
+  local f n=0
+  for f in ${_dc_own_src[@]+"${_dc_own_src[@]}"}; do
+    if owns_path "$root" "$nest_name" "$f"; then n=$((n + 1)); fi
   done
   printf '%s' "$n"
 }
 
-files_under() {
-  local root="$1" arr_name="$2" dst_name="$3"
-  local -n _dc_src2="$arr_name"
-  local -n _dc_dst="$dst_name"
+# The owned files, root-relative — the form a detector invoked at that root
+# reads. A nested root's files are never handed to the outer root's run.
+files_owned() {
+  local root="$1" nest_name="$2" arr_name="$3" dst_name="$4"
+  local -n _dc_own_src2="$arr_name"
+  local -n _dc_own_dst="$dst_name"
   local prefix f
-  _dc_dst=()
+  _dc_own_dst=()
   if [[ "$root" == "." ]]; then prefix=""; else prefix="$root/"; fi
-  for f in ${_dc_src2[@]+"${_dc_src2[@]}"}; do
+  for f in ${_dc_own_src2[@]+"${_dc_own_src2[@]}"}; do
+    owns_path "$root" "$nest_name" "$f" || continue
     if [[ -z "$prefix" ]]; then
-      _dc_dst+=("$f")
-    elif [[ "$f" == "$prefix"* ]]; then
-      _dc_dst+=("${f#"$prefix"}")
+      _dc_own_dst+=("$f")
+    else
+      _dc_own_dst+=("${f#"$prefix"}")
     fi
   done
 }
@@ -299,18 +356,24 @@ project_roots() {
 # ---------------------------------------------------------------------------
 
 lane_knip() {
-  local root_rel root_abs bin cfg nfiles rows
-  local -a roots=()
+  local root_rel root_abs bin cfg nfiles rows foreign k_path
+  # root_nested is read through a nameref by nested_roots/owns_path/count_owned,
+  # which shellcheck cannot see (SC2034).
+  # shellcheck disable=SC2034
+  local -a roots=() root_nested=()
   mapfile -t roots < <(project_roots package.json)
   if [[ ${#roots[@]} -eq 0 ]]; then
     lane_line knip '-' skipped 0 'no package.json project root in this repository'
     return 0
   fi
   for root_rel in "${roots[@]}"; do
-    nfiles="$(count_under "$root_rel" TS_FILES)"
+    # Ownership is computed BEFORE anything else, because it decides both what
+    # this root is scanning FOR and what it is allowed to report.
+    nested_roots "$root_rel" roots root_nested
+    nfiles="$(count_owned "$root_rel" root_nested TS_FILES)"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line knip "$root_rel" scanned-zero-files 0 \
-        'no TS/JS file in candidate scope under this root — a scan of nothing, not a clean bill'
+        'no TS/JS file owned by this root in candidate scope (files under a NESTED project root belong to that root) — a scan of nothing, not a clean bill'
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
@@ -343,12 +406,28 @@ lane_knip() {
       continue
     fi
     if dc_parse_knip_json <"$WORK/knip.out" >"$WORK/knip.rows"; then
+      rows=0
+      foreign=0
       while IFS="$TAB" read -r k_file k_line k_shape k_name; do
         [[ -n "$k_shape" ]] || continue
-        add_candidate "$(rebase_path "$root_rel" "$k_file")" "$k_line" "$k_shape" "$k_name"
+        k_path="$(repo_relative "$(rebase_path "$root_rel" "$k_file")")"
+        # knip walks the whole subtree from where it was invoked, nested
+        # workspaces included. A finding about a file this root does not own is
+        # DROPPED here: it is the nested root's to report, and only when that
+        # root's own run is healthy.
+        if ! owns_path "$root_rel" root_nested "$k_path"; then
+          foreign=$((foreign + 1))
+          continue
+        fi
+        add_candidate "$k_path" "$k_line" "$k_shape" "$k_name"
+        rows=$((rows + 1))
       done <"$WORK/knip.rows"
-      rows="$(wc -l <"$WORK/knip.rows" | tr -d ' ')"
-      lane_line knip "$root_rel" ran "$nfiles" "$rows candidate(s)"
+      if [[ "$foreign" -gt 0 ]]; then
+        lane_line knip "$root_rel" ran "$nfiles" \
+          "$rows candidate(s); $foreign finding(s) this root does not own dropped (a NESTED project root's file, or a path excluded from candidate scope) — each nested root reports its own, and only when its own run is healthy"
+      else
+        lane_line knip "$root_rel" ran "$nfiles" "$rows candidate(s)"
+      fi
     else
       add_candidate "$root_rel" 0 detector-drift \
         'knip produced output no parser recognized — its JSON shape may have changed'
@@ -429,7 +508,10 @@ lane_vulture() {
 
 lane_gopls() {
   local root_rel root_abs bin nfiles g_line row parsed=0 drift=0 degraded=0
-  local -a roots=() mod_files=()
+  local foreign=0 g_path
+  # root_nested is read through a nameref (SC2034); mod_files is expanded below.
+  # shellcheck disable=SC2034
+  local -a roots=() mod_files=() root_nested=()
   mapfile -t roots < <(project_roots go.mod)
   if [[ ${#roots[@]} -eq 0 ]]; then
     lane_line gopls '-' skipped 0 'no go.mod module root in this repository'
@@ -439,10 +521,12 @@ lane_gopls() {
     parsed=0
     drift=0
     degraded=0
-    nfiles="$(count_under "$root_rel" GO_FILES)"
+    foreign=0
+    nested_roots "$root_rel" roots root_nested
+    nfiles="$(count_owned "$root_rel" root_nested GO_FILES)"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line gopls "$root_rel" scanned-zero-files 0 \
-        'no .go file in candidate scope under this module — a scan of nothing, not a clean bill'
+        'no .go file owned by this module in candidate scope (files under a NESTED go.mod belong to that module) — a scan of nothing, not a clean bill'
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
@@ -455,7 +539,9 @@ lane_gopls() {
         "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
       continue
     fi
-    files_under "$root_rel" GO_FILES mod_files
+    # Only the files this module OWNS are handed to gopls; a nested go.mod's
+    # files belong to that module's own run.
+    files_owned "$root_rel" root_nested GO_FILES mod_files
     (cd "$root_abs" && "$bin" check -severity=hint -- "${mod_files[@]}") \
       >"$WORK/gopls.out" 2>"$WORK/gopls.err" || true
     # Health is decided BEFORE a single record is made, the same order the knip
@@ -486,9 +572,16 @@ lane_gopls() {
       dc_parse_gopls_line "$g_line" row
       case "$?" in
       0)
-        parsed=$((parsed + 1))
         IFS="$TAB" read -r p_file p_line p_shape p_excerpt <<<"$row"
-        add_candidate "$(rebase_path "$root_rel" "$p_file")" "$p_line" "$p_shape" "$p_excerpt"
+        g_path="$(repo_relative "$(rebase_path "$root_rel" "$p_file")")"
+        # A diagnostic about a file this module does not own belongs to the
+        # nested module that owns it, and only when that module's run is healthy.
+        if ! owns_path "$root_rel" root_nested "$g_path"; then
+          foreign=$((foreign + 1))
+          continue
+        fi
+        parsed=$((parsed + 1))
+        add_candidate "$g_path" "$p_line" "$p_shape" "$p_excerpt"
         ;;
       1) drift=$((drift + 1)) ;;
       *) ;;
@@ -498,8 +591,13 @@ lane_gopls() {
       add_candidate "$root_rel" 0 detector-drift \
         "$drift gopls stdout line(s) were not diagnostics in the file:line:col form"
     fi
-    lane_line gopls "$root_rel" ran "$nfiles" \
-      "$parsed unexported candidate(s), $drift unrecognized line(s); exported symbols are outside this lane"
+    if [[ "$foreign" -gt 0 ]]; then
+      lane_line gopls "$root_rel" ran "$nfiles" \
+        "$parsed unexported candidate(s), $drift unrecognized line(s); exported symbols are outside this lane; $foreign diagnostic(s) this module does not own dropped (a NESTED module's file, or a path excluded from candidate scope)"
+    else
+      lane_line gopls "$root_rel" ran "$nfiles" \
+        "$parsed unexported candidate(s), $drift unrecognized line(s); exported symbols are outside this lane"
+    fi
   done
 }
 
